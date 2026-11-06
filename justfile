@@ -45,8 +45,8 @@ all: check dashboard-test
 run *args: scenarios
     spago run -p sp-cli -- {{args}}
 
-# shadcn/ui components generated into apps/dashboard/ui (never committed; see ui.sha256)
-ui_components := "card tabs select checkbox badge button input chart sheet sidebar separator skeleton tooltip"
+# shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css): generated, never committed; see ui.sha256
+ui_components := "theme-neutral card tabs select checkbox badge button input chart sheet sidebar separator skeleton tooltip"
 
 # Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched
 _ui-generate:
@@ -54,10 +54,12 @@ _ui-generate:
     set -euo pipefail
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"' EXIT
-    cp apps/dashboard/components.json apps/dashboard/app.css apps/dashboard/tsconfig.json package.json "$tmp/"
+    cp apps/dashboard/components.json apps/dashboard/tsconfig.json package.json "$tmp/"
+    printf '@import "tailwindcss";\n' > "$tmp/theme.css"
     (cd "$tmp" && shadcn add -y -o {{ui_components}} > shadcn.log 2>&1) || { cat "$tmp/shadcn.log"; exit 1; }
     rm -rf apps/dashboard/ui
     cp -R "$tmp/ui" apps/dashboard/ui
+    sed '/^@import "tailwindcss";$/d' "$tmp/theme.css" > apps/dashboard/theme.css
 
 # Ensure apps/dashboard/ui matches the committed checksums; generate it when absent or stale
 ui:
@@ -70,7 +72,7 @@ ui:
 # Regenerate ui/ from the pinned CLI and record its checksums as the new baseline
 ui-accept:
     just _ui-generate
-    cd apps/dashboard && find ui -type f | LC_ALL=C sort | xargs shasum -a 256 > ui.sha256
+    cd apps/dashboard && (find ui -type f; echo theme.css) | LC_ALL=C sort | xargs shasum -a 256 > ui.sha256
 
 # Build the dashboard bundle (PureScript, then Vite)
 dashboard: ui
