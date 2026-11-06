@@ -1,6 +1,6 @@
 -- | The Fractured World's Entities: Actors with their objectives, and Aggregates with their
 -- | procedures. `just scenarios` compiles them to `packages/scenarios/fractured-world/v0/entities.json`.
-module Scenarios.FracturedWorld.Entities where
+module Scenarios.FracturedWorld.Entities (entities, euAggregate, globalSmesAggregate) where
 
 import Prelude (negate)
 
@@ -384,7 +384,7 @@ cn = entity
 
 eu :: Built "entity"
 eu = entity
-  { accounts: keyed [ "M" := 320, "E" := 125, "Mil" := 50, "S" := 75 ], capabilities: [ trade "energy-atlantic", transfer "M", transfer "E", enactTariff, transform "energy-shipping" ], capacities: keyed [], aggregate: aggregate { policy: "eu-coordination-v0", members: [ "DE" ], procedures: keyed [ Tuple "eu-solidarity" (collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ trade "energy-atlantic" ] }), Tuple "eu-trade" (collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ enactTariff ] }) ] } }
+  { accounts: keyed [ "M" := 320, "E" := 125, "Mil" := 50, "S" := 75 ], capabilities: [ trade "energy-atlantic", transfer "M", transfer "E", enactTariff, transform "energy-shipping" ], capacities: keyed [], aggregate: euAggregate }
 
 cnPrivate :: Built "entity"
 cnPrivate = entity
@@ -396,7 +396,7 @@ usWorkers = entity
 
 globalSmes :: Built "entity"
 globalSmes = entity
-  { accounts: keyed [ "M" := 300, "E" := 80, "S" := 25 ], capabilities: [ trade "energy-atlantic", transfer "M", transfer "E", transform "energy-shipping" ], capacities: keyed [], aggregate: aggregate { policy: "global-smes-v0", members: [ "SME" ] } }
+  { accounts: keyed [ "M" := 300, "E" := 80, "S" := 25 ], capabilities: [ trade "energy-atlantic", transfer "M", transfer "E", transform "energy-shipping" ], capacities: keyed [], aggregate: globalSmesAggregate }
 
 energySuppliers :: Built "entity"
 energySuppliers = entity
@@ -405,3 +405,11 @@ energySuppliers = entity
 worldHouseholds :: Built "entity"
 worldHouseholds = entity
   { accounts: keyed [ "M" := 360, "E" := 90, "S" := 35 ], capabilities: [ trade "energy-asia", transfer "M", transfer "E", transform "energy-shipping" ], capacities: keyed [ "attention" := 50 ], aggregate: aggregate { policy: "world-households-v0", members: [ "AID" ] } }
+
+-- | The EU and its two collective procedures; fixtures reuse it.
+euAggregate :: Built "aggregate"
+euAggregate = aggregate { policy: "eu-coordination-v0", members: [ "DE" ], procedures: keyed [ Tuple "eu-solidarity" (collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ trade "energy-atlantic" ] }), Tuple "eu-trade" (collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ enactTariff ] }) ] }
+
+-- | Global small businesses, represented by the SME owner; fixtures reuse it.
+globalSmesAggregate :: Built "aggregate"
+globalSmesAggregate = aggregate { policy: "global-smes-v0", members: [ "SME" ] }

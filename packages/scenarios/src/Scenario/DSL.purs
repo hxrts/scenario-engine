@@ -100,6 +100,21 @@ module Scenario.DSL
   , Rule
   , rule
   , program
+  -- fixtures
+  , Intent
+  , tradeI
+  , transferI
+  , transformI
+  , enactTariffI
+  , enactAccessBanI
+  , proposal
+  , expect
+  , delivery
+  , procedureOutcome
+  , roundOf
+  , representation
+  , accessBanRule
+  , tariffRule
   ) where
 
 import Prelude
@@ -137,6 +152,8 @@ newtype Keyed a = Keyed (Array (Tuple String a))
 
 instance EncodeJson a => EncodeJson (Keyed a) where
   encodeJson (Keyed kvs) = fromObject (Object.fromFoldable (map (\(Tuple k v) -> Tuple k (encodeJson v)) kvs))
+
+derive newtype instance Semigroup (Keyed a)
 
 keyed :: forall a. Array (Tuple String a) -> Keyed a
 keyed = Keyed
@@ -543,3 +560,89 @@ program
   => Record r
   -> Built "program"
 program = build
+
+-- Fixtures (docs/05_test_instance.md §21–§27) ---------------------------------------
+
+-- | A canonical Intent, as a fixture's Proposals carry it.
+newtype Intent = Intent Json
+
+instance EncodeJson Intent where
+  encodeJson (Intent j) = j
+
+tradeI
+  :: forall r rest
+   . Union r rest (market :: String, quantity :: Qty, limit :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
+tradeI = Intent <<< tag "trade" <<< encodeJson
+
+transferI :: { from :: String, to :: String, resource :: String, quantity :: Qty } -> Intent
+transferI = Intent <<< tag "transfer" <<< encodeJson
+
+transformI :: { by :: String, transformation :: String, quantity :: Qty } -> Intent
+transformI = Intent <<< tag "transform" <<< encodeJson
+
+enactTariffI :: { jurisdiction :: String, origin :: String, rate :: Qty } -> Intent
+enactTariffI = Intent <<< tag "enact" <<< tag "tariff" <<< encodeJson
+
+enactAccessBanI :: { jurisdiction :: String, target :: String } -> Intent
+enactAccessBanI = Intent <<< tag "enact" <<< tag "accessBan" <<< encodeJson
+
+-- | A Proposal and the signatures it gathered. Ids follow from the author and order.
+proposal
+  :: forall r rest
+   . Union r rest (author :: String, intents :: Array Intent, signers :: Array String, signatures :: Array String, procedure :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "proposal"
+proposal = build
+
+-- | Exact expected results after a round; only the fields given are checked.
+expect
+  :: forall r rest
+   . Union r rest
+       ( accounts :: Keyed (Keyed Qty)
+       , reserves :: Keyed (Keyed Qty)
+       , deliveries :: Array (Built "delivery")
+       , rejected :: Array String
+       , lapsed :: Array String
+       , factors :: Keyed (Keyed Qty)
+       , scheduled :: Int
+       , procedures :: Array (Built "procedure outcome")
+       )
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "expect"
+expect = build
+
+delivery :: { entity :: String, resource :: String, quantity :: Qty } -> Built "delivery"
+delivery = Built <<< encodeJson
+
+procedureOutcome :: { author :: String, support :: Qty, executed :: Boolean } -> Built "procedure outcome"
+procedureOutcome = Built <<< encodeJson
+
+-- | One round of a multi-round fixture.
+roundOf
+  :: forall r rest
+   . Union r rest (proposals :: Array (Built "proposal"), expect :: Built "expect")
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "round"
+roundOf = build
+
+-- | A Representation bound in a fixture's world (flattened, as the engine stores it).
+representation
+  :: forall r rest
+   . Union r rest (id :: String, actor :: String, aggregate :: String, domain :: String, weight :: Qty, reference :: Qty, shrinkage :: Qty, bound :: Qty, noiseSpread :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "representation"
+representation = build
+
+-- | Rules in force from the start of a world.
+accessBanRule :: { jurisdiction :: String, target :: String } -> Built "rule"
+accessBanRule r = Built (encodeJson { accessBan: r })
+
+tariffRule :: { jurisdiction :: String, origin :: String, rate :: Qty } -> Built "rule"
+tariffRule r = Built (encodeJson { tariff: r })

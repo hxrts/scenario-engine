@@ -14,3 +14,4 @@ runs.db
 # compiled from the scenario DSL (`just scenarios`)
 packages/scenarios/fractured-world/
 packages/scenarios/presets.json
+packages/scenarios/fixtures/

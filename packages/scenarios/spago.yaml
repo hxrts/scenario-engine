@@ -15,6 +15,7 @@ package:
     - node-fs
     - strings
     - tuples
+    - record
     - typelevel-prelude
     - maybe
     - node-process

@@ -11,7 +11,7 @@
 - **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Everything impure is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
 - **One-way dependencies.** Packages depend only downward ([§3](#3-codebase-layout)). Packages that sit side by side never import each other.
 - **Narrow seams.** Packages meet at a few small interfaces ([§4](#4-key-interfaces)). Code behind an interface can be rewritten without touching its callers.
-- **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types. Scenarios and presets are authored in a small typed PureScript DSL that compiles to that data; the engine only ever reads the compiled JSON.
+- **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types. They are authored in a small typed PureScript DSL that compiles to that data; the engine only ever reads the compiled JSON. Fixtures share world pieces with the scenario, but their expected values are always literals.
 - **Small.** One concept lives in one module. There are no frameworks inside the core.
 
 ## 2. Runtime Shape
@@ -53,7 +53,7 @@ packages/
   effects/     effect signatures and runRound (Run; → core, policy)
   scenarios/   data plus its loader: fractured-world/v0/*.json, presets.json, fixtures (→ board, policy)
     Scenario.DSL   typed wrappers over the JSON the decoders read; records checked against allowed fields
-    Scenarios.*    The Fractured World and the presets in the DSL; Compile validates them and writes the JSON (gitignored)
+    Scenarios.*    The Fractured World, the presets, and the golden fixtures in the DSL; Compile validates them and writes the JSON (gitignored)
   handlers/    concrete interpreters, one module per handler (→ effects)
     Live         SeatInput via Interpret, Clock deadlines
     Sim          SeatInput via bound seat Policies, player-seed stream

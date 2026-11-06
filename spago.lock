@@ -338,6 +338,7 @@
             "node-fs",
             "node-process",
             "prelude",
+            "record",
             "sp-board",
             "sp-core",
             "sp-policy",

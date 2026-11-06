@@ -1,12 +1,13 @@
 -- | *The Fractured World* (docs/05_test_instance.md), authored in the scenario DSL.
 -- | `just scenarios` compiles it to `packages/scenarios/fractured-world/v0/*.json`.
-module Scenarios.FracturedWorld (files) where
+module Scenarios.FracturedWorld (files, resources, coreResources, atlanticTerms, asiaTerms, transport, productionCapacity, flows, requirements, defenseProcurement, defenseProcurementCn, energyShipping, majorMilitaryAction) where
 
-import Prelude (negate)
+import Prelude (negate, (<>))
 
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Tuple (Tuple(..))
+import Record (union)
 import Scenario.DSL (Built, Keyed, Qty, cost, effect, estimator, facility, flow, free, keyed, market, nonTransferable, payee, production, q, representative, requirement, resource, restricted, sales, scheme, share, (:=))
 import Scenarios.FracturedWorld.Entities (entities)
 import Scenarios.FracturedWorld.Policies (policies)
@@ -27,20 +28,28 @@ files =
   ]
 
 resources :: Keyed (Built "resource")
-resources = keyed
+resources = coreResources <> keyed [ Tuple "S" (resource { transferability: nonTransferable, decay: q "0.1" }) ]
+
+-- | Money, Energy, and Military: the Resources every fixture uses.
+coreResources :: Keyed (Built "resource")
+coreResources = keyed
   [ Tuple "M" (resource { transferability: free })
   , Tuple "E" (resource { transferability: free })
   , Tuple "Mil" (resource { transferability: restricted, reservable: true })
-  , Tuple "S" (resource { transferability: nonTransferable, decay: q "0.1" })
   ]
 
 markets :: Keyed (Built "market")
 markets = keyed
-  [ Tuple "energy-atlantic"
-      (market { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 300 }, reserves: keyed [ "M" := 700, "E" := 350 ], access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] })
-  , Tuple "energy-asia"
-      (market { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 200 }, reserves: keyed [ "M" := 500, "E" := 250 ], access: [ "CN", "IN", "JP", "SA", "CHIP", "CN_PRIVATE", "WORLD_HOUSEHOLDS", "SHIP", "ENERGY_SUPPLIERS" ] })
+  [ Tuple "energy-atlantic" (market (union atlanticTerms { access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] }))
+  , Tuple "energy-asia" (market (union asiaTerms { access: [ "CN", "IN", "JP", "SA", "CHIP", "CN_PRIVATE", "WORLD_HOUSEHOLDS", "SHIP", "ENERGY_SUPPLIERS" ] }))
   ]
+
+-- | Each regional Energy Market's curve and reserves; access is set per use.
+atlanticTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
+atlanticTerms = { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 300 }, reserves: keyed [ "M" := 700, "E" := 350 ] }
+
+asiaTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
+asiaTerms = { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 200 }, reserves: keyed [ "M" := 500, "E" := 250 ] }
 
 -- | The facility that carries each Resource between regions.
 transport :: Keyed String
@@ -60,20 +69,16 @@ jurisdiction = keyed
 
 transformations :: Keyed (Built "facility")
 transformations = keyed
-  [ Tuple "defense-procurement"
-      (facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "DEF" })
-  , Tuple "defense-procurement-cn"
-      (facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "CN_PRIVATE" })
+  [ Tuple "defense-procurement" defenseProcurement
+  , Tuple "defense-procurement-cn" defenseProcurementCn
   , Tuple "public-attention"
       (facility { outputs: keyed [ "S" := 1 ], cost: cost { base: q 3, slope: q "0.2", lo: q 0, hi: q 50 }, capacity: "attention", payee: "WORLD_HOUSEHOLDS", maximum: q 10 })
-  , Tuple "energy-shipping"
-      (facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: "transport", payee: "SHIP", ownerSigns: true })
+  , Tuple "energy-shipping" energyShipping
   , Tuple "humanitarian-aid"
       (facility { inputs: keyed [ "E" := 5 ], outputs: keyed [ "S" := 4 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "WORLD_HOUSEHOLDS", maximum: q 2 })
   , Tuple "military-deployment"
       (facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := 1 ] })
-  , Tuple "major-military-action"
-      (facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := "0.75" ], minimum: q 12 })
+  , Tuple "major-military-action" majorMilitaryAction
   , Tuple "logistics-investment"
       (facility { inputs: keyed [ "E" := 3 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "GLOBAL_SMES", delay: 1, effects: [ effect { capacity: "transport", perUnit: q 10 } ] })
   , Tuple "energy-capacity-investment"
@@ -81,6 +86,19 @@ transformations = keyed
   , Tuple "strike"
       (facility { inputs: keyed [ "S" := 8 ], cost: cost { base: q 5, slope: q 0, lo: q 0, hi: q 1 }, payee: "US_WORKERS", delay: 1, maximum: q 1, effects: [ effect { capacity: "energy-production", holder: "ENCO", perUnit: q "-6.25", rounds: 1 }, effect { capacity: "semiconductors", holder: "CHIP", perUnit: q "-3.75", rounds: 1 } ] })
   ]
+
+-- | Facilities the fixtures share with the scenario.
+defenseProcurement :: Built "facility"
+defenseProcurement = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "DEF" }
+
+defenseProcurementCn :: Built "facility"
+defenseProcurementCn = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "CN_PRIVATE" }
+
+energyShipping :: Built "facility"
+energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: "transport", payee: "SHIP", ownerSigns: true }
+
+majorMilitaryAction :: Built "facility"
+majorMilitaryAction = facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := "0.75" ], minimum: q 12 }
 
 productionCapacity :: Array (Built "production")
 productionCapacity =
