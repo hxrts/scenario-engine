@@ -131,7 +131,7 @@ One global facility produces Military:
 | **Military Procurement** | Money + 2 E per Mil | Military delivered next round | DEF, or CN_PRIVATE for CN ([§3.3](#33-defense-procurement-facility)) |
 | **Public Campaign** | Money | Soft Power | WORLD_HOUSEHOLDS |
 | **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider; the 5 E is consumed in relief; at most twice per Actor per round | WORLD_HOUSEHOLDS |
-| **Military Deployment** (`military-deployment`, uncapped) | 1 Mil per unit, returned at commit | Reservation for the round; no loss | — |
+| **Military Deployment** (`military-deployment`, uncapped) | Reserves 1 Mil per unit; no input | Reservation for the round, released at commit; nothing consumed or produced ([§13.3](#133-military-deployment)) | — |
 | **Major Military Action** (`major-military-action`, uncapped, minimum 12) | 1 Mil per unit, 0.75 returned at commit | Reservation for the round; 25% attrition ([§13.3](#133-military-deployment)) | — |
 | **Energy Shipping** | 0.3 M per E, paid by the sender; SHIP must sign | Makes a bundled cross-region Energy Transfer of the same quantity valid ([§3.2](#32-transport-capacity-and-trade-restrictions)) | SHIP |
 | **Logistics Investment** | 10 M + 3 E (SHIP only) | +10 E/round `energy-shipping` capacity from next round | GLOBAL_SMES |
@@ -494,7 +494,9 @@ Tariffs, shipment bans, withholding, and strikes take effect at the next round b
 
 ### 13.3 Military deployment
 
-A deployment reserves the Mil for the round and cannot be redeployed or transferred. A deployment of at least 12 Mil is a **major military action** for NPC rules and reporting. **Declared attrition (provisional):** a major action loses 25% of the deployed units; smaller deployments lose none. Survivors return at the end of the round.
+A deployment reserves the Mil for the round and cannot be redeployed or transferred. The shipped `military-deployment` reserves 1 Mil per unit and has no input or output: the reserved Mil is unavailable to the same Entity's other actions in the round and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). A deployment of at least 12 Mil is a **major military action** for NPC rules and reporting. **Declared attrition (provisional):** a major action loses 25% of the deployed units; smaller deployments lose none. Survivors return at the end of the round.
+
+**Shipped reservation (Fixture R).** The `Deployer` preset ([06 §4.2](06_simulator.md#42-presets)) runs for the US seat. While the Atlantic price is above 3, it orders a 60-unit deployment and a 40-unit major military action in the same round. Their claims on the US's 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the action orders 38. The action consumes 38 Mil and returns 28.5 at commit, so US Military is 95 − 38 + 28.5 = **85.5**. Without the deployment the action runs in full: 95 − 40 + 30 = **85** (Fixture R-alone). The deployment itself is unchanged in its holdings. In a five-round game with the other seats Passive, the Atlantic price is 2.97 at the start of round 3 and 3.29 at the start of round 4, so the preset fires in rounds 4 and 5. Round 5 starts at 85.5 Mil against 100 claimed, so both scale by 0.855: the deployment reserves 51.3, the action orders 34.2, and US Military ends at 85.5 − 34.2 + 25.65 = **76.95**. Without the deployment the action would run in full, ending at 75. Military is the only Resource the reservation touches; China's Policy reads only the action's ordered size (≥ 12), which 38 and 34.2 still meet, so its procurement is unchanged.
 
 ### 13.4 Soft Power
 
@@ -853,7 +855,7 @@ The first complete test succeeds when the engine can:
 2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*; harness: *12 Resolution consistency*.
 3. Trade on both nodes with limit prices and partial fills, and ship across regions through the shipping facility under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden); harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
 4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden); handlers: *Fixture D end to end*; harness: *7 NPC response*.
-5. Treat deployment as a reservation with declared attrition. *Proved by:* Fixtures D and D-minor (golden).
+5. Treat deployment as a reservation with declared attrition. *Proved by:* Fixtures R, R-alone, D and D-minor (golden).
 6. Produce, spend, and decay Soft Power. *Proved by:* harness: *Soft Power is produced, spent, and decays*.
 7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden); harness: *1 Full game*, *8 Scarcity*; INV-05 asserted every round.
 8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* policy: *china-strategic-v0 procures after a major US action*; harness: *7 NPC response*.
