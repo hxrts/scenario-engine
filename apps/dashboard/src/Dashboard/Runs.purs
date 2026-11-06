@@ -7,7 +7,7 @@ import Prelude
 
 import Data.Array (elem, filter, findIndex, find, index)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Harness.Views (Table)
+import Harness.Views.Common (Table)
 
 type RunInfo = { id :: String, archived :: Boolean, source :: String }
 

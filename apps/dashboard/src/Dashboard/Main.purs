@@ -25,7 +25,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
-import Harness.Views (Chart, Table)
+import Harness.Views.Common (Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
 import React.Basic.DOM.Events (targetValue)

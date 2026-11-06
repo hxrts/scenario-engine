@@ -27,7 +27,7 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Harness.Options (flagOr, parseFlags)
 import Harness.Simulate (presetSeats, seatsOf, simulate)
-import Harness.Views (marketPrices, roundPressure)
+import Harness.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Scenarios (readScenario)
 import Scenarios.Load (loadContext)

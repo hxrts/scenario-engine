@@ -29,7 +29,12 @@ import Handlers.Replay (runReplay)
 import Harness.Analysis (Outcome(..), difference, evaluateObjectives)
 import Harness.Capstone (Capstone, ObjectiveExpect, RoundExpect, decodeCapstone)
 import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, resume, simulate)
-import Harness.Views as Views
+import Harness.Views.Balances as Balances
+import Harness.Views.Common as Common
+import Harness.Views.Compare as Compare
+import Harness.Views.Markets as Markets
+import Harness.Views.Overview as Overview
+import Harness.Views.Representation as Representation
 import Adapters.Scenarios (readText)
 import Scenarios.Load (loadRun)
 import Test.Spec (Spec, describe, it)
@@ -82,7 +87,7 @@ checkObjectives ctx r expected = do
   actual `shouldEqual` wanted
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
-toStored :: String -> Run -> Views.StoredRun
+toStored :: String -> Run -> Common.StoredRun
 toStored id r =
   { id
   , name: id
@@ -153,18 +158,18 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
       fromEither name = case _ of
         Left e -> fail (name <> ": " <> e)
         Right t -> table name t
-    table "overview" (Views.overview Views.defaultMetricSpec sr)
-    fromEither "balances" (Views.balances sr 1)
-    fromEither "events" (Views.events sr 4)
-    table "facilities" (Views.facilities sr)
-    table "pressure" (Views.economy sr).pressure
-    table "economy flows" (Views.economy sr).flows
-    table "representation" (Views.representation sr)
-    table "procedures" (Views.procedures sr)
-    table "objectives" (Views.objectives ctx.gameboard sr)
-    table "final state" (Views.finalState [ sr ])
-    (length (Views.markets sr) > 0) `shouldEqual` true
-    (length (Views.economy sr).totals.series > 0) `shouldEqual` true
+    table "overview" (Overview.overview Common.defaultMetricSpec sr)
+    fromEither "balances" (Balances.balances sr 1)
+    fromEither "events" (Balances.events sr 4)
+    table "facilities" (Markets.facilities sr)
+    table "pressure" (Markets.economy sr).pressure
+    table "economy flows" (Markets.economy sr).flows
+    table "representation" (Representation.representation sr)
+    table "procedures" (Representation.procedures sr)
+    table "objectives" (Overview.objectives ctx.gameboard sr)
+    table "final state" (Compare.finalState [ sr ])
+    (length (Markets.markets sr) > 0) `shouldEqual` true
+    (length (Markets.economy sr).totals.series > 0) `shouldEqual` true
 
   it "a run resumed from round 4's snapshot matches the uninterrupted run" do
     ctx <- context
