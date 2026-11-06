@@ -16,12 +16,17 @@ const migrations = [
      run text not null, metric text not null, version text not null, round integer not null,
      value text not null, primary key (run, metric, version, round));`,
   `alter table runs add column reason text;`,
+  // archived: 1 hides a run from the default list; source: the run this one was derived from
+  // (docs/06_simulator.md §10.4); kind: duplicate, rerun, variant or counterfactual.
+  `alter table runs add column archived integer not null default 0;
+   alter table runs add column source text;
+   alter table runs add column kind text;`,
 ];
 
 export const latestVersion = migrations.length;
 
 // How long a writer waits for a lock held by another connection before SQLite reports busy.
-const busyTimeoutMs = 5000;
+export const busyTimeoutMs = 5000;
 
 const migrate = (db) => {
   const current = db.prepare("pragma user_version").get().user_version;
@@ -63,9 +68,37 @@ export const openReadOnlyImpl = (path) => () => {
 
 export const schemaVersionImpl = (db) => () => db.prepare("pragma user_version").get().user_version;
 
-export const createRunImpl = (db, id, name, spec, manifest, created) => () => {
-  db.prepare("insert into runs (id, name, status, spec, manifest, created) values (?, ?, 'running', ?, ?, ?)")
-    .run(id, name, spec, manifest, created);
+export const busyTimeoutImpl = (db) => () => Object.values(db.prepare("pragma busy_timeout").get())[0];
+
+export const createRunImpl = (db, id, name, spec, manifest, created, source, kind) => () => {
+  db.prepare("insert into runs (id, name, status, spec, manifest, created, source, kind) values (?, ?, 'running', ?, ?, ?, ?, ?)")
+    .run(id, name, spec, manifest, created, source ?? null, kind ?? null);
+};
+
+// A run's archive flag. Archived runs stay in the store; the default list hides them.
+export const setArchivedImpl = (db, id, archived) => () => {
+  db.prepare("update runs set archived = ? where id = ?").run(archived ? 1 : 0, id);
+};
+
+// Replace a run's stored specification (a resumed run records its new round count).
+export const setSpecImpl = (db, id, spec) => () => {
+  db.prepare("update runs set spec = ? where id = ?").run(spec, id);
+};
+
+// Remove a run with its round records and metrics, in one transaction. Runs that cite it as
+// their source keep their own source field. Returns how many runs were removed (0 or 1).
+export const deleteRunImpl = (db, id) => () => {
+  db.exec("begin");
+  try {
+    db.prepare("delete from metrics where run = ?").run(id);
+    db.prepare("delete from rounds where run = ?").run(id);
+    const n = Number(db.prepare("delete from runs where id = ?").run(id).changes);
+    db.exec("commit");
+    return n;
+  } catch (e) {
+    db.exec("rollback");
+    throw e;
+  }
 };
 
 export const appendRoundImpl = (db, id, round, record, snapshot, assertions, metrics) => () => {
@@ -102,13 +135,13 @@ export const listRunsImpl = (db) => () =>
 // Summary rows for the run list: each run's manifest and specification, and only the
 // assertion texts of its rounds. Records and snapshots are not read.
 export const summariesImpl = (db) => () => {
-  const runs = db.prepare("select id, name, status, created, reason, spec, manifest from runs order by rowid").all();
+  const runs = db.prepare("select id, name, status, created, reason, spec, manifest, archived, source from runs order by rowid").all();
   const byRun = new Map();
   for (const r of db.prepare("select run, assertions from rounds order by run, round").all()) {
     if (!byRun.has(r.run)) byRun.set(r.run, []);
     byRun.get(r.run).push(r.assertions);
   }
-  return runs.map((r) => ({ ...r, reason: r.reason ?? null, assertions: byRun.get(r.id) ?? [] }));
+  return runs.map((r) => ({ ...r, reason: r.reason ?? null, archived: r.archived === 1, source: r.source ?? null, assertions: byRun.get(r.id) ?? [] }));
 };
 
 export const manifestImpl = (db, id) => () => {

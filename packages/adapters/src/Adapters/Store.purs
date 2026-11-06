@@ -11,7 +11,12 @@ module Adapters.Store
   , open
   , openReadOnly
   , schemaVersion
+  , busyTimeout
+  , configuredBusyTimeout
   , createRun
+  , setArchived
+  , setSpec
+  , deleteRun
   , nowIso
   , persister
   , setStatus
@@ -31,10 +36,10 @@ import Core.World (Manifest, RoundResult, WorldState)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either, either)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn6, Fn7, runFn1, runFn2, runFn3, runFn4, runFn6, runFn7)
+import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn7, Fn8, runFn1, runFn2, runFn3, runFn4, runFn7, runFn8)
 import Data.Map as Map
 import Data.Maybe (Maybe)
-import Data.Nullable (Nullable, toMaybe)
+import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Ref as Ref
@@ -44,8 +49,19 @@ foreign import data Db :: Type
 type RunInfo = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
 
 -- | A run's list row: its stored manifest and specification, and the assertion texts of its
--- | rounds. No records or snapshots.
-type RunSummary = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String, spec :: String, manifest :: String, assertions :: Array String }
+-- | rounds. No records or snapshots. `source` is the run it was derived from, if any.
+type RunSummary =
+  { id :: String
+  , name :: String
+  , status :: String
+  , created :: String
+  , reason :: Nullable String
+  , spec :: String
+  , manifest :: String
+  , archived :: Boolean
+  , source :: Nullable String
+  , assertions :: Array String
+  }
 
 type StoredRound = { round :: Int, record :: String, snapshot :: String, assertions :: String }
 
@@ -54,7 +70,12 @@ type Metric = { metric :: String, version :: String, value :: String }
 foreign import openImpl :: String -> Effect Db
 foreign import openReadOnlyImpl :: String -> Effect Db
 foreign import schemaVersionImpl :: Db -> Effect Int
-foreign import createRunImpl :: Fn6 Db String String String String String (Effect Unit)
+foreign import createRunImpl :: Fn8 Db String String String String String (Nullable String) (Nullable String) (Effect Unit)
+foreign import setArchivedImpl :: Fn3 Db String Boolean (Effect Unit)
+foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
+foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
+foreign import busyTimeoutImpl :: Db -> Effect Int
+foreign import busyTimeoutMs :: Int
 foreign import appendRoundImpl :: Fn7 Db String Int String String String (Array Metric) (Effect Unit)
 foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
@@ -79,6 +100,14 @@ openReadOnly = openReadOnlyImpl
 schemaVersion :: Db -> Effect Int
 schemaVersion = schemaVersionImpl
 
+-- | The busy timeout the store is configured with, in milliseconds.
+configuredBusyTimeout :: Int
+configuredBusyTimeout = busyTimeoutMs
+
+-- | The busy timeout a connection reports (PRAGMA busy_timeout): read back to check it is set.
+busyTimeout :: Db -> Effect Int
+busyTimeout = busyTimeoutImpl
+
 -- | The version of the metric definitions; recomputing a projection never edits records.
 metricsVersion :: String
 metricsVersion = "v1"
@@ -89,9 +118,22 @@ foreign import nowIsoImpl :: Effect String
 nowIso :: Effect String
 nowIso = nowIsoImpl
 
--- | Register a run and its manifest before Round 1.
-createRun :: Db -> { id :: String, name :: String, created :: String, spec :: Json, manifest :: Manifest } -> Effect Unit
-createRun db r = runFn6 createRunImpl db r.id r.name (stringify r.spec) (stringify (encodeJson r.manifest)) r.created
+-- | Register a run and its manifest before Round 1. `source` and `kind` are set for a run derived
+-- | from another (docs/06_simulator.md §10.4); both are Nothing for a run launched directly.
+createRun :: Db -> { id :: String, name :: String, created :: String, spec :: Json, manifest :: Manifest, source :: Maybe String, kind :: Maybe String } -> Effect Unit
+createRun db r = runFn8 createRunImpl db r.id r.name (stringify r.spec) (stringify (encodeJson r.manifest)) r.created (toNullable r.source) (toNullable r.kind)
+
+-- | Set or clear a run's archive flag. Idempotent.
+setArchived :: Db -> String -> Boolean -> Effect Unit
+setArchived db id archived = runFn3 setArchivedImpl db id archived
+
+-- | Replace a run's stored specification text.
+setSpec :: Db -> String -> String -> Effect Unit
+setSpec db id spec = runFn3 setSpecImpl db id spec
+
+-- | Remove a run with its rounds and metrics; returns how many runs were removed.
+deleteRun :: Db -> String -> Effect Int
+deleteRun db id = runFn2 deleteRunImpl db id
 
 -- | A RECORD target for the Sim handler: saves each round as it completes.
 persister :: Db -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
