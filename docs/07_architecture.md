@@ -1,0 +1,142 @@
+# Scenario Planning Game — Technical Architecture
+
+**Version:** 0.2  
+**Scope:** Codebase structure, module boundaries, and key interfaces  
+**Implementation language:** PureScript
+
+---
+
+## 1. Principles
+
+- **Pure core, effects at the edge.** The engine is a pure function (INV-36). Everything impure is an algebraic effect (Type System §8.4) interpreted by a handler chosen at the entry point.
+- **One-way dependencies.** Packages depend only downward (§3). Packages that sit side by side never import each other.
+- **Narrow seams.** Packages meet at a few small interfaces (§4). Code behind an interface can be rewritten without touching its callers.
+- **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types.
+- **Small.** One concept lives in one module. There are no frameworks inside the core.
+
+## 2. Runtime Shape
+
+```text
+             entry point (session | sim | replay | test)
+                         │ chooses handlers
+                         ▼
+   ┌─────────────── round runner (effectful) ───────────────┐
+   │  prepare/observe ──► Propose ──► Sign ──► resolveRound │
+   │      (pure)        SeatInput  SeatInput     (pure)     │
+   │                    Random      Random                  │
+   └───────────────────────────────┬────────────────────────┘
+                                   │ Record
+                                   ▼
+                     run store ──► dashboard / reports (Narrate)
+```
+
+Each round is one call to `runRound`. The engine sees only signed Proposals and returns the next World State plus events. All other work happens in handlers.
+
+## 3. Codebase Layout
+
+The project is a spago workspace. Each package compiles on its own, and the dependency direction is enforced by each package's declared dependencies.
+
+```text
+packages/
+  core/        pure types and engine; depends only on prelude-level libs
+    Num          fixed-point quantities (4 dp, half-even)
+    Types        Entity, Resource, Intent, Proposal, Market, Estimator, …
+    Draw         keyed PRNG: Seed → Stream → DrawKey → UnitInterval
+    Market       CostFunction, clearing
+    Transform    facilities, recipes, circulation
+    Represent    estimators, collective procedures
+    Engine       prepare, observe, screen, reconcile, resolve, commit
+    Invariants   INV checks as pure predicates over (World, RoundResult)
+  board/       Gameboard schema, validation, instantiation (pure; → core)
+  policy/      decision-language interpreter and presets (pure; → core)
+  effects/     effect signatures and runRound (Run; → core, policy)
+  scenarios/   data only: fractured-world/v0/*.json, fixtures (→ board)
+  handlers/    concrete interpreters, one module per handler (→ effects)
+    Live         SeatInput via Interpret, Clock deadlines
+    Sim          SeatInput via bound seat Policies, player-seed stream
+    Replay       SeatInput from recorded round records
+    Test         in-memory, fully pure
+  adapters/    impure backends behind effect handlers (→ handlers)
+    Llm          Interpret, Narrate, AI-agent seats
+    Store        Record / RunStore on SQLite
+  harness/     SimulationSpec, experiments, counterfactuals (→ effects, handlers)
+  apps/        entry points only: session, sim CLI, dashboard (→ anything above)
+test/          property tests per package; fixtures A–G as golden tests
+```
+
+Dependency order, read bottom to top: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios` is data loaded through `board`.
+
+## 4. Key Interfaces
+
+These are the seams. Every other piece is an internal detail of a package.
+
+**Engine** (`core/Engine`). This is pure and is the only operation that mutates the economy:
+
+```purescript
+resolveRound :: Engine -> WorldState -> Array SignedProposal
+             -> Either EngineError RoundResult   -- next World, events, records
+```
+
+**Instantiation** (`board`). This is pure:
+
+```purescript
+validateGameboard :: Gameboard -> Either (Array ValidationError) ValidGameboard
+instantiate       :: ValidGameboard -> InstantiationConfig
+                  -> Either (Array InitializationError) InitialWorld
+```
+
+**Policy** (`policy`). Every Policy kind reduces to this shape, and it is pure for programs:
+
+```purescript
+type PolicyStep =
+  { propose :: View -> Array Proposal
+  , sign    :: View -> Array Proposal -> Array ProposalId }
+```
+
+AI agents and humans satisfy the same shape through the `SeatInput` effect rather than a pure function.
+
+**Effects** (`effects`). These are the only impure vocabulary in the system:
+
+```purescript
+type RoundEffects r = (RANDOM + SEAT_INPUT + RECORD + r)
+runRound :: Engine -> WorldState -> Run (RoundEffects r) RoundResult
+```
+
+`INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
+
+**Run store** (`adapters/Store`). It is append-only and reached through the `Record` effect plus a read API:
+
+```purescript
+type RunStoreRead m =
+  { manifest :: RunId -> m Manifest
+  , rounds   :: RunId -> m (Array RoundRecord)
+  , metric   :: RunId -> MetricId -> m (Array Point) }
+```
+
+**Data formats.** Gameboards, instantiation configs, seat-policy presets, manifests, and round records are JSON. Each has a codec in the package that owns its type. Records are the replay boundary: manifest + round records + seeds reproduce a run (INV-13, INV-31).
+
+## 5. Coupling Rules
+
+- `core` imports no effect library, no IO, and no JSON. Codecs live beside the types in a separate `core/Codec` module, so the engine never depends on them.
+- Policies never touch World State directly. They receive a `View` and return Proposals and signatures.
+- Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
+- Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.
+- Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance §1).
+- Every invariant has one pure predicate in `core/Invariants`. Tests, the harness, and live sessions share it.
+
+## 6. Testing
+
+- **Unit and property tests** run per package against pure functions: conservation (INV-04, INV-05), order independence (INV-11), and resolution consistency (INV-14).
+- **Golden tests:** fixtures A–G are run through `resolveRound` and compared to their expected balances.
+- **Replay tests:** recorded rounds re-run under the `Replay` handler must give identical results.
+- **Interpretation tests:** these run against the `Llm` adapter only, separate from economic tests (Simulator §7.4).
+
+## 7. Build Order
+
+1. `core`: Num, Types, Draw, Market, Engine, with fixtures A, F, and G as golden tests.
+2. `board` and `scenarios`: load and instantiate The Fractured World.
+3. `policy`, `effects`, `handlers/Test`: full rounds with preset programs.
+4. `handlers/Sim`, `harness`, `adapters/Store`: saved runs, seeds, and counterfactuals.
+5. `adapters/Llm`, `handlers/Live`, `apps`: live sessions, AI seats, the dashboard.
+
+Each step produces something runnable and tested before the next one starts.

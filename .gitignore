@@ -1,0 +1,9 @@
+output/
+.spago/
+node_modules/
+dist/
+.DS_Store
+.direnv/
+work/
+work/
+.spec-results
