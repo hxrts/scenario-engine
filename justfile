@@ -41,9 +41,13 @@ check: _fmt-check _deps build test
 # check, plus the dashboard smoke test
 all: check _dashboard-test
 
-# Run the CLI
-run *args: _scenarios
-    spago run -p sp-cli -- {{args}}
+# Simulate a game, e.g. `just sim fractured-world --preset Conservative`
+sim *args: _scenarios
+    spago run -p sp-cli -- run {{args}}
+
+# Live facilitator session, e.g. `just session fractured-world --humans US`
+session *args: _scenarios
+    spago run -p sp-cli -- session {{args}}
 
 # shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css): generated, never committed; see ui.sha256
 ui_components := "theme-neutral card tabs checkbox button input chart sheet sidebar separator skeleton tooltip"
