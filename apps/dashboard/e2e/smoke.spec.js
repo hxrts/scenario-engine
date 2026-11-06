@@ -19,9 +19,9 @@ const rowWith = (scope, cells) => cells.reduce((rows, text) => rows.filter({ has
 
 test("run list shows each seeded run's id, name, rounds and status", async ({ page }) => {
   await page.goto("/");
-  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0", ""]);
-  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "fractured-world@v0", "26021", "2", "3", "completed", "0", ""]);
-  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "fractured-world@v0", "26021", "1", "2", "completed", "0", ""]);
+  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0", "", "no", ""]);
+  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "fractured-world@v0", "26021", "2", "3", "completed", "0", "", "no", ""]);
+  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "fractured-world@v0", "26021", "1", "2", "completed", "0", "", "no", ""]);
   await expect(page.getByRole("link", { name: "run-1", exact: true })).toHaveAttribute("href", "#/runs/run-1");
 });
 
@@ -135,7 +135,7 @@ test("a launch refreshes the run list with the new run", async ({ page }) => {
   await sheet.getByLabel("Rounds").fill("2");
   await sheet.getByRole("button", { name: "Run" }).click();
   const row = rowWith(page, ["run-5"]);
-  await expect(row.getByRole("cell")).toHaveText(["run-5", "run", "fractured-world@v0", "26021", "9", "2", "completed", "0", ""]);
+  await expect(row.getByRole("cell")).toHaveText(["run-5", "run", "fractured-world@v0", "26021", "9", "2", "completed", "0", "", "no", ""]);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
