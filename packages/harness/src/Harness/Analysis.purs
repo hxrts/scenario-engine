@@ -23,7 +23,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, EntityKind(..))
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (all, any, concatMap, filter, foldl, fromFoldable, last, nub, zip, zipWith)
+import Data.Array (all, concatMap, filter, foldl, fromFoldable, last, nub, zip, zipWith)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -67,44 +67,8 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
         Final -> if isFlow m.measure then [ Q.sumQ perRound ] else maybe' [] pure (last perRound)
 
   measure :: MetricRef -> RoundResult -> Q
-  measure m r = sign m (Q.sumQ (map (\e -> value m.measure e r) m.entities))
+  measure m r = sign m (Q.sumQ (map (\e -> measureValue m.measure e r) m.entities))
   sign m q = if m.negated then Q.sub Q.zero q else q
-  value msr e r = case msr of
-    HoldingOf res -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup res x.accounts)
-    CapacityAmount c -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup c x.capacities)
-    ShortfallOf res -> Q.sumQ
-      ( concatMap
-          ( case _ of
-              Shortfall s | s.entity == e && s.resource == res -> [ s.quantity ]
-              _ -> []
-          )
-          r.record.events
-      )
-    ShortfallRounds res ->
-      if
-        any
-          ( case _ of
-              Shortfall s -> s.entity == e && s.resource == res
-              _ -> false
-          )
-          r.record.events then Q.fromInt 1
-      else Q.zero
-    PayeeReceipts -> Q.sumQ
-      ( concatMap
-          ( case _ of
-              Transformed t | (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e -> [ t.paid ]
-              _ -> []
-          )
-          r.record.events
-      )
-    VolumeOf tid -> Q.sumQ
-      ( concatMap
-          ( case _ of
-              Transformed t | t.transformation == tid -> [ t.quantity ]
-              _ -> []
-          )
-          r.record.events
-      )
   isFlow = case _ of
     HoldingOf _ -> false
     CapacityAmount _ -> false
@@ -113,6 +77,29 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
     Just x -> f x
     Nothing -> d
   zipWith' f xs ys = zipWith f xs ys
+
+-- | One Entity's value of a measure in one round.
+measureValue :: Measure -> EntityId -> RoundResult -> Q
+measureValue msr e r = case msr of
+  HoldingOf res -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup res x.accounts)
+  CapacityAmount c -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup c x.capacities)
+  ShortfallOf res -> sumEvents r case _ of
+    Shortfall s | s.entity == e && s.resource == res -> [ s.quantity ]
+    _ -> []
+  ShortfallRounds res -> if sumEvents r (shortfall res) > Q.zero then Q.fromInt 1 else Q.zero
+  PayeeReceipts -> sumEvents r case _ of
+    Transformed t | (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e -> [ t.paid ]
+    _ -> []
+  VolumeOf tid -> sumEvents r case _ of
+    Transformed t | t.transformation == tid -> [ t.quantity ]
+    _ -> []
+  where
+  shortfall res = case _ of
+    Shortfall s | s.entity == e && s.resource == res -> [ Q.fromInt 1 ]
+    _ -> []
+
+sumEvents :: RoundResult -> (Event -> Array Q) -> Q
+sumEvents r f = Q.sumQ (concatMap f r.record.events)
 
 -- Differences and counterfactuals ---------------------------------------------------
 

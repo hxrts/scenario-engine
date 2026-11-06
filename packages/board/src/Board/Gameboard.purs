@@ -375,47 +375,43 @@ applyFallback :: WorldState -> Tuple EntityId Fallback -> WorldState
 applyFallback w (Tuple e fb) = case fb of
   InstitutionalPolicy p -> w { entities = Map.update (\x -> Just x { kind = Actor (NPC p) }) e w.entities }
   PermittedOmission -> w
-  ImplicitCoverage agg -> case Map.lookup e w.entities of
-    Nothing -> w
-    Just gone ->
-      let
-        retarget x = if x == e then agg else x
-        c = w.circulation
-        merged = Map.update
-          ( \a -> Just a
-              { accounts = Map.unionWith Q.add a.accounts gone.accounts
-              , capacities = Map.unionWith Q.add a.capacities gone.capacities
-              , kind = foldWeights a.kind
-              }
-          )
-          agg
-          (Map.delete e w.entities)
-        -- a member's procedure weight folds into the Aggregate's residual weight
-        foldWeights = case _ of
-          Aggregate x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (fromMaybe Q.zero (Map.lookup e p.weights)), weights = Map.delete e p.weights }) x.procedures }
-          k -> k
-        flows = filter (\f -> f.from /= f.to) (map (\f -> f { from = retarget f.from, to = retarget f.to }) c.flows)
-        requirements = foldRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
-      in
-        w
-          { entities = merged
-          , markets = map (\m -> m { access = nub (map retarget m.access) }) w.markets
-          , circulation = c
-              { flows = flows
-              , production = nub (map (\p -> p { entity = retarget p.entity }) c.production)
-              , shares = filter (\s -> s.from /= s.to) (map (\s -> s { from = retarget s.from, to = retarget s.to }) c.shares)
-              , requirements = requirements
-              }
-          , jurisdiction = map retarget (Map.delete e w.jurisdiction)
-          }
+  ImplicitCoverage agg -> mergeInto agg e w
+
+-- | Implicit coverage: the Actor's accounts, capacities, procedure weight, market access,
+-- | circulation, and jurisdiction pass to the Aggregate that covers it.
+mergeInto :: EntityId -> EntityId -> WorldState -> WorldState
+mergeInto agg e w = case Map.lookup e w.entities of
+  Nothing -> w
+  Just gone -> w
+    { entities = Map.update (Just <<< absorb gone) agg (Map.delete e w.entities)
+    , markets = map (\m -> m { access = nub (map retarget m.access) }) w.markets
+    , circulation = c
+        { flows = filter (\f -> f.from /= f.to) (map (\f -> f { from = retarget f.from, to = retarget f.to }) c.flows)
+        , production = nub (map (\p -> p { entity = retarget p.entity }) c.production)
+        , shares = filter (\s -> s.from /= s.to) (map (\s -> s { from = retarget s.from, to = retarget s.to }) c.shares)
+        , requirements = foldRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
+        }
+    , jurisdiction = map retarget (Map.delete e w.jurisdiction)
+    }
   where
-  foldRequirements rs = foldl
+  c = w.circulation
+  retarget x = if x == e then agg else x
+  absorb gone a = a
+    { accounts = Map.unionWith Q.add a.accounts gone.accounts
+    , capacities = Map.unionWith Q.add a.capacities gone.capacities
+    , kind = foldWeights a.kind
+    }
+  -- a member's procedure weight folds into the Aggregate's residual weight
+  foldWeights = case _ of
+    Aggregate x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (fromMaybe Q.zero (Map.lookup e p.weights)), weights = Map.delete e p.weights }) x.procedures }
+    k -> k
+  -- requirements that now share an Entity and Resource are summed
+  foldRequirements = foldl
     ( \acc r -> case filter (\x -> x.entity == r.entity && x.resource == r.resource) acc of
         [ prior ] -> map (\x -> if x.entity == r.entity && x.resource == r.resource then x { amount = Q.add <$> prior.amount <*> r.amount } else x) acc
         _ -> acc <> [ r ]
     )
     []
-    rs
 
 -- Resolution consistency (§4.3, INV-14) -----------------------------------------------
 

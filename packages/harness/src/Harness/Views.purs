@@ -34,7 +34,7 @@ import Core.Types (EntityId, EntityKind(..), Id, Intent(..), ResourceId)
 import Data.String (joinWith)
 import Data.Array (concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..))
 import Harness.Analysis (AgencyProfile, evaluateObjectives)
@@ -177,34 +177,41 @@ facilities r =
   }
 
 economy :: StoredRun -> { totals :: Chart, flows :: Table, pressure :: Table }
-economy r =
-  { totals: { title: "Resource totals across all accounts", unit: "", series: series r "totals" (\w -> map (\res -> Tuple (show res) (total w res)) (fromFoldable (Map.keys w.resources))) q }
-  , flows:
-      { title: "Money circulation (from → to category)"
-      , columns: [ "From", "To", "Money" ]
-      , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, q m ])
-          ( Map.toUnfoldable
-              ( foldl
-                  ( \acc ev -> case ev of
-                      Transferred t | t.resource == r.manifest.initial.numeraire -> Map.insertWith Q.add (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
-                      _ -> acc
-                  )
-                  Map.empty
-                  (concatMap _.events r.records)
-              )
-          )
-      }
-  , pressure:
-      { title: "Pressure"
-      , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
-      , rows: map (\rec -> [ show rec.round, sum' shortfall rec, show (length (filter rejected rec.events)), show (length (filter lapsed rec.events)), sum' consumed rec, sum' decayed rec ]) r.records
-      }
+economy r = { totals: resourceTotals r, flows: moneyFlows r, pressure: pressure r }
+
+resourceTotals :: StoredRun -> Chart
+resourceTotals r =
+  { title: "Resource totals across all accounts"
+  , unit: ""
+  , series: series r "totals" (\w -> map (\res -> Tuple (show res) (total w res)) (fromFoldable (Map.keys w.resources))) q
+  }
+  where
+  total w res = Q.add (Q.sumQ (map (\e -> fromMaybe Q.zero (Map.lookup res e.accounts)) (fromFoldable (Map.values w.entities))))
+    (Q.sumQ (map (\m -> fromMaybe Q.zero (Map.lookup res m.reserves)) (fromFoldable (Map.values w.markets))))
+
+-- | Money moved between categories of Entity (Actor or Aggregate) over the run.
+moneyFlows :: StoredRun -> Table
+moneyFlows r =
+  { title: "Money circulation (from → to category)"
+  , columns: [ "From", "To", "Money" ]
+  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, q m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events r.records)))
   }
   where
   w0 = r.manifest.initial
-  total w res = Q.add (Q.sumQ (map (\e -> fromMaybe Q.zero (Map.lookup res e.accounts)) (fromFoldable (Map.values w.entities))))
-    (Q.sumQ (map (\m -> fromMaybe Q.zero (Map.lookup res m.reserves)) (fromFoldable (Map.values w.markets))))
+  add acc = case _ of
+    Transferred t | t.resource == w0.numeraire -> Map.insertWith Q.add (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
+    _ -> acc
+
+-- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
+pressure :: StoredRun -> Table
+pressure r =
+  { title: "Pressure"
+  , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
+  , rows: map (\rec -> [ show rec.round, sum' shortfall rec, count rejected rec, count lapsed rec, sum' consumed rec, sum' decayed rec ]) r.records
+  }
+  where
   sum' f rec = q (Q.sumQ (concatMap f rec.events))
+  count f rec = show (length (filter f rec.events))
   shortfall = case _ of
     Shortfall s -> [ s.quantity ]
     _ -> []
@@ -232,44 +239,38 @@ representation r =
   where
   rows (Tuple i rec) = concatMap
     ( case _ of
-        Estimated est -> concatMap
-          ( \rep ->
-              let
-                observed = Q.sumQ
-                  ( concatMap
-                      ( \s ->
-                          if s.proposal.author == rep.actor then concatMap
-                            ( case _ of
-                                Trade o -> if o.quantity > Q.zero then [ o.quantity ] else []
-                                _ -> []
-                            )
-                            s.proposal.intents
-                          else []
-                      )
-                      rec.inputs
-                  )
-                own = bought rep.actor rec
-                next = maybe' Q.zero (bought rep.aggregate) (index r.records (i + 1))
-                induced = if est.factor == Q.zero then Q.zero else Q.sub next (Q.div next est.factor)
-                ratio = if own == Q.zero then "n/a" else q (Q.div induced own)
-              in
-                [ [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, q observed, q own, q rep.weight, q rep.estimator.reference, q rep.estimator.shrinkage, q rep.estimator.noiseSpread, q est.factor, q next, ratio ] ]
-          )
-          (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations)
+        Estimated est -> map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations)
         _ -> []
     )
     rec.events
-  bought e rec = Q.sumQ
-    ( concatMap
-        ( case _ of
-            Traded t | t.entity == e && t.quantity > Q.zero -> [ t.quantity ]
-            _ -> []
-        )
-        rec.events
-    )
-  maybe' d f = case _ of
-    Just x -> f x
-    Nothing -> d
+  stages i rec factor rep =
+    let
+      observed = proposedPurchases rep.actor rec
+      own = bought rep.actor rec
+      next = maybe Q.zero (bought rep.aggregate) (index r.records (i + 1))
+      induced = if factor == Q.zero then Q.zero else Q.sub next (Q.div next factor)
+      ratio = if own == Q.zero then "n/a" else q (Q.div induced own)
+    in
+      [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, q observed, q own, q rep.weight, q rep.estimator.reference, q rep.estimator.shrinkage, q rep.estimator.noiseSpread, q factor, q next, ratio ]
+
+-- | Quantities an Entity offered to buy in a round's Proposals.
+proposedPurchases :: EntityId -> RoundRecord -> Q
+proposedPurchases e rec = Q.sumQ (concatMap (\s -> if s.proposal.author == e then concatMap buy s.proposal.intents else []) rec.inputs)
+  where
+  buy = case _ of
+    Trade o | o.quantity > Q.zero -> [ o.quantity ]
+    _ -> []
+
+-- | Quantities an Entity actually bought in a round.
+bought :: EntityId -> RoundRecord -> Q
+bought e rec = Q.sumQ
+  ( concatMap
+      ( case _ of
+          Traded t | t.entity == e && t.quantity > Q.zero -> [ t.quantity ]
+          _ -> []
+      )
+      rec.events
+  )
 
 procedures :: StoredRun -> Table
 procedures r =
