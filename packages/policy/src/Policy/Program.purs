@@ -17,8 +17,8 @@ module Policy.Program
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, ResourceId, RuleId, TransformationId)
-import Data.Argonaut.Core (Json, fromString, toArray, toObject, toString)
+import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, Pair, ResourceId, RuleId, TransformationId)
+import Data.Argonaut.Core (Json, fromString, isNull, toArray, toObject, toString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Array (concatMap, filter, mapMaybe)
 import Data.Either (Either(..), note)
@@ -56,6 +56,7 @@ data Cond
 
 data Template
   = TradeT { market :: MarketId, quantity :: Expr, limit :: Maybe Expr }
+  | RouteT { pair :: Pair, quantity :: Expr, limit :: Maybe Expr } -- best execution: no Market named (docs/02 §5.2)
   | TransformT { transformation :: TransformationId, quantity :: Expr }
   | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, tariffs, reciprocations only
   | EnactTariff { origin :: EntityId, rate :: Expr }
@@ -154,6 +155,7 @@ programRefs p =
 
   templateRefs = case _ of
     TradeT x -> [ MarketName (unwrapId x.market) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
+    RouteT x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
     TransformT x -> [ TransformationName (unwrapId x.transformation) ] <> exprRefs x.quantity
     Procedure x -> map (EntityName <<< unwrapId) x.signers <> concatMap templateRefs x.intents
     EnactTariff x -> [ EntityName (unwrapId x.origin) ] <> exprRefs x.rate
@@ -279,7 +281,13 @@ object tag body = do
       m <- o .: "market"
       quantity <- o .: "quantity" >>= expr
       limit <- o .:? "limit" >>= traverse expr
-      pure (TradeT { market: Id m, quantity, limit })
+      if isNull m then do
+        base <- o .: "base"
+        quote <- o .: "quote"
+        pure (RouteT { pair: { base: Id base, quote: Id quote }, quantity, limit })
+      else do
+        market <- decodeJson m
+        pure (TradeT { market: Id market, quantity, limit })
     "transform" -> do
       t <- o .: "transformation"
       quantity <- o .: "quantity" >>= expr

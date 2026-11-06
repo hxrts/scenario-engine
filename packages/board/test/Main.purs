@@ -73,6 +73,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes a trade with an optional limit" do
       intent (json """{ "trade": { "market": "energy-atlantic", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
+    it "decodes a routed trade, with a null market, by its pair" do
+      intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
+        `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "accessBan": { "jurisdiction": "US", "target": "CN" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "CN" })))

@@ -23,6 +23,7 @@ module DSL.Decision
   , restrictionInForce
   , Template
   , tradeT
+  , routeT
   , transformT
   , procedureT
   , enactTariffT
@@ -46,8 +47,10 @@ module DSL.Decision
 import Prelude
 
 import DSL.Base (Built, class ToQty, Qty, build, q, tag)
-import Data.Argonaut.Core (Json, fromArray, fromString, jsonNull)
+import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, toObject)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Maybe (Maybe(..))
+import Foreign.Object as Object
 import Prim.Row (class Union)
 
 newtype Expr = Expr Json
@@ -143,6 +146,20 @@ tradeT
   => Record r
   -> Template
 tradeT = Template <<< tag "trade" <<< encodeJson
+
+-- | A routed order (docs/02 §5.2): no Market is named (`market` is null), so `base` and `quote`
+-- | give the pair and the engine routes the order across the Markets for it. `limit` is required.
+routeT
+  :: forall r rest
+   . Union r rest (base :: String, quote :: String, quantity :: Expr, limit :: Expr)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
+routeT = Template <<< tag "trade" <<< withoutMarket <<< encodeJson
+  where
+  withoutMarket j = case toObject j of
+    Just o -> fromObject (Object.insert "market" jsonNull o)
+    Nothing -> j
 
 transformT
   :: forall r rest

@@ -119,6 +119,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "$home resolves to the Entity's home market" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""" env)
         `shouldEqual` [ [ trade "energy-atlantic" "3" ] ]
+    it "a routed trade (null market) drafts a routed Trade with its pair and limit" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": null, "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
+        `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
     it "a zero quantity yields no Trade or Transform; a negative Transform is passed on for the engine to reject" do
       let
         text =

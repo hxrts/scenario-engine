@@ -10,7 +10,7 @@ import Prelude
 import Board.Decode.Common (oneKey, unknownKind)
 import Board.Tags (accessBanKind, enactKind, tariffKind, tradeKind, transferKind, transformKind, withholdingKind)
 import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..))
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, isNull)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:), (.:?))
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
@@ -35,7 +35,9 @@ rule j = do
     pure (Withholding { capacity: Id capacity, units })
   else Left (unknownKind "rule" kind)
 
--- | An Intent: exactly one of `trade`, `transfer`, `transform`, or `enact` (a Rule).
+-- | An Intent: exactly one of `trade`, `transfer`, `transform`, or `enact` (a Rule). A trade's
+-- | `market` is a Market id, or `null` for a routed order (docs/02 §5.2), which names its pair
+-- | by `base` and `quote` instead.
 intent :: Json -> Either JsonDecodeError Intent
 intent j = do
   Tuple kind body <- oneKey "intent" j
@@ -44,7 +46,13 @@ intent j = do
     m <- x .: "market"
     quantity <- x .: "quantity"
     limitPrice <- x .:? "limit"
-    pure (Trade { market: Id m, quantity, limitPrice })
+    if isNull m then do
+      base <- x .: "base"
+      quote <- x .: "quote"
+      pure (Route { pair: { base: Id base, quote: Id quote }, quantity, limitPrice })
+    else do
+      market <- decodeJson m
+      pure (Trade { market: Id market, quantity, limitPrice })
   else if kind == transferKind then do
     x <- decodeJson body
     from <- x .: "from"

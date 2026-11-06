@@ -138,6 +138,11 @@ intents env = case _ of
         q = eval env x.quantity
       in
         if q == Q.zero then [] else [ Trade { market: m, quantity: q, limitPrice: map (eval env) x.limit } ]
+  RouteT x ->
+    let
+      q = eval env x.quantity
+    in
+      if q == Q.zero then [] else [ Route { pair: x.pair, quantity: q, limitPrice: map (eval env) x.limit } ]
   TransformT x ->
     let
       q = eval env x.quantity
