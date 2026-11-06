@@ -9,6 +9,26 @@
   "US_WORKERS": "US"
  },
  "markets": {
+  "defence-goods": {
+   "access": [
+    "US",
+    "DE",
+    "UK",
+    "JP"
+   ],
+   "base": "Mil",
+   "cost": {
+    "base": "3",
+    "hi": "20",
+    "lo": "-80",
+    "slope": "0.01"
+   },
+   "quote": "M",
+   "reserves": {
+    "M": "300",
+    "Mil": "60"
+   }
+  },
   "energy-asia": {
    "access": [
     "CN",

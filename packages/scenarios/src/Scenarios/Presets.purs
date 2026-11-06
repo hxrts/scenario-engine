@@ -97,15 +97,17 @@ randomvalid = program
       ]
   }
 
--- | Reserve 60 Mil for a deployment and order a 40-unit major action in the same round, while the
--- | Atlantic price is above 3. The deployment reserves 1 Mil per unit, so the two claims on the
--- | seat's Mil compete: the action is scaled down, and the reservation is released at commit.
+-- | While the Atlantic price is above 3, reserve 60 Mil for a deployment and sell 40 Mil on the
+-- | defence-goods Market in the same round. The deployment reserves 1 Mil per unit, so the sale
+-- | and the reservation compete for the seat's Mil: both scale by 95/100 on 95 Mil, and the sale
+-- | of 38 Mil is what is actually sold. The sale's limit is 2.4 M/Mil, the lowest average price it
+-- | accepts; the Market's price falls as the seat sells, so the limit binds in later rounds.
 deployer :: Built "program"
 deployer = program
   { rules:
       [ rule [ gt (price "energy-atlantic") (lit 3) ]
           [ transformT { transformation: "military-deployment", quantity: (lit 60) }
-          , transformT { transformation: "major-military-action", quantity: (lit 40) }
+          , tradeT { market: "defence-goods", quantity: (lit (-40)), limit: (lit "2.4") }
           ]
       ]
   }

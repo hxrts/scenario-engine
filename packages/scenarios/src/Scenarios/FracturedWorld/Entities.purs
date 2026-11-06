@@ -44,6 +44,11 @@ entities = keyed
 dealer :: String -> Array Capability
 dealer m = [ trade m, transfer "M", transfer "E" ]
 
+-- | Trading in the defence-goods Market: the US and its allies (DE, UK, JP), who are listed in
+-- | its access rule (FracturedWorld.purs `defenceAccess`).
+allied :: Array Capability
+allied = [ trade "defence-goods" ]
+
 -- | A government's military powers. `procurement` is the Actor's own procurement facility.
 military :: String -> Array Capability
 military procurement =
@@ -62,7 +67,7 @@ shipping = [ transform "energy-shipping" ]
 us :: Built "entity"
 us = entity
   { accounts: keyed [ "M" := 260, "E" := 70, "Mil" := 95, "S" := 60 ]
-  , capabilities: dealer "energy-atlantic" <> military "defense-procurement" <> legislate <> shipping
+  , capabilities: dealer "energy-atlantic" <> allied <> military "defense-procurement" <> legislate <> shipping
   , capacities: keyed []
   , definition: definition
       { required: true
@@ -83,7 +88,7 @@ us = entity
 de :: Built "entity"
 de = entity
   { accounts: keyed [ "M" := 125, "E" := 38, "Mil" := 24, "S" := 45 ]
-  , capabilities: dealer "energy-atlantic" <> [ transform "public-attention", transform "humanitarian-aid", transform "military-deployment", transfer "Mil" ] <> shipping
+  , capabilities: dealer "energy-atlantic" <> allied <> [ transform "public-attention", transform "humanitarian-aid", transform "military-deployment", transfer "Mil" ] <> shipping
   , capacities: keyed []
   , definition: definition
       { required: false
@@ -127,7 +132,7 @@ india = entity
 jp :: Built "entity"
 jp = entity
   { accounts: keyed [ "M" := 150, "E" := 40, "Mil" := 36, "S" := 48 ]
-  , capabilities: dealer "energy-asia" <> military "defense-procurement" <> legislate <> shipping
+  , capabilities: dealer "energy-asia" <> allied <> military "defense-procurement" <> legislate <> shipping
   , capacities: keyed []
   , definition: definition
       { required: false
@@ -149,7 +154,7 @@ jp = entity
 uk :: Built "entity"
 uk = entity
   { accounts: keyed [ "M" := 130, "E" := 30, "Mil" := 38, "S" := 47 ]
-  , capabilities: dealer "energy-atlantic" <> military "defense-procurement" <> legislate <> shipping
+  , capabilities: dealer "energy-atlantic" <> allied <> military "defense-procurement" <> legislate <> shipping
   , capacities: keyed []
   , definition: definition
       { required: false

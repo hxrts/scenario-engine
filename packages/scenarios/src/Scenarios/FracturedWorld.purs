@@ -16,6 +16,8 @@ module Scenarios.FracturedWorld
   , energyShipping
   , deployment
   , majorMilitaryAction
+  , defenceTerms
+  , defenceAccess
   , smeSample
   ) where
 
@@ -73,7 +75,22 @@ markets :: Keyed (Built "market")
 markets = keyed
   [ Tuple "energy-atlantic" (market (union atlanticTerms { access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] }))
   , Tuple "energy-asia" (market (union asiaTerms { access: [ "CN", "IN", "JP", "SA", "CHIP", "CN_PRIVATE", "WORLD_HOUSEHOLDS", "SHIP", "ENERGY_SUPPLIERS" ] }))
+  , Tuple "defence-goods" (market (union defenceTerms { access: defenceAccess }))
   ]
+
+-- | The Entities that may trade Military: the US and its allies, Germany, the UK, and Japan.
+-- | Each holds the `trade "defence-goods"` capability (Entities.purs), so the Market's access
+-- | list and the capabilities agree.
+defenceAccess :: Array String
+defenceAccess = [ "US", "DE", "UK", "JP" ]
+
+-- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
+-- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
+-- | the same order as the Energy Markets. Its reserves hold 60 Mil, so the upper bound sits 40
+-- | below that reserve (the Energy Markets sit 50 below theirs); the lower bound is the Energy
+-- | Markets' −80, and the Money reserve of 300 pays sellers. Access is `defenceAccess`.
+defenceTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
+defenceTerms = { base: "Mil", quote: "M", cost: cost { base: q 3, slope: q "0.01", lo: q (-80), hi: q 20 }, reserves: keyed [ "M" := 300, "Mil" := 60 ] }
 
 -- | Each regional Energy Market's curve and reserves; access is set per use.
 atlanticTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }

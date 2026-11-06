@@ -411,20 +411,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Map.toUnfoldable t.reserves `shouldEqual` [ Tuple (Id "Mil") (Q.fromInt 1) ]
           Map.isEmpty t.inputs `shouldEqual` true
           Map.isEmpty t.outputs `shouldEqual` true
-    it "the Deployer preset proposes a reserving deployment and a major action only while the Atlantic price is above 3" do
+    it "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" do
       case decodePresets (encodeJson Presets.presets) of
         Left e -> fail e
         Right ps -> case Object.lookup "Deployer" ps of
           Nothing -> fail "no Deployer preset"
           Just p -> do
             let
-              us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTransform (Id "major-military-action") ] } }
+              us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTrade (Id "defence-goods") ] } }
               at price = map _.intents (propose p (envWith (us { prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (fromMaybe Q.zero (Q.parse price)) ] }) Q.zero))
             at "3" `shouldEqual` []
-            -- one Proposal per template: the deployment, then the major action it competes with
+            -- one Proposal per template: the deployment, then the Mil sale it competes with
             at "3.01" `shouldEqual`
               [ [ Transform { by: Id "US", transformation: Id "military-deployment", quantity: Q.fromInt 60 } ]
-              , [ Transform { by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 40 } ]
+              , [ Trade { market: Id "defence-goods", quantity: Q.fromInt (-40), limitPrice: Just (Q.parse "2.4" # fromMaybe Q.zero) } ]
               ]
 
   describe "Scenario loader: files and policies fail at load time" do
