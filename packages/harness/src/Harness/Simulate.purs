@@ -19,7 +19,7 @@ import Prelude
 
 import Board.Gameboard (Gameboard, InstantiationConfig, instantiate)
 import Core.Draw (Seed(..))
-import Core.Engine (EngineError)
+import Core.Engine.Commit (EngineError)
 import Core.Num (Q)
 import Core.Types (CapacityRef, Controller(..), EntityId, EntityKind(..))
 import Core.World (Manifest, RoundResult, WorldState)

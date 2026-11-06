@@ -8,7 +8,7 @@ import Prelude
 import Board.Decode (decodeFixture)
 import Board.Fixture (Fixture, checkFixture)
 import Core.Draw (Seed(..), draw)
-import Core.Engine (resolveRound)
+import Core.Engine.Commit (resolveRound)
 import Core.Invariants (check)
 import Core.Num as Q
 import Core.Represent (adjustedTarget)

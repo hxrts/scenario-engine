@@ -1,0 +1,249 @@
+-- | Engine phase 4 (docs/02_type_system.md §8.1): screen and interpret. Each submitted Proposal is
+-- | checked for duplicate ids, signature completeness, shape, authority, and shipping rules. A
+-- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. This
+-- | module also holds the authority predicates (`authorized`, `authorizedIn`, `executor`) that the
+-- | Policy layer and adapters use, the owner of a capacity, and the Intent selectors.
+module Core.Engine.Screen
+  ( Item
+  , screen
+  , duplicatedIds
+  , authorized
+  , authorizedIn
+  , executor
+  , owner
+  , tradesOf
+  ) where
+
+import Prelude
+
+import Core.Num (Q)
+import Core.Num as Q
+import Core.Query (lookupQ)
+import Core.Types (CapacityRef, Capability(..), CollectiveProcedureId, EntityId, EntityKind(..), Intent(..), Order, Proposal, ProposalId, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), TransferSpec, TransformSpec)
+import Core.World (Event(..), WorldState)
+import Data.Array (all, any, elem, filter, find, fromFoldable, mapMaybe, nub, length)
+import Data.Either (Either(..), note)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
+import Data.Traversable (traverse)
+
+-- Authority -------------------------------------------------------------------
+
+-- | The Entity whose resources or authority an Intent uses.
+executor :: Proposal -> Intent -> EntityId
+executor p = case _ of
+  Transfer t -> t.from
+  Transform t -> t.by
+  _ -> p.author
+
+-- | Whether `caps` authorize `who` to execute the Intent (§2.4). A Repeal needs only some
+-- | enactment capability here; `authorizedIn` also requires the capability for the repealed Rule's kind.
+authorized :: Array Capability -> EntityId -> Intent -> Boolean
+authorized caps who = case _ of
+  Trade o -> MayTrade o.market `elem` caps
+  Transfer t -> MayTransfer t.resource `elem` caps && t.from == who
+  Transform t -> MayTransform t.transformation `elem` caps && t.by == who
+  ChangeRule (Enact r) -> MayEnact (kindOf r) `elem` caps
+  ChangeRule (Repeal _) -> any isEnact caps
+  where
+  isEnact (MayEnact _) = true
+  isEnact _ = false
+
+-- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
+-- | repeals. An unknown Rule is not authorized to be repealed.
+authorizedIn :: WorldState -> Array Capability -> EntityId -> Intent -> Boolean
+authorizedIn w caps who i = authorized caps who i && case i of
+  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
+  _ -> true
+
+kindOf :: Rule -> RuleKind
+kindOf = case _ of
+  Tariff _ -> TariffRule
+  AccessBan _ -> AccessBanRule
+  Withholding _ -> WithholdingRule
+
+-- | Whether an Entity governs a Rule: a Tariff or AccessBan by its jurisdiction, a Withholding by
+-- | the owner of its capacity. Enacting and repealing both require it.
+governs :: WorldState -> EntityId -> Rule -> Boolean
+governs w who = case _ of
+  Tariff r -> r.jurisdiction == who
+  AccessBan r -> r.jurisdiction == who
+  Withholding r -> owner w r.capacity == Just who
+
+-- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
+owner :: WorldState -> CapacityRef -> Maybe EntityId
+owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
+
+-- Screening -------------------------------------------------------------------
+
+-- | A screened Proposal: signatures, shape, and authority checked; shipping cost attached.
+type Item =
+  { proposal :: Proposal
+  , deal :: Boolean
+  , tariffs :: Array { from :: EntityId, to :: EntityId, amount :: Q }
+  , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
+  }
+
+-- | Whose authority an Intent is checked against: the executor's own capabilities, for an
+-- | ordinary Proposal, or the capabilities a procedure authorizes, for a procedure Proposal.
+data Standing = OwnAuthority | ProcedureAuthority (Array Capability)
+
+-- | The ids that more than one submitted Proposal carries. A duplicated id is ambiguous, so every
+-- | copy is rejected rather than picking one.
+duplicatedIds :: Array SignedProposal -> Array ProposalId
+duplicatedIds inputs = nub (filter (\i -> length (filter (_ == i) ids) > 1) ids)
+  where
+  ids = map (_.proposal.id) inputs
+
+-- | Phase 4: signature completeness, shape, authority, and shipping rules. `duplicated` is the
+-- | set of ids `duplicatedIds` found in the round.
+screen :: WorldState -> Array ProposalId -> SignedProposal -> Either (Array Event) Item
+screen w duplicated { proposal: p, signatures } =
+  let
+    signed = nub ([ p.author ] <> signatures)
+    signers = nub ([ p.author ] <> p.signers)
+    deal = isNothing p.procedure && any (_ /= p.author) p.signers
+    reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+    tradeOrRule = case _ of
+      Trade _ -> true
+      ChangeRule _ -> true
+      _ -> false
+    ordinary
+      | not (all (_ `elem` signed) signers) = Left [ Lapsed { round: w.round, proposal: p.id } ]
+      | deal && any tradeOrRule p.intents = reject "deals bundle only Transfers and Transforms"
+      | otherwise = case validate w p signers OwnAuthority of
+          Left reason -> reject reason
+          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [] }
+  in
+    if p.id `elem` duplicated then reject "duplicate proposal id"
+    else case p.procedure of
+      Just pid -> procedureProposal w p signed pid
+      Nothing -> ordinary
+
+-- | Every Intent of a Proposal, then its shipments. Returns the tariffs the shipments owe.
+validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
+validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
+
+-- | One Intent: its executor must sign and be authorized, and the Intent must name known
+-- | references and respect market access, transferability, rule scope, the facility's bounds,
+-- | and owner signing. `signers` are the Entities whose signatures count for this Proposal.
+checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either String Unit
+checkIntent w p signers standing i = case Map.lookup who w.entities of
+  Nothing -> Left ("unknown entity " <> show who)
+  Just e
+    | not (who `elem` signers) -> Left (show who <> " must sign")
+    | otherwise -> known *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
+  where
+  who = executor p i
+  caps = case standing of
+    OwnAuthority -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
+    ProcedureAuthority cs -> cs
+  authority = if authorizedIn w caps who i then Right unit else Left (show who <> " is not authorized")
+  transformation t = Map.lookup t.transformation w.transformations
+  known = case i of
+    Trade o | not (Map.member o.market w.markets) -> Left ("unknown market " <> show o.market)
+    Transform t | not (Map.member t.transformation w.transformations) -> Left ("unknown transformation " <> show t.transformation)
+    Transfer t
+      | not (Map.member t.resource w.resources) -> Left ("unknown resource " <> show t.resource)
+      | not (Map.member t.to w.entities) -> Left ("unknown entity " <> show t.to)
+    ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left ("unknown rule " <> show id)
+    _ -> Right unit
+  access = case i of
+    Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (show who <> " has no access to " <> show o.market)
+    _ -> Right unit
+  transferable = case i of
+    Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (show t.resource <> " is not transferable")
+    _ -> Right unit
+  scope e = case i of
+    ChangeRule (Enact r) | not (governs w e.id r) -> Left (outOfScope r)
+    ChangeRule (Repeal id) | Just r <- Map.lookup id w.rules, not (governs w e.id r) -> Left "only the governing authority may repeal a Rule"
+    _ -> Right unit
+  withinBounds = case i of
+    Transform t | Just tr <- transformation t, t.quantity < tr.minimum -> Left (show t.transformation <> " order below its minimum")
+    Transform t | Just tr <- transformation t, maybe false (t.quantity > _) tr.maximum -> Left (show t.transformation <> " order above its maximum")
+    _ -> Right unit
+  ownerSigned = case i of
+    Transform t | Just tr <- transformation t, tr.ownerSigns -> case tr.capacity >>= owner w of
+      Just o | o `elem` signers -> Right unit
+      _ -> Left ("the owner of " <> show t.transformation <> "'s capacity must sign")
+    _ -> Right unit
+
+outOfScope :: Rule -> String
+outOfScope = case _ of
+  Tariff _ -> "a Tariff applies only to the enacting jurisdiction"
+  AccessBan _ -> "an AccessBan applies only to the enacting jurisdiction"
+  Withholding _ -> "withholding needs the capacity's owner"
+
+-- | A procedure Proposal (§2.2, §3.3): authored by the Aggregate that holds the procedure, it
+-- | executes this round if the residual weight plus the weights of the members who signed
+-- | exceeds the threshold, and lapses otherwise. Its Intents are all executed by its author and
+-- | must pass the same per-Intent checks as any Proposal, with authority from the procedure's
+-- | `authorizes`.
+procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProcedureId -> Either (Array Event) Item
+procedureProposal w p signed pid = case Map.lookup p.author w.entities of
+  Just { kind: Aggregate a } | Just proc <- Map.lookup pid a.procedures ->
+    let
+      support = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) signed)))
+      passes = support > proc.threshold
+      outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
+    in
+      if not (all (\i -> executor p i == p.author) p.intents) then reject "outside the procedure's authority"
+      else case validate w p signed (ProcedureAuthority proc.authorizes) of
+        Left reason -> reject reason
+        Right tariffs
+          | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
+          | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ] }
+  _ -> reject "unknown procedure"
+  where
+  reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+
+-- | Cross-region Transfers must be bundled with a matching transport order signed by the
+-- | transport capacity's owner, and are subject to access bans and tariffs.
+shipping :: WorldState -> Proposal -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
+shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
+  where
+  crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
+  sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
+  ship t = do
+    tid <- note "no transport facility" (Map.lookup t.resource w.transport)
+    let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
+    when (carried /= t.quantity) (Left "a cross-region Transfer needs a matching transport order by the sender")
+    let
+      jf = jur w t.from
+      jt = jur w t.to
+    when (any (banned jf jt) (fromFoldable (Map.values w.rules) :: Array _)) (Left "shipment banned")
+    pure { from: t.from, to: jt, amount: Q.sumQ (map (rate jf jt t.quantity) (fromFoldable (Map.values w.rules))) }
+  banned a b = case _ of
+    AccessBan r -> (r.jurisdiction == a && r.target == b) || (r.jurisdiction == b && r.target == a)
+    _ -> false
+  rate origin dest q = case _ of
+    Tariff r | r.jurisdiction == dest && r.origin == origin -> Q.mul r.rate q
+    _ -> Q.zero
+
+-- | The Intents of one kind, in order: the one place that selects an Intent kind.
+intentsOf :: forall a. (Intent -> Maybe a) -> Array Intent -> Array a
+intentsOf = mapMaybe
+
+tradesOf :: Array Intent -> Array Order
+tradesOf = intentsOf
+  ( case _ of
+      Trade o -> Just o
+      _ -> Nothing
+  )
+
+transfersOf :: Array Intent -> Array TransferSpec
+transfersOf = intentsOf
+  ( case _ of
+      Transfer t -> Just t
+      _ -> Nothing
+  )
+
+transformsOf :: Array Intent -> Array TransformSpec
+transformsOf = intentsOf
+  ( case _ of
+      Transform t -> Just t
+      _ -> Nothing
+  )
+
+jur :: WorldState -> EntityId -> EntityId
+jur w e = fromMaybe e (Map.lookup e w.jurisdiction)

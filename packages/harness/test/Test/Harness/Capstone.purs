@@ -9,7 +9,7 @@ import Board.Fixture (expectRound)
 import Board.Gameboard (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Engine (prepareRound)
+import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (checkRun)
 import Core.Num as Q
 import Core.Types (Id(..))

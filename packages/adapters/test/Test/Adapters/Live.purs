@@ -22,7 +22,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects (ClockF(..), Deadline(..), InWorld, InterpretF(..), Interpretation(..), NarrateF(..), inWorldOf, runGame)
-import Core.Engine (observe)
+import Core.Engine.Prepare (observe)
 import Partial.Unsafe (unsafeCrashWith)
 import Handlers.Live (Prompt, Seat(..), runLive)
 import Handlers.Replay (runReplay)

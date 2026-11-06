@@ -29,7 +29,7 @@ module Adapters.Store
 
 import Prelude
 
-import Core.Engine (prepareRound)
+import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (check)
 import Core.Market (marginal)
 import Core.World (Manifest, RoundResult, WorldState)
