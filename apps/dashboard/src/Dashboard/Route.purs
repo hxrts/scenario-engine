@@ -16,7 +16,7 @@ instance Show Route where
   show = print route
 
 route :: RouteDuplex' Route
-route = root $ sum { "Runs": noArgs, "Run": "runs" / segment, "Compare": "compare" / string segment }
+route = root $ sum { "Runs": "runs" / noArgs, "Run": "runs" / segment, "Compare": "compare" / string segment }
 
 href :: Route -> String
 href r = "#" <> print route r

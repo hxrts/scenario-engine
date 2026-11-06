@@ -26,7 +26,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..), fst, snd)
 import Data.FunctorWithIndex (mapWithIndex)
 
 data EngineError = UnknownReference String | NegativeBalance EntityId ResourceId
@@ -263,9 +263,21 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
     ChangeRule _ -> []
 
+-- | The uniform price of a facility order whose pool fills `q` units. Escrow prices the pool
+-- | at its full quantity and settlement at the quantity actually filled, through this one
+-- | function, so the escrowed price bounds the settled price by construction.
+facilityPrice :: Transformation -> Q -> Q
+facilityPrice tr q = maybe Q.zero (\c -> Market.averagePrice c Q.zero q) tr.cost
+
+-- | The most units a facility's pool can fill: its capacity in units of `capacityUse`.
+poolQuantity :: WorldState -> Transformation -> Q
+poolQuantity w tr = case tr.capacity of
+  Just ref | tr.capacityUse > Q.zero -> Q.div (capacityOf w ref) tr.capacityUse
+  _ -> maybe Q.zero (\c -> c.domain.hi) tr.cost
+
 -- | A facility's uniform price at full capacity, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q
-fullPrice w tr = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe c.domain.hi (capacityOf w <$> tr.capacity))) tr.cost
+fullPrice w tr = facilityPrice tr (poolQuantity w tr)
 
 -- | Effective capacity: the owner's capacity less withheld units.
 capacityOf :: WorldState -> CapacityRef -> Q
@@ -455,9 +467,7 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
     Transform t -> case Tuple (Map.lookup (Tuple s.item.proposal.id i) facility.fills) (Map.lookup t.transformation w.transformations) of
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
-          price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (pricedTotal tr)) tr.cost
-          paid = Q.mul price q
-          pay l = maybe (adjust (Ent t.by) w.numeraire (Q.neg paid) l) (\p -> move (Ent t.by) (Ent p) w.numeraire paid l) tr.payee
+          owed = Q.mul (facilityPrice tr (pricedTotal tr)) q
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
           outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
@@ -469,11 +479,13 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
             l
             now
         in
-          a
-            { ledger = produce (consume (pay a.ledger))
-            , deliveries = a.deliveries <> later <> effects t tr q
-            , events = a.events <> [ Transformed { round: w.round, by: t.by, transformation: t.transformation, quantity: q, paid } ]
-            }
+          case pay w t.by tr.payee w.numeraire owed a of
+            Tuple paid afterPay ->
+              afterPay
+                { ledger = produce (consume afterPay.ledger)
+                , deliveries = afterPay.deliveries <> later <> effects t tr q
+                , events = afterPay.events <> [ Transformed { round: w.round, by: t.by, transformation: t.transformation, quantity: q, paid } ]
+                }
       _ -> a
     _ -> a
 
@@ -482,16 +494,9 @@ transfersAndRules :: WorldState -> Settlement -> Scaled -> Settlement
 transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
   where
   p = s.item.proposal
-  withTariffs = acc { ledger = foldl (\l t -> move (Ent t.from) (Ent t.to) w.numeraire t.amount l) acc.ledger s.item.tariffs }
+  withTariffs = foldl (\a' t -> snd (pay w t.from (Just t.to) w.numeraire t.amount a')) acc s.item.tariffs
   one a (Tuple i intent) = case intent of
-    Transfer t ->
-      let
-        q = Q.mul s.scale t.quantity
-      in
-        a
-          { ledger = move (Ent t.from) (Ent t.to) t.resource q a.ledger
-          , events = a.events <> [ Transferred { round: w.round, from: t.from, to: t.to, resource: t.resource, quantity: q } ]
-          }
+    Transfer t -> transfer w t.from t.to t.resource (Q.mul s.scale t.quantity) a
     ChangeRule (Enact r) -> a { scheduled = Map.insert (ruleId i) (Just r) a.scheduled }
     ChangeRule (Repeal id) -> a { scheduled = Map.insert id Nothing a.scheduled }
     _ -> a
@@ -509,14 +514,28 @@ circulate w = decay w <<< fixedFlows w <<< requirements w <<< revenueShares w <<
 groupBy :: forall k a. Ord k => (a -> k) -> Array a -> Map k (Array a)
 groupBy key xs = Map.fromFoldableWith (flip (<>)) (map (\x -> Tuple (key x) [ x ]) xs)
 
--- | Move a quantity between Entities and record it; zero moves nothing.
+-- | The one way an Entity pays out, used by every settlement payment. It pays at most what it
+-- | holds after the settlement so far, and the remainder is recorded as a Shortfall. With no
+-- | payee (`Nothing`) the amount is destroyed. Returns the amount actually paid.
+pay :: WorldState -> EntityId -> Maybe EntityId -> ResourceId -> Q -> Settlement -> Tuple Q Settlement
+pay w from to resource owed st = Tuple paid
+  st
+    { ledger = case to of
+        Just p -> move (Ent from) (Ent p) resource paid st.ledger
+        Nothing -> adjust (Ent from) resource (Q.neg paid) st.ledger
+    , events = st.events <> shortEvents
+    }
+  where
+  paid = min owed (max Q.zero (net w from resource st))
+  short = Q.sub owed paid
+  shortEvents = if short > Q.zero then [ Shortfall { round: w.round, entity: from, resource, quantity: short } ] else []
+
+-- | A transfer between Entities through `pay`: the recorded quantity is what was paid.
 transfer :: WorldState -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement
 transfer w from to resource quantity st
   | quantity == Q.zero = st
-  | otherwise = st
-      { ledger = move (Ent from) (Ent to) resource quantity st.ledger
-      , events = st.events <> [ Transferred { round: w.round, from, to, resource, quantity } ]
-      }
+  | otherwise = case pay w from (Just to) resource quantity st of
+      Tuple paid st' -> st' { events = st'.events <> [ Transferred { round: w.round, from, to, resource, quantity: paid } ] }
 
 -- | What an Entity holds after the settlement so far.
 net :: WorldState -> EntityId -> ResourceId -> Settlement -> Q

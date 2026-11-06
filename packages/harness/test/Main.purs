@@ -96,6 +96,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.world a.records `shouldEqual` map _.world a'.records
       (map _.world a.records /= map _.world b.records) `shouldEqual` true
 
+    it "Every preset plays 8 rounds with invariants holding and no engine error" do
+      ctx <- context
+      for_ [ "Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid" ] \p -> do
+        r <- run ctx ((everySeat p) { rounds = Just 8 })
+        length r.records `shouldEqual` 8
+        valid (initialOf r) r
+
     it "2 Replay: same seeds reproduce, and the replay handler reproduces from records" do
       ctx <- context
       a <- run ctx (everySeat "RandomValid")

@@ -2,9 +2,23 @@
 -- | comes first and children last, so a view reads as its declarative structure.
 -- | Class names are plain strings and are not checked at compile time.
 module Dashboard.Tailwind
-  ( div, span, p, h1, h2, h3, pre, label, main, header, section
-  , ul, li, strong, small
-  , a, button
+  ( div
+  , span
+  , p
+  , h1
+  , h2
+  , h3
+  , pre
+  , label
+  , main
+  , header
+  , section
+  , ul
+  , li
+  , strong
+  , small
+  , a
+  , button
   ) where
 
 import React.Basic.DOM as D

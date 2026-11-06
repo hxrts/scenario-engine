@@ -3,7 +3,7 @@ module Test.Policy.Main where
 import Prelude
 
 import Core.Num as Q
-import Core.Types (Controller(..), EntityKind(..), Id(..), Intent(..))
+import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent(..))
 import Core.World (Event(..), View)
 import Data.Argonaut.Core (Json, toObject)
 import Data.Argonaut.Parser (jsonParser)
@@ -36,7 +36,7 @@ programs path = do
 view :: View
 view =
   { round: 2
-  , self: { id: Id "CN", accounts: Map.empty, capacities: Map.empty, capabilities: [], kind: Actor (NPC (Id "china-strategic-v0")) }
+  , self: { id: Id "CN", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTransform (Id "defense-procurement-cn"), MayTrade (Id "energy-asia") ], kind: Actor (NPC (Id "china-strategic-v0")) }
   , prices: Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 2) ]
   , rules: []
   , events: [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 12, paid: Q.zero } ]
@@ -53,6 +53,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ (ps <> presets) \(Tuple name j) -> case decodeProgram j of
         Left e -> fail (name <> ": " <> show e)
         Right _ -> pure unit
+    it "a seat drafts only the intents it is authorized to execute" do
+      ps <- liftEffect (programs "packages/scenarios/fractured-world/v0/policies.json")
+      case map decodeProgram (Object.lookup "china-strategic-v0" (Object.fromFoldable ps)) of
+        Just (Right p) -> map _.intents (propose p { view: view { self = view.self { capabilities = [] } }, params: Object.empty, home: Id "energy-asia", random: const Q.zero })
+          `shouldEqual` []
+        _ -> fail "missing china-strategic-v0"
     it "china-strategic-v0 procures after a major US action" do
       ps <- liftEffect (programs "packages/scenarios/fractured-world/v0/policies.json")
       case map decodeProgram (Object.lookup "china-strategic-v0" (Object.fromFoldable ps)) of

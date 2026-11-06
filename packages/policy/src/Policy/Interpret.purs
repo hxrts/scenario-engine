@@ -4,6 +4,7 @@ module Policy.Interpret (Draft, Env, propose, sign) where
 
 import Prelude
 
+import Core.Engine (authorized)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (lookupQ)
@@ -91,7 +92,7 @@ draft env t = case t of
   Choose options -> case index options (pick (length options)) of
     Just o -> draft env o
     Nothing -> []
-  _ -> map single (intents env t) <> procedure
+  _ -> map single (filter (authorized env.view.self.capabilities env.view.self.id) (intents env t)) <> procedure
   where
   -- index ⌊u × n⌋ for a draw u in [0, 1)
   pick n = Q.floorInt (Q.mul (env.random 0) (Q.fromInt n))
