@@ -54,5 +54,5 @@ import DSL.Base
   , payee
   )
 import DSL.World (class ToBound, aggregate, assignment, atLeast, bound, collective, cost, criterion, definition, effect, entity, estimator, facility, finishes, flow, market, metric, neverShort, objective, own, production, requirement, resource, scheme, share)
-import DSL.Decision (Clause, Cond, Expr, SignRule, Template, choose, deal, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signAll, signFacility, signProcedures, sub, tradeT, transformT, transformedLastRound)
+import DSL.Decision (Clause, Cond, Expr, SignRule, Template, choose, deal, signIf, enactAccessBanT, enactWithholdingT, repealT, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signAll, signFacility, signProcedures, sub, tradeT, transformT, transformedLastRound)
 import DSL.Fixture (Intent, accessBanRule, delivery, enactAccessBanI, enactTariffI, enactWithholdingI, expect, intentJson, procedureOutcome, proposal, ref, refAt, representation, roundOf, tariffRule, tradeI, transferI, transformI, withholdingRule)

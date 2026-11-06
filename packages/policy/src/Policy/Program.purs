@@ -17,7 +17,7 @@ module Policy.Program
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id(..), MarketId, ResourceId, TransformationId)
+import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, ResourceId, RuleId, TransformationId)
 import Data.Argonaut.Core (Json, fromString, toArray, toObject, toString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Array (concatMap, filter, mapMaybe)
@@ -60,14 +60,18 @@ data Template
   | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, tariffs, reciprocations only
   | EnactTariff { origin :: EntityId, rate :: Expr }
   | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
-  | Deal { signers :: Array EntityId, transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr } } -- `self` names the author
+  | Deal { signers :: Array EntityId, transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }, transforms :: Array { transformation :: TransformationId, quantity :: Expr } } -- `self` names the author; a deal bundles Transfers and Transforms (docs/02 §3)
   | Choose (Array Template) -- one option, picked by a seeded draw
+  | EnactAccessBan { target :: EntityId } -- a ban on shipments from the Entity's jurisdiction into `target`
+  | EnactWithholding { capacity :: CapacityRef, units :: Expr } -- withhold units of a capacity the Entity owns
+  | RepealRule { rule :: RuleId } -- repeal a Rule the Entity governs, by the id the engine assigned it
   | NoAction -- propose nothing (an option for Choose)
 
 data SignRule
   = SignProcedures (Array CollectiveProcedureId)
   | SignFacility TransformationId -- Proposals ordering this facility (e.g. shipments)
   | SignAll
+  | SignIf { when :: Array Cond, rule :: SignRule } -- the inner rule, while every condition holds
 
 -- Decoding ---------------------------------------------------------------------
 
@@ -154,8 +158,11 @@ programRefs p =
     Procedure x -> map (EntityName <<< unwrapId) x.signers <> concatMap templateRefs x.intents
     EnactTariff x -> [ EntityName (unwrapId x.origin) ] <> exprRefs x.rate
     ReciprocateLastRound x -> [ EntityName (unwrapId x.target) ]
-    Deal x -> map (EntityName <<< unwrapId) x.signers <> concatMap transferRefs x.transfers
+    Deal x -> map (EntityName <<< unwrapId) x.signers <> concatMap transferRefs x.transfers <> concatMap transformRefs x.transforms
     Choose xs -> concatMap templateRefs xs
+    EnactAccessBan x -> [ EntityName (unwrapId x.target) ]
+    EnactWithholding x -> exprRefs x.units
+    RepealRule _ -> []
     NoAction -> []
 
   transferRefs t =
@@ -163,8 +170,11 @@ programRefs p =
       <> filter (\r -> r /= EntityName "self") [ EntityName (unwrapId t.from), EntityName (unwrapId t.to) ]
       <> exprRefs t.quantity
 
+  transformRefs t = [ TransformationName (unwrapId t.transformation) ] <> exprRefs t.quantity
+
   signRefs = case _ of
     SignFacility t -> [ TransformationName (unwrapId t) ]
+    SignIf x -> concatMap condRefs x.when <> signRefs x.rule
     _ -> []
 
   exprRefs = case _ of
@@ -292,10 +302,25 @@ object tag body = do
         resource <- x .: "resource"
         quantity <- x .: "quantity" >>= expr
         pure { from: Id from, to: Id to, resource: Id resource, quantity }
-      pure (Deal { signers: map Id signers, transfers })
+      transforms <- (o .:? "transforms" .!= []) >>= traverse \t -> do
+        x <- decodeJson t
+        transformation <- x .: "transformation"
+        quantity <- x .: "quantity" >>= expr
+        pure { transformation: Id transformation, quantity }
+      pure (Deal { signers: map Id signers, transfers, transforms })
     "reciprocate" -> do
       target <- o .: "target"
       pure (ReciprocateLastRound { target: Id target })
+    "enactAccessBan" -> do
+      target <- o .: "target"
+      pure (EnactAccessBan { target: Id target })
+    "enactWithholding" -> do
+      capacity <- o .: "capacity"
+      units <- o .: "units" >>= expr
+      pure (EnactWithholding { capacity: Id capacity, units })
+    "repeal" -> do
+      rule <- o .: "rule"
+      pure (RepealRule { rule: Id rule })
     _ -> Left (unknownTag "template" tag)
 
 signRule :: Json -> Either JsonDecodeError SignRule
@@ -303,4 +328,9 @@ signRule j = tagged "sign rule" j >>= \(Tuple tag body) -> case tag of
   "procedures" -> SignProcedures <<< map Id <$> decodeJson body
   "facility" -> SignFacility <<< Id <$> decodeJson body
   "all" -> pure SignAll
+  "signIf" -> do
+    o <- decodeJson body
+    when <- o .: "when" >>= traverse cond
+    rule <- o .: "rule" >>= signRule
+    pure (SignIf { when, rule })
   _ -> Left (unknownTag "sign rule" tag)

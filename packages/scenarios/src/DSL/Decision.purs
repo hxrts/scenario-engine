@@ -34,6 +34,10 @@ module DSL.Decision
   , signProcedures
   , signFacility
   , signAll
+  , signIf
+  , enactAccessBanT
+  , enactWithholdingT
+  , repealT
   , Clause
   , rule
   , program
@@ -167,7 +171,7 @@ enactTariffT = Template <<< tag "enactTariff" <<< encodeJson
 
 deal
   :: forall r rest
-   . Union r rest (signers :: Array String, transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr })
+   . Union r rest (signers :: Array String, transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr }, transforms :: Array { transformation :: String, quantity :: Expr })
   => EncodeJson (Record r)
   => Record r
   -> Template
@@ -180,6 +184,33 @@ reciprocate
   => Record r
   -> Template
 reciprocate = Template <<< tag "reciprocate" <<< encodeJson
+
+-- | Ban shipments from the author's jurisdiction into `target` (docs/02 §3, AccessBan).
+enactAccessBanT
+  :: forall r rest
+   . Union r rest (target :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
+enactAccessBanT = Template <<< tag "enactAccessBan" <<< encodeJson
+
+-- | Withhold `units` of a capacity the author owns, per round (docs/02 §3, Withholding).
+enactWithholdingT
+  :: forall r rest
+   . Union r rest (capacity :: String, units :: Expr)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
+enactWithholdingT = Template <<< tag "enactWithholding" <<< encodeJson
+
+-- | Repeal a Rule the author governs, by the id the engine gave it: `<proposal id>/rule-<index>`.
+repealT
+  :: forall r rest
+   . Union r rest (rule :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
+repealT = Template <<< tag "repeal" <<< encodeJson
 
 choose :: Array Template -> Template
 choose = Template <<< tag "choose" <<< encodeJson
@@ -201,6 +232,10 @@ signFacility = SignRule <<< tag "facility" <<< fromString
 
 signAll :: SignRule
 signAll = SignRule (tag "all" jsonNull)
+
+-- | The inner sign rule, while every condition holds.
+signIf :: Array Cond -> SignRule -> SignRule
+signIf when inner = SignRule (tag "signIf" (encodeJson { when, rule: inner }))
 
 -- | One clause of a Program: when every condition holds, propose the templates.
 newtype Clause = Clause Json

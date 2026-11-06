@@ -184,6 +184,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       signedBy [ SignAll ] `shouldEqual` [ procP.id, facP.id, plainP.id ]
       signedBy [] `shouldEqual` []
 
+  describe "Decision language: bans, withholding, repeal, conditional signing, deal transforms" do
+    let
+      -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
+      enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
+    it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "enactAccessBan": { "target": "CN" } } ] } ] }""" (enacting [ MayEnact AccessBanRule ]))
+        `shouldEqual` [ [ ChangeRule (Enact (AccessBan { jurisdiction: Id "EU", target: Id "CN" })) ] ]
+    it "enactWithholding drafts a withholding of units of a capacity the author holds" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "enactWithholding": { "capacity": "semiconductors", "units": "5" } } ] } ] }""" (enacting [ MayEnact WithholdingRule ]))
+        `shouldEqual` [ [ ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 5 })) ] ]
+    it "repeal drafts a repeal of the named rule, and needs enactment authority" do
+      let text = """{ "rules": [ { "propose": [ { "repeal": { "rule": "r2/US/0/rule-0" } } ] } ] }"""
+      intentsOf (drafts text (enacting [ MayEnact AccessBanRule ])) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
+      intentsOf (drafts text (enacting [])) `shouldEqual` []
+    it "a Deal bundles its transforms with its transfers, all by the author" do
+      let text = """{ "rules": [ { "propose": [ { "deal": { "signers": [ "EU", "IN" ], "transfers": [], "transforms": [ { "transformation": "energy-shipping", "quantity": "5" } ] } } ] } ] }"""
+      intentsOf (drafts text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]
+    it "signIf signs a Proposal only while its conditions hold" do
+      let
+        procP = { id: proposalId 3 (Id "A") 0, author: Id "A", intents: [], signers: [], procedure: Just (Id "eu-solidarity") }
+        signedIn r = sign (program """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
+      signedIn 3 `shouldEqual` []
+      signedIn 4 `shouldEqual` [ procP.id ]
+
   describe "Decoding" do
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
