@@ -1,5 +1,5 @@
 -- | Calls to the read API, decoded with the shared codecs.
-module Dashboard.Api (get, post, useApi) where
+module Dashboard.Api (get, post, useApi, encode) where
 
 import Prelude
 
@@ -11,11 +11,12 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe, fromMaybe)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Exception (message)
+import JSURI (encodeURIComponent)
 import React.Basic.Hooks (Hook)
 import React.Basic.Hooks.Aff (UseAff, useAff)
 
@@ -34,6 +35,10 @@ get url = call "GET" url ""
 
 post :: forall a b. EncodeJson a => DecodeJson b => String -> a -> Aff (Either String b)
 post url body = call "POST" url (stringify (encodeJson body))
+
+-- | Percent-encode a value interpolated into a URL (a run id, a market id).
+encode :: String -> String
+encode s = fromMaybe s (encodeURIComponent s)
 
 -- | Fetch a view; refetches whenever the path (or the extra key) changes.
 useApi :: forall a k. Eq k => DecodeJson a => k -> String -> Hook (UseAff (Tuple k String) (Either String a)) (Maybe (Either String a))

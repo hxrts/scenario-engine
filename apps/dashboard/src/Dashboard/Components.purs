@@ -1,18 +1,18 @@
--- | The four generic components (RecordTable, MetricChart, RunPicker, DiffTable) and the
--- | fetching panel. They render the harness view models as given; no game logic here.
+-- | The generic components (RecordTable, MetricChart, RunPicker, DiffTable) and the fetching
+-- | panel. They render the harness view models as given; no game logic here.
 module Dashboard.Components (recordTable, plainTable, status, diffTable, metricChart, runPicker, panel, Render, as, card) where
 
 import Prelude
 
 import Dashboard.Api (useApi)
+import Dashboard.Chart (chartRows)
 import Dashboard.DataTable (DataTable)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
-import Data.Array (cons, elem, filter, index, mapWithIndex, nub, sort, concatMap)
+import Data.Array (elem, filter, index, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Number as Number
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Uncurried (mkEffectFn1)
@@ -28,13 +28,15 @@ card :: String -> Array JSX -> JSX
 card title body = element UI.card
   { children: [ element UI.cardHeader { children: [ element UI.cardTitle { children: [ D.text title ] } ] }, element UI.cardContent { children: body } ] }
 
--- | A view-model Table; `link` turns a row into a link on its first cell.
-recordTable :: DataTable -> (Array String -> Maybe String) -> Table -> JSX
-recordTable grid link t = cells grid (\_ _ -> false) link t
+-- | A view-model Table whose `keyColumn` cells link to `link`'s target for the row. The key column
+-- | is named by the caller, not assumed.
+recordTable :: DataTable -> { keyColumn :: Int } -> (Array String -> Maybe String) -> Table -> JSX
+recordTable grid key link t = card t.title
+  [ grid { columns: t.columns, rows: t.rows, linkColumn: key.keyColumn, link, mark: \_ _ -> false } ]
 
 -- | A Table with no row links.
 plainTable :: DataTable -> Table -> JSX
-plainTable grid = recordTable grid (const Nothing)
+plainTable grid t = recordTable grid { keyColumn: 0 } (const Nothing) t
 
 -- | A fetch in progress, or its error.
 status :: Maybe String -> JSX
@@ -42,17 +44,15 @@ status = case _ of
   Nothing -> D.p { className: "text-muted-foreground", children: [ D.text "Loading…" ] }
   Just e -> D.pre { className: "text-destructive", children: [ D.text e ] }
 
--- | A Table whose value cells are highlighted where they differ from the first value column.
-diffTable :: DataTable -> Table -> JSX
-diffTable grid = cells grid differs (const Nothing)
+-- | A Table whose value cells are highlighted where they differ from the baseline column. Columns
+-- | before `baseline` are labels (not compared); the baseline is the reference value for the row.
+diffTable :: DataTable -> { baseline :: Int } -> Table -> JSX
+diffTable grid b t = card t.title
+  [ grid { columns: t.columns, rows: t.rows, linkColumn: 0, link: const Nothing, mark } ]
   where
-  differs row i = i > 1 && index row i /= index row 1
+  mark row i = i > b.baseline && index row i /= index row b.baseline
 
-cells :: DataTable -> (Array String -> Int -> Boolean) -> (Array String -> Maybe String) -> Table -> JSX
-cells grid mark link t = card t.title
-  [ grid { columns: t.columns, rows: t.rows, link, mark } ]
-
--- | A Chart as a line per series, by round.
+-- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
 metricChart :: Chart -> JSX
 metricChart c = card (c.title <> " (" <> c.unit <> ")")
   [ element UI.chartContainer
@@ -60,7 +60,7 @@ metricChart c = card (c.title <> " (" <> c.unit <> ")")
       , className: "h-64 w-full"
       , children:
           [ element UI.lineChart
-              { data: rows
+              { data: chartRows c.series
               , children:
                   [ element UI.cartesianGrid { vertical: false }
                   , element UI.xAxis { dataKey: "round" }
@@ -72,18 +72,14 @@ metricChart c = card (c.title <> " (" <> c.unit <> ")")
           ]
       }
   ]
-  where
-  rounds = sort (nub (concatMap (map _.round <<< _.points) c.series))
-  rows = map (\r -> Object.fromFoldable (cons (Tuple "round" (show r)) (concatMap (\s -> map (\p -> Tuple s.name p.value) (filter (\p -> p.round == r) s.points)) c.series))) rounds
-    <#> map (\v -> fromMaybe 0.0 (Number.fromString v))
 
--- | Select runs by id from the run list (first column).
-runPicker :: { runs :: Table, selected :: Array String, onChange :: Array String -> Effect Unit } -> JSX
+-- | Select runs by id from the run list, whose id is in column `keyColumn`.
+runPicker :: { runs :: Table, keyColumn :: Int, selected :: Array String, onChange :: Array String -> Effect Unit } -> JSX
 runPicker p = D.div
   { className: "flex flex-wrap gap-4"
   , children: p.runs.rows <#> \r ->
       let
-        id = fromMaybe "" (index r 0)
+        id = fromMaybe "" (index r p.keyColumn)
       in
         D.label
           { key: id

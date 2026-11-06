@@ -12,6 +12,7 @@ package:
     - exceptions
     - foreign-object
     - integers
+    - js-uri
     - maybe
     - numbers
     - react-basic
@@ -34,3 +35,9 @@ package:
       - foldable-traversable
       - either
       - routing-duplex
+      - argonaut-core
+      - foreign-object
+      - node-fs
+      - arrays
+      - maybe
+      - numbers
