@@ -321,7 +321,7 @@ The new-simulation form selects the Gameboard, the configuration, seat Policies 
 | Military | | | Δ |
 | Soft Power | | | Δ |
 
-The view has no "Reserved" column. Reservation (deployed capacity) is not implemented: the engine does not reserve Resources, and the Gameboard's `reservable` flag is decoded but unused. A reserved column would be a constant zero, so it is omitted until reservation exists. Each balance sheet also lists the round's flows (production, income, expenditure), signed deals, and non-Resource state such as capacities and market access. Not yet implemented: the flows and non-Resource state are not in the balance-sheet view yet.
+The view has no "Reserved" column. Reservations are implemented in the engine ([§2.3](02_type_system.md#23-resource)), but the dashboard view still has none. The Balance sheets show current holdings, which already include reserved quantities, and no reservation outlives its round, so a Reserved column would read zero at every round boundary. Each balance sheet also lists the round's flows (production, income, expenditure), signed deals, and non-Resource state such as capacities and market access. Not yet implemented: the flows and non-Resource state are not in the balance-sheet view yet.
 
 Holdings are not collapsed into a single net-worth figure, because Military and Soft Power have no market price in the Gameboard. Trajectory charts can show any set of Actors and Resources, in absolute terms or as change from the start, and always in their own units.
 
