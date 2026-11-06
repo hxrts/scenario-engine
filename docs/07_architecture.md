@@ -67,7 +67,7 @@ packages/
   apps/        entry points only (→ anything above)
     cli          `run` (simulation) and `session` (facilitator console: typed input, AI-agent seats)
     server       JSON API: one GET per harness view model, plus POST /api/runs to launch a run
-    dashboard    PureScript react-basic-hooks over vendored shadcn/ui (ui/, via one FFI module)
+    dashboard    PureScript react-basic-hooks over vendored shadcn/ui (ui/, via three FFI modules: UI.js, Api.js, Theme.js)
 test/          property tests per package; fixtures A–G as golden tests
 ```
 

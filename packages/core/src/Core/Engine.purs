@@ -443,10 +443,14 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
             }
     in
       if null os then acc
-      else (foldl fill acc r.fills)
-        { positions = Map.insert id (Q.add m.position r.net) acc.positions
-        , events = (foldl fill acc r.fills).events <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "limit price not met" }) r.rejected
-        }
+      else
+        let
+          filled = foldl fill acc r.fills
+        in
+          filled
+            { positions = Map.insert id (Q.add m.position r.net) acc.positions
+            , events = filled.events <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "limit price not met" }) r.rejected
+            }
 
 transforms' :: WorldState -> Facilities -> Settlement -> Scaled -> Settlement
 transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
@@ -494,7 +498,8 @@ transfersAndRules :: WorldState -> Settlement -> Scaled -> Settlement
 transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
   where
   p = s.item.proposal
-  withTariffs = foldl (\a' t -> snd (pay w t.from (Just t.to) w.numeraire t.amount a')) acc s.item.tariffs
+  -- tariffs follow the shipment they belong to, so they are scaled with it
+  withTariffs = foldl (\a' t -> snd (pay w t.from (Just t.to) w.numeraire (Q.mul s.scale t.amount) a')) acc s.item.tariffs
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w t.from t.to t.resource (Q.mul s.scale t.quantity) a
     ChangeRule (Enact r) -> a { scheduled = Map.insert (ruleId i) (Just r) a.scheduled }

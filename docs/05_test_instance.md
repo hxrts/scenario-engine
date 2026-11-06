@@ -114,7 +114,7 @@ One global facility produces Military:
 - **Cost:** **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is total Military ordered this round. Every order settles at the uniform price C(Q)/Q.
 - **Recipe:** each Mil also consumes 2 E.
 - **Payee:** DEF for every buyer except CN, whose payments go to CN_PRIVATE (Chinese defense production). DEF passes 25% of its procurement revenue to US_WORKERS as variable wages.
-- **Constraints:** buyers need procurement authority; Money and Energy are escrowed at submission at the full-capacity price (15.5 M/Mil); delivery is at the Prepare phase of the next round; over-subscription is allocated pro rata in whole units, remaining units by largest remainder, ties by canonical EntityId.
+- **Constraints:** buyers need procurement authority; Money and Energy are escrowed at screening at the full-capacity price (15.5 M/Mil); delivery is at the Prepare phase of the next round; over-subscription is allocated pro rata in whole units, remaining units by largest remainder, ties by canonical EntityId.
 
 ### 3.4 Public attention (facility)
 

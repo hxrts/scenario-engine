@@ -46,7 +46,7 @@ run *args: scenarios
     spago run -p sp-cli -- {{args}}
 
 # shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css): generated, never committed; see ui.sha256
-ui_components := "theme-neutral card tabs select checkbox badge button input chart sheet sidebar separator skeleton tooltip"
+ui_components := "theme-neutral card tabs checkbox button input chart sheet sidebar separator skeleton tooltip"
 
 # Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched
 _ui-generate:
@@ -88,4 +88,4 @@ dashboard-test: scenarios dashboard
     cd apps/dashboard && playwright test
 
 clean:
-    rm -rf output .spago dist
+    rm -rf output .spago dist apps/dashboard/dist apps/dashboard/ui apps/dashboard/theme.css

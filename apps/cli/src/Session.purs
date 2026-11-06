@@ -6,7 +6,7 @@ module Session (Options, session) where
 import Prelude
 
 import Adapters.Llm (agents, interpreter, narrator, pi)
-import Adapters.Store (createRun, finish, open, persister)
+import Adapters.Store (createRun, finish, nowIso, open, persister)
 import Board.Gameboard (instantiate)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..))
@@ -53,7 +53,8 @@ session o = load (o.scenario <> "/v0") >>= case _ of
         briefing e = maybe "" (\a -> a.capability <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open "runs.db")
-      liftEffect $ createRun db { id: o.id, name: "live session", created: "", spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans ]), manifest: initial.manifest }
+      created <- liftEffect nowIso
+      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans ]), manifest: initial.manifest }
       save <- liftEffect (persister db o.id w0)
       liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans)
       liftEffect $ for_ humans \h -> log ("Briefing " <> show h <> ": " <> briefing h)

@@ -7,7 +7,7 @@ import Prelude
 
 import Board.Decode (readJson)
 
-import Adapters.Store (Db, RunInfo, createRun, finish, open, persister, reader)
+import Adapters.Store (Db, RunInfo, createRun, finish, nowIso, open, persister, reader)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId)
 import Data.Argonaut.Core (stringify)
@@ -113,8 +113,9 @@ launch ctx db l = do
     id = "run-" <> show (n + 1)
     spec = Object.fromFoldable
       [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
+  created <- nowIso
   out <- simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
-    createRun db { id, name: l.name, created: "", spec: encodeJson spec, manifest }
+    createRun db { id, name: l.name, created, spec: encodeJson spec, manifest }
     persister db id manifest.initial
   case out of
     Left e -> pure (Left e)

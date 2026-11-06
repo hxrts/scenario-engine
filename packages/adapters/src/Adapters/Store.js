@@ -43,7 +43,7 @@ export const setStatusImpl = (db, id, status) => () => {
 };
 
 export const listRunsImpl = (db) => () =>
-  db.prepare("select id, name, status, created from runs order by created, id").all().map((r) => ({ ...r }));
+  db.prepare("select id, name, status, created from runs order by rowid").all().map((r) => ({ ...r }));
 
 export const manifestImpl = (db, id) => () => {
   const row = db.prepare("select spec, manifest from runs where id = ?").get(id);
@@ -55,3 +55,6 @@ export const roundsImpl = (db, id) => () =>
 
 export const metricImpl = (db, id, metric) => () =>
   db.prepare("select round, value from metrics where run = ? and metric = ? order by round").all(id, metric).map((r) => ({ ...r }));
+
+// The wall-clock time a run was created, in ISO 8601 (UTC).
+export const nowIsoImpl = () => new Date().toISOString();

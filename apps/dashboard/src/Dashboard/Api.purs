@@ -5,22 +5,29 @@ import Prelude
 
 import Board.Decode (readJson)
 
+import Control.Monad.Error.Class (try)
 import Control.Promise (Promise, toAffE)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Either (Either)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Exception (message)
 import React.Basic.Hooks (Hook)
 import React.Basic.Hooks.Aff (UseAff, useAff)
 
 foreign import fetchTextImpl :: String -> String -> String -> Effect (Promise String)
 
+-- | A failed request (network error or a non-2xx reply) is a Left with the message, never an exception.
 call :: forall a. DecodeJson a => String -> String -> String -> Aff (Either String a)
-call method url body = readJson <$> toAffE (fetchTextImpl method url body)
+call method url body = do
+  reply <- try (toAffE (fetchTextImpl method url body))
+  pure case reply of
+    Left e -> Left (message e)
+    Right text -> readJson text
 
 get :: forall a. DecodeJson a => String -> Aff (Either String a)
 get url = call "GET" url ""

@@ -63,11 +63,13 @@ clear c x0 bounds = go []
       s = Q.neg (Q.sumQ (map _.quantity sells))
       wanted = Q.sub b s
       net = max bounds.minNet (min bounds.maxNet wanted)
-      -- the binding side is filled pro rata
-      buyFills = if net == wanted then map _.quantity buys else Q.proRata (Q.add s net) (map _.quantity buys)
+      -- the binding side is rationed pro rata; the other side fills in full. When the net
+      -- position is held below the wanted demand, buys are rationed to s + net; when it is
+      -- held above, sells are rationed to b - net.
+      buyFills = if net < wanted then Q.proRata (Q.add s net) (map _.quantity buys) else map _.quantity buys
       sellFills =
-        if net == wanted then map _.quantity sells
-        else map Q.neg (Q.proRata (Q.sub b net) (map (Q.neg <<< _.quantity) sells))
+        if net > wanted then map Q.neg (Q.proRata (Q.sub b net) (map (Q.neg <<< _.quantity) sells))
+        else map _.quantity sells
       pair os qs = filter ((_ /= Q.zero) <<< _.quantity) (zipWith (\order quantity -> { order, quantity }) os qs)
     in
       { price: averagePrice c x0 net, net, fills: pair buys buyFills <> pair sells sellFills, rejected: [] }

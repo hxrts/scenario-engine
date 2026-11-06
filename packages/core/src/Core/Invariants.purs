@@ -8,12 +8,12 @@ import Prelude
 import Core.Engine (authorized, executor, prepareRound)
 import Core.Query (lookupQ, totalHolding)
 import Core.Num as Q
-import Core.Types (SignedProposal)
+import Core.Types (EntityKind(..), SignedProposal)
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Array (all, concatMap, elem, filter, fromFoldable)
 import Data.Foldable (foldl)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 
 type Failure = { invariant :: String, detail :: String }
@@ -43,15 +43,19 @@ executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
 inv02 :: WorldState -> RoundResult -> Array Failure
 inv02 w r = concatMap one (executed r)
   where
-  one { proposal: p } = concatMap
-    ( \i ->
-        let
-          who = executor p i
-          caps = fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
-        in
-          if authorized caps who i then [] else [ failure "INV-02" (show p.id <> ": " <> show who <> " not authorized") ]
-    )
-    p.intents
+  one { proposal: p } = concatMap (check p) p.intents
+  -- a procedure Proposal is authorized by its procedure's `authorizes`, as the engine checks it
+  check p i =
+    let
+      who = executor p i
+      caps = case p.procedure of
+        Just pid -> procedureAuthority pid p.author
+        Nothing -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
+    in
+      if authorized caps who i then [] else [ failure "INV-02" (show p.id <> ": " <> show who <> " not authorized") ]
+  procedureAuthority pid author = case Map.lookup author w.entities of
+    Just { kind: Aggregate a } -> maybe [] _.authorizes (Map.lookup pid a.procedures)
+    _ -> []
 
 -- | INV-04 Resource consistency: no negative holdings or reserves.
 inv04 :: WorldState -> RoundResult -> Array Failure

@@ -14,13 +14,7 @@ foreign import tabs :: C
 foreign import tabsList :: C
 foreign import tabsTrigger :: C
 foreign import tabsContent :: C
-foreign import select :: C
-foreign import selectTrigger :: C
-foreign import selectValue :: C
-foreign import selectContent :: C
-foreign import selectItem :: C
 foreign import checkbox :: C
-foreign import badge :: C
 foreign import button :: C
 foreign import input :: C
 foreign import chartContainer :: C

@@ -1,5 +1,3 @@
--- | Decodes the compact fixture JSON in packages/scenarios/fixtures and runs it through
--- | the engine. One generic golden runner for every engine-level fixture.
 -- | JSON decoding for scenario data. The schema mirrors the core types one to one; this
 -- | module adds decoding only, never a second model.
 module Board.Decode

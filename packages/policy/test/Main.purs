@@ -14,6 +14,7 @@ import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
+import Effect.Exception (throw)
 import Foreign.Object as Object
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile)
@@ -24,14 +25,16 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
+-- | Every program in a file. A missing, unparseable, or empty file fails the test, so the
+-- | decodability check can never pass vacuously.
 programs :: String -> Effect (Array (Tuple String Json))
 programs path = do
   text <- readTextFile UTF8 path
-  pure case jsonParser text of
+  case jsonParser text of
     Right j -> case toObject j >>= \o -> fromMaybe (Just o) (map toObject (Object.lookup "policies" o)) of
-      Just o -> Object.toUnfoldable o
-      Nothing -> []
-    Left _ -> []
+      Just o | not (Object.isEmpty o) -> pure (Object.toUnfoldable o)
+      _ -> throw (path <> ": no programs")
+    Left e -> throw (path <> ": " <> e)
 
 view :: View
 view =

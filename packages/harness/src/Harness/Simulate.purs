@@ -22,7 +22,9 @@ import Core.Engine (EngineError)
 import Core.Num (Q)
 import Core.Types (CapacityRef, Controller(..), EntityId, EntityKind(..))
 import Core.World (Manifest, RoundResult, WorldState)
-import Data.Array (concatMap, filter, foldl, fromFoldable)
+import Data.Array (any, concatMap, filter, fromFoldable)
+import Data.Foldable (foldM)
+import Data.Traversable (traverse)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
 import Data.Map (Map)
@@ -62,15 +64,22 @@ type SimulationSpec =
 type Run = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 
 -- | Apply a spec's overrides to the baseline Gameboard and configuration.
-resolve :: Context -> SimulationSpec -> { gameboard :: Gameboard, config :: InstantiationConfig }
-resolve ctx spec = foldl apply { gameboard: ctx.gameboard, config: ctx.config } spec.overrides
+resolve :: Context -> SimulationSpec -> Either String { gameboard :: Gameboard, config :: InstantiationConfig }
+resolve ctx spec = foldM apply { gameboard: ctx.gameboard, config: ctx.config } spec.overrides
   where
+  -- an override naming something the baseline does not have is an error, not a silent no-op
   apply acc = case _ of
-    GameSeed s -> acc { config = acc.config { seed = Seed s } }
-    Parameter name q -> acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-    Capacity e ref q -> acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
-    Shrinkage scheme q -> acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
-    Implicit e -> acc { config = acc.config { seats = Map.delete e acc.config.seats, npcs = Map.delete e acc.config.npcs, representations = filter (\r -> r.actor /= e) acc.config.representations } }
+    GameSeed s -> Right acc { config = acc.config { seed = Seed s } }
+    Parameter name q
+      | Object.member name acc.gameboard.parameters -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
+      | otherwise -> Left ("override: unknown parameter " <> name)
+    Capacity e ref q
+      | Map.member e acc.gameboard.world.entities -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
+      | otherwise -> Left ("override: unknown entity " <> show e)
+    Shrinkage scheme q
+      | any (\s -> s.id == scheme) acc.gameboard.schemes -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
+      | otherwise -> Left ("override: unknown scheme " <> show scheme)
+    Implicit e -> Right acc { config = acc.config { seats = Map.delete e acc.config.seats, npcs = Map.delete e acc.config.npcs, representations = filter (\r -> r.actor /= e) acc.config.representations } }
 
 type Prepared =
   { manifest :: Manifest
@@ -82,29 +91,28 @@ type Prepared =
 -- | Instantiate a spec: the initial world, its game, and its seat source.
 prepare :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> Either String Prepared
 prepare ctx spec from =
-  let
-    { gameboard, config } = resolve ctx spec
-  in
-    case instantiate gameboard config, inWorldOf gameboard of
+  case resolve ctx spec of
+    Left e -> Left e
+    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
       Left es, _ -> Left (show es)
       _, Left e -> Left (show e)
-      Right initial, Right inWorld ->
+      Right initial, Right inWorld -> do
+        -- a preset named by a seat must exist; a typo is an error, not a seat that silently does nothing
+        bound <- traverse
+          ( case _ of
+              Preset name -> maybe (Left ("unknown preset " <> name)) Right (Object.lookup name ctx.presets)
+              Custom p -> Right p
+          )
+          spec.seats
         let
           w0 = maybe initial.world _.world from
           remaining = fromMaybe config.rounds spec.rounds - maybe 0 _.done from
-          bound = Map.mapMaybe
-            ( case _ of
-                Preset name -> Object.lookup name ctx.presets
-                Custom p -> Just p
-            )
-            spec.seats
-        in
-          Right
-            { manifest: initial.manifest
-            , world: w0
-            , game: runGame inWorld remaining w0
-            , seats: programs { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
-            }
+        pure
+          { manifest: initial.manifest
+          , world: w0
+          , game: runGame inWorld remaining w0
+          , seats: programs { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
+          }
 
 -- | Play a spec to completion with records kept in memory. Pure.
 simulate :: Context -> SimulationSpec -> Either String Run

@@ -8,6 +8,7 @@ module Adapters.Store
   , RunStoreRead
   , open
   , createRun
+  , nowIso
   , persister
   , setStatus
   , finish
@@ -57,6 +58,12 @@ metricsVersion :: String
 metricsVersion = "v1"
 
 -- | Register a run and its manifest before Round 1.
+foreign import nowIsoImpl :: Effect String
+
+-- | The current time, for a run's `created` field.
+nowIso :: Effect String
+nowIso = nowIsoImpl
+
 createRun :: Db -> { id :: String, name :: String, created :: String, spec :: Json, manifest :: Manifest } -> Effect Unit
 createRun db r = runFn6 createRunImpl db r.id r.name (stringify r.spec) (stringify (encodeJson r.manifest)) r.created
 

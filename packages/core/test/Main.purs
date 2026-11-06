@@ -3,13 +3,15 @@ module Test.Core.Main where
 import Prelude
 
 import Core.Draw (Seed(..), draw)
+import Core.Market (clear)
+import Data.Maybe (Maybe(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.World (Event(..))
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), Transferability(..), proposalId)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (length)
+import Data.Array (filter, length)
 import Data.Array.NonEmpty (cons')
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -93,6 +95,24 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "proRataWhole allocates whole units by largest remainder" do
       Q.proRataWhole (Q.fromInt 30) [ Q.fromInt 15, Q.fromInt 8, Q.fromInt 9 ]
         `shouldEqual` [ Q.fromInt 14, Q.fromInt 8, Q.fromInt 8 ]
+  describe "Core.Market clearing" do
+    let
+      cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.fromInt 0, hi: Q.fromInt 100 } }
+      order qty = { quantity: Q.fromInt qty, limitPrice: Nothing, tag: 0 }
+      sideSum sign fills = Q.sumQ (map _.quantity (filter (\f -> sign f.quantity) fills))
+    it "a bound on net buying rations buys; sells fill in full" do
+      -- buys 10, sells 4, net held at 3: buys are rationed to 7, sells all 4
+      let r = clear cost Q.zero { minNet: Q.fromInt (-100), maxNet: Q.fromInt 3 } [ order 10, order (-4) ]
+      sideSum (_ > Q.zero) r.fills `shouldEqual` Q.fromInt 7
+      sideSum (_ < Q.zero) r.fills `shouldEqual` Q.fromInt (-4)
+      Q.sumQ (map _.quantity r.fills) `shouldEqual` Q.fromInt 3
+    it "a bound on net selling rations sells; buys fill in full" do
+      -- buys 4, sells 10, net held at -3: buys all 4, sells rationed to 7
+      let r = clear cost Q.zero { minNet: Q.fromInt (-3), maxNet: Q.fromInt 100 } [ order 4, order (-10) ]
+      sideSum (_ > Q.zero) r.fills `shouldEqual` Q.fromInt 4
+      sideSum (_ < Q.zero) r.fills `shouldEqual` Q.fromInt (-7)
+      Q.sumQ (map _.quantity r.fills) `shouldEqual` Q.fromInt (-3)
+
   describe "Core.Draw" do
     let key = { round: 3, source: "sme-energy-sample", entity: "SME", category: "sampling", index: 0 }
     it "depends only on seed and key" do
