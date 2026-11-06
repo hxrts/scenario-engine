@@ -9,7 +9,9 @@ import Routing.Duplex (RouteDuplex', print, root, segment, rest)
 import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 
-data Route = Runs | Run String | Compare (Array String)
+-- | The pages: the run list (home), Prepare (launch and derive runs), View (one run's results and
+-- | actions), and Compare (runs side by side).
+data Route = Runs | Prepare | Run String | Compare (Array String)
 
 derive instance Generic Route _
 derive instance Eq Route
@@ -17,7 +19,7 @@ instance Show Route where
   show = print route
 
 route :: RouteDuplex' Route
-route = root $ sum { "Runs": "runs" / noArgs, "Run": "runs" / segment, "Compare": "compare" / rest }
+route = root $ sum { "Runs": "runs" / noArgs, "Prepare": "prepare" / noArgs, "Run": "runs" / segment, "Compare": "compare" / rest }
 
 href :: Route -> String
 href r = "#" <> print route r
