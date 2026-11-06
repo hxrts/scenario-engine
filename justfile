@@ -15,7 +15,7 @@ test: _scenarios
     set -euo pipefail
     for p in {{packages}}; do spago test -p sp-$p; done
 
-# Test one package, e.g. `core`
+# Test one package
 test-pkg name: _scenarios
     spago test -p sp-{{name}}
 
@@ -38,14 +38,14 @@ _scenarios:
 # fmt-check, deps, build, test
 check: _fmt-check _deps build test
 
-# check, plus the dashboard smoke test
+# check + dashboard smoke test
 all: check _dashboard-test
 
-# Simulate a game, e.g. `just sim fractured-world --preset Conservative`
+# Simulate a game
 sim *args: _scenarios
     spago run -p sp-cli -- run {{args}}
 
-# Live facilitator session, e.g. `just session fractured-world --humans US`
+# Live facilitator session
 session *args: _scenarios
     spago run -p sp-cli -- session {{args}}
 
