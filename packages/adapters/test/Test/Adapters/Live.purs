@@ -148,7 +148,7 @@ spec = do
       , interpret: interpreter model noLog (\e -> Map.lookup e g.world.entities)
       , clock: \(Await _ _ a) -> pure a
       , agents: agents model noLog (const "Secure energy at a fair price.")
-      , programs: programs { bound: Map.empty, params: g.inWorld.params, home: const (Id "energy-atlantic"), playerSeed: Seed 1 }
+      , programs: programs { bound: Map.empty, params: g.inWorld.params, home: const (Just (Id "energy-atlantic")), playerSeed: Seed 1 }
       , record: \r -> do
           t <- narrator model noLog (Narrate r identity)
           liftEffect (Ref.modify_ (_ <> [ r ]) recs *> Ref.modify_ (_ <> [ t ]) texts)

@@ -50,7 +50,7 @@ seat =
 
 -- | Every draw is zero.
 env :: Env
-env = { view: seat, params: Object.empty, home: Id "energy-atlantic", random: const Q.zero }
+env = { view: seat, params: Object.empty, home: Just (Id "energy-atlantic"), random: const Q.zero }
 
 -- | Every draw except index 0 is 0.9.
 highDraws :: Int -> Q.Q

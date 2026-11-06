@@ -20,9 +20,10 @@ import Policy.Program (Cond(..), Expr(..), Program, SignRule(..), Template(..))
 -- | A Proposal before the round runner assigns its id and author.
 type Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
 
--- | `home` resolves the market named `$home`; `random` draws seeded values in [0, 1), one
--- | per index. The interpreter passes a fresh index to every Choose it meets.
-type Env = { view :: View, params :: Object Q, home :: MarketId, random :: Int -> Q }
+-- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
+-- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every
+-- | Choose it meets.
+type Env = { view :: View, params :: Object Q, home :: Maybe MarketId, random :: Int -> Q }
 
 -- | The Drafts of every Clause whose conditions hold. The draw counter runs through the
 -- | whole Program, so each Choose draws independently of the others.
@@ -53,7 +54,8 @@ eval env = case _ of
   -- Program.params checks every name against the Gameboard at load time, so the default is unreachable
   Param name -> fromMaybe Q.zero (Object.lookup name env.params)
   Round -> Q.fromInt env.view.round
-  Price m -> lookupQ (market env m) env.view.prices
+  -- an Entity with no home market never runs a `$home` condition: checkHomes rejects it at startup
+  Price m -> maybe Q.zero (\x -> lookupQ x env.view.prices) (resolveMarket env m)
   Holding r -> lookupQ r env.view.self.accounts
   -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)
   Factor d -> fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors)
@@ -121,11 +123,14 @@ draft env n t = case t of
 -- | passed on, and the engine rejects what it cannot settle (a negative transform, for one).
 intents :: Env -> Template -> Array Intent
 intents env = case _ of
-  TradeT x ->
-    let
-      q = eval env x.quantity
-    in
-      if q == Q.zero then [] else [ Trade { market: market env x.market, quantity: q, limitPrice: map (eval env) x.limit } ]
+  TradeT x -> case resolveMarket env x.market of
+    -- an Entity with no home market drafts no `$home` order; checkHomes rejects at startup every Entity that could draft one
+    Nothing -> []
+    Just m ->
+      let
+        q = eval env x.quantity
+      in
+        if q == Q.zero then [] else [ Trade { market: m, quantity: q, limitPrice: map (eval env) x.limit } ]
   TransformT x ->
     let
       q = eval env x.quantity
@@ -144,6 +149,6 @@ intents env = case _ of
     Tariff r -> Just (Tariff { jurisdiction: env.view.self.id, origin: r.jurisdiction, rate: r.rate })
     Withholding _ -> Nothing
 
--- | `$home` names the Entity's home market.
-market :: Env -> MarketId -> MarketId
-market env m = if m == Id "$home" then env.home else m
+-- | `$home` names the Entity's home market; any other market names itself.
+resolveMarket :: Env -> MarketId -> Maybe MarketId
+resolveMarket env m = if m == Id "$home" then env.home else Just m

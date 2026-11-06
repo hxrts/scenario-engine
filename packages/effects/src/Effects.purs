@@ -16,6 +16,7 @@ module Effects
   , InWorld
   , inWorldOf
   , homeMarket
+  , checkHomes
   , envFor
   , runRound
   , runGame
@@ -26,13 +27,13 @@ import Prelude
 import Core.Draw (Seed, draw)
 import Core.Engine (EngineError, observe, prepareRound, resolveRound)
 import Core.Num (Q)
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), MarketId, PolicyId, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId)
+import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), MarketId, PolicyId, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId)
 import Core.World (RoundResult, View, WorldState)
-import Data.Array (concat, elem, filter, find, fromFoldable, head, mapWithIndex)
+import Data.Array (concat, elem, filter, find, fromFoldable, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), isJust, isNothing)
 import Data.Newtype (unwrap)
 import Data.Traversable (for)
 import Foreign.Object (Object)
@@ -110,7 +111,7 @@ inWorldOf gb = do
 
 -- | The policy environment of an Entity at a View. Draws are keyed by the source (the
 -- | in-world stream or a seat's stream), the round, and the Entity, so streams never share draws.
-envFor :: { params :: Object Q, home :: EntityId -> MarketId, seed :: Seed, source :: String } -> EntityId -> View -> Env
+envFor :: { params :: Object Q, home :: EntityId -> Maybe MarketId, seed :: Seed, source :: String } -> EntityId -> View -> Env
 envFor c e v =
   { view: v
   , params: c.params
@@ -118,12 +119,29 @@ envFor c e v =
   , random: \i -> draw c.seed { round: v.round, source: c.source, entity: unwrap e, category: "choice", index: i }
   }
 
-homeMarket :: WorldState -> EntityId -> MarketId
-homeMarket w e = case find (\m -> e `elem` m.access) markets of
-  Just m -> m.id
-  Nothing -> fromMaybe (Id "") (map _.id (head markets))
+-- | An Entity's home market: the first Market (by id) it has access to, or Nothing when it has none.
+homeMarket :: WorldState -> EntityId -> Maybe MarketId
+homeMarket w e = map _.id (find (\m -> e `elem` m.access) (fromFoldable (Map.values w.markets)))
+
+-- | Every Entity that acts (a seat, or an Entity whose Policy runs) needs a home market, because
+-- | `$home` names it. An acting Entity with none is a startup error, named here, before any round.
+checkHomes :: InWorld -> WorldState -> Either String Unit
+checkHomes inWorld w = case find (\e -> acts e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
+  Just e -> Left ("entity " <> show e.id <> " acts but has no accessible market, so it has no home market")
+  Nothing -> Right unit
   where
-  markets = fromFoldable (Map.values w.markets)
+  acts e = isSeat e || isJust (policyOf inWorld e)
+  isSeat e = case e.kind of
+    Actor (Seat _) -> true
+    _ -> false
+
+-- | The Program an Entity runs in its Policy step, if it is driven by one. Seats are driven by their
+-- | seat source instead.
+policyOf :: InWorld -> Entity -> Maybe Program
+policyOf inWorld e = case e.kind of
+  Actor (NPC p) -> Map.lookup p inWorld.programs
+  Aggregate a -> Map.lookup a.policy inWorld.programs
+  Actor (Seat _) -> Nothing
 
 -- | One round: prepare and observe (pure), Propose and Sign for every Policy at once,
 -- | then `resolveRound` (pure), recorded.
@@ -147,18 +165,12 @@ runRound inWorld w0 = do
   for_ result \r -> lift _record (Record r unit)
   pure result
   where
-  proposeFor e v = case policyOf e of
+  proposeFor e v = case policyOf inWorld e of
     Just program -> pure (Policy.propose program (env e v))
     Nothing -> lift _seatInput (Propose e.id v identity)
-  signFor e v = case policyOf e of
+  signFor e v = case policyOf inWorld e of
     Just program -> pure (Policy.sign program (env e v))
     Nothing -> lift _seatInput (Sign e.id v identity)
-
-  policyOf :: Entity -> Maybe Program
-  policyOf e = case e.kind of
-    Actor (NPC p) -> Map.lookup p inWorld.programs
-    Aggregate a -> Map.lookup a.policy inWorld.programs
-    Actor (Seat _) -> Nothing
 
   env :: Entity -> View -> Env
   env e = envFor { params: inWorld.params, home: homeMarket w0, seed: w0.seed, source: "policy" } e.id
