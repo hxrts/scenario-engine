@@ -36,6 +36,7 @@ import Foreign.Object as Object
 import Harness.Analysis (agency)
 import Harness.Options (flagOr, parseFlags)
 import Harness.Overrides (decodeOverrides, encodeOverrides)
+import Harness.Records (recordsEqual)
 import Harness.Simulate (Context, Override, SimulationSpec, presetSeats, resumeWith, simulateWith)
 import Harness.Views (StoredRun, Unreadable)
 import Harness.Views as V
@@ -214,6 +215,9 @@ nextRunId db = do
 --   variant: the source's preset, player seed, or rounds replaced (a null player seed is drawn);
 --   counterfactual: the source's overrides plus the given ones.
 -- Absent fields keep the source's values. Every derived run records its source and kind.
+-- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
+-- records must be stored and readable, and the source completed, before the rerun starts; otherwise
+-- the reply is 409 and nothing is created.
 deriveRun :: Context -> Db -> String -> String -> Effect Response
 deriveRun ctx db sourceId body = case readJson body :: Either String (Object Json) of
   Left e -> failWith 400 e
@@ -223,25 +227,47 @@ deriveRun ctx db sourceId body = case readJson body :: Either String (Object Jso
       case find (\r -> r.id == sourceId) runs of
         Nothing -> failWith 404 ("no run " <> sourceId)
         Just info -> do
-          stored <- (reader db).manifest sourceId
-          case stored <#> \m -> decodeAs "spec" m.spec >>= storedRecipe of
-            Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
-            Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
-            Just (Right base) -> case deriveRecipe kind o base of
-              Left e -> failWith 400 e
-              Right recipe -> do
-                let name = fromMaybe (info.name <> " (" <> kind <> ")") (Object.lookup "name" o >>= toString)
-                started <- start ctx db
-                  { name
-                  , preset: recipe.preset
-                  , playerSeed: recipe.playerSeed
-                  , rounds: recipe.rounds
-                  , overrides: recipe.overrides
-                  , derivation: Just { source: sourceId, kind }
-                  }
-                case started of
+          -- a rerun is judged against the source's stored records, so they are read before it starts
+          source <- if kind == "rerun" then Just <$> loadRun db sourceId else pure Nothing
+          case source of
+            Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
+            Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
+            Just (Right src)
+              | info.status /= "completed" -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> info.status <> ", not completed")
+              | null src.records -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
+            _ -> do
+              stored <- (reader db).manifest sourceId
+              case stored <#> \m -> decodeAs "spec" m.spec >>= storedRecipe of
+                Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
+                Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
+                Just (Right base) -> case deriveRecipe kind o base of
                   Left e -> failWith 400 e
-                  Right l -> json 201 { id: l.id, source: sourceId, kind }
+                  Right recipe -> do
+                    let name = fromMaybe (info.name <> " (" <> kind <> ")") (Object.lookup "name" o >>= toString)
+                    started <- start ctx db
+                      { name
+                      , preset: recipe.preset
+                      , playerSeed: recipe.playerSeed
+                      , rounds: recipe.rounds
+                      , overrides: recipe.overrides
+                      , derivation: Just { source: sourceId, kind }
+                      }
+                    case started, source of
+                      Left e, _ -> failWith 400 e
+                      Right l, Just (Right src) -> do
+                        -- the new run's records are read back from the store, as the source's are
+                        new <- loadRun db l.id
+                        case new of
+                          Right n -> json 201
+                            ( Object.fromFoldable
+                                [ Tuple "id" (encodeJson l.id)
+                                , Tuple "source" (encodeJson sourceId)
+                                , Tuple "kind" (encodeJson kind)
+                                , Tuple "recordsMatch" (encodeJson (recordsEqual src.records n.records))
+                                ]
+                            )
+                          Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
+                      Right l, _ -> json 201 { id: l.id, source: sourceId, kind }
     _ -> failWith 400 ("kind must be one of " <> joinWith ", " kinds)
   where
   kinds = [ "duplicate", "rerun", "variant", "counterfactual" ]

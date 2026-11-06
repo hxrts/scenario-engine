@@ -2,7 +2,7 @@ module Test.Server.Main where
 
 import Prelude
 
-import Adapters.Store (open, reader)
+import Adapters.Store (open, reader, setSpec)
 import Board.Decode (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
@@ -15,6 +15,9 @@ import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
 import Scenarios (loadContext)
+import Core.Types (Id(..))
+import Core.World (Event(..), RoundRecord)
+import Harness.Records (recordsEqual)
 import Server (Launched, route)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
@@ -26,6 +29,17 @@ type Derived = { id :: String, source :: String, kind :: String }
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "Round-record equality" do
+    it "equal record sequences are equal; one differing field, or a different length, is not" do
+      let
+        r1 = { round: 1, inputs: [], events: [] } :: RoundRecord
+        r2 = { round: 2, inputs: [], events: [ Repealed { round: 2, id: Id "rule" } ] } :: RoundRecord
+      recordsEqual [] [] `shouldEqual` true
+      recordsEqual [ r1, r2 ] [ r1, r2 ] `shouldEqual` true
+      recordsEqual [ r1, r2 ] [ r1, r2 { events = [] } ] `shouldEqual` false
+      recordsEqual [ r1, r2 ] [ r1, r2 { round = 3 } ] `shouldEqual` false
+      recordsEqual [ r1, r2 ] [ r1 ] `shouldEqual` false
+      recordsEqual [ r1 ] [ r1, r2 ] `shouldEqual` false
   describe "Read API" do
     it "launches a run, then serves its views and a comparison" do
       liftEffect (loadContext "fractured-world/v0") >>= case _ of
@@ -133,6 +147,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
           rerun.status `shouldEqual` 201
           rerunReply <- decodeOr rerun.body
+          rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+          dup.body `shouldSatisfy` (not <<< contains (Pattern "recordsMatch"))
           let store = reader db
           sourceRows <- liftEffect (store.rounds "run-1")
           rerunRows <- liftEffect (store.rounds rerunReply.id)
@@ -236,6 +252,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           afterDelete.body `shouldSatisfy` contains (Pattern "run-2 (deleted)")
           derivedView <- api "GET" "/api/runs/run-3/overview" [] ""
           derivedView.body `shouldSatisfy` contains (Pattern "deleted")
+        Left e -> fail e
+    it "a rerun reports recordsMatch true for a completed run; a missing or unreadable source is 404 or 409" do
+      liftEffect (loadContext "fractured-world/v0") >>= case _ of
+        Right ctx -> do
+          db <- liftEffect (open ":memory:")
+          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"RandomValid\",\"playerSeed\":5,\"rounds\":3}"
+          rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
+          rerun.status `shouldEqual` 201
+          rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+          -- a counterfactual's overrides are replayed from its stored spec, so its rerun matches too
+          counter <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"counterfactual\",\"overrides\":[{\"type\":\"gameSeed\",\"seed\":7}]}"
+          counterReply <- decodeOr counter.body
+          counterRerun <- api "POST" ("/api/runs/" <> counterReply.id <> "/derive") [] "{\"kind\":\"rerun\"}"
+          counterRerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+          noSource <- api "POST" "/api/runs/run-99/derive" [] "{\"kind\":\"rerun\"}"
+          noSource.status `shouldEqual` 404
+          -- a source whose stored spec cannot be read: the rerun is refused, and no run is created
+          liftEffect (setSpec db "run-1" "not json")
+          unreadable <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
+          unreadable.status `shouldEqual` 409
+          unreadable.body `shouldSatisfy` contains (Pattern "spec")
+          listed <- api "GET" "/api/runs" [] ""
+          listed.body `shouldSatisfy` (not <<< contains (Pattern "\"run-5\""))
         Left e -> fail e
     it "a derive or resume after a delete never reuses an id that a run still cites" do
       liftEffect (loadContext "fractured-world/v0") >>= case _ of
