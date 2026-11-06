@@ -66,6 +66,7 @@ type StoredRun =
   , manifest :: Manifest
   , playerSeed :: String
   , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
+  , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
   , records :: Array RoundRecord
   , snapshots :: Array WorldState
   , assertions :: Array (Array Failure)
@@ -86,7 +87,8 @@ defaultMetricSpec =
   , market: "energy-atlantic"
   }
 
--- | A run as the list shows it: its summary, read without its records or snapshots.
+-- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
+-- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
 type RunSummary =
   { id :: String
   , name :: String
@@ -97,6 +99,9 @@ type RunSummary =
   , playerSeed :: String
   , rounds :: Int
   , assertionsFailing :: Int
+  , archived :: Boolean
+  , source :: Maybe String
+  , sourceDeleted :: Boolean
   }
 
 -- | A stored run that cannot be read: the list shows it with the reason, and keeps the others.
@@ -126,13 +131,21 @@ kindOf w e = case _.kind <$> Map.lookup e w.entities of
 runList :: Array (Either Unreadable RunSummary) -> Table
 runList rows =
   { title: "Simulation runs"
-  , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason" ]
+  , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason", "Archived", "Source" ]
   , rows: map row rows
   }
   where
+  -- an unreadable run's archive flag and source are not decoded, so they show as unknown
   row = case _ of
-    Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason ]
-    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, s.status, show s.assertionsFailing, fromMaybe "" s.reason ]
+    Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason, "—", "—" ]
+    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
+  yesNo b = if b then "yes" else "no"
+
+-- | The source a derived run cites: its id, marked when the store no longer holds that run.
+sourceCell :: Maybe String -> Boolean -> String
+sourceCell source deleted = case source of
+  Nothing -> ""
+  Just id -> if deleted then id <> " (deleted)" else id
 
 -- | A Market's price after a World State, as the views show it.
 type MarketPrice = { market :: String, price :: String }
@@ -147,6 +160,10 @@ overview spec r =
   , rows:
       [ [ "Run", r.id ]
       , [ "Name", r.name ]
+      , [ "Game ID", fromMaybe "" (specValue r.spec "gameId") ]
+      , [ "Derived from", fromMaybe "" (specValue r.spec "source") ]
+      , [ "Kind", fromMaybe "" (specValue r.spec "kind") ]
+      , [ "Source", sourceStatus ]
       , [ "Gameboard", r.manifest.gameboard ]
       , [ "Engine", r.manifest.engine ]
       , [ "Draws", r.manifest.draw ]
@@ -159,6 +176,11 @@ overview spec r =
       ] <> map (\p -> [ "Final price " <> p.market, p.price ]) (marketPrices (final r))
   }
   where
+  sourceStatus = case specValue r.spec "source" of
+    Nothing -> ""
+    Just _
+      | r.sourceDeleted -> "deleted"
+      | otherwise -> "present"
   count f = length (filter f (concatMap _.events r.records))
   isRejected = case _ of
     Rejected _ -> true
@@ -166,6 +188,10 @@ overview spec r =
   procured = case _ of
     Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> [ t.quantity ]
     _ -> []
+
+-- | One field of a run's flattened specification.
+specValue :: Array (Tuple String String) -> String -> Maybe String
+specValue spec k = map (\(Tuple _ v) -> v) (find (\(Tuple x _) -> x == k) spec)
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
 balances :: StoredRun -> Int -> Either String Table

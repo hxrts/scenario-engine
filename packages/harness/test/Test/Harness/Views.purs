@@ -45,6 +45,7 @@ toStored id r =
   , records: map _.record r.records
   , snapshots: map _.world r.records
   , assertions: map (const []) r.records
+  , sourceDeleted: false
   }
 
 -- | The verdict column of a compatibility table.
@@ -147,4 +148,7 @@ spec context = describe "Views and error paths" do
     , playerSeed: s.playerSeed
     , rounds: length s.records
     , assertionsFailing: 0
+    , archived: false
+    , source: Nothing
+    , sourceDeleted: false
     }

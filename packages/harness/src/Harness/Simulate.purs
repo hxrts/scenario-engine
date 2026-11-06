@@ -10,6 +10,7 @@ module Harness.Simulate
   , simulate
   , resume
   , simulateWith
+  , resumeWith
   , seatsOf
   , presetSeats
   ) where
@@ -130,7 +131,13 @@ resume ctx spec from = prepare ctx spec from <#> \p ->
 
 -- | Play a spec under the Sim handler, persisting each round through `store` as it completes.
 simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either String (Either EngineError WorldState))
-simulateWith ctx spec store = case prepare ctx spec Nothing of
+simulateWith ctx spec store = resumeWith ctx spec Nothing store
+
+-- | Continue a stored run from its snapshot after `done` rounds, under the Sim handler, persisting
+-- | the new rounds through `store`. `store` runs only once the spec has instantiated, so a spec
+-- | that is rejected leaves the caller's store untouched.
+resumeWith :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either String (Either EngineError WorldState))
+resumeWith ctx spec from store = case prepare ctx spec from of
   Left e -> pure (Left e)
   Right p -> do
     persist <- store p.manifest

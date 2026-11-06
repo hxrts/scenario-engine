@@ -75,7 +75,7 @@ session o = load (o.scenario <> "/v0") >>= case _ of
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open o.db)
       created <- liftEffect nowIso
-      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ]), manifest: initial.manifest }
+      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ]), manifest: initial.manifest, source: Nothing, kind: Nothing }
       save <- liftEffect (persister db o.id w0)
       liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> log ("Briefing " <> show h <> ": " <> briefing h)

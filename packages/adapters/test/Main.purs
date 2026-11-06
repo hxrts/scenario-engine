@@ -7,7 +7,7 @@ import Prelude
 
 import Board.Decode (readJson)
 
-import Adapters.Store (createRun, failRun, failStaleRuns, metricsVersion, open, openReadOnly, persister, reader, schemaVersion, setStatus)
+import Adapters.Store (busyTimeout, configuredBusyTimeout, createRun, deleteRun, failRun, failStaleRuns, metricsVersion, open, openReadOnly, persister, reader, schemaVersion, setArchived, setStatus, setSpec)
 import Board.Gameboard (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -30,7 +30,7 @@ import Effects (inWorldOf, runGame)
 import Handlers.Replay (runReplay)
 import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Scenarios (load, loadPresets)
-import Test.Adapters.Files (fileExists, removeFile)
+import Test.Adapters.Files (createV1Store, fileExists, removeFile)
 import Test.Adapters.Live as Live
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -62,7 +62,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "RandomValid")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 7, overrides: [], rounds: Nothing }
       db <- liftEffect (open ":memory:")
       stored <- liftEffect $ simulateWith ctx spec \manifest -> do
-        createRun db { id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: fromString "RandomValid", manifest }
+        createRun db { id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: fromString "RandomValid", manifest, source: Nothing, kind: Nothing }
         persister db "run-1" manifest.initial
       _ <- orThrow stored
       liftEffect (setStatus db "run-1" "completed")
@@ -98,8 +98,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       manifest <- manifestOf
       db <- liftEffect (open path)
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 2
-      liftEffect $ createRun db { id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest }
+      version `shouldEqual` 3
+      liftEffect $ createRun db { id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
       liftEffect (failRun db "run-1" "boom")
       runs <- liftEffect (reader db).runs
       map (\r -> { status: r.status, reason: toMaybe r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "boom" } ]
@@ -118,7 +118,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
       manifest <- manifestOf
       writer <- liftEffect (open path)
-      liftEffect $ createRun writer { id: "run-1", name: "ro", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest }
+      liftEffect $ createRun writer { id: "run-1", name: "ro", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
       reader' <- liftEffect (openReadOnly path)
       runs <- liftEffect (reader reader').runs
       map _.id runs `shouldEqual` [ "run-1" ]
@@ -127,8 +127,81 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "runs left running by a stopped process are failed at startup" do
       manifest <- manifestOf
       db <- liftEffect (open ":memory:")
-      liftEffect $ createRun db { id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest }
+      liftEffect $ createRun db { id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
       n <- liftEffect (failStaleRuns db "interrupted")
       n `shouldEqual` 1
       runs <- liftEffect (reader db).runs
       map (\r -> { status: r.status, reason: toMaybe r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "interrupted" } ]
+
+    it "the busy timeout is set on the store and reads back as configured" do
+      let path = "run-store-busy-test.db"
+      liftEffect (removeFile path)
+      db <- liftEffect (open path)
+      timeout <- liftEffect (busyTimeout db)
+      timeout `shouldEqual` configuredBusyTimeout
+      timeout `shouldEqual` 5000
+      reader' <- liftEffect (openReadOnly path)
+      readTimeout <- liftEffect (busyTimeout reader')
+      readTimeout `shouldEqual` configuredBusyTimeout
+      liftEffect (removeFile path)
+
+    it "a version 1 store upgrades in place: its runs survive, and they gain the archive, source and reason fields" do
+      let path = "run-store-v1-test.db"
+      liftEffect (removeFile path)
+      liftEffect (createV1Store path)
+      db <- liftEffect (open path)
+      version <- liftEffect (schemaVersion db)
+      version `shouldEqual` 3
+      runs <- liftEffect (reader db).runs
+      map (\r -> { id: r.id, status: r.status, reason: toMaybe r.reason }) runs `shouldEqual` [ { id: "run-1", status: "completed", reason: Nothing } ]
+      sums <- liftEffect (reader db).summaries
+      map (\r -> { archived: r.archived, source: toMaybe r.source }) sums `shouldEqual` [ { archived: false, source: Nothing } ]
+      -- the upgraded store takes the new operations, and a read-only open sees the new version
+      liftEffect (setArchived db "run-1" true)
+      sums' <- liftEffect (reader db).summaries
+      map _.archived sums' `shouldEqual` [ true ]
+      reader' <- liftEffect (openReadOnly path)
+      version' <- liftEffect (schemaVersion reader')
+      version' `shouldEqual` 3
+      liftEffect (removeFile path)
+
+    it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
+      loaded <- liftEffect (load "fractured-world/v0") >>= orThrow
+      presets <- liftEffect loadPresets >>= orThrow
+      let
+        ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
+        spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Conservative")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 1, overrides: [], rounds: Just 2 }
+      db <- liftEffect (open ":memory:")
+      stored <- liftEffect $ simulateWith ctx spec \manifest -> do
+        createRun db { id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
+        persister db "run-1" manifest.initial
+      _ <- orThrow stored
+      manifest <- manifestOf
+      liftEffect $ createRun db { id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Just "run-1", kind: Just "duplicate" }
+      liftEffect (setArchived db "run-2" true)
+      liftEffect (setArchived db "run-2" true)
+      let store = reader db
+      sums <- liftEffect store.summaries
+      map (\r -> { id: r.id, archived: r.archived, source: toMaybe r.source }) sums
+        `shouldEqual` [ { id: "run-1", archived: false, source: Nothing }, { id: "run-2", archived: true, source: Just "run-1" } ]
+      liftEffect (setArchived db "run-2" false)
+      before <- liftEffect (store.rounds "run-1")
+      length before `shouldEqual` 2
+      removed <- liftEffect (deleteRun db "run-1")
+      removed `shouldEqual` 1
+      after <- liftEffect (store.rounds "run-1")
+      after `shouldEqual` []
+      prices <- liftEffect (store.metric "run-1" "price:energy-atlantic" metricsVersion)
+      prices `shouldEqual` []
+      left <- liftEffect store.summaries
+      map (\r -> { id: r.id, source: toMaybe r.source }) left `shouldEqual` [ { id: "run-2", source: Just "run-1" } ]
+      again <- liftEffect (deleteRun db "run-1")
+      again `shouldEqual` 0
+
+    it "a stored spec can be replaced in place (a resumed run records its new round count)" do
+      manifest <- manifestOf
+      db <- liftEffect (open ":memory:")
+      liftEffect $ createRun db { id: "run-1", name: "resume", created: "2026-01-01T00:00:00Z", spec: fromString "{\"rounds\":\"3\"}", manifest, source: Nothing, kind: Nothing }
+      liftEffect (setSpec db "run-1" "{\"rounds\":\"5\"}")
+      rows <- liftEffect (reader db).summaries
+      map _.spec rows `shouldEqual` [ "{\"rounds\":\"5\"}" ]
