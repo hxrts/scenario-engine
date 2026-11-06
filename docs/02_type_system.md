@@ -111,9 +111,9 @@ type ResourceDefinition =
   }
 ```
 
-`Transferability` distinguishes freely transferable, restricted (authority-gated), and non-transferable Resources. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. Which Transformations produce or consume a Resource completes its behavior: a Resource that none produces or consumes is conserved, which is derived, not declared.
+`Transferability` distinguishes freely transferable, restricted (authority-gated), and non-transferable Resources. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. **Not yet implemented:** no scenario needs reservations (military deployment is modelled as a Mil-in, Mil-out Transformation), so the engine does not reserve Resources and the `reservable` flag is decoded but unused until a scenario needs it. Which Transformations produce or consume a Resource completes its behavior: a Resource that none produces or consumes is conserved, which is derived, not declared.
 
-Holdings associate Entities with quantities of Resources. A reservation lasts within one round: a deployment escrows the reserved quantity at screening and returns the survivors at commit, so nothing stays reserved across a round boundary.
+Holdings associate Entities with quantities of Resources. A reservation, when implemented, lasts within one round: a deployment escrows the reserved quantity at screening and returns the survivors at commit, so nothing stays reserved across a round boundary. Until then this is the design, not the behaviour.
 
 Not everything economically meaningful is a Resource. Production capacity, transport capacity, market access, political authority, and supply-chain efficiency are economic state or rules attached to Entities, Markets, and Transformations. A semiconductor producer can hold valuable productive capacity without the scenario introducing a semiconductor Resource.
 
