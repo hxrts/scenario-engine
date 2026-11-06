@@ -1,4 +1,4 @@
--- | Command line: `run <scenario> --preset <name> --rounds <n>` plays a game with every seat
+-- | Command line: `run <scenario> [--preset <name>] [--rounds <n>]` (flags in any order) plays a game with every seat
 -- | bound to one preset and prints a per-round summary.
 module Main (main) where
 
@@ -33,12 +33,15 @@ import Adapters.Llm (defaultModel)
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
-  case args of
-    [ "run", scenario ] -> runScenario scenario "Passive" 5
-    [ "run", scenario, "--preset", preset ] -> runScenario scenario preset 5
-    [ "run", scenario, "--preset", preset, "--rounds", n ] -> runScenario scenario preset (fromMaybe 5 (fromString n))
-    _ | index args 0 == Just "session", Just scenario <- index args 1 -> let rest = drop 2 args in session (foldl option { scenario, model: defaultModel, humans: "", rounds: 5, window: 0, id: "session-1" } (pairs rest))
-    _ -> usage
+  let flags = pairs (drop 2 args)
+  case index args 0, index args 1 of
+    Just "run", Just scenario ->
+      let
+        flag k = Object.lookup k (Object.fromFoldable flags)
+      in
+        runScenario scenario (fromMaybe "Passive" (flag "--preset")) (fromMaybe 5 (flag "--rounds" >>= fromString))
+    Just "session", Just scenario -> session (foldl option { scenario, model: defaultModel, humans: "", rounds: 5, window: 0, id: "session-1" } flags)
+    _, _ -> usage
 
 usage :: Effect Unit
 usage = do
