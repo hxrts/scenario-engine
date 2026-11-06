@@ -71,6 +71,11 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
             in
               [ { entity: p.author, resource: m.quote, amount: Q.mul unit o.quantity } ]
         | otherwise -> [ { entity: p.author, resource: m.base, amount: Q.neg o.quantity } ]
+    -- a routed order escrows at its limit (required, checked at screening): limit × quantity on
+    -- the pair's quote for a buy, its quantity of the pair's base for a sell (docs/02 §8.2)
+    Route r
+      | r.quantity > Q.zero -> [ { entity: p.author, resource: r.pair.quote, amount: Q.mul (fromMaybe Q.zero r.limitPrice) r.quantity } ]
+      | otherwise -> [ { entity: p.author, resource: r.pair.base, amount: Q.neg r.quantity } ]
     Transfer t -> [ { entity: t.from, resource: t.resource, amount: t.quantity } ]
     Transform t -> case Map.lookup t.transformation w.transformations of
       Nothing -> []

@@ -26,6 +26,7 @@ observation w rep ps =
     orders = concatMap (\p -> if p.author == rep.actor then concatMap trade p.intents else []) ps
     trade = case _ of
       Trade o | maybe false (\m -> unwrap m.base == unwrap rep.domain) (Map.lookup o.market w.markets) -> [ o.quantity ]
+      Route r | unwrap r.pair.base == unwrap rep.domain -> [ r.quantity ]
       _ -> []
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))

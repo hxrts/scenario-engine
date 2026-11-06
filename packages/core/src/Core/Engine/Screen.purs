@@ -12,6 +12,7 @@ module Core.Engine.Screen
   , executor
   , owner
   , tradesOf
+  , routeCandidates
   ) where
 
 import Prelude
@@ -19,13 +20,16 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (lookupQ)
-import Core.Types (CapacityRef, Capability(..), CollectiveProcedureId, EntityId, EntityKind(..), Intent(..), Order, Proposal, ProposalId, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), TransferSpec, TransformSpec)
+import Core.Types (CapacityRef, Capability(..), CollectiveProcedureId, EntityId, EntityKind(..), Intent(..), MarketId, Order, Pair, Proposal, ProposalId, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), TransferSpec, TransformSpec)
 import Core.World (Event(..), WorldState)
-import Data.Array (all, any, elem, filter, find, fromFoldable, mapMaybe, nub, length)
+import Data.Array (all, any, concat, elem, filter, find, fromFoldable, mapMaybe, nub, length, null)
 import Data.Either (Either(..), note)
+import Data.FunctorWithIndex (mapWithIndex)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 
 -- Authority -------------------------------------------------------------------
 
@@ -41,6 +45,8 @@ executor p = case _ of
 authorized :: Array Capability -> EntityId -> Intent -> Boolean
 authorized caps who = case _ of
   Trade o -> MayTrade o.market `elem` caps
+  -- a routed order needs some trade capability here; `routeCandidates` checks the Market it uses
+  Route _ -> any isTrade caps
   Transfer t -> MayTransfer t.resource `elem` caps && t.from == who
   Transform t -> MayTransform t.transformation `elem` caps && t.by == who
   ChangeRule (Enact r) -> MayEnact (kindOf r) `elem` caps
@@ -48,6 +54,8 @@ authorized caps who = case _ of
   where
   isEnact (MayEnact _) = true
   isEnact _ = false
+  isTrade (MayTrade _) = true
+  isTrade _ = false
 
 -- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
 -- | repeals. An unknown Rule is not authorized to be repealed.
@@ -77,12 +85,29 @@ owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (M
 -- Screening -------------------------------------------------------------------
 
 -- | A screened Proposal: signatures, shape, and authority checked; shipping cost attached.
+-- | `routes` holds, by Intent index, the candidate Markets of each routed Trade (docs/02 §5.2).
 type Item =
   { proposal :: Proposal
   , deal :: Boolean
   , tariffs :: Array { from :: EntityId, to :: EntityId, amount :: Q }
   , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
+  , routes :: Map Int (Array MarketId)
   }
+
+-- | The Markets a routed order for `pair` may use: those whose base and quote match, to which
+-- | `who` has access, and for which `caps` hold the trade capability. In MarketId order.
+routeCandidates :: WorldState -> EntityId -> Array Capability -> Pair -> Array MarketId
+routeCandidates w who caps pair = map _.id (filter usable (fromFoldable (Map.values w.markets)))
+  where
+  usable m = m.base == pair.base && m.quote == pair.quote && who `elem` m.access && MayTrade m.id `elem` caps
+
+-- | The candidate Markets of every routed Trade in `intents`, keyed by Intent index.
+routesOf :: WorldState -> EntityId -> Array Capability -> Array Intent -> Map Int (Array MarketId)
+routesOf w who caps intents = Map.fromFoldable (concat (mapWithIndex one intents))
+  where
+  one i = case _ of
+    Route r -> [ Tuple i (routeCandidates w who caps r.pair) ]
+    _ -> []
 
 -- | Whose authority an Intent is checked against: the executor's own capabilities, for an
 -- | ordinary Proposal, or the capabilities a procedure authorizes, for a procedure Proposal.
@@ -104,8 +129,10 @@ screen w duplicated { proposal: p, signatures } =
     signers = nub ([ p.author ] <> p.signers)
     deal = isNothing p.procedure && any (_ /= p.author) p.signers
     reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+    ownCaps = fromMaybe [] (_.capabilities <$> Map.lookup p.author w.entities)
     tradeOrRule = case _ of
       Trade _ -> true
+      Route _ -> true
       ChangeRule _ -> true
       _ -> false
     ordinary
@@ -113,7 +140,7 @@ screen w duplicated { proposal: p, signatures } =
       | deal && any tradeOrRule p.intents = reject "deals bundle only Transfers and Transforms"
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
-          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [] }
+          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [], routes: routesOf w p.author ownCaps p.intents }
   in
     if p.id `elem` duplicated then reject "duplicate proposal id"
     else case p.procedure of
@@ -132,7 +159,7 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left ("unknown entity " <> show who)
   Just e
     | not (who `elem` signers) -> Left (show who <> " must sign")
-    | otherwise -> known *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
+    | otherwise -> known *> limited *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
   where
   who = executor p i
   caps = case standing of
@@ -142,14 +169,21 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
   transformation t = Map.lookup t.transformation w.transformations
   known = case i of
     Trade o | not (Map.member o.market w.markets) -> Left ("unknown market " <> show o.market)
+    Route r | not (Map.member r.pair.base w.resources) -> Left ("unknown resource " <> show r.pair.base)
+    Route r | not (Map.member r.pair.quote w.resources) -> Left ("unknown resource " <> show r.pair.quote)
     Transform t | not (Map.member t.transformation w.transformations) -> Left ("unknown transformation " <> show t.transformation)
     Transfer t
       | not (Map.member t.resource w.resources) -> Left ("unknown resource " <> show t.resource)
       | not (Map.member t.to w.entities) -> Left ("unknown entity " <> show t.to)
     ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left ("unknown rule " <> show id)
     _ -> Right unit
+  -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)
+  limited = case i of
+    Route r | Nothing <- r.limitPrice -> Left "a routed order needs a limit price"
+    _ -> Right unit
   access = case i of
     Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (show who <> " has no access to " <> show o.market)
+    Route r | null (routeCandidates w who caps r.pair) -> Left (show who <> " has no accessible market for " <> show r.pair.base <> "/" <> show r.pair.quote)
     _ -> Right unit
   transferable = case i of
     Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (show t.resource <> " is not transferable")
@@ -192,7 +226,7 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities of
         Left reason -> reject reason
         Right tariffs
           | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
-          | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ] }
+          | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
   _ -> reject "unknown procedure"
   where
   reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]

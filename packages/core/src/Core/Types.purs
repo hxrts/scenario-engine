@@ -126,6 +126,17 @@ type Order =
   , limitPrice :: Maybe Price
   }
 
+-- | A base and quote Resource pair, which a routed order names in place of a Market.
+type Pair = { base :: ResourceId, quote :: ResourceId }
+
+-- | The Entity-facing best-execution order (docs/02 §5.2): the Trade with its market omitted. The
+-- | engine routes it across the Markets for `pair` that the Entity has access to. It requires a limit.
+type RouteOrder =
+  { pair :: Pair
+  , quantity :: Quantity
+  , limitPrice :: Maybe Price
+  }
+
 type TransferSpec =
   { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
 
@@ -134,6 +145,7 @@ type TransformSpec =
 
 data Intent
   = Trade Order
+  | Route RouteOrder
   | Transfer TransferSpec
   | Transform TransformSpec
   | ChangeRule RuleChange

@@ -15,7 +15,7 @@ import Core.Query (capacityHeld, holding)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState)
 import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (all, concatMap, filter, length, zip)
@@ -53,7 +53,8 @@ genRule = oneOf $ cons'
 genIntent :: Gen Intent
 genIntent = oneOf $ cons'
   ((\m n l -> Trade { market: m, quantity: n, limitPrice: l }) <$> genId <*> genQ <*> oneOf (cons' (pure Nothing) [ Just <$> genQ ]))
-  [ (\f t r n -> Transfer { from: f, to: t, resource: r, quantity: n }) <$> genId <*> genId <*> genId <*> genQ
+  [ (\b c n l -> Route { pair: { base: b, quote: c }, quantity: n, limitPrice: l }) <$> genId <*> genId <*> genQ <*> oneOf (cons' (pure Nothing) [ Just <$> genQ ])
+  , (\f t r n -> Transfer { from: f, to: t, resource: r, quantity: n }) <$> genId <*> genId <*> genId <*> genQ
   , (\b t n -> Transform { by: b, transformation: t, quantity: n }) <$> genId <*> genId <*> genQ
   , ChangeRule <<< Enact <$> genRule
   , ChangeRule <<< Repeal <$> genId
@@ -151,6 +152,35 @@ eventsOf :: Either EngineError RoundResult -> Array Event
 eventsOf = case _ of
   Right r -> r.record.events
   Left _ -> []
+
+-- | A Market `id` for `base` against M at a flat price, with reserves of 50 of each, and the given access.
+priced :: String -> String -> Array String -> String -> Market
+priced id base access p =
+  { id: Id id
+  , base: Id base
+  , quote: Id "M"
+  , cost: { base: q p, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
+  , position: Q.zero
+  , reserves: Map.fromFoldable [ Tuple (Id base) (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
+  , access: map Id access
+  }
+
+-- | A routed buy (positive) or sell (negative) of `n` E for M, at `limit`.
+routed :: String -> Int -> String -> Intent
+routed base n limit = Route { pair: { base: Id base, quote: Id "M" }, quantity: Q.fromInt n, limitPrice: Just (q limit) }
+
+-- | The (Market, quantity) of each fill of an Entity in a resolved round.
+fillsOf :: String -> Either EngineError RoundResult -> Array (Tuple String Q)
+fillsOf who r = concatMap
+  ( case _ of
+      Traded t | t.entity == Id who -> [ Tuple (show t.market) t.quantity ]
+      _ -> []
+  )
+  (eventsOf r)
+
+-- | The quantity an Entity filled in one Market.
+fillIn :: String -> String -> Either EngineError RoundResult -> Q
+fillIn market who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == market) (fillsOf who r)))
 
 -- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
 market :: Array String -> Market
@@ -405,6 +435,70 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]), representations = [ rep ] }
         p = { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }
       (Represent.estimate w [ p ]).events `shouldEqual` []
+
+  describe "Best execution (docs/02 §5.2)" do
+    it "a routed buy fills the cheaper Market up to its price impact, then the next" do
+      let
+        -- A's price rises by 0.05 per unit (1 + 0.05·d), so it reaches B's price of 2 at about 20 units
+        cheap = (priced "EM-A" "E" [ "US" ] "1") { cost = { base: Q.fromInt 1, slope: q "0.1", domain: { lo: Q.zero, hi: Q.fromInt 100 } } }
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A"), MayTrade (Id "EM-B") ] ]) { markets = Map.fromFoldable [ Tuple (Id "EM-A") cheap, Tuple (Id "EM-B") (priced "EM-B" "E" [ "US" ] "2") ] }
+        r = resolveRound w [ submit "US" 0 [ routed "E" 30 "3" ] ]
+        a = fillIn "EM-A" "US" r
+        b = fillIn "EM-B" "US" r
+      rejections r `shouldEqual` []
+      (a > q "19.9" && a < q "20.1") `shouldEqual` true
+      b `shouldEqual` Q.sub (Q.fromInt 30) a
+      Q.sumQ (map snd (fillsOf "US" r)) `shouldEqual` Q.fromInt 30
+    it "a routed buy takes the cheapest Market first when it can absorb the whole order" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A"), MayTrade (Id "EM-B") ] ]) { markets = Map.fromFoldable [ Tuple (Id "EM-A") (priced "EM-A" "E" [ "US" ] "1"), Tuple (Id "EM-B") (priced "EM-B" "E" [ "US" ] "2") ] }
+        r = resolveRound w [ submit "US" 0 [ routed "E" 10 "3" ] ]
+      fillsOf "US" r `shouldEqual` [ Tuple "EM-A" (Q.fromInt 10) ]
+    it "a routed sell goes to the dearer Market first" do
+      let
+        -- a sell lowers a Market's position, so the Markets start at 50 (their domain allows 50 to be sold), and the seller holds E
+        held m = m { position = Q.fromInt 50 }
+        seller = (actor "US" [ MayTrade (Id "EM-A"), MayTrade (Id "EM-B") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 20) ] }
+        w = (baseWorld [ seller ]) { markets = Map.fromFoldable [ Tuple (Id "EM-A") (held (priced "EM-A" "E" [ "US" ] "1")), Tuple (Id "EM-B") (held (priced "EM-B" "E" [ "US" ] "2")) ] }
+        r = resolveRound w [ submit "US" 0 [ routed "E" (-10) "0.5" ] ]
+      fillsOf "US" r `shouldEqual` [ Tuple "EM-B" (Q.fromInt (-10)) ]
+    it "ties in merit break by MarketId" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-B"), MayTrade (Id "EM-A") ] ]) { markets = Map.fromFoldable [ Tuple (Id "EM-B") (priced "EM-B" "E" [ "US" ] "1"), Tuple (Id "EM-A") (priced "EM-A" "E" [ "US" ] "1") ] }
+        r = resolveRound w [ submit "US" 0 [ routed "E" 10 "3" ] ]
+      fillsOf "US" r `shouldEqual` [ Tuple "EM-A" (Q.fromInt 10) ]
+    it "a routed order with no accessible Market is rejected" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A") ] ]) { markets = Map.singleton (Id "EM-A") (priced "EM-A" "E" [ "EU" ] "1") }
+      rejections (resolveRound w [ submit "US" 0 [ routed "E" 10 "3" ] ])
+        `shouldEqual` [ "US has no accessible market for E/M" ]
+    it "a routed order without a limit price is rejected at screening" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A") ] ]) { markets = Map.singleton (Id "EM-A") (priced "EM-A" "E" [ "US" ] "1") }
+      rejections (resolveRound w [ submit "US" 0 [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Nothing } ] ])
+        `shouldEqual` [ "a routed order needs a limit price" ]
+    it "a routed order's fills conserve quantity and holdings, and pass the invariants" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A"), MayTrade (Id "EM-B") ], actor "EU" [ MayTrade (Id "EM-A") ] ]) { markets = Map.fromFoldable [ Tuple (Id "EM-A") (priced "EM-A" "E" [ "US", "EU" ] "1"), Tuple (Id "EM-B") (priced "EM-B" "E" [ "US" ] "2") ] }
+        r = resolveRound w [ submit "US" 0 [ routed "E" 70 "3" ], submit "EU" 0 [ routed "E" 20 "3" ] ]
+      case r of
+        Left e -> show e `shouldEqual` "a round"
+        Right res -> do
+          rejections r `shouldEqual` []
+          check (prepareRound w) res `shouldEqual` []
+          let
+            total = Q.sumQ (map snd (fillsOf "US" r))
+            perMarket = Q.add (fillIn "EM-A" "US" r) (fillIn "EM-B" "US" r)
+          total `shouldEqual` perMarket
+          (total <= Q.fromInt 70) `shouldEqual` true
+          holding res.world (Id "US") (Id "E") `shouldEqual` total
+    it "the result does not depend on the order of submissions" do
+      let
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM-A"), MayTrade (Id "EM-B") ], actor "EU" [ MayTrade (Id "EM-A") ] ]) { markets = Map.fromFoldable [ Tuple (Id "EM-A") (priced "EM-A" "E" [ "US", "EU" ] "1"), Tuple (Id "EM-B") (priced "EM-B" "E" [ "US" ] "2") ] }
+        us = submit "US" 0 [ routed "E" 40 "3" ]
+        eu = submit "EU" 0 [ routed "E" 25 "2.5" ]
+      eventsOf (resolveRound w [ us, eu ]) `shouldEqual` eventsOf (resolveRound w [ eu, us ])
+      fillsOf "EU" (resolveRound w [ eu, us ]) `shouldEqual` fillsOf "EU" (resolveRound w [ us, eu ])
 
   describe "Reservations (docs/02 §2.3, §8.2)" do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do

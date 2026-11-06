@@ -20,6 +20,7 @@ module Core.Engine.Settle
 import Prelude
 
 import Core.Engine.Fund (Scaled, capacityOf, facilityPrice, poolCeiling, poolOf)
+import Core.Engine.Route as Route
 import Core.Engine.Screen (tradesOf)
 import Core.Market as Market
 import Core.Num (Q)
@@ -141,10 +142,24 @@ type Facilities =
 markets :: WorldState -> Array Scaled -> Settlement -> Settlement
 markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array _)
   where
-  orders = concatMap
+  explicit = concatMap
     ( \s -> map
         (\o -> { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, quantity: Q.mul s.scale o.quantity, limitPrice: o.limitPrice })
         (tradesOf s.item.proposal.intents)
+    )
+    scaled
+  -- routed Trades are split across their candidate Markets (docs/02 §5.2), against the net of the explicit Trades
+  orders = explicit <> Route.plan w (Map.fromFoldableWith Q.add (map (\o -> Tuple o.market o.quantity) explicit)) routed
+  routed = concatMap
+    ( \s -> concat $ mapWithIndex
+        ( \i intent -> case intent of
+            Route r
+              | Just limit <- r.limitPrice
+              , Just cs <- Map.lookup i s.item.routes ->
+                  [ { entity: s.item.proposal.author, pid: s.item.proposal.id, index: i, quantity: Q.mul s.scale r.quantity, limitPrice: limit, candidates: cs } ]
+            _ -> []
+        )
+        s.item.proposal.intents
     )
     scaled
   -- Trade fills are not capped by `pay`: clearing bounds them by the Market's domain and reserves,
@@ -152,7 +167,7 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.entity o.pid) (filter (\o -> o.market == id) orders)
-      bounds = { minNet: Q.sub m.cost.domain.lo m.position, maxNet: min (Q.sub m.cost.domain.hi m.position) (lookupQ m.base m.reserves) }
+      bounds = Route.bounds m
       cleared = Market.clear m.cost m.position bounds os
       -- A Market pays its sellers in quote from its reserves. If the batch would overdraw them,
       -- the sell side is rejected and the batch clears on buys alone, which pay out nothing.
