@@ -42,12 +42,12 @@ check: _fmt-check _deps build test
 all: check _dashboard-test
 
 # Simulate a game
-sim *args: _scenarios
-    spago run -p sp-cli -- run {{args}}
+sim scenario *args: _scenarios
+    spago run -p sp-cli -- run {{scenario}} {{args}}
 
 # Live facilitator session
-session *args: _scenarios
-    spago run -p sp-cli -- session {{args}}
+session scenario *args: _scenarios
+    spago run -p sp-cli -- session {{scenario}} {{args}}
 
 # shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css) are generated,
 # never committed. Their checksums are the baseline in apps/dashboard/ui.sha256 (scripts/ui-checksums.sh).
