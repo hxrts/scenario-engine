@@ -1,109 +1,112 @@
--- | Command line: `run <scenario> [--preset <name>] [--rounds <n>]` (flags in any order) plays a game with every seat
--- | bound to one preset and prints a per-round summary.
+-- | Command line. `run <scenario> [--preset <name>] [--rounds <n>]` plays a game with every seat
+-- | bound to one preset and prints a per-round summary; `session` runs a live game. Both compose
+-- | the harness's `simulate` or the live runner; unknown options and bad values are usage
+-- | errors (exit status 1).
 module Main (main) where
 
 import Prelude
 
+import Adapters.Llm (defaultModel)
 import Board.Gameboard (instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine (prepareRound)
 import Core.Invariants (check)
-import Core.Market (marginal)
-import Core.World (Event(..), RoundResult, WorldState)
-import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (drop, filter, foldl, index, length, take)
-import Data.Either (Either(..))
+import Core.World (RoundResult, WorldState)
+import Data.Array (drop, uncons)
+import Data.Either (Either(..), either)
+import Data.Maybe (Maybe(..))
+import Data.Foldable (foldM)
 import Data.Int (fromString)
-import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (joinWith)
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console (log)
-import Effects (homeMarket, inWorldOf, runGame)
+import Foreign.Object (Object)
 import Foreign.Object as Object
-import Handlers.Test (runTest)
+import Harness.Options (flagOr, parseFlags)
+import Harness.Simulate (presetSeats, seatsOf, simulate)
+import Harness.Views (marketPrices, roundPressure)
 import Node.Process (argv, exit')
-import Scenarios (load, loadPresets)
-import Harness.Simulate (seatsOf)
-import Data.Foldable (foldM)
-import Session (Options, session)
-import Adapters.Llm (defaultModel)
+import Scenarios (loadContext)
+import Session (Options, session, validId)
 
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
-  let flags = pairs (drop 2 args)
-  case index args 0, index args 1 of
-    Just "run", Just scenario ->
-      let
-        flag k = Object.lookup k (Object.fromFoldable flags)
-      in
-        runScenario scenario (fromMaybe "Passive" (flag "--preset")) (fromMaybe 5 (flag "--rounds" >>= fromString))
-    Just "session", Just scenario -> session (foldl option { scenario, model: defaultModel, humans: "", rounds: 5, window: 0, id: "session-1" } flags)
-    _, _ -> usage
+  case uncons args of
+    Just { head: "run", tail: rest } -> case uncons rest of
+      Just { head: scenario, tail: flags } -> case parseFlags [ "--preset", "--rounds" ] flags >>= runOptions of
+        Left e -> usage e
+        Right o -> runScenario scenario o.preset o.rounds
+      Nothing -> usage "run needs a scenario, e.g. run fractured-world"
+    Just { head: "session", tail: rest } -> case uncons rest of
+      Just { head: scenario, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions scenario)
+      Nothing -> usage "session needs a scenario, e.g. session fractured-world"
+    _ -> usage "expected a command: run or session"
 
-usage :: Effect Unit
-usage = do
+runOptions :: Object String -> Either String { preset :: String, rounds :: Int }
+runOptions fs = do
+  rounds <- number "--rounds" 5 fs
+  pure { preset: flagOr "--preset" "Passive" fs, rounds }
+
+sessionFlags :: Array String
+sessionFlags = [ "--humans", "--model", "--rounds", "--window", "--id", "--db" ]
+
+sessionOptions :: String -> Object String -> Either String Options
+sessionOptions scenario fs = do
+  rounds <- number "--rounds" 5 fs
+  window <- numberFrom 0 "--window" 0 fs
+  let id = flagOr "--id" "session-1" fs
+  if validId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
+  pure { scenario, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs }
+
+-- | A whole-number flag of at least one, with its default.
+number :: String -> Int -> Object String -> Either String Int
+number = numberFrom 1
+
+numberFrom :: Int -> String -> Int -> Object String -> Either String Int
+numberFrom lowest name d fs = case Object.lookup name fs of
+  Nothing -> Right d
+  Just s -> case fromString s of
+    Just n | n >= lowest -> Right n
+    _ -> Left (name <> " must be a whole number of at least " <> show lowest <> ", got " <> s)
+
+usage :: String -> Effect Unit
+usage why = do
+  log ("error: " <> why)
   log "usage: run <scenario> [--preset <name>] [--rounds <n>]"
   log "  e.g. run fractured-world --preset Conservative --rounds 5"
-  log "       session <scenario> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name]"
+  log "       session <scenario> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file]"
   exit' 1
 
 runScenario :: String -> String -> Int -> Effect Unit
 runScenario scenario presetName rounds = do
-  loaded <- load (scenario <> "/v0")
-  presets <- loadPresets
-  case loaded, presets of
-    Left e, _ -> fail e
-    _, Left e -> fail e
-    Right { gameboard, config }, Right ps -> case instantiate gameboard config, inWorldOf gameboard, Object.lookup presetName ps of
-      Left es, _, _ -> fail (show es)
-      _, Left e, _ -> fail (printJsonDecodeError e)
-      _, _, Nothing -> fail ("unknown preset " <> presetName)
-      Right initial, Right inWorld, Just preset -> do
-        let
-          w0 = initial.world
-          out = runTest { programs: Map.fromFoldable (map (\s -> Tuple s preset) (seatsOf w0)), params: gameboard.parameters, home: homeMarket w0, playerSeed: Seed 1 } (runGame inWorld rounds w0)
-        log (gameboard.id <> "@" <> gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds")
-        void $ foldM (\w r -> summarize w r $> r.world) w0 out.records
-        case out.value of
-          Left e -> fail (show e)
-          Right _ -> pure unit
+  loaded <- loadContext (scenario <> "/v0")
+  case loaded of
+    Left e -> fail e
+    Right ctx -> case instantiate ctx.gameboard ctx.config of
+      Left es -> fail (show es)
+      Right initial -> do
+        let spec = { seats: presetSeats (const presetName) (seatsOf initial.world), playerSeed: Seed 1, overrides: [], rounds: Just rounds }
+        case simulate ctx spec of
+          Left e -> fail e
+          Right out -> do
+            log (ctx.gameboard.id <> "@" <> ctx.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds")
+            void $ foldM (\w r -> summarize w r $> r.world) initial.world out.records
+            case out.final of
+              Left e -> fail (show e)
+              Right _ -> pure unit
 
 summarize :: WorldState -> RoundResult -> Effect Unit
 summarize before r = do
   let
-    prices = map (\(Tuple id m) -> show id <> " " <> show (marginal m.cost m.position)) (Map.toUnfoldable r.world.markets :: Array _)
-    count f = length (filter f r.record.events)
-    lapsed = count case _ of
-      Lapsed _ -> true
-      _ -> false
-    rejected = count case _ of
-      Rejected _ -> true
-      _ -> false
+    p = roundPressure r.record
+    prices = map (\m -> m.market <> " " <> m.price) (marketPrices r.world)
     failures = check (prepareRound before) r
   log
-    ( "round " <> show r.record.round <> ": " <> joinWith ", " prices <> "; lapsed " <> show lapsed <> ", rejected " <> show rejected
+    ( "round " <> show r.record.round <> ": " <> joinWith ", " prices <> "; lapsed " <> show p.lapsed <> ", rejected " <> show p.rejected
         <> "; invariants "
         <> (if failures == [] then "ok" else show failures)
     )
 
 fail :: String -> Effect Unit
 fail e = log e *> exit' 1
-
-pairs :: Array String -> Array (Tuple String String)
-pairs xs = case xs of
-  [] -> []
-  _ -> case take 2 xs of
-    [ k, v ] -> [ Tuple k v ] <> pairs (drop 2 xs)
-    _ -> []
-
-option :: Options -> Tuple String String -> Options
-option o (Tuple k v) = case k of
-  "--humans" -> o { humans = v }
-  "--model" -> o { model = v }
-  "--rounds" -> o { rounds = fromMaybe o.rounds (fromString v) }
-  "--window" -> o { window = fromMaybe o.window (fromString v) }
-  "--id" -> o { id = v }
-  _ -> o

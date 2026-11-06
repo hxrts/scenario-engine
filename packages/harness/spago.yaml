@@ -17,6 +17,10 @@ package:
     - maybe
     - ordered-collections
     - tuples
+    - strings
+    - newtype
+    - argonaut-core
+    - argonaut-codecs
   test:
     main: Test.Harness.Main
     dependencies:

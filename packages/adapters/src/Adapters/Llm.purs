@@ -20,18 +20,20 @@ import Prelude
 import Board.Decode (readJson)
 
 import Core.Engine (authorized, executor)
+import Control.Monad.Error.Class (catchError, throwError)
 import Core.Types (Entity, EntityId, ProposalId, proposalId)
 import Core.World (View)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (all, concatMap, length, mapWithIndex)
+import Data.Array (all, concatMap, elem, filter, length, mapWithIndex)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe, fromMaybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
+import Effect.Exception (Error, error, message)
 import Effects (InterpretF(..), Interpretation(..), NarrateF(..))
 import Policy.Interpret (Draft)
 
@@ -52,7 +54,12 @@ foreign import sha256 :: String -> String
 foreign import firstObject :: String -> String
 
 pi :: { model :: String, rawDir :: String } -> Backend
-pi c = { model: c.model, call: \system input -> fromEffectFnAff (piImpl c.model c.rawDir system input) }
+pi c = { model: c.model, call: \system input -> fromEffectFnAff (piImpl c.model c.rawDir system input) `catchError` backendFailed c.model }
+
+-- | A backend failure (a missing `pi`, a non-zero exit, an unwritable raw directory) is fatal to
+-- | the run: it is rethrown with the model and the cause named, and the run is marked failed.
+backendFailed :: forall a. String -> Error -> Aff a
+backendFailed model e = throwError (error ("language model backend failed (" <> model <> "): " <> message e))
 
 -- | Canned replies keyed by the call (the interpretation suite and CI; no network).
 stub :: (String -> String -> String) -> Backend
@@ -82,7 +89,8 @@ interpreter b log entity (Interpret e v said k) = k <$> do
           caps = fromMaybe [] (map _.capabilities (entity e))
           ok = all identity (concatMap (\{ i, d } -> let p = { id: proposalId v.round e i, author: e, intents: d.intents, signers: d.signers, procedure: d.procedure } in map (\it -> executor p it /= e || authorized caps e it) d.intents) (mapWithIndex (\i d -> { i, d }) ds))
         in
-          if ok then Understood ds (fromMaybe [] x.sign) else Inadmissible "the action needs a capability this Actor does not hold"
+          -- a sign list is a candidate too: keep only the ids the Actor may sign now
+          if ok then Understood ds (filter (_ `elem` map _.id v.toSign) (fromMaybe [] x.sign)) else Inadmissible "the action needs a capability this Actor does not hold"
       "inadmissible" -> Inadmissible (fromMaybe "" x.message)
       _ -> Clarify (fromMaybe "Please clarify." x.message)
 

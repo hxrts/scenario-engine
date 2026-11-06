@@ -25,6 +25,8 @@ package:
     - sp-handlers
     - sp-adapters
     - sp-harness
+    - exceptions
+    - nullable
   run:
     main: Server
   test:

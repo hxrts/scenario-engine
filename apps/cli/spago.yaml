@@ -25,6 +25,7 @@ package:
     - aff
     - refs
     - integers
+    - exceptions
   test:
     main: Test.Cli.Main
     dependencies:

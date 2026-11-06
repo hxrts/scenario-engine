@@ -17,6 +17,7 @@ package:
     - typelevel-prelude
     - aff
     - arrays
+    - strings
   test:
     main: Test.Handlers.Main
     dependencies:

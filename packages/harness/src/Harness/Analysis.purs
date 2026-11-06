@@ -2,7 +2,8 @@
 -- | §10.5): objective evaluation, run differences, counterfactuals, seed experiments, and
 -- | agency. All of them compose `simulate`; none has its own run loop.
 module Harness.Analysis
-  ( CriterionResult
+  ( Outcome(..)
+  , CriterionResult
   , ObjectiveResult
   , evaluateObjectives
   , Difference
@@ -23,20 +24,32 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Foldable (and)
-import Data.Array (all, concatMap, length, filter, fromFoldable, last, nub, zipWith)
-import Data.Either (Either, hush)
+import Data.Array (all, any, concatMap, length, filter, fromFoldable, last, nub, null, zipWith)
+import Data.Either (Either(..), hush)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
+import Foreign.Object as Object
 import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, simulate)
 
 -- Objectives ----------------------------------------------------------------------
 
-type CriterionResult = { met :: Boolean, values :: Array Q, bound :: Array Q }
+-- | A criterion or objective is met, not met, or not evaluated. A run with no rounds, or a
+-- | criterion with no series, is not evaluated: it is neither a pass nor a failure.
+data Outcome = Met | NotMet | NotEvaluated
 
-type ObjectiveResult = { actor :: EntityId, description :: String, criteria :: Array CriterionResult, met :: Boolean }
+derive instance Eq Outcome
+
+instance Show Outcome where
+  show = case _ of
+    Met -> "met"
+    NotMet -> "not met"
+    NotEvaluated -> "not evaluated"
+
+type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q }
+
+type ObjectiveResult = { actor :: EntityId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
 
 -- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
 evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
@@ -48,15 +61,24 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
       let
         criteria = map criterion o.criteria
       in
-        [ { actor, description: o.description, criteria, met: all _.met criteria } ]
+        [ { actor, description: o.description, criteria, outcome: objectiveOutcome criteria } ]
+  objectiveOutcome criteria
+    | null criteria = NotEvaluated
+    | any (\c -> c.outcome == NotMet) criteria = NotMet
+    | all (\c -> c.outcome == Met) criteria = Met
+    | otherwise = NotEvaluated
   criterion c =
     let
       values = series c.over c.metric
       bound = case c.atLeast of
         Fixed q -> map (const q) values
         Of m -> series c.over m
+      outcome
+        | null records || null values = NotEvaluated
+        | all identity (zipWith (>=) values bound) = Met
+        | otherwise = NotMet
     in
-      { met: and (zipWith (>=) values bound), values, bound }
+      { outcome, values, bound }
   -- the metric's value per round, or one aggregate value
   series span m =
     let
@@ -137,7 +159,6 @@ counterfactual ctx spec change = do
 playerSeedRuns :: Context -> SimulationSpec -> Array Int -> Either String (Array Run)
 playerSeedRuns ctx spec seeds = traverse (\s -> simulate ctx spec { playerSeed = Seed s }) seeds
 
--- | Game-seed variation: the player seed fixed, the game seed varied (§11).
 -- Agency (§10.5) ----------------------------------------------------------------------
 
 type AgencyProfile =
@@ -151,44 +172,44 @@ type AgencyProfile =
   , measurable :: Boolean
   }
 
--- | For each seat, replay with an alternative preset while everything else is fixed.
-agency :: Context -> SimulationSpec -> Array EntityId -> Either String (Array AgencyProfile)
-agency ctx spec actors = do
-  base <- simulate ctx spec
-  traverse (profile base) actors
-  where
-  alternativeFor actor = case Map.lookup actor spec.seats of
-    Just (Preset "Passive") -> "Aggressive"
-    _ -> "Passive"
-  profile base actor = do
-    let alt = alternativeFor actor
-    variant <- simulate ctx spec { seats = Map.insert actor (Preset alt) spec.seats }
-    let
-      d = difference base variant
-      isAggregate e = maybe false Query.isAggregate (finalWorld base >>= \w -> Map.lookup e w.entities)
-      absSum xs = Q.sumQ (map Q.abs xs)
-      prices = absSum (map _.delta d.prices)
-      others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
-      aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
-      outcomes r = concatMap
-        ( \x -> concatMap
-            ( case _ of
-                ProcedureOutcome o -> [ o.executed ]
-                _ -> []
+-- | For each seat, replay with the alternative preset while everything else is fixed. The
+-- | alternative must be a known preset; an unknown name is an error, not a silent baseline.
+agency :: Context -> SimulationSpec -> String -> Array EntityId -> Either String (Array AgencyProfile)
+agency ctx spec alternative actors
+  | not (Object.member alternative ctx.presets) = Left ("unknown preset " <> alternative)
+  | otherwise =
+      do
+        base <- simulate ctx spec
+        traverse (profile base) actors
+      where
+      profile base actor = do
+        variant <- simulate ctx spec { seats = Map.insert actor (Preset alternative) spec.seats }
+        let
+          d = difference base variant
+          isAggregate e = maybe false Query.isAggregate (finalWorld base >>= \w -> Map.lookup e w.entities)
+          absSum xs = Q.sumQ (map Q.abs xs)
+          prices = absSum (map _.delta d.prices)
+          others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
+          aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
+          outcomes r = concatMap
+            ( \x -> concatMap
+                ( case _ of
+                    ProcedureOutcome o -> [ o.executed ]
+                    _ -> []
+                )
+                x.record.events
             )
-            x.record.events
-        )
-        r.records
-      institutions = if outcomes base == outcomes variant then 0 else 1
-      own r = map _.met (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives ctx.gameboard r.records)))
-      objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
-    pure
-      { actor
-      , alternative: alt
-      , prices
-      , others
-      , aggregates
-      , institutions
-      , objectives
-      , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
-      }
+            r.records
+          institutions = if outcomes base == outcomes variant then 0 else 1
+          own r = map _.outcome (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives ctx.gameboard r.records)))
+          objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
+        pure
+          { actor
+          , alternative
+          , prices
+          , others
+          , aggregates
+          , institutions
+          , objectives
+          , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
+          }

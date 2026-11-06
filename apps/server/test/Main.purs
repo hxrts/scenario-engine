@@ -40,4 +40,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           cmp.body `shouldSatisfy` contains (Pattern "playerSeed")
           missing <- api "GET" "/api/runs/run-9/overview" [] ""
           missing.status `shouldEqual` 404
+          -- a round the run does not have is a client error, not the initial state
+          outOfRange <- api "GET" "/api/runs/run-1/balances" [ { k: "round", v: "9" } ] ""
+          outOfRange.status `shouldEqual` 400
+          notANumber <- api "GET" "/api/runs/run-1/events" [ { k: "round", v: "two" } ] ""
+          notANumber.status `shouldEqual` 400
+          -- a comparison with no valid run is a bad request
+          noneValid <- api "GET" "/api/compare" [ { k: "runs", v: "run-8,run-9" } ] ""
+          noneValid.status `shouldEqual` 400
+          -- the agency analysis names an unknown preset explicitly
+          badPreset <- api "GET" "/api/agency" [ { k: "alternative", v: "NoSuchPreset" } ] ""
+          badPreset.status `shouldEqual` 400
+          badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: 1, gameSeed: (Nothing :: Maybe Int), rounds: Just 2 }))
+          badLaunch.status `shouldEqual` 400
         Left e -> fail e

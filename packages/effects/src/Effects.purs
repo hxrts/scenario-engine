@@ -16,13 +16,14 @@ module Effects
   , InWorld
   , inWorldOf
   , homeMarket
+  , envFor
   , runRound
   , runGame
   ) where
 
 import Prelude
 
-import Core.Draw (draw)
+import Core.Draw (Seed, draw)
 import Core.Engine (EngineError, observe, prepareRound, resolveRound)
 import Core.Num (Q)
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), MarketId, PolicyId, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId)
@@ -107,6 +108,16 @@ inWorldOf gb = do
   programs <- traverseWithIndex (const decodeProgram) gb.policies
   pure { programs: toMap programs, params: gb.parameters }
 
+-- | The policy environment of an Entity at a View. Draws are keyed by the source (the
+-- | in-world stream or a seat's stream), the round, and the Entity, so streams never share draws.
+envFor :: { params :: Object Q, home :: EntityId -> MarketId, seed :: Seed, source :: String } -> EntityId -> View -> Env
+envFor c e v =
+  { view: v
+  , params: c.params
+  , home: c.home e
+  , random: \i -> draw c.seed { round: v.round, source: c.source, entity: unwrap e, category: "choice", index: i }
+  }
+
 homeMarket :: WorldState -> EntityId -> MarketId
 homeMarket w e = case find (\m -> e `elem` m.access) markets of
   Just m -> m.id
@@ -150,12 +161,7 @@ runRound inWorld w0 = do
     Actor (Seat _) -> Nothing
 
   env :: Entity -> View -> Env
-  env e v =
-    { view: v
-    , params: inWorld.params
-    , home: homeMarket w0 e.id
-    , random: \i -> draw w0.seed { round: w0.round, source: "policy", entity: unwrap e.id, category: "choice", index: i }
-    }
+  env e = envFor { params: inWorld.params, home: homeMarket w0, seed: w0.seed, source: "policy" } e.id
 
 type Tuple' = { index :: Int, draft :: Draft }
 
