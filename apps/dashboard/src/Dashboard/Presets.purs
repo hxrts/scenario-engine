@@ -15,4 +15,5 @@ presetNames =
   , "Investor"
   , "CrisisResponse"
   , "RandomValid"
+  , "Deployer"
   ]

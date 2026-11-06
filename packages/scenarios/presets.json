@@ -112,6 +112,36 @@
    }
   ]
  },
+ "Deployer": {
+  "rules": [
+   {
+    "propose": [
+     {
+      "transform": {
+       "quantity": "60",
+       "transformation": "military-deployment"
+      }
+     },
+     {
+      "transform": {
+       "quantity": "40",
+       "transformation": "major-military-action"
+      }
+     }
+    ],
+    "when": [
+     {
+      "gt": [
+       {
+        "price": "energy-atlantic"
+       },
+       "3"
+      ]
+     }
+    ]
+   }
+  ]
+ },
  "Investor": {
   "rules": [
    {

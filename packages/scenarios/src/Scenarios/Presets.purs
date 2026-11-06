@@ -20,6 +20,7 @@ presets = keyed
   , Tuple "Investor" investor
   , Tuple "CrisisResponse" crisisresponse
   , Tuple "RandomValid" randomvalid
+  , Tuple "Deployer" deployer
   ]
 
 passive :: Built "program"
@@ -93,5 +94,18 @@ randomvalid = program
   { rules:
       [ rule []
           [ choose [ noAction, tradeT { market: "$home", quantity: (lit 5), limit: (lit 3) }, tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 2) } ] ]
+      ]
+  }
+
+-- | Reserve 60 Mil for a deployment and order a 40-unit major action in the same round, while the
+-- | Atlantic price is above 3. The deployment reserves 1 Mil per unit, so the two claims on the
+-- | seat's Mil compete: the action is scaled down, and the reservation is released at commit.
+deployer :: Built "program"
+deployer = program
+  { rules:
+      [ rule [ gt (price "energy-atlantic") (lit 3) ]
+          [ transformT { transformation: "military-deployment", quantity: (lit 60) }
+          , transformT { transformation: "major-military-action", quantity: (lit 40) }
+          ]
       ]
   }

@@ -116,6 +116,7 @@ Preset programs are named parameter sets of the shared interpreter, not separate
 | `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100. |
 | `CrisisResponse` | Buys 3 Energy at a limit of 4 while the home price is above 3.5 and its Energy holding is below 20. |
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
+| `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and orders 40 units of `major-military-action` in the same round. The two claims on the seat's Mil compete, so the action is scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
 ### 4.3 Coverage
 
@@ -514,6 +515,8 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: Germany signs vs does not sign. | Fixture values; the procedure Proposal executes in the same round only when support exceeds the threshold ([INV-10](02_type_system.md#inv-10)); signing moves no resources ([INV-03](02_type_system.md#inv-03)). |
 | 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values, with the factor applied in the following round; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
 | 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values; [INV-12](02_type_system.md#inv-12). |
+| 7b | Reservation | Runs [Fixture R](05_test_instance.md#133-military-deployment) and R-alone: a deployment reserves Mil, and a major action on the same Mil is scaled; the reservation is released at commit. | Fixture values; [INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05). |
+| 7c | Deployer | Runs the shipped `Deployer` preset with the other seats Passive, and checks the scaled deployment and action in the rounds the Atlantic price is above 3. | Exact values from [05 §13.3](05_test_instance.md#133-military-deployment). |
 | 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds; [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills; [INV-11](02_type_system.md#inv-11). |
 | 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, G3, and G5. | Fully signed Proposals settle atomically with fixture values; unsigned ones lapse while the round resolves; a shipped deal pays SHIP and is rejected as a unit under an `AccessBan` ([INV-10](02_type_system.md#inv-10)). |

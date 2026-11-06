@@ -15,7 +15,7 @@ import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..), proposalId)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (any, concatMap, drop, fromFoldable, index, length, nub, nubEq, range, reverse)
+import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, nub, nubEq, range, reverse)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -101,7 +101,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "Every preset plays 8 rounds with invariants holding and no engine error" do
       ctx <- context
-      for_ [ "Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid" ] \p -> do
+      for_ [ "Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid", "Deployer" ] \p -> do
         r <- run ctx ((everySeat p) { rounds = Just 8 })
         length r.records `shouldEqual` 8
         valid (initialOf r) r
@@ -166,51 +166,36 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       china cf.base `shouldEqual` true
       china cf.variant `shouldEqual` false
 
-    it "7b Reservation: the US deployment holds its Mil in the shipped world and scales the same seat's Transfer" do
+    it "7b Reservation: fixtures R and R-alone (DSL-authored) show a deployment reserving Mil against a major action" do
+      -- R: the deployment reserves 60 and the 40-unit action scales to 38 on the 95 Mil held;
+      -- the reservation is released at commit, so round 2's 50 Mil transfer runs in full
+      fixture "R"
+      -- R-alone: with no deployment, the same action runs in full
+      fixture "R-alone"
+    it "7c Deployer: the shipped preset reserves and scales its action in the rounds the Atlantic price is above 3" do
       ctx <- context
-      r <- run ctx (everySeat "Passive")
+      r <- run ctx { seats: Map.singleton (Id "US") (Preset "Deployer"), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+      valid (initialOf r) r
       let
-        w0 = initialOf r
-        us = Id "US"
-        jp = Id "JP"
-        mil = Id "Mil"
-        -- one round of signed Proposals by the US seat; the id is its position in the round
-        signed i intents = { proposal: { id: proposalId w0.round us i, author: us, intents, signers: [ us ], procedure: Nothing }, signatures: [] }
-      case Map.lookup (Id "military-deployment") w0.transformations of
-        Nothing -> fail "military-deployment is missing from the shipped world"
-        Just md -> do
-          let
-            -- test-only: the shipped deployment consumes Mil; here it reserves 1 Mil per unit instead
-            w = w0 { transformations = Map.insert (Id "military-deployment") md { inputs = Map.empty, outputs = Map.empty, reserves = Map.singleton mil (Q.fromInt 1) } w0.transformations }
-            deploy = signed 0 [ Transform { by: us, transformation: Id "military-deployment", quantity: Q.fromInt 100 } ]
-            transfer = signed 1 [ Transfer { from: us, to: jp, resource: mil, quantity: Q.fromInt 90 } ]
-          holding w0 us mil `shouldEqual` Q.fromInt 95
-          case resolveRound w [ deploy, transfer ], resolveRound w [ transfer ] of
-            Right both, Right alone -> do
-              -- 100 units reserve 100 Mil and the Transfer asks 90: 190 escrowed against 95 held, so both scale by 1/2
-              holding both.world us mil `shouldEqual` Q.fromInt 50
-              holding both.world jp mil `shouldEqual` Q.add (holding w0 jp mil) (Q.fromInt 45)
-              -- the same Transfer alone is not competing with a reservation, so it runs in full
-              holding alone.world us mil `shouldEqual` Q.fromInt 5
-              checkRun w [ both ] `shouldEqual` []
-              any
-                ( \e -> case e of
-                    Transformed t -> t.by == us && t.quantity == Q.fromInt 50
-                    _ -> false
-                )
-                both.record.events `shouldEqual` true
-              any
-                ( \e -> case e of
-                    Consumed c -> c.entity == us && c.resource == mil
-                    _ -> false
-                )
-                both.record.events `shouldEqual` false
-              -- the reservation is released at commit: next round the 50 Mil held are free to transfer
-              case resolveRound both.world [ signed 0 [ Transfer { from: us, to: jp, resource: mil, quantity: Q.fromInt 50 } ] ] of
-                Right next -> holding next.world us mil `shouldEqual` Q.zero
-                Left e -> fail (show e)
-            Left e, _ -> fail (show e)
-            _, Left e -> fail (show e)
+        -- what the US ordered of a Transformation in round i (0-based), if it did
+        ordered i name = index r.records i >>= \rec -> findMap
+          ( case _ of
+              Transformed t | t.by == Id "US" && t.transformation == Id name -> Just t.quantity
+              _ -> Nothing
+          )
+          rec.record.events
+        usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
+      -- the price is below 3 at the start of rounds 1 to 3, so the seat holds its Mil
+      ordered 0 "military-deployment" `shouldEqual` Nothing
+      ordered 2 "military-deployment" `shouldEqual` Nothing
+      -- from round 4 the price is above 3: 60 reserved and 40 ordered on 95 Mil, so both scale by 95/100
+      ordered 3 "military-deployment" `shouldEqual` Just (Q.fromInt 57)
+      ordered 3 "major-military-action" `shouldEqual` Just (Q.fromInt 38)
+      usMil 3 `shouldEqual` Just (Q.parse "85.5" # fromMaybe Q.zero)
+      -- round 5 scales again by 85.5/100 on the Mil held
+      ordered 4 "military-deployment" `shouldEqual` Just (Q.parse "51.3" # fromMaybe Q.zero)
+      ordered 4 "major-military-action" `shouldEqual` Just (Q.parse "34.2" # fromMaybe Q.zero)
+      usMil 4 `shouldEqual` Just (Q.parse "76.95" # fromMaybe Q.zero)
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
       ctx <- context

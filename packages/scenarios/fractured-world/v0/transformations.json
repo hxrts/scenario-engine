@@ -114,10 +114,7 @@
    }
   },
   "military-deployment": {
-   "inputs": {
-    "Mil": "1"
-   },
-   "outputs": {
+   "reserves": {
     "Mil": "1"
    }
   },
