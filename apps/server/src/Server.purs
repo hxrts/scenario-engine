@@ -37,8 +37,9 @@ import Http (Request, Response, serve)
 import Node.Process (argv, exit')
 import Scenarios (loadContext)
 
--- | `POST /api/runs` body: every seat plays one preset.
-type Launch = { name :: String, preset :: String, playerSeed :: Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
+-- | `POST /api/runs` body: every seat plays one preset. Unknown fields are ignored, so a client that
+-- | still sends a `gameSeed` is accepted; the game seed is the scenario's own.
+type Launch = { name :: String, preset :: String, playerSeed :: Int, rounds :: Maybe Int }
 
 -- | Why a stored run cannot be served: it is not in the store, or it is there but unreadable.
 data LoadError = Missing | Unreadable String
@@ -96,14 +97,16 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
       skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
     case uncons good of
       Nothing -> failWith 400 (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
-      Just { head: base, tail: others } -> ok
-        { compatibility: V.compatible good
-        , trajectory: V.trajectories good (param "market" V.defaultMetricSpec.market)
-        , final: V.finalState good
-        , diff: V.baselineDiff base others
-        , config: V.configDiff base others
-        , skipped
-        }
+      Just { head: base, tail: others } -> case V.trajectories good (param "market" V.defaultMetricSpec.market) of
+        Left e -> failWith 400 e
+        Right trajectory -> ok
+          { compatibility: V.compatible good
+          , trajectory
+          , final: V.finalState good
+          , diff: V.baselineDiff base others
+          , config: V.configDiff base others
+          , skipped
+          }
   "GET", [ "api", "agency" ] -> case Int.fromString (param "playerSeed" "1") of
     Nothing -> failWith 400 "playerSeed must be an integer"
     Just s -> viewOr (map V.agencyTable (agency ctx (presetSpec ctx (param "preset" "Conservative") s [] Nothing) (param "alternative" "Aggressive") (seats ctx)))
@@ -152,9 +155,9 @@ launch ctx db l = do
   let
     id = "run-" <> show (n + 1)
     spec = Object.fromFoldable
-      [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
+      [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
   created <- nowIso
-  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
+  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset l.playerSeed [] l.rounds) \manifest -> do
     createRun db { id, name: l.name, created, spec: encodeJson spec, manifest }
     persister db id manifest.initial
   case attempt of

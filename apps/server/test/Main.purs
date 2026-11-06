@@ -28,7 +28,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           db <- liftEffect (open ":memory:")
           let
             api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-            launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, gameSeed: (Nothing :: Maybe Int), rounds: Just 3 }))
+            launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, rounds: Just 3 }))
           a <- launch "a" 1
           a.body `shouldEqual` "{\"id\":\"run-1\"}"
           _ <- launch "b" 2
@@ -38,6 +38,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           bal.status `shouldEqual` 200
           cmp <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" } ] ""
           cmp.body `shouldSatisfy` contains (Pattern "playerSeed")
+          -- the trajectory unit is the market's quote per base unit; an unknown market is a client error
+          cmp.body `shouldSatisfy` contains (Pattern "\"unit\":\"M/E\"")
+          noMarket <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "market", v: "no-such-market" } ] ""
+          noMarket.status `shouldEqual` 400
           missing <- api "GET" "/api/runs/run-9/overview" [] ""
           missing.status `shouldEqual` 404
           -- a round the run does not have is a client error, not the initial state
@@ -51,6 +55,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- the agency analysis names an unknown preset explicitly
           badPreset <- api "GET" "/api/agency" [ { k: "alternative", v: "NoSuchPreset" } ] ""
           badPreset.status `shouldEqual` 400
-          badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: 1, gameSeed: (Nothing :: Maybe Int), rounds: Just 2 }))
+          badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: 1, rounds: Just 2 }))
           badLaunch.status `shouldEqual` 400
+          -- a client that still sends the removed gameSeed field is accepted, and the field is ignored
+          oldClient <- api "POST" "/api/runs" [] "{\"name\":\"old\",\"preset\":\"Conservative\",\"playerSeed\":4,\"gameSeed\":7,\"rounds\":2}"
+          oldClient.status `shouldEqual` 200
         Left e -> fail e

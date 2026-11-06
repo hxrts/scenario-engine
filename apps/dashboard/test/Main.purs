@@ -67,9 +67,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Object.lookup "b") (chartRows series) `shouldEqual` [ Just 2.0 ]
   describe "Launch form" do
     it "the default form is a valid request with the scenario's default rounds" do
-      validate emptyForm `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, gameSeed: Nothing, rounds: Nothing }
+      validate emptyForm `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, rounds: Nothing }
     it "rounds, when given, must be a whole number of at least 1" do
-      validate (emptyForm { rounds = " 4 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, gameSeed: Nothing, rounds: Just 4 }
+      validate (emptyForm { rounds = " 4 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, rounds: Just 4 }
       validate (emptyForm { rounds = "0" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
       validate (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
     it "a preset must be one of the known presets" do

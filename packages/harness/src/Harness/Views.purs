@@ -39,7 +39,7 @@ import Core.Query (holding, lookupQ, priceOf, totalHolding)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.World (Event(..), Manifest, RoundRecord, WorldState)
-import Core.Types (EntityId, EntityKind(..), Id, Intent(..), ResourceId)
+import Core.Types (EntityId, EntityKind(..), Id, Intent(..), MarketTag, ResourceId)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (concat, concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
@@ -47,7 +47,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Either (Either(..))
-import Data.Foldable (any)
+import Data.Foldable (any, for_)
 import Data.Tuple (Tuple(..))
 import Data.String (joinWith)
 import Foreign.Object as Object
@@ -413,18 +413,30 @@ compatible runs =
   actors :: StoredRun -> String
   actors r = fromMaybe "—" (map (\(Tuple _ v) -> v) (find (\(Tuple k _) -> k == "preset") r.spec))
 
--- | One market's price across runs, aligned by round.
-trajectories :: Array StoredRun -> String -> Chart
-trajectories runs market =
-  { title: "Price, " <> market
-  , unit: "M/E"
-  , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: q (price w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
-  }
+-- | One market's price across runs, aligned by round. The unit is the Market's quote per base unit,
+-- | read from the Resources' units in the run's manifest. A run without the Market is an error.
+trajectories :: Array StoredRun -> String -> Either String Chart
+trajectories runs market = do
+  for_ runs \r -> maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)
+  unit <- maybe (Right "") marketUnit (index runs 0)
+  pure
+    { title: "Price, " <> market
+    , unit
+    , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: q (price w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
+    }
   where
-  price w = fromMaybe Q.zero (priceOf w (wrapId market))
+  mid :: Id MarketTag
+  mid = wrap market
 
-  wrapId :: forall t. String -> Id t
-  wrapId = wrap
+  price w = fromMaybe Q.zero (priceOf w mid)
+
+  marketUnit r = do
+    m <- maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)
+    base <- resourceUnit r m.base
+    quoteUnit <- resourceUnit r m.quote
+    pure (quoteUnit <> "/" <> base)
+
+  resourceUnit r res = maybe (Left ("resource " <> show res <> " is not in run " <> r.id)) (Right <<< _.unit) (Map.lookup res r.manifest.initial.resources)
 
 finalState :: Array StoredRun -> Table
 finalState runs =
