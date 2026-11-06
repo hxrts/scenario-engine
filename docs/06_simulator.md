@@ -11,7 +11,7 @@
 
 The Simulation Harness plays complete games automatically and deterministically. It is used to check implementation correctness and to improve gameplay through repeated experiments.
 
-The harness runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Glossary, and invariants are cited by their IDs in the Type System specification (§2.5 and §9).
+The harness runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Glossary, and invariants are cited by their IDs in the Type System specification ([§2.5](02_type_system.md#25-glossary) and [§9](02_type_system.md#9-architectural-invariants-and-numerics)).
 
 The harness lets a developer:
 
@@ -37,9 +37,9 @@ The harness is a development component, not a fourth layer of economic semantics
 | **Run Store** | Persists manifests, round records, snapshots, and derived metrics. |
 | **Analytics Dashboard** | Read-only presentation of runs, trajectories, comparisons, and diagnostics. |
 
-The harness invokes the same instantiation and resolution operations used in live play. Simulated and live games therefore use the same engine and interpreter (INV-29). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
+The harness invokes the same instantiation and resolution operations used in live play. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
 
-The harness is a set of effect handlers (Type System §8.4, INV-36). Its simulation handler interprets `SeatInput` with bound seat Policies, `Random` with the game and player seeds, and `Record` with the Run Store. The replay handler feeds recorded Proposals and signatures instead. The round runner and engine code are the same as in live play.
+The harness is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). Its simulation handler interprets `SeatInput` with bound seat Policies, `Random` with the game and player seeds, and `Record` with the Run Store. The replay handler feeds recorded Proposals and signatures instead. The round runner and engine code are the same as in live play.
 
 The engine remains responsible for everything economic: accounting, validation, Policies, Representation, settlement, transformations, and rule changes. The harness only generates inputs, records results, and evaluates them. The Dashboard is read-only and never alters authoritative state or run histories. Changing any parameter creates a new run.
 
@@ -79,11 +79,11 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 ## 4. Seat Policies
 
-The engine accepts only Intents (Type System §4). A **seat** is an Actor whose Policy is supplied from outside the scenario; an NPC's Policy is part of the scenario. In simulation the harness binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC (INV-30).
+The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the scenario; an NPC's Policy is part of the scenario. In simulation the harness binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
-Seat Policies come in the three kinds of Type System §4 (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies (INV-29).
+Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)).
 
-Every kind sees only its Actor's authorized view (INV-16) and maps it to Intents:
+Every kind sees only its Actor's authorized view ([INV-16](02_type_system.md#inv-16)) and maps it to Intents:
 
 **Seat Policy + Actor View + Turn → Proposals (3a) and signatures (3b)**
 
@@ -91,13 +91,13 @@ Accepted Intents are always recorded, so every run replays from its round record
 
 ### 4.1 Propose and sign
 
-Each seat Policy acts twice per round, against the same snapshot (Type System §3.3, §8.1). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses; an author's own signature is implicit in publishing. Preset programs sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". AI agents read the Proposals and choose. A Proposal missing a signature lapses (INV-10); the round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
+Each seat Policy acts twice per round, against the same snapshot (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses; an author's own signature is implicit in publishing. Preset programs sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". AI agents read the Proposals and choose. A Proposal missing a signature lapses ([INV-10](02_type_system.md#inv-10)); the round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
 
 Illustrative preset seat Policies:
 
 - **US:** keep at least 50 E, buying with a 3.0 M/E limit. Procure Military when Chinese Military exceeds a threshold. Spend up to 15 M per year on Public Attention while Energy is below 3. Keep at least 40 M in reserve.
 - **Germany:** keep at least 25 E. Submit `Support` to the EU procedure when the Atlantic Energy price exceeds 3.
-- **SA and JP:** SA proposes 20 E for 48 M to JP; JP's sign rule accepts Energy offers at ≤ 2.4 M/E (Fixture G).
+- **SA and JP:** SA proposes 20 E for 48 M to JP; JP's sign rule accepts Energy offers at ≤ 2.4 M/E ([Fixture G](05_test_instance.md#27-fixture-g-proposals-and-signatures)).
 - **SME:** cut Energy purchases above 3 M/E. Raise them below 2.2 M/E. Keep operating cash.
 
 ### 4.2 Presets
@@ -123,7 +123,7 @@ Every seat has exactly one bound seat Policy. A seat Policy that produces nothin
 
 ## 5. Deterministic Randomness
 
-Mechanics are deterministic by default. Randomness enters only through the `Random` effect, where a Gameboard, an estimator, or a preset program declares a stochastic choice (INV-13, INV-36).
+Mechanics are deterministic by default. Randomness enters only through the `Random` effect, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
 ```purescript
 simulate
@@ -132,7 +132,7 @@ simulate
   -> Either SimulationError SimulationRun
 ```
 
-Draws come from two streams (Type System §9.1):
+Draws come from two streams (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)):
 
 | Stream | Seed | Used for |
 |---|---|---|
@@ -145,7 +145,7 @@ The streams never share draws. Varying the player seed never changes an in-world
 - **Game-seed variation:** fix the player seed and vary the game seed to see in-world stochastic variation.
 - **Counterfactuals** fix both seeds, so differences come only from the intervention.
 
-Conversion of random values into quantities uses the Type System's fixed-point rule (§9.1).
+Conversion of random values into quantities uses the Type System's fixed-point rule ([§9.1](02_type_system.md#91-numerics-and-randomness)).
 
 ---
 
@@ -155,7 +155,7 @@ Conversion of random values into quantities uses the Type System's fixed-point r
 
 Runs move through these states: **Configured → Validated → Initialized → Running → Completed**, or **Failed**. A failed run keeps its last valid state and diagnostics.
 
-Each round follows the canonical sequence (Type System §8.1). The harness drives the same round runner and engine as live play, with seat Policies bound:
+Each round follows the canonical sequence (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence)). The harness drives the same round runner and engine as live play, with seat Policies bound:
 
 | Canonical phase | Harness role |
 |---|---|
@@ -169,7 +169,7 @@ The harness exposes two operations, **run to completion** and **step one round**
 
 ### 6.1 Invalid actions and failures
 
-An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules (Type System §3.2). The round record keeps both the proposed and the executed action. A representative's observation comes from the proposal, even when its fill differs.
+An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules (Type System [§3.2](02_type_system.md#32-infeasible-actions)). The round record keeps both the proposed and the executed action. A representative's observation comes from the proposal, even when its fill differs.
 
 An invariant violation fails the run. The harness preserves the configuration, last valid state, failing round, Intents, Policy and Representation outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
 
@@ -183,26 +183,26 @@ Each required assertion checks exactly one invariant from the Type System master
 
 | Assertion | Invariant |
 |---|---|
-| Unified action semantics | INV-01 |
-| Authority separation | INV-02 |
-| No authority amplification | INV-03 |
-| Resource consistency | INV-04 |
-| Stock-flow reconciliation | INV-05 |
-| Market solvency | INV-06 |
-| Price is not production | INV-07 |
-| Account partition | INV-08 |
-| Representation consistency | INV-09 |
-| Signature completeness | INV-10 |
-| Order independence | INV-11 |
-| Policy reproducibility | INV-12 |
-| Deterministic replay | INV-13 |
-| Resolution consistency | INV-14 |
-| Single authoritative state | INV-15 |
-| Information isolation | INV-16 |
+| Unified action semantics | [INV-01](02_type_system.md#inv-01) |
+| Authority separation | [INV-02](02_type_system.md#inv-02) |
+| No authority amplification | [INV-03](02_type_system.md#inv-03) |
+| Resource consistency | [INV-04](02_type_system.md#inv-04) |
+| Stock-flow reconciliation | [INV-05](02_type_system.md#inv-05) |
+| Market solvency | [INV-06](02_type_system.md#inv-06) |
+| Price is not production | [INV-07](02_type_system.md#inv-07) |
+| Account partition | [INV-08](02_type_system.md#inv-08) |
+| Representation consistency | [INV-09](02_type_system.md#inv-09) |
+| Signature completeness | [INV-10](02_type_system.md#inv-10) |
+| Order independence | [INV-11](02_type_system.md#inv-11) |
+| Policy reproducibility | [INV-12](02_type_system.md#inv-12) |
+| Deterministic replay | [INV-13](02_type_system.md#inv-13) |
+| Resolution consistency | [INV-14](02_type_system.md#inv-14) |
+| Single authoritative state | [INV-15](02_type_system.md#inv-15) |
+| Information isolation | [INV-16](02_type_system.md#inv-16) |
 
-Harness invariants INV-29 to INV-31 are checked by the harness's own test suite rather than by per-round assertions.
+Harness invariants [INV-29](02_type_system.md#inv-29) to [INV-31](02_type_system.md#inv-31) are checked by the harness's own test suite rather than by per-round assertions.
 
-Conservation checks read each Resource's declared conservation class (INV-04, INV-05). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
+Conservation checks read each Resource's declared conservation class ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
 
 Each assertion reports: pass or fail, round, Entity or Market, expected versus observed quantities, the relevant events, and an explanation. Results are visible in the test runner and in the Dashboard.
 
@@ -210,16 +210,16 @@ Each assertion reports: pass or fail, round, Entity or Market, expected versus o
 
 These tests transform a configuration in a controlled way:
 
-- Reorder submissions (INV-11).
-- Replay with the same game and player seeds (INV-13).
-- Remove all representative observations; Aggregates must follow their baselines (INV-09).
-- Withhold one signature; the Proposal lapses and the round still resolves (INV-10).
+- Reorder submissions ([INV-11](02_type_system.md#inv-11)).
+- Replay with the same game and player seeds ([INV-13](02_type_system.md#inv-13)).
+- Remove all representative observations; Aggregates must follow their baselines ([INV-09](02_type_system.md#inv-09)).
+- Withhold one signature; the Proposal lapses and the round still resolves ([INV-10](02_type_system.md#inv-10)).
 - Change one seat Policy or one Market parameter.
-- Change explicitness (§7.3).
+- Change explicitness ([§7.3](#73-resolution-consistency-test)).
 
 ### 7.3 Resolution-consistency test
 
-This test is the direct check of INV-14.
+This test is the direct check of [INV-14](02_type_system.md#inv-14).
 
 Instantiate the reference board twice:
 
@@ -259,7 +259,7 @@ Every run is persisted and survives restarts.
 | **Assertions** | Results and diagnostics. |
 | **Metrics** | Derived projections, tagged with the version of the metric definitions. |
 
-**Source of truth (INV-31).** The manifest, round records, and snapshots are authoritative. Metrics are reproducible projections of them. When a metric definition changes, its values are recomputed and the records stay untouched. Snapshots support fast inspection; records explain outcomes. Neither replaces the other. Every outcome traces to its inputs, Policies, and configuration.
+**Source of truth ([INV-31](02_type_system.md#inv-31)).** The manifest, round records, and snapshots are authoritative. Metrics are reproducible projections of them. When a metric definition changes, its values are recomputed and the records stay untouched. Snapshots support fast inspection; records explain outcomes. Neither replaces the other. Every outcome traces to its inputs, Policies, and configuration.
 
 Completed runs are immutable, and a changed configuration always gets a new Run ID.
 
@@ -287,7 +287,7 @@ The available actions are:
 - **Duplicate:** edit a copy of the configuration.
 - **Rerun:** same configuration and both seeds.
 - **Variant:** change selected parameters.
-- **Counterfactual** (§10.4)
+- **Counterfactual** ([§10.4](#104-counterfactual-experiments))
 - **Inspect**
 - **Compare**
 
@@ -322,7 +322,7 @@ Holdings are not collapsed into a single net-worth figure, because Military and 
 
 - Resource totals across all accounts, with production, consumption, issuance, and decay shown separately.
 - Activity and unfilled demand.
-- Circulation: Money flows between Entity categories, with accounts that only accumulate flagged (INV-05).
+- Circulation: Money flows between Entity categories, with accounts that only accumulate flagged ([INV-05](02_type_system.md#inv-05)).
 - Concentration.
 - Explicit versus implicit share.
 - Pressure indicators: shortages, price moves, capacity utilization, rejections.
@@ -437,7 +437,7 @@ The Dashboard separates variation caused by configuration, by seat Policy, by th
 
 ## 12. Correctness Versus Gameplay Quality
 
-**Correctness** is established by the assertions (§7) and by the mandatory tests (§14).
+**Correctness** is established by the assertions ([§7](#7-run-assertions)) and by the mandatory tests ([§14](#14-mandatory-tests)).
 
 **Gameplay quality** asks whether the world produces interesting choices. For example: do small players matter, do governments have reasons to negotiate, are shortages consequential without being permanently disabling, does cooperation pay, can several strategies succeed, do early decisions matter later, and is the economy responsive without excessive volatility?
 
@@ -453,7 +453,7 @@ The Dashboard supports these judgments with indicators. It does not replace huma
 | Policy responsiveness | NPCs and Aggregates react when relevant conditions change |
 | Representation impact | Attributable Aggregate change and influence ratio |
 | Deal activity | Multi-signer Proposals published, signed, and lapsed |
-| Agency | Per-Actor sensitivity to seat-Policy changes (§10.5) |
+| Agency | Per-Actor sensitivity to seat-Policy changes ([§10.5](#105-agency-analysis)) |
 | Circulation health | Money and Energy keep moving rather than pooling |
 | Path dependence | Early decisions shape later opportunities |
 
@@ -475,20 +475,20 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
-| 1 | Full game | Three preset configurations: all `Conservative`; all `Passive`; `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with INV-01–16 passing; the cycle sustains five years (INV-05, INV-07); the same seeds reproduce, and different player seeds give different valid histories under one game seed (INV-13). |
-| 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state (INV-13). |
-| 3 | Submission order | Permute the order of Intent supply. | Identical settlement (INV-11). |
-| 4 | Market exchange | Runs Fixture A, including its limit-price variant. | Fixture values; INV-04, INV-06. |
-| 5 | Germany and EU | Runs Fixture B as a counterfactual pair: `Support` vs `Neutral`. | Fixture values; procedure input moves no resources (INV-03). |
-| 6 | SME sampling | Runs Fixture C (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values; C5 target within range and identical on replay; INV-09, INV-13. |
-| 7 | NPC response | Runs Fixture D as a counterfactual pair: with and without the deployment. | Fixture values; INV-12. |
-| 8 | Scarcity | Runs Fixture E (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds; INV-05, INV-06. |
-| 9 | Conflicting actions | Runs Fixture F. | Fixture fills; INV-11. |
-| 10 | Signed Proposals | Runs Fixture G1, G2, and G5. | Fully signed Proposals settle atomically with fixture values; unsigned ones lapse while the round resolves (INV-10). |
+| 1 | Full game | Three preset configurations: all `Conservative`; all `Passive`; `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with [INV-01](02_type_system.md#inv-01)–16 passing; the cycle sustains five years ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)); the same seeds reproduce, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
+| 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
+| 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
+| 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values; [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
+| 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-constituent) as a counterfactual pair: `Support` vs `Neutral`. | Fixture values; procedure input moves no resources ([INV-03](02_type_system.md#inv-03)). |
+| 6 | SME sampling | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-statistical) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
+| 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values; [INV-12](02_type_system.md#inv-12). |
+| 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds; [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
+| 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills; [INV-11](02_type_system.md#inv-11). |
+| 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, and G5. | Fully signed Proposals settle atomically with fixture values; unsigned ones lapse while the round resolves ([INV-10](02_type_system.md#inv-10)). |
 | 11 | Trade restriction | US restricts China's Energy access, effective next round. | Effective regional price or access changes mechanically; EU procedure behaves as declared. |
-| 12 | Resolution consistency | §7.3. | INV-14. |
-| 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run (INV-31). |
-| 14 | Agency | §10.5 across all fifteen roles. | Every role has measurable effect; failures are reported as balancing findings. |
+| 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test). | [INV-14](02_type_system.md#inv-14). |
+| 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run ([INV-31](02_type_system.md#inv-31)). |
+| 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect; failures are reported as balancing findings. |
 
 ---
 

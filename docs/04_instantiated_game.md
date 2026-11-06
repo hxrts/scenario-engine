@@ -19,17 +19,17 @@ An Instantiated Game is a particular **resolution** of the Gameboard's world. Th
 
 The same Gameboard supports many games without being modified. The EU might be human-controlled in one game, an NPC in another, and implicit in a third. A small-business owner might be a representative Actor in one game and absent from another.
 
-**The primary responsibility of this layer is to transform a configurable scenario into a complete, internally consistent, executable economic world, without changing that world's economic meaning (INV-14).**
+**The primary responsibility of this layer is to transform a configurable scenario into a complete, internally consistent, executable economic world, without changing that world's economic meaning ([INV-14](02_type_system.md#inv-14)).**
 
-Layer responsibilities, terminology, invariants, and the round sequence are defined in the Type System specification (§2.5 Glossary, §8.1 round sequence, §9 invariants). This document uses them without restating them.
+Layer responsibilities, terminology, invariants, and the round sequence are defined in the Type System specification ([§2.5](02_type_system.md#25-glossary) Glossary, [§8.1](02_type_system.md#81-canonical-resolution-sequence) round sequence, [§9](02_type_system.md#9-architectural-invariants-and-numerics) invariants). This document uses them without restating them.
 
-Everything (controllers, fallbacks, Policies, Markets, holdings, capacities, recurring flows, Representations) is resolved before play. Whether an Actor is a seat or an NPC never changes its economic semantics; the engine sees only signed Proposals. A game replays from its manifest and round records (INV-13, INV-15).
+Everything (controllers, fallbacks, Policies, Markets, holdings, capacities, recurring flows, Representations) is resolved before play. Whether an Actor is a seat or an NPC never changes its economic semantics; the engine sees only signed Proposals. A game replays from its manifest and round records ([INV-13](02_type_system.md#inv-13), [INV-15](02_type_system.md#inv-15)).
 
 The layer performs two separate operations:
 
 **Validated Gameboard + Instantiation Configuration → Initial World State**
 
-**World State + Round Inputs → New World State** (Type System §8.1)
+**World State + Round Inputs → New World State** (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence))
 
 ## 2. Instantiation Configuration
 
@@ -70,7 +70,7 @@ An Actor is an economic Entity with holdings, capabilities, and institutional re
 
 ### 3.1 Selection and control
 
-The configuration selects which Actor definitions become explicit. Each explicit Actor receives exactly one controller (INV-23): the Policy that drives it.
+The configuration selects which Actor definitions become explicit. Each explicit Actor receives exactly one controller ([INV-23](02_type_system.md#inv-23)): the Policy that drives it.
 
 ```purescript
 data ControllerAssignment
@@ -83,7 +83,7 @@ type ActorAssignment =
   }
 ```
 
-A **seat**'s Policy (human, AI agent, or preset program) is bound at run time and recorded in the manifest and round records. Swapping it never changes the Actor's definition or turns the seat into an NPC (INV-30). By default, each human participant occupies one seat.
+A **seat**'s Policy (human, AI agent, or preset program) is bound at run time and recorded in the manifest and round records. Swapping it never changes the Actor's definition or turns the seat into an NPC ([INV-30](02_type_system.md#inv-30)). By default, each human participant occupies one seat.
 
 An NPC is an explicit Actor whose Policy is part of the scenario, not a separate entity type. Initialization resolves the NPC's:
 
@@ -109,9 +109,9 @@ type FallbackSelection =
   }
 ```
 
-The alternatives are not interchangeable. A government institution is not a statistical population: its capabilities stay with the institutional Entity or rule mechanism and are never handed to a household or business Aggregate (INV-03).
+The alternatives are not interchangeable. A government institution is not a statistical population: its capabilities stay with the institutional Entity or rule mechanism and are never handed to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)).
 
-The configuration selects one permitted fallback per unselected definition, or accepts the Gameboard default. Initialization fails if any required activity, liability, or authority is left without an owner (INV-25).
+The configuration selects one permitted fallback per unselected definition, or accepts the Gameboard default. Initialization fails if any required activity, liability, or authority is left without an owner ([INV-25](02_type_system.md#inv-25)).
 
 ## 4. Aggregate Initialization
 
@@ -119,10 +119,10 @@ The Gameboard defines potential Aggregates. The configuration selects and parame
 
 ### 4.1 Resolving the three projections
 
-Initialization resolves each Aggregate's membership, residual, and collective procedure separately (Type System §2.2):
+Initialization resolves each Aggregate's membership, residual, and collective procedure separately (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)):
 
 1. **Membership** may overlap across Aggregates and may include explicit Actors.
-2. **Residual accounts.** Every account and behavioral responsibility gets exactly one authoritative owner (INV-08).
+2. **Residual accounts.** Every account and behavioral responsibility gets exactly one authoritative owner ([INV-08](02_type_system.md#inv-08)).
 3. **Collective procedure and capabilities.** These are attached where applicable.
 
 Each Aggregate also receives a baseline Policy, permitted observations, and any Representation assignments.
@@ -133,7 +133,7 @@ Each Aggregate also receives a baseline Policy, permitted observations, and any 
 
 The same partition applies to holdings, liabilities, capacities, and directly modeled behavior. A business may be classified as both manufacturing and small business, but two Aggregates cannot both own its assets.
 
-Extraction covers only the accounts the explicit Actor actually controls (Type System §7.1). Germany remains an EU member and submits procedure inputs to the EU's collective procedure.
+Extraction covers only the accounts the explicit Actor actually controls (Type System [§7.1](02_type_system.md#71-aggregate-semantics)). Germany remains an EU member and submits procedure inputs to the EU's collective procedure.
 
 Population resolution proceeds in five steps:
 
@@ -147,7 +147,7 @@ If the partition cannot be made consistent, initialization fails.
 
 ### 4.3 Resolution consistency
 
-Two instantiations that differ only in explicitness must describe the same initial economy (INV-14).
+Two instantiations that differ only in explicitness must describe the same initial economy ([INV-14](02_type_system.md#inv-14)).
 
 For example, in Game A German government activity is implicit within the European configuration, and in Game B the Chancellor is explicit. Before any decisions are made, the two games' totals must reconcile:
 
@@ -183,7 +183,7 @@ The scheme fixes the target Aggregate, the domain, and the permitted preset. The
 
 Under the `constituent` preset, inputs typically arrive as procedure inputs and require no transfer. Membership is resolved independently of Representation: Germany is an EU member whether or not it submits a procedure input in a given round.
 
-**Direct and representative effects stay separate (INV-09).** The Actor's own transactions execute once against its own holdings. The Actor's validated proposals and procedure inputs feed the estimator, which adjusts the residual. The engine records the four stages: observation, estimate, proposed Aggregate Intent, and executed result (Type System §7.3).
+**Direct and representative effects stay separate ([INV-09](02_type_system.md#inv-09)).** The Actor's own transactions execute once against its own holdings. The Actor's validated proposals and procedure inputs feed the estimator, which adjusts the residual. The engine records the four stages: observation, estimate, proposed Aggregate Intent, and executed result (Type System [§7.3](02_type_system.md#73-representation-pipeline)).
 
 With multiple representatives, the estimator combines inputs under the resolved weights. It never multiplies a transaction by the population size.
 
@@ -196,13 +196,13 @@ Initialization verifies that:
 - the estimator parameters are valid for the preset;
 - bounds are defined where the preset requires them;
 - assignments are compatible;
-- nothing is counted twice (INV-24).
+- nothing is counted twice ([INV-24](02_type_system.md#inv-24)).
 
-Representation never confers the Aggregate's holdings or capabilities (INV-03).
+Representation never confers the Aggregate's holdings or capabilities ([INV-03](02_type_system.md#inv-03)).
 
 ## 6. Policy Initialization
 
-Each NPC and Aggregate receives a concrete Policy instance (INV-26), consisting of:
+Each NPC and Aggregate receives a concrete Policy instance ([INV-26](02_type_system.md#inv-26)), consisting of:
 
 - a definition;
 - the Entity it governs;
@@ -213,11 +213,11 @@ Each NPC and Aggregate receives a concrete Policy instance (INV-26), consisting 
 
 A definition may be reused with different parameters.
 
-Policies are versioned decision programs run by the shared interpreter (Type System §4). Any memory a Policy keeps between rounds, such as whether a rival deployed Military last year, lives in World State and is initialized explicitly.
+Policies are versioned decision programs run by the shared interpreter (Type System [§4](02_type_system.md#4-policies)). Any memory a Policy keeps between rounds, such as whether a rival deployed Military last year, lives in World State and is initialized explicitly.
 
 Programs are fixed for the game. Behavior still changes as rules, relationships, and observations change. A `ChangeRule` alters World State rules and never rewrites a Policy.
 
-Observation views apply the Gameboard's information permissions to each instance. NPCs see no private holdings or private player negotiations merely because the engine holds them (INV-16).
+Observation views apply the Gameboard's information permissions to each instance. NPCs see no private holdings or private player negotiations merely because the engine holds them ([INV-16](02_type_system.md#inv-16)).
 
 Baseline behavior is reconciled with representative inputs exactly once per round, in the reconciliation phase.
 
@@ -236,7 +236,7 @@ Each Market receives its initial state:
 - participation rules;
 - access and tariff rules.
 
-A Market must be feasible at the start and cannot promise settlement against resources it does not hold (INV-06, INV-27).
+A Market must be feasible at the start and cannot promise settlement against resources it does not hold ([INV-06](02_type_system.md#inv-06), [INV-27](02_type_system.md#inv-27)).
 
 Capacities that are economic state rather than Resources are initialized alongside holdings:
 
@@ -249,26 +249,26 @@ Cross-vertical dependencies are resolved at this point. No Entity begins with ca
 
 ### 7.2 Recurring flows
 
-Initialization establishes the recurring cycle (Type System §6), whose components are computed together from the snapshot:
+Initialization establishes the recurring cycle (Type System [§6](02_type_system.md#6-economic-circulation)), whose components are computed together from the snapshot:
 
 - production from capacity;
 - exchange, which delivers Money to suppliers;
 - income and expenditure (revenue, wages, public spending, taxation);
 - capacity renewal from investment.
 
-Every Facility has a declared payee. Initialization checks that these flows reconcile (INV-05) and flags any configuration in which resources can only be depleted.
+Every Facility has a declared payee. Initialization checks that these flows reconcile ([INV-05](02_type_system.md#inv-05)) and flags any configuration in which resources can only be depleted.
 
 ### 7.3 Initial conditions
 
 The Gameboard may supply defaults and ranges. The configuration resolves them, either explicitly or through a deterministic procedure.
 
-Mechanics are deterministic by default. Randomness is used only where the Gameboard or an estimator declares it. The configuration's single `seed` is the game seed: every in-world random value, including Representation sampling noise, is a keyed draw from it (Type System §9.1). Live play has no player seed. Instantiation resolves each estimator's noise spread within the Gameboard's permitted range. Once recorded, initial conditions are never resampled.
+Mechanics are deterministic by default. Randomness is used only where the Gameboard or an estimator declares it. The configuration's single `seed` is the game seed: every in-world random value, including Representation sampling noise, is a keyed draw from it (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)). Live play has no player seed. Instantiation resolves each estimator's noise spread within the Gameboard's permitted range. Once recorded, initial conditions are never resampled.
 
 ## 8. Time and Session
 
 The Round Schedule maps rounds to intervals of simulated time, typically five years over four to eight rounds. Intervals need not be equal.
 
-Policies, transformations, deliveries, and institutional effects share one time model, so annual rates are scaled to each round's duration (INV-28).
+Policies, transformations, deliveries, and institutional effects share one time model, so annual rates are scaled to each round's duration ([INV-28](02_type_system.md#inv-28)).
 
 The real-time session (about six hours, with negotiation, announcements, meals, and reporting) controls only when submissions are accepted. It does not determine outcomes.
 
@@ -295,7 +295,7 @@ type GameInstance =
   }
 ```
 
-At runtime the game is the round runner under the live-session handler stack (Type System §8.4): humans supply seat input through the interpreter, and recording, narration, and deadlines are effects. The **manifest** together with the append-only **round records** is the source of truth (INV-31). Snapshots are checkpoints derivable from them, and metrics are reproducible projections.
+At runtime the game is the round runner under the live-session handler stack (Type System [§8.4](02_type_system.md#84-effects-and-handlers)): humans supply seat input through the interpreter, and recording, narration, and deadlines are effects. The **manifest** together with the append-only **round records** is the source of truth ([INV-31](02_type_system.md#inv-31)). Snapshots are checkpoints derivable from them, and metrics are reproducible projections.
 
 **Lifecycle:** Draft → Validated → Initialized (initial World State frozen) → In Progress → Completed → Archived. Ordinary play is not permitted before initialization succeeds.
 
@@ -338,7 +338,7 @@ A failed compilation returns diagnostics and leaves no partially initialized gam
 
 ## 11. Round Execution
 
-Each round follows the canonical sequence in Type System §8.1. The engine runs phases 1–2 and 4–7; the **round runner** runs phase 3 (Propose and Sign) for every Policy at once (seats, NPC Policies, and Aggregate baselines) and passes the signed Proposals to the engine. This layer supplies the session procedures, inputs, and records around that sequence.
+Each round follows the canonical sequence in Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence). The engine runs phases 1–2 and 4–7; the **round runner** runs phase 3 (Propose and Sign) for every Policy at once (seats, NPC Policies, and Aggregate baselines) and passes the signed Proposals to the engine. This layer supplies the session procedures, inputs, and records around that sequence.
 
 **Preparation and briefing.** The preparation phase runs first: deliveries arrive, scheduled shocks apply, and rule changes take effect. Each Player then receives an authorized view of the snapshot, covering:
 
@@ -350,7 +350,7 @@ Each round follows the canonical sequence in Type System §8.1. The engine runs 
 
 The briefing is derived from the authoritative records and is never an independent source of facts.
 
-**Negotiation.** Players negotiate out of band. A deal reaches the engine as a Proposal that names every party as a signer. One party publishes it before the propose deadline, and the others sign it before the sign deadline (Type System §3.3). A Proposal that is not fully signed lapses. Counteroffers are new Proposals.
+**Negotiation.** Players negotiate out of band. A deal reaches the engine as a Proposal that names every party as a signer. One party publishes it before the propose deadline, and the others sign it before the sign deadline (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). A Proposal that is not fully signed lapses. Counteroffers are new Proposals.
 
 **Submission and AI interpretation.** AI converts natural-language submissions into Proposals and signatures, including multi-signer deals and procedure inputs, and preserves provenance. Materially ambiguous interpretations must be confirmed by the player before the relevant deadline. The model never assigns resources or capabilities the Actor lacks. Only accepted canonical Proposals and signatures are frozen, and these are retained for replay. Interpretation is tested separately from economic resolution.
 
@@ -358,8 +358,8 @@ The briefing is derived from the authoritative records and is never an independe
 
 - limit prices and maximum spend;
 - pro-rata allocation with ties broken by EntityId;
-- atomic settlement, with each fully signed Proposal settling or failing as a unit (INV-10);
-- never ordering by submission time (INV-11).
+- atomic settlement, with each fully signed Proposal settling or failing as a unit ([INV-10](02_type_system.md#inv-10));
+- never ordering by submission time ([INV-11](02_type_system.md#inv-11)).
 
 Rejected, partially filled, and lapsed actions are recorded with their reasons. Prices produced in a round become observable in the next round's snapshot.
 
@@ -378,7 +378,7 @@ Rejected, partially filled, and lapsed actions are recorded with their reasons. 
 
 Language-model interpretation may be nondeterministic. Replay therefore starts from the recorded canonical Proposals and signatures. Audio and transcripts may be kept as supporting evidence.
 
-All participants act on one World State (INV-15). Alternative outcomes require separate instances or deliberate replay branches.
+All participants act on one World State ([INV-15](02_type_system.md#inv-15)). Alternative outcomes require separate instances or deliberate replay branches.
 
 ## 12. Validation
 
@@ -386,12 +386,12 @@ A valid Instantiated Game satisfies every invariant in the Type System master ta
 
 | ID | Checked as |
 |---|---|
-| INV-03 | Making an Entity implicit neither grants nor removes institutional authority. |
-| INV-05 | Recurring flows reconcile, and every Facility has a payee. |
-| INV-08 | Each account and responsibility has one owner, and residuals exclude explicit accounts. |
-| INV-14 | The initial accounts, liabilities, and authority match the Gameboard's reference accounting. |
-| INV-15, INV-16 | There is one World State, and each Policy sees only its Actor's permitted view. |
-| INV-23 – INV-28 | Unique control, valid participation (including Representation), fallback completeness, Policy completeness, market feasibility, and temporal consistency. |
+| [INV-03](02_type_system.md#inv-03) | Making an Entity implicit neither grants nor removes institutional authority. |
+| [INV-05](02_type_system.md#inv-05) | Recurring flows reconcile, and every Facility has a payee. |
+| [INV-08](02_type_system.md#inv-08) | Each account and responsibility has one owner, and residuals exclude explicit accounts. |
+| [INV-14](02_type_system.md#inv-14) | The initial accounts, liabilities, and authority match the Gameboard's reference accounting. |
+| [INV-15](02_type_system.md#inv-15), [INV-16](02_type_system.md#inv-16) | There is one World State, and each Policy sees only its Actor's permitted view. |
+| [INV-23](02_type_system.md#inv-23) – [INV-28](02_type_system.md#inv-28) | Unique control, valid participation (including Representation), fallback completeness, Policy completeness, market feasibility, and temporal consistency. |
 
 Initialization fails if any check fails. A configuration is never silently repaired by changing an Actor's meaning, assigning an unrelated Policy, or inventing resources.
 

@@ -56,7 +56,7 @@ An **Actor** is an explicit Entity: either a **seat**, driven by a Policy suppli
 
 Authority and resources are distinct. A government can regulate businesses without owning their resources. Not everything meaningful is a Resource: production capacity, market access, and authority are economic state or rules. This lets a few Resources support a rich economy.
 
-Formal definitions, the glossary, and the numbered invariants are in `02_type_system.md`.
+Formal definitions, the glossary, and the numbered invariants are in [`02_type_system.md`](02_type_system.md).
 
 ## 5. Explicit and Implicit Economy
 
@@ -108,7 +108,7 @@ Representation never gives the representative the Aggregate's holdings or author
 
 ## 9. Resolution
 
-Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, representative adjustments, and signed deals all become Intents, and these are resolved together as one bundled round update with uniform market prices. There is no ordering of actions within a round, and prices from this round become visible next round. The canonical sequence is defined in `02_type_system.md` §8.1.
+Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, representative adjustments, and signed deals all become Intents, and these are resolved together as one bundled round update with uniform market prices. There is no ordering of actions within a round, and prices from this round become visible next round. The canonical sequence is defined in [`02_type_system.md` §8.1](02_type_system.md#81-canonical-resolution-sequence).
 
 ## 10. AI Interface and Reporting
 
@@ -148,11 +148,11 @@ Every role should have a meaningful capability, a dependency that others can pro
 
 | Document | Contents |
 |---|---|
-| `02_type_system.md` | Types, glossary, round resolution, invariants, numerics |
-| `03_gameboard.md` | How a scenario is configured |
-| `04_instantiated_game.md` | How a game is initialized and run |
-| `05_test_instance.md` | The Fractured World reference scenario and fixtures |
-| `06_simulator.md` | Simulation harness (seat Policies, replay, experiments) and dashboard |
-| `07_architecture.md` | Codebase layout, module boundaries, and key interfaces |
+| [`02_type_system.md`](02_type_system.md) | Types, glossary, round resolution, invariants, numerics |
+| [`03_gameboard.md`](03_gameboard.md) | How a scenario is configured |
+| [`04_instantiated_game.md`](04_instantiated_game.md) | How a game is initialized and run |
+| [`05_test_instance.md`](05_test_instance.md) | The Fractured World reference scenario and fixtures |
+| [`06_simulator.md`](06_simulator.md) | Simulation harness (seat Policies, replay, experiments) and dashboard |
+| [`07_architecture.md`](07_architecture.md) | Codebase layout, module boundaries, and key interfaces |
 
 The central idea: **economic participation does not require individual representation.** Actors and Aggregates act through the same economic system, so a small group of human decisions can move a much larger simulated economy.

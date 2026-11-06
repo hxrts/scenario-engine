@@ -13,7 +13,7 @@ This document defines a concrete reference instance of the Scenario Planning Gam
 
 It exercises the architecture set out in the Type System, Gameboard, and Instantiated Game specifications. Unlike them, it makes specific choices about resources, participants, markets, facilities, circulation, policies, and rules. These choices are experimental; the engine does not require them.
 
-Terms follow the Type System Glossary (§2.5). Invariants are cited by their IDs in the Type System master table (§9). Arithmetic follows the Type System numerics rule (§9.1).
+Terms follow the Type System Glossary ([§2.5](02_type_system.md#25-glossary)). Invariants are cited by their IDs in the Type System master table ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). Arithmetic follows the Type System numerics rule ([§9.1](02_type_system.md#91-numerics-and-randomness)).
 
 **Changing this instance should normally mean changing data, not engine code.** If a mechanic cannot be expressed with the existing types, record that as a finding instead of adding a special case.
 
@@ -21,16 +21,16 @@ Terms follow the Type System Glossary (§2.5). Invariants are cited by their IDs
 
 The instance should demonstrate that:
 
-1. Fifteen seats and one NPC share one economic world through the same interfaces (INV-01).
-2. A government can be explicit while its country remains a member of an implicit Aggregate, without conflating membership, account ownership, and collective decision-making (INV-08).
-3. One estimator interface supports both the `constituent` preset (Germany → EU) and the `statistical` preset (Small-Business Owner → Global SMEs) (INV-09).
+1. Fifteen seats and one NPC share one economic world through the same interfaces ([INV-01](02_type_system.md#inv-01)).
+2. A government can be explicit while its country remains a member of an implicit Aggregate, without conflating membership, account ownership, and collective decision-making ([INV-08](02_type_system.md#inv-08)).
+3. One estimator interface supports both the `constituent` preset (Germany → EU) and the `statistical` preset (Small-Business Owner → Global SMEs) ([INV-09](02_type_system.md#inv-09)).
 4. Four Resources with differing configurable semantics generate meaningful strategic interaction.
-5. Recurring production, income, expenditure, and capacity renewal sustain five years of activity (INV-05).
+5. Recurring production, income, expenditure, and capacity renewal sustain five years of activity ([INV-05](02_type_system.md#inv-05)).
 6. Prices respond to players and the implicit economy, and trade restrictions have identifiable mechanical effects.
-7. Every Actor has a distinct capability, a dependency on others, and an objective others can help or obstruct (INV-19).
-8. Policies respond to changing conditions without being rewritten during play (INV-12).
-9. Deals negotiated out of band enter as multi-signer Proposals and settle atomically once every required signer signs (INV-10).
-10. The same Gameboard supports different levels of explicitness while preserving resolution consistency (INV-14).
+7. Every Actor has a distinct capability, a dependency on others, and an objective others can help or obstruct ([INV-19](02_type_system.md#inv-19)).
+8. Policies respond to changing conditions without being rewritten during play ([INV-12](02_type_system.md#inv-12)).
+9. Deals negotiated out of band enter as multi-signer Proposals and settle atomically once every required signer signs ([INV-10](02_type_system.md#inv-10)).
+10. The same Gameboard supports different levels of explicitness while preserving resolution consistency ([INV-14](02_type_system.md#inv-14)).
 
 ---
 
@@ -47,7 +47,7 @@ The instance uses exactly four Resources. All quantities are abstract game units
 | **Military** | Mil | `Capacity`: acquired by procurement, reserved by deployment, reduced only by declared attrition | Government-to-government Transfer only, under procurement authority | None | Yes, by deployment |
 | **Soft Power** | S | `Influence`: produced by campaigns and aid, consumed when spent | Non-transferable | 10% per simulated year | No |
 
-Any Resource can be escrowed at screening (Type System §8.2). Energy is one undifferentiated commodity; geography is expressed through regional Markets and transport capacity rather than additional Resources. The game does not model tactical combat.
+Any Resource can be escrowed at screening (Type System [§8.2](02_type_system.md#82-single-round-update-and-snapshot-discipline)). Energy is one undifferentiated commodity; geography is expressed through regional Markets and transport capacity rather than additional Resources. The game does not model tactical combat.
 
 ### 2.1 Economic state that is not a Resource
 
@@ -61,7 +61,7 @@ Any Resource can be escrowed at screening (Type System §8.2). Energy is one und
 
 ## 3. Markets and Facilities
 
-Both kinds of priced mechanism use the shared CostFunction primitive. Exchange Markets trade existing reserves; facilities create output only through a validated recipe and pay a declared payee (INV-07).
+Both kinds of priced mechanism use the shared CostFunction primitive. Exchange Markets trade existing reserves; facilities create output only through a validated recipe and pay a declared payee ([INV-07](02_type_system.md#inv-07)).
 
 ### 3.1 Regional Energy Markets
 
@@ -76,11 +76,11 @@ Both nodes use the same curve:
 
 **p(x) = 2 + 0.02x**, **C(x) = 2x + 0.01x²**
 
-where x is the node's cumulative net Energy sold. The initial price is 2 M/E. Each upper bound sits 50 E below the node's Energy reserve; at the lower bound a node pays out C(0) − C(−80) = 96 M, within both Money reserves (INV-06).
+where x is the node's cumulative net Energy sold. The initial price is 2 M/E. Each upper bound sits 50 E below the node's Energy reserve; at the lower bound a node pays out C(0) − C(−80) = 96 M, within both Money reserves ([INV-06](02_type_system.md#inv-06)).
 
-**Orders** carry a quantity, an optional limit price (maximum average price for a purchase, minimum for a sale), and an optional maximum spend. Clearing follows Type System §5.5, with each node's uniform price (C(x₀ + Δ) − C(x₀)) / Δ, or the current marginal price at zero net demand. When an operational bound or reserve binds, the binding side is filled pro rata. Affordability is checked at screening against escrow, not at clearing.
+**Orders** carry a quantity, an optional limit price (maximum average price for a purchase, minimum for a sale), and an optional maximum spend. Clearing follows Type System [§5.5](02_type_system.md#55-simultaneous-clearing), with each node's uniform price (C(x₀ + Δ) − C(x₀)) / Δ, or the current marginal price at zero net demand. When an operational bound or reserve binds, the binding side is filled pro rata. Affordability is checked at screening against escrow, not at clearing.
 
-Submission order never affects the result (INV-11).
+Submission order never affects the result ([INV-11](02_type_system.md#inv-11)).
 
 ### 3.2 Transport capacity and trade restrictions
 
@@ -97,7 +97,7 @@ Governments enact restrictions through `ChangeRule`, effective at the next round
 | **Shipment ban** | Bars cross-region Energy shipments between the restricting and target jurisdictions' Entities |
 | **Import tariff** | Surcharge of t M/E (t ≤ 1.0) on cross-region Energy delivered into the restricting jurisdiction, paid to the restricting government |
 
-Germany holds no tariff authority of its own; EU-wide restrictions belong to the EU collective procedure (§12.1). Because regional prices can diverge, restrictions produce measurable price gaps, shipping volumes, and tariff revenue.
+Germany holds no tariff authority of its own; EU-wide restrictions belong to the EU collective procedure ([§12.1](#121-germany--eu-constituent)). Because regional prices can diverge, restrictions produce measurable price gaps, shipping volumes, and tariff revenue.
 
 ### 3.3 Defense procurement (facility)
 
@@ -123,10 +123,10 @@ One global facility produces Military:
 
 | Transformation | Inputs | Outcome | Payee |
 |---|---|---|---|
-| **Military Procurement** | Money + 2 E per Mil | Military delivered next round | DEF, or CN_PRIVATE for CN (§3.3) |
+| **Military Procurement** | Money + 2 E per Mil | Military delivered next round | DEF, or CN_PRIVATE for CN ([§3.3](#33-defense-procurement-facility)) |
 | **Public Campaign** | Money | Soft Power | WORLD_HOUSEHOLDS |
 | **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider; the 5 E is consumed in relief; at most twice per Actor per round | WORLD_HOUSEHOLDS |
-| **Military Deployment** | Reserved Mil | Reservation for the round; declared attrition (§13.3) | — |
+| **Military Deployment** | Reserved Mil | Reservation for the round; declared attrition ([§13.3](#133-military-deployment)) | — |
 | **Logistics Investment** | 10 M + 3 E (SHIP only) | +10 E/round transport capacity from next round | GLOBAL_SMES |
 | **Energy Capacity Investment** | 12 M + 3 E + 1 semiconductor unit bought from CHIP by signed Proposal (producers only) | +2 E/round production capacity from next round | GLOBAL_SMES |
 | **Strike** | 8 S + 5 M strike pay (LABOR only) | −25% ENCO production and procurement capacity next round | US_WORKERS |
@@ -142,9 +142,9 @@ The instance uses the four Intent categories of the Type System:
 - **Transform:** procurement, campaigns, aid, deployment, investment, strikes.
 - **ChangeRule:** tariffs, shipment bans, and procedure inputs such as Germany's stance toward an EU decision.
 
-Every Intent travels in a Proposal. Deals negotiated between players are Proposals bundling each side's Transfers, signed by every party (§13.5).
+Every Intent travels in a Proposal. Deals negotiated between players are Proposals bundling each side's Transfers, signed by every party ([§13.5](#135-proposals-and-signatures)).
 
-Government Actors hold only government-controlled resources and enact rules only within their jurisdictions. Corporations trade, transform, and allocate the capacities they own, but cannot regulate or deploy Military; DEF receives procurement revenue without gaining authority to conduct operations. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed deals, and Representation, and never acquire the authority of the populations they represent (INV-03).
+Government Actors hold only government-controlled resources and enact rules only within their jurisdictions. Corporations trade, transform, and allocate the capacities they own, but cannot regulate or deploy Military; DEF receives procurement revenue without gaining authority to conduct operations. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed deals, and Representation, and never acquire the authority of the populations they represent ([INV-03](02_type_system.md#inv-03)).
 
 ---
 
@@ -186,7 +186,7 @@ Procurement consumes Energy and depends on semiconductor capacity, so Energy sca
 
 ## 8. Economic Circulation
 
-Each round's single update includes the Type System's economic cycle (production, exchange, income and expenditure, capacity renewal), evaluated together with every other action (Type System §8.2). All amounts are annual and provisional.
+Each round's single update includes the Type System's economic cycle (production, exchange, income and expenditure, capacity renewal), evaluated together with every other action (Type System [§8.2](02_type_system.md#82-single-round-update-and-snapshot-discipline)). All amounts are annual and provisional.
 
 ### 8.1 Energy production
 
@@ -215,9 +215,9 @@ Consumed at commit, from each Entity's net Energy position (opening holdings plu
 | **Explicit and bloc subtotal** | **68** |
 | CN_PRIVATE, US_WORKERS, WORLD_HOUSEHOLDS, GLOBAL_SMES | Their adjusted purchase target (baseline 12 + 8 + 12 + 40 = 72) |
 
-At baseline, production equals operating requirements: **140 E per round**. Procurement, aid, and investment draw on stocks beyond that, and the Round 3 disruption (§13.6) is the scenario's designed scarcity.
+At baseline, production equals operating requirements: **140 E per round**. Procurement, aid, and investment draw on stocks beyond that, and the Round 3 disruption ([§13.6](#136-energy-disruption)) is the scenario's designed scarcity.
 
-**Shortfall rule:** each unit of unmet requirement reduces the Entity's fixed incoming transfers for the round (§8.3) by 2 M, which the payers keep. CHIP also loses 2 semiconductor units for the next round per unit of shortfall.
+**Shortfall rule:** each unit of unmet requirement reduces the Entity's fixed incoming transfers for the round ([§8.3](#83-fixed-income-and-expenditure)) by 2 M, which the payers keep. CHIP also loses 2 semiconductor units for the next round per unit of shortfall.
 
 ### 8.3 Fixed income and expenditure
 
@@ -279,7 +279,7 @@ The schedule conserves Money. The corporations' negative fixed balances are offs
 
 Investment in round r changes capacity from the Prepare phase of round r + 1, recorded with its originating Intent.
 
-At the end of every round the engine checks INV-05: total Money is unchanged; the change in total Energy equals production minus consumption by requirements, procurement, aid, and investment; the change in Military equals deliveries minus attrition; the change in Soft Power equals production minus spending minus decay.
+At the end of every round the engine checks [INV-05](02_type_system.md#inv-05): total Money is unchanged; the change in total Energy equals production minus consumption by requirements, procurement, aid, and investment; the change in Military equals deliveries minus attrition; the change in Soft Power equals production minus spending minus decay.
 
 ## 9. Actor Catalog
 
@@ -299,7 +299,7 @@ The reference instantiation selects all fifteen seat roles plus China as an NPC.
 | CHIP | Semiconductor Producer CEO | Corporation | Asia | Owns 15 units/round of semiconductor capacity backing procurement; may withhold units or sell them to investors by signed Proposal | 6 E/round operating Energy | Protect Energy inputs and expand investment |
 | SHIP | Shipping Operator CEO | Corporation | Both | Owns 60 E/round transport; prioritizes shipments; arbitrage | 4 E/round fuel; shipment bans | Keep routes open and raise throughput |
 | DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement and receives non-Chinese revenue | CHIP's semiconductor capacity; strikes | Profitable procurement contracts |
-| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike (§4), declared or withheld each round | Dues; Soft Power | Workers' economic position and political influence |
+| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues; Soft Power | Workers' economic position and political influence |
 | SME | Small-Business Owner | Small participant | Atlantic | `statistical` Representation of Global SME demand | Atlantic prices; small cash | Business viability and influence on small-business demand |
 | AID | Humanitarian Alliance Director | Civil institution | Atlantic | Aid; Energy relief to Aggregates in shortfall; Soft Power | EU donations; Energy purchases | Limit crisis damage and expand influence |
 | CN | Chinese Head of State | Government | Asia | Tariffs and shipment bans; deployment | Asia Energy prices; CN_PRIVATE tax base | China's economic and geopolitical position |
@@ -320,7 +320,7 @@ CHIP owns 15 semiconductor units per round, which by default back the procuremen
 | SME | Permitted omission: accounts merge into GLOBAL_SMES; no Representation |
 | AID | Permitted omission: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
 
-Initialization fails if any responsibility is unassigned (INV-25).
+Initialization fails if any responsibility is unassigned ([INV-25](02_type_system.md#inv-25)).
 
 ## 10. Aggregate Catalog
 
@@ -333,23 +333,23 @@ Initialization fails if any responsibility is unassigned (INV-25).
 | ENERGY_SUPPLIERS | Other Energy Producers | Production not held by explicit Actors | Both | Energy supply |
 | WORLD_HOUSEHOLDS | Other World Households | Residual household activity | Asia | Household demand; media and relief payee |
 
-Each Aggregate is described by membership, account ownership, and (for the EU only) a collective procedure. Memberships may overlap; accounts may not (INV-08).
+Each Aggregate is described by membership, account ownership, and (for the EU only) a collective procedure. Memberships may overlap; accounts may not ([INV-08](02_type_system.md#inv-08)).
 
 ### 10.1 Germany and the EU
 
 - **Membership.** Germany is a known EU member whether or not it submits a procedure input in a given round.
-- **Account ownership.** Making the Chancellor explicit extracts only the German government's accounts. German households and firms stay in the EU residual, which is why German tax revenue flows EU → DE (§8.3). The EU also owns a **solidarity pool**, initially empty.
-- **Collective procedure.** The EU's capabilities (solidarity interventions and EU-wide trade restrictions) are exercised by its collective procedure, which Germany influences through the `constituent` preset (§12.1).
+- **Account ownership.** Making the Chancellor explicit extracts only the German government's accounts. German households and firms stay in the EU residual, which is why German tax revenue flows EU → DE ([§8.3](#83-fixed-income-and-expenditure)). The EU also owns a **solidarity pool**, initially empty.
+- **Collective procedure.** The EU's capabilities (solidarity interventions and EU-wide trade restrictions) are exercised by its collective procedure, which Germany influences through the `constituent` preset ([§12.1](#121-germany--eu-constituent)).
 
-Germany controls its own resources and national capabilities and influences EU decisions by declared weight; it never controls EU holdings or authority (INV-03).
+Germany controls its own resources and national capabilities and influences EU decisions by declared weight; it never controls EU holdings or authority ([INV-03](02_type_system.md#inv-03)).
 
 ### 10.2 Small-business representation
 
-The owner is a member of the `GLOBAL_SMES` population. Their holdings and direct transactions are excluded from the residual; their proposed decisions serve as bounded statistical evidence (§12.2).
+The owner is a member of the `GLOBAL_SMES` population. Their holdings and direct transactions are excluded from the residual; their proposed decisions serve as bounded statistical evidence ([§12.2](#122-small-business-owner--global-smes-statistical)).
 
 ## 11. Policy Catalog
 
-Policies are declarative decision programs run by the shared interpreter (Type System §4). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record. All Policy orders remain subject to affordability and market limits.
+Policies are declarative decision programs run by the shared interpreter (Type System [§4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record. All Policy orders remain subject to affordability and market limits.
 
 ### 11.1 China NPC Policy — `china-strategic-v0`
 
@@ -363,8 +363,8 @@ The NPC does not improvise outside its declared Policy.
 ### 11.2 EU Aggregate Policy — `eu-coordination-v0`
 
 - Buy 8 E per round on `energy-atlantic`; 4 E when the beginning-of-round price exceeds 3.0 M/E.
-- Supply the residual input to the collective procedure for each domain (§12.1).
-- Execute what the procedure approves, and pay the fixed flows in §8.3.
+- Supply the residual input to the collective procedure for each domain ([§12.1](#121-germany--eu-constituent)).
+- Execute what the procedure approves, and pay the fixed flows in [§8.3](#83-fixed-income-and-expenditure).
 
 ### 11.3 Global Small-Business Policy — `global-smes-v0`
 
@@ -383,7 +383,7 @@ Each household and industrial Aggregate's purchase target is also its operating 
 
 ## 12. Representation Schemes
 
-Both schemes use the single Type System estimator interface and record observation → estimate → proposed Intent → executed result (INV-09).
+Both schemes use the single Type System estimator interface and record observation → estimate → proposed Intent → executed result ([INV-09](02_type_system.md#inv-09)).
 
 | Scheme | Preset | Mechanism |
 |---|---|---|
@@ -433,7 +433,7 @@ The observation is the owner's validated proposed quantity, not the executed fil
 
 **Adjusted demand = Baseline × (1 + 0.25 × clamp(deviation + ε, −0.50, +0.50))**
 
-ε is drawn each round under the key `round-n / sme-energy-sample / SME / sampling / 0` (Type System §9.1). It is only drawn when the owner submits an observation.
+ε is drawn each round under the key `round-n / sme-energy-sample / SME / sampling / 0` (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)). It is only drawn when the owner submits an observation.
 
 | Proposed purchase | Deviation | Noise-free (ε = 0) | Range over ε (baseline 40 E) |
 |---:|---:|---:|---:|
@@ -453,7 +453,7 @@ The owner knows their choice moves the Aggregate, so it is a strategic choice, n
 
 ### 13.1 Round resolution
 
-Each round is one simulated year and follows the Type System canonical sequence (§8.1). §20 maps each phase to this instance. Prices produced by a round become observable in the next round.
+Each round is one simulated year and follows the Type System canonical sequence ([§8.1](02_type_system.md#81-canonical-resolution-sequence)). [§20](#20-phase-mapping) maps each phase to this instance. Prices produced by a round become observable in the next round.
 
 ### 13.2 Institutional changes
 
@@ -469,7 +469,7 @@ Soft Power is produced by campaigns and aid, spent on strikes, and decays 10% pe
 
 ### 13.5 Proposals and signatures
 
-Deals negotiated out of band enter as Proposals whose required signers are every party (Type System §3.3). A Proposal settles only when all of them sign in the Sign step; otherwise it lapses (INV-10).
+Deals negotiated out of band enter as Proposals whose required signers are every party (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). A Proposal settles only when all of them sign in the Sign step; otherwise it lapses ([INV-10](02_type_system.md#inv-10)).
 
 ### 13.6 Energy disruption
 
@@ -477,7 +477,7 @@ The only scheduled event: at the Prepare phase of Round 3, a logistics disruptio
 
 ### 13.7 Evaluation
 
-Actor objectives (§9) plus the system metrics in §30. No single winner; outcomes are not reduced to Money.
+Actor objectives ([§9](#9-actor-catalog)) plus the system metrics in [§30](#30-measurements). No single winner; outcomes are not reduced to Money.
 
 ---
 
@@ -506,7 +506,7 @@ Germany is a seat; the EU is an Aggregate with a collective procedure under `eu-
 
 ### 14.2 Resolution consistency
 
-With Germany implicit, the German government's accounts sit in the EU Aggregate as member-government accounts (§9.2). Before decisions differ, totals must reconcile (INV-14):
+With Germany implicit, the German government's accounts sit in the EU Aggregate as member-government accounts ([§9.2](#92-fallbacks)). Before decisions differ, totals must reconcile ([INV-14](02_type_system.md#inv-14)):
 
 | Account | Germany explicit (DE + EU) | Germany implicit (EU) |
 |---|---:|---:|
@@ -546,7 +546,7 @@ In the implicit configuration the EU → DE tax and DE → EU spending flows bec
 | *Other Energy Producers* | *200* | *240* | *0* | *22* |
 | *Other World Households* | *360* | *90* | *0* | *35* |
 
-Aggregates are in italics. Government holdings cover only government-controlled resources. The German government's holdings are excluded from the EU and German private accounts are included; the owner's holdings are excluded from Global SMEs; China's government and private economy are separate; ENCO's holdings and capacity are excluded from Other Energy Producers (INV-08). The solidarity pool starts at 0 E within EU holdings.
+Aggregates are in italics. Government holdings cover only government-controlled resources. The German government's holdings are excluded from the EU and German private accounts are included; the owner's holdings are excluded from Global SMEs; China's government and private economy are separate; ENCO's holdings and capacity are excluded from Other Energy Producers ([INV-08](02_type_system.md#inv-08)). The solidarity pool starts at 0 E within EU holdings.
 
 ## 16. Initial Market and Capacity State
 
@@ -558,7 +558,7 @@ Aggregates are in italics. Government holdings cover only government-controlled 
 | Public attention | 0 activity; 50 S capacity; 10 S per Actor |
 | Transport | 60 E/round; 0.3 M/E |
 | Semiconductor capacity | 15 units/round, all backing procurement |
-| Production capacity | 140 E/round (§8.1) |
+| Production capacity | 140 E/round ([§8.1](#81-energy-production)) |
 | Trade rules | No tariffs or shipment bans in force |
 
 Market reserves are distinct from Entity holdings. Facilities pay their payees directly.
@@ -634,7 +634,7 @@ Money totals 1,085 before and after; Energy totals 458 before and after.
 
 **A2 (limit price).** The US adds a limit of 2.04. At the trial price 2.05 its order is removed. Net demand becomes −5 E: price = (C(0) − C(−5)) / 5 = (0 − (−9.75)) / 5 = **1.95 M/E**. Germany receives 9.75 M; the US order is recorded as rejected.
 
-Verifies INV-04, INV-06, INV-11; limit handling.
+Verifies [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06), [INV-11](02_type_system.md#inv-11); limit handling.
 
 ## 22. Fixture B: Germany and the EU (`constituent`)
 
@@ -644,13 +644,13 @@ Verifies INV-04, INV-06, INV-11; limit handling.
 
 **B3: opposition, high prices.** Support = −0.20 + 0.40 = 0.20; no intervention.
 
-**B4: trade domain.** The US has an active shipment ban on China. Germany submits `Support`: support = 0.68 (§12.1); the EU tariff takes effect next round. Repeated with `Oppose`: 0.28; no tariff.
+**B4: trade domain.** The US has an active shipment ban on China. Germany submits `Support`: support = 0.68 ([§12.1](#121-germany--eu-constituent)); the EU tariff takes effect next round. Repeated with `Oppose`: 0.28; no tariff.
 
-Verifies that procedure inputs and transfers are independent and that Germany never controls EU holdings or authority (INV-03, INV-08, INV-09).
+Verifies that procedure inputs and transfers are independent and that Germany never controls EU holdings or authority ([INV-03](02_type_system.md#inv-03), [INV-08](02_type_system.md#inv-08), [INV-09](02_type_system.md#inv-09)).
 
 ## 23. Fixture C: Small-Business Owner (`statistical`)
 
-Fixtures C1–C4 set the sampling spread to 0 so their values are exact. C5 checks the seeded noise.
+[Fixtures C1](#23-fixture-c-small-business-owner-statistical)–C4 set the sampling spread to 0 so their values are exact. C5 checks the seeded noise.
 
 The owner submits a backed purchase of 4 E (reference 5 E). Deviation −20%, within the clamp. Global SMEs' target: 40 × 0.95 = **38 E**, replacing the 40 E baseline. The owner's 4 E executes separately.
 
@@ -659,7 +659,7 @@ The owner submits a backed purchase of 4 E (reference 5 E). Deviation −20%, wi
 - **C4 (high price):** above 3.5 M/E the baseline is 32 E; a 4 E observation gives 32 × 0.95 = 30.4 E.
 - **C5 (seeded noise):** spread 0.10, seed `26021`. The 4 E target lies in [37, 39] E and equals 40 × (1 + 0.25 × (−0.20 + ε)) for the recorded draw. Replaying with the same seed gives the identical target. A different seed generally gives a different target in the same range. A 0 E proposal still gives exactly 35 E.
 
-Verifies bounded extrapolation, separate ownership, and no double-counting (INV-08, INV-09).
+Verifies bounded extrapolation, separate ownership, and no double-counting ([INV-08](02_type_system.md#inv-08), [INV-09](02_type_system.md#inv-09)).
 
 ## 24. Fixture D: China Responds as an NPC
 
@@ -673,19 +673,19 @@ Verifies bounded extrapolation, separate ownership, and no double-counting (INV-
 
 **Round 3 Prepare.** 4 Mil delivered: China 88 → 92.
 
-Verifies conditional Policy execution, cross-round observation, reservation and attrition, delayed delivery, and payment to the payee (INV-05, INV-12).
+Verifies conditional Policy execution, cross-round observation, reservation and attrition, delayed delivery, and payment to the payee ([INV-05](02_type_system.md#inv-05), [INV-12](02_type_system.md#inv-12)).
 
 ## 25. Fixture E: Scarcity and Trade Restriction
 
-Fixture E is qualitative: it has no fixed expected values and passes on reconciliation, solvency, and the expected propagation below.
+[Fixture E](#25-fixture-e-scarcity-and-trade-restriction) is qualitative: it has no fixed expected values and passes on reconciliation, solvency, and the expected propagation below.
 
 With full circulation enabled, the Round 3 disruption reduces supplier offers by 12 E (Atlantic) and 8 E (Asia). Production continues and accumulates in supplier holdings. With sufficient demand, prices rise at both nodes and their gap widens if transport is constrained.
 
 Expected propagation: operating shortfalls and penalties; capacity investment and procurement (both consume Energy); household and SME demand; SHIP arbitrage; China's Asia offer rule; the EU solidarity input, and with it Germany's pivotal role.
 
-**E2 (restriction).** In Round 2 the US bans shipments with China, effective Round 3; China reciprocates for Round 4, and the EU trade procedure becomes live (Fixture B4). Compare regional price gaps, shipping volumes, and tariff revenue against the unrestricted run.
+**E2 (restriction).** In Round 2 the US bans shipments with China, effective Round 3; China reciprocates for Round 4, and the EU trade procedure becomes live ([Fixture B4](#22-fixture-b-germany-and-the-eu-constituent)). Compare regional price gaps, shipping volumes, and tariff revenue against the unrestricted run.
 
-Every consequence must be explainable from recorded transitions, and reconciliation must pass every round (INV-05, INV-06).
+Every consequence must be explainable from recorded transitions, and reconciliation must pass every round ([INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06)).
 
 ## 26. Fixture F: Simultaneous Conflicting Orders
 
@@ -706,7 +706,7 @@ DEF receives 465 M and passes 116.25 M to US_WORKERS. Unfilled escrow (US 1 Mil,
 
 Repeat with Energy demand exceeding a node's operational bound, and with one Actor's actions exceeding its Money.
 
-Verifies joint feasibility, deterministic allocation, and order independence (INV-06, INV-11).
+Verifies joint feasibility, deterministic allocation, and order independence ([INV-06](02_type_system.md#inv-06), [INV-11](02_type_system.md#inv-11)).
 
 ## 27. Fixture G: Proposals and Signatures
 
@@ -727,7 +727,7 @@ The Proposal settles atomically in the round batch, assuming no other balance ch
 - **G4 (out-of-band strike deal):** LABOR, ENCO, and DEF agree off-system that LABOR will not strike. In Round 2 LABOR declares no strike and ENCO and DEF each Transfer 10 M to LABOR. The engine sees ordinary Transfers; nothing binds LABOR in later rounds.
 - **G5 (three-party):** SA proposes [Transfer 20 E SA → JP, Transfer 48 M JP → SA, Transfer 10 M JP → SHIP (freight)], signers [SA, JP, SHIP]. JP and SHIP sign: SA 155 → 203 M, 110 → 90 E; JP 150 → 92 M, 40 → 60 E; SHIP 110 → 120 M. If SHIP does not sign, the whole Proposal lapses and no balance changes.
 
-Verifies signature completeness, lapsing, atomic settlement of bundled Intents, and that the engine enforces no promises (INV-10).
+Verifies signature completeness, lapsing, atomic settlement of bundled Intents, and that the engine enforces no promises ([INV-10](02_type_system.md#inv-10)).
 
 ---
 
@@ -764,7 +764,7 @@ Vary one parameter at a time from the baseline before combining changes.
 
 ## 30. Measurements
 
-Recorded each round; dashboard metrics are versioned projections of snapshots and events (INV-31).
+Recorded each round; dashboard metrics are versioned projections of snapshots and events ([INV-31](02_type_system.md#inv-31)).
 
 | Measurement | Purpose |
 |---|---|

@@ -8,9 +8,9 @@
 
 ## 1. Principles
 
-- **Pure core, effects at the edge.** The engine is a pure function (INV-36). Everything impure is an algebraic effect (Type System §8.4) interpreted by a handler chosen at the entry point.
-- **One-way dependencies.** Packages depend only downward (§3). Packages that sit side by side never import each other.
-- **Narrow seams.** Packages meet at a few small interfaces (§4). Code behind an interface can be rewritten without touching its callers.
+- **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Everything impure is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
+- **One-way dependencies.** Packages depend only downward ([§3](#3-codebase-layout)). Packages that sit side by side never import each other.
+- **Narrow seams.** Packages meet at a few small interfaces ([§4](#4-key-interfaces)). Code behind an interface can be rewritten without touching its callers.
 - **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types.
 - **Small.** One concept lives in one module. There are no frameworks inside the core.
 
@@ -113,7 +113,7 @@ type RunStoreRead m =
   , metric   :: RunId -> MetricId -> m (Array Point) }
 ```
 
-**Data formats.** Gameboards, instantiation configs, seat-policy presets, manifests, and round records are JSON. Each has a codec in the package that owns its type. Records are the replay boundary: manifest + round records + seeds reproduce a run (INV-13, INV-31).
+**Data formats.** Gameboards, instantiation configs, seat-policy presets, manifests, and round records are JSON. Each has a codec in the package that owns its type. Records are the replay boundary: manifest + round records + seeds reproduce a run ([INV-13](02_type_system.md#inv-13), [INV-31](02_type_system.md#inv-31)).
 
 ## 5. Coupling Rules
 
@@ -121,15 +121,15 @@ type RunStoreRead m =
 - Policies never touch World State directly. They receive a `View` and return Proposals and signatures.
 - Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
 - Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.
-- Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance §1).
+- Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance [§1](05_test_instance.md#1-purpose)).
 - Every invariant has one pure predicate in `core/Invariants`. Tests, the harness, and live sessions share it.
 
 ## 6. Testing
 
-- **Unit and property tests** run per package against pure functions: conservation (INV-04, INV-05), order independence (INV-11), and resolution consistency (INV-14).
+- **Unit and property tests** run per package against pure functions: conservation ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)), order independence ([INV-11](02_type_system.md#inv-11)), and resolution consistency ([INV-14](02_type_system.md#inv-14)).
 - **Golden tests:** fixtures A–G are run through `resolveRound` and compared to their expected balances.
 - **Replay tests:** recorded rounds re-run under the `Replay` handler must give identical results.
-- **Interpretation tests:** these run against the `Llm` adapter only, separate from economic tests (Simulator §7.4).
+- **Interpretation tests:** these run against the `Llm` adapter only, separate from economic tests (Simulator [§7.4](06_simulator.md#74-ai-interpretation-tests)).
 
 ## 7. Build Order
 

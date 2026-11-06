@@ -12,11 +12,11 @@ The Gameboard defines a reusable economic and strategic scenario. It configures 
 
 A Gameboard defines the **persistent conditions and tensions of a scenario**, not the decisions or outcomes of any playthrough. For example, it might establish US–China competition, semiconductor dependencies, and capital–labor tension. These stay the same across playthroughs; participants' actions and the resulting history differ.
 
-The Gameboard defines the available economic world; instantiation chooses its **resolution** (Type System §2.5). Changing that resolution must preserve the world's initial economic meaning (INV-14).
+The Gameboard defines the available economic world; instantiation chooses its **resolution** (Type System [§2.5](02_type_system.md#25-glossary)). Changing that resolution must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)).
 
-Layer responsibilities, the glossary, invariants, numerics, and the canonical round sequence are defined in the Type System specification (§1, §2.5, §9, §9.1, §8.1). This document uses those terms and IDs and does not restate them.
+Layer responsibilities, the glossary, invariants, numerics, and the canonical round sequence are defined in the Type System specification ([§1](02_type_system.md#1-purpose), [§2.5](02_type_system.md#25-glossary), [§9](02_type_system.md#9-architectural-invariants-and-numerics), [§9.1](02_type_system.md#91-numerics-and-randomness), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). This document uses those terms and IDs and does not restate them.
 
-The Gameboard is declarative: it configures existing types, implements no simulation machinery, sustains circulation across the horizon (INV-05), and is versioned and research-grounded (INV-22).
+The Gameboard is declarative: it configures existing types, implements no simulation machinery, sustains circulation across the horizon ([INV-05](02_type_system.md#inv-05)), and is versioned and research-grounded ([INV-22](02_type_system.md#inv-22)).
 
 Conceptually:
 
@@ -64,7 +64,7 @@ The Scenario defines:
 - **Time horizon:** ordinarily five simulated years.
 - **Central tensions:** the competing interests that give the game its structure.
 - **Strategic questions:** the uncertainties the game explores.
-- **Evaluation dimensions:** outcomes measured at the end (§10.5).
+- **Evaluation dimensions:** outcomes measured at the end ([§10.5](#105-evaluation)).
 
 The Scenario says which forces are relevant, not how they resolve.
 
@@ -119,7 +119,7 @@ type EconomicStructure =
 
 ### 5.1 Resources
 
-Each Resource definition declares its identity, unit, and the properties defined in Type System §2.3: conservation class, transferability, decay rule, and whether it can be reserved. The engine accounts for a Resource from these properties; no behavior is attached to particular Resource names. Definitions must be consistent across Verticals and Entities.
+Each Resource definition declares its identity, unit, and the properties defined in Type System [§2.3](02_type_system.md#23-resource): conservation class, transferability, decay rule, and whether it can be reserved. The engine accounts for a Resource from these properties; no behavior is attached to particular Resource names. Definitions must be consistent across Verticals and Entities.
 
 ### 5.2 Exchange Markets
 
@@ -129,7 +129,7 @@ An exchange Market trades existing reserves along a CostFunction. Each definitio
 - CostFunction family and parameters.
 - Liquidity and reserve behavior.
 - Order features (limit price, maximum spend) and the Type System's deterministic allocation rules.
-- Participation, access, and tariff rules (§5.5).
+- Participation, access, and tariff rules ([§5.5](#55-geography-and-market-access)).
 
 The Gameboard defines behavior; the Instantiated Game supplies the initial reserves and position.
 
@@ -144,11 +144,11 @@ A facility consumes declared inputs and issues declared outputs under a producti
 - Delivery timing.
 - Required capabilities.
 
-Defense procurement and public campaigns are typical facilities. Facilities hold no reserves; they pay a payee (INV-05, INV-07).
+Defense procurement and public campaigns are typical facilities. Facilities hold no reserves; they pay a payee ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)).
 
 ### 5.4 The recurring economic cycle
 
-The Gameboard configures the cycle defined in Type System §6. Its components are computed together from the snapshot within the single round update:
+The Gameboard configures the cycle defined in Type System [§6](02_type_system.md#6-economic-circulation). Its components are computed together from the snapshot within the single round update:
 
 - **Production** from capacity and inputs.
 - **Exchange**, with Money flowing to suppliers.
@@ -189,7 +189,7 @@ The catalog defines possible participants: institutions that may be explicit and
 
 ### 6.1 Projections
 
-The catalog configures the three projections of Type System §2.2 separately: **membership** (may overlap), **account ownership** (one owner per account and responsibility, INV-08), and **collective procedure and capabilities**. Membership does not imply ownership; ownership does not imply authority; influence over a collective procedure does not grant its capabilities (INV-03).
+The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately: **membership** (may overlap), **account ownership** (one owner per account and responsibility, [INV-08](02_type_system.md#inv-08)), and **collective procedure and capabilities**. Membership does not imply ownership; ownership does not imply authority; influence over a collective procedure does not grant its capabilities ([INV-03](02_type_system.md#inv-03)).
 
 ### 6.2 Actor definitions
 
@@ -199,9 +199,9 @@ An Actor definition declares:
 - Memberships and capabilities.
 - Whether it may be a seat, an NPC, or either, and its applicable NPC Policies.
 - Initial-state constraints.
-- A **fallback** (§6.5).
+- A **fallback** ([§6.5](#65-fallbacks)).
 
-It also declares three scenario properties (INV-19):
+It also declares three scenario properties ([INV-19](02_type_system.md#inv-19)):
 
 - **Meaningful capability:** an intervention beyond simple trading, such as controlling transport capacity, organizing a strike, or supplying production capacity.
 - **Economic dependency:** something others can provide or withhold.
@@ -221,7 +221,7 @@ An Aggregate definition declares:
 
 Examples: households, small businesses, industrial producers, a regional bloc.
 
-When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the membership definition (Type System §7.1).
+When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the membership definition (Type System [§7.1](02_type_system.md#71-aggregate-semantics)).
 
 ### 6.4 Overlap
 
@@ -229,7 +229,7 @@ Memberships may overlap (a manufacturer may be a small business, a manufacturer,
 
 ### 6.5 Fallbacks
 
-Every eligible Actor definition declares a fallback (INV-25):
+Every eligible Actor definition declares a fallback ([INV-25](02_type_system.md#inv-25)):
 
 | Fallback | Meaning |
 |---|---|
@@ -237,7 +237,7 @@ Every eligible Actor definition declares a fallback (INV-25):
 | **Institutional Policy** | An implicit Policy or rule mechanism retains its decisions and capabilities. |
 | **Permitted omission** | It may be absent without leaving required responsibilities unowned. |
 
-These are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate (INV-03).
+These are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)).
 
 ## 7. Structural Relationships
 
@@ -257,14 +257,14 @@ Every relationship must have a mechanical interpretation: constraining actions; 
 
 ## 8. Policy Catalog
 
-The catalog holds in-world Policies: declarative, versioned programs in the shared decision language, run by the interpreter of Type System §4 (INV-12, INV-29). Seat Policies (human, AI agent, or preset program) are supplied outside the scenario and are not catalogued here. The catalog holds parameterized definitions, not runtime assignments.
+The catalog holds in-world Policies: declarative, versioned programs in the shared decision language, run by the interpreter of Type System [§4](02_type_system.md#4-policies) ([INV-12](02_type_system.md#inv-12), [INV-29](02_type_system.md#inv-29)). Seat Policies (human, AI agent, or preset program) are supplied outside the scenario and are not catalogued here. The catalog holds parameterized definitions, not runtime assignments.
 
 - **NPC Policies** express objectives, conditional responses to indicators and to other Actors, and time-dependent behavior, including which Proposals to publish to other Actors and which Proposals addressed to them to sign.
-- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so an estimator adjusts each output exactly once (INV-09). An Aggregate with a collective procedure uses its Policy for the residual input.
+- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so an estimator adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate with a collective procedure uses its Policy for the residual input.
 
 The Gameboard declares input views, parameter ranges, and defaults; the Instantiated Game selects values. Policy memory lives in World State. Programs never change during play; decisions change because World State changes.
 
-Observation permissions are declared per Policy category, so NPCs do not see the whole simulation (INV-16).
+Observation permissions are declared per Policy category, so NPCs do not see the whole simulation ([INV-16](02_type_system.md#inv-16)).
 
 ## 9. Representation Schemes
 
@@ -281,7 +281,7 @@ type RepresentationScheme =
   }
 ```
 
-`Estimator` is defined in Type System §7. A scheme normally starts from a named preset:
+`Estimator` is defined in Type System [§7](02_type_system.md#7-aggregates-and-representation). A scheme normally starts from a named preset:
 
 | Preset | Use | Typical parameters |
 |---|---|---|
@@ -292,23 +292,23 @@ For `statistical` schemes, representatives know their choices move the Aggregate
 
 For `constituent` schemes, members submit procedure inputs, which move no resources. A Gameboard may separately require a contribution to fund a collective action, but contributing is never the only way to express support.
 
-Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment, which replaces the matching baseline once (INV-09). Multiple representatives are combined by the estimator. Representation never transfers holdings or capabilities (INV-03); resulting Aggregate Intents pass ordinary validation.
+Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment, which replaces the matching baseline once ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by the estimator. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); resulting Aggregate Intents pass ordinary validation.
 
 ## 10. Game Rules
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine only as Proposals that need more than one signer (Type System §3.3, INV-10). The Gameboard declares which Resources may move through multi-signer Proposals, between which Entity categories, and which audiences a Proposal may have. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System §4.2).
+Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, between which Entity categories, and which audiences a Proposal may have. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)).
 
 ### 10.2 Temporal structure and phase schedule
 
 The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, rule-change effective times (default: next round boundary), and scheduled shocks. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
 
-Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as `statistical` sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System §9.1).
+Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as `statistical` sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)).
 
 ### 10.3 Information visibility
 
-The Gameboard declares what is public, private, or capability-gated: prices, holdings, indicators, Proposals beyond their audience. The same rules constrain every Policy, whether NPC or seat (INV-16). Visibility never changes economic facts.
+The Gameboard declares what is public, private, or capability-gated: prices, holdings, indicators, Proposals beyond their audience. The same rules constrain every Policy, whether NPC or seat ([INV-16](02_type_system.md#inv-16)). Visibility never changes economic facts.
 
 ### 10.4 Available actions
 
@@ -341,7 +341,7 @@ The output is a complete World State, with no unresolved choices about controlle
 
 ## 12. Validation and Compilation
 
-Validation establishes that the scenario conforms to the Type System (INV-17) and admits at least one consistent initialization (INV-21).
+Validation establishes that the scenario conforms to the Type System ([INV-17](02_type_system.md#inv-17)) and admits at least one consistent initialization ([INV-21](02_type_system.md#inv-21)).
 
 **Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, objective, and fallback. Schemes reference valid strata, members, domains, and estimators.
 
@@ -349,7 +349,7 @@ Validation establishes that the scenario conforms to the Type System (INV-17) an
 
 **Representation checks.** Eligibility matches population, membership, and domain. `statistical` estimators declare shrinkage, noise spread, and bound. `constituent` estimators declare a complete procedure. Accounting partitions consistently. No duplicate adjustments. No authority granted.
 
-**Resolution consistency.** For every supported pair of explicitness configurations, total stocks, liabilities, capabilities and owners, and authorized recurring activity reconcile (INV-14). Later differences must come from decisions, not from duplicated resources, deleted liabilities, or altered rules.
+**Resolution consistency.** For every supported pair of explicitness configurations, total stocks, liabilities, capabilities and owners, and authorized recurring activity reconcile ([INV-14](02_type_system.md#inv-14)). Later differences must come from decisions, not from duplicated resources, deleted liabilities, or altered rules.
 
 **Feasibility.** Compatibility rules may restrict optional configurations; for example, reject removing an institution while also removing every mechanism for a liability it carries.
 
@@ -370,7 +370,7 @@ A validated Gameboard is reusable; each instantiation is still checked against i
 
 Each Vertical references its research, and important parameters keep provenance. The Gameboard distinguishes researched facts, modeling simplifications, hypothetical conditions, and balancing choices (including estimator strengths). This matters when the game is used for serious scenario planning.
 
-Every Gameboard has a stable identifier and immutable version (INV-22). Any change to Markets, Transformations, the cycle, Policies, populations, or relationships is a new version. Instantiated Games reference the exact version.
+Every Gameboard has a stable identifier and immutable version ([INV-22](02_type_system.md#inv-22)). Any change to Markets, Transformations, the cycle, Policies, populations, or relationships is a new version. Instantiated Games reference the exact version.
 
 ## 14. Illustrative Gameboard
 
