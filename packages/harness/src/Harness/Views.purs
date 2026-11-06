@@ -44,6 +44,7 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (concat, concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
 import Data.Map as Map
+import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Either (Either(..))
@@ -170,6 +171,8 @@ overview spec r =
       , [ "Game seed", show r.manifest.initial.seed ]
       , [ "Player seed", r.playerSeed ]
       , [ "Rounds", show (length r.records) ]
+      -- the round count the run was launched for; a run shorter than it can be resumed to it
+      , [ "Rounds target", show (fromMaybe (length r.records) (specValue r.spec "rounds" >>= Int.fromString)) ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (count isRejected) ]
       , [ spec.procurementLabel <> " procured", q (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
