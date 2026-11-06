@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { E2E_PORT } from "./ports.js";
+import { E2E_PORT } from "./ports.mjs";
 
 // Requires the browser binaries: run `npx playwright install` once (see AGENTS.md).
 export default defineConfig({

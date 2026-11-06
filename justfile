@@ -100,7 +100,7 @@ ui-accept:
 # Build the _dashboard bundle
 _dashboard: _ui
     spago build -p sp-dashboard
-    vite build --config apps/dashboard/vite.config.js
+    vite build --config apps/dashboard/vite.config.mjs
 
 # Serve the API and dashboard
 [positional-arguments]
