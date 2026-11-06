@@ -30,7 +30,7 @@
                      run store ──► dashboard / reports (Narrate)
 ```
 
-Each round is one call to `runRound`. The engine sees only signed Proposals and returns the next World State plus events. All other work happens in handlers.
+Each round is one call to `runRound`. The engine sees only signed Proposals and returns the next World State plus events. It is an accountant: it checks authority and signatures and keeps the books balanced. It never authors or rewrites an Intent; Representation estimates are stored in World State, and Policies act on them next round. All other work happens in handlers.
 
 ## 3. Codebase Layout
 
@@ -40,15 +40,15 @@ The project is a spago workspace. Each package compiles on its own, and the depe
 packages/
   core/        pure types and engine; depends only on prelude-level libs
     Num          fixed-point quantities (4 dp, half-even)
-    Types        Entity, Resource, Intent, Proposal, Market, CollectiveProcedure, Representation, …
+    Types        Entity, Capability, Resource, Intent, Rule, Proposal, View, Market, CollectiveProcedure, Representation, …
     Draw         keyed PRNG: draw :: Seed → DrawKey → UnitInterval
     Market       CostFunction, clearing
     Transform    facilities, recipes, circulation
-    Represent    estimators: sampled behavior → adjusted baseline
-    Procedure    collective procedures: stances → decision
-    Engine       prepare, observe, screen, reconcile, resolve, commit
+    Represent    estimators: sampled behavior → stored adjustment factor
+    Procedure    collective procedures: weighted support for procedure Proposals, checked at screening
+    Engine       prepare, observe, screen, estimate, resolve, commit
     Invariants   INV checks as pure predicates over (World, RoundResult)
-  board/       Gameboard schema, validation, instantiation (pure; → core)
+  board/       Gameboard schema (incl. Objectives), validation, instantiation (pure; → core)
   policy/      decision-language interpreter and presets (pure; → core)
   effects/     effect signatures and runRound (Run; → core, policy)
   scenarios/   data only: fractured-world/v0/*.json, fixtures (→ board)
@@ -60,7 +60,7 @@ packages/
   adapters/    impure backends behind effect handlers (→ handlers)
     Llm          Interpret, Narrate, AI-agent seats
     Store        Record / RunStore on SQLite
-  harness/     SimulationSpec, experiments, counterfactuals (→ effects, handlers)
+  harness/     SimulationSpec, experiments, counterfactuals, objective evaluation (→ effects, handlers)
   apps/        entry points only: session, sim CLI, dashboard (→ anything above)
 test/          property tests per package; fixtures A–G as golden tests
 ```
@@ -91,10 +91,22 @@ instantiate       :: ValidGameboard -> InstantiationConfig
 ```purescript
 type PolicyStep =
   { propose :: View -> Array Proposal
-  , sign    :: View -> Array Proposal -> Array ProposalId }
+  , sign    :: View -> Array ProposalId }   -- chooses among view.toSign
 ```
 
-AI agents and humans satisfy the same shape through the `SeatInput` effect rather than a pure function.
+`View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees; in the Sign step its `toSign` field carries the Proposals awaiting that Policy's signature. AI agents and humans satisfy the same shape through the `SeatInput` effect rather than a pure function.
+
+**Authorization** (`core`). One matching function over closed types (Type System [§2.4](02_type_system.md#24-capability)):
+
+```purescript
+authorized :: Array Capability -> EntityId -> Intent -> Boolean
+```
+
+**Objectives** (`harness`). Evaluation is a pure view over the records and never touches the engine (Gameboard [§10.5](03_gameboard.md#105-evaluation)):
+
+```purescript
+evaluateObjectives :: Manifest -> Array RoundRecord -> Map EntityId (Array CriterionResult)
+```
 
 **Effects** (`effects`). These are the only impure vocabulary in the system:
 
@@ -120,7 +132,7 @@ type RunStoreRead m =
 ## 5. Coupling Rules
 
 - `core` imports no effect library, no IO, and no JSON. Codecs live beside the types in a separate `core/Codec` module, so the engine never depends on them.
-- Policies never touch World State directly. They receive a `View` and return Proposals and signatures.
+- Policies never touch World State directly. They receive a `View` and return Proposals and signatures. The engine never authors or rewrites Intents.
 - Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
 - Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.
 - Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance [§1](05_test_instance.md#1-purpose)).

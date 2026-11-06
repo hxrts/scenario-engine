@@ -52,7 +52,7 @@ Each round runs in five steps:
 | **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate. |
 | **Intent** | A structured economic or institutional action; the engine's only input. |
 
-An **Actor** is an explicit Entity: either a **seat**, driven by a Policy supplied from outside the scenario (a human, an AI agent, or a preset program), or an **NPC**, driven by a Policy that is part of the scenario. A **cost function** prices activity whose marginal cost rises with volume; it is shared by Markets and by capacity-limited production **facilities**. A **Proposal** is a message carrying Intents; it executes only once every party it requires has signed it.
+An **Actor** is an explicit Entity: either a **seat**, driven by a Policy supplied from outside the scenario (a human, an AI agent, or a preset program), or an **NPC**, driven by a Policy that is part of the scenario. A **cost function** prices activity whose marginal cost rises with volume; it is shared by Markets and by capacity-limited production **facilities**. A **Proposal** is a message carrying Intents; it executes only once it has the signatures it requires.
 
 Authority and resources are distinct. A government can regulate businesses without owning their resources. Not everything meaningful is a Resource: production capacity, market access, and authority are economic state or rules. This lets a few Resources support a rich economy.
 
@@ -74,7 +74,7 @@ Germany can therefore be an EU member while the German government's accounts bel
 
 ## 6. Markets, Production, and Circulation
 
-Markets trade existing resources along a cost curve (a bonding curve). Facilities, such as military procurement, produce new quantities within capacity, priced by the same kind of curve. A price curve never creates an asset by itself. Markets can be regional, with access rules, tariffs, and transport capacity, so trade restrictions have real effects.
+Markets trade existing resources along a cost curve (a bonding curve). Facilities, such as military procurement, produce new quantities within capacity, priced by the same kind of curve. A price curve never creates an asset by itself. Markets can be regional, with access rules and tariffs, and transport between regions is itself a capacity-limited facility, so trade restrictions have real effects.
 
 To sustain five years of play, every round includes a recurring economic cycle, computed together rather than in sequence:
 
@@ -101,14 +101,14 @@ An NPC's Policy is part of the scenario, such as a government that retaliates ag
 
 Two mechanisms let smaller players matter:
 
-- **Representation.** A small-business owner's decisions are treated as evidence about similar businesses. If they buy less Energy than usual, the Global SMEs Aggregate buys somewhat less too. An estimator shrinks and caps the adjustment and gives it a little seeded variance. The owner's own purchase still executes once, from their own small budget.
-- **Collective procedure.** A member state submits a stance (support, neutral, oppose) to a bloc's decision procedure, which combines it with the bloc's own input by declared weights. If support crosses the threshold, the bloc acts with its own resources and authority.
+- **Representation.** A small-business owner's decisions are treated as evidence about similar businesses. If they buy less Energy than usual, the Global SMEs Aggregate buys somewhat less in the following round. An estimator shrinks and caps the adjustment and gives it a little seeded variance. The owner's own purchase still executes once, from their own small budget.
+- **Collective procedure.** A bloc's decision is weighted signing on the bloc's own Proposal. The bloc proposes an action, and each member state supports it by signing. Signed member weights are added to the bloc's own weight; if the total exceeds the threshold, the bloc acts that same round with its own resources and authority. Otherwise the Proposal lapses.
 
-Neither gives the Actor the Aggregate's holdings or authority. Because players know their choices move the Aggregate, they are not unbiased samples. That influence is part of the design: it is kept explicit and bounded, and the simulator measures it as a balancing parameter.
+For Representation the engine only computes and stores the estimate; the Aggregate's own Policy applies it next round. Neither mechanism gives the Actor the Aggregate's holdings or authority. Because players know their choices move the Aggregate, they are not unbiased samples. That influence is part of the design: it is kept explicit and bounded, and the simulator measures it as a balancing parameter.
 
 ## 9. Resolution
 
-Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, representative adjustments, procedure decisions, and signed deals all become Intents, and these are resolved together as one bundled round update with uniform market prices. There is no ordering of actions within a round, and prices from this round become visible next round. The canonical sequence is defined in [`02_type_system.md` §8.1](02_type_system.md#81-canonical-resolution-sequence).
+Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, and signed deals all become Intents in signed Proposals, and these are resolved together as one bundled round update with uniform market prices. The engine never authors or rewrites an Intent. There is no ordering of actions within a round, and everything a round computes (prices and representative estimates) becomes visible next round. The canonical sequence is defined in [`02_type_system.md` §8.1](02_type_system.md#81-canonical-resolution-sequence).
 
 ## 10. AI Interface and Reporting
 
@@ -118,7 +118,7 @@ The engine, not the language model, decides what happens. AI then writes a ficti
 
 ## 11. Evaluation
 
-There is no single winner. Each Actor has role-specific objectives, and the scenario defines system-level measures. Outcomes are not reduced to Money; military capacity, influence, and resource security matter in their own right.
+There is no single winner. Each Actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of Energy, and the scenario defines system-level measures. Objectives are evaluated from the recorded game and never affect the economy. Outcomes are not reduced to Money; military capacity, influence, and resource security matter through these objectives.
 
 Every role should have a meaningful capability, a dependency that others can provide or withhold, and an objective others can help or obstruct. A small-business owner doesn't need the resources of the United States, but their choices should materially alter some part of the economy.
 
@@ -131,6 +131,8 @@ Every role should have a meaningful capability, a dependency that others can pro
 **Resolution consistency.** Instantiating the same gameboard at different levels of explicitness must preserve its accounts, liabilities, and authority before any decisions differ. Divergence comes from decisions, never from accounting accidents.
 
 **Uniform action semantics.** Intents are the only input; humans, agents, programs, NPCs, and Aggregates all act through them.
+
+**The engine is an accountant.** It checks authority and signatures and keeps the books balanced. Negotiation, persuasion, and agreement happen out of band among players; the engine only sees what was proposed and who signed.
 
 **Complete circulation.** Resources are produced, exchanged, distributed, and renewed, so the economy sustains itself.
 

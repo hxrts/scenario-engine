@@ -77,19 +77,21 @@ Membership, economic ownership, and collective decision-making are distinct rela
 ```purescript
 type CollectiveProcedure =
   { weights :: Map EntityId Ratio      -- member weights
-  , residualWeight :: Ratio            -- weight of the Aggregate's own Policy input
-  , rule :: DecisionRule               -- e.g. a threshold
-  , authorizes :: Array Capability
+  , residualWeight :: Ratio            -- weight of the Aggregate itself (the implicit members)
+  , threshold :: Ratio                 -- passes when support exceeds it
+  , authorizes :: Array Capability     -- what a passed Proposal may do
   }
 ```
 
-A member influences a procedure by submitting a procedure input, an Intent ([§3](#3-intents-and-economic-actions)). The procedure combines the stances with the residual input supplied by the Aggregate's Policy:
+A collective procedure is a weighted-signature rule on the Aggregate's own Proposals. The Aggregate's Policy publishes a **procedure Proposal** ([§3.3](#33-proposals-and-signatures)): its Intents fall within `authorizes` and use the Aggregate's own accounts and authority, and its signers are the procedure's members. A member supports by signing and declines by not signing:
 
-**Support = Σ(weightᵢ × stanceᵢ) + residualWeight × residualInput**
+**Support = residualWeight + Σ weightᵢ over the members who signed**
 
-If `rule` passes, the Aggregate acts under `authorizes`, using its own accounts. A procedure input moves no resources; a procedure may separately require a contribution to fund an action. The engine records each procedure's inputs, support, threshold, and decision.
+Publishing implies the author's signature, so the residual weight always counts. The Proposal executes in that round if support exceeds `threshold`; otherwise it lapses. The decision is proposed, signed, and executed within one round. The engine records the members who signed, the support, the threshold, and the outcome.
 
-For example, Germany is in the EU's `members` whether or not it submits an input in a given round. The EU Aggregate owns the residual European accounts not assigned to other Entities. Germany influences the EU's procedures by its declared weight without owning EU accounts or exercising EU capabilities.
+A member that is not explicit has its weight folded into `residualWeight`; instantiation moves weight between the two, as part of resolution consistency ([INV-14](#inv-14)).
+
+For example, Germany is in the EU's `members` whether or not it signs in a given round. The EU Aggregate owns the residual European accounts not assigned to other Entities. Germany influences the EU's procedures by its declared weight without owning EU accounts or exercising EU capabilities.
 
 A manufacturer may belong to the small-business population, the manufacturing sector, and a regional economy at once. Those memberships do not permit three Aggregates to own its assets. Accounting is partitioned; classification is not.
 
@@ -121,17 +123,25 @@ Likewise, an Actor cannot spend, transfer, or create resources merely because it
 
 ### 2.4 Capability
 
-A Capability describes which classes of actions an Entity is authorized to perform and over what scope.
+A Capability is a pattern over Intents: it says which actions an Entity is authorized to perform. Authorization is one matching function, checked during Intent validation.
 
-Capabilities can represent economic, financial, regulatory, or political authority.
+```purescript
+data Capability
+  = MayTrade MarketId
+  | MayTransfer ResourceId
+  | MayTransform TransformationId
+  | MayEnact RuleKind
 
-They are checked during Intent validation.
+data RuleKind = TariffRule | AccessBanRule | WithholdingRule
 
-For example, a government may possess the capability to set a tariff within its jurisdiction, while a small business may possess the capability to invest its own capital.
+authorized :: Array Capability -> EntityId -> Intent -> Boolean
+```
+
+The scope of `MayEnact` is implied: the acting Entity must be the Rule's `jurisdiction`, or the owner of the capacity it withholds ([§3](#3-intents-and-economic-actions)). For example, a government may enact a tariff within its jurisdiction, while a small business may invest its own capital.
 
 Institutional capabilities stay with the institutional Entity or rule mechanism that holds them. If an institution is not explicitly played, its capabilities remain with its Aggregate's collective procedures or with a declared rule, and are never transferred automatically to a population Aggregate.
 
-Membership, Representation, and procedure inputs never transfer capabilities to the member or representative Actor.
+Membership, Representation, and signing a procedure Proposal never transfer capabilities to the member or representative Actor.
 
 ### 2.5 Glossary
 
@@ -142,12 +152,14 @@ This table is the single source of term definitions. The other specifications us
 | **Actor** | An explicitly represented Entity, driven by a seat or NPC Policy. |
 | **Controller** | What drives an Actor: a seat or an NPC Policy. |
 | **NPC** | An Actor whose Policy is part of the scenario. |
-| **World State** | The current economic state: Entities with their accounts and capacities, Markets, institutional rules, reservations, Policy memory, the game seed, and time. |
+| **World State** | The current economic state: Entities with their accounts and capacities, Markets, the Rules in force, reservations, stored estimates, Policy memory, the game seed, and time. |
+| **View** | What a Policy sees of the snapshot: its own Entity, prices, Rules in force, permitted events, stored estimates, and the Proposals awaiting its signature ([§4](#4-policies)). |
+| **Rule** | An institutional condition the engine interprets: a tariff, an access ban, or a capacity withholding ([§3](#3-intents-and-economic-actions)). |
 | **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity. |
 | **Residual** | The accounts and behavior of a population remaining in an Aggregate after explicitly modeled accounts are assigned elsewhere. |
 | **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers neither ownership nor authority. |
-| **Collective procedure** | An Aggregate's declared rule for combining member stances with its own Policy's residual input, exercising the institution's own capabilities ([§2.2](#22-three-projections-of-an-entity)). |
-| **Procedure input** | A member's stance (`Support`, `Neutral`, `Oppose` = +1, 0, −1) submitted to a collective procedure via `ChangeRule`. It moves no resources. |
+| **Collective procedure** | An Aggregate's weighted-signature rule for Proposals made in its name ([§2.2](#22-three-projections-of-an-entity)). |
+| **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
 | **Estimator** | The configured function that turns a representative's observed behavior into an Aggregate adjustment. |
 | **Preset** | A named parameter set for a declarative program, such as the seat-policy preset `Conservative`. |
 | **Transformation** | A declared recipe that changes quantities, optionally priced by a CostFunction and limited by capacity. |
@@ -157,9 +169,9 @@ This table is the single source of term definitions. The other specifications us
 | **Player seed** | A second seed, used only by the simulation harness, from which all seat-Policy randomness is derived. |
 | **Effect** | A declared impure operation (randomness, seat input, interpretation, narration, persistence, time); interpreted by a handler. |
 | **Draw key** | The semantic name of one random draw (round, source, Entity, category, index). |
-| **Proposal** | A message carrying one or more Intents and a set of required signers. It executes only when every required signer has signed ([§3.3](#33-proposals-and-signatures)). |
-| **Signer** | An Entity whose signature a Proposal requires. The author's signature is implicit in publishing; an offer also requires its counterparties. |
-| **Lapse** | The outcome of a Proposal that is not signed by every required signer by the end of the Sign step. It is a decline, not an error. |
+| **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a deal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
+| **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing; an offer also requires its counterparties, and a procedure Proposal names the procedure's members. |
+| **Lapse** | The outcome of a Proposal whose signature rule is not met by the end of the Sign step. It is a decline, not an error. |
 | **Seat** | An Actor whose Policy is supplied from outside the scenario; swapping the implementation never changes the Actor. |
 | **Policy kind** | How a Policy is implemented: declarative program, AI agent, or human ([§4](#4-policies)). Recorded in the manifest and round records, not on Proposals. |
 | **Escrow** | The hold placed at screening on a Proposal's maximum cost, in any Resource, released at commit if unused. |
@@ -174,14 +186,16 @@ This table is the single source of term definitions. The other specifications us
 
 An Intent is the common action language of the game engine.
 
-Intents are the only input to the engine. The engine never knows or cares how an Intent was produced ([§4](#4-policies)).
+Intents are the only input to the engine. The engine never knows or cares how an Intent was produced ([§4](#4-policies)). **The engine never authors or rewrites Intents; every executed Intent came from a signed Proposal.**
+
+**The engine is an accountant.** It checks authority and signatures and keeps the books balanced. Negotiation, persuasion, and agreement happen out of band among players; the engine only sees what was proposed and who signed.
 
 The Intent algebra contains four categories:
 
 - **Trade:** An order on a public Market, with an optional limit price.
 - **Transfer:** A movement of a Resource from one Entity to another. Alone it is a gift or payment; bundled in a multi-signer Proposal it is one side of a deal. Its `from` must be a required signer.
-- **Transform:** Execute a declared Transformation, such as production, consumption, procurement, or investment.
-- **ChangeRule:** Exercise authorized institutional or market-rule authority, or submit a procedure input to a collective procedure in which the Entity is a member.
+- **Transform:** Execute a declared Transformation, such as production, consumption, procurement, or investment. Its `by` must be a required signer.
+- **ChangeRule:** Enact or repeal a Rule under the Entity's authority.
 
 Intents are carried by Proposals; they are not immediately applied state mutations.
 
@@ -198,24 +212,28 @@ type TransferSpec =
 data Intent
   = Trade Order
   | Transfer TransferSpec
-  | Transform TransformationId Quantity
+  | Transform { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
   | ChangeRule RuleChange
 
-data RuleChange
-  = SetRule RuleId RuleValue                      -- effective at the next round boundary
-  | ProcedureInput CollectiveProcedureId Stance
+data Rule
+  = Tariff { jurisdiction :: EntityId, origin :: EntityId, rate :: Price }
+  | AccessBan { jurisdiction :: EntityId, target :: EntityId }
+  | Withholding { capacity :: CapacityRef, units :: Quantity }
 
-data Stance = Support | Neutral | Oppose   -- +1, 0, -1
+data RuleChange
+  = Enact Rule                                    -- effective at the next round boundary
+  | Repeal RuleId                                 -- likewise
 
 type Proposal =
   { id :: ProposalId
   , author :: EntityId
   , intents :: Array Intent         -- settle atomically, together
-  , signers :: Array EntityId       -- required signers; the author's signature is implicit
+  , signers :: Array EntityId       -- the author's signature is implicit
+  , procedure :: Maybe CollectiveProcedureId   -- present on a procedure Proposal
   }
 ```
 
-A Proposal binds Intents to the Entities that must sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers; Gameboard visibility rules may make more public.
+A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers; Gameboard visibility rules may make more public.
 
 An Intent's economic meaning is independent of who generated it: a seat, NPC, or Aggregate can all propose a Trade, and the engine determines whether it is permitted, feasible, and executable. Provenance (which seat or Policy produced a Proposal, and its Policy kind) is kept in the round record and manifest.
 
@@ -250,21 +268,35 @@ Every Intent reaches the engine inside a Proposal. Phase 3 of each round, run by
 - **Propose.** Every Policy publishes Proposals. The Proposal set is frozen at the end of this step.
 - **Sign.** Every Policy sees the snapshot and the Proposals that name it as a signer, and signs those it endorses. Publishing implies the author's signature.
 
-A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule or procedure input) has its author as the only required signer. An **offer** also requires its counterparties: SA's Proposal [Transfer 20 E to JP, Transfer 48 M to SA] with signers [SA, JP] is an offer, and JP's signature is the acceptance. An N-party deal requires N signers. Multi-signer Proposals may bundle only Transfers and Transforms; Trades always travel in single-author Proposals and follow the partial-fill rules ([§3.2](#32-infeasible-actions)). Each `ProposalId` is derived from (round, author, index in the author's submission), so recorded signatures replay deterministically.
+A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule) has its author as the only required signer. An **offer** also requires its counterparties: SA's Proposal [Transfer 20 E to JP, Transfer 48 M to SA] with signers [SA, JP] is an offer, and JP's signature is the acceptance. An N-party deal requires N signers. Multi-signer Proposals may bundle only Transfers and Transforms; Trades always travel in single-author Proposals and follow the partial-fill rules ([§3.2](#32-infeasible-actions)). A multi-signer Proposal is all-or-nothing, so any facility order inside it must be fillable in full: if the signed orders for a facility exceed its capacity, every multi-signer Proposal using that facility in that round is rejected as a unit and recorded. Single-author facility orders keep pro-rata fills. Each `ProposalId` is derived from (round, author, index in the author's submission), so recorded signatures replay deterministically.
 
-Only fully signed Proposals proceed. A Proposal missing a signature **lapses**: it is recorded as a decline and the round resolves normally. Because acceptance is a signature on the offer's own terms, the two sides of a deal can never disagree.
+A **procedure Proposal** is authored by an Aggregate under one of its collective procedures and names that procedure's members as signers. It proceeds when the signed weight exceeds the procedure's threshold ([§2.2](#22-three-projections-of-an-entity)), and is then the Aggregate's own action: it may carry any Intent the procedure authorizes, including a Trade, which fills under the normal partial-fill rules. The bundling and all-or-nothing restrictions above apply to deals, not to procedure Proposals.
+
+Only Proposals whose signature rule is met proceed. A deal missing a signature, or a procedure Proposal short of its threshold, **lapses**: it is recorded as a decline and the round resolves normally. Because acceptance is a signature on the offer's own terms, the two sides of a deal can never disagree.
 
 A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)); each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
 
 Negotiation happens out of band for humans; the interpreter turns "we accept SA's deal" into a signature on that Proposal. Programs propose by rule and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"); AI agents read the Proposals that name them and choose. A counteroffer is a new Proposal, signable next round. The engine enforces no promises across rounds.
 
-The Propose/Sign structure is the extension point for further coordination: more Propose/Sign iterations within a round, information-only Proposals, or threshold signer rules can be added without changing settlement.
+The Propose/Sign structure is the extension point for further coordination: more Propose/Sign iterations within a round or information-only Proposals can be added without changing settlement.
 
 ## 4. Policies
 
 A Policy is anything that produces Intents from the authorized view of the Entity it drives:
 
 **Policy + Authorized View + Memory + Turn → Intents**
+
+```purescript
+type View =                              -- what a Policy sees (INV-16)
+  { round :: RoundIndex
+  , self :: Entity
+  , prices :: Map MarketId Price         -- beginning-of-round
+  , rules :: Array Rule                  -- Rules in force
+  , events :: Array Event                -- public events and its own, from prior rounds
+  , factors :: Map BehaviorDomain Ratio  -- Representation adjustment factors stored last round, for an Aggregate's Policy
+  , toSign :: Array Proposal             -- Proposals requiring its signature (empty in Propose)
+  }
+```
 
 The engine (World State + Intents → World State) is separate from the Policies that produce Intents. Policies come in three kinds:
 
@@ -286,9 +318,9 @@ An NPC is an explicit Actor whose Policy is part of the scenario. Its decisions 
 
 Every Aggregate has a baseline Policy governing the behavior of its implicit population.
 
-An Aggregate Policy might determine consumption, investment, production, borrowing, or other economic activity based on available information. It declares which behavioral domains it controls, so Representations can adjust the correct outputs. It also supplies the residual input to each of the Aggregate's collective procedures.
+An Aggregate Policy might determine consumption, investment, production, borrowing, or other economic activity based on available information. It declares which behavioral domains it controls, so Representations can adjust the correct outputs. It also decides when to publish a procedure Proposal under one of the Aggregate's collective procedures ([§2.2](#22-three-projections-of-an-entity)).
 
-Its generated actions provide the baseline behavior of the population in the absence of representative inputs. Aggregates sign only their own Proposals unless the Gameboard explicitly allows them to sign multi-signer Proposals.
+Its generated actions provide the baseline behavior of the population. Each round it reads the adjustment factors stored in the previous round from its View and scales the matching baseline by the stored factor ([§7.4](#74-estimation-semantics)). With nothing stored, it follows its baseline. Aggregates sign only their own Proposals unless the Gameboard explicitly allows them to sign multi-signer Proposals.
 
 ### 4.3 Policy semantics
 
@@ -304,9 +336,9 @@ An initialized Policy must:
 - Respect deterministic execution, using seeded randomness only where its definition explicitly calls for it.
 - Remain distinct from institutional rules that players may be authorized to change.
 
-A seat changing a tax rate changes an economic rule through `ChangeRule`. It does not rewrite the behavioral Policy of any affected Entity.
+A seat enacting a tariff changes a Rule through `ChangeRule`. It does not rewrite the behavioral Policy of any affected Entity.
 
-The consequences of that tax change emerge when Markets and Policies respond to the new conditions.
+The consequences of that tariff emerge when Markets and Policies respond to the new conditions.
 
 ### 4.4 Shared decision-language interpreter
 
@@ -392,8 +424,8 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 
 - Scoped or regional Market nodes.
 - Market access rules that determine which Entities may trade.
-- Tariffs and taxes applied to particular participants or origins.
-- Transport-capacity constraints linking nodes.
+- `Tariff` and `AccessBan` Rules applied to particular jurisdictions and origins ([§3](#3-intents-and-economic-actions)).
+- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)).
 
 Trade restrictions, tariffs, and sanctions therefore have identifiable mechanical effects: they change access, prices, or throughput for specific participants.
 
@@ -415,9 +447,9 @@ The clearing result must not depend on the order in which submissions were recei
 
 ### 5.6 Market-rule changes
 
-Institutional actions may modify market conditions, including taxes, tariffs, access, permitted participants, transport capacity, or available capacities.
+Institutional actions modify market conditions by enacting or repealing Rules: a `Tariff` adds its rate to deliveries from the origin into the jurisdiction, paid to the jurisdiction's government; an `AccessBan` makes such deliveries infeasible; a `Withholding` removes units of a capacity.
 
-A rule change must have a declared scope. It always takes effect at the next round boundary.
+A rule change always takes effect at the next round boundary.
 
 ## 6. Economic Circulation
 
@@ -442,7 +474,7 @@ Every unit of Money paid out has a recorded recipient.
 
 ## 7. Aggregates and Representation
 
-Explicit Actors influence an implicit Aggregate in two distinct ways. **Representation** treats an Actor's behavior as a sample of the Aggregate's population and adjusts its baseline. A **collective procedure** combines members' stances into an institutional decision ([§2.2](#22-three-projections-of-an-entity)). Neither gives the Actor the Aggregate's resources or authority: a small-business owner can move the same economy as a government, and a member state can influence a bloc without owning it.
+Explicit Actors influence an implicit Aggregate in two distinct ways. **Representation** treats an Actor's behavior as a sample of the Aggregate's population and adjusts its baseline. A **collective procedure** lets members' signatures decide whether the Aggregate's own Proposal executes ([§2.2](#22-three-projections-of-an-entity)). Neither gives the Actor the Aggregate's resources or authority: a small-business owner can move the same economy as a government, and a member state can influence a bloc without owning it.
 
 ### 7.1 Aggregate semantics
 
@@ -489,9 +521,11 @@ The domain constrains which part of the Actor's behavior may influence the Aggre
 Representation proceeds through four stages, and the engine records each one:
 
 1. **Observation.** Derived from a validated, escrowed Proposal, before clearing. Escrow means every observation is backed by real resources.
-2. **Estimate.** The estimator's output.
-3. **Proposed Aggregate Intent.** The reconciled Aggregate action.
+2. **Estimate.** The adjustment factor, computed and stored by the engine.
+3. **Proposed Aggregate Intent.** The Aggregate Policy's adjusted Proposal.
 4. **Executed result.** The settled outcome after feasibility checks.
+
+The record spans two rounds: the observation and estimate belong to round r, and the proposed Intent and executed result to round r + 1.
 
 An observation is taken from the representative's admissible intended action, not its executed fill. Any difference between intended and executed actions is recorded.
 
@@ -507,13 +541,17 @@ Each representative's deviation from its reference is perturbed, then clamped:
 
 Sampling noise models the uncertainty of inferring a population from a few representatives, so one decision moves the Aggregate by a slightly different amount in each game. The noise is added before clamping, so the deviation bound still caps the total effect. Noise applies only to actual observations.
 
-**Adjusted baseline = Baseline × (1 + shrinkage × Σ(weightᵢ × deviationᵢ))**
+**Adjustment factor = 1 + shrinkage × Σ(weightᵢ × deviationᵢ)**
 
-The sum runs over the Representations targeting that Aggregate and domain.
+The sum runs over the Representations targeting that Aggregate and domain. The engine computes the factor from round r's Proposals and stores it in World State; it never creates or changes a Proposal. In round r + 1 the Aggregate's Policy proposes:
+
+**Adjusted target = Baseline × stored factor**
+
+where the baseline is that of round r + 1, replaced exactly once.
 
 Representatives are strategic players, not random samples, and have an incentive to act for influence. The type system does not try to eliminate this, because disproportionate influence for small players is a design goal. It makes influence explicit and bounded. Estimator parameters are declared balancing assumptions, not claims of unbiased inference.
 
-When no observation is available, the Aggregate follows its baseline Policy.
+When no observation was made in the previous round, no factor is stored and the Aggregate follows its baseline.
 
 ### 7.5 Multiple representatives
 
@@ -527,7 +565,7 @@ Two rules are essential.
 
 **Economic accounting:** An explicit Actor's accounts are excluded from the target Aggregate's accounts. Its direct economic transactions are executed once.
 
-**Behavioral accounting:** The Aggregate's representative-adjusted behavior replaces the corresponding baseline behavior. It is never added to an already complete baseline action.
+**Behavioral accounting:** In the following round, the Aggregate's adjusted behavior replaces the corresponding baseline behavior. It is never added to an already complete baseline action.
 
 A representative decision may therefore have two distinct effects:
 
@@ -540,7 +578,7 @@ Both effects are independently validated, and neither is counted twice.
 
 World State is the complete economic snapshot at a round boundary.
 
-It includes Entities, their accounts and capacities, Markets, institutional rules, reservations, scheduled events, Policy memory, and the current point in simulated time.
+It includes Entities, their accounts and capacities, Markets, the Rules in force, reservations, scheduled events, stored estimates, Policy memory, and the current point in simulated time.
 
 Policies read World State but cannot mutate it; they only submit Intents.
 
@@ -556,26 +594,26 @@ Apply delayed production deliveries, scheduled shocks, and rule changes enacted 
 
 **2. Create observations**
 
-Produce the beginning-of-round snapshot and each controller's permitted view of it.
+Produce the beginning-of-round snapshot and each Policy's View of it ([§4](#4-policies)).
 
 **3. Generate Proposals** *(round runner, Policy layer)*
 
-- **3a Propose.** Every Policy publishes Proposals against the snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or program), NPC Policies, and Aggregate baseline Policies. The set is frozen at the end of 3a.
-- **3b Sign.** Every required signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
+- **3a Propose.** Every Policy publishes Proposals against the snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or program), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
+- **3b Sign.** Every signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
 
 Phases 1–2 and 4–7 are engine phases.
 
 **4. Screen and interpret**
 
-Check authority, entity identity, and signature completeness. Incompletely signed Proposals lapse and are recorded. Extract admissible observations and procedure inputs from validated Proposals.
+Check authority, entity identity, and each Proposal's signature rule: every signer for a deal, support exceeding the threshold for a procedure Proposal. Proposals that fail it lapse and are recorded. Extract admissible observations from validated Proposals.
 
-**5. Reconcile Aggregates**
+**5. Estimate**
 
-Combine each Aggregate's baseline behavior with its estimates and collective-procedure outcomes, exactly once.
+Compute each Representation's adjustment factor ([§7.4](#74-estimation-semantics)) from this round's validated Proposals, and store it in World State. The engine creates and modifies no Proposal; Aggregate Policies apply the stored factors next round.
 
 **6. Resolve economy**
 
-Resolve every accepted action of the round as one simultaneous batch against the prepared snapshot ([§8.2](#82-single-round-update-and-snapshot-discipline)). Markets clear at uniform prices. Transformations, signed multi-party Proposals, and the economic cycle (production, exchange, income and expenditure, capacity renewal) are evaluated together, and the result is a single net change to World State.
+Resolve every accepted action of the round as one simultaneous batch against the prepared snapshot ([§8.2](#82-single-round-update-and-snapshot-discipline)). Markets clear at uniform prices. Transformations, signed deals, passed procedure Proposals, and the economic cycle (production, exchange, income and expenditure, capacity renewal) are evaluated together, and the result is a single net change to World State.
 
 **7. Commit and record**
 
@@ -583,7 +621,7 @@ Atomically commit the new World State. Record intended and executed actions, eve
 
 ### 8.2 Single round update and snapshot discipline
 
-All Actor and Aggregate actions for a round are bundled into a single round update and resolved together. Clearing is uniform, so there is no sequencing of actions within a round: no action settles "before" another, and submission order is irrelevant ([INV-11](#inv-11)). The phases in [§8.1](#81-canonical-resolution-sequence) are functional dependencies between stages, such as screening before reconciliation. They never order individual actions.
+All Actor and Aggregate actions for a round are bundled into a single round update and resolved together. Clearing is uniform, so there is no sequencing of actions within a round: no action settles "before" another, and submission order is irrelevant ([INV-11](#inv-11)). The phases in [§8.1](#81-canonical-resolution-sequence) are functional dependencies between stages, such as screening before estimation. They never order individual actions.
 
 Two rules make this hold:
 
@@ -592,11 +630,7 @@ Two rules make this hold:
 
 Passive consumption rules (such as operating requirements), decay, and derived flows (such as revenue sharing) are functions of the batch result. They are evaluated on each Entity's net position at commit, not as later steps.
 
-All decisions in a round operate on the beginning-of-round snapshot. A price change caused by this round's clearing becomes observable in the next round.
-
-This prevents circular behavior in which a representative alters Aggregate demand, which changes prices, which changes the representative's observation, which changes Aggregate demand again.
-
-If same-round feedback is ever desired, it must be implemented as an explicitly specified equilibrium procedure, not as an accidental effect of execution order.
+All decisions in a round operate on the beginning-of-round snapshot. Everything a round computes (prices and estimates) becomes observable in the next round, so there is no same-round feedback.
 
 ### 8.3 Functional interface
 
@@ -622,7 +656,7 @@ runRound engine policies world0 = do
   pure result
 ```
 
-The round runner evaluates every Policy, seat or in-world, through the same code in live play and simulation; in-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature completeness, records lapsed Proposals, reconciles Aggregates once, runs the economic cycle and clearing, and commits the new World State with accepted and rejected actions, intended-versus-executed records, and events.
+The round runner evaluates every Policy, seat or in-world, through the same code in live play and simulation; in-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with accepted and rejected actions, intended-versus-executed records, and events.
 
 `EngineError` represents a failure of the configured simulation or its execution. Lapsed Proposals and ordinary infeasible actions are reported as outcomes and never fail the round.
 
@@ -656,16 +690,16 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 
 | ID | Layer | Invariant | Requirement |
 |---|---|---|---|
-| <a id="inv-01"></a>INV-01 | E | Unified action semantics | All participants act through the same Intent and validation machinery. |
+| <a id="inv-01"></a>INV-01 | E | Unified action semantics | All participants act through the same Intent and validation machinery. The engine never authors or rewrites Intents: every executed Intent came from a signed Proposal. |
 | <a id="inv-02"></a>INV-02 | E | Authority separation | An Entity exercises only capabilities it has been granted, within scope. |
-| <a id="inv-03"></a>INV-03 | E, G, I | No authority amplification | Membership, Representation, procedure inputs, and fallbacks never confer or remove an institution's capabilities or holdings. |
+| <a id="inv-03"></a>INV-03 | E, G, I | No authority amplification | Membership, Representation, signing a procedure Proposal, and fallbacks never confer or remove an institution's capabilities or holdings. |
 | <a id="inv-04"></a>INV-04 | E | Resource consistency | Holdings change only by authorized exchange, transformation, issuance, destruction, or decay, per the Resource's declared properties and Transformations; no prohibited negative holdings. |
 | <a id="inv-05"></a>INV-05 | E, G, I | Stock-flow reconciliation | Each round every stock reconciles ([§6](#6-economic-circulation)), every Money payment has a recorded recipient, and nothing accumulates in an account without a declared outflow rule. |
 | <a id="inv-06"></a>INV-06 | E, G | Market solvency | Markets and Transformations respect reserves, capacities, and declared limits. |
 | <a id="inv-07"></a>INV-07 | E, G | Price is not production | A CostFunction never creates an asset without an authorizing Transformation. |
 | <a id="inv-08"></a>INV-08 | E, G, I | Account partition | Every account and behavioral responsibility has exactly one owner, however memberships overlap. |
-| <a id="inv-09"></a>INV-09 | E | Representation consistency | Adjustments replace the matching baseline exactly once, within estimator bounds, and never duplicate direct activity. |
-| <a id="inv-10"></a>INV-10 | E | Signature completeness | A multi-signer Proposal executes only if every required signer signed it; its Intents settle atomically or are rejected together. |
+| <a id="inv-09"></a>INV-09 | E | Representation consistency | A stored estimate replaces the matching baseline exactly once, in the following round, within estimator bounds, and never duplicates direct activity. |
+| <a id="inv-10"></a>INV-10 | E | Signature completeness | A Proposal executes only if its signature rule is met: every required signer for a deal, or support exceeding the threshold for a procedure Proposal. A deal's Intents settle atomically or are rejected together. |
 | <a id="inv-11"></a>INV-11 | E | Order independence | All actions resolve as one bundled round update with uniform clearing; permuting submissions never changes settlement, and no action depends on another settling first. |
 | <a id="inv-12"></a>INV-12 | E, G | Policy reproducibility | Policy output is determined by its versioned definition, permitted view, World State memory, time, and declared randomness. |
 | <a id="inv-13"></a>INV-13 | E, H | Deterministic replay | The same manifest, seeds (game, and player where applicable), and recorded seat input reproduce identical World States. Every random value is a keyed draw from a named stream ([§9.1](#91-numerics-and-randomness)). |
@@ -673,7 +707,7 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 | <a id="inv-15"></a>INV-15 | E, I | Single authoritative state | All actions modify one shared World State and timeline. |
 | <a id="inv-16"></a>INV-16 | E, I | Information isolation | Every Policy, in-world or seat, observes only what the Gameboard permits. |
 | <a id="inv-17"></a>INV-17 | G | Type-system conformity | All scenario definitions use supported types and operations. |
-| <a id="inv-19"></a>INV-19 | G | Role consequence | Every Actor definition declares a capability, a dependency, and an objective. |
+| <a id="inv-19"></a>INV-19 | G | Role consequence | Every Actor definition declares a capability, a dependency, and a measurable objective. |
 | <a id="inv-21"></a>INV-21 | G | Instantiation feasibility | The Gameboard admits at least one valid initial world. |
 | <a id="inv-22"></a>INV-22 | G | Version stability | A Gameboard version's definitions are immutable. |
 | <a id="inv-23"></a>INV-23 | I | Unique control | Every explicit Actor has exactly one valid controller. |
@@ -716,7 +750,7 @@ The type system deliberately does not prescribe the following:
 
 **A universal macroeconomic model.** Economic behavior is expressed through configured Policies, Markets, Transformations, income rules, and institutional rules.
 
-**A single estimator parameterization or decision rule.** Estimators and collective procedures are configured per scenario.
+**A single estimator parameterization or procedure threshold.** Estimators and collective procedures are configured per scenario.
 
 **An LLM-based economic authority.** Language models interpret submissions and narrate outcomes. They do not bypass economic validation or directly mutate World State.
 
@@ -724,4 +758,4 @@ The type system deliberately does not prescribe the following:
 
 ## 11. Summary
 
-The system has one economic ontology, one shared World State, and one resolution mechanism. Entities own accounts and capabilities, with membership, ownership, and collective decision-making kept separate; Actors are explicit seats or NPCs, Aggregates hold residual accounts and baseline behavior. Intents are the engine's only input and express every economic or institutional action; Policies of any kind produce them, Representations turn sampled decisions into bounded Aggregate adjustments, collective procedures turn member stances into institutional decisions, and CostFunctions price both Market exchange and facility production in a circulating economy resolved as one bundled round update. A game instance is a particular resolution of a larger economic world, and changing that resolution must preserve the world's economic meaning.
+The system has one economic ontology, one shared World State, and one resolution mechanism. Entities own accounts and capabilities, with membership, ownership, and collective decision-making kept separate; Actors are explicit seats or NPCs, Aggregates hold residual accounts and baseline behavior. Intents are the engine's only input and express every economic or institutional action; Policies of any kind produce them, Representations turn sampled decisions into bounded Aggregate adjustments, collective procedures let member signatures decide an institution's own Proposals, and CostFunctions price both Market exchange and facility production in a circulating economy resolved as one bundled round update. A game instance is a particular resolution of a larger economic world, and changing that resolution must preserve the world's economic meaning.

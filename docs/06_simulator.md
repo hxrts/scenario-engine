@@ -81,7 +81,7 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the scenario; an NPC's Policy is part of the scenario. In simulation the harness binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
-Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)).
+Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
 
 Every kind sees only its Actor's authorized view ([INV-16](02_type_system.md#inv-16)) and maps it to Intents:
 
@@ -96,7 +96,7 @@ Each seat Policy acts twice per round, against the same snapshot (Type System [�
 Illustrative preset seat Policies:
 
 - **US:** keep at least 50 E, buying with a 3.0 M/E limit. Procure Military when Chinese Military exceeds a threshold. Spend up to 15 M per year on Public Attention while Energy is below 3. Keep at least 40 M in reserve.
-- **Germany:** keep at least 25 E. Submit `Support` to the EU's `eu-solidarity` procedure when the Atlantic Energy price exceeds 3.
+- **Germany:** keep at least 25 E. Sign the EU's `eu-solidarity` procedure Proposals.
 - **SA and JP:** SA proposes 20 E for 48 M to JP; JP's sign rule accepts Energy offers at ≤ 2.4 M/E ([Fixture G](05_test_instance.md#27-fixture-g-proposals-and-signatures)).
 - **SME:** cut Energy purchases above 3 M/E. Raise them below 2.2 M/E. Keep operating cash.
 
@@ -111,7 +111,7 @@ Preset programs are named parameter sets of the shared interpreter, not separate
 | `Aggressive` | Prioritizes Military procurement and restrictions against rivals. |
 | `Accumulator` | Buys a target Resource up to a holding target. |
 | `Trader` | Buys below and sells above configured price bands. |
-| `Cooperative` | Proposes configured deals, signs offers within configured terms, and supports collective procedures. |
+| `Cooperative` | Proposes configured deals, signs offers within configured terms, and signs procedure Proposals. |
 | `Opportunistic` | Proposes and signs deals only while their terms are favorable at the snapshot. |
 | `Investor` | Spends surplus on capacity-building Transformations. |
 | `CrisisResponse` | Switches to reserve preservation when a declared stress indicator triggers. |
@@ -163,7 +163,7 @@ Each round follows the canonical sequence (Type System [§8.1](02_type_system.md
 | 3a. Propose / 3b. Sign | Drives the round runner, which runs the bound seat Policies alongside the NPC and Aggregate Policies on the shared interpreter. |
 | 7. Commit and record | Persists the round record, snapshot, and assertion results. |
 
-The engine performs phases 1–2 and 4–7. The harness never evaluates NPC or Aggregate Policies itself, reconciles Representation or collective procedures, or repeats Aggregate actions; it delegates to the round runner, which is the same code used in live play.
+The engine performs phases 1–2 and 4–7. The harness never evaluates NPC or Aggregate Policies itself, computes Representation estimates or procedure support, or repeats Aggregate actions; it delegates to the round runner, which is the same code used in live play.
 
 The harness exposes two operations, **run to completion** and **step one round**. Both use the same execution path.
 
@@ -254,7 +254,7 @@ Every run is persisted and survives restarts.
 |---|---|
 | **Run ID, name, status** | Identity and lifecycle state. |
 | **Manifest** | Immutable resolved configuration, initial World State, seat-Policy bindings, game and player seeds, and exact versions of the Gameboard, Policies, seat Policies, engine, numerics, and PRNG. Also overrides and a configuration digest. |
-| **Round records** | Append-only Proposals, signatures, lapsed Proposals, proposed and executed actions, and events. |
+| **Round records** | Append-only Proposals, signatures, lapsed Proposals, proposed and executed actions, procedure Proposals with their support and outcome, stored Representation estimates, and events. |
 | **Snapshots** | World State after initialization and after each round. |
 | **Assertions** | Results and diagnostics. |
 | **Metrics** | Derived projections, tagged with the version of the metric definitions. |
@@ -314,8 +314,8 @@ Holdings are not collapsed into a single net-worth figure, because Military and 
 
 **Markets and facilities.**
 
-- Each regional Energy Market view shows: marginal price, executed volume, buy and sell volumes, orders left unfilled or blocked by their limit price, reserves, position, tariffs, access restrictions, and transport utilization.
-- Facilities (Defense Procurement, Public Attention) have their own views: orders, capacity, cost, deliveries, and Money paid to each payee.
+- Each regional Energy Market view shows: marginal price, executed volume, buy and sell volumes, orders left unfilled or blocked by their limit price, reserves, position, and the tariffs and bans in force.
+- Facilities (Defense Procurement, Public Attention, Energy Shipping) have their own views: orders, capacity and utilization, cost, deliveries, rejected Proposals, and Money paid to each payee.
 - Every view separates explicit activity from Aggregate activity.
 
 **World economy.** This view covers:
@@ -329,24 +329,27 @@ Holdings are not collapsed into a single net-worth figure, because Military and 
 
 It does not invent macroeconomic indicators the Gameboard does not define.
 
-**Representation.** One view covers every active Representation. It shows the four-stage record:
+**Representation.** One view covers every active Representation. It shows the four-stage record, which spans two rounds:
 
-1. **Observation**, from the validated, escrowed Proposal.
-2. **Estimate**: the parameters (weight, reference, shrinkage, noise spread, bound), the noise draw, and whether the bound applied.
-3. **Proposed Aggregate Intent.**
-4. **Executed result**, shown beside the representative's own proposed and executed actions.
+1. **Observation** (round r), from the validated, escrowed Proposal.
+2. **Estimate** (round r): the stored adjustment factor, the parameters (weight, reference, shrinkage, noise spread, bound), the noise draw, and whether the bound applied.
+3. **Proposed Aggregate Intent** (round r+1), from the Aggregate's Policy applying the stored factor.
+4. **Executed result** (round r+1), shown beside the representative's own proposed and executed actions.
 
 The view reports the **Representation influence ratio**: the induced change in Aggregate activity divided by the resources the representative directly controls. This is a balancing parameter, not a claim that the representative is an unbiased sample.
 
-**Collective procedures.** A separate view covers every procedure an Aggregate holds. Per round it shows the member inputs, the residual input, the combined support against the threshold, and the resulting decision and action. An optional resource contribution appears separately, as a Transfer.
+**Collective procedures.** A separate view covers every procedure an Aggregate holds. Per round it shows each procedure Proposal, the members who signed, the support against the threshold, and the outcome (executed or lapsed), all within that round. An optional resource contribution appears separately, as a Transfer.
+
+**Objectives.** For each Actor, the view lists its objective criteria (Gameboard [§10.5](03_gameboard.md#105-evaluation)) as met or not met, with the measured values. Criteria are evaluated by a pure function over the manifest and round records and never affect the economy.
 
 **Event inspector.** For any round, it lists in canonical phase order:
 
 - round preparation;
 - Proposals, signatures, and lapses;
-- seat Intents and procedure inputs;
+- seat Intents and signatures, including signatures on procedure Proposals;
 - NPC and Aggregate outputs;
-- Representation and collective-procedure records;
+- procedure Proposals with support, threshold, and outcome;
+- stored Representation estimates, which Aggregates apply in the next round;
 - validation results, including partial fills and their allocation basis;
 - the economic cycle and settlement;
 - resource changes;
@@ -393,7 +396,7 @@ Both seeds and all DrawKeys are held fixed, so the difference measures the inter
 
 Typical questions:
 
-- How much did Germany's `Support` change EU behavior?
+- How much did Germany's signature change EU behavior?
 - How much did the SME shift Global SME demand?
 - What happens without the US deployment?
 - Does more Energy liquidity help smaller Actors?
@@ -406,9 +409,9 @@ For each Actor, the harness replays the game with alternative presets for that A
 - other Actors' holdings;
 - Aggregate behavior;
 - institutional decisions;
-- the Actor's own objectives.
+- the Actor's own objective criteria ([§9.3](05_test_instance.md#93-objectives)).
 
-The Dashboard shows an agency profile for each role. A role whose alternatives produce negligible differences on every measure is flagged as a balancing finding. Agency matters more than equal starting resources.
+The Dashboard shows an agency profile for each role, with its objective criteria under each alternative. A role whose alternatives produce negligible differences on every measure is flagged as a balancing finding. Agency matters more than equal starting resources.
 
 ### 10.6 Saved comparisons
 
@@ -451,13 +454,13 @@ The Dashboard supports these judgments with indicators. It does not replace huma
 | Influence distribution | Concentration of economic and institutional influence |
 | Strategic diversity | Variety of chosen and successful action patterns |
 | Policy responsiveness | NPCs and Aggregates react when relevant conditions change |
-| Representation and procedure impact | Attributable Aggregate change, influence ratio, and decisions changed by member inputs |
+| Representation and procedure impact | Attributable Aggregate change, influence ratio, and procedure outcomes changed by member signatures |
 | Deal activity | Multi-signer Proposals published, signed, and lapsed |
 | Agency | Per-Actor sensitivity to seat-Policy changes ([§10.5](#105-agency-analysis)) |
 | Circulation health | Money and Energy keep moving rather than pooling |
 | Path dependence | Early decisions shape later opportunities |
 
-Evaluation combines Actor-specific objectives with system-level metrics. There is no single winner, and outcomes are not reduced to Money.
+Evaluation combines each Actor's measurable objective criteria with system-level metrics. There is no single winner, and outcomes are not reduced to Money.
 
 ---
 
@@ -479,16 +482,16 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values; [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
-| 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: `Support` vs `Neutral`. | Fixture values; procedure input moves no resources ([INV-03](02_type_system.md#inv-03)). |
-| 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
+| 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: Germany signs vs does not sign. | Fixture values; the procedure Proposal executes in the same round only when support exceeds the threshold ([INV-10](02_type_system.md#inv-10)); signing moves no resources ([INV-03](02_type_system.md#inv-03)). |
+| 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values, with the factor applied in the following round; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
 | 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values; [INV-12](02_type_system.md#inv-12). |
 | 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds; [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills; [INV-11](02_type_system.md#inv-11). |
-| 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, and G5. | Fully signed Proposals settle atomically with fixture values; unsigned ones lapse while the round resolves ([INV-10](02_type_system.md#inv-10)). |
-| 11 | Trade restriction | US restricts China's Energy access, effective next round. | Effective regional price or access changes mechanically; EU procedure behaves as declared. |
+| 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, G3, and G5. | Fully signed Proposals settle atomically with fixture values; unsigned ones lapse while the round resolves; a shipped deal pays SHIP and is rejected as a unit under an `AccessBan` ([INV-10](02_type_system.md#inv-10)). |
+| 11 | Trade restriction | The US enacts an `AccessBan` on China, effective next round ([Fixture E2](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction)). | Shipping orders on the route become infeasible; the EU publishes and passes its tariff Proposal in the round the ban is in force, and the tariff applies from the next round. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test). | [INV-14](02_type_system.md#inv-14). |
 | 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run ([INV-31](02_type_system.md#inv-31)). |
-| 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect; failures are reported as balancing findings. |
+| 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect and its objective criteria are reported; failures are reported as balancing findings. |
 
 ---
 

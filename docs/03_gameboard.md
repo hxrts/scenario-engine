@@ -144,7 +144,7 @@ A facility consumes declared inputs and issues declared outputs under a producti
 - Delivery timing.
 - Required capabilities.
 
-Defense procurement and public campaigns are typical facilities. Facilities hold no reserves; they pay a payee ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)).
+Defense procurement, public campaigns, and cross-region shipping are typical facilities. Facilities hold no reserves; they pay a payee ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)).
 
 ### 5.4 The recurring economic cycle
 
@@ -175,9 +175,9 @@ One Resource per commodity, scoped by:
 - **Regional Market nodes** for the same Resource.
 - **Access rules** on who may trade.
 - **Tariffs** on specified buyers, sellers, or origins.
-- **Transport capacity** between nodes, held by an owning Entity.
+- **Transport** between nodes, modeled as an ordinary facility ([§5.3](#53-facilities)) whose capacity an owning Entity holds. A cross-region movement bundles its Transfer with a shipping order in one Proposal that the transport owner signs (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)).
 
-A trade restriction enacted through `ChangeRule` changes access or tariff state, giving restrictions and disruptions identifiable effects without new Resources.
+A trade restriction is a `Rule` enacted through `ChangeRule` (Type System [§3](02_type_system.md#3-intents-and-economic-actions)): a `Tariff` adds a surcharge to shipping orders into a jurisdiction, and an `AccessBan` makes them infeasible. Restrictions therefore have identifiable effects without new Resources.
 
 ### 5.6 Constraints
 
@@ -196,7 +196,7 @@ The catalog configures the three projections of Type System [§2.2](02_type_syst
 An Actor definition declares:
 
 - Identity and scope, including exactly which accounts and responsibilities it owns when explicit.
-- Memberships and capabilities.
+- Memberships and capabilities, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
 - Whether it may be a seat, an NPC, or either, and its applicable NPC Policies.
 - Initial-state constraints.
 - A **fallback** ([§6.5](#65-fallbacks)).
@@ -205,7 +205,7 @@ It also declares three scenario properties ([INV-19](02_type_system.md#inv-19)):
 
 - **Meaningful capability:** an intervention beyond simple trading, such as controlling transport capacity, organizing a strike, or supplying production capacity.
 - **Economic dependency:** something others can provide or withhold.
-- **Strategic objective:** an outcome others can help or obstruct.
+- **Strategic objective:** an outcome others can help or obstruct, declared as measurable data ([§10.5](#105-evaluation)).
 
 These use existing capabilities, Transformations, capacity state, and rule changes, so every role has consequential choices beyond its starting holdings. A government Actor holds government-controlled resources only.
 
@@ -216,12 +216,12 @@ An Aggregate definition declares:
 - A member list.
 - The accounts and responsibilities it owns as residual.
 - A baseline Policy.
-- Any collective procedures. Each declares member weights, a residual weight, a decision rule, and the capabilities it authorizes (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)).
+- Any collective procedures. Each declares member weights, a residual weight, a threshold, and the capabilities it authorizes (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)).
 - Constraints on estimated behavior and eligibility for Representation.
 
 Examples: households, small businesses, industrial producers, a regional bloc.
 
-Members influence a collective procedure by submitting procedure inputs, which move no resources. The Aggregate's Policy supplies the residual input. A Gameboard may separately require a contribution to fund a collective action, but contributing is never the only way to express support.
+A collective procedure is a weighted-signature rule on the Aggregate's own Proposals. The Aggregate's Policy publishes a procedure Proposal, members support it by signing, and it executes in the same round if the residual weight plus the signing members' weights exceeds the threshold; otherwise it lapses. Signing moves no resources. A Gameboard may separately allow contributions that fund a collective action, but contributing is independent of signing.
 
 When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the member list (Type System [§7.1](02_type_system.md#71-aggregate-semantics)).
 
@@ -248,7 +248,7 @@ These are not interchangeable: a government's regulatory authority never moves t
 | **Economic dependency** | A manufacturer depends on imported inputs. |
 | **Competition** | Two institutions compete for investment or access. |
 | **Institutional authority** | A government regulates particular Markets. |
-| **Membership** | A state belongs to a bloc whose collective procedure it can influence. |
+| **Membership** | A state belongs to a bloc whose procedure Proposals it can sign. |
 | **Alignment** | Shared objectives or agreements. |
 | **Distributional conflict** | Costs and benefits fall unequally. |
 | **Exposure** | Vulnerability to a market condition. |
@@ -262,9 +262,9 @@ Every relationship must have a mechanical interpretation: constraining actions; 
 The catalog holds in-world Policies: declarative, versioned programs in the shared decision language, run by the interpreter of Type System [§4](02_type_system.md#4-policies) ([INV-12](02_type_system.md#inv-12), [INV-29](02_type_system.md#inv-29)). Seat Policies (human, AI agent, or preset program) are supplied outside the scenario and are not catalogued here. The catalog holds parameterized definitions, not runtime assignments.
 
 - **NPC Policies** express objectives, conditional responses to indicators and to other Actors, and time-dependent behavior, including which Proposals to publish to other Actors and which Proposals addressed to them to sign.
-- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so a Representation adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate with collective procedures uses its Policy for each residual input.
+- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so a stored Representation estimate adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate Policy reads the previous round's stored estimates from its View and proposes accordingly; the engine never authors or rewrites its Proposals. An Aggregate with collective procedures publishes its procedure Proposals through its Policy, under the Policy's own conditions.
 
-The Gameboard declares input views, parameter ranges, and defaults; the Instantiated Game selects values. Policy memory lives in World State. Programs never change during play; decisions change because World State changes.
+The Gameboard declares each Policy's `View` permissions (Type System [§4](02_type_system.md#4-policies)), parameter ranges, and defaults; the Instantiated Game selects values. Policy memory lives in World State. Programs never change during play; decisions change because World State changes.
 
 Observation permissions are declared per Policy category, so NPCs do not see the whole simulation ([INV-16](02_type_system.md#inv-16)).
 
@@ -286,19 +286,19 @@ type RepresentationScheme =
 
 Representatives know their choices move the Aggregate, so observations are not independent samples. The Gameboard accepts this as design and keeps the influence explicit and bounded; estimator strength is a balancing parameter, not a claim of unbiased inference.
 
-Representation is distinct from a collective procedure ([§6.3](#63-aggregate-definitions)): a procedure combines members' stances by declared weights and involves no estimator.
+Representation is distinct from a collective procedure ([§6.3](#63-aggregate-definitions)): a procedure counts members' signatures by declared weights and involves no estimator.
 
-Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment, which replaces the matching baseline once ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by their weights. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); resulting Aggregate Intents pass ordinary validation.
+Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment. The engine stores the adjustment factor computed from one round's observations, and the Aggregate's Policy applies it to the matching baseline once, in the following round ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by their weights. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); the Aggregate's resulting Proposals pass ordinary validation.
 
 ## 10. Game Rules
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, and between which Entity categories. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)).
+Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, and between which Entity categories. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)). A procedure Proposal is authored by the Aggregate holding the procedure, names the procedure's members as signers, and executes when its support exceeds the threshold ([§6.3](#63-aggregate-definitions)).
 
 ### 10.2 Temporal structure and phase schedule
 
-The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, and scheduled shocks. Rule changes always take effect at the next round boundary. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
+The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, and scheduled shocks. Rule changes always take effect at the next round boundary, and stored Representation estimates are acted on in the following round. A procedure Proposal is published, signed, and executed within one round. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
 
 Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as Representation sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)).
 
@@ -308,14 +308,25 @@ The Gameboard declares what is public, private, or capability-gated: prices, hol
 
 ### 10.4 Available actions
 
-The Gameboard selects which Intent categories and Transformations are meaningful (for example trade, production, taxation, regulation, and procedure inputs) and which Resources may move in multi-signer Proposals. All use the Type System's Intent language and deterministic rejection and partial-fill rules. No unrestricted state mutations.
+The Gameboard selects which Intent categories and Transformations are meaningful (for example trade, production, and the `Rule` kinds Actors may enact) and which Resources may move in multi-signer Proposals. All use the Type System's Intent language and deterministic rejection and partial-fill rules. No unrestricted state mutations.
 
 ### 10.5 Evaluation
 
-- **Actor objectives** derived from each Actor definition's strategic objective.
+- **Actor objectives.** Each Actor definition's strategic objective is data: a description plus measurable criteria over the recorded game.
 - **System metrics** such as resource security, distributional outcomes, market functioning, and institutional resilience.
 
-No single winner, and outcomes are not reduced to Money. Measuring an outcome does not change it.
+```purescript
+type Objective = { description :: String, criteria :: Array Criterion }
+
+type Criterion =
+  { metric :: MetricRef              -- an Entity plus a standard measurement
+  , over :: Span                     -- Final | EveryRound | Cumulative
+  , atLeast :: Target }              -- Fixed Quantity | Of MetricRef
+```
+
+A `MetricRef` names an Entity and a standard measurement: a holding, a capacity, a shortfall count, or a cumulative flow. "At most" is expressed with a negated metric or by comparing against another metric.
+
+Objectives never affect the economy. A pure function over the manifest and round records evaluates them, and each Actor's criteria are reported as met or not met, with their values. They give non-Money Resources such as military capacity and influence a measurable value. There is no single winner, and outcomes are not reduced to Money.
 
 ## 11. Initialization Constraints
 
@@ -339,11 +350,11 @@ The output is a complete World State, with no unresolved choices about controlle
 
 Validation establishes that the scenario conforms to the Type System ([INV-17](02_type_system.md#inv-17)) and admits at least one consistent initialization ([INV-21](02_type_system.md#inv-21)).
 
-**Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, objective, and fallback. Schemes reference valid Actors, Aggregates, domains, and estimators. Collective procedures declare member weights, a residual weight, a rule, and capabilities.
+**Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, a measurable objective whose metrics exist, and fallback. Schemes reference valid Actors, Aggregates, domains, and estimators. Collective procedures declare valid member weights, a residual weight, and a threshold, and authorize only capabilities their Aggregate holds.
 
 **Economic checks.** CostFunctions suit their mechanisms. Accounting matches each Resource's declared properties and Transformations. The cycle reconciles and leaves no inert accumulation. Reserves and capacities are feasible. Financial claims have issuance and liability semantics. Required activity has an owner.
 
-**Representation checks.** Eligibility matches Aggregate and domain. Estimators declare a reference, shrinkage, noise spread, and bound. Accounting partitions consistently. No duplicate adjustments. No authority granted by Representation or by a procedure input ([INV-03](02_type_system.md#inv-03)).
+**Representation checks.** Eligibility matches Aggregate and domain. Estimators declare a reference, shrinkage, noise spread, and bound. Accounting partitions consistently. No duplicate adjustments. No authority granted by Representation or by signing a procedure Proposal ([INV-03](02_type_system.md#inv-03)).
 
 **Resolution consistency.** For every supported pair of explicitness configurations, total stocks, liabilities, capabilities and owners, and authorized recurring activity reconcile ([INV-14](02_type_system.md#inv-14)). Later differences must come from decisions, not from duplicated resources, deleted liabilities, or altered rules.
 
@@ -373,10 +384,10 @@ Every Gameboard has a stable identifier and immutable version ([INV-22](02_type_
 A five-year scenario of US–China industrial competition, with geopolitical rivalry and capital–labor conflict as persistent tensions.
 
 - **Verticals:** semiconductors, energy, finance, manufacturing, sharing Resources, Markets, and income flows.
-- **Economy:** Energy trades in regional Market nodes linked by transport capacity, with tariffs available to governments. Defense procurement is a single global facility paying defense manufacturers. Each year producers generate Energy, workers receive wages, and governments collect revenue.
-- **Entities:** US and Chinese governments, EU Commission, selected corporations, a labor federation, representative small-business owners. A shipping operator controls transport capacity; a labor federation can strike to reduce throughput. Aggregates include households, workforces, small businesses, producers, and a European bloc with a collective procedure.
-- **Policies:** NPC Policies for eligible institutions; Aggregate Policies for consumption, investment, production, and bloc residual input.
-- **Representation and procedures:** a small-business owner represents small-business Energy demand through an estimator; a member state submits procedure inputs to the bloc's collective procedure.
+- **Economy:** Energy trades in regional Market nodes linked by a shipping facility, with tariffs available to governments. Defense procurement is a single global facility paying defense manufacturers. Each year producers generate Energy, workers receive wages, and governments collect revenue.
+- **Entities:** US and Chinese governments, EU Commission, selected corporations, a labor federation, representative small-business owners. A shipping operator owns the shipping facility's capacity and signs the shipments it carries; a labor federation can strike to reduce throughput. Aggregates include households, workforces, small businesses, producers, and a European bloc with a collective procedure.
+- **Policies:** NPC Policies for eligible institutions; Aggregate Policies for consumption, investment, production, and publishing the bloc's procedure Proposals.
+- **Representation and procedures:** a small-business owner represents small-business Energy demand through an estimator; a member state signs the bloc's procedure Proposals.
 - **Instantiation options:** the EU may be human or NPC; small-business representatives may be present or absent. Both games reconcile to the same initial accounts and then diverge through decisions.
 
 ---

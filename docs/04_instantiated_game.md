@@ -90,7 +90,7 @@ An NPC is an explicit Actor whose Policy is part of the scenario, not a separate
 - economic state;
 - capabilities;
 - Policy and parameters;
-- observation view;
+- `View` permissions;
 - seed, where one is declared.
 
 ### 3.2 Fallback resolution
@@ -123,7 +123,7 @@ Initialization resolves each Aggregate's members, residual accounts, and collect
 
 1. **Members.** Member lists may overlap across Aggregates and may include explicit Actors. They are descriptive and confer nothing.
 2. **Residual accounts.** Every account and behavioral responsibility gets exactly one authoritative owner ([INV-08](02_type_system.md#inv-08)).
-3. **Collective procedures and capabilities.** Each declared procedure receives its member weights, residual weight, rule, and authorized capabilities.
+3. **Collective procedures and capabilities.** Each declared procedure receives its member weights, residual weight, threshold, and authorized capabilities. A member that is not explicit has its weight folded into the residual weight, so every resolution carries the same total weight ([INV-14](02_type_system.md#inv-14)).
 
 Each Aggregate also receives a baseline Policy, permitted observations, and any Representation assignments.
 
@@ -133,7 +133,7 @@ Each Aggregate also receives a baseline Policy, permitted observations, and any 
 
 The partition covers holdings, liabilities, capacities, and directly modeled behavior. A business may be classified as both manufacturing and small business, but two Aggregates cannot both own its assets.
 
-Extraction covers only the accounts the explicit Actor actually controls (Type System [§7.1](02_type_system.md#71-aggregate-semantics)). Germany remains an EU member and submits procedure inputs to the EU's collective procedures.
+Extraction covers only the accounts the explicit Actor actually controls (Type System [§7.1](02_type_system.md#71-aggregate-semantics)). Germany remains an EU member and signs the EU's procedure Proposals.
 
 Partitioning proceeds in four steps:
 
@@ -180,13 +180,13 @@ The scheme fixes the target Aggregate, the domain, and the permitted parameter r
 - deviation bound;
 - noise spread.
 
-Collective procedures are not Representations. They are resolved with the Aggregate ([§4.1](#41-resolving-the-three-projections)), and members influence them through procedure inputs. Germany is an EU member whether or not it submits a procedure input in a given round.
+Collective procedures are not Representations. They are resolved with the Aggregate ([§4.1](#41-resolving-the-three-projections)), and members support a procedure Proposal by signing it in the Sign step. Germany is an EU member whether or not it signs in a given round.
 
-**Direct and representative effects stay separate ([INV-09](02_type_system.md#inv-09)).** The Actor's own transactions execute once against its own holdings. The Actor's validated, escrowed Proposals feed the estimator, which adjusts the residual's baseline. The engine records the four stages: observation, estimate, proposed Aggregate Intent, and executed result (Type System [§7.3](02_type_system.md#73-representation-pipeline)).
+**Direct and representative effects stay separate ([INV-09](02_type_system.md#inv-09)).** The Actor's own transactions execute once against its own holdings. The Actor's validated, escrowed Proposals in round r feed the estimator. The engine stores the resulting adjustment factor in World State, and the Aggregate's Policy applies it to its baseline in round r+1. The record's four stages span both rounds: observation and estimate in round r, proposed Aggregate Intent and executed result in round r+1 (Type System [§7.3](02_type_system.md#73-representation-pipeline)).
 
-With multiple representatives, the adjustment sums their deviations by the resolved weights (Type System [§7.4](02_type_system.md#74-estimation-semantics)). It never multiplies a transaction by a population size.
+With multiple representatives, the factor sums their deviations by the resolved weights (Type System [§7.4](02_type_system.md#74-estimation-semantics)). It never multiplies a transaction by a population size.
 
-If an Aggregate has no representative, it follows its baseline Policy.
+If an Aggregate has no representative, or no observation was stored last round, it follows its baseline.
 
 Initialization verifies that:
 
@@ -205,19 +205,19 @@ Each NPC and Aggregate receives a concrete Policy instance ([INV-26](02_type_sys
 - a definition;
 - the Entity it governs;
 - parameters;
-- an observation view;
+- its `View` permissions (Type System [§4](02_type_system.md#4-policies));
 - triggers;
 - a seed, where one is declared.
 
 A definition may be reused with different parameters.
 
-Policies are versioned decision programs run by the shared interpreter (Type System [§4](02_type_system.md#4-policies)). Any memory a Policy keeps between rounds, such as whether a rival deployed Military last year, lives in World State and is initialized explicitly.
+Policies are versioned decision programs run by the shared interpreter (Type System [§4](02_type_system.md#4-policies)). Any memory a Policy keeps between rounds, such as whether a rival deployed Military last year, lives in World State and is initialized explicitly. Stored Representation estimates are part of that state and start empty.
 
 Programs are fixed for the game. Behavior still changes as rules, relationships, and observations change. A `ChangeRule` alters World State rules and never rewrites a Policy.
 
-Observation views apply the Gameboard's information permissions to each instance. NPCs see no private holdings or private player negotiations merely because the engine holds them ([INV-16](02_type_system.md#inv-16)).
+Each instance's `View` applies the Gameboard's information permissions. NPCs see no private holdings or private player negotiations merely because the engine holds them ([INV-16](02_type_system.md#inv-16)).
 
-Baseline behavior is reconciled with representative inputs and procedure outcomes exactly once per round, in the reconciliation phase.
+The engine never authors or rewrites a Policy's Proposals. In the Estimate phase it only stores each Representation's adjustment factor. The Aggregate's Policy reads the factors from its View the following round and applies each to its baseline exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate with collective procedures publishes its own procedure Proposals, which members sign and which execute in the same round if support exceeds the threshold.
 
 ## 7. Economic Initialization
 
@@ -239,9 +239,8 @@ A Market must be feasible at the start and cannot promise settlement against res
 Capacities that are economic state rather than Resources are initialized alongside holdings:
 
 - production capacity;
-- transport capacity;
-- market access;
-- tariff schedules.
+- facility capacity, including transport;
+- the `Rule`s in force at the start (tariffs, access bans, withholdings).
 
 Cross-vertical dependencies are resolved at this point. No Entity begins with capacity or transformation rights outside the allowed configuration.
 
@@ -278,7 +277,7 @@ The runtime holds:
 
 - the Gameboard reference;
 - the resolved configuration;
-- the authoritative World State, including reservations;
+- the authoritative World State, including reservations, rules in force, and stored estimates;
 - the current round;
 - the round history.
 
@@ -300,7 +299,7 @@ At runtime the game is the round runner under the live-session handler stack (Ty
 **The manifest** records:
 
 - the Gameboard identity and version;
-- Actor, controller, and fallback resolutions;
+- Actor, controller, and fallback resolutions, with each Actor's objective;
 - member lists, collective procedures, and account partitions;
 - Policy definitions and parameters;
 - Representation assignments, weights, and estimators;
@@ -318,7 +317,7 @@ Instantiation is a staged, atomic compilation:
 2. **Resolve Actors and controllers.** Check participation and controller compatibility, and apply fallbacks.
 3. **Resolve implicit economy.** Create the Aggregates, their collective procedures, and the implicit institutional machinery.
 4. **Partition accounts.** Assign a single owner to each account and responsibility while preserving member lists.
-5. **Initialize Policies.** Set parameters, views, triggers, and seeds.
+5. **Initialize Policies.** Set parameters, `View` permissions, triggers, and seeds.
 6. **Initialize Representations.** Resolve weights and estimators.
 7. **Initialize Markets, Facilities, and resources.** Set holdings, capacities, recurring flows, and rules, then check feasibility and stock-flow reconciliation.
 8. **Initialize time and execution.** Set the schedule and the deterministic parameters.
@@ -338,38 +337,37 @@ A failed compilation returns diagnostics and leaves no partially initialized gam
 
 Each round follows the canonical sequence in Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence). The engine runs phases 1–2 and 4–7; the **round runner** runs phase 3 (Propose and Sign) for every Policy at once (seats, NPC Policies, and Aggregate baselines) and passes the signed Proposals to the engine. This layer supplies the session procedures, inputs, and records around that sequence.
 
-**Preparation and briefing.** The preparation phase runs first: deliveries arrive, scheduled shocks apply, and rule changes take effect. Each Player then receives an authorized view of the snapshot, covering:
+**Preparation and briefing.** The preparation phase runs first: deliveries arrive, scheduled shocks apply, and rule changes take effect. Each player then receives a briefing built from their seat's `View` of the snapshot, covering:
 
-- public conditions;
-- their own holdings, capacities, and capabilities;
+- public prices, rules in force, and prior events;
+- their own holdings, capacities, capabilities, and objective;
 - active reservations, such as deployed Military;
-- permitted private information;
-- prior results.
+- stored estimates visible to them.
 
 The briefing is derived from the authoritative records and is never an independent source of facts.
 
 **Negotiation.** Players negotiate out of band. A deal reaches the engine as a Proposal that names every party as a signer. One party publishes it before the propose deadline, and the others sign it before the sign deadline (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). A Proposal that is not fully signed lapses. Counteroffers are new Proposals.
 
-**Submission and AI interpretation.** AI converts natural-language submissions into Proposals and signatures, including multi-signer deals and procedure inputs, and preserves provenance. Materially ambiguous interpretations must be confirmed by the player before the relevant deadline. The model never assigns resources or capabilities the Actor lacks. Only accepted canonical Proposals and signatures are frozen, and these are retained for replay. Interpretation is tested separately from economic resolution.
+**Submission and AI interpretation.** AI converts natural-language submissions into Proposals and signatures, including multi-signer deals and signatures on procedure Proposals, and preserves provenance. Materially ambiguous interpretations must be confirmed by the player before the relevant deadline. The model never assigns resources or capabilities the Actor lacks. Only accepted canonical Proposals and signatures are frozen, and these are retained for replay. Interpretation is tested separately from economic resolution.
 
-**Resolution.** NPC and Aggregate Policies propose and sign in the same steps as seats. The engine then screens (authority and signature completeness), reconciles, and resolves the economy, including the recurring cycle. Conflicts and infeasible actions follow the Type System's deterministic rules:
+**Resolution.** NPC and Aggregate Policies propose and sign in the same steps as seats. Aggregate Policies apply the estimates stored last round and publish any procedure Proposals, which members sign in the Sign step. The engine then screens (authority, and each Proposal's signature rule: every signer for a deal, support above the threshold for a procedure Proposal), stores this round's estimates, and resolves the economy, including the recurring cycle. Conflicts and infeasible actions follow the Type System's deterministic rules:
 
 - limit prices;
 - pro-rata allocation with ties broken by EntityId;
-- atomic settlement, with each fully signed Proposal settling or failing as a unit ([INV-10](02_type_system.md#inv-10));
+- atomic settlement, with each fully signed deal settling or failing as a unit ([INV-10](02_type_system.md#inv-10)), including any facility order it bundles, such as shipping; a passed procedure Proposal is treated as the Aggregate's own action;
 - never ordering by submission time ([INV-11](02_type_system.md#inv-11)).
 
-Rejected, partially filled, and lapsed actions are recorded with their reasons. Prices produced in a round become observable in the next round's snapshot.
+Rejected, partially filled, and lapsed actions are recorded with their reasons. Prices and estimates produced in a round become observable in the next round's snapshot.
 
-**Reporting.** A fictional financial-news front page and per-Actor balance sheets are produced, both derived from resolved state and events. Balance sheets separate accounting quantities from valuations and projections. Represented Aggregate effects are never reported as the representative's assets. Narration explains outcomes and never adds authoritative facts.
+**Reporting.** A fictional financial-news front page and per-Actor balance sheets are produced, both derived from resolved state and events. Balance sheets separate accounting quantities from valuations and projections. Represented Aggregate effects are never reported as the representative's assets. Each Actor's objective criteria are reported as met or not met, evaluated purely from the records (Gameboard [§10.5](03_gameboard.md#105-evaluation)). Narration explains outcomes and never adds authoritative facts.
 
 **Round record.** The engine appends a record containing:
 
 - the starting snapshot reference;
 - the accepted canonical inputs;
 - Policy outputs;
-- Representation observations, estimates, proposed Intents, and executed results;
-- collective-procedure inputs, support, threshold, and decision;
+- Representation observations and stored estimates, and the Aggregate Intents and results that applied the previous round's estimates;
+- procedure Proposals, with the members who signed, support, threshold, and outcome (executed or lapsed);
 - Proposals, the seat or Policy that produced each, their signatures, lapses, and settlement;
 - validation and clearing outcomes, including proposed versus executed actions;
 - resource, capacity, and Market changes;
@@ -416,13 +414,15 @@ Assume a Gameboard about US–China industrial competition over five years. It h
 
 The US Small Businesses residual excludes the owner's own accounts.
 
-**One round.** Having agreed terms out of band, the corporation publishes a Proposal that transfers Energy to the US government and Money from the US to the corporation, with both as signers. The US signs it. The US enacts a subsidy. China proposes a trade restriction, and the EU Commission's Policy responds. The small-business owner proposes reduced investment.
+**One round.** Having agreed terms out of band, the corporation publishes a Proposal that transfers Energy to the US government and Money from the US to the corporation, with both as signers. The US signs it. China enacts a tariff, effective next round, and the EU Commission's Policy responds. The small-business owner proposes reduced investment.
 
-The estimator treats that validated proposal as bounded evidence and adjusts the residual's baseline investment. The engine then resolves everything together. The round record captures:
+The engine resolves everything together. It treats the owner's validated proposal as bounded evidence and stores an adjustment factor. The round record captures:
 
 - the owner's intended and executed investment;
-- the Aggregate's estimated and executed adjustment;
+- the stored estimate;
 - the signed Proposal and its settlement.
+
+In the next round the small-business Aggregate's Policy applies the stored factor to its baseline investment, and that round's record captures the adjusted Intent and its result.
 
 **Alternative.** A second game makes the EU Commission a seat played by a human and omits the representative. The EU's capabilities are unchanged, and the small-business Aggregate follows its baseline Policy. Before any decisions are made, both games' initial accounts, liabilities, and authority reconcile.
 
