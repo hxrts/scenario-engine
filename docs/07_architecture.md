@@ -68,7 +68,7 @@ packages/
     Views        dashboard view models: generic Table and Chart projections of stored runs
   apps/        entry points only (→ anything above)
     cli          `run` (simulation) and `session` (facilitator console: typed input, AI-agent seats); `Compile` (`just _scenarios`) writes the compiled scenario files
-    server       JSON API: one GET per harness view model, plus POST /api/runs to launch a run
+    server       JSON API: one GET per harness view model, plus POST /api/runs to launch a run (`Server/Routes` dispatches to `Read`, `Launch`, `Derive`, `Errors`)
     dashboard    PureScript react-basic-hooks over vendored shadcn/ui (ui/, via three FFI modules: UI.js, Api.js, Theme.js)
 test/          property tests per package; fixtures A–G as golden tests
 ```
@@ -139,7 +139,7 @@ type RunStoreRead =
 
 A run that does not finish is marked `failed` with its reason; `failStaleRuns` does the same for runs left `running` by a stopped process.
 
-**Views** (`harness/Views`). Every dashboard element is a pure projection of a stored run to a generic view model, computed server-side; the dashboard only fetches and renders it with four generic components (record table, metric chart, run picker, diff table):
+**Views** (`harness/Views/*`). Every dashboard element is a pure projection of a stored run to a generic view model, computed server-side; the dashboard only fetches and renders it with four generic components (record table, metric chart, run picker, diff table):
 
 ```purescript
 type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
@@ -160,7 +160,7 @@ Each format has a codec in the package that owns its type. Records are the repla
 - `core` imports no effect library and no IO. JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type (PureScript forbids orphan instances, so they cannot live in a separate module); the engine never calls them.
 - Policies never touch World State directly. They receive a `View` and return Proposals and signatures. The engine never authors or rewrites Intents.
 - Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
-- Views are computed server-side in `harness/Views`; the dashboard holds no business logic.
+- Views are computed server-side in `harness/Views/*`; the dashboard holds no business logic.
 - Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.
 - Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance [§1](05_test_instance.md#1-purpose)).
 - Every invariant has one pure predicate in `core/Invariants`. Tests, the harness, and live sessions share it.
