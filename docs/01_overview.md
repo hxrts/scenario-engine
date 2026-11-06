@@ -4,7 +4,7 @@
 
 The Scenario Planning Game is a multiplayer economic strategy game. Each participant plays an influential actor in a shared world economy. Players negotiate, form alliances, allocate resources, and make decisions that shape how the world develops economically and politically.
 
-The game combines elements of *Diplomacy*, economic simulation, and scenario planning. At its centre is an economic engine that turns player decisions into consequences across interconnected markets.
+The game combines elements of diplomacy, economic simulation, and scenario planning. At its centre is an economic engine that turns player decisions into consequences across interconnected markets.
 
 Players may represent countries, corporations, institutions, or small economic participants, and their power is deliberately unequal. Even so, a small-business owner can influence the same economy as a head of state, through statistical representation.
 
