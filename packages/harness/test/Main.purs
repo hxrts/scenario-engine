@@ -12,6 +12,7 @@ import Core.Engine (prepareRound, resolveRound)
 import Core.Invariants (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
+import Core.Query (holding)
 import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..), proposalId)
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Array (any, concatMap, drop, fromFoldable, index, length, nub, nubEq, range, reverse)
@@ -164,6 +165,52 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> throwError (error e)
       china cf.base `shouldEqual` true
       china cf.variant `shouldEqual` false
+
+    it "7b Reservation: the US deployment holds its Mil in the shipped world and scales the same seat's Transfer" do
+      ctx <- context
+      r <- run ctx (everySeat "Passive")
+      let
+        w0 = initialOf r
+        us = Id "US"
+        jp = Id "JP"
+        mil = Id "Mil"
+        -- one round of signed Proposals by the US seat; the id is its position in the round
+        signed i intents = { proposal: { id: proposalId w0.round us i, author: us, intents, signers: [ us ], procedure: Nothing }, signatures: [] }
+      case Map.lookup (Id "military-deployment") w0.transformations of
+        Nothing -> fail "military-deployment is missing from the shipped world"
+        Just md -> do
+          let
+            -- test-only: the shipped deployment consumes Mil; here it reserves 1 Mil per unit instead
+            w = w0 { transformations = Map.insert (Id "military-deployment") md { inputs = Map.empty, outputs = Map.empty, reserves = Map.singleton mil (Q.fromInt 1) } w0.transformations }
+            deploy = signed 0 [ Transform { by: us, transformation: Id "military-deployment", quantity: Q.fromInt 100 } ]
+            transfer = signed 1 [ Transfer { from: us, to: jp, resource: mil, quantity: Q.fromInt 90 } ]
+          holding w0 us mil `shouldEqual` Q.fromInt 95
+          case resolveRound w [ deploy, transfer ], resolveRound w [ transfer ] of
+            Right both, Right alone -> do
+              -- 100 units reserve 100 Mil and the Transfer asks 90: 190 escrowed against 95 held, so both scale by 1/2
+              holding both.world us mil `shouldEqual` Q.fromInt 50
+              holding both.world jp mil `shouldEqual` Q.add (holding w0 jp mil) (Q.fromInt 45)
+              -- the same Transfer alone is not competing with a reservation, so it runs in full
+              holding alone.world us mil `shouldEqual` Q.fromInt 5
+              checkRun w [ both ] `shouldEqual` []
+              any
+                ( \e -> case e of
+                    Transformed t -> t.by == us && t.quantity == Q.fromInt 50
+                    _ -> false
+                )
+                both.record.events `shouldEqual` true
+              any
+                ( \e -> case e of
+                    Consumed c -> c.entity == us && c.resource == mil
+                    _ -> false
+                )
+                both.record.events `shouldEqual` false
+              -- the reservation is released at commit: next round the 50 Mil held are free to transfer
+              case resolveRound both.world [ signed 0 [ Transfer { from: us, to: jp, resource: mil, quantity: Q.fromInt 50 } ] ] of
+                Right next -> holding next.world us mil `shouldEqual` Q.zero
+                Left e -> fail (show e)
+            Left e, _ -> fail (show e)
+            _, Left e -> fail (show e)
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
       ctx <- context
