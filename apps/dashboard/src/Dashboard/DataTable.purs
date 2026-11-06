@@ -5,8 +5,8 @@
 --
 -- | Contract, for every caller:
 -- |   * `rows` are rendered as given, in the order of the view model, apart from the user's sort.
--- |   * `linkColumn` is the positional index of the column whose cells become links when `link`
--- |     returns a target for the row. The view model has no key field, so the caller names it.
+-- |   * `link i row` is called for every cell, with the cell's column index i and the row's values.
+-- |     A Just target makes that cell a link. The view model has no key field, so the caller decides
 -- |   * `mark row i` is called with a row's values and a column index i, and highlights that cell
 -- |     when true. Both are positional: indices are positions in `columns`, not names.
 module Dashboard.DataTable (Props, DataTable, Sort, mkDataTable, sortRows, compareCells, nextSort) where
@@ -24,8 +24,7 @@ import React.Basic.Hooks as React
 type Props =
   { columns :: Array String
   , rows :: Array (Array String)
-  , linkColumn :: Int
-  , link :: Array String -> Maybe String
+  , link :: Int -> Array String -> Maybe String
   , mark :: Array String -> Int -> Boolean
   }
 
@@ -81,7 +80,7 @@ mkDataTable = component "DataTable" \p -> React.do
       { key: show i
       , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-500/20 font-medium" else "")
       , children:
-          [ case (if i == p.linkColumn then p.link row else Nothing) of
+          [ case p.link i row of
               Just href -> D.a { href, className: "underline", children: [ D.text value ] }
               Nothing -> D.text value
           ]

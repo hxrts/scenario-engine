@@ -7,10 +7,14 @@ import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (emptyForm, validate)
 import Dashboard.Presets (presetNames)
 import Dashboard.Route (Route(..), route)
-import Data.Argonaut.Core (toObject)
+import Dashboard.RunForms (Derived, derivedOf, deleteConfirmed, deriveBody, optionalPreset, optionalRounds, optionalSeed, requiredName, requiredRounds, resumeBody, variantSpec)
+import Dashboard.Runs (derivedFrom, mergeRuns, runInfo, sourceRow)
+import Data.Argonaut.Core (stringify, toObject)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (sort)
 import Data.Either (Either(..), note)
+import Data.Maybe (Maybe(..))
+import Harness.Views (Table)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
@@ -85,3 +89,62 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case jsonParser text >>= \j -> note "presets.json is not an object" (toObject j) of
         Left e -> fail e
         Right o -> sort (Object.keys o) `shouldEqual` sort presetNames
+  describe "Run actions: form rules" do
+    it "a name is required, and is sent trimmed" do
+      requiredName "  " `shouldEqual` Left "Name is required."
+      requiredName " copy " `shouldEqual` Right "copy"
+    it "a player seed is a whole number; blank is left to the server" do
+      optionalSeed "" `shouldEqual` Right Nothing
+      optionalSeed " 7 " `shouldEqual` Right (Just 7)
+      optionalSeed "x" `shouldEqual` Left "Player seed must be a whole number, or blank for the server's choice."
+    it "rounds are at least 1; blank is left to the server, while resume rounds are required" do
+      optionalRounds "" `shouldEqual` Right Nothing
+      optionalRounds "3" `shouldEqual` Right (Just 3)
+      optionalRounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+      requiredRounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+      requiredRounds "5" `shouldEqual` Right 5
+    it "a preset is a known one; blank keeps the source run's preset" do
+      optionalPreset "" `shouldEqual` Right Nothing
+      optionalPreset "Trader" `shouldEqual` Right (Just "Trader")
+      optionalPreset "Nope" `shouldEqual` Left "Unknown preset: Nope"
+    it "a variant with blank fields asks for nothing but its kind" do
+      variantSpec "variant" { preset: "", playerSeed: "", rounds: "" } `shouldEqual` Right { kind: "variant", name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing }
+      variantSpec "counterfactual" { preset: "Trader", playerSeed: "2", rounds: "4" } `shouldEqual` Right { kind: "counterfactual", name: Nothing, preset: Just "Trader", playerSeed: Just 2, rounds: Just 4 }
+    it "delete is confirmed only by the exact run id" do
+      deleteConfirmed "run-1" "run-1" `shouldEqual` true
+      deleteConfirmed "run-1" "run-" `shouldEqual` false
+      deleteConfirmed "run-1" "RUN-1" `shouldEqual` false
+      deleteConfirmed "run-1" " run-1" `shouldEqual` false
+      deleteConfirmed "" "" `shouldEqual` false
+  describe "Run actions: request bodies" do
+    it "a derive body carries only the fields that are set" do
+      stringify (deriveBody { kind: "variant", name: Nothing, preset: Just "Trader", playerSeed: Just 7, rounds: Nothing }) `shouldEqual` "{\"kind\":\"variant\",\"preset\":\"Trader\",\"playerSeed\":7}"
+      stringify (deriveBody { kind: "duplicate", name: Just "copy", preset: Nothing, playerSeed: Nothing, rounds: Nothing }) `shouldEqual` "{\"kind\":\"duplicate\",\"name\":\"copy\"}"
+    it "a resume body is the rounds" do
+      stringify (resumeBody 4) `shouldEqual` "{\"rounds\":4}"
+    it "the derive reply carries the new id, and recordsMatch only when the server reports it" do
+      decodeText "{\"id\":\"run-6\",\"source\":\"run-1\",\"kind\":\"rerun\",\"recordsMatch\":true}" `shouldEqual` Right { id: "run-6", recordsMatch: Just true }
+      decodeText "{\"id\":\"run-7\",\"source\":\"run-1\",\"kind\":\"duplicate\"}" `shouldEqual` Right { id: "run-7", recordsMatch: Nothing }
+  describe "Run list reads" do
+    it "a run's archived flag and source come from its columns" do
+      runInfo runList "run-3" `shouldEqual` Just { id: "run-3", archived: true, source: "run-1" }
+      runInfo runList "run-1" `shouldEqual` Just { id: "run-1", archived: false, source: "" }
+      runInfo runList "nope" `shouldEqual` Nothing
+    it "the runs derived from a run are those whose source it is" do
+      derivedFrom runList "run-1" `shouldEqual` [ "run-2", "run-3" ]
+      derivedFrom runList "run-2" `shouldEqual` []
+    it "a Source cell names the source run, and is empty for an original run" do
+      sourceRow runList row2 `shouldEqual` Just "run-1"
+      sourceRow runList row1 `shouldEqual` Nothing
+    it "the archived runs are added to the list once, after the others" do
+      mergeRuns (runList { rows = [ row1, row2 ] }) (runList { rows = [ row2, row3 ] }) `shouldEqual` runList
+  where
+  row1 = [ "run-1", "base", "", "no", "" ]
+  row2 = [ "run-2", "seed", "", "no", "run-1" ]
+  row3 = [ "run-3", "old", "", "yes", "run-1" ]
+
+  runList :: Table
+  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Reason", "Archived", "Source" ], rows: [ row1, row2, row3 ] }
+
+  decodeText :: String -> Either String Derived
+  decodeText s = jsonParser s >>= derivedOf
