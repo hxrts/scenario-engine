@@ -375,15 +375,24 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
 facilityPrice :: Transformation -> Q -> Q
 facilityPrice tr q = maybe Q.zero (\c -> Market.averagePrice c Q.zero q) tr.cost
 
--- | The most units a facility's pool can fill, its ceiling, which escrow prices at in full and
--- | settlement never exceeds (§5.3). A capped facility's ceiling is its capacity in units of
--- | `capacityUse`, rounded down. Otherwise it is the domain ceiling of its cost function.
--- | Nothing means no ceiling, which only a facility with no cost function has, and that one is
--- | priced at zero.
+-- | The most units a facility's pool can fill in total, its ceiling, which escrow prices at in full
+-- | and settlement never exceeds (§5.3). The pool is every facility drawing on the same capped
+-- | capacity, so its fills together draw on that capacity: a total of q units uses at least
+-- | q × (smallest `capacityUse` in the pool). The ceiling is therefore the capacity divided by that
+-- | smallest use, rounded down, and every member of the pool escrows at it, whatever its own use.
+-- | An uncapped facility's ceiling is the domain top of its cost function. Nothing means no
+-- | ceiling, which only a facility with no cost function has, and that one is priced at zero.
 poolCeiling :: WorldState -> Transformation -> Maybe Q
 poolCeiling w tr = case tr.capacity of
-  Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) tr.capacityUse
+  Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
   _ -> (\c -> c.domain.hi) <$> tr.cost
+
+-- | The smallest `capacityUse` among the capped facilities on `ref`, starting from `use` (the
+-- | facility's own, so the result is never above it).
+smallestUse :: WorldState -> CapacityRef -> Q -> Q
+smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (fromFoldable (Map.values w.transformations))))
+  where
+  drawsOn x = x.capacity == Just ref && x.capacityUse > Q.zero
 
 -- | A facility's uniform price at its full ceiling, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q
