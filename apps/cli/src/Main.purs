@@ -9,10 +9,9 @@ import Core.Draw (Seed(..))
 import Core.Engine (prepareRound)
 import Core.Invariants (check)
 import Core.Market (marginal)
-import Core.Types (Controller(..), EntityKind(..))
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (concatMap, drop, filter, foldl, fromFoldable, index, length, take)
+import Data.Array (drop, filter, foldl, index, length, take)
 import Data.Either (Either(..))
 import Data.Int (fromString)
 import Data.Map as Map
@@ -26,6 +25,8 @@ import Foreign.Object as Object
 import Handlers.Test (runTest)
 import Node.Process (argv, exit')
 import Scenarios (load, loadPresets)
+import Harness.Simulate (seatsOf)
+import Data.Foldable (foldM)
 import Session (Options, session)
 import Adapters.Llm (defaultModel)
 
@@ -60,15 +61,9 @@ runScenario scenario presetName rounds = do
       Right initial, Right inWorld, Just preset -> do
         let
           w0 = initial.world
-          seatIds = concatMap
-            ( \e -> case e.kind of
-                Actor (Seat _) -> [ e.id ]
-                _ -> []
-            )
-            (fromFoldable (Map.values w0.entities))
-          out = runTest { programs: Map.fromFoldable (map (\s -> Tuple s preset) seatIds), params: gameboard.parameters, home: homeMarket w0, playerSeed: Seed 1 } (runGame inWorld rounds w0)
+          out = runTest { programs: Map.fromFoldable (map (\s -> Tuple s preset) (seatsOf w0)), params: gameboard.parameters, home: homeMarket w0, playerSeed: Seed 1 } (runGame inWorld rounds w0)
         log (gameboard.id <> "@" <> gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds")
-        void $ foldl (\prev r -> prev >>= \w -> summarize w r $> r.world) (pure w0) out.records
+        void $ foldM (\w r -> summarize w r $> r.world) w0 out.records
         case out.value of
           Left e -> fail (show e)
           Right _ -> pure unit

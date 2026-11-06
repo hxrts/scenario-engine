@@ -18,15 +18,17 @@ import Prelude
 
 import Board.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Span(..))
 import Core.Draw (Seed(..))
-import Core.Market (marginal)
+import Core.Query (capacityHeld, holding, lookupQ, priceOf)
+import Core.Query as Query
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, EntityKind(..))
+import Core.Types (EntityId)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (all, concatMap, filter, foldl, fromFoldable, last, nub, zip, zipWith)
-import Data.Either (Either(..))
+import Data.Foldable (and)
+import Data.Array (all, concatMap, length, filter, fromFoldable, last, nub, zipWith)
+import Data.Either (Either, hush)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, simulate)
@@ -55,7 +57,7 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
         Fixed q -> map (const q) values
         Of m -> series c.over m
     in
-      { met: all identity (zipWith' (>=) values bound), values, bound }
+      { met: and (zipWith (>=) values bound), values, bound }
   -- the metric's value per round, or one aggregate value
   series span m =
     let
@@ -64,25 +66,21 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
       case span of
         EveryRound -> perRound
         Cumulative -> [ Q.sumQ perRound ]
-        Final -> if isFlow m.measure then [ Q.sumQ perRound ] else maybe' [] pure (last perRound)
+        Final -> if isFlow m.measure then [ Q.sumQ perRound ] else maybe [] pure (last perRound)
 
   measure :: MetricRef -> RoundResult -> Q
   measure m r = sign m (Q.sumQ (map (\e -> measureValue m.measure e r) m.entities))
-  sign m q = if m.negated then Q.sub Q.zero q else q
+  sign m q = if m.negated then Q.neg q else q
   isFlow = case _ of
     HoldingOf _ -> false
     CapacityAmount _ -> false
     _ -> true
-  maybe' d f = case _ of
-    Just x -> f x
-    Nothing -> d
-  zipWith' f xs ys = zipWith f xs ys
 
 -- | One Entity's value of a measure in one round.
 measureValue :: Measure -> EntityId -> RoundResult -> Q
 measureValue msr e r = case msr of
-  HoldingOf res -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup res x.accounts)
-  CapacityAmount c -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup c x.capacities)
+  HoldingOf res -> holding r.world e res
+  CapacityAmount c -> capacityHeld r.world e c
   ShortfallOf res -> sumEvents r case _ of
     Shortfall s | s.entity == e && s.resource == res -> [ s.quantity ]
     _ -> []
@@ -110,25 +108,23 @@ type Difference =
   }
 
 finalWorld :: Run -> Maybe WorldState
-finalWorld r = case r.final of
-  Right w -> Just w
-  Left _ -> Nothing
+finalWorld r = hush r.final
 
 difference :: Run -> Run -> Difference
 difference base other = case finalWorld base, finalWorld other of
   Just a, Just b ->
     { holdings: filter (\h -> h.delta /= Q.zero) (concatMap (holdingDelta a b) (fromFoldable (Map.keys a.entities)))
-    , prices: filter (\p -> p.delta /= Q.zero) (map (\(Tuple id m) -> { market: show id, delta: Q.sub (price b id) (marginal m.cost m.position) }) (Map.toUnfoldable a.markets :: Array _))
+    , prices: filter (\p -> p.delta /= Q.zero) (map (\id -> { market: show id, delta: Q.sub (price b id) (price a id) }) (fromFoldable (Map.keys a.markets)))
     }
   _, _ -> { holdings: [], prices: [] }
   where
-  price w id = fromMaybe Q.zero (Map.lookup id w.markets <#> \m -> marginal m.cost m.position)
+  price w id = fromMaybe Q.zero (priceOf w id)
   holdingDelta a b e =
     let
       ha = fromMaybe Map.empty (_.accounts <$> Map.lookup e a.entities)
       hb = fromMaybe Map.empty (_.accounts <$> Map.lookup e b.entities)
     in
-      map (\r -> { entity: e, resource: show r, delta: Q.sub (fromMaybe Q.zero (Map.lookup r hb)) (fromMaybe Q.zero (Map.lookup r ha)) })
+      map (\r -> { entity: e, resource: show r, delta: Q.sub (lookupQ r hb) (lookupQ r ha) })
         (nub (fromFoldable (Map.keys ha) <> fromFoldable (Map.keys hb)))
 
 -- | Change exactly one thing and replay with both seeds fixed (§10.4).
@@ -173,10 +169,8 @@ agency ctx spec actors = do
     variant <- simulate ctx spec { seats = Map.insert actor (Preset alt) spec.seats }
     let
       d = difference base variant
-      isAggregate e = case _.kind <$> (finalWorld base >>= \w -> Map.lookup e w.entities) of
-        Just (Aggregate _) -> true
-        _ -> false
-      absSum xs = Q.sumQ (map (\q -> if q < Q.zero then Q.sub Q.zero q else q) xs)
+      isAggregate e = maybe false Query.isAggregate (finalWorld base >>= \w -> Map.lookup e w.entities)
+      absSum xs = Q.sumQ (map Q.abs xs)
       prices = absSum (map _.delta d.prices)
       others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
       aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
@@ -191,7 +185,7 @@ agency ctx spec actors = do
         r.records
       institutions = if outcomes base == outcomes variant then 0 else 1
       own r = map _.met (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives ctx.gameboard r.records)))
-      objectives = foldl (\n (Tuple a b) -> if a == b then n else n + 1) 0 (zip (own base) (own variant))
+      objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
     pure
       { actor
       , alternative: alt

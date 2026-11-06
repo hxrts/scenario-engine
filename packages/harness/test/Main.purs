@@ -9,29 +9,29 @@ import Board.Gameboard (instantiate, reconcile)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..), draw)
 import Core.Engine (prepareRound, resolveRound)
-import Core.Invariants (check)
+import Core.Invariants (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
 import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..), proposalId)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (drop, nubByEq, any, concatMap, foldl, fromFoldable, index, length, nub, range, reverse)
+import Data.Array (any, concatMap, drop, fromFoldable, index, length, nub, nubEq, range, reverse)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (for_)
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Handlers.Replay (runReplay)
 import Harness.Analysis (agency, counterfactual, evaluateObjectives, playerSeedRuns)
-import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, resume, simulate)
+import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, resume, simulate)
 import Policy.Program (Program, decodeProgram)
 import Data.Argonaut.Parser (jsonParser)
 import Effects (inWorldOf, runGame)
 import Scenarios (load, loadFixture, loadPresets)
 import Test.Spec (describe, it)
+import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -46,11 +46,8 @@ context = do
     Left e, _ -> throwError (error e)
     _, Left e -> throwError (error e)
 
-seats :: Array String
-seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
-
 everySeat :: String -> SimulationSpec
-everySeat preset = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset preset)) seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
 
 program :: String -> Program
 program text = case jsonParser text of
@@ -68,7 +65,7 @@ run ctx spec = case simulate ctx spec of
 
 -- | Every round's invariants (INV-02, 04, 05, 06, 10) hold.
 valid :: WorldState -> Run -> Aff Unit
-valid initial r = void $ foldl (\acc x -> acc >>= \w -> (check (prepareRound w) x `shouldEqual` []) $> x.world) (pure initial) r.records
+valid initial r = checkRun initial r.records `shouldEqual` []
 
 initialOf :: Run -> WorldState
 initialOf r = r.manifest.initial
@@ -268,5 +265,3 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           length (nubEq (map (map _.world <<< _.records) runs)) `shouldEqual` 10
           let key = { round: 3, source: "sme-energy-sample", entity: "SME", category: "sampling", index: 0 }
           length (nub (map (\r -> draw r.manifest.initial.seed key) runs)) `shouldEqual` 1
-  where
-  nubEq xs = nubByEq (==) xs

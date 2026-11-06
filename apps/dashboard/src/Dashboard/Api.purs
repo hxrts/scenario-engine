@@ -3,12 +3,12 @@ module Dashboard.Api (get, post, useApi) where
 
 import Prelude
 
+import Board.Decode (readJson)
+
 import Control.Promise (Promise, toAffE)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Argonaut.Parser (jsonParser)
-import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple(..))
@@ -20,8 +20,7 @@ import React.Basic.Hooks.Aff (UseAff, useAff)
 foreign import fetchTextImpl :: String -> String -> String -> Effect (Promise String)
 
 call :: forall a. DecodeJson a => String -> String -> String -> Aff (Either String a)
-call method url body = toAffE (fetchTextImpl method url body) <#> \s ->
-  jsonParser s >>= lmap printJsonDecodeError <<< decodeJson
+call method url body = readJson <$> toAffE (fetchTextImpl method url body)
 
 get :: forall a. DecodeJson a => String -> Aff (Either String a)
 get url = call "GET" url ""

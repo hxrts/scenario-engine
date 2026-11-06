@@ -11,6 +11,7 @@ module Harness.Simulate
   , resume
   , simulateWith
   , seatsOf
+  , presetSeats
   ) where
 
 import Prelude
@@ -23,6 +24,7 @@ import Core.Types (CapacityRef, Controller(..), EntityId, EntityKind(..))
 import Core.World (Manifest, RoundResult, WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable)
 import Data.Either (Either(..))
+import Data.Tuple (Tuple(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -124,6 +126,10 @@ simulateWith ctx spec store = case prepare ctx spec Nothing of
   Right p -> do
     persist <- store p.manifest
     Right <$> runSim p.seats persist p.game
+
+-- | Bind each seat to a preset by name.
+presetSeats :: (EntityId -> String) -> Array EntityId -> Map EntityId SeatPolicy
+presetSeats preset seats = Map.fromFoldable (map (\s -> Tuple s (Preset (preset s))) seats)
 
 -- | The seats of an instantiated world.
 seatsOf :: WorldState -> Array EntityId

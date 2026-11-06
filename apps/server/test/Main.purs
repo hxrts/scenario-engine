@@ -12,7 +12,7 @@ import Effect (Effect)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
-import Scenarios (load, loadPresets)
+import Scenarios (loadContext)
 import Server (route)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
@@ -23,13 +23,11 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Read API" do
     it "launches a run, then serves its views and a comparison" do
-      gb <- liftEffect (load "fractured-world/v0")
-      ps <- liftEffect loadPresets
-      case gb, ps of
-        Right { gameboard, config }, Right presets -> do
+      liftEffect (loadContext "fractured-world/v0") >>= case _ of
+        Right ctx -> do
           db <- liftEffect (open ":memory:")
           let
-            api method path query body = liftEffect (route { gameboard, config, presets } db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+            api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
             launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, gameSeed: (Nothing :: Maybe Int), rounds: Just 3 }))
           a <- launch "a" 1
           a.body `shouldEqual` "{\"id\":\"run-1\"}"
@@ -42,4 +40,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           cmp.body `shouldSatisfy` contains (Pattern "playerSeed")
           missing <- api "GET" "/api/runs/run-9/overview" [] ""
           missing.status `shouldEqual` 404
-        _, _ -> fail "scenario"
+        Left e -> fail e

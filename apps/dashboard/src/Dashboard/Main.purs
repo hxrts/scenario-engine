@@ -5,7 +5,7 @@ module Dashboard.Main (main) where
 import Prelude
 
 import Dashboard.Api (post, useApi)
-import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, recordTable, runPicker)
+import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, plainTable, recordTable, runPicker, status)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Array (filter, index, null)
@@ -35,7 +35,7 @@ import Web.HTML.Window (document)
 type Tab = { key :: String, label :: String, path :: String, render :: Render }
 
 table :: Render
-table = as (recordTable (const Nothing))
+table = as plainTable
 
 charts :: Render
 charts = as (\(cs :: Array Chart) -> D.div_ (map metricChart cs))
@@ -47,7 +47,7 @@ runTabs id n =
   , tab ("balances?round=" <> show n) "Balance sheets" table
   , tab "markets" "Markets" charts
   , tab "facilities" "Facilities" table
-  , tab "economy" "World economy" (as \(e :: { totals :: Chart, flows :: Table, pressure :: Table }) -> D.div_ [ metricChart e.totals, recordTable (const Nothing) e.flows, recordTable (const Nothing) e.pressure ])
+  , tab "economy" "World economy" (as \(e :: { totals :: Chart, flows :: Table, pressure :: Table }) -> D.div_ [ metricChart e.totals, plainTable e.flows, plainTable e.pressure ])
   , tab "representation" "Representation" table
   , tab "procedures" "Procedures" table
   , tab "objectives" "Objectives" table
@@ -61,9 +61,9 @@ compareTabs :: String -> Array Tab
 compareTabs ids =
   [ part "Trajectory" (\c -> metricChart c.trajectory)
   , part "Final state" (\c -> diffTable c.final)
-  , part "Baseline diff" (\c -> recordTable (const Nothing) c.diff)
+  , part "Baseline diff" (\c -> plainTable c.diff)
   , part "Configuration" (\c -> diffTable c.config)
-  , part "Compatibility" (\c -> recordTable (const Nothing) c.compatibility)
+  , part "Compatibility" (\c -> plainTable c.compatibility)
   , { key: "agency", label: "Agency", path: "/api/agency", render: table }
   ]
   where
@@ -100,8 +100,8 @@ mkRuns = component "Runs" \_ -> React.do
           , launchSheet form setForm launch
           ]
       }
-    Just (Left e) -> D.pre_ [ D.text e ]
-    Nothing -> D.text "Loading…"
+    Just (Left e) -> status (Just e)
+    Nothing -> status Nothing
 
 type LaunchForm = { name :: String, preset :: String, playerSeed :: String }
 

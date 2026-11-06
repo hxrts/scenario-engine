@@ -5,14 +5,14 @@ import Prelude
 import Board.Gameboard (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Engine (prepareRound)
-import Core.Invariants (check)
+import Core.Invariants (checkRun)
+import Core.Query (priceOf)
+import Board.Decode (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Argonaut.Parser (jsonParser)
-import Data.Array (any, concatMap, foldl, index, length)
+import Data.Array (any, concatMap, index, length)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -45,13 +45,9 @@ setup = do
       _, Left e -> throwError (error (printJsonDecodeError e))
 
 program :: String -> Program
-program text = case jsonParser text >>= \j -> either' (decodeProgram j) of
+program text = case readJsonWith decodeProgram text of
   Right p -> p
   Left _ -> { rules: [], sign: [] }
-  where
-  either' = case _ of
-    Right x -> Right x
-    Left e -> Left (printJsonDecodeError e)
 
 -- | Play `n` rounds with the given seat programs; every round's invariants must hold.
 play :: Game -> Int -> Map.Map EntityId Program -> Aff (Array RoundResult)
@@ -61,22 +57,14 @@ play g n programs = do
   case out.value of
     Left e -> fail (show e)
     Right _ -> pure unit
-  void $ foldlM'
-    ( \prev r -> do
-        check (prepareRound prev) r `shouldEqual` []
-        pure r.world
-    )
-    g.world
-    out.records
+  checkRun g.world out.records `shouldEqual` []
   pure out.records
-  where
-  foldlM' f z xs = foldl (\acc x -> acc >>= \a -> f a x) (pure z) xs
 
 seats :: Array String
 seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 price :: RoundResult -> String -> Q.Q
-price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> x.cost.base `Q.add` Q.mul x.cost.slope x.position)
+price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

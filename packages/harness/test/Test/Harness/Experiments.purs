@@ -1,23 +1,22 @@
 -- | Phase 9: the variant experiments of docs/06_simulator.md §11 on The Fractured World,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
 -- | every invariant; the printed table is the balancing evidence for docs/05 §28–§29.
-module Test.Harness.Experiments (spec) where
+module Test.Harness.Experiments (spec, seats) where
 
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Engine (prepareRound)
-import Core.Invariants (check)
-import Core.Market (marginal)
+import Core.Invariants (checkRun)
+import Core.Query (priceOf)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Core.World (Event(..))
-import Data.Array (concatMap, elem, filter, foldl, fromFoldable, last, length, range)
+import Data.Array (concatMap, elem, filter, fromFoldable, last, length, range)
 import Data.Either (Either(..))
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -28,7 +27,7 @@ import Effect.Now (now)
 import Data.DateTime.Instant (unInstant)
 import Data.Newtype (unwrap)
 import Harness.Analysis (agency, evaluateObjectives)
-import Harness.Simulate (Context, Override(..), Run, SeatPolicy(..), SimulationSpec, simulate)
+import Harness.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
@@ -36,7 +35,7 @@ seats :: Array String
 seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 spec' :: (String -> String) -> Array Override -> Int -> SimulationSpec
-spec' preset overrides seed = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset (preset s))) seats), playerSeed: Seed seed, overrides, rounds: Nothing }
+spec' preset overrides seed = { seats: presetSeats (preset <<< show) (map Id seats), playerSeed: Seed seed, overrides, rounds: Nothing }
 
 play :: Context -> SimulationSpec -> Aff Run
 play ctx s = case simulate ctx s of
@@ -61,12 +60,12 @@ indicators ctx r = { row, failures }
     _ -> false
   proposals = length (concatMap _.record.inputs r.records)
   final = fromMaybe r.manifest.initial (map _.world (last r.records))
-  price w m = maybe' (\x -> Q.format (marginal x.cost x.position)) (Map.lookup (Id m) w.markets)
+  price w m = maybe "—" Q.format (priceOf w (Id m))
   money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (fromFoldable (Map.values w.entities))
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in Q.format (Q.div (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
   met = length (filter _.met (evaluateObjectives ctx.gameboard r.records))
-  failures = length (snd' (foldl (\acc x -> Tuple x.world (snd' acc <> check (prepareRound (fst' acc)) x)) (Tuple r.manifest.initial []) r.records))
+  failures = length (checkRun r.manifest.initial r.records)
   row = joinWith " | "
     [ show activity
     , show (proposals - rejected - lapsed) <> "/" <> show proposals
@@ -78,11 +77,6 @@ indicators ctx r = { row, failures }
     , show met <> "/16"
     , show failures
     ]
-  maybe' f = case _ of
-    Just x -> f x
-    Nothing -> "—"
-  fst' (Tuple a _) = a
-  snd' (Tuple _ b) = b
 
 header :: String
 header = "variant | activity | executed/proposed | rejected | lapsed | P atlantic | P asia | top Money share | objectives met | invariant failures"

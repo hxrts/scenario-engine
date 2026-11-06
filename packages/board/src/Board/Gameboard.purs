@@ -29,11 +29,12 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (BehaviorDomain, Capability(..), Controller(..), EntityId, EntityKind(..), Estimator, Id(..), PolicyId, ResourceId, CapacityRef, TransformationId)
 import Core.World (Manifest, WorldState)
+import Core.Query (lookupQ)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Array (all, any, concatMap, elem, filter, foldl, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
@@ -199,7 +200,7 @@ decodeGameboard j = do
       , eligibleActors: map Id eligible
       , target: Id target
       , domain: Id domain
-      , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.sub Q.zero b, hi: b }) bound, noiseSpread }
+      , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
       }
 
 decodeFallback :: Json -> Either JsonDecodeError Fallback
@@ -267,7 +268,7 @@ validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array Validatio
 validateGameboard gb config =
   let
     structural = references <> owners <> payees <> fallbacks <> objectives <> procedures
-    feasibility = either' identity (const []) (instantiate gb config)
+    feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
   in
@@ -307,14 +308,9 @@ validateGameboard gb config =
         without = config { seats = Map.delete e config.seats, npcs = Map.delete e config.npcs, representations = filter (\r -> r.actor /= e) config.representations }
       in
         case instantiate gb config, instantiate gb without of
-          Right a, Right b -> either' (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
+          Right a, Right b -> either (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
           _, _ -> []
     _ -> []
-
-  either' :: forall a b c. (a -> c) -> (b -> c) -> Either a b -> c
-  either' f g = case _ of
-    Left a -> f a
-    Right b -> g b
 
 -- Instantiation (docs/04_instantiated_game.md §10) ------------------------------------
 
@@ -403,7 +399,7 @@ mergeInto agg e w = case Map.lookup e w.entities of
     }
   -- a member's procedure weight folds into the Aggregate's residual weight
   foldWeights = case _ of
-    Aggregate x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (fromMaybe Q.zero (Map.lookup e p.weights)), weights = Map.delete e p.weights }) x.procedures }
+    Aggregate x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
     k -> k
   -- requirements that now share an Entity and Resource are summed
   foldRequirements = foldl
@@ -433,16 +429,17 @@ reconcile a b =
   diff :: forall k. Ord k => Show k => String -> Map k Q -> Map k Q -> k -> Array String
   diff what x y k =
     let
-      l = fromMaybe Q.zero (Map.lookup k x)
-      r = fromMaybe Q.zero (Map.lookup k y)
+      l = lookupQ k x
+      r = lookupQ k y
     in
       if l == r then [] else [ what <> " " <> show k <> ": " <> show l <> " vs " <> show r ]
-  stocks w = Map.unionWith Q.add (sumMaps (map _.accounts (fromFoldable (Map.values w.entities)))) (sumMaps (map _.reserves (fromFoldable (Map.values w.markets))))
+  stocks w = sumMaps (map _.accounts (fromFoldable (Map.values w.entities)) <> map _.reserves (fromFoldable (Map.values w.markets)))
   capacities w = sumMaps (map _.capacities (fromFoldable (Map.values w.entities)))
 
+  -- Data.Map here has no unionsWith
   sumMaps :: forall k. Ord k => Array (Map k Q) -> Map k Q
   sumMaps = foldl (Map.unionWith Q.add) Map.empty
-  weights w = foldl (Map.unionWith Q.add) Map.empty
+  weights w = sumMaps
     ( concatMap
         ( \e -> case e.kind of
             Aggregate x -> map (\(Tuple pid p) -> Map.singleton pid (Q.add p.residualWeight (Q.sumQ (fromFoldable (Map.values p.weights))))) (Map.toUnfoldable x.procedures)

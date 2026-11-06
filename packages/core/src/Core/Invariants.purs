@@ -1,14 +1,14 @@
 -- | Invariant predicates over one resolved round (docs/02_type_system.md §9). Each returns
 -- | the failures it finds; an empty array means the invariant holds. Shared by tests, the
 -- | harness, and live play.
-module Core.Invariants (Failure, check) where
+module Core.Invariants (Failure, check, checkRun) where
 
 import Prelude
 
-import Core.Engine (authorized, executor)
-import Core.Num (Q)
+import Core.Engine (authorized, executor, prepareRound)
+import Core.Query (lookupQ, totalHolding)
 import Core.Num as Q
-import Core.Types (ResourceId, SignedProposal)
+import Core.Types (SignedProposal)
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Array (all, concatMap, elem, filter, fromFoldable)
 import Data.Foldable (foldl)
@@ -20,6 +20,10 @@ type Failure = { invariant :: String, detail :: String }
 
 check :: WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) [ inv02, inv04, inv05, inv06, inv10 ]
+
+-- | Every round of a run, each checked against the world it started from.
+checkRun :: WorldState -> Array RoundResult -> Array Failure
+checkRun initial rs = (foldl (\acc r -> { world: r.world, failures: acc.failures <> check (prepareRound acc.world) r }) { world: initial, failures: [] } rs).failures
 
 failure :: String -> String -> Failure
 failure invariant detail = { invariant, detail }
@@ -67,8 +71,8 @@ inv05 before r = concatMap one resources
   resources = fromFoldable (Map.keys before.resources)
   one res =
     let
-      actual = Q.sub (total r.world res) (total before res)
-      expected = fromMaybe Q.zero (Map.lookup res flows)
+      actual = Q.sub (totalHolding r.world res) (totalHolding before res)
+      expected = lookupQ res flows
     in
       if actual == expected then [] else [ failure "INV-05" (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
   flows = foldl addFlow Map.empty r.record.events
@@ -83,16 +87,11 @@ inv05 before r = concatMap one resources
           plus = map (Q.mul t.quantity) now
           minus = map (Q.mul t.quantity) tr.inputs
         in
-          Map.unionWith Q.add acc (Map.unionWith Q.add plus (map (Q.sub Q.zero) (Map.unionWith Q.add minus burned)))
+          Map.unionWith Q.add acc (Map.unionWith Q.add plus (map Q.neg (Map.unionWith Q.add minus burned)))
       Nothing -> acc
-    Consumed c -> Map.insertWith Q.add c.resource (Q.sub Q.zero c.quantity) acc
-    Decayed d -> Map.insertWith Q.add d.resource (Q.sub Q.zero d.quantity) acc
+    Consumed c -> Map.insertWith Q.add c.resource (Q.neg c.quantity) acc
+    Decayed d -> Map.insertWith Q.add d.resource (Q.neg d.quantity) acc
     _ -> acc
-
-total :: WorldState -> ResourceId -> Q
-total w res = Q.sumQ (map (lookup res <<< _.accounts) (fromFoldable (Map.values w.entities)) <> map (lookup res <<< _.reserves) (fromFoldable (Map.values w.markets)))
-  where
-  lookup k = fromMaybe Q.zero <<< Map.lookup k
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain.
 inv06 :: WorldState -> RoundResult -> Array Failure

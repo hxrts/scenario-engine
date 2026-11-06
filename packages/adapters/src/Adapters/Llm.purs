@@ -17,15 +17,15 @@ module Adapters.Llm
 
 import Prelude
 
+import Board.Decode (readJson)
+
 import Core.Engine (authorized, executor)
 import Core.Types (Entity, EntityId, ProposalId, proposalId)
 import Core.World (View)
 import Data.Argonaut.Core (Json, stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (all, concatMap, length, mapWithIndex)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe, fromMaybe)
 import Effect (Effect)
@@ -62,7 +62,7 @@ ask :: forall a. DecodeJson a => Backend -> Log -> String -> String -> Json -> A
 ask b log effect template payload = do
   let input = stringify payload
   out <- b.call template input
-  let decoded = jsonParser (firstObject out.text) >>= lmap printJsonDecodeError <<< decodeJson
+  let decoded = readJson (firstObject out.text)
   liftEffect $ log { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
   pure decoded
 

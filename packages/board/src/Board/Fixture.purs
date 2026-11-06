@@ -9,6 +9,7 @@ import Board.Decode (Expect, Round)
 import Core.Engine (prepareRound, resolveRound)
 import Core.Invariants (check)
 import Core.Num as Q
+import Core.Query (holding)
 import Core.Types (Id(..), proposalId)
 import Core.World (Event(..), RoundResult, Target(..), WorldState)
 import Data.Array (concatMap, foldl, sort, sortWith)
@@ -33,7 +34,7 @@ checkFixture f = (foldl step { world: f.world, errors: [] } f.rounds).errors
 
 expectRound :: WorldState -> Expect -> RoundResult -> Array String
 expectRound before ex r =
-  concatMap (\(Tuple e rs) -> concatMap (\(Tuple res q) -> same ("account " <> e <> " " <> res) (fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id res) x.accounts)) q) (Object.toUnfoldable rs)) (Object.toUnfoldable ex.accounts)
+  concatMap (\(Tuple e rs) -> concatMap (\(Tuple res q) -> same ("account " <> e <> " " <> res) (holding w (Id e) (Id res)) q) (Object.toUnfoldable rs)) (Object.toUnfoldable ex.accounts)
     <> concatMap (\(Tuple m rs) -> concatMap (\(Tuple res q) -> same ("reserve " <> m <> " " <> res) (fromMaybe Q.zero (Map.lookup (Id m) w.markets >>= \x -> Map.lookup (Id res) x.reserves)) q) (Object.toUnfoldable rs)) (Object.toUnfoldable ex.reserves)
     <> concatMap (\(Tuple a ds) -> concatMap (\(Tuple d q) -> same ("factor " <> a <> " " <> d) (Map.lookup (Id a) w.factors >>= Map.lookup (Id d)) (Just q)) (Object.toUnfoldable ds)) (Object.toUnfoldable ex.factors)
     <> (if ex.deliveries == [] then [] else same "deliveries" (sortWith show deliveries) (sortWith show ex.deliveries))

@@ -5,15 +5,15 @@ module Server (main, route, Launch) where
 
 import Prelude
 
-import Adapters.Store (Db, RunInfo, createRun, open, persister, reader, setStatus)
+import Board.Decode (readJson)
+
+import Adapters.Store (Db, RunInfo, createRun, finish, open, persister, reader)
 import Core.Draw (Seed(..))
-import Core.Types (Id(..))
+import Core.Types (EntityId)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Argonaut.Parser (jsonParser)
-import Data.Array (catMaybes, drop, elemIndex, filter, find, index, length, uncons)
-import Data.Bifunctor (lmap)
+import Data.Array (catMaybes, drop, elemIndex, filter, find, fromFoldable, index, length, uncons)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Map as Map
@@ -26,12 +26,12 @@ import Effect.Console (log)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Harness.Analysis (agency)
-import Harness.Simulate (Context, Override(..), SeatPolicy(..), SimulationSpec, simulateWith)
+import Harness.Simulate (Context, Override(..), SimulationSpec, presetSeats, simulateWith)
 import Harness.Views (StoredRun)
 import Harness.Views as V
 import Http (Request, Response, serve)
 import Node.Process (argv)
-import Scenarios (load, loadPresets)
+import Scenarios (loadContext)
 
 -- | `POST /api/runs` body: every seat plays one preset.
 type Launch = { name :: String, preset :: String, playerSeed :: Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
@@ -40,16 +40,13 @@ main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
   let flag name d = fromMaybe d (elemIndex name args >>= \i -> index args (i + 1))
-  gb <- load "fractured-world/v0"
-  ps <- loadPresets
-  case gb, ps of
-    Right { gameboard, config }, Right presets -> do
+  loadContext "fractured-world/v0" >>= case _ of
+    Right ctx -> do
       db <- open (flag "--db" "runs.db")
       let port = fromMaybe 8787 (Int.fromString (flag "--port" "8787"))
-      serve port (flag "--static" "apps/dashboard/dist") (route { gameboard, config, presets } db)
+      serve port (flag "--static" "apps/dashboard/dist") (route ctx db)
       log ("serving on :" <> show port)
-    Left e, _ -> log e
-    _, Left e -> log e
+    Left e -> log e
 
 json :: forall a. EncodeJson a => Int -> a -> Effect Response
 json status a = pure { status, body: stringify (encodeJson a) }
@@ -80,7 +77,7 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
         }
   "GET", [ "api", "agency" ] ->
     either (failWith 400) (ok <<< V.agencyTable)
-      (agency ctx (presetSpec (param "preset" "Conservative") 1 [] Nothing) (map Id seatNames))
+      (agency ctx (presetSpec ctx (param "preset" "Conservative") 1 [] Nothing) (seats ctx))
   _, _ -> failWith 404 req.path
   where
   param k d = fromMaybe d (Object.lookup k req.query)
@@ -98,14 +95,15 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
     _ -> failWith 404 view
 
 parse :: forall a. DecodeJson a => String -> Either String a
-parse s = jsonParser s >>= lmap printJsonDecodeError <<< decodeJson
+parse = readJson
 
-seatNames :: Array String
-seatNames = [ "US", "DE", "SA", "JP", "SME" ]
+-- | The scenario's seats, as configured.
+seats :: Context -> Array EntityId
+seats ctx = fromFoldable (Map.keys ctx.config.seats)
 
-presetSpec :: String -> Int -> Array Override -> Maybe Int -> SimulationSpec
-presetSpec preset playerSeed overrides rounds =
-  { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset preset)) seatNames), playerSeed: Seed playerSeed, overrides, rounds }
+-- | Every seat plays one preset.
+presetSpec :: Context -> String -> Int -> Array Override -> Maybe Int -> SimulationSpec
+presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed: Seed playerSeed, overrides, rounds }
 
 -- | Run a simulation to completion, persisting every round; returns the new run's id.
 launch :: Context -> Db -> Launch -> Effect (Either String String)
@@ -115,12 +113,12 @@ launch ctx db l = do
     id = "run-" <> show (n + 1)
     spec = Object.fromFoldable
       [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
-  out <- simulateWith ctx (presetSpec l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
+  out <- simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
     createRun db { id, name: l.name, created: "", spec: encodeJson spec, manifest }
     persister db id manifest.initial
   case out of
     Left e -> pure (Left e)
-    Right r -> setStatus db id (either (const "failed") (const "completed") r) $> Right id
+    Right r -> finish db id r $> Right id
 
 allRuns :: Db -> Effect (Array StoredRun)
 allRuns db = (reader db).runs >>= map catMaybes <<< traverse (loadRun db <<< _.id)

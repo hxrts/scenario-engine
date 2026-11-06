@@ -6,6 +6,8 @@ module Core.Num
   , zero
   , add
   , sub
+  , neg
+  , abs
   , mul
   , div
   , sumQ
@@ -84,8 +86,8 @@ divRound :: BigInt -> BigInt -> BigInt
 divRound n d =
   let
     sign = if (n < P.zero) /= (d < P.zero) then negate one else one
-    an = abs n
-    ad = abs d
+    an = absBig n
+    ad = absBig d
     q = P.div an ad
     r = an - q * ad
     twice = r + r
@@ -93,7 +95,14 @@ divRound n d =
   in
     sign * q'
   where
-  abs x = if x < P.zero then negate x else x
+  absBig x = if x < P.zero then negate x else x
+
+-- | Negation and absolute value.
+neg :: Q -> Q
+neg = sub zero
+
+abs :: Q -> Q
+abs q = if q < zero then neg q else q
 
 sumQ :: Array Q -> Q
 sumQ = foldl add zero

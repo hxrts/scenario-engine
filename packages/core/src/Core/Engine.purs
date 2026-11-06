@@ -19,13 +19,15 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityKind(..), Ratio, Capability(..), CapacityRef, Entity, EntityId, Id(..), Intent(..), MarketId, Proposal, ProposalId, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), SignedProposal, Transferability(..), TransformSpec, Transformation, TransformationId)
 import Core.World (Delivery, Event(..), RoundResult, ShareSource(..), Target(..), View, WorldState)
-import Data.Array (all, any, concat, concatMap, elem, filter, find, foldl, fromFoldable, mapWithIndex, notElem, nub, null, partition, sortWith, zipWith)
+import Core.Query (capacityHeld, holding, lookupQ)
+import Data.Array (all, any, concat, concatMap, elem, filter, find, foldl, fromFoldable, notElem, nub, null, partition, sortWith, zipWith)
 import Data.Either (Either(..), either, note)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
+import Data.FunctorWithIndex (mapWithIndex)
 
 data EngineError = UnknownReference String | NegativeBalance EntityId ResourceId
 
@@ -181,7 +183,7 @@ procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProce
 procedureProposal w p signed pid = case Map.lookup p.author w.entities of
   Just { kind: Aggregate a } | Just proc <- Map.lookup pid a.procedures ->
     let
-      support = Q.add proc.residualWeight (Q.sumQ (map (\m -> fromMaybe Q.zero (Map.lookup m proc.weights)) (filter (_ /= p.author) signed)))
+      support = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) signed)))
       passes = support > proc.threshold
       outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
     in
@@ -252,7 +254,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
               unit = fromMaybe (Market.marginal m.cost m.cost.domain.hi) o.limitPrice
             in
               [ { entity: p.author, resource: m.quote, amount: Q.mul unit o.quantity } ]
-        | otherwise -> [ { entity: p.author, resource: m.base, amount: Q.sub Q.zero o.quantity } ]
+        | otherwise -> [ { entity: p.author, resource: m.base, amount: Q.neg o.quantity } ]
     Transfer t -> [ { entity: t.from, resource: t.resource, amount: t.quantity } ]
     Transform t -> case Map.lookup t.transformation w.transformations of
       Nothing -> []
@@ -269,7 +271,7 @@ fullPrice w tr = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe c.d
 capacityOf :: WorldState -> CapacityRef -> Q
 capacityOf w ref =
   let
-    held = maybe Q.zero (\o -> fromMaybe Q.zero (Map.lookup o w.entities >>= \e -> Map.lookup ref e.capacities)) (owner w ref)
+    held = maybe Q.zero (\o -> capacityHeld w o ref) (owner w ref)
     withheld = Q.sumQ
       ( map
           ( case _ of
@@ -281,9 +283,6 @@ capacityOf w ref =
   in
     max Q.zero (Q.sub held withheld)
 
-available :: WorldState -> EntityId -> ResourceId -> Q
-available w e r = fromMaybe Q.zero (Map.lookup e w.entities >>= \x -> Map.lookup r x.accounts)
-
 -- | Reject deals a party cannot fund; scale an Entity's own actions pro rata to what it can
 -- | fund. Deals are never scaled.
 fund :: WorldState -> Array Item -> { items :: Array { item :: Item, scale :: Q }, events :: Array Event }
@@ -292,23 +291,20 @@ fund w items =
     { yes: deals, no: singles } = partition _.deal items
     total xs = Map.fromFoldableWith Q.add (map (\c -> Tuple (Tuple c.entity c.resource) c.amount) (concatMap (claims w) xs))
     dealDemand = total deals
-    short key amt = amt > available w (fst' key) (snd' key)
+    short (Tuple e r) amt = amt > holding w e r
     shortKeys = Map.keys (Map.filterWithKey short dealDemand)
     unfunded d = any (\c -> Tuple c.entity c.resource `elem` fromFoldable shortKeys) (claims w d)
     { yes: dropped, no: kept } = partition unfunded deals
     keptDemand = total kept
     singleDemand = total singles
-    room key = Q.sub (available w (fst' key) (snd' key)) (fromMaybe Q.zero (Map.lookup key keptDemand))
+    room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)
     ratio key amt = if amt > room key then Q.div (max Q.zero (room key)) amt else Q.fromInt 1
-    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst' key) (ratio key amt)) (Map.toUnfoldable singleDemand :: Array _))
+    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (Map.toUnfoldable singleDemand :: Array _))
     scaleOf item = fromMaybe (Q.fromInt 1) (Map.lookup item.proposal.author entityScale)
   in
     { items: map (\i -> { item: i, scale: Q.fromInt 1 }) kept <> map (\i -> { item: i, scale: scaleOf i }) singles
     , events: map (\d -> Rejected { round: w.round, proposal: d.proposal.id, reason: "a party cannot fund the deal" }) dropped
     }
-  where
-  fst' (Tuple a _) = a
-  snd' (Tuple _ b) = b
 
 -- Settlement (§8.1 phase 6) ---------------------------------------------------
 
@@ -321,10 +317,10 @@ derive instance Ord Account
 type Ledger = Map (Tuple Account ResourceId) Q
 
 move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
-move from to r q = adjust to r q <<< adjust from r (Q.sub Q.zero q)
+move from to r q = adjust to r q <<< adjust from r (Q.neg q)
 
 adjust :: Account -> ResourceId -> Q -> Ledger -> Ledger
-adjust a r q = Map.alter (Just <<< Q.add q <<< fromMaybe Q.zero) (Tuple a r)
+adjust a r q = Map.insertWith Q.add (Tuple a r) q
 
 type Settlement =
   { ledger :: Ledger
@@ -356,7 +352,7 @@ settle w scaled0 =
 facilities :: WorldState -> Array Scaled -> Facilities
 facilities w scaled = foldl (allocate w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (Map.toUnfoldable groups :: Array _)
   where
-  groups = Map.fromFoldableWith (flip (<>)) (map (\o -> Tuple (maybe (Left o.tid) Right o.capacity) [ o ]) (facilityOrders w scaled))
+  groups = groupBy (\o -> maybe (Left o.tid) Right o.capacity) (facilityOrders w scaled)
 
 type FacilityOrder =
   { key :: Tuple ProposalId Int
@@ -423,7 +419,7 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
       os = sortWith (\o -> Tuple o.entity o.pid) (filter (\o -> o.market == id) orders)
       lo = m.cost.domain.lo
       hi = m.cost.domain.hi
-      bounds = { minNet: Q.sub lo m.position, maxNet: min (Q.sub hi m.position) (fromMaybe Q.zero (Map.lookup m.base m.reserves)) }
+      bounds = { minNet: Q.sub lo m.position, maxNet: min (Q.sub hi m.position) (lookupQ m.base m.reserves) }
       r = Market.clear m.cost m.position bounds os
       fill a f =
         let
@@ -452,7 +448,7 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
           start = w.round + max 1 tr.delay
           change = { round: start, entity: holder, target: CapacityOf e.capacity, quantity: Q.mul e.perUnit q }
         in
-          [ change ] <> maybe [] (\n -> [ change { round = start + n, quantity = Q.sub Q.zero change.quantity } ]) e.rounds
+          [ change ] <> maybe [] (\n -> [ change { round = start + n, quantity = Q.neg change.quantity } ]) e.rounds
     )
     tr.effects
   one a (Tuple i intent) = case intent of
@@ -461,8 +457,8 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
         let
           price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (pricedTotal tr)) tr.cost
           paid = Q.mul price q
-          pay l = maybe (adjust (Ent t.by) w.numeraire (Q.sub Q.zero paid) l) (\p -> move (Ent t.by) (Ent p) w.numeraire paid l) tr.payee
-          consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.sub Q.zero (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
+          pay l = maybe (adjust (Ent t.by) w.numeraire (Q.neg paid) l) (\p -> move (Ent t.by) (Ent p) w.numeraire paid l) tr.payee
+          consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
           outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
           produce l = foldl
@@ -509,6 +505,10 @@ transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
 circulate :: WorldState -> Settlement -> Settlement
 circulate w = decay w <<< fixedFlows w <<< requirements w <<< revenueShares w <<< production w
 
+-- | Group items into arrays by key, keeping their order.
+groupBy :: forall k a. Ord k => (a -> k) -> Array a -> Map k (Array a)
+groupBy key xs = Map.fromFoldableWith (flip (<>)) (map (\x -> Tuple (key x) [ x ]) xs)
+
 -- | Move a quantity between Entities and record it; zero moves nothing.
 transfer :: WorldState -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement
 transfer w from to resource quantity st
@@ -520,7 +520,7 @@ transfer w from to resource quantity st
 
 -- | What an Entity holds after the settlement so far.
 net :: WorldState -> EntityId -> ResourceId -> Settlement -> Q
-net w e r st = Q.add (available w e r) (fromMaybe Q.zero (Map.lookup (Tuple (Ent e) r) st.ledger))
+net w e r st = Q.add (holding w e r) (lookupQ (Tuple (Ent e) r) st.ledger)
 
 -- | The base Resource a Market trades.
 marketBase :: WorldState -> MarketId -> Maybe ResourceId
@@ -534,8 +534,7 @@ sumEvents f st = Q.sumQ (concatMap f st.events)
 production :: WorldState -> Settlement -> Settlement
 production w st = st { deliveries = st.deliveries <> map scheduled w.circulation.production }
   where
-  scheduled p = { round: w.round + 1, entity: p.entity, target: Holding p.resource, quantity: capacity p.entity p.capacity }
-  capacity e ref = fromMaybe Q.zero (Map.lookup e w.entities >>= \x -> Map.lookup ref x.capacities)
+  scheduled p = { round: w.round + 1, entity: p.entity, target: Holding p.resource, quantity: capacityHeld w p.entity p.capacity }
 
 -- | Variable shares of sales revenue or payee receipts, paid in the numeraire.
 revenueShares :: WorldState -> Settlement -> Settlement
@@ -545,7 +544,7 @@ revenueShares w st0 = foldl pay st0 w.circulation.shares
   base sh = case sh.source of
     SalesOf r -> max Q.zero $ sumEvents
       ( case _ of
-          Traded t | t.entity == sh.from && marketBase w t.market == Just r -> [ Q.sub Q.zero (Q.mul t.price t.quantity) ]
+          Traded t | t.entity == sh.from && marketBase w t.market == Just r -> [ Q.neg (Q.mul t.price t.quantity) ]
           _ -> []
       )
       st0
@@ -577,7 +576,7 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
       when' cond ev = if cond then [ ev ] else []
     in
       { st: acc.st
-          { ledger = adjust (Ent rq.entity) rq.resource (Q.sub Q.zero consumed) acc.st.ledger
+          { ledger = adjust (Ent rq.entity) rq.resource (Q.neg consumed) acc.st.ledger
           , events = acc.st.events
               <> when' (consumed > Q.zero) (Consumed { round: w.round, entity: rq.entity, resource: rq.resource, quantity: consumed })
               <> when' (short > Q.zero) (Shortfall { round: w.round, entity: rq.entity, resource: rq.resource, quantity: short })
@@ -589,11 +588,11 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
 fixedFlows :: WorldState -> Penalised -> Settlement
 fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.from f.to f.resource amount acc) st (concatMap reduce byRecipient)
   where
-  byRecipient = Map.toUnfoldable (Map.fromFoldableWith (flip (<>)) (map (\f -> Tuple f.to [ f ]) w.circulation.flows)) :: Array _
+  byRecipient = Map.toUnfoldable (groupBy _.to w.circulation.flows) :: Array _
   reduce (Tuple to fs) =
     let
       incoming = Q.sumQ (map _.amount fs)
-      cut = min incoming (fromMaybe Q.zero (Map.lookup to penalties))
+      cut = min incoming (lookupQ to penalties)
     in
       zipWith (\f k -> Tuple f (Q.sub f.amount k)) fs (Q.proRata cut (map _.amount fs))
 
@@ -608,7 +607,7 @@ decay w st0 = foldl lose st0 holdings
         lost = Q.mul d.rate (max Q.zero (net w e r acc))
       in
         if lost == Q.zero then acc
-        else acc { ledger = adjust (Ent e) r (Q.sub Q.zero lost) acc.ledger, events = acc.events <> [ Decayed { round: w.round, entity: e, resource: r, quantity: lost } ] }
+        else acc { ledger = adjust (Ent e) r (Q.neg lost) acc.ledger, events = acc.events <> [ Decayed { round: w.round, entity: e, resource: r, quantity: lost } ] }
     Nothing -> acc
 
 -- Phase 7: commit -------------------------------------------------------------
@@ -617,7 +616,7 @@ commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map
 commit w inputs screenEvents factors st = do
   entities <- traverse applyEntity w.entities
   let
-    markets' = mapWithKey'
+    markets' = mapWithIndex
       ( \id m -> m
           { reserves = applyHoldings (Mkt id) m.reserves
           , position = fromMaybe m.position (Map.lookup id st.positions)
@@ -636,7 +635,7 @@ commit w inputs screenEvents factors st = do
       }
   pure { world, record: { round: w.round, inputs, events } }
   where
-  applyHoldings acct hs = foldl (\h (Tuple (Tuple a r) q) -> if a == acct then Map.alter (Just <<< Q.add q <<< fromMaybe Q.zero) r h else h) hs (Map.toUnfoldable st.ledger :: Array _)
+  applyHoldings acct hs = foldl (\h (Tuple (Tuple a r) q) -> if a == acct then Map.insertWith Q.add r q h else h) hs (Map.toUnfoldable st.ledger :: Array _)
   applyEntity e =
     let
       accounts = applyHoldings (Ent e.id) e.accounts
@@ -644,4 +643,3 @@ commit w inputs screenEvents factors st = do
       case find (\(Tuple _ q) -> q < Q.zero) (Map.toUnfoldable accounts :: Array _) of
         Just (Tuple r _) -> Left (NegativeBalance e.id r)
         Nothing -> Right e { accounts = accounts }
-  mapWithKey' f m = Map.mapMaybeWithKey (\k v -> Just (f k v)) m

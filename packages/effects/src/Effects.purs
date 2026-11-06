@@ -33,7 +33,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
-import Data.Traversable (for, traverse)
+import Data.Traversable (for)
 import Foreign.Object (Object)
 import Policy.Interpret (Draft, Env)
 import Policy.Interpret as Policy
@@ -43,6 +43,8 @@ import Data.Argonaut.Decode (JsonDecodeError)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Board.Decode (toMap)
 import Run (Run, lift)
+import Data.Foldable (for_)
+import Core.Query (isAggregate)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
@@ -131,12 +133,9 @@ runRound inWorld w0 = do
     signed :: Array SignedProposal
     signed = map (\p -> { proposal: p, signatures: map _.entity (filter (\s -> p.id `elem` s.ids) signatures) }) proposals
     result = resolveRound w signed
-  _ <- traverse (\r -> lift _record (Record r unit)) (either' result)
+  for_ result \r -> lift _record (Record r unit)
   pure result
   where
-  either' = case _ of
-    Right r -> [ r ]
-    Left _ -> []
   proposeFor e v = case policyOf e of
     Just program -> pure (Policy.propose program (env e v))
     Nothing -> lift _seatInput (Propose e.id v identity)
@@ -157,9 +156,6 @@ runRound inWorld w0 = do
     , home: homeMarket w0 e.id
     , random: \i -> draw w0.seed { round: w0.round, source: "policy", entity: unwrap e.id, category: "choice", index: i }
     }
-  isAggregate e = case e.kind of
-    Aggregate _ -> true
-    _ -> false
 
 type Tuple' = { index :: Int, draft :: Draft }
 

@@ -10,6 +10,7 @@ module Adapters.Store
   , createRun
   , persister
   , setStatus
+  , finish
   , reader
   , metricsVersion
   ) where
@@ -27,6 +28,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe)
 import Data.Tuple (Tuple(..))
+import Data.Either (Either, either)
 import Effect (Effect)
 import Effect.Ref as Ref
 
@@ -75,6 +77,10 @@ persister db id initial = do
 metrics :: RoundResult -> Array Metric
 metrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: show (marginal m.cost m.position) })
   (Map.toUnfoldable r.world.markets)
+
+-- | Mark a finished run completed, or failed if it ended in an error.
+finish :: forall e a. Db -> String -> Either e a -> Effect Unit
+finish db id out = setStatus db id (either (const "failed") (const "completed") out)
 
 setStatus :: Db -> String -> String -> Effect Unit
 setStatus db id status = runFn3 setStatusImpl db id status

@@ -60,14 +60,14 @@ clear c x0 bounds = go []
       buys = filter (\o -> o.quantity > Q.zero) orders
       sells = filter (\o -> o.quantity < Q.zero) orders
       b = Q.sumQ (map _.quantity buys)
-      s = Q.sub Q.zero (Q.sumQ (map _.quantity sells))
+      s = Q.neg (Q.sumQ (map _.quantity sells))
       wanted = Q.sub b s
       net = max bounds.minNet (min bounds.maxNet wanted)
       -- the binding side is filled pro rata
       buyFills = if net == wanted then map _.quantity buys else Q.proRata (Q.add s net) (map _.quantity buys)
       sellFills =
         if net == wanted then map _.quantity sells
-        else map (Q.sub Q.zero) (Q.proRata (Q.sub b net) (map (Q.sub Q.zero <<< _.quantity) sells))
+        else map Q.neg (Q.proRata (Q.sub b net) (map (Q.neg <<< _.quantity) sells))
       pair os qs = filter ((_ /= Q.zero) <<< _.quantity) (zipWith (\order quantity -> { order, quantity }) os qs)
     in
       { price: averagePrice c x0 net, net, fills: pair buys buyFills <> pair sells sellFills, rejected: [] }

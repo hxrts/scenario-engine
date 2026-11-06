@@ -3,7 +3,9 @@
 -- | JSON decoding for scenario data. The schema mirrors the core types one to one; this
 -- | module adds decoding only, never a second model.
 module Board.Decode
-  ( decodeWorld
+  ( readJson
+  , readJsonWith
+  , decodeWorld
   , decodeEntity
   , decodeRound
   , capability
@@ -23,7 +25,8 @@ import Core.Num as Q
 import Core.Types (CollectiveProcedure, Representation, CostFunction, Market, ResourceDefinition, Transformation, Capability(..), Entity, EntityKind(..), Controller(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
 import Core.World (Circulation, ShareSource(..), WorldState)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
+import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, fromJsonString, parseJson, printJsonDecodeError, (.:), (.:?), (.!=))
+import Data.Bifunctor (lmap)
 import Data.Array (mapWithIndex, groupBy, sortWith, concat)
 import Data.Array.NonEmpty (toArray)
 import Data.Either (Either(..))
@@ -50,6 +53,14 @@ type Expect =
 type Round = { inputs :: Array SignedProposal, expect :: Expect }
 
 -- | A World State and its rounds, from the compact scenario schema.
+-- | Parse and decode JSON text, with a readable error.
+readJson :: forall a. DecodeJson a => String -> Either String a
+readJson = lmap printJsonDecodeError <<< fromJsonString
+
+-- | Parse JSON text and decode it with a custom decoder.
+readJsonWith :: forall a. (Json -> Either JsonDecodeError a) -> String -> Either String a
+readJsonWith decode = lmap printJsonDecodeError <<< (parseJson >=> decode)
+
 decodeWorld :: Json -> Either JsonDecodeError { name :: String, world :: WorldState, rounds :: Array Round }
 decodeWorld j = do
   o <- decodeJson j
@@ -235,7 +246,7 @@ representation j = do
     , aggregate: Id aggregate
     , domain: Id domain
     , weight
-    , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.sub Q.zero b, hi: b }) bound, noiseSpread }
+    , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
     }
 
 decodeCirculation :: Json -> Either JsonDecodeError Circulation

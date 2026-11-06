@@ -27,6 +27,7 @@ package:
     - web-dom
     - web-html
     - sp-harness
+    - sp-board
   test:
     main: Test.Dashboard.Main
     dependencies:

@@ -4,6 +4,8 @@ module Test.Adapters.Main where
 
 import Prelude
 
+import Board.Decode (readJson)
+
 import Adapters.Store (createRun, open, persister, reader, setStatus)
 import Board.Gameboard (instantiate)
 import Control.Monad.Error.Class (throwError)
@@ -11,11 +13,8 @@ import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.World (RoundRecord, WorldState)
 import Data.Argonaut.Core (fromString, stringify)
-import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (length)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -62,8 +61,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rows <- liftEffect (store.rounds "run-1")
       length rows `shouldEqual` 5
       -- byte-identical reload: decoding and re-encoding reproduces the stored text
-      records <- orThrow (traverse (\r -> (jsonParser r.record >>= lmap printJsonDecodeError <<< decodeJson) :: Either String RoundRecord) rows)
-      snapshots <- orThrow (traverse (\r -> (jsonParser r.snapshot >>= lmap printJsonDecodeError <<< decodeJson) :: Either String WorldState) rows)
+      records <- orThrow (traverse (\r -> readJson r.record :: Either String RoundRecord) rows)
+      snapshots <- orThrow (traverse (\r -> readJson r.snapshot :: Either String WorldState) rows)
       map (stringify <<< encodeJson) records `shouldEqual` map _.record rows
       map (stringify <<< encodeJson) snapshots `shouldEqual` map _.snapshot rows
       -- the stored run equals the pure run, and replaying stored records reproduces it

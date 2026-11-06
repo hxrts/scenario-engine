@@ -6,6 +6,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Query (lookupQ)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), Intent(..), MarketId, ProposalId, Rule(..), RuleChange(..))
 import Core.World (Event(..), View)
 import Data.Array (all, any, concatMap, filter, index, length, null)
@@ -43,8 +44,8 @@ eval env = case _ of
   Lit q -> q
   Param name -> fromMaybe Q.zero (Object.lookup name env.params)
   Round -> Q.fromInt env.view.round
-  Price m -> fromMaybe Q.zero (Map.lookup (market env m) env.view.prices)
-  Holding r -> fromMaybe Q.zero (Map.lookup r env.view.self.accounts)
+  Price m -> lookupQ (market env m) env.view.prices
+  Holding r -> lookupQ r env.view.self.accounts
   Factor d -> fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors)
   Mul a b -> Q.mul (eval env a) (eval env b)
   Sub a b -> Q.sub (eval env a) (eval env b)

@@ -27,12 +27,13 @@ import Prelude
 import Board.Gameboard (Gameboard)
 import Core.Invariants (Failure)
 import Core.Market (marginal)
+import Core.Query (holding, lookupQ, priceOf, totalHolding)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.World (Event(..), Manifest, RoundRecord, WorldState)
 import Core.Types (EntityId, EntityKind(..), Id, Intent(..), ResourceId)
 import Data.String (joinWith)
-import Data.Array (concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
+import Data.Array (concat, concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap, wrap)
@@ -76,7 +77,7 @@ runList :: Array StoredRun -> Table
 runList runs =
   { title: "Simulation runs"
   , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing" ]
-  , rows: map (\r -> [ r.id, r.name, r.manifest.gameboard, show r.manifest.initial.seed, r.playerSeed, show (length r.records), r.status, show (length (concatMap identity r.assertions)) ]) runs
+  , rows: map (\r -> [ r.id, r.name, r.manifest.gameboard, show r.manifest.initial.seed, r.playerSeed, show (length r.records), r.status, show (length (concat r.assertions)) ]) runs
   }
 
 overview :: StoredRun -> Table
@@ -92,7 +93,7 @@ overview r =
       , [ "Game seed", show r.manifest.initial.seed ]
       , [ "Player seed", r.playerSeed ]
       , [ "Rounds", show (length r.records) ]
-      , [ "Assertions failing", show (length (concatMap identity r.assertions)) ]
+      , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (count isRejected) ]
       , [ "Military procured", q (Q.sumQ (concatMap (procured "Mil") (concatMap _.events r.records))) ]
       ] <> map (\(Tuple id m) -> [ "Final price " <> show id, q (marginal m.cost m.position) ]) (Map.toUnfoldable (final r).markets)
@@ -116,8 +117,7 @@ balances r n =
   where
   w = at r n
   w0 = r.manifest.initial
-  amount world e res = fromMaybe Q.zero (Map.lookup e world.entities >>= \x -> Map.lookup res x.accounts)
-  sheet e = map (\res -> [ show e, kindOf w e, show res, q (amount w0 e res), q (amount w e res), q Q.zero, q (Q.sub (amount w e res) (amount w0 e res)) ])
+  sheet e = map (\res -> [ show e, kindOf w e, show res, q (holding w0 e res), q (holding w e res), q Q.zero, q (Q.sub (holding w e res) (holding w0 e res)) ])
     (resources e)
 
   resources :: EntityId -> Array ResourceId
@@ -134,7 +134,7 @@ series r _ f g =
 markets :: StoredRun -> Array Chart
 markets r =
   [ { title: "Marginal price", unit: "M/E", series: series r "price" (\w -> map (\(Tuple id m) -> Tuple (show id) (marginal m.cost m.position)) (Map.toUnfoldable w.markets)) q }
-  , { title: "Energy reserves", unit: "E", series: series r "reserves" (\w -> map (\(Tuple id m) -> Tuple (show id) (fromMaybe Q.zero (Map.lookup m.base m.reserves))) (Map.toUnfoldable w.markets)) q }
+  , { title: "Energy reserves", unit: "E", series: series r "reserves" (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) q }
   , { title: "Traded volume", unit: "E", series: volume }
   ]
   where
@@ -183,11 +183,8 @@ resourceTotals :: StoredRun -> Chart
 resourceTotals r =
   { title: "Resource totals across all accounts"
   , unit: ""
-  , series: series r "totals" (\w -> map (\res -> Tuple (show res) (total w res)) (fromFoldable (Map.keys w.resources))) q
+  , series: series r "totals" (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources))) q
   }
-  where
-  total w res = Q.add (Q.sumQ (map (\e -> fromMaybe Q.zero (Map.lookup res e.accounts)) (fromFoldable (Map.values w.entities))))
-    (Q.sumQ (map (\m -> fromMaybe Q.zero (Map.lookup res m.reserves)) (fromFoldable (Map.values w.markets))))
 
 -- | Money moved between categories of Entity (Actor or Aggregate) over the run.
 moneyFlows :: StoredRun -> Table
@@ -302,12 +299,8 @@ events :: StoredRun -> Int -> Table
 events r n =
   { title: "Events, round " <> show n
   , columns: [ "Event" ]
-  , rows: maybe' [] (map (\e -> [ show e ]) <<< _.events) (index r.records (n - 1))
+  , rows: maybe [] (map (\e -> [ show e ]) <<< _.events) (index r.records (n - 1))
   }
-  where
-  maybe' d f = case _ of
-    Just x -> f x
-    Nothing -> d
 
 -- Comparison --------------------------------------------------------------------
 
@@ -320,10 +313,7 @@ compatible runs =
   }
   where
   first = index runs 0
-  same r = maybe' true (\f -> f.manifest.gameboard == r.manifest.gameboard && length f.records == length r.records) first
-  maybe' d f = case _ of
-    Just x -> f x
-    Nothing -> d
+  same r = maybe true (\f -> f.manifest.gameboard == r.manifest.gameboard && length f.records == length r.records) first
 
 -- | One market's price across runs, aligned by round.
 trajectories :: Array StoredRun -> String -> Chart
@@ -333,7 +323,7 @@ trajectories runs market =
   , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: q (price w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
   }
   where
-  price w = fromMaybe Q.zero (map (\m -> marginal m.cost m.position) (Map.lookup (wrapId market) w.markets))
+  price w = fromMaybe Q.zero (priceOf w (wrapId market))
 
   wrapId :: forall t. String -> Id t
   wrapId = wrap
@@ -342,13 +332,12 @@ finalState :: Array StoredRun -> Table
 finalState runs =
   { title: "Final state"
   , columns: [ "Entity", "Resource" ] <> map _.id runs
-  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> q (amount (final r) e res)) runs) keys
+  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> q (holding (final r) e res)) runs) keys
   }
   where
   keys = case index runs 0 of
     Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\(Tuple e x) -> map (Tuple e) (fromFoldable (Map.keys x.accounts))) (Map.toUnfoldable (final r).entities))
     Nothing -> []
-  amount w e res = fromMaybe Q.zero (Map.lookup e w.entities >>= \x -> Map.lookup res x.accounts)
 
 -- | Each run's final holdings minus the baseline's, where they differ.
 baselineDiff :: StoredRun -> Array StoredRun -> Table
@@ -360,7 +349,7 @@ baselineDiff base others =
           ( \(Tuple e x) -> concatMap
               ( \(Tuple res v) ->
                   let
-                    d = Q.sub v (fromMaybe Q.zero (Map.lookup e (final base).entities >>= \b -> Map.lookup res b.accounts))
+                    d = Q.sub v (holding (final base) e res)
                   in
                     if d == Q.zero then [] else [ [ r.id, show e, show res, q d ] ]
               )

@@ -1,6 +1,6 @@
 -- | The four generic components (RecordTable, MetricChart, RunPicker, DiffTable) and the
 -- | fetching panel. They render the harness view models as given; no game logic here.
-module Dashboard.Components (recordTable, diffTable, metricChart, runPicker, panel, Render, as, card) where
+module Dashboard.Components (recordTable, plainTable, status, diffTable, metricChart, runPicker, panel, Render, as, card) where
 
 import Prelude
 
@@ -32,6 +32,16 @@ card title body = element UI.card
 -- | A view-model Table; `link` turns a row into a link on its first cell.
 recordTable :: (Array String -> Maybe String) -> Table -> JSX
 recordTable link t = cells (\_ _ -> false) link t
+
+-- | A Table with no row links.
+plainTable :: Table -> JSX
+plainTable = recordTable (const Nothing)
+
+-- | A fetch in progress, or its error.
+status :: Maybe String -> JSX
+status = case _ of
+  Nothing -> D.p { className: "text-muted-foreground", children: [ D.text "Loading…" ] }
+  Just e -> D.pre { className: "text-destructive", children: [ D.text e ] }
 
 -- | A Table whose value cells are highlighted where they differ from the first value column.
 diffTable :: Table -> JSX
@@ -97,6 +107,6 @@ panel :: Component { path :: String, render :: Render }
 panel = component "Panel" \p -> React.do
   res <- useApi unit p.path
   pure case res of
-    Nothing -> D.p { className: "text-muted-foreground", children: [ D.text "Loading…" ] }
-    Just (Left e) -> D.pre_ [ D.text e ]
     Just (Right j) -> p.render j
+    Just (Left e) -> status (Just e)
+    Nothing -> status Nothing

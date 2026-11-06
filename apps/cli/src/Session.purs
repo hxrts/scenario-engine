@@ -6,7 +6,7 @@ module Session (Options, session) where
 import Prelude
 
 import Adapters.Llm (agents, interpreter, narrator, pi)
-import Adapters.Store (createRun, open, persister, setStatus)
+import Adapters.Store (createRun, finish, open, persister)
 import Board.Gameboard (instantiate)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..))
@@ -14,7 +14,7 @@ import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (elem, filter, fromFoldable)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (maybe)
 import Data.String (Pattern(..), joinWith, split)
@@ -78,7 +78,7 @@ session o = load (o.scenario <> "/v0") >>= case _ of
         }
         (runGame inWorld o.rounds w0)
       liftEffect do
-        setStatus db o.id (either (const "failed") (const "completed") out)
+        finish db o.id out
         closePrompt
         log ("Session saved as " <> o.id <> " (runs.db; evidence in " <> dir <> ")")
     Left es, _ -> log (show es)
