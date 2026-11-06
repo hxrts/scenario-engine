@@ -17,7 +17,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Uncurried (mkEffectFn1)
 import Foreign.Object as Object
-import Harness.Views (Chart, Table)
+import Harness.Views.Common (Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, element)
 import React.Basic.Hooks as React
