@@ -7,7 +7,7 @@
 -- | absent field takes the decoder's default, or is a decode error if the decoder requires
 -- | it. Tagged strings (capabilities, fallbacks, measures, spans, share sources) are built
 -- | from the constants in `Board.Tags`, the same constants the decoders match on.
-module Scenario.DSL
+module DSL
   ( Qty
   , class ToQty
   , q

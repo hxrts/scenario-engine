@@ -5,7 +5,7 @@ module Scenarios.Presets where
 import Prelude (negate)
 
 import Data.Tuple (Tuple(..))
-import Scenario.DSL (Built, Clause, Keyed, choose, gt, holding, keyed, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
+import DSL (Built, Clause, Keyed, choose, gt, holding, keyed, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2).
 presets :: Keyed (Built "program")

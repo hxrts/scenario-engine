@@ -16,7 +16,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Prim.Row (class Union)
 import Record (union)
-import Scenario.DSL
+import DSL
 import Scenarios.FracturedWorld (asiaTerms, atlanticTerms, coreResources, defenceAccess, defenceTerms, deployment, gameSeed, majorMilitaryAction, procurement, energyShipping, productionCapacity, flows, requirements, resources, smeSample, transport)
 import Scenarios.FracturedWorld.Entities (euAggregate, globalSmesAggregate)
 

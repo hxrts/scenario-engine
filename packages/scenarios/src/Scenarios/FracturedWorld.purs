@@ -27,7 +27,7 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Tuple (Tuple(..))
 import Record (union)
-import Scenario.DSL (Built, Keyed, Qty, assignment, cost, effect, estimator, facility, flow, free, keyed, market, nonTransferable, payee, production, q, requirement, resource, restricted, sales, scheme, share, (:=))
+import DSL (Built, Keyed, Qty, assignment, cost, effect, estimator, facility, flow, free, keyed, market, nonTransferable, payee, production, q, requirement, resource, restricted, sales, scheme, share, (:=))
 import Scenarios.FracturedWorld.Entities (entities)
 import Scenarios.FracturedWorld.Policies (policies)
 
