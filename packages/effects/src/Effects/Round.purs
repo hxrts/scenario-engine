@@ -8,7 +8,8 @@ module Effects.Round
 
 import Prelude
 
-import Core.Engine (EngineError, observe, prepareRound, resolveRound)
+import Core.Engine.Commit (EngineError, resolveRound)
+import Core.Engine.Prepare (observe, prepareRound)
 import Core.Query (isAggregate)
 import Core.Types (Entity, EntityId, Proposal, SignedProposal, proposalId)
 import Core.World (RoundResult, View, WorldState)

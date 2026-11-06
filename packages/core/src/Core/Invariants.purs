@@ -7,7 +7,8 @@ module Core.Invariants (Failure, check, checkRun) where
 
 import Prelude
 
-import Core.Engine (authorizedIn, executor, prepareRound)
+import Core.Engine.Prepare (prepareRound)
+import Core.Engine.Screen (authorizedIn, executor)
 import Core.Query (lookupQ, totalHolding)
 import Core.Num as Q
 import Core.Types (EntityKind(..), SignedProposal)

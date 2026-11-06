@@ -19,7 +19,7 @@ import Prelude
 
 import Board.Decode (readJson)
 
-import Core.Engine (authorized, executor)
+import Core.Engine.Screen (authorized, executor)
 import Control.Monad.Error.Class (catchError, throwError)
 import Core.Types (Entity, EntityId, ProposalId, proposalId)
 import Core.World (View)

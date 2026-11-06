@@ -24,7 +24,7 @@ import Effect.Ref as Ref
 import Effects.Environment (InWorld, inWorldOf)
 import Effects.Round (runGame)
 import Effects.Signatures (ClockF(..), Deadline(..), InterpretF(..), Interpretation(..), NarrateF(..))
-import Core.Engine (observe)
+import Core.Engine.Prepare (observe)
 import Partial.Unsafe (unsafeCrashWith)
 import Handlers.Live (Prompt, Seat(..), runLive)
 import Handlers.Replay (runReplay)

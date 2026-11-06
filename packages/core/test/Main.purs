@@ -5,7 +5,8 @@ import Prelude
 import JS.BigInt (BigInt)
 import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
-import Core.Engine (EngineError, prepareRound, resolveRound)
+import Core.Engine.Commit (EngineError, resolveRound)
+import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (check)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q)

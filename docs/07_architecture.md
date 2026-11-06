@@ -79,7 +79,7 @@ Dependency order, read bottom to top: `core ← board, policy ← effects ← ha
 
 These are the seams. Every other piece is an internal detail of a package.
 
-**Engine** (`core/Engine`). This is pure and is the only operation that mutates the economy:
+**Engine** (`core/Engine/`, one module per phase of [§8.1](02_type_system.md#81-canonical-resolution-sequence): `Prepare`, `Screen`, `Fund`, `Settle`, `Circulate`, `Commit`; `Commit.resolveRound` is the entry point). This is pure and is the only operation that mutates the economy:
 
 ```purescript
 resolveRound :: WorldState -> Array SignedProposal
