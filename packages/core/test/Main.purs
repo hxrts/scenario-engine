@@ -3,15 +3,18 @@ module Test.Core.Main where
 import Prelude
 
 import Core.Draw (Seed(..), draw)
-import Core.Market (clear)
-import Data.Maybe (Maybe(..))
+import Core.Engine (EngineError, prepareRound, resolveRound)
+import Core.Market (averagePrice, clear)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.World (Event(..))
-import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), Transferability(..), proposalId)
+import Core.Query (capacityHeld, holding)
+import Core.Represent as Represent
+import Core.World (Event(..), RoundResult, Target(..), WorldState)
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
+import Data.Tuple (Tuple(..))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (filter, length)
+import Data.Array (concatMap, filter, length)
 import Data.Array.NonEmpty (cons')
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -76,6 +79,80 @@ q s = case Q.parse s of
   Just x -> x
   Nothing -> Q.zero
 
+-- Engine fixtures -----------------------------------------------------------------
+
+-- | An Actor holding 100 of the numeraire M and the given capabilities.
+actor :: String -> Array Capability -> Entity
+actor name caps =
+  { id: Id name
+  , accounts: Map.singleton (Id "M") (Q.fromInt 100)
+  , capacities: Map.empty
+  , capabilities: caps
+  , kind: Actor (Seat (Id name))
+  }
+
+-- | A World State over the given Entities, with resources M (numeraire) and E, no markets, and
+-- | no rules, in round 1.
+baseWorld :: Array Entity -> WorldState
+baseWorld es =
+  { round: 1
+  , seed: Seed 1
+  , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
+  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free, decay: Nothing, reservable: false }) [ "M", "E" ])
+  , markets: Map.empty
+  , transformations: Map.empty
+  , representations: []
+  , numeraire: Id "M"
+  , transport: Map.empty
+  , jurisdiction: Map.empty
+  , rules: Map.empty
+  , scheduled: Map.empty
+  , deliveries: []
+  , factors: Map.empty
+  , circulation: { production: [], flows: [], shares: [], requirements: [] }
+  , events: []
+  }
+
+-- | An ordinary, unsigned-by-others Proposal from `author`, numbered `index` in round 1.
+submit :: String -> Int -> Array Intent -> SignedProposal
+submit author index intents =
+  { proposal: { id: proposalId 1 (Id author) index, author: Id author, intents, signers: [], procedure: Nothing }
+  , signatures: []
+  }
+
+-- | The quantity of a Transformed event.
+transformedQ :: Event -> Array Q
+transformedQ = case _ of
+  Transformed t -> [ t.quantity ]
+  _ -> []
+
+-- | The reasons of the Rejected events of a resolved round (or the engine error).
+rejections :: Either EngineError RoundResult -> Array String
+rejections = case _ of
+  Right r -> concatMap reason r.record.events
+  Left e -> [ show e ]
+  where
+  reason = case _ of
+    Rejected x -> [ x.reason ]
+    _ -> []
+
+eventsOf :: Either EngineError RoundResult -> Array Event
+eventsOf = case _ of
+  Right r -> r.record.events
+  Left _ -> []
+
+-- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
+market :: Array String -> Market
+market access =
+  { id: Id "EM"
+  , base: Id "E"
+  , quote: Id "M"
+  , cost: { base: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
+  , position: Q.zero
+  , reserves: Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
+  , access: map Id access
+  }
+
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Core.Num" do
@@ -95,6 +172,25 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "proRataWhole allocates whole units by largest remainder" do
       Q.proRataWhole (Q.fromInt 30) [ Q.fromInt 15, Q.fromInt 8, Q.fromInt 9 ]
         `shouldEqual` [ Q.fromInt 14, Q.fromInt 8, Q.fromInt 8 ]
+    it "proRataWhole floors a fractional total to whole units" do
+      Q.proRataWhole (q "30.5") [ Q.fromInt 15, Q.fromInt 8, Q.fromInt 9 ]
+        `shouldEqual` [ Q.fromInt 14, Q.fromInt 8, Q.fromInt 8 ]
+    it "allocates nothing when the weights sum to zero" do
+      Q.proRataWhole (Q.fromInt 30) [ Q.zero, Q.zero ] `shouldEqual` [ Q.zero, Q.zero ]
+    it "parses only an optional sign, digits, and an optional fraction" do
+      Q.parse "--1.5" `shouldEqual` Nothing
+      Q.parse "1.-5" `shouldEqual` Nothing
+      Q.parse "1..5" `shouldEqual` Nothing
+      Q.parse "1." `shouldEqual` Nothing
+      Q.parse " 1" `shouldEqual` Nothing
+      Q.parse "-" `shouldEqual` Nothing
+      Q.parse "+2.5" `shouldEqual` Just (q "2.5")
+      Q.parse "-0.25" `shouldEqual` Just (q "-0.25")
+    it "divMaybe and divFloor refuse a zero divisor; divFloor truncates to the grid" do
+      Q.divMaybe (q "1") Q.zero `shouldEqual` Nothing
+      Q.divFloor (q "1") Q.zero `shouldEqual` Nothing
+      Q.divFloor (q "2") (q "3") `shouldEqual` Just (q "0.6666")
+      Q.divMaybe (q "2") (q "4") `shouldEqual` Just (q "0.5")
   describe "Core.Market clearing" do
     let
       cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.fromInt 0, hi: Q.fromInt 100 } }
@@ -113,6 +209,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       sideSum (_ < Q.zero) r.fills `shouldEqual` Q.fromInt (-7)
       Q.sumQ (map _.quantity r.fills) `shouldEqual` Q.fromInt (-3)
 
+  describe "Core.Market prices" do
+    it "averagePrice is the marginal price at the midpoint of the move" do
+      let c = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
+      -- C(q) = q + q²/2, so C(3) - C(2) = 3.5
+      averagePrice c (Q.fromInt 2) (Q.fromInt 1) `shouldEqual` q "3.5"
+      averagePrice c (Q.fromInt 2) Q.zero `shouldEqual` q "3"
   describe "Core.Draw" do
     let key = { round: 3, source: "sme-energy-sample", entity: "SME", category: "sampling", index: 0 }
     it "depends only on seed and key" do
@@ -124,6 +226,96 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure ((u >= Q.zero && u < Q.fromInt 1) === true)
     it "differs across seeds for equal keys" do
       draw (Seed 26021) key `shouldNotEqual` draw (Seed 1) key
+  describe "Core.Engine" do
+    it "rejects a Trade on an unknown market" do
+      let w = baseWorld [ actor "US" [ MayTrade (Id "XX") ] ]
+      rejections (resolveRound w [ submit "US" 0 [ Trade { market: Id "XX", quantity: Q.fromInt 1, limitPrice: Nothing } ] ])
+        `shouldEqual` [ "unknown market XX" ]
+    it "rejects a Transform of an unknown transformation" do
+      let w = baseWorld [ actor "US" [ MayTransform (Id "F") ] ]
+      rejections (resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "F", quantity: Q.fromInt 1 } ] ])
+        `shouldEqual` [ "unknown transformation F" ]
+    it "rejects a Transfer to an unknown entity" do
+      let w = baseWorld [ actor "US" [ MayTransfer (Id "M") ] ]
+      rejections (resolveRound w [ submit "US" 0 [ Transfer { from: Id "US", to: Id "NOBODY", resource: Id "M", quantity: Q.fromInt 1 } ] ])
+        `shouldEqual` [ "unknown entity NOBODY" ]
+    it "rejects a Trade by an Entity outside the Market's access" do
+      let w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "EU" ]) }
+      rejections (resolveRound w [ submit "US" 0 [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ] ])
+        `shouldEqual` [ "US has no access to EM" ]
+    it "accepts a Trade by an Entity with access" do
+      let w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]) }
+      rejections (resolveRound w [ submit "US" 0 [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ] ])
+        `shouldEqual` []
+    it "rejects repealing an unknown rule" do
+      let w = baseWorld [ actor "US" [ MayEnact TariffRule ] ]
+      rejections (resolveRound w [ submit "US" 0 [ ChangeRule (Repeal (Id "nope")) ] ])
+        `shouldEqual` [ "unknown rule nope" ]
+    it "rejects every copy of a duplicated ProposalId" do
+      let w = baseWorld [ actor "US" [] ]
+      rejections (resolveRound w [ submit "US" 0 [], submit "US" 0 [] ])
+        `shouldEqual` [ "duplicate proposal id", "duplicate proposal id" ]
+    it "a procedure's enactment is limited to its own jurisdiction" do
+      let
+        proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayEnact TariffRule ] }
+        eu = (actor "EU" []) { kind = Aggregate { policy: Id "p", members: [], procedures: Map.singleton (Id "trade") proc } }
+        tariff j = Tariff { jurisdiction: j, origin: Id "US", rate: q "0.1" }
+        procedureSubmit j =
+          { proposal: { id: proposalId 1 (Id "EU") 0, author: Id "EU", intents: [ ChangeRule (Enact (tariff j)) ], signers: [], procedure: Just (Id "trade") }
+          , signatures: []
+          }
+        w = baseWorld [ eu ]
+      rejections (resolveRound w [ procedureSubmit (Id "DE") ]) `shouldEqual` [ "a Tariff applies only to the enacting jurisdiction" ]
+      rejections (resolveRound w [ procedureSubmit (Id "EU") ]) `shouldEqual` []
+    it "a procedure's Intents face the same market access check" do
+      let
+        proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayTrade (Id "EM") ] }
+        eu = (actor "EU" []) { kind = Aggregate { policy: Id "p", members: [], procedures: Map.singleton (Id "trade") proc } }
+        w = (baseWorld [ eu ]) { markets = Map.singleton (Id "EM") (market [ "US" ]) }
+        p =
+          { id: proposalId 1 (Id "EU") 0
+          , author: Id "EU"
+          , intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ]
+          , signers: []
+          , procedure: Just (Id "trade")
+          }
+      rejections (resolveRound w [ { proposal: p, signatures: [] } ]) `shouldEqual` [ "EU has no access to EM" ]
+    it "an overdrawing Transfer records a shortfall and the round proceeds" do
+      let w = baseWorld [ actor "US" [ MayTransfer (Id "M") ], actor "UK" [] ]
+      case resolveRound w [ submit "US" 0 [ Transfer { from: Id "US", to: Id "UK", resource: Id "M", quantity: Q.fromInt 500 } ] ] of
+        Right r -> do
+          holding r.world (Id "US") (Id "M") `shouldEqual` Q.zero
+          holding r.world (Id "UK") (Id "M") `shouldEqual` Q.fromInt 200
+        Left e -> show e `shouldEqual` "a round"
+    it "caps an uncapped facility's fills at its ceiling, so escrow bounds the settled price" do
+      let
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, cost: Just { base: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], actor "UK" [ MayTransform (Id "F") ] ]) { transformations = Map.singleton (Id "F") fac }
+        order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
+        filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
+      Q.sumQ filled `shouldEqual` Q.fromInt 10
+    it "clamps a delivery at zero and records only the change applied" do
+      let
+        us = (actor "US" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 5) }
+        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-10) } ] }
+        prepared = prepareRound w
+      capacityHeld prepared (Id "US") (Id "plant") `shouldEqual` Q.zero
+      prepared.events `shouldEqual` [ Delivered { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-5) } ]
+    it "a delivery to an unknown Entity applies nothing and records nothing" do
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", target: Holding (Id "M"), quantity: Q.fromInt 5 } ] }
+      (prepareRound w).events `shouldEqual` []
+    it "prepareRound is idempotent, and resolveRound applies due deliveries itself" do
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", target: Holding (Id "M"), quantity: Q.fromInt 7 } ] }
+      (prepareRound (prepareRound w)).events `shouldEqual` (prepareRound w).events
+      map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound w []) `shouldEqual` Right (Q.fromInt 107)
+      map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)
+    it "a Representation with a zero reference contributes no estimate" do
+      let
+        rep = { id: Id "r", actor: Id "US", aggregate: Id "EU", domain: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero } }
+        w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]), representations = [ rep ] }
+        p = { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }
+      (Represent.estimate w [ p ]).events `shouldEqual` []
+
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

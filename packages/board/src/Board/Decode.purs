@@ -190,7 +190,7 @@ transformation id j = do
     perUnit <- x .: "perUnit"
     rounds <- x .:? "rounds"
     pure { capacity: Id c, holder: map Id holder, perUnit, rounds }
-  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, maximum, capacityUse, ownerSigns, effects, authority: MayTransform (Id id) }
+  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, maximum, capacityUse, ownerSigns, effects }
 
 capability :: String -> Either JsonDecodeError Capability
 capability s = case split (Pattern ":") s of

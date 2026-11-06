@@ -3,7 +3,7 @@ module Core.Market
   ( marginal
   , cost
   , averagePrice
-  , Order
+  , BatchOrder
   , ClearResult
   , clear
   ) where
@@ -24,18 +24,19 @@ cost :: CostFunction -> Quantity -> Quantity
 cost c q = Q.add (Q.mul c.base q) (Q.div (Q.mul c.slope (Q.mul q q)) (Q.fromInt 2))
 
 -- | Average price of moving the position from `x0` by `d`; the marginal price when `d` is zero.
+-- | This is (C(x0 + d) − C(x0)) / d, which for a linear marginal price is exactly the marginal
+-- | price at the midpoint, base + slope·(2·x0 + d)/2. Computing it that way rounds twice, not
+-- | once per integral, so the error stays within one step however small `d` is.
 averagePrice :: CostFunction -> Quantity -> Quantity -> Price
-averagePrice c x0 d
-  | d == Q.zero = marginal c x0
-  | otherwise = Q.div (Q.sub (cost c (Q.add x0 d)) (cost c x0)) d
+averagePrice c x0 d = Q.add c.base (Q.div (Q.mul c.slope (Q.add (Q.mul (Q.fromInt 2) x0) d)) (Q.fromInt 2))
 
-type Order r = { quantity :: Quantity, limitPrice :: Maybe Price | r }
+type BatchOrder r = { quantity :: Quantity, limitPrice :: Maybe Price | r }
 
 type ClearResult r =
   { price :: Price
   , net :: Quantity
-  , fills :: Array { order :: Order r, quantity :: Quantity }
-  , rejected :: Array (Order r)
+  , fills :: Array { order :: BatchOrder r, quantity :: Quantity }
+  , rejected :: Array (BatchOrder r)
   }
 
 -- | Clear one Market's batch at a single uniform price. Buys are positive, sells negative.
@@ -43,7 +44,7 @@ type ClearResult r =
 -- | limit is violated at the computed price are removed and the price recomputed; removed
 -- | orders stay removed, so the result depends only on the set of orders. Orders must be in
 -- | canonical order.
-clear :: forall r. CostFunction -> Quantity -> { minNet :: Quantity, maxNet :: Quantity } -> Array (Order r) -> ClearResult r
+clear :: forall r. CostFunction -> Quantity -> { minNet :: Quantity, maxNet :: Quantity } -> Array (BatchOrder r) -> ClearResult r
 clear c x0 bounds = go []
   where
   go removed orders =

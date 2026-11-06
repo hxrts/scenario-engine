@@ -10,6 +10,8 @@ module Core.Num
   , abs
   , mul
   , div
+  , divMaybe
+  , divFloor
   , sumQ
   , parse
   , format
@@ -26,11 +28,13 @@ import Prelude as P
 import Data.Argonaut.Core (fromString, toString) as J
 import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..))
 import Data.Argonaut.Encode (class EncodeJson)
-import Data.Array (findIndex, foldl, mapWithIndex, sortBy, zipWith)
+import Data.Array (all, findIndex, foldl, mapWithIndex, sortBy, zipWith)
+import Data.Char (toCharCode)
 import Data.Either (note)
 import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), drop, indexOf, length, take) as S
+import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
 import JS.BigInt (BigInt)
 import JS.BigInt as BI
@@ -75,11 +79,23 @@ sub (Q a) (Q b) = Q (a - b)
 mul :: Q -> Q -> Q
 mul (Q a) (Q b) = Q (divRound (a * b) scale)
 
--- | Quotient, rounded half-to-even. Division by zero yields zero.
+-- | Quotient, rounded half-to-even. Division by zero yields zero, so a caller whose divisor can
+-- | be zero must use `divMaybe`, or check the divisor first.
 div :: Q -> Q -> Q
-div (Q a) (Q b)
-  | b == P.zero = zero
-  | otherwise = Q (divRound (a * scale) b)
+div a b = fromMaybe zero (divMaybe a b)
+
+-- | Quotient, rounded half-to-even; Nothing when the divisor is zero.
+divMaybe :: Q -> Q -> Maybe Q
+divMaybe (Q a) (Q b)
+  | b == P.zero = Nothing
+  | otherwise = Just (Q (divRound (a * scale) b))
+
+-- | Quotient truncated toward zero to the 0.0001 grid, so that `divFloor a b * b <= a` for
+-- | non-negative operands. Nothing when the divisor is zero.
+divFloor :: Q -> Q -> Maybe Q
+divFloor (Q a) (Q b)
+  | b == P.zero = Nothing
+  | otherwise = Just (Q (P.div (a * scale) b))
 
 -- | Integer division of `n` by `d` rounded half-to-even.
 divRound :: BigInt -> BigInt -> BigInt
@@ -107,17 +123,19 @@ abs q = if q < zero then neg q else q
 sumQ :: Array Q -> Q
 sumQ = foldl add zero
 
--- | Parse a decimal string with at most 4 fractional digits.
+-- | Parse a decimal string: an optional leading "-" or "+", one or more digits, and optionally
+-- | "." followed by one to four digits. Anything else (including a second sign) is Nothing.
 parse :: String -> Maybe Q
 parse s0 =
   let
     negative = S.take 1 s0 == "-"
-    s = if negative then S.drop 1 s0 else s0
-    { int, frac } = case S.indexOf (S.Pattern ".") s of
-      Nothing -> { int: s, frac: "" }
-      Just i -> { int: S.take i s, frac: S.drop (i + 1) s }
+    signed = negative || S.take 1 s0 == "+"
+    s = if signed then S.drop 1 s0 else s0
+    { int, frac, hasPoint } = case S.indexOf (S.Pattern ".") s of
+      Nothing -> { int: s, frac: "", hasPoint: false }
+      Just i -> { int: S.take i s, frac: S.drop (i + 1) s, hasPoint: true }
   in
-    if S.length frac > 4 || int == "" then Nothing
+    if not (allDigits int) || (hasPoint && not (allDigits frac)) || S.length frac > 4 then Nothing
     else do
       i <- BI.fromString int
       f <- BI.fromString (padRight frac)
@@ -125,6 +143,7 @@ parse s0 =
       pure (Q (if negative then negate u else u))
   where
   padRight f = f <> S.take (4 - S.length f) "0000"
+  allDigits t = S.length t > 0 && all (\c -> let k = toCharCode c in k >= 48 && k <= 57) (toCharArray t)
 
 -- | Format with exactly 4 fractional digits.
 format :: Q -> String
@@ -138,9 +157,12 @@ format (Q u) =
   in
     (if negative then "-" else "") <> BI.toString i <> "." <> padded
 
--- | Split `total` in proportion to `weights` in steps of `unit`, conserving the total
--- | exactly. Leftover steps go to the largest remainders; ties go to the earlier index
--- | (callers order inputs by canonical EntityId).
+-- | Split `total` in proportion to `weights` in steps of `unit`, largest remainder. `total` is
+-- | first floored to a whole number of steps: the fraction of a step below it is not allocated,
+-- | so the allocated sum is `total` rounded down to a multiple of `unit`. Each share is a whole
+-- | number of steps, and leftover steps go to the largest remainders; ties go to the earlier
+-- | index, so callers must order their inputs canonically. If the weights sum to zero, nothing
+-- | is allocated and every share is zero.
 allocate :: BigInt -> Q -> Array Q -> Array Q
 allocate unit (Q total) weights =
   if wsum == P.zero then map (const zero) weights

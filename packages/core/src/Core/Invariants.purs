@@ -1,11 +1,13 @@
 -- | Invariant predicates over one resolved round (docs/02_type_system.md §9). Each returns
--- | the failures it finds; an empty array means the invariant holds. Shared by tests, the
--- | harness, and live play.
+-- | the failures it finds; an empty array means the invariant holds. Pure and read-only: the
+-- | checks run after resolution, in the test suites, the harness, the scenario golden tests,
+-- | and the adapter's round store and CLI reports. The engine does not call them, so a round
+-- | that passes the engine but fails a check is reported, not blocked.
 module Core.Invariants (Failure, check, checkRun) where
 
 import Prelude
 
-import Core.Engine (authorized, executor, prepareRound)
+import Core.Engine (authorizedIn, executor, prepareRound)
 import Core.Query (lookupQ, totalHolding)
 import Core.Num as Q
 import Core.Types (EntityKind(..), SignedProposal)
@@ -43,16 +45,16 @@ executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
 inv02 :: WorldState -> RoundResult -> Array Failure
 inv02 w r = concatMap one (executed r)
   where
-  one { proposal: p } = concatMap (check p) p.intents
+  one { proposal: p } = concatMap (intentOk p) p.intents
   -- a procedure Proposal is authorized by its procedure's `authorizes`, as the engine checks it
-  check p i =
+  intentOk p i =
     let
       who = executor p i
       caps = case p.procedure of
         Just pid -> procedureAuthority pid p.author
         Nothing -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
     in
-      if authorized caps who i then [] else [ failure "INV-02" (show p.id <> ": " <> show who <> " not authorized") ]
+      if authorizedIn w caps who i then [] else [ failure "INV-02" (show p.id <> ": " <> show who <> " not authorized") ]
   procedureAuthority pid author = case Map.lookup author w.entities of
     Just { kind: Aggregate a } -> maybe [] _.authorizes (Map.lookup pid a.procedures)
     _ -> []

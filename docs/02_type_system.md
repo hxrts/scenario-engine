@@ -195,7 +195,7 @@ The Intent algebra contains four categories:
 - **Trade:** An order on a public Market, with an optional limit price.
 - **Transfer:** A movement of a Resource from one Entity to another. Alone it is a gift or payment; bundled in a multi-signer Proposal it is one side of a deal. Its `from` must be a required signer.
 - **Transform:** Execute a declared Transformation, such as production, consumption, procurement, or investment. Its `by` must be a required signer.
-- **ChangeRule:** Enact or repeal a Rule under the Entity's authority.
+- **ChangeRule:** Enact or repeal a Rule under the Entity's authority. A repeal names an existing Rule, and only the authority that governs it (its jurisdiction, or a Withholding's capacity owner) may repeal it.
 
 Intents are carried by Proposals; they are not immediately applied state mutations.
 
@@ -411,7 +411,6 @@ type Transformation =
   , capacityUse :: Quantity       -- capacity drawn per unit ordered
   , ownerSigns :: Boolean         -- the capacity's owner must sign every order
   , effects :: Array CapacityEffect -- capacity changes applied after the delay
-  , authority :: Capability
   }
 ```
 
@@ -420,7 +419,7 @@ type CapacityEffect =   -- per unit ordered; holder defaults to the ordering Ent
   { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
 ```
 
-Investment and disruption are facilities with capacity effects: an investment raises a capacity from the round after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit; those that also share a cost function share one uniform price. That price is a single function of the pool's filled quantity (the average of the CostFunction over the fills). Escrow applies the same function to the pool's full quantity, capacity ÷ `capacityUse`, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
+Investment and disruption are facilities with capacity effects: an investment raises a capacity from the round after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit; those that also share a cost function share one uniform price. That price is a single function of the pool's filled quantity (the average of the CostFunction over the fills). Escrow applies the same function to the pool's ceiling: capacity ÷ `capacityUse` for a capped facility, or the top of its CostFunction's domain for an uncapped one (a facility with `capacityUse` zero is uncapped). Fills never exceed that ceiling, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
 
 Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available.
 
@@ -653,7 +652,7 @@ All Actor and Aggregate actions for a round are bundled into a single round upda
 
 Two rules make this hold:
 
-- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity; for a facility order, its price at the full quantity its pool can supply (capacity ÷ `capacityUse`, [§5.3](#53-facilities-costed-transformations)). Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and unused escrow is released at commit.
+- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity; for a facility order, its price at its pool ceiling (capacity ÷ `capacityUse`, or the top of the cost domain for an uncapped facility, [§5.3](#53-facilities-costed-transformations)). Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and unused escrow is released at commit.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals this round are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying in the same round both draw on opening holdings.
 
 Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error, and it is the engine's backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them.
