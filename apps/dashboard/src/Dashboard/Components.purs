@@ -28,15 +28,14 @@ card :: String -> Array JSX -> JSX
 card title body = element UI.card
   { children: [ element UI.cardHeader { children: [ element UI.cardTitle { children: [ D.text title ] } ] }, element UI.cardContent { children: body } ] }
 
--- | A view-model Table whose `keyColumn` cells link to `link`'s target for the row. The key column
--- | is named by the caller, not assumed.
-recordTable :: DataTable -> { keyColumn :: Int } -> (Array String -> Maybe String) -> Table -> JSX
-recordTable grid key link t = card t.title
-  [ grid { columns: t.columns, rows: t.rows, linkColumn: key.keyColumn, link, mark: \_ _ -> false } ]
+-- | A view-model Table whose cells link where `link` gives a target (by column index and row).
+recordTable :: DataTable -> (Int -> Array String -> Maybe String) -> Table -> JSX
+recordTable grid link t = card t.title
+  [ grid { columns: t.columns, rows: t.rows, link, mark: \_ _ -> false } ]
 
--- | A Table with no row links.
+-- | A Table with no links.
 plainTable :: DataTable -> Table -> JSX
-plainTable grid t = recordTable grid { keyColumn: 0 } (const Nothing) t
+plainTable grid t = recordTable grid (\_ _ -> Nothing) t
 
 -- | A fetch in progress, or its error.
 status :: Maybe String -> JSX
@@ -48,7 +47,7 @@ status = case _ of
 -- | before `baseline` are labels (not compared); the baseline is the reference value for the row.
 diffTable :: DataTable -> { baseline :: Int } -> Table -> JSX
 diffTable grid b t = card t.title
-  [ grid { columns: t.columns, rows: t.rows, linkColumn: 0, link: const Nothing, mark } ]
+  [ grid { columns: t.columns, rows: t.rows, link: \_ _ -> Nothing, mark } ]
   where
   mark row i = i > b.baseline && index row i /= index row b.baseline
 

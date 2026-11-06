@@ -306,13 +306,21 @@ The available actions are:
 
 - **Run:** implemented (the form launches a run from a preset, a player seed, and optional game seed and rounds).
 - **Inspect** and **Compare:** implemented.
-- **Duplicate**, **Rerun**, **Variant**, and **Counterfactual** ([§10.4](#104-counterfactual-experiments)): served by the read API (§8). The Dashboard controls are not yet built.
+- **Duplicate:** creates a run with the same spec under a name the developer gives.
+- **Rerun:** creates a run with the same spec. The dashboard shows whether the server reports the new run's round records as matching this run's, and links to the new run. When the server reports no match result, the dashboard only links.
+- **Variant:** creates a run from this run's spec with any of a preset, a player seed, and a round count changed. Blank fields keep the server's defaults.
+- **Counterfactual** ([§10.4](#104-counterfactual-experiments)): a variant, recorded as a link to this run. The override editor is not yet available, so it takes the same fields as a variant.
+- **Archive** and **Unarchive**, and **Delete**: Delete asks for the run's id, typed exactly, before it deletes the run.
 
-The run list shows every stored run. A run that cannot be read appears with status `unreadable` and its reason; the other runs stay visible. Runs are listed in the order they were created, with the reason for any failed run.
+The derivation, archive, resume, and delete actions are validated and performed by the server. The dashboard sends the request, shows the server's message when it refuses one, and then opens the new run or refreshes this one.
+
+The run list shows every stored run that is not archived. A **Show archived runs** toggle adds the archived ones, and each run has an Archived column and a Source column that links to the run it was derived from. A run that cannot be read appears with status `unreadable` and its reason; the other runs stay visible. Runs are listed in the order they were created, with the reason for any failed run.
 
 The new-simulation form selects the Gameboard, the configuration, seat Policies or presets, permitted parameters, and both seeds. It separates Gameboard-level parameters from Instantiation-level ones. A Gameboard change creates or selects a Gameboard variant.
 
 ### 9.2 Run Details
+
+**Run actions and lineage.** The page has a lineage panel (**Derived from** the source run, and **Derived runs** that name this run as their source) and a run-actions panel (§9.1). Resume is offered only while the run has fewer rounds than its target.
 
 **Overview.** Shows identity, versions, rounds, seat Policies, both seeds, assertion results, and summary metrics. For the reference game these include the regional Energy prices, total procurement, Soft Power produced, and rejected Intents. These are descriptive measures, not victory conditions.
 

@@ -4,19 +4,22 @@ module Dashboard.Main (main) where
 
 import Prelude
 
-import Dashboard.Api (encode, post, useApi)
+import Dashboard.Api (encode, get, post, runPath, useApi, useFetch)
 import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, plainTable, recordTable, runPicker, status)
 import Dashboard.DataTable (DataTable, mkDataTable)
 import Dashboard.Launch (LaunchForm, LaunchRequest, emptyForm, validate)
 import Dashboard.Presets (presetNames)
 import Dashboard.Route (Route(..), href, route)
+import Dashboard.RunActions as Actions
+import Dashboard.Runs (RunInfo, derivedFrom, mergeRuns, runInfo, runInfos, sourceRow)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
-import Data.Array (elem, find, head, index, null)
+import Data.Array (elem, find, findIndex, head, index, null)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
@@ -53,16 +56,31 @@ table grid = as (plainTable grid)
 charts :: Render
 charts = as (\(cs :: Array Chart) -> D.div_ (map metricChart cs))
 
-runPath :: String -> String
-runPath id = "/api/runs/" <> encode id
+-- | A value of a row of the Overview (a field and its value).
+rowValue :: Table -> String -> Maybe String
+rowValue t field = find (\r -> index r 0 == Just field) t.rows >>= \r -> index r 1
 
--- | The run's round count, from the Overview's `Rounds` row.
+-- | The run's completed rounds, from the Overview's `Rounds` row.
 roundCount :: Table -> Maybe Int
-roundCount t = find (\r -> index r 0 == Just "Rounds") t.rows >>= \r -> index r 1 >>= Int.fromString
+roundCount t = rowValue t "Rounds" >>= Int.fromString
+
+-- | The run's target rounds, from the Overview's `Rounds target` row, when the server reports one.
+roundTarget :: Table -> Maybe Int
+roundTarget t = rowValue t "Rounds target" >>= Int.fromString
 
 -- | A requested round, kept within the run's rounds (0 is the initial state).
 clampRound :: Int -> Int -> Int
 clampRound n r = max 0 (min n r)
+
+-- | The run list. Without `archived` it is the runs that are not archived; with it, the archived
+-- | runs are listed too (the list's `?archived=true`), in one table.
+listRuns :: Boolean -> Aff (Either String Table)
+listRuns archived = do
+  shown <- get "/api/runs"
+  if not archived then pure shown
+  else do
+    more <- get "/api/runs?archived=true"
+    pure (mergeRuns <$> shown <*> more)
 
 -- | Run Details (§9): one tab per view model. `?round` applies to round-scoped views.
 runTabs :: DataTable -> String -> Int -> Array Tab
@@ -103,6 +121,20 @@ tabbed show' ts = element UI.tabs
         <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ show' { path: t.path, render: t.render } ] })
   }
 
+-- | A link to a run's page.
+runLink :: String -> JSX
+runLink id = D.a { href: href (Run id), className: "underline", children: [ D.text id ] }
+
+-- | The run list's links: the id links to its run, and a Source cell links to the source run when
+-- | the list has it.
+runLinks :: Table -> Int -> Array String -> Maybe String
+runLinks t i row
+  | i == runKeyColumn = href <<< Run <$> index row runKeyColumn
+  | Just i == findIndex (_ == "Source") t.columns = do
+      s <- sourceRow t row
+      if elem s (map _.id (runInfos t)) then Just (href (Run s)) else Nothing
+  | otherwise = Nothing
+
 -- | Simulation Runs (§9.1): the run list, run selection for comparison, and launching.
 mkRuns :: DataTable -> Component Unit
 mkRuns grid = component "Runs" \_ -> React.do
@@ -111,7 +143,8 @@ mkRuns grid = component "Runs" \_ -> React.do
   open /\ setOpen <- useState' false
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' Nothing
-  runs <- useApi version "/api/runs"
+  archived /\ setArchived <- useState' false
+  runs <- useFetch (Tuple archived version) (listRuns archived)
   let
     -- A bad form is reported without a request; the server's reply, on success or error, is shown or refreshed.
     launch = case validate form of
@@ -127,20 +160,29 @@ mkRuns grid = component "Runs" \_ -> React.do
           setFailure Nothing
           setOpen false
           setVersion (version + 1)
-  pure case runs of
-    Just (Right (t :: Table)) -> D.div
-      { className: "flex flex-col gap-4"
-      , children:
-          [ recordTable grid { keyColumn: runKeyColumn } (\r -> href <<< Run <$> index r runKeyColumn) t
-          , card "Compare"
-              [ runPicker { runs: t, keyColumn: runKeyColumn, selected, onChange: setSelected }
-              , D.a { href: href (Compare selected), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
-              ]
-          , launchSheet { open, setOpen, form, setForm, failure, launch }
-          ]
-      }
-    Just (Left e) -> status (Just e)
-    Nothing -> status Nothing
+  pure $ D.div
+    { className: "flex flex-col gap-4"
+    , children:
+        [ D.label
+            { className: "flex items-center gap-2 text-sm"
+            , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
+            }
+        , case runs of
+            Just (Right (t :: Table)) -> D.div
+              { className: "flex flex-col gap-4"
+              , children:
+                  [ recordTable grid (runLinks t) t
+                  , card "Compare"
+                      [ runPicker { runs: t, keyColumn: runKeyColumn, selected, onChange: setSelected }
+                      , D.a { href: href (Compare selected), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
+                      ]
+                  , launchSheet { open, setOpen, form, setForm, failure, launch }
+                  ]
+              }
+            Just (Left e) -> status (Just e)
+            Nothing -> status Nothing
+        ]
+    }
 
 type LaunchSheet =
   { open :: Boolean
@@ -192,19 +234,55 @@ launchSheet s = element UI.sheet
         ]
     }
 
--- | One run's page: its round (a selector clamped to the run's rounds) and its view tabs.
-mkRunPage :: DataTable -> Fetch -> Component String
-mkRunPage grid show' = component "Run" \id -> React.do
-  overview <- useApi id (runPath id <> "/overview")
+-- | Lineage (§9.2): the source run this one was derived from, and the runs derived from it. Both come
+-- | from the run list's Source column.
+lineage :: Table -> String -> Maybe RunInfo -> JSX
+lineage all id info = card "Lineage"
+  [ D.div
+      { className: "flex flex-col gap-2 text-sm"
+      , children:
+          [ case info of
+              Just i | i.source /= "" -> D.p_ [ D.text "Derived from ", runLink i.source ]
+              _ -> D.p_ [ D.text "Not derived from another run." ]
+          , case derivedFrom all id of
+              [] -> D.p_ [ D.text "No runs are derived from this run." ]
+              ids -> D.div_ [ D.p_ [ D.text "Derived runs" ], D.ul { className: "list-disc pl-5", children: ids <#> \r -> D.li { key: r, children: [ runLink r ] } } ]
+          ]
+      }
+  ]
+
+-- | One run's page: its lineage and actions, its round (a selector clamped to the run's rounds), and its view tabs.
+-- | Archive, resume and the derivations refresh the page through the version in the fetch keys.
+mkRunPage :: DataTable -> Fetch -> (Actions.Props -> JSX) -> Component String
+mkRunPage grid show' actions = component "Run" \id -> React.do
+  version /\ setVersion <- useState' 0
   requested /\ setRequested <- useState' (Nothing :: Maybe Int)
-  pure case overview of
-    Just (Right (t :: Table)) ->
+  overview <- useApi (Tuple version id) (runPath id <> "/overview")
+  runs <- useFetch (Tuple version id) (listRuns true)
+  pure case overview, runs of
+    Just (Left e), _ -> status (Just e)
+    _, Just (Left e) -> status (Just e)
+    Just (Right (t :: Table)), Just (Right (all :: Table)) ->
       let
         n = fromMaybe 0 (roundCount t)
         r = clampRound n (fromMaybe n requested)
+        info = runInfo all id
       in
         D.div_
-          [ D.label
+          [ D.div
+              { className: "grid gap-4 md:grid-cols-2"
+              , children:
+                  [ lineage all id info
+                  , actions
+                      { id
+                      , archived: maybe false _.archived info
+                      , rounds: roundCount t
+                      , target: roundTarget t
+                      , onChanged: setVersion (version + 1)
+                      }
+                  ]
+              }
+          , D.label
               { className: "text-sm"
               , children:
                   [ D.text "Round "
@@ -214,8 +292,7 @@ mkRunPage grid show' = component "Run" \id -> React.do
               }
           , tabbed show' (runTabs grid id r)
           ]
-    Just (Left e) -> status (Just e)
-    Nothing -> status Nothing
+    _, _ -> status Nothing
 
 -- | A comparison of runs, with a market selector for the trajectory. The markets come from the first run.
 mkComparePage :: DataTable -> Fetch -> Component (Array String)
@@ -252,7 +329,8 @@ mkApp = do
   grid <- mkDataTable
   runsPage <- mkRuns grid
   fetchPanel <- panel
-  runPage <- mkRunPage grid fetchPanel
+  actionsPanel <- Actions.mkRunActions
+  runPage <- mkRunPage grid fetchPanel actionsPanel
   comparePage <- mkComparePage grid fetchPanel
   toggle <- themeToggle
   component "App" \_ -> React.do

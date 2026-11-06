@@ -43,3 +43,5 @@ foreign import sidebarMenuButton :: C
 foreign import sidebarInset :: C
 foreign import sidebarTrigger :: C
 foreign import separator :: C
+-- | A labelled region (a `section` element), for panels a screen reader can name.
+foreign import region :: C
