@@ -8,10 +8,23 @@ package:
     - sp-policy
     - sp-effects
     - sp-handlers
+    - arrays
+    - effect
+    - typelevel-prelude
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
   test:
     main: Test.Harness.Main
     dependencies:
+      - aff
       - effect
+      - exceptions
+      - sp-scenarios
+      - argonaut-core
       - spec
       - spec-node
       - quickcheck

@@ -16,6 +16,7 @@ import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Scenarios (load)
+import Test.Scenarios.Golden (golden)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -50,6 +51,7 @@ holdings =
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  golden
   describe "The Fractured World" do
     let
       loaded = do

@@ -1,0 +1,73 @@
+-- | Engine-level fixtures (docs/05_test_instance.md Part IV) through the shared checker.
+module Test.Scenarios.Golden (golden, fixture) where
+
+import Prelude
+
+import Board.Fixture (Fixture, checkFixture)
+import Control.Monad.Error.Class (throwError)
+import Core.Draw (Seed(..), draw)
+import Core.Engine (resolveRound)
+import Core.Invariants (check)
+import Core.Num as Q
+import Core.Represent (adjustedTarget)
+import Core.Types (Id(..), SignedProposal)
+import Data.Array (concatMap, cons, deleteAt, head, index, length, range, uncons)
+import Data.Either (Either(..), hush)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Traversable (for_)
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Exception (error)
+import Partial.Unsafe (unsafeCrashWith)
+import Scenarios (loadFixture)
+import Test.Spec (Spec, describe, it)
+import Test.Spec.Assertions (shouldEqual)
+
+fixture :: String -> Aff Fixture
+fixture name = liftEffect (loadFixture name) >>= case _ of
+  Left e -> throwError (error e)
+  Right f -> pure f
+
+firstInputs :: Fixture -> Array SignedProposal
+firstInputs f = fromMaybe [] (_.inputs <$> head f.rounds)
+
+golden :: Spec Unit
+golden = describe "Golden fixtures" do
+  for_ [ "A", "A2", "B1", "B2", "B3", "B4", "B4-unsigned", "C1", "C2", "C3", "D", "D-minor", "F", "G1", "G2", "G3", "G3-ban", "G4", "G5", "G5-unsigned", "circulation" ] \name ->
+    it name (fixture name >>= \f -> checkFixture f `shouldEqual` [])
+  for_ [ "A", "A2", "F", "G4" ] \name -> it ("order independence: " <> name) do
+    f <- fixture name
+    for_ (permutations (firstInputs f)) \inputs ->
+      map _.world (resolveRound f.world inputs) `shouldEqual` map _.world (resolveRound f.world (firstInputs f))
+  it "a deliberately unbalanced result trips INV-05" do
+    f <- fixture "A"
+    case resolveRound f.world (firstInputs f) of
+      Left e -> throwError (error (show e))
+      Right r -> do
+        let tampered = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) (Id "US") r.world.entities } }
+        map _.invariant (check f.world tampered) `shouldEqual` [ "INV-05" ]
+  it "C4: the stored factor replaces the next round's baseline" do
+    adjustedTarget (Q.fromInt 32) (q "0.95") `shouldEqual` q "30.4"
+  it "C5: seeded noise stays in range, replays, and varies with the seed" do
+    f <- fixture "C5"
+    let
+      factorWith seed = do
+        r <- hush (resolveRound f.world { seed = Seed seed } (firstInputs f))
+        Map.lookup (Id "GLOBAL_SMES") r.world.factors >>= Map.lookup (Id "E")
+      u = draw (Seed 26021) { round: f.world.round, source: "sme-energy-sample", entity: "SME", category: "sampling", index: 0 }
+      eps = Q.mul (q "0.1") (Q.sub (Q.mul (Q.fromInt 2) u) (Q.fromInt 1))
+    factorWith 26021 `shouldEqual` Just (Q.add (Q.fromInt 1) (Q.mul (q "0.25") (Q.add (q "-0.2") eps)))
+    map (\t -> t >= Q.fromInt 37 && t <= Q.fromInt 39) (map (adjustedTarget (Q.fromInt 40)) (factorWith 26021)) `shouldEqual` Just true
+    (factorWith 26021 /= factorWith 1) `shouldEqual` true
+  where
+  q s = fromMaybe Q.zero (Q.parse s)
+
+permutations :: forall a. Array a -> Array (Array a)
+permutations xs = case uncons xs of
+  Nothing -> [ [] ]
+  Just _ -> concatMap (\i -> map (cons (at i)) (permutations (fromMaybe [] (deleteAt i xs)))) (range 0 (length xs - 1))
+  where
+  at i = case index xs i of
+    Just x -> x
+    Nothing -> unsafeCrashWith "index"

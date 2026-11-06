@@ -5,8 +5,17 @@
         "path": "packages/adapters",
         "core": {
           "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
             "effect",
+            "either",
+            "foldable-traversable",
+            "functions",
+            "maybe",
+            "nullable",
             "prelude",
+            "refs",
             "run",
             "sp-board",
             "sp-core",
@@ -17,8 +26,13 @@
         },
         "test": {
           "dependencies": [
+            "aff",
             "effect",
+            "exceptions",
+            "ordered-collections",
             "quickcheck",
+            "sp-harness",
+            "sp-scenarios",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -46,11 +60,7 @@
         },
         "test": {
           "dependencies": [
-            "aff",
             "effect",
-            "node-buffer",
-            "node-fs",
-            "partial",
             "quickcheck",
             "spec",
             "spec-node",
@@ -179,6 +189,7 @@
         "path": "packages/handlers",
         "core": {
           "dependencies": [
+            "effect",
             "either",
             "foreign-object",
             "maybe",
@@ -212,19 +223,32 @@
         "path": "packages/harness",
         "core": {
           "dependencies": [
+            "arrays",
+            "effect",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
             "prelude",
             "run",
             "sp-board",
             "sp-core",
             "sp-effects",
             "sp-handlers",
-            "sp-policy"
+            "sp-policy",
+            "tuples",
+            "typelevel-prelude"
           ]
         },
         "test": {
           "dependencies": [
+            "aff",
+            "argonaut-core",
             "effect",
+            "exceptions",
             "quickcheck",
+            "sp-scenarios",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -282,10 +306,14 @@
         },
         "test": {
           "dependencies": [
+            "aff",
             "argonaut-codecs",
+            "arrays",
             "effect",
+            "exceptions",
             "maybe",
             "ordered-collections",
+            "partial",
             "quickcheck",
             "spec",
             "spec-node",

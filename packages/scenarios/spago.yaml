@@ -26,3 +26,7 @@ package:
       - argonaut-codecs
       - maybe
       - ordered-collections
+      - aff
+      - arrays
+      - partial
+      - exceptions

@@ -1,9 +1,11 @@
 -- | Loads a scenario package: every JSON file in its directory is merged into one
 -- | Gameboard object, except `instantiation.json`, the Instantiation Configuration.
-module Scenarios (Loaded, load, loadPresets, root) where
+module Scenarios (Loaded, load, loadPresets, loadFixture, root) where
 
 import Prelude
 
+import Board.Decode (decodeWorld)
+import Board.Fixture (Fixture)
 import Board.Gameboard (Gameboard, InstantiationConfig, decodeConfig, decodeGameboard)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (printJsonDecodeError)
@@ -32,6 +34,12 @@ loadPresets = do
     j <- jsonParser text
     o <- note "presets must be an object" (toObject j)
     lmap printJsonDecodeError (traverseWithIndex (const decodeProgram) o)
+
+-- | An engine-level fixture from `fixtures/`.
+loadFixture :: String -> Effect (Either String Fixture)
+loadFixture name = do
+  text <- readTextFile UTF8 (root <> "fixtures/" <> name <> ".json")
+  pure (jsonParser text >>= (lmap printJsonDecodeError <<< decodeWorld))
 
 root :: String
 root = "packages/scenarios/"

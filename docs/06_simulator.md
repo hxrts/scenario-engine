@@ -54,13 +54,13 @@ Narrative reporting is optional in simulation. Analysis reads authoritative engi
 A Simulation Specification is a serializable, versioned description of one complete automated playthrough.
 
 ```purescript
+type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program }
+
 type SimulationSpec =
-  { gameboard :: GameboardRef
-  , instantiation :: InstantiationConfig
-  , seatPolicies :: Map EntityId SeatPolicySpec
+  { seats :: Map EntityId SeatPolicy    -- Preset name or a Custom program; unlisted seats submit nothing
   , playerSeed :: Seed
-  , assertions :: Array InvariantId
-  }
+  , overrides :: Array Override         -- GameSeed, Parameter, Capacity, Shrinkage, Implicit
+  , rounds :: Maybe Int }               -- defaults to the configuration's round count
 ```
 
 The specification must be enough to reproduce the complete economic history with the same engine version. The game seed lives only in the `InstantiationConfig`. The player seed drives all seat-Policy randomness and is recorded in the run manifest.

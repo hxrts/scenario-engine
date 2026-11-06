@@ -3,16 +3,30 @@ package:
   dependencies:
     - prelude
     - run
-    - effect
     - sp-core
     - sp-board
     - sp-policy
     - sp-effects
     - sp-handlers
+    - argonaut-codecs
+    - argonaut-core
+    - arrays
+    - effect
+    - either
+    - foldable-traversable
+    - functions
+    - maybe
+    - nullable
+    - refs
   test:
     main: Test.Adapters.Main
     dependencies:
+      - aff
       - effect
+      - exceptions
+      - ordered-collections
+      - sp-harness
+      - sp-scenarios
       - spec
       - spec-node
       - quickcheck

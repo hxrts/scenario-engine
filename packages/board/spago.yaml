@@ -17,11 +17,7 @@ package:
   test:
     main: Test.Board.Main
     dependencies:
-      - aff
       - effect
-      - node-buffer
-      - node-fs
-      - partial
       - spec
       - spec-node
       - quickcheck

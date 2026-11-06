@@ -1,0 +1,217 @@
+-- | Pure analyses over saved runs (docs/06_simulator.md §10–§11; docs/03_gameboard.md
+-- | §10.5): objective evaluation, run differences, counterfactuals, seed experiments, and
+-- | agency. All of them compose `simulate`; none has its own run loop.
+module Harness.Analysis
+  ( CriterionResult
+  , ObjectiveResult
+  , evaluateObjectives
+  , Difference
+  , difference
+  , counterfactual
+  , playerSeedRuns
+  , gameSeedRuns
+  , AgencyProfile
+  , agency
+  ) where
+
+import Prelude
+
+import Board.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Span(..))
+import Core.Draw (Seed(..))
+import Core.Market (marginal)
+import Core.Num (Q)
+import Core.Num as Q
+import Core.Types (EntityId, EntityKind(..))
+import Core.World (Event(..), RoundResult, WorldState)
+import Data.Array (all, any, concatMap, filter, foldl, fromFoldable, last, nub, zip, zipWith)
+import Data.Either (Either(..))
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
+import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, simulate)
+
+-- Objectives ----------------------------------------------------------------------
+
+type CriterionResult = { met :: Boolean, values :: Array Q, bound :: Array Q }
+
+type ObjectiveResult = { actor :: EntityId, description :: String, criteria :: Array CriterionResult, met :: Boolean }
+
+-- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
+evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
+evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Array _)
+  where
+  one (Tuple actor def) = case def.objective of
+    Nothing -> []
+    Just o ->
+      let
+        criteria = map criterion o.criteria
+      in
+        [ { actor, description: o.description, criteria, met: all _.met criteria } ]
+  criterion c =
+    let
+      values = series c.over c.metric
+      bound = case c.atLeast of
+        Fixed q -> map (const q) values
+        Of m -> series c.over m
+    in
+      { met: all identity (zipWith' (>=) values bound), values, bound }
+  -- the metric's value per round, or one aggregate value
+  series span m =
+    let
+      perRound = map (measure m) records
+    in
+      case span of
+        EveryRound -> perRound
+        Cumulative -> [ Q.sumQ perRound ]
+        Final -> if isFlow m.measure then [ Q.sumQ perRound ] else maybe' [] pure (last perRound)
+
+  measure :: MetricRef -> RoundResult -> Q
+  measure m r = sign m (Q.sumQ (map (\e -> value m.measure e r) m.entities))
+  sign m q = if m.negated then Q.sub Q.zero q else q
+  value msr e r = case msr of
+    HoldingOf res -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup res x.accounts)
+    CapacityAmount c -> fromMaybe Q.zero (Map.lookup e r.world.entities >>= \x -> Map.lookup c x.capacities)
+    ShortfallOf res -> Q.sumQ
+      ( concatMap
+          ( case _ of
+              Shortfall s | s.entity == e && s.resource == res -> [ s.quantity ]
+              _ -> []
+          )
+          r.record.events
+      )
+    ShortfallRounds res ->
+      if
+        any
+          ( case _ of
+              Shortfall s -> s.entity == e && s.resource == res
+              _ -> false
+          )
+          r.record.events then Q.fromInt 1
+      else Q.zero
+    PayeeReceipts -> Q.sumQ
+      ( concatMap
+          ( case _ of
+              Transformed t | (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e -> [ t.paid ]
+              _ -> []
+          )
+          r.record.events
+      )
+    VolumeOf tid -> Q.sumQ
+      ( concatMap
+          ( case _ of
+              Transformed t | t.transformation == tid -> [ t.quantity ]
+              _ -> []
+          )
+          r.record.events
+      )
+  isFlow = case _ of
+    HoldingOf _ -> false
+    CapacityAmount _ -> false
+    _ -> true
+  maybe' d f = case _ of
+    Just x -> f x
+    Nothing -> d
+  zipWith' f xs ys = zipWith f xs ys
+
+-- Differences and counterfactuals ---------------------------------------------------
+
+-- | How two runs' final states differ: per-Entity holdings and per-Market prices.
+type Difference =
+  { holdings :: Array { entity :: EntityId, resource :: String, delta :: Q }
+  , prices :: Array { market :: String, delta :: Q }
+  }
+
+finalWorld :: Run -> Maybe WorldState
+finalWorld r = case r.final of
+  Right w -> Just w
+  Left _ -> Nothing
+
+difference :: Run -> Run -> Difference
+difference base other = case finalWorld base, finalWorld other of
+  Just a, Just b ->
+    { holdings: filter (\h -> h.delta /= Q.zero) (concatMap (holdingDelta a b) (fromFoldable (Map.keys a.entities)))
+    , prices: filter (\p -> p.delta /= Q.zero) (map (\(Tuple id m) -> { market: show id, delta: Q.sub (price b id) (marginal m.cost m.position) }) (Map.toUnfoldable a.markets :: Array _))
+    }
+  _, _ -> { holdings: [], prices: [] }
+  where
+  price w id = fromMaybe Q.zero (Map.lookup id w.markets <#> \m -> marginal m.cost m.position)
+  holdingDelta a b e =
+    let
+      ha = fromMaybe Map.empty (_.accounts <$> Map.lookup e a.entities)
+      hb = fromMaybe Map.empty (_.accounts <$> Map.lookup e b.entities)
+    in
+      map (\r -> { entity: e, resource: show r, delta: Q.sub (fromMaybe Q.zero (Map.lookup r hb)) (fromMaybe Q.zero (Map.lookup r ha)) })
+        (nub (fromFoldable (Map.keys ha) <> fromFoldable (Map.keys hb)))
+
+-- | Change exactly one thing and replay with both seeds fixed (§10.4).
+counterfactual :: Context -> SimulationSpec -> (SimulationSpec -> SimulationSpec) -> Either String { base :: Run, variant :: Run, difference :: Difference }
+counterfactual ctx spec change = do
+  base <- simulate ctx spec
+  variant <- simulate ctx (change spec) { playerSeed = spec.playerSeed }
+  pure { base, variant, difference: difference base variant }
+
+-- | Player-seed distribution: the game seed fixed, the player seed varied (§11).
+playerSeedRuns :: Context -> SimulationSpec -> Array Int -> Either String (Array Run)
+playerSeedRuns ctx spec seeds = traverse (\s -> simulate ctx spec { playerSeed = Seed s }) seeds
+
+-- | Game-seed variation: the player seed fixed, the game seed varied (§11).
+gameSeedRuns :: Context -> SimulationSpec -> Array Int -> Either String (Array Run)
+gameSeedRuns ctx spec seeds = traverse (\s -> simulate (ctx { config = ctx.config { seed = Seed s } }) spec) seeds
+
+-- Agency (§10.5) ----------------------------------------------------------------------
+
+type AgencyProfile =
+  { actor :: EntityId
+  , alternative :: String
+  , prices :: Q -- total absolute change in final prices
+  , others :: Q -- total absolute change in other Actors' holdings
+  , aggregates :: Q -- total absolute change in Aggregate holdings
+  , institutions :: Int -- procedure outcomes that differ
+  , objectives :: Int -- own objective criteria whose result differs
+  , measurable :: Boolean
+  }
+
+-- | For each seat, replay with an alternative preset while everything else is fixed.
+agency :: Context -> SimulationSpec -> Array EntityId -> Either String (Array AgencyProfile)
+agency ctx spec actors = do
+  base <- simulate ctx spec
+  traverse (profile base) actors
+  where
+  alternativeFor actor = case Map.lookup actor spec.seats of
+    Just (Preset "Passive") -> "Aggressive"
+    _ -> "Passive"
+  profile base actor = do
+    let alt = alternativeFor actor
+    variant <- simulate ctx spec { seats = Map.insert actor (Preset alt) spec.seats }
+    let
+      d = difference base variant
+      isAggregate e = case _.kind <$> (finalWorld base >>= \w -> Map.lookup e w.entities) of
+        Just (Aggregate _) -> true
+        _ -> false
+      absSum xs = Q.sumQ (map (\q -> if q < Q.zero then Q.sub Q.zero q else q) xs)
+      prices = absSum (map _.delta d.prices)
+      others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
+      aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
+      outcomes r = concatMap
+        ( \x -> concatMap
+            ( case _ of
+                ProcedureOutcome o -> [ o.executed ]
+                _ -> []
+            )
+            x.record.events
+        )
+        r.records
+      institutions = if outcomes base == outcomes variant then 0 else 1
+      own r = map _.met (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives ctx.gameboard r.records)))
+      objectives = foldl (\n (Tuple a b) -> if a == b then n else n + 1) 0 (zip (own base) (own variant))
+    pure
+      { actor
+      , alternative: alt
+      , prices
+      , others
+      , aggregates
+      , institutions
+      , objectives
+      , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
+      }

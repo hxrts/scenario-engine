@@ -18,7 +18,8 @@
     "transfer:Mil",
     "transform:defense-procurement",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -76,7 +77,8 @@
     "transform:public-attention",
     "transform:humanitarian-aid",
     "transform:military-deployment",
-    "transfer:Mil"
+    "transfer:Mil",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -134,7 +136,8 @@
     "transform:defense-procurement",
     "transform:energy-capacity-investment",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "5"
@@ -195,7 +198,8 @@
     "transfer:Mil",
     "transform:defense-procurement",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -254,7 +258,8 @@
     "transfer:Mil",
     "transform:defense-procurement",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -314,7 +319,8 @@
     "transform:defense-procurement",
     "transform:energy-capacity-investment",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "13"
@@ -365,7 +371,8 @@
     "transform:defense-procurement",
     "transform:energy-capacity-investment",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "25"
@@ -427,7 +434,8 @@
     "transform:defense-procurement",
     "transform:energy-capacity-investment",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "12"
@@ -481,7 +489,8 @@
     "transfer:M",
     "transfer:E",
     "transform:energy-capacity-investment",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "25"
@@ -535,7 +544,8 @@
     "transfer:M",
     "transfer:E",
     "enact:withholding",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "semiconductors": "15"
@@ -590,7 +600,8 @@
     "transfer:M",
     "transfer:E",
     "transform:logistics-investment",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "transport": "60"
@@ -644,7 +655,8 @@
     "trade:energy-atlantic",
     "transfer:M",
     "transfer:E",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -685,7 +697,8 @@
     "transfer:M",
     "transfer:E",
     "transform:strike",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -733,7 +746,8 @@
    "capabilities": [
     "trade:energy-atlantic",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -783,7 +797,8 @@
     "transfer:M",
     "transfer:E",
     "transform:humanitarian-aid",
-    "transform:public-attention"
+    "transform:public-attention",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -845,7 +860,8 @@
     "transfer:Mil",
     "transform:defense-procurement-cn",
     "enact:tariff",
-    "enact:accessBan"
+    "enact:accessBan",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
@@ -902,7 +918,8 @@
     "trade:energy-atlantic",
     "transfer:M",
     "transfer:E",
-    "enact:tariff"
+    "enact:tariff",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "aggregate": {
@@ -943,7 +960,8 @@
    "capabilities": [
     "trade:energy-asia",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "aggregate": {
@@ -960,7 +978,8 @@
    "capabilities": [
     "trade:energy-atlantic",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "aggregate": {
@@ -979,7 +998,8 @@
    "capabilities": [
     "trade:energy-atlantic",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {},
    "aggregate": {
@@ -999,7 +1019,8 @@
     "trade:energy-atlantic",
     "trade:energy-asia",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "60"
@@ -1018,7 +1039,8 @@
    "capabilities": [
     "trade:energy-asia",
     "transfer:M",
-    "transfer:E"
+    "transfer:E",
+    "transform:energy-shipping"
    ],
    "capacities": {
     "attention": "50"
