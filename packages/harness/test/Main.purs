@@ -33,6 +33,7 @@ import Scenarios (load, loadFixture, loadPresets)
 import Test.Spec (describe, it)
 import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments
+import Test.Harness.Views as ViewTests
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
@@ -81,6 +82,7 @@ price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> margin
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   Experiments.spec context
+  ViewTests.spec context
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
       ctx <- context
@@ -108,9 +110,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       a <- run ctx (everySeat "RandomValid")
       case instantiate ctx.gameboard ctx.config, inWorldOf ctx.gameboard of
         Right initial, Right inWorld -> do
-          let out = runReplay (map _.record a.records) (runGame inWorld 5 initial.world)
-          map _.world out.records `shouldEqual` map _.world a.records
-          map _.record out.records `shouldEqual` map _.record a.records
+          case runReplay 5 (map _.record a.records) (runGame inWorld 5 initial.world) of
+            Left e -> fail e
+            Right out -> do
+              map _.world out.records `shouldEqual` map _.world a.records
+              map _.record out.records `shouldEqual` map _.record a.records
         _, _ -> fail "instantiation"
 
     it "3 Submission order: permuting a recorded round's inputs changes nothing" do
@@ -208,24 +212,27 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             Right r1 -> case inWorldOf ctx.gameboard of
               Left e -> fail (show e)
               Right inWorld -> do
-                let
-                  out = runReplay [] (runGame inWorld 2 r1.world)
-                  events = concatMap (_.record.events) out.records
-                any
-                  ( case _ of
-                      ProcedureOutcome o -> o.executed
-                      _ -> false
-                  )
-                  events `shouldEqual` true
-                case index out.records 1 of
-                  Just r3 ->
+                -- no seat submits anything: every round is recorded with empty inputs
+                let silent = [ { round: 1, inputs: [], events: [] }, { round: 2, inputs: [], events: [] } ]
+                case runReplay 2 silent (runGame inWorld 2 r1.world) of
+                  Left e -> fail e
+                  Right out -> do
+                    let events = concatMap (_.record.events) out.records
                     any
                       ( case _ of
-                          Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
+                          ProcedureOutcome o -> o.executed
                           _ -> false
                       )
-                      (fromFoldable (Map.values r3.world.rules)) `shouldEqual` true
-                  Nothing -> fail "rounds"
+                      events `shouldEqual` true
+                    case index out.records 1 of
+                      Just r3 ->
+                        any
+                          ( case _ of
+                              Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
+                              _ -> false
+                          )
+                          (fromFoldable (Map.values r3.world.rules)) `shouldEqual` true
+                      Nothing -> fail "rounds"
                 let
                   w2 = prepareRound r1.world
                   ship = { proposal: { id: proposalId 2 (Id "ENCO") 0, author: Id "ENCO", intents: [ Transfer { from: Id "ENCO", to: Id "CN_PRIVATE", resource: Id "E", quantity: Q.fromInt 5 }, Transform { by: Id "ENCO", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ], signers: [ Id "CN_PRIVATE", Id "SHIP" ], procedure: Nothing }, signatures: [ Id "CN_PRIVATE", Id "SHIP" ] }
@@ -247,7 +254,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "14 Agency: every role is analysed and its objectives reported" do
       ctx <- context
-      case agency ctx (everySeat "Conservative") (map Id seats) of
+      case agency ctx (everySeat "Conservative") "Aggressive" (map Id seats) of
         Left e -> fail e
         Right profiles -> do
           length profiles `shouldEqual` 15

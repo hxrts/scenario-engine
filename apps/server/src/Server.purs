@@ -1,52 +1,69 @@
 -- | The read API (docs/06_simulator.md §9–§10): one JSON endpoint per view model over the Run
 -- | Store, plus `POST /api/runs` to launch a simulation. Every view is computed in
--- | `Harness.Views`; this module only routes.
-module Server (main, route, Launch) where
+-- | `Harness.Views`; this module only routes and decodes.
+module Server (main, route, Launch, LoadError(..)) where
 
 import Prelude
 
+import Adapters.Store (Db, RunInfo, RunSummary, StoredRound, createRun, failRun, failStaleRuns, finish, nowIso, open, persister, reader)
 import Board.Decode (readJson)
-
-import Adapters.Store (Db, RunInfo, createRun, finish, nowIso, open, persister, reader)
 import Core.Draw (Seed(..))
+import Core.Invariants (Failure)
 import Core.Types (EntityId)
+import Core.World (Manifest)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (catMaybes, drop, elemIndex, filter, find, fromFoldable, index, length, uncons)
+import Data.Array (catMaybes, concat, drop, filter, find, fromFoldable, length, uncons, zip)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.String (Pattern(..), split)
+import Data.Nullable (toMaybe)
+import Data.String (Pattern(..), joinWith, split)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console (log)
+import Effect.Exception (message, throwException, try)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Harness.Analysis (agency)
+import Harness.Options (flagOr, parseFlags)
 import Harness.Simulate (Context, Override(..), SimulationSpec, presetSeats, simulateWith)
-import Harness.Views (StoredRun)
+import Harness.Views (StoredRun, Unreadable)
 import Harness.Views as V
 import Http (Request, Response, serve)
-import Node.Process (argv)
+import Node.Process (argv, exit')
 import Scenarios (loadContext)
 
 -- | `POST /api/runs` body: every seat plays one preset.
 type Launch = { name :: String, preset :: String, playerSeed :: Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
 
+-- | Why a stored run cannot be served: it is not in the store, or it is there but unreadable.
+data LoadError = Missing | Unreadable String
+
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
-  let flag name d = fromMaybe d (elemIndex name args >>= \i -> index args (i + 1))
-  loadContext "fractured-world/v0" >>= case _ of
-    Right ctx -> do
-      db <- open (flag "--db" "runs.db")
-      let port = fromMaybe 8787 (Int.fromString (flag "--port" "8787"))
-      serve port (flag "--static" "apps/dashboard/dist") (route ctx db)
-      log ("serving on :" <> show port)
-    Left e -> log e
+  case parseFlags [ "--db", "--port", "--static" ] args of
+    Left e -> usage e
+    Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
+      Just port | port > 0 && port < 65536 -> loadContext "fractured-world/v0" >>= case _ of
+        Right ctx -> do
+          db <- open (flagOr "--db" "runs.db" flags)
+          -- a run still marked running was left by a process that stopped before finishing it
+          stale <- failStaleRuns db "interrupted: the server stopped before the run finished"
+          when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
+          serve port (flagOr "--static" "apps/dashboard/dist" flags) (route ctx db)
+          log ("serving on :" <> show port)
+        Left e -> log e *> exit' 1
+      _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)
+  where
+  usage e = do
+    log ("error: " <> e)
+    log "usage: server [--db <file>] [--port <1-65535>] [--static <dir>]"
+    exit' 1
 
 json :: forall a. EncodeJson a => Int -> a -> Effect Response
 json status a = pure { status, body: stringify (encodeJson a) }
@@ -57,42 +74,64 @@ ok = json 200
 failWith :: Int -> String -> Effect Response
 failWith status error = json status { error }
 
+-- | A view, or a 400 with the reason it cannot be given (for example an out-of-range round).
+viewOr :: forall a. EncodeJson a => Either String a -> Effect Response
+viewOr = either (failWith 400) ok
+
 route :: Context -> Db -> Request -> Effect Response
 route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.path) of
-  "GET", [ "api", "runs" ] -> V.runList <$> allRuns db >>= ok
+  "GET", [ "api", "runs" ] -> runSummaries db >>= ok <<< V.runList
   "POST", [ "api", "runs" ] -> case parse req.body of
     Left e -> failWith 400 e
     Right l -> launch ctx db l >>= either (failWith 400) (\id -> ok { id })
-  "GET", [ "api", "runs", id, view ] -> loadRun db id >>= maybe (failWith 404 id) (runView view)
+  "GET", [ "api", "runs", id, view ] -> loadRun db id >>= case _ of
+    Right r -> runView view r
+    Left Missing -> failWith 404 ("no run " <> id)
+    Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
   "GET", [ "api", "compare" ] -> do
-    runs <- catMaybes <$> traverse (loadRun db) (filter (_ /= "") (split (Pattern ",") (param "runs" "")))
-    case uncons runs of
-      Nothing -> failWith 404 "runs"
+    let ids = filter (_ /= "") (split (Pattern ",") (param "runs" ""))
+    loaded <- traverse (loadRun db) ids
+    let
+      good = catMaybes (map (hush) loaded)
+      skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
+    case uncons good of
+      Nothing -> failWith 400 (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
       Just { head: base, tail: others } -> ok
-        { compatibility: V.compatible runs
-        , trajectory: V.trajectories runs (param "market" "energy-atlantic")
-        , final: V.finalState runs
+        { compatibility: V.compatible good
+        , trajectory: V.trajectories good (param "market" V.defaultMetricSpec.market)
+        , final: V.finalState good
         , diff: V.baselineDiff base others
         , config: V.configDiff base others
+        , skipped
         }
-  "GET", [ "api", "agency" ] ->
-    either (failWith 400) (ok <<< V.agencyTable)
-      (agency ctx (presetSpec ctx (param "preset" "Conservative") 1 [] Nothing) (seats ctx))
+  "GET", [ "api", "agency" ] -> case Int.fromString (param "playerSeed" "1") of
+    Nothing -> failWith 400 "playerSeed must be an integer"
+    Just s -> viewOr (map V.agencyTable (agency ctx (presetSpec ctx (param "preset" "Conservative") s [] Nothing) (param "alternative" "Aggressive") (seats ctx)))
   _, _ -> failWith 404 req.path
   where
   param k d = fromMaybe d (Object.lookup k req.query)
-  roundParam d = fromMaybe d (Int.fromString (param "round" ""))
+
+  -- an optional round parameter; the view checks that the round exists
+  roundParam :: Int -> Either String Int
+  roundParam d = case Object.lookup "round" req.query of
+    Nothing -> Right d
+    Just s -> maybe (Left ("round must be an integer, got " <> s)) Right (Int.fromString s)
   runView view r = case view of
-    "overview" -> ok (V.overview r)
-    "balances" -> ok (V.balances r (roundParam (length r.records)))
+    "overview" -> ok (V.overview V.defaultMetricSpec r)
+    "balances" -> viewOr (roundParam (length r.records) >>= V.balances r)
     "markets" -> ok (V.markets r)
     "facilities" -> ok (V.facilities r)
     "economy" -> ok (V.economy r)
     "representation" -> ok (V.representation r)
     "procedures" -> ok (V.procedures r)
     "objectives" -> ok (V.objectives ctx.gameboard r)
-    "events" -> ok (V.events r (roundParam 1))
+    "events" -> viewOr (roundParam 1 >>= V.events r)
     _ -> failWith 404 view
+
+describe :: LoadError -> String
+describe = case _ of
+  Missing -> "not found"
+  Unreadable why -> why
 
 parse :: forall a. DecodeJson a => String -> Either String a
 parse = readJson
@@ -105,7 +144,8 @@ seats ctx = fromFoldable (Map.keys ctx.config.seats)
 presetSpec :: Context -> String -> Int -> Array Override -> Maybe Int -> SimulationSpec
 presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed: Seed playerSeed, overrides, rounds }
 
--- | Run a simulation to completion, persisting every round; returns the new run's id.
+-- | Run a simulation to completion, persisting every round; returns the new run's id. A run that
+-- | throws (a store or simulation fault) is marked failed with the cause, and the error goes on.
 launch :: Context -> Db -> Launch -> Effect (Either String String)
 launch ctx db l = do
   n <- length <$> (reader db).runs
@@ -114,33 +154,74 @@ launch ctx db l = do
     spec = Object.fromFoldable
       [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
   created <- nowIso
-  out <- simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
+  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
     createRun db { id, name: l.name, created, spec: encodeJson spec, manifest }
     persister db id manifest.initial
-  case out of
-    Left e -> pure (Left e)
-    Right r -> finish db id r $> Right id
+  case attempt of
+    Left ex -> do
+      failRun db id ("exception: " <> message ex)
+      throwException ex
+    Right (Left e) -> pure (Left e)
+    Right (Right r) -> finish db id r $> Right id
 
-allRuns :: Db -> Effect (Array StoredRun)
-allRuns db = (reader db).runs >>= map catMaybes <<< traverse (loadRun db <<< _.id)
+-- | The run list: one summary per stored run, read without records or snapshots. A run that
+-- | cannot be decoded is listed as unreadable, with the reason; the others stay visible.
+runSummaries :: Db -> Effect (Array (Either Unreadable V.RunSummary))
+runSummaries db = map (map summarize) (reader db).summaries
+  where
+  summarize row = case decodeSummary row of
+    Left why -> Left { id: row.id, name: row.name, reason: why }
+    Right s -> Right s
 
--- | Decode one stored run into the view-model input.
-loadRun :: Db -> String -> Effect (Maybe StoredRun)
+decodeSummary :: RunSummary -> Either String V.RunSummary
+decodeSummary row = do
+  man <- decodeAs "manifest" row.manifest :: Either String Manifest
+  s <- decodeAs "spec" row.spec :: Either String (Object String)
+  assertions <- traverse (\a -> decodeAs "assertions" a :: Either String (Array (Array Failure))) row.assertions
+  pure
+    { id: row.id
+    , name: row.name
+    , status: row.status
+    , reason: toMaybe row.reason
+    , gameboard: man.gameboard
+    , gameSeed: show man.initial.seed
+    , playerSeed: fromMaybe "" (Object.lookup "playerSeed" s)
+    , rounds: length row.assertions
+    , assertionsFailing: length (concat assertions)
+    }
+
+-- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
+-- | assertion set. Any stored text that fails to decode makes the whole run unreadable.
+loadRun :: Db -> String -> Effect (Either LoadError StoredRun)
 loadRun db id = do
   let store = reader db
   info <- find (\r -> r.id == id) <$> store.runs
   m <- store.manifest id
   rows <- store.rounds id
-  pure do
-    i <- info
-    { spec, manifest } <- m
-    stored i spec manifest rows
+  pure case info, m of
+    Nothing, _ -> Left Missing
+    Just _, Nothing -> Left (Unreadable "the run has no manifest")
+    Just i, Just stored -> either (Left <<< Unreadable) Right (decodeRun i stored rows)
   where
-  stored :: RunInfo -> String -> String -> Array _ -> Maybe StoredRun
-  stored i spec manifest rows = hush do
-    man <- parse manifest
-    s <- parse spec :: Either String (Object String)
-    records <- traverse (parse <<< _.record) rows
-    snapshots <- traverse (parse <<< _.snapshot) rows
-    assertions <- traverse (parse <<< _.assertions) rows
-    pure { id: i.id, name: i.name, status: i.status, manifest: man, playerSeed: fromMaybe "" (Object.lookup "playerSeed" s), spec: Object.toUnfoldable s, records, snapshots, assertions }
+  decodeRun :: RunInfo -> { spec :: String, manifest :: String } -> Array StoredRound -> Either String StoredRun
+  decodeRun i stored rows = do
+    man <- decodeAs "manifest" stored.manifest
+    s <- decodeAs "spec" stored.spec :: Either String (Object String)
+    records <- traverse (\r -> decodeAs ("round " <> show r.round <> " record") r.record) rows
+    snapshots <- traverse (\r -> decodeAs ("round " <> show r.round <> " snapshot") r.snapshot) rows
+    assertions <- traverse (\r -> decodeAs ("round " <> show r.round <> " assertions") r.assertions) rows
+    pure
+      { id: i.id
+      , name: i.name
+      , status: i.status
+      , manifest: man
+      , playerSeed: fromMaybe "" (Object.lookup "playerSeed" s)
+      , spec: Object.toUnfoldable s
+      , records
+      , snapshots
+      , assertions
+      }
+
+-- | Decode a stored text, naming what it was when it fails.
+decodeAs :: forall a. DecodeJson a => String -> String -> Either String a
+decodeAs what text = either (\e -> Left (what <> ": " <> e)) Right (parse text)

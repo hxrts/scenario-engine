@@ -4,7 +4,7 @@ module Handlers.Seats (SeatSource, programs, replay, handleSeats, collectRecords
 
 import Prelude
 
-import Core.Draw (Seed, draw)
+import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Types (EntityId, MarketId, ProposalId)
 import Core.World (RoundRecord, RoundResult, View)
@@ -13,8 +13,7 @@ import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (maybe)
-import Data.Newtype (unwrap)
-import Effects (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), envFor)
 import Foreign.Object (Object)
 import Policy.Interpret (Draft)
 import Policy.Interpret as Policy
@@ -35,12 +34,7 @@ programs b =
   , sign: \e v -> maybe [] (\p -> Policy.sign p (env e v)) (Map.lookup e b.bound)
   }
   where
-  env e view =
-    { view
-    , params: b.params
-    , home: b.home e
-    , random: \i -> draw b.playerSeed { round: view.round, source: "seat", entity: unwrap e, category: "choice", index: i }
-    }
+  env = envFor { params: b.params, home: b.home, seed: b.playerSeed, source: "seat" }
 
 -- | Seats answered from recorded round records: what each seat proposed and signed.
 replay :: Array RoundRecord -> SeatSource

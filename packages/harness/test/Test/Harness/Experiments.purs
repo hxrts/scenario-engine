@@ -26,7 +26,7 @@ import Effect.Exception (error)
 import Effect.Now (now)
 import Data.DateTime.Instant (unInstant)
 import Data.Newtype (unwrap)
-import Harness.Analysis (agency, evaluateObjectives)
+import Harness.Analysis (Outcome(..), agency, evaluateObjectives)
 import Harness.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
@@ -64,7 +64,7 @@ indicators ctx r = { row, failures }
   money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (fromFoldable (Map.values w.entities))
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in Q.format (Q.div (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
-  met = length (filter _.met (evaluateObjectives ctx.gameboard r.records))
+  met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.gameboard r.records))
   failures = length (checkRun r.manifest.initial r.records)
   row = joinWith " | "
     [ show activity
@@ -110,7 +110,7 @@ spec context = describe "Experiments (§11) and performance" do
       i.failures `shouldEqual` 0
   it "agency: every seat has a measurable effect, or the gap is a balancing finding" do
     ctx <- context
-    for_ [ "Conservative", "RandomValid" ] \baseline -> case agency ctx (spec' (const baseline) [] 1) (map Id seats) of
+    for_ [ "Conservative", "RandomValid" ] \baseline -> case agency ctx (spec' (const baseline) [] 1) "Aggressive" (map Id seats) of
       Left e -> fail e
       Right ps -> do
         log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))

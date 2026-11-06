@@ -4,6 +4,14 @@ module Harness.Views
   ( Table
   , Chart
   , StoredRun
+  , MetricSpec
+  , defaultMetricSpec
+  , RunSummary
+  , Unreadable
+  , Pressure
+  , MarketPrice
+  , roundPressure
+  , marketPrices
   , runList
   , overview
   , balances
@@ -32,12 +40,17 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.World (Event(..), Manifest, RoundRecord, WorldState)
 import Core.Types (EntityId, EntityKind(..), Id, Intent(..), ResourceId)
-import Data.String (joinWith)
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Encode (encodeJson)
 import Data.Array (concat, concatMap, filter, find, foldl, fromFoldable, index, length, mapWithIndex, nub, sortWith, tail)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap, wrap)
+import Data.Either (Either(..))
+import Data.Foldable (any)
 import Data.Tuple (Tuple(..))
+import Data.String (joinWith)
+import Foreign.Object as Object
 import Harness.Analysis (AgencyProfile, evaluateObjectives)
 
 type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
@@ -45,7 +58,7 @@ type Table = { title :: String, columns :: Array String, rows :: Array (Array St
 -- | A metric per round; values are decimal strings in their own units.
 type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
 
--- | A run as read back from the Run Store.
+-- | A run as read back from the Run Store, with its records and snapshots (single-run views).
 type StoredRun =
   { id :: String
   , name :: String
@@ -58,30 +71,77 @@ type StoredRun =
   , assertions :: Array (Array Failure)
   }
 
+-- | The scenario-specific names the metric views use. The default is the reference scenario
+-- | (docs/05_test_instance.md); a caller passes its own to view another scenario.
+type MetricSpec =
+  { procurement :: Array String -- transformations counted as procurement of the military
+  , procurementLabel :: String -- the overview's label for that procurement
+  , market :: String -- the Market a trajectory comparison shows by default
+  }
+
+defaultMetricSpec :: MetricSpec
+defaultMetricSpec =
+  { procurement: [ "defense-procurement", "defense-procurement-cn" ]
+  , procurementLabel: "Military"
+  , market: "energy-atlantic"
+  }
+
+-- | A run as the list shows it: its summary, read without its records or snapshots.
+type RunSummary =
+  { id :: String
+  , name :: String
+  , status :: String
+  , reason :: Maybe String
+  , gameboard :: String
+  , gameSeed :: String
+  , playerSeed :: String
+  , rounds :: Int
+  , assertionsFailing :: Int
+  }
+
+-- | A stored run that cannot be read: the list shows it with the reason, and keeps the others.
+type Unreadable = { id :: String, name :: String, reason :: String }
+
 q :: Q -> String
 q = Q.format
 
--- | The World State after round `n` (0 = initial).
-at :: StoredRun -> Int -> WorldState
-at r n = if n <= 0 then r.manifest.initial else fromMaybe r.manifest.initial (index r.snapshots (n - 1))
+-- | The World State after round `n` (0 = initial); Nothing for a round the run does not have.
+at :: StoredRun -> Int -> Maybe WorldState
+at r n
+  | n < 0 = Nothing
+  | n == 0 = Just r.manifest.initial
+  | otherwise = index r.snapshots (n - 1)
 
 final :: StoredRun -> WorldState
-final r = at r (length r.snapshots)
+final r = fromMaybe r.manifest.initial (at r (length r.snapshots))
+
+outOfRange :: StoredRun -> Int -> Int -> String
+outOfRange r lo n = "round " <> show n <> " is out of range for run " <> r.id <> " (" <> show lo <> ".." <> show (length r.records) <> ")"
 
 kindOf :: WorldState -> EntityId -> String
 kindOf w e = case _.kind <$> Map.lookup e w.entities of
   Just (Aggregate _) -> "Aggregate (residual)"
   _ -> "Actor"
 
-runList :: Array StoredRun -> Table
-runList runs =
+runList :: Array (Either Unreadable RunSummary) -> Table
+runList rows =
   { title: "Simulation runs"
-  , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing" ]
-  , rows: map (\r -> [ r.id, r.name, r.manifest.gameboard, show r.manifest.initial.seed, r.playerSeed, show (length r.records), r.status, show (length (concat r.assertions)) ]) runs
+  , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason" ]
+  , rows: map row rows
   }
+  where
+  row = case _ of
+    Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason ]
+    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, s.status, show s.assertionsFailing, fromMaybe "" s.reason ]
 
-overview :: StoredRun -> Table
-overview r =
+-- | A Market's price after a World State, as the views show it.
+type MarketPrice = { market :: String, price :: String }
+
+marketPrices :: WorldState -> Array MarketPrice
+marketPrices w = map (\(Tuple id m) -> { market: show id, price: q (marginal m.cost m.position) }) (Map.toUnfoldable w.markets)
+
+overview :: MetricSpec -> StoredRun -> Table
+overview spec r =
   { title: "Overview"
   , columns: [ "Field", "Value" ]
   , rows:
@@ -95,33 +155,34 @@ overview r =
       , [ "Rounds", show (length r.records) ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (count isRejected) ]
-      , [ "Military procured", q (Q.sumQ (concatMap (procured "Mil") (concatMap _.events r.records))) ]
-      ] <> map (\(Tuple id m) -> [ "Final price " <> show id, q (marginal m.cost m.position) ]) (Map.toUnfoldable (final r).markets)
+      , [ spec.procurementLabel <> " procured", q (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
+      ] <> map (\p -> [ "Final price " <> p.market, p.price ]) (marketPrices (final r))
   }
   where
   count f = length (filter f (concatMap _.events r.records))
   isRejected = case _ of
     Rejected _ -> true
     _ -> false
-  procured _ = case _ of
-    Transformed t | unwrap t.transformation == "defense-procurement" || unwrap t.transformation == "defense-procurement-cn" -> [ t.quantity ]
+  procured = case _ of
+    Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> [ t.quantity ]
     _ -> []
 
--- | Every Actor's and Aggregate's balance sheet after round `n`.
-balances :: StoredRun -> Int -> Table
-balances r n =
-  { title: "Balance sheets after round " <> show n
-  , columns: [ "Entity", "Kind", "Resource", "Initial", "Current", "Reserved", "Change" ]
-  , rows: concatMap sheet (fromFoldable (Map.keys w.entities))
-  }
+-- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
+balances :: StoredRun -> Int -> Either String Table
+balances r n = case at r n of
+  Nothing -> Left (outOfRange r 0 n)
+  Just w -> Right
+    { title: "Balance sheets after round " <> show n
+    , columns: [ "Entity", "Kind", "Resource", "Initial", "Current", "Change" ]
+    , rows: concatMap (sheet w) (fromFoldable (Map.keys w.entities))
+    }
   where
-  w = at r n
   w0 = r.manifest.initial
-  sheet e = map (\res -> [ show e, kindOf w e, show res, q (holding w0 e res), q (holding w e res), q Q.zero, q (Q.sub (holding w e res) (holding w0 e res)) ])
-    (resources e)
+  sheet w e = map (\res -> [ show e, kindOf w e, show res, q (holding w0 e res), q (holding w e res), q (Q.sub (holding w e res) (holding w0 e res)) ])
+    (resources w e)
 
-  resources :: EntityId -> Array ResourceId
-  resources e = nub (concatMap (\world -> fromFoldable (Map.keys (fromMaybe Map.empty (_.accounts <$> Map.lookup e world.entities)))) [ w0, w ])
+  resources :: WorldState -> EntityId -> Array ResourceId
+  resources w e = nub (concatMap (\world -> fromFoldable (Map.keys (fromMaybe Map.empty (_.accounts <$> Map.lookup e world.entities)))) [ w0, w ])
 
 series :: forall a. StoredRun -> String -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array { round :: Int, value :: String } }
 series r _ f g =
@@ -199,34 +260,47 @@ moneyFlows r =
     Transferred t | t.resource == w0.numeraire -> Map.insertWith Q.add (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
     _ -> acc
 
+-- | One round's pressure: shortfalls, consumption and decay, and the Proposals rejected or lapsed.
+type Pressure = { shortfall :: Q, consumed :: Q, decayed :: Q, rejected :: Int, lapsed :: Int }
+
+roundPressure :: RoundRecord -> Pressure
+roundPressure rec =
+  { shortfall: sum' shortfallOf
+  , consumed: sum' consumedOf
+  , decayed: sum' decayedOf
+  , rejected: count isRejected
+  , lapsed: count isLapsed
+  }
+  where
+  sum' f = Q.sumQ (concatMap f rec.events)
+  count f = length (filter f rec.events)
+  shortfallOf = case _ of
+    Shortfall s -> [ s.quantity ]
+    _ -> []
+  consumedOf = case _ of
+    Consumed c -> [ c.quantity ]
+    _ -> []
+  decayedOf = case _ of
+    Decayed d -> [ d.quantity ]
+    _ -> []
+  isRejected = case _ of
+    Rejected _ -> true
+    _ -> false
+  isLapsed = case _ of
+    Lapsed _ -> true
+    _ -> false
+
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table
 pressure r =
   { title: "Pressure"
   , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
-  , rows: map (\rec -> [ show rec.round, sum' shortfall rec, count rejected rec, count lapsed rec, sum' consumed rec, sum' decayed rec ]) r.records
+  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, q p.shortfall, show p.rejected, show p.lapsed, q p.consumed, q p.decayed ]) r.records
   }
-  where
-  sum' f rec = q (Q.sumQ (concatMap f rec.events))
-  count f rec = show (length (filter f rec.events))
-  shortfall = case _ of
-    Shortfall s -> [ s.quantity ]
-    _ -> []
-  consumed = case _ of
-    Consumed c -> [ c.quantity ]
-    _ -> []
-  decayed = case _ of
-    Decayed d -> [ d.quantity ]
-    _ -> []
-  rejected = case _ of
-    Rejected _ -> true
-    _ -> false
-  lapsed = case _ of
-    Lapsed _ -> true
-    _ -> false
 
 -- | The four-stage record: observation and estimate in round r, the Aggregate's adjusted
--- | purchase and its execution in round r+1, and the influence ratio.
+-- | purchase and its execution in round r+1, and the influence ratio. The last round has no
+-- | r+1, so its next purchase and influence ratio are "n/a".
 representation :: StoredRun -> Table
 representation r =
   { title: "Representation"
@@ -244,11 +318,13 @@ representation r =
     let
       observed = proposedPurchases rep.actor rec
       own = bought rep.actor rec
-      next = maybe Q.zero (bought rep.aggregate) (index r.records (i + 1))
-      induced = if factor == Q.zero then Q.zero else Q.sub next (Q.div next factor)
-      ratio = if own == Q.zero then "n/a" else q (Q.div induced own)
+      next = bought rep.aggregate <$> index r.records (i + 1)
+      induced nx = if factor == Q.zero then Q.zero else Q.sub nx (Q.div nx factor)
+      ratio = case next of
+        Just nx | own /= Q.zero -> q (Q.div (induced nx) own)
+        _ -> "n/a"
     in
-      [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, q observed, q own, q rep.weight, q rep.estimator.reference, q rep.estimator.shrinkage, q rep.estimator.noiseSpread, q factor, q next, ratio ]
+      [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, q observed, q own, q rep.weight, q rep.estimator.reference, q rep.estimator.shrinkage, q rep.estimator.noiseSpread, q factor, maybe "n/a" q next, ratio ]
 
 -- | Quantities an Entity offered to buy in a round's Proposals.
 proposedPurchases :: EntityId -> RoundRecord -> Q
@@ -289,31 +365,53 @@ procedures r =
 objectives :: Gameboard -> StoredRun -> Table
 objectives gb r =
   { title: "Objectives"
-  , columns: [ "Actor", "Objective", "Criterion", "Met", "Values", "Bound" ]
-  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), if c.met then "met" else "not met", joinComma (map q c.values), joinComma (map q c.bound) ]) o.criteria)
-      (evaluateObjectives gb (mapWithIndex (\i rec -> { world: at r (i + 1), record: rec }) r.records))
+  , columns: [ "Actor", "Objective", "Criterion", "Outcome", "Values", "Bound" ]
+  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map q c.values), joinComma (map q c.bound) ]) o.criteria)
+      (evaluateObjectives gb (mapWithIndex (\i rec -> { world: fromMaybe r.manifest.initial (at r (i + 1)), record: rec }) r.records))
   }
 
 -- | A round's events in canonical phase order (the order the engine records them).
-events :: StoredRun -> Int -> Table
-events r n =
-  { title: "Events, round " <> show n
-  , columns: [ "Event" ]
-  , rows: maybe [] (map (\e -> [ show e ]) <<< _.events) (index r.records (n - 1))
-  }
+events :: StoredRun -> Int -> Either String Table
+events r n = case index r.records (n - 1) of
+  Just rec | n >= 1 -> Right { title: "Events, round " <> show n, columns: [ "Event" ], rows: map (\e -> [ show e ]) rec.events }
+  _ -> Left (outOfRange r 1 n)
 
 -- Comparison --------------------------------------------------------------------
 
--- | Runs are directly comparable only on the same Gameboard version and round count.
+-- | Runs are directly comparable only when they agree on everything the manifest fixes: the
+-- | Gameboard version, the engine, the round count, the units, the Market definitions, and the
+-- | Actor selection (the preset every seat plays). Each difference is named, and the run is flagged.
 compatible :: Array StoredRun -> Table
 compatible runs =
   { title: "Compatibility"
-  , columns: [ "Run", "Gameboard", "Rounds", "Comparable with the first" ]
-  , rows: map (\r -> [ r.id, r.manifest.gameboard, show (length r.records), if same r then "yes" else "no: flagged, not combined" ]) runs
+  , columns: [ "Run", "Gameboard", "Engine", "Rounds", "Units", "Market definitions", "Actor selection", "Comparable with the first" ]
+  , rows: map row runs
   }
   where
-  first = index runs 0
-  same r = maybe true (\f -> f.manifest.gameboard == r.manifest.gameboard && length f.records == length r.records) first
+  row r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (length r.records), sameAs units r, sameAs markets' r, actors r, verdict r ]
+  sameAs f r = maybe "—" (\first -> if f first == f r then "same" else "differs") (index runs 0)
+  verdict r = case index runs 0 of
+    Nothing -> "yes"
+    Just first -> case mismatches first r of
+      [] -> "yes"
+      ms -> "no: flagged, not combined (" <> joinComma ms <> ")"
+  mismatches f r = concat
+    [ if f.manifest.gameboard == r.manifest.gameboard then [] else [ "Gameboard" ]
+    , if f.manifest.engine == r.manifest.engine then [] else [ "engine" ]
+    , if length f.records == length r.records then [] else [ "round count" ]
+    , if units f == units r then [] else [ "units" ]
+    , if markets' f == markets' r then [] else [ "Market definitions" ]
+    , if actors f == actors r then [] else [ "Actor selection" ]
+    ]
+
+  units :: StoredRun -> String
+  units r = stringify (encodeJson (Object.fromFoldable (map (\(Tuple k d) -> Tuple (show k) d.unit) (Map.toUnfoldable r.manifest.initial.resources :: Array _))))
+
+  markets' :: StoredRun -> String
+  markets' r = stringify (encodeJson (Object.fromFoldable (map (\(Tuple k m) -> Tuple (show k) m) (Map.toUnfoldable r.manifest.initial.markets :: Array _))))
+
+  actors :: StoredRun -> String
+  actors r = fromMaybe "—" (map (\(Tuple _ v) -> v) (find (\(Tuple k _) -> k == "preset") r.spec))
 
 -- | One market's price across runs, aligned by round.
 trajectories :: Array StoredRun -> String -> Chart

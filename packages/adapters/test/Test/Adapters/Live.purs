@@ -12,26 +12,26 @@ import Core.Types (EntityId, Id(..), Intent(..))
 import Core.World (RoundResult, WorldState)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (elem, length)
-import Data.Either (Either(..))
+import Data.Array (elem, filter, length)
+import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe')
 import Data.String (Pattern(..), contains)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, attempt)
 import Effect.Class (liftEffect)
-import Effect.Exception (error)
+import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects (ClockF(..), Deadline(..), InWorld, InterpretF(..), Interpretation(..), NarrateF(..), inWorldOf, runGame)
 import Core.Engine (observe)
 import Partial.Unsafe (unsafeCrashWith)
-import Handlers.Live (Seat(..), runLive)
+import Handlers.Live (Prompt, Seat(..), runLive)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (programs)
 import Policy.Interpret (Draft)
 import Core.Draw (Seed(..))
 import Scenarios (load)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
 type Game = { world :: WorldState, inWorld :: InWorld }
 
@@ -58,6 +58,7 @@ model = stub \system input ->
   else if contains (Pattern "buy some energy") input then json { kind: "clarify", message: "How much energy, on which market?" }
   else if contains (Pattern "seize the Chinese fleet") input then json { kind: "inadmissible", message: "the US holds no authority over Chinese forces" }
   else if contains (Pattern "build Chinese tanks") input then json { kind: "understood", proposals: [ { intents: [ Transform { by: Id "US", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 1 } ], signers: ([] :: Array EntityId), procedure: (Nothing :: Maybe String) } ] }
+  else if contains (Pattern "sign everything") input then json { kind: "understood", proposals: ([] :: Array Draft), sign: [ "not-a-proposal" ] }
   else if contains (Pattern "nothing") input then json { kind: "understood", proposals: ([] :: Array Draft) }
   else "not json"
 
@@ -66,6 +67,19 @@ canonical = case _ of
   Understood ds ids -> "understood " <> json ds <> " " <> json ids
   Clarify q -> "clarify " <> q
   Inadmissible r -> "inadmissible " <> r
+
+type Session = { records :: Array RoundResult, narration :: Array String, notices :: Array String }
+
+-- | The US player's script: buy in Round 1, then nothing; confirm every candidate.
+scripted :: Prompt -> Aff String
+scripted p
+  | p.question /= "" = pure "y"
+  | p.window == ProposeDeadline && p.round == 1 = pure "buy ten energy"
+  | otherwise = pure "nothing"
+
+-- | The same script, declining every confirmation.
+declining :: Prompt -> Aff String
+declining p = if p.question /= "" then pure "n" else scripted p
 
 spec :: Spec Unit
 spec = do
@@ -83,6 +97,19 @@ spec = do
       g <- setup
       run' g "seize the Chinese fleet" >>= shouldEqual "inadmissible the US holds no authority over Chinese forces"
       run' g "build Chinese tanks" >>= shouldEqual "inadmissible the action needs a capability this Actor does not hold"
+    it "sign ids the model names but the Actor may not sign are dropped (view.toSign intersection)" do
+      g <- setup
+      run' g "sign everything" >>= shouldEqual "understood [] []"
+  describe "Backend failures" do
+    it "a backend failure is fatal to the call: the error propagates with its cause" do
+      g <- setup
+      let
+        broken = { model: "broken", call: \_ _ -> throwError (error "language model backend failed (broken): spawn pi ENOENT") }
+        view = observe g.world (fromMaybe' (\_ -> unsafeCrashWith "US") (Map.lookup (Id "US") g.world.entities))
+      out <- attempt (interpreter broken (const (pure unit)) (\e -> Map.lookup e g.world.entities) (Interpret (Id "US") view "buy ten energy" identity))
+      case out of
+        Left e -> message e `shouldSatisfy` contains (Pattern "spawn pi ENOENT")
+        Right _ -> fail "expected the backend failure to reach the caller"
   describe "Live play" do
     it "a scripted live session equals replaying its recorded Proposals and signatures" do
       g <- setup
@@ -91,28 +118,33 @@ spec = do
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
       out.narration `shouldEqual` [ "Markets moved.", "Markets moved.", "Markets moved." ]
       replayed g 3 out.records `shouldEqual` map _.world out.records
+    it "a declined confirmation drops the candidate and tells the seat" do
+      g <- setup
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Program) declining
+      -- the NPC and Aggregate Policies still propose; the declined seat's candidate does not
+      length (filter (\s -> s.proposal.author == Id "US") (bind out.records _.record.inputs)) `shouldEqual` 0
+      out.notices `shouldEqual` [ "Round 1 propose window: 1 item(s) not confirmed, so nothing was submitted" ]
     it "an all-AI-agent game completes five rounds and replays from its records" do
       g <- setup
       out <- live g 5 (const Agent)
       length out.records `shouldEqual` 5
       replayed g 5 out.records `shouldEqual` map _.world out.records
   where
-  replayed g n records = map _.world (runReplay (map _.record records) (runGame g.inWorld n g.world)).records
+  replayed g n records = either unsafeCrashWith (map _.world <<< _.records) (runReplay n (map _.record records) (runGame g.inWorld n g.world))
 
-  live :: Game -> Int -> (EntityId -> Seat) -> Aff { records :: Array RoundResult, narration :: Array String }
-  live g n seat = do
+  live :: Game -> Int -> (EntityId -> Seat) -> Aff Session
+  live g n seat = liveWith g n seat scripted
+
+  liveWith :: Game -> Int -> (EntityId -> Seat) -> (Prompt -> Aff String) -> Aff Session
+  liveWith g n seat ask = do
     recs <- liftEffect (Ref.new [])
     texts <- liftEffect (Ref.new [])
-    let
-      noLog = const (pure unit)
-      -- the US player's script: buy in Round 1, then nothing; confirm every candidate
-      ask p
-        | p.question /= "" = pure "y"
-        | p.window == ProposeDeadline && p.round == 1 = pure "buy ten energy"
-        | otherwise = pure "nothing"
+    notes <- liftEffect (Ref.new [])
+    let noLog = const (pure unit)
     _ <- runLive
       { seat
       , ask
+      , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
       , interpret: interpreter model noLog (\e -> Map.lookup e g.world.entities)
       , clock: \(Await _ _ a) -> pure a
       , agents: agents model noLog (const "Secure energy at a fair price.")
@@ -122,4 +154,4 @@ spec = do
           liftEffect (Ref.modify_ (_ <> [ r ]) recs *> Ref.modify_ (_ <> [ t ]) texts)
       }
       (runGame g.inWorld n g.world)
-    { records: _, narration: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts)
+    { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
