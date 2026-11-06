@@ -638,7 +638,7 @@ A provisional six-hour session: 20 minutes of briefing, five 60-minute rounds (a
 |---|---|
 | **1. Prepare round** | Deliver production and procurement; apply capacity renewals; activate rule changes and strikes; apply the Round 3 disruption |
 | **2. Create observations** | Authorized views, including both regional prices and the SME factor stored last round |
-| **3. Generate proposals** (round runner) | 3a Propose: all Policies at once (seats, with human speech interpreted in live play; China's Policy; Aggregate Policies, applying last round's stored factor; the EU publishes its procedure Proposals when their conditions hold). 3b Sign: each other required signer signs the Proposals it endorses, including Germany on EU procedure Proposals |
+| **3. Generate proposals** (round runner) | 3a Propose: all Policies at once (seats, with human text input interpreted in live play; China's Policy; Aggregate Policies, applying last round's stored factor; the EU publishes its procedure Proposals when their conditions hold). 3b Sign: each other required signer signs the Proposals it endorses, including Germany on EU procedure Proposals |
 | **4. Screen and interpret** | Authority, signature rules (an incompletely signed deal lapses; a procedure Proposal lapses unless support exceeds its threshold), and escrow; the owner's observation |
 | **5. Estimate** | Compute and store the SME adjustment factor for use next round; no Proposal is created or changed |
 | **6. Resolve economy** | One batch: joint feasibility against escrow; uniform clearing of both nodes; shipping, procurement, campaigns, aid, deployment, investment, and circulation evaluated together; operating requirements and decay applied to net positions at commit |

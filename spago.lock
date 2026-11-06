@@ -5,9 +5,11 @@
         "path": "packages/adapters",
         "core": {
           "dependencies": [
+            "aff",
             "argonaut-codecs",
             "argonaut-core",
             "arrays",
+            "bifunctors",
             "effect",
             "either",
             "foldable-traversable",
@@ -27,15 +29,19 @@
         "test": {
           "dependencies": [
             "aff",
+            "argonaut-core",
             "effect",
             "exceptions",
             "ordered-collections",
+            "partial",
             "quickcheck",
+            "refs",
             "sp-harness",
             "sp-scenarios",
             "spec",
             "spec-node",
-            "spec-quickcheck"
+            "spec-quickcheck",
+            "strings"
           ]
         }
       },
@@ -72,6 +78,7 @@
         "path": "apps/cli",
         "core": {
           "dependencies": [
+            "aff",
             "argonaut-codecs",
             "arrays",
             "console",
@@ -79,10 +86,12 @@
             "either",
             "foldable-traversable",
             "foreign-object",
+            "integers",
             "maybe",
             "node-process",
             "ordered-collections",
             "prelude",
+            "refs",
             "sp-adapters",
             "sp-board",
             "sp-core",
@@ -211,6 +220,8 @@
         "path": "packages/handlers",
         "core": {
           "dependencies": [
+            "aff",
+            "arrays",
             "effect",
             "either",
             "foreign-object",

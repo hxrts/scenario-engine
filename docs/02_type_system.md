@@ -304,7 +304,7 @@ The engine (World State + Intents → World State) is separate from the Policies
 |---|---|---|
 | **Declarative program** | NPC rules, Aggregate baselines, seat-policy presets, run on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)) | The game seed |
 | **AI agent** | A language model given the role's briefing, objectives, and authorized view | Recorded Intents |
-| **Human** | A person whose speech the AI interpreter converts into Intents | Recorded Intents |
+| **Human** | A person whose typed text the AI interpreter converts into Intents | Recorded Intents |
 
 Accepted canonical Intents are always recorded, and replay starts from them; deterministic programs can also be regenerated from the seed.
 
@@ -697,7 +697,7 @@ Everything impure is an algebraic effect, and only the round runner and the code
 | Effect | Operation |
 |---|---|
 | `SeatInput` | A seat's Proposals in Propose and its signatures in Sign |
-| `Interpret` | Transcript → candidate Intents, with confirmation |
+| `Interpret` | Text → candidate Intents, with confirmation |
 | `Narrate` | Resolved events → front page and balance-sheet text |
 | `Record` | Append round records and snapshots |
 | `Clock` | Session deadlines (live play only) |

@@ -232,11 +232,11 @@ In B, Germany then receives a seat Policy that reproduces the implicit baseline.
 
 ### 7.4 AI interpretation tests
 
-Transcript-to-Intent interpretation is tested separately. The harness consumes canonical Intents and never calls the language model.
+Text-to-Intent interpretation is tested separately. The harness consumes canonical Intents and never calls the language model.
 
 The interpretation suite contains:
 
-- transcripts paired with their expected canonical Intents;
+- text inputs paired with their expected canonical Intents;
 - materially ambiguous cases, where the expected output is a clarification request;
 - inadmissible cases, such as claimed resources or authority the Actor lacks, where the expected output is a flagged rejection.
 

@@ -30,6 +30,7 @@ import Handlers.Replay (runReplay)
 import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Scenarios (load, loadPresets)
 import Test.Spec (describe, it)
+import Test.Adapters.Live as Live
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
@@ -41,6 +42,7 @@ orThrow = case _ of
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  Live.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
       loaded <- liftEffect (load "fractured-world/v0") >>= orThrow

@@ -373,7 +373,7 @@ Rejected, partially filled, and lapsed actions are recorded with their reasons. 
 - resource, capacity, and Market changes;
 - the ending snapshot reference.
 
-Language-model interpretation may be nondeterministic. Replay therefore starts from the recorded canonical Proposals and signatures. Audio and transcripts may be kept as supporting evidence.
+Language-model interpretation may be nondeterministic. Replay therefore starts from the recorded canonical Proposals and signatures. The players' text input may be kept as supporting evidence.
 
 All participants act on one World State ([INV-15](02_type_system.md#inv-15)). Alternative outcomes require separate instances or deliberate replay branches.
 

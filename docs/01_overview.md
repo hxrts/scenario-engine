@@ -91,7 +91,7 @@ The design splits into two parts. The **engine** takes the World State and a rou
 
 - **Programs:** declarative rules for NPCs, Aggregate baselines, and preset player behavior, all on one shared interpreter. Reproducible from the game seed.
 - **AI agents:** a language model playing a role from its briefing and view. Reproducible from its recorded Intents.
-- **Humans:** a person whose speech AI turns into Intents. Reproducible from recorded Intents.
+- **Humans:** a person whose typed text AI turns into Intents. Reproducible from recorded Intents.
 
 An NPC's Policy is part of the scenario, such as a government that retaliates against tariffs or small businesses cutting investment when costs rise. A seat's Policy comes from outside, so the simulator can replace a human with an agent or program without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes; a player who changes a rule changes the conditions they respond to, never the Policies themselves.
 
@@ -112,7 +112,7 @@ Every path ends in the same place: seat decisions, NPC decisions, Aggregate beha
 
 ## 10. AI Interface and Reporting
 
-Players never touch the type system directly. AI turns their spoken decisions into structured Intents, confirms materially ambiguous ones, and records the accepted Intents so a game can be replayed without reinterpreting speech.
+Players never touch the type system directly. AI turns their typed decisions into structured Intents, confirms materially ambiguous ones, and records the accepted Intents so a game can be replayed without reinterpreting text. Input is text; a speech-to-text front end can be added later without changing the interpreter.
 
 The engine, not the language model, decides what happens. AI then writes a fictional financial-news front page in the style of the *Financial Times* or *The Economist*, and each player receives a balance sheet. **AI interprets inputs and communicates results; the engine determines outcomes.** Reporting must stay grounded in the resolved world state.
 

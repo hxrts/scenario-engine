@@ -18,6 +18,8 @@ package:
     - maybe
     - nullable
     - refs
+    - aff
+    - bifunctors
   test:
     main: Test.Adapters.Main
     dependencies:
@@ -27,6 +29,10 @@ package:
       - ordered-collections
       - sp-harness
       - sp-scenarios
+      - strings
+      - refs
+      - partial
+      - argonaut-core
       - spec
       - spec-node
       - quickcheck

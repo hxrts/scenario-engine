@@ -22,6 +22,9 @@ package:
     - sp-handlers
     - sp-adapters
     - sp-harness
+    - aff
+    - refs
+    - integers
   test:
     main: Test.Cli.Main
     dependencies:

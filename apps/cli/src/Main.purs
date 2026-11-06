@@ -12,7 +12,7 @@ import Core.Market (marginal)
 import Core.Types (Controller(..), EntityKind(..))
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (concatMap, drop, filter, foldl, fromFoldable, length)
+import Data.Array (concatMap, drop, filter, foldl, fromFoldable, index, length, take)
 import Data.Either (Either(..))
 import Data.Int (fromString)
 import Data.Map as Map
@@ -26,6 +26,8 @@ import Foreign.Object as Object
 import Handlers.Test (runTest)
 import Node.Process (argv, exit')
 import Scenarios (load, loadPresets)
+import Session (Options, session)
+import Adapters.Llm (defaultModel)
 
 main :: Effect Unit
 main = do
@@ -34,12 +36,14 @@ main = do
     [ "run", scenario ] -> runScenario scenario "Passive" 5
     [ "run", scenario, "--preset", preset ] -> runScenario scenario preset 5
     [ "run", scenario, "--preset", preset, "--rounds", n ] -> runScenario scenario preset (fromMaybe 5 (fromString n))
+    _ | index args 0 == Just "session", Just scenario <- index args 1 -> let rest = drop 2 args in session (foldl option { scenario, model: defaultModel, humans: "", rounds: 5, window: 0, id: "session-1" } (pairs rest))
     _ -> usage
 
 usage :: Effect Unit
 usage = do
   log "usage: run <scenario> [--preset <name>] [--rounds <n>]"
   log "  e.g. run fractured-world --preset Conservative --rounds 5"
+  log "       session <scenario> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name]"
   exit' 1
 
 runScenario :: String -> String -> Int -> Effect Unit
@@ -89,3 +93,19 @@ summarize before r = do
 
 fail :: String -> Effect Unit
 fail e = log e *> exit' 1
+
+pairs :: Array String -> Array (Tuple String String)
+pairs xs = case xs of
+  [] -> []
+  _ -> case take 2 xs of
+    [ k, v ] -> [ Tuple k v ] <> pairs (drop 2 xs)
+    _ -> []
+
+option :: Options -> Tuple String String -> Options
+option o (Tuple k v) = case k of
+  "--humans" -> o { humans = v }
+  "--model" -> o { model = v }
+  "--rounds" -> o { rounds = fromMaybe o.rounds (fromString v) }
+  "--window" -> o { window = fromMaybe o.window (fromString v) }
+  "--id" -> o { id = v }
+  _ -> o

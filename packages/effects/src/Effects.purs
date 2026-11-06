@@ -25,7 +25,7 @@ import Prelude
 import Core.Draw (draw)
 import Core.Engine (EngineError, observe, prepareRound, resolveRound)
 import Core.Num (Q)
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), MarketId, PolicyId, Proposal, ProposalId, SignedProposal, proposalId)
+import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), MarketId, PolicyId, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Array (concat, elem, filter, find, fromFoldable, head, mapWithIndex)
 import Data.Either (Either(..))
@@ -84,7 +84,13 @@ type NARRATE r = (narrate :: NarrateF | r)
 -- | Session deadlines (live play only): wait until the propose or sign deadline passes.
 data Deadline = ProposeDeadline | SignDeadline
 
-data ClockF a = Await Deadline a
+derive instance Eq Deadline
+
+instance Show Deadline where
+  show ProposeDeadline = "propose"
+  show SignDeadline = "sign"
+
+data ClockF a = Await RoundIndex Deadline a
 
 derive instance Functor ClockF
 

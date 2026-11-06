@@ -58,12 +58,12 @@ packages/
     Replay       SeatInput from recorded round records
     Test         in-memory, fully pure
   adapters/    impure backends behind effect handlers (→ handlers)
-    Llm          Interpret, Narrate, AI-agent seats
+    Llm          Interpret, Narrate, AI-agent seats: one ephemeral, tool-less `pi` process per call; the model ID is the only setting
     Store        Record / RunStore on SQLite
   harness/     SimulationSpec, experiments, counterfactuals, objective evaluation (→ effects, handlers)
     Views        dashboard view models: generic Table and Chart projections of stored runs
   apps/        entry points only (→ anything above)
-    cli          live session and simulation commands
+    cli          `run` (simulation) and `session` (facilitator console: typed input, AI-agent seats)
     server       JSON API: one GET per harness view model, plus POST /api/runs to launch a run
     dashboard    PureScript react-basic-hooks over vendored shadcn/ui (ui/, via one FFI module)
 test/          property tests per package; fixtures A–G as golden tests
