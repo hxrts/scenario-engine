@@ -17,7 +17,7 @@ module Adapters.Llm
 
 import Prelude
 
-import Board.Decode (readJson)
+import Board.Decode.Common (readJson)
 
 import Core.Engine.Screen (authorized, executor)
 import Control.Monad.Error.Class (catchError, throwError)

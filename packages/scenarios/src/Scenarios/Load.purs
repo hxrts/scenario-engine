@@ -20,9 +20,11 @@ module Scenarios.Load
 
 import Prelude
 
-import Board.Decode (decodeFixture, readJsonWith)
+import Board.Decode.Common (readJsonWith)
+import Board.Decode.World (decodeFixture)
 import Board.Fixture (Fixture)
-import Board.Gameboard (Gameboard, InstantiationConfig, RefKind(..), ValidationError, decodeConfig, decodeGameboard, validateGameboard)
+import Board.Gameboard.Schema (Gameboard, InstantiationConfig, RefKind(..), ValidationError, decodeConfig, decodeGameboard)
+import Board.Gameboard.Validate (validateGameboard)
 import Core.Types (Id(..))
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)

@@ -17,7 +17,8 @@ module Harness.Simulate
 
 import Prelude
 
-import Board.Gameboard (Gameboard, InstantiationConfig, instantiate)
+import Board.Gameboard.Schema (Gameboard, InstantiationConfig)
+import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (EngineError)
 import Core.Num (Q)

@@ -5,7 +5,7 @@ module Scenarios.Compile (Output, compile) where
 
 import Prelude
 
-import Board.Decode (decodeFixture)
+import Board.Decode.World (decodeFixture)
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Argonaut.Encode (encodeJson)

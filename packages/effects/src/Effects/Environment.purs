@@ -11,8 +11,8 @@ module Effects.Environment
 
 import Prelude
 
-import Board.Decode (toMap)
-import Board.Gameboard (Gameboard)
+import Board.Decode.Common (toMap)
+import Board.Gameboard.Schema (Gameboard)
 import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), MarketId, PolicyId)

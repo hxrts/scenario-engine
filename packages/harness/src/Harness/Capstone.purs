@@ -11,7 +11,7 @@ module Harness.Capstone
 
 import Prelude
 
-import Board.Decode (Expect, decodeExpect)
+import Board.Decode.Rounds (Expect, decodeExpect)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..))
 import Data.Argonaut.Core (Json, toArray, toObject, toString)

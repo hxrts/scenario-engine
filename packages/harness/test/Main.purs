@@ -5,7 +5,8 @@ module Test.Harness.Main where
 import Prelude
 
 import Board.Fixture (checkFixture)
-import Board.Gameboard (instantiate, reconcile)
+import Board.Gameboard.Instantiate (instantiate)
+import Board.Gameboard.Reconcile (reconcile)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..), draw)
 import Core.Engine.Commit (resolveRound)

@@ -2,8 +2,11 @@ module Test.Board.Main where
 
 import Prelude
 
-import Board.Decode (Expect, decodeFixture, decodeRound, capability, intent, rule)
-import Board.Gameboard (decodeGameboard)
+import Board.Decode.Common (capability)
+import Board.Decode.Intents (intent, rule)
+import Board.Decode.Rounds (Expect, decodeRound)
+import Board.Decode.World (decodeFixture)
+import Board.Gameboard.Schema (decodeGameboard)
 import Core.Num as Q
 import Core.Types (Capability(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
 import Data.Argonaut.Core (Json)

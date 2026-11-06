@@ -49,6 +49,8 @@ packages/
     Engine       prepare, observe, screen, estimate, resolve, commit
     Invariants   INV checks as pure predicates over (World, RoundResult)
   board/       Gameboard schema (incl. Objectives), validation, instantiation (pure; → core)
+    Board.Decode.*    one JSON decoder module per schema section: Common (text entry points, tagged-union and tag readers, holdings and map helpers), Markets, Entities, Circulation, Intents (rules and intents), Rounds (proposals and expectations), World (composes the sections into a document)
+    Board.Gameboard.* Schema (types, error and difference types, and the Gameboard and configuration decoders), Instantiate, Reconcile (the explicit-vs-implicit comparison, INV-14), Validate (imports Instantiate and Reconcile)
   policy/      decision-language interpreter and presets (pure; → core)
   effects/     Effects.Signatures (effect rows), Effects.Environment (in-world policies), Effects.Round (runRound, runGame; Run; → core, policy)
   scenarios/   data plus pure decoding and compilation; no IO: fractured-world/v0/*.json, presets.json, fixtures (→ board, policy)

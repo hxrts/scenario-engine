@@ -16,7 +16,7 @@ module Harness.Analysis
 
 import Prelude
 
-import Board.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Span(..))
+import Board.Gameboard.Schema (Bound(..), Gameboard, Measure(..), MetricRef, Span(..))
 import Core.Draw (Seed(..))
 import Core.Query (capacityHeld, holding, lookupQ, priceOf)
 import Core.Query as Query

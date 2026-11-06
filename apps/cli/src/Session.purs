@@ -10,7 +10,7 @@ import Prelude
 import Adapters.Llm (agents, interpreter, narrator, pi)
 import Adapters.Seed (resolveSeed)
 import Adapters.Store (createRun, failRun, finish, nowIso, open, persister)
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed)
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)

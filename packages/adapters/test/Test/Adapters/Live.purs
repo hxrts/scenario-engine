@@ -5,7 +5,7 @@ module Test.Adapters.Live (spec) where
 import Prelude
 
 import Adapters.Llm (Backend, agents, interpreter, narrator, stub)
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), Intent(..))

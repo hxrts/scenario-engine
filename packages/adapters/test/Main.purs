@@ -5,10 +5,10 @@ module Test.Adapters.Main where
 
 import Prelude
 
-import Board.Decode (readJson)
+import Board.Decode.Common (readJson)
 
 import Adapters.Store (busyTimeout, configuredBusyTimeout, createRun, deleteRun, failRun, failStaleRuns, metricsVersion, open, openReadOnly, persister, reader, schemaVersion, setArchived, setStatus, setSpec)
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))

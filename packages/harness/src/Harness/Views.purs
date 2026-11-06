@@ -32,7 +32,7 @@ module Harness.Views
 
 import Prelude
 
-import Board.Gameboard (Gameboard)
+import Board.Gameboard.Schema (Gameboard)
 import Core.Invariants (Failure)
 import Core.Market (marginal)
 import Core.Query (holding, lookupQ, priceOf, totalHolding)
