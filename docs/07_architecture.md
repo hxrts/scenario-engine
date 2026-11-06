@@ -40,11 +40,12 @@ The project is a spago workspace. Each package compiles on its own, and the depe
 packages/
   core/        pure types and engine; depends only on prelude-level libs
     Num          fixed-point quantities (4 dp, half-even)
-    Types        Entity, Resource, Intent, Proposal, Market, Estimator, …
-    Draw         keyed PRNG: Seed → Stream → DrawKey → UnitInterval
+    Types        Entity, Resource, Intent, Proposal, Market, CollectiveProcedure, Representation, …
+    Draw         keyed PRNG: draw :: Seed → DrawKey → UnitInterval
     Market       CostFunction, clearing
     Transform    facilities, recipes, circulation
-    Represent    estimators, collective procedures
+    Represent    estimators: sampled behavior → adjusted baseline
+    Procedure    collective procedures: stances → decision
     Engine       prepare, observe, screen, reconcile, resolve, commit
     Invariants   INV checks as pure predicates over (World, RoundResult)
   board/       Gameboard schema, validation, instantiation (pure; → core)
@@ -99,10 +100,11 @@ AI agents and humans satisfy the same shape through the `SeatInput` effect rathe
 
 ```purescript
 type RoundEffects r = (RANDOM + SEAT_INPUT + RECORD + r)
-runRound :: Engine -> WorldState -> Run (RoundEffects r) RoundResult
+runRound :: Engine -> Policies -> WorldState
+         -> Run (RoundEffects r) (Either EngineError RoundResult)
 ```
 
-`INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
+`RANDOM` exposes `random :: Stream -> DrawKey -> UnitInterval`; the stream selects the game or player seed, and the handler calls the pure `draw`. `INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
 
 **Run store** (`adapters/Store`). It is append-only and reached through the `Record` effect plus a read API:
 

@@ -42,7 +42,7 @@ An Instantiation Configuration is declarative. It references a validated Gameboa
 | **Controller Assignments** | Seat or NPC for each explicit Actor. |
 | **Fallbacks** | The fallback applied to each unselected Actor definition. |
 | **Aggregate Selection** | Which populations are represented implicitly. |
-| **Representation Assignments** | Which Actors feed which Aggregates, and with which estimator. |
+| **Representation Assignments** | Which Actors represent which Aggregates, with which weight and estimator. |
 | **Policy Parameters** | Concrete parameters for NPC and Aggregate Policies. |
 | **Economic Initialization** | Holdings, capacities, recurring flows, and market conditions. |
 | **Round Schedule** | Rounds and their simulated time intervals. |
@@ -119,29 +119,28 @@ The Gameboard defines potential Aggregates. The configuration selects and parame
 
 ### 4.1 Resolving the three projections
 
-Initialization resolves each Aggregate's membership, residual, and collective procedure separately (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)):
+Initialization resolves each Aggregate's members, residual accounts, and collective procedures separately (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)):
 
-1. **Membership** may overlap across Aggregates and may include explicit Actors.
+1. **Members.** Member lists may overlap across Aggregates and may include explicit Actors. They are descriptive and confer nothing.
 2. **Residual accounts.** Every account and behavioral responsibility gets exactly one authoritative owner ([INV-08](02_type_system.md#inv-08)).
-3. **Collective procedure and capabilities.** These are attached where applicable.
+3. **Collective procedures and capabilities.** Each declared procedure receives its member weights, residual weight, rule, and authorized capabilities.
 
 Each Aggregate also receives a baseline Policy, permitted observations, and any Representation assignments.
 
 ### 4.2 Partitioning
 
-**Total population = Explicit members + Residual**
+**Reference accounts = Explicit Actors' accounts + Residual accounts**
 
-The same partition applies to holdings, liabilities, capacities, and directly modeled behavior. A business may be classified as both manufacturing and small business, but two Aggregates cannot both own its assets.
+The partition covers holdings, liabilities, capacities, and directly modeled behavior. A business may be classified as both manufacturing and small business, but two Aggregates cannot both own its assets.
 
-Extraction covers only the accounts the explicit Actor actually controls (Type System [§7.1](02_type_system.md#71-aggregate-semantics)). Germany remains an EU member and submits procedure inputs to the EU's collective procedure.
+Extraction covers only the accounts the explicit Actor actually controls (Type System [§7.1](02_type_system.md#71-aggregate-semantics)). Germany remains an EU member and submits procedure inputs to the EU's collective procedures.
 
-Population resolution proceeds in five steps:
+Partitioning proceeds in four steps:
 
 1. Identify explicit members.
 2. Subtract their accounts and activity from the residual.
-3. Set residual sizes and weights.
-4. Reconcile overlapping classifications.
-5. Initialize baseline behavior from the residual state.
+3. Reconcile overlapping classifications.
+4. Initialize baseline behavior from the residual state.
 
 If the partition cannot be made consistent, initialization fails.
 
@@ -162,30 +161,30 @@ Initialization checks the resolved partition against the Gameboard's reference (
 
 ## 5. Representation Assignment
 
-The Gameboard defines Representation schemes. The configuration activates them and resolves their estimator parameters.
+The Gameboard defines Representation schemes. The configuration activates them and resolves each representative's weight and estimator.
 
 ```purescript
 type RepresentationAssignment =
   { actor :: EntityId
   , scheme :: SchemeId
-  , estimator :: Estimator   -- Type System §7.2; usually a preset with overrides
+  , weight :: Ratio
+  , estimator :: Estimator   -- Type System §7.2
   }
 ```
 
-The scheme fixes the target Aggregate, the domain, and the permitted preset. The assignment resolves the parameters that depend on the actual participants:
+The scheme fixes the target Aggregate, the domain, and the permitted parameter ranges. The assignment resolves the values that depend on the actual participants:
 
-- weights;
+- weight;
+- reference behavior;
 - shrinkage;
 - deviation bound;
-- delay;
-- backing requirement;
-- the linked collective procedure, where one applies.
+- noise spread.
 
-Under the `constituent` preset, inputs typically arrive as procedure inputs and require no transfer. Membership is resolved independently of Representation: Germany is an EU member whether or not it submits a procedure input in a given round.
+Collective procedures are not Representations. They are resolved with the Aggregate ([§4.1](#41-resolving-the-three-projections)), and members influence them through procedure inputs. Germany is an EU member whether or not it submits a procedure input in a given round.
 
-**Direct and representative effects stay separate ([INV-09](02_type_system.md#inv-09)).** The Actor's own transactions execute once against its own holdings. The Actor's validated proposals and procedure inputs feed the estimator, which adjusts the residual. The engine records the four stages: observation, estimate, proposed Aggregate Intent, and executed result (Type System [§7.3](02_type_system.md#73-representation-pipeline)).
+**Direct and representative effects stay separate ([INV-09](02_type_system.md#inv-09)).** The Actor's own transactions execute once against its own holdings. The Actor's validated, escrowed Proposals feed the estimator, which adjusts the residual's baseline. The engine records the four stages: observation, estimate, proposed Aggregate Intent, and executed result (Type System [§7.3](02_type_system.md#73-representation-pipeline)).
 
-With multiple representatives, the estimator combines inputs under the resolved weights. It never multiplies a transaction by the population size.
+With multiple representatives, the adjustment sums their deviations by the resolved weights (Type System [§7.4](02_type_system.md#74-estimation-semantics)). It never multiplies a transaction by a population size.
 
 If an Aggregate has no representative, it follows its baseline Policy.
 
@@ -193,8 +192,7 @@ Initialization verifies that:
 
 - the participants exist and are eligible;
 - the domain is permitted;
-- the estimator parameters are valid for the preset;
-- bounds are defined where the preset requires them;
+- the weight and estimator parameters are within the scheme's permitted ranges;
 - assignments are compatible;
 - nothing is counted twice ([INV-24](02_type_system.md#inv-24)).
 
@@ -219,7 +217,7 @@ Programs are fixed for the game. Behavior still changes as rules, relationships,
 
 Observation views apply the Gameboard's information permissions to each instance. NPCs see no private holdings or private player negotiations merely because the engine holds them ([INV-16](02_type_system.md#inv-16)).
 
-Baseline behavior is reconciled with representative inputs exactly once per round, in the reconciliation phase.
+Baseline behavior is reconciled with representative inputs and procedure outcomes exactly once per round, in the reconciliation phase.
 
 ## 7. Economic Initialization
 
@@ -303,9 +301,9 @@ At runtime the game is the round runner under the live-session handler stack (Ty
 
 - the Gameboard identity and version;
 - Actor, controller, and fallback resolutions;
-- memberships and account partitions;
+- member lists, collective procedures, and account partitions;
 - Policy definitions and parameters;
-- Representation assignments and estimators;
+- Representation assignments, weights, and estimators;
 - initial holdings, capacities, recurring flows, market positions, and rules;
 - the round schedule;
 - the seed and engine version.
@@ -318,10 +316,10 @@ Instantiation is a staged, atomic compilation:
 
 1. **Resolve Gameboard.** Load it, check the version, and confirm every configuration reference.
 2. **Resolve Actors and controllers.** Check participation and controller compatibility, and apply fallbacks.
-3. **Resolve implicit economy.** Create the Aggregates and the implicit institutional machinery.
-4. **Partition accounts.** Assign a single owner to each account and responsibility while preserving overlapping membership.
+3. **Resolve implicit economy.** Create the Aggregates, their collective procedures, and the implicit institutional machinery.
+4. **Partition accounts.** Assign a single owner to each account and responsibility while preserving member lists.
 5. **Initialize Policies.** Set parameters, views, triggers, and seeds.
-6. **Initialize Representations.** Resolve estimators and any collective procedure links.
+6. **Initialize Representations.** Resolve weights and estimators.
 7. **Initialize Markets, Facilities, and resources.** Set holdings, capacities, recurring flows, and rules, then check feasibility and stock-flow reconciliation.
 8. **Initialize time and execution.** Set the schedule and the deterministic parameters.
 9. **Validate the complete world.** Check every Instantiation invariant, including resolution consistency.
@@ -356,7 +354,7 @@ The briefing is derived from the authoritative records and is never an independe
 
 **Resolution.** NPC and Aggregate Policies propose and sign in the same steps as seats. The engine then screens (authority and signature completeness), reconciles, and resolves the economy, including the recurring cycle. Conflicts and infeasible actions follow the Type System's deterministic rules:
 
-- limit prices and maximum spend;
+- limit prices;
 - pro-rata allocation with ties broken by EntityId;
 - atomic settlement, with each fully signed Proposal settling or failing as a unit ([INV-10](02_type_system.md#inv-10));
 - never ordering by submission time ([INV-11](02_type_system.md#inv-11)).
@@ -371,7 +369,8 @@ Rejected, partially filled, and lapsed actions are recorded with their reasons. 
 - the accepted canonical inputs;
 - Policy outputs;
 - Representation observations, estimates, proposed Intents, and executed results;
-- Proposals, their signatures, lapses, and settlement;
+- collective-procedure inputs, support, threshold, and decision;
+- Proposals, the seat or Policy that produced each, their signatures, lapses, and settlement;
 - validation and clearing outcomes, including proposed versus executed actions;
 - resource, capacity, and Market changes;
 - the ending snapshot reference.
@@ -405,13 +404,13 @@ Assume a Gameboard about US–China industrial competition over five years. It h
 |---|---|---|
 | US Government | Seat (human) | Explicit, direct |
 | Chinese Government | Seat (human) | Explicit, direct |
-| EU Commission | NPC | Explicit; exercises the EU collective procedure |
+| EU Commission | NPC | Explicit; exercises the EU collective procedures |
 | US Small-Business Owner | Seat (human) | Explicit, representative |
 | Manufacturing Corporation | Seat (human) | Explicit, direct |
 
 | Aggregate | Policy | Representation |
 |---|---|---|
-| US Small Businesses | Investment and production | `statistical` preset, fed by the small-business Actor |
+| US Small Businesses | Investment and production | Fed by the small-business Actor (weight 1) |
 | US Households | Consumption | None |
 | Industrial Producers | Production and investment | None |
 
@@ -437,7 +436,7 @@ This layer turns a reusable Gameboard into a playable world. It resolves:
 - how unselected Actors fall back;
 - who controls each Actor;
 - how accounts are partitioned;
-- how Policies and estimators are initialized;
+- how Policies, collective procedures, and estimators are initialized;
 - which recurring flows sustain the economy.
 
 Initialization is an atomic, validated compilation that yields one initial World State. Every subsequent round follows the canonical sequence and appends a reproducible record.

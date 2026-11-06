@@ -33,10 +33,10 @@ The Gameboard holds no player assignments, submitted Intents, transactions, or e
 | **Scenario** | Setting, time horizon, central tensions, strategic questions. |
 | **Verticals** | Research-based models of economic sectors and their dependencies. |
 | **Economy** | Resource definitions, exchange Markets, Transformations, the recurring cycle, geography, constraints. |
-| **Entities** | Actor definitions, Aggregates, memberships, account ownership, collective procedures, capabilities. |
+| **Entities** | Actor definitions, Aggregates, member lists, account ownership, collective procedures, capabilities. |
 | **Relationships** | Persistent geopolitical, economic, and social relationships. |
 | **Policies** | NPC and Aggregate decision programs. |
-| **Representations** | Eligible relationships between Actors and Aggregates, with estimator presets. |
+| **Representations** | Which Actors may represent which Aggregates, with estimator parameters. |
 | **Game Rules** | Phase schedule, visibility, available actions, evaluation, initialization constraints. |
 
 These are configuration domains, not additional primitives.
@@ -119,16 +119,16 @@ type EconomicStructure =
 
 ### 5.1 Resources
 
-Each Resource definition declares its identity, unit, and the properties defined in Type System [§2.3](02_type_system.md#23-resource): conservation class, transferability, decay rule, and whether it can be reserved. The engine accounts for a Resource from these properties; no behavior is attached to particular Resource names. Definitions must be consistent across Verticals and Entities.
+Each Resource definition declares its identity, unit, and the properties defined in Type System [§2.3](02_type_system.md#23-resource): transferability, decay rule, and whether it can be reserved. The engine accounts for a Resource from these properties and from the Transformations that produce or consume it; a Resource no Transformation touches is conserved. No behavior is attached to particular Resource names. Definitions must be consistent across Verticals and Entities.
 
 ### 5.2 Exchange Markets
 
 An exchange Market trades existing reserves along a CostFunction. Each definition declares:
 
 - Base and quote Resources.
-- CostFunction family and parameters.
+- Linear CostFunction parameters: base, slope, and domain.
 - Liquidity and reserve behavior.
-- Order features (limit price, maximum spend) and the Type System's deterministic allocation rules.
+- Limit-price orders under the Type System's deterministic allocation rules.
 - Participation, access, and tariff rules ([§5.5](#55-geography-and-market-access)).
 
 The Gameboard defines behavior; the Instantiated Game supplies the initial reserves and position.
@@ -189,7 +189,7 @@ The catalog defines possible participants: institutions that may be explicit and
 
 ### 6.1 Projections
 
-The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately: **membership** (may overlap), **account ownership** (one owner per account and responsibility, [INV-08](02_type_system.md#inv-08)), and **collective procedure and capabilities**. Membership does not imply ownership; ownership does not imply authority; influence over a collective procedure does not grant its capabilities ([INV-03](02_type_system.md#inv-03)).
+The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately: **members** (a descriptive list; lists may overlap), **account ownership** (one owner per account and responsibility, [INV-08](02_type_system.md#inv-08)), and **collective procedures and capabilities**. Membership does not imply ownership; ownership does not imply authority; influence over a collective procedure does not grant its capabilities ([INV-03](02_type_system.md#inv-03)).
 
 ### 6.2 Actor definitions
 
@@ -213,15 +213,17 @@ These use existing capabilities, Transformations, capacity state, and rule chang
 
 An Aggregate definition declares:
 
-- A membership definition and strata.
+- A member list.
 - The accounts and responsibilities it owns as residual.
 - A baseline Policy.
-- An optional collective procedure and its capabilities.
+- Any collective procedures. Each declares member weights, a residual weight, a decision rule, and the capabilities it authorizes (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)).
 - Constraints on estimated behavior and eligibility for Representation.
 
 Examples: households, small businesses, industrial producers, a regional bloc.
 
-When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the membership definition (Type System [§7.1](02_type_system.md#71-aggregate-semantics)).
+Members influence a collective procedure by submitting procedure inputs, which move no resources. The Aggregate's Policy supplies the residual input. A Gameboard may separately require a contribution to fund a collective action, but contributing is never the only way to express support.
+
+When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the member list (Type System [§7.1](02_type_system.md#71-aggregate-semantics)).
 
 ### 6.4 Overlap
 
@@ -260,7 +262,7 @@ Every relationship must have a mechanical interpretation: constraining actions; 
 The catalog holds in-world Policies: declarative, versioned programs in the shared decision language, run by the interpreter of Type System [§4](02_type_system.md#4-policies) ([INV-12](02_type_system.md#inv-12), [INV-29](02_type_system.md#inv-29)). Seat Policies (human, AI agent, or preset program) are supplied outside the scenario and are not catalogued here. The catalog holds parameterized definitions, not runtime assignments.
 
 - **NPC Policies** express objectives, conditional responses to indicators and to other Actors, and time-dependent behavior, including which Proposals to publish to other Actors and which Proposals addressed to them to sign.
-- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so an estimator adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate with a collective procedure uses its Policy for the residual input.
+- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so a Representation adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate with collective procedures uses its Policy for each residual input.
 
 The Gameboard declares input views, parameter ranges, and defaults; the Instantiated Game selects values. Policy memory lives in World State. Programs never change during play; decisions change because World State changes.
 
@@ -268,47 +270,41 @@ Observation permissions are declared per Policy category, so NPCs do not see the
 
 ## 9. Representation Schemes
 
-A scheme declares **which populations may be represented and how inputs are interpreted**. Actual representatives are assigned at instantiation.
+A scheme declares **which Aggregates may be represented, by whom, and how sampled behavior is interpreted**. Actual representatives and their weights are assigned at instantiation.
 
 ```purescript
 type RepresentationScheme =
   { id :: SchemeId
   , eligibleActors :: Array EntityDefinitionId
   , target :: AggregateDefinitionId
-  , stratum :: StratumId
   , domain :: BehaviorDomain
   , estimator :: Estimator
   }
 ```
 
-`Estimator` is defined in Type System [§7](02_type_system.md#7-aggregates-and-representation). A scheme normally starts from a named preset:
+`Estimator` (reference, shrinkage, deviation bound, noise spread) is defined in Type System [§7](02_type_system.md#7-aggregates-and-representation). The scheme gives defaults and permitted ranges for those parameters.
 
-| Preset | Use | Typical parameters |
-|---|---|---|
-| `statistical` | Infer population behavior from sampled representatives. | Sampling weights, shrinkage < 1, sampling noise spread, deviation bound, optional delay and backing. |
-| `constituent` | Combine known members' procedure inputs through a collective procedure. | Declared member and residual weights, shrinkage 1, no bound. |
+Representatives know their choices move the Aggregate, so observations are not independent samples. The Gameboard accepts this as design and keeps the influence explicit and bounded; estimator strength is a balancing parameter, not a claim of unbiased inference.
 
-For `statistical` schemes, representatives know their choices move the Aggregate, so observations are not independent samples. The Gameboard accepts this as design and keeps the influence explicit and bounded; estimator strength is a balancing parameter, not a claim of unbiased inference. A backing requirement can make an observation count only if the representative reserves or spends matching resources.
+Representation is distinct from a collective procedure ([§6.3](#63-aggregate-definitions)): a procedure combines members' stances by declared weights and involves no estimator.
 
-For `constituent` schemes, members submit procedure inputs, which move no resources. A Gameboard may separately require a contribution to fund a collective action, but contributing is never the only way to express support.
-
-Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment, which replaces the matching baseline once ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by the estimator. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); resulting Aggregate Intents pass ordinary validation.
+Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment, which replaces the matching baseline once ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by their weights. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); resulting Aggregate Intents pass ordinary validation.
 
 ## 10. Game Rules
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, between which Entity categories, and which audiences a Proposal may have. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)).
+Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, and between which Entity categories. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)).
 
 ### 10.2 Temporal structure and phase schedule
 
-The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, rule-change effective times (default: next round boundary), and scheduled shocks. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
+The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, and scheduled shocks. Rule changes always take effect at the next round boundary. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
 
-Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as `statistical` sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)).
+Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as Representation sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)).
 
 ### 10.3 Information visibility
 
-The Gameboard declares what is public, private, or capability-gated: prices, holdings, indicators, Proposals beyond their audience. The same rules constrain every Policy, whether NPC or seat ([INV-16](02_type_system.md#inv-16)). Visibility never changes economic facts.
+The Gameboard declares what is public, private, or capability-gated: prices, holdings, indicators, and Proposals. A Proposal is visible to its signers by default; these rules may make more of it public. The same rules constrain every Policy, whether NPC or seat ([INV-16](02_type_system.md#inv-16)). Visibility never changes economic facts.
 
 ### 10.4 Available actions
 
@@ -323,7 +319,7 @@ No single winner, and outcomes are not reduced to Money. Measuring an outcome do
 
 ## 11. Initialization Constraints
 
-The Gameboard defines defaults, ranges, and consistency constraints, not all initial values. Parameters may cover initial distributions, reserves and liquidity, capacities, production and income rates, population sizes and strata, Policy parameters, representative participation and estimator strength.
+The Gameboard defines defaults, ranges, and consistency constraints, not all initial values. Parameters may cover initial distributions, reserves and liquidity, capacities, production and income rates, Policy parameters, collective-procedure weights and thresholds, representative participation, and estimator strength.
 
 Persistent strategic structures do not change between instantiations; only these parameters vary.
 
@@ -343,11 +339,11 @@ The output is a complete World State, with no unresolved choices about controlle
 
 Validation establishes that the scenario conforms to the Type System ([INV-17](02_type_system.md#inv-17)) and admits at least one consistent initialization ([INV-21](02_type_system.md#inv-21)).
 
-**Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, objective, and fallback. Schemes reference valid strata, members, domains, and estimators.
+**Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, objective, and fallback. Schemes reference valid Actors, Aggregates, domains, and estimators. Collective procedures declare member weights, a residual weight, a rule, and capabilities.
 
-**Economic checks.** CostFunctions suit their mechanisms. Accounting matches conservation classes. The cycle reconciles and leaves no inert accumulation. Reserves and capacities are feasible. Financial claims have issuance and liability semantics. Required activity has an owner.
+**Economic checks.** CostFunctions suit their mechanisms. Accounting matches each Resource's declared properties and Transformations. The cycle reconciles and leaves no inert accumulation. Reserves and capacities are feasible. Financial claims have issuance and liability semantics. Required activity has an owner.
 
-**Representation checks.** Eligibility matches population, membership, and domain. `statistical` estimators declare shrinkage, noise spread, and bound. `constituent` estimators declare a complete procedure. Accounting partitions consistently. No duplicate adjustments. No authority granted.
+**Representation checks.** Eligibility matches Aggregate and domain. Estimators declare a reference, shrinkage, noise spread, and bound. Accounting partitions consistently. No duplicate adjustments. No authority granted by Representation or by a procedure input ([INV-03](02_type_system.md#inv-03)).
 
 **Resolution consistency.** For every supported pair of explicitness configurations, total stocks, liabilities, capabilities and owners, and authorized recurring activity reconcile ([INV-14](02_type_system.md#inv-14)). Later differences must come from decisions, not from duplicated resources, deleted liabilities, or altered rules.
 
@@ -380,13 +376,13 @@ A five-year scenario of US–China industrial competition, with geopolitical riv
 - **Economy:** Energy trades in regional Market nodes linked by transport capacity, with tariffs available to governments. Defense procurement is a single global facility paying defense manufacturers. Each year producers generate Energy, workers receive wages, and governments collect revenue.
 - **Entities:** US and Chinese governments, EU Commission, selected corporations, a labor federation, representative small-business owners. A shipping operator controls transport capacity; a labor federation can strike to reduce throughput. Aggregates include households, workforces, small businesses, producers, and a European bloc with a collective procedure.
 - **Policies:** NPC Policies for eligible institutions; Aggregate Policies for consumption, investment, production, and bloc residual input.
-- **Representations:** a small-business owner represents Energy demand through a `statistical` estimator; a member state submits procedure inputs to the bloc through a `constituent` estimator.
+- **Representation and procedures:** a small-business owner represents small-business Energy demand through an estimator; a member state submits procedure inputs to the bloc's collective procedure.
 - **Instantiation options:** the EU may be human or NPC; small-business representatives may be present or absent. Both games reconcile to the same initial accounts and then diverge through decisions.
 
 ---
 
 ## 15. Summary
 
-The Gameboard is a declarative specification of a playable economic world: Resources, Markets, facilities, a recurring cycle, populations, institutions, relationships, Policies, Proposal rules, and Representation schemes. Vertical reports ground it; mechanically consequential tensions make it worth playing.
+The Gameboard is a declarative specification of a playable economic world: Resources, Markets, facilities, a recurring cycle, populations, institutions, relationships, Policies, collective procedures, Proposal rules, and Representation schemes. Vertical reports ground it; mechanically consequential tensions make it worth playing.
 
 It does not decide who is human-controlled, what anyone does, or how events unfold. Its responsibility is to define **a coherent, self-sustaining world that is economically identical at the outset across every supported resolution**.

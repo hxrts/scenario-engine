@@ -44,12 +44,12 @@ Each round runs in five steps:
 
 | Type | Meaning |
 |---|---|
-| **Resource** | An economic quantity that can be owned, exchanged, produced, or consumed. Its behavior (conserved, producible, reservable, decaying) is configured. |
+| **Resource** | An economic quantity that can be owned, exchanged, produced, or consumed. Its behavior (transferable, reservable, decaying) is configured. |
 | **Entity** | An economic participant with accounts and capabilities. |
 | **Policy** | Anything that produces Intents from what an Actor is allowed to see: a program, an AI agent, or a human. |
 | **Market** | A mechanism for exchanging existing resources at a price. |
 | **Aggregate** | An Entity representing the residual economy of an implicit population. |
-| **Representation** | A relationship through which an explicit Actor's decisions influence an Aggregate. |
+| **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate. |
 | **Intent** | A structured economic or institutional action; the engine's only input. |
 
 An **Actor** is an explicit Entity: either a **seat**, driven by a Policy supplied from outside the scenario (a human, an AI agent, or a preset program), or an **NPC**, driven by a Policy that is part of the scenario. A **cost function** prices activity whose marginal cost rises with volume; it is shared by Markets and by capacity-limited production **facilities**. A **Proposal** is a message carrying Intents; it executes only once every party it requires has signed it.
@@ -66,11 +66,11 @@ The **implicit economy** works like a game's skybox: a compact representation of
 
 Three relationships are kept separate:
 
-- **Membership:** which populations or organizations an Entity belongs to. Memberships may overlap.
+- **Membership:** which Entities an Aggregate lists as members. Memberships may overlap and confer nothing.
 - **Account ownership:** every account and responsibility has exactly one owner, so overlapping memberships never double-count.
 - **Collective decisions:** how an institution decides, and what authority it holds.
 
-Germany can therefore be an EU member while the German government's accounts belong to an explicit Actor, the EU Aggregate owns the rest of the European economy, and EU-wide authority belongs to the EU's own decision procedure. German households and firms stay in the implicit European economy.
+Germany can therefore be an EU member while the German government's accounts belong to an explicit Actor, the EU Aggregate owns the rest of the European economy, and EU-wide authority belongs to the EU's own collective procedures. German households and firms stay in the implicit European economy.
 
 ## 6. Markets, Production, and Circulation
 
@@ -95,20 +95,20 @@ The design splits into two parts. The **engine** takes the World State and a rou
 
 An NPC's Policy is part of the scenario, such as a government that retaliates against tariffs or small businesses cutting investment when costs rise. A seat's Policy comes from outside, so the simulator can replace a human with an agent or program without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes; a player who changes a rule changes the conditions they respond to, never the Policies themselves.
 
-**Negotiation is propose, then sign.** Each round, a round runner has every Policy (seats, NPCs, and Aggregates alike) publish Proposals, then sign the ones addressed to it that it endorses. Publishing implies the author's signature, so an ordinary action needs nothing more. A deal is a Proposal that also needs the counterparty's signature, and signing it is the acceptance, so the two sides can never disagree about terms. Humans agree terms out of band, then one proposes and the other signs; programs sign by rule, and agents choose. An unsigned deal lapses, and a counteroffer is a new Proposal for the next round.
+**Negotiation is propose, then sign.** Each round, a round runner has every Policy (seats, NPCs, and Aggregates alike) publish Proposals, then sign the ones naming it that it endorses. Publishing implies the author's signature, so an ordinary action needs nothing more. A deal is a Proposal that also needs the counterparty's signature, and signing it is the acceptance, so the two sides can never disagree about terms. Humans agree terms out of band, then one proposes and the other signs; programs sign by rule, and agents choose. An unsigned deal lapses, and a counteroffer is a new Proposal for the next round.
 
-## 8. Representation
+## 8. Representation and Collective Procedures
 
-Representation lets smaller players matter. An explicit Actor's decisions adjust an Aggregate's behavior through a configured estimator. Two presets cover the common cases:
+Two mechanisms let smaller players matter:
 
-- **Statistical.** A small-business owner's decisions are treated as evidence about similar businesses. If they buy less Energy than usual, the Global SMEs Aggregate buys somewhat less too. The adjustment is shrunk, capped, and given a little seeded variance. The owner's own purchase still executes once, from their own small budget.
-- **Constituent.** A member state submits a stance (support, neutral, oppose) to a bloc's decision procedure, which combines it with the bloc's own input by declared weights. If support crosses the threshold, the bloc acts with its own resources and authority.
+- **Representation.** A small-business owner's decisions are treated as evidence about similar businesses. If they buy less Energy than usual, the Global SMEs Aggregate buys somewhat less too. An estimator shrinks and caps the adjustment and gives it a little seeded variance. The owner's own purchase still executes once, from their own small budget.
+- **Collective procedure.** A member state submits a stance (support, neutral, oppose) to a bloc's decision procedure, which combines it with the bloc's own input by declared weights. If support crosses the threshold, the bloc acts with its own resources and authority.
 
-Representation never gives the representative the Aggregate's holdings or authority. Because players know their choices move the Aggregate, they are not unbiased samples. That influence is part of the design: it is kept explicit and bounded, and the simulator measures it as a balancing parameter.
+Neither gives the Actor the Aggregate's holdings or authority. Because players know their choices move the Aggregate, they are not unbiased samples. That influence is part of the design: it is kept explicit and bounded, and the simulator measures it as a balancing parameter.
 
 ## 9. Resolution
 
-Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, representative adjustments, and signed deals all become Intents, and these are resolved together as one bundled round update with uniform market prices. There is no ordering of actions within a round, and prices from this round become visible next round. The canonical sequence is defined in [`02_type_system.md` §8.1](02_type_system.md#81-canonical-resolution-sequence).
+Every path ends in the same place: seat decisions, NPC decisions, Aggregate behavior, representative adjustments, procedure decisions, and signed deals all become Intents, and these are resolved together as one bundled round update with uniform market prices. There is no ordering of actions within a round, and prices from this round become visible next round. The canonical sequence is defined in [`02_type_system.md` §8.1](02_type_system.md#81-canonical-resolution-sequence).
 
 ## 10. AI Interface and Reporting
 
@@ -136,7 +136,7 @@ Every role should have a meaningful capability, a dependency that others can pro
 
 **Intrinsic asymmetry.** Participants need not be equal in resources, authority, or influence.
 
-**Cross-scale participation.** Representation lets small Actors and member states influence Aggregates without unrealistic control.
+**Cross-scale participation.** Representation and collective procedures let small Actors and member states influence Aggregates without unrealistic control.
 
 **AI-mediated experience.** Natural language makes the system accessible without making the language model the authority over outcomes.
 

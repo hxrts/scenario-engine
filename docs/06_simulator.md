@@ -41,7 +41,7 @@ The harness invokes the same instantiation and resolution operations used in liv
 
 The harness is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). Its simulation handler interprets `SeatInput` with bound seat Policies, `Random` with the game and player seeds, and `Record` with the Run Store. The replay handler feeds recorded Proposals and signatures instead. The round runner and engine code are the same as in live play.
 
-The engine remains responsible for everything economic: accounting, validation, Policies, Representation, settlement, transformations, and rule changes. The harness only generates inputs, records results, and evaluates them. The Dashboard is read-only and never alters authoritative state or run histories. Changing any parameter creates a new run.
+The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The harness only generates inputs, records results, and evaluates them. The Dashboard is read-only and never alters authoritative state or run histories. Changing any parameter creates a new run.
 
 Narrative reporting is optional in simulation. Analysis reads authoritative engine data, never language-model summaries.
 
@@ -96,7 +96,7 @@ Each seat Policy acts twice per round, against the same snapshot (Type System [�
 Illustrative preset seat Policies:
 
 - **US:** keep at least 50 E, buying with a 3.0 M/E limit. Procure Military when Chinese Military exceeds a threshold. Spend up to 15 M per year on Public Attention while Energy is below 3. Keep at least 40 M in reserve.
-- **Germany:** keep at least 25 E. Submit `Support` to the EU procedure when the Atlantic Energy price exceeds 3.
+- **Germany:** keep at least 25 E. Submit `Support` to the EU's `eu-solidarity` procedure when the Atlantic Energy price exceeds 3.
 - **SA and JP:** SA proposes 20 E for 48 M to JP; JP's sign rule accepts Energy offers at ≤ 2.4 M/E ([Fixture G](05_test_instance.md#27-fixture-g-proposals-and-signatures)).
 - **SME:** cut Energy purchases above 3 M/E. Raise them below 2.2 M/E. Keep operating cash.
 
@@ -163,7 +163,7 @@ Each round follows the canonical sequence (Type System [§8.1](02_type_system.md
 | 3a. Propose / 3b. Sign | Drives the round runner, which runs the bound seat Policies alongside the NPC and Aggregate Policies on the shared interpreter. |
 | 7. Commit and record | Persists the round record, snapshot, and assertion results. |
 
-The engine performs phases 1–2 and 4–7. The harness never evaluates NPC or Aggregate Policies itself, reconciles Representation, or repeats Aggregate actions; it delegates to the round runner, which is the same code used in live play.
+The engine performs phases 1–2 and 4–7. The harness never evaluates NPC or Aggregate Policies itself, reconciles Representation or collective procedures, or repeats Aggregate actions; it delegates to the round runner, which is the same code used in live play.
 
 The harness exposes two operations, **run to completion** and **step one round**. Both use the same execution path.
 
@@ -171,7 +171,7 @@ The harness exposes two operations, **run to completion** and **step one round**
 
 An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules (Type System [§3.2](02_type_system.md#32-infeasible-actions)). The round record keeps both the proposed and the executed action. A representative's observation comes from the proposal, even when its fill differs.
 
-An invariant violation fails the run. The harness preserves the configuration, last valid state, failing round, Intents, Policy and Representation outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
+An invariant violation fails the run. The harness preserves the configuration, last valid state, failing round, Intents, Policy, Representation, and procedure outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
 
 ## 7. Run Assertions
 
@@ -202,7 +202,7 @@ Each required assertion checks exactly one invariant from the Type System master
 
 Harness invariants [INV-29](02_type_system.md#inv-29) to [INV-31](02_type_system.md#inv-31) are checked by the harness's own test suite rather than by per-round assertions.
 
-Conservation checks read each Resource's declared conservation class ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
+Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
 
 Each assertion reports: pass or fail, round, Entity or Market, expected versus observed quantities, the relevant events, and an explanation. Results are visible in the test runner and in the Dashboard.
 
@@ -329,16 +329,16 @@ Holdings are not collapsed into a single net-worth figure, because Military and 
 
 It does not invent macroeconomic indicators the Gameboard does not define.
 
-**Representation.** A single view covers every active Representation, whatever its estimator preset. It shows the four-stage record:
+**Representation.** One view covers every active Representation. It shows the four-stage record:
 
-1. **Observation**, from the validated proposal or procedure input.
-2. **Estimate**: the estimator parameters (weights, shrinkage, noise, bound, delay) and whether a bound applied.
+1. **Observation**, from the validated, escrowed Proposal.
+2. **Estimate**: the parameters (weight, reference, shrinkage, noise spread, bound), the noise draw, and whether the bound applied.
 3. **Proposed Aggregate Intent.**
 4. **Executed result**, shown beside the representative's own proposed and executed actions.
 
-For a procedure-driven Representation, the view also shows the combined support against the threshold and the resulting collective decision. An optional resource contribution appears separately, as a Transfer.
-
 The view reports the **Representation influence ratio**: the induced change in Aggregate activity divided by the resources the representative directly controls. This is a balancing parameter, not a claim that the representative is an unbiased sample.
+
+**Collective procedures.** A separate view covers every procedure an Aggregate holds. Per round it shows the member inputs, the residual input, the combined support against the threshold, and the resulting decision and action. An optional resource contribution appears separately, as a Transfer.
 
 **Event inspector.** For any round, it lists in canonical phase order:
 
@@ -346,7 +346,7 @@ The view reports the **Representation influence ratio**: the induced change in A
 - Proposals, signatures, and lapses;
 - seat Intents and procedure inputs;
 - NPC and Aggregate outputs;
-- Representation records;
+- Representation and collective-procedure records;
 - validation results, including partial fills and their allocation basis;
 - the economic cycle and settlement;
 - resource changes;
@@ -451,7 +451,7 @@ The Dashboard supports these judgments with indicators. It does not replace huma
 | Influence distribution | Concentration of economic and institutional influence |
 | Strategic diversity | Variety of chosen and successful action patterns |
 | Policy responsiveness | NPCs and Aggregates react when relevant conditions change |
-| Representation impact | Attributable Aggregate change and influence ratio |
+| Representation and procedure impact | Attributable Aggregate change, influence ratio, and decisions changed by member inputs |
 | Deal activity | Multi-signer Proposals published, signed, and lapsed |
 | Agency | Per-Actor sensitivity to seat-Policy changes ([§10.5](#105-agency-analysis)) |
 | Circulation health | Money and Energy keep moving rather than pooling |
@@ -479,8 +479,8 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values; [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
-| 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-constituent) as a counterfactual pair: `Support` vs `Neutral`. | Fixture values; procedure input moves no resources ([INV-03](02_type_system.md#inv-03)). |
-| 6 | SME sampling | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-statistical) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
+| 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: `Support` vs `Neutral`. | Fixture values; procedure input moves no resources ([INV-03](02_type_system.md#inv-03)). |
+| 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values; C5 target within range and identical on replay; [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
 | 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values; [INV-12](02_type_system.md#inv-12). |
 | 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds; [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills; [INV-11](02_type_system.md#inv-11). |
@@ -496,7 +496,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 The Simulation Harness executes complete games without human participants.
 
-Simulated seats are driven by seat Policies (preset programs, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive. Assertions map one-to-one onto the master invariants.
+Simulated seats are driven by seat Policies (preset programs, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive. Assertions map one-to-one onto the master invariants.
 
 The development loop is:
 
