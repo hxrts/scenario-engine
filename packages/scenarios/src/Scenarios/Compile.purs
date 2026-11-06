@@ -22,6 +22,7 @@ import Scenarios.Load (checkPresets, decodePresets, fromFiles, scenariosRoot)
 import Scenarios.FracturedWorld as FracturedWorld
 import Scenarios.Presets as Presets
 import Scenarios.Fixtures as Fixtures
+import Scenarios.Capstone as Capstone
 import Board.Decode (decodeFixture)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Bifunctor (lmap)
@@ -33,13 +34,14 @@ outputs =
   map (\(Tuple name j) -> Tuple ("fractured-world/v0/" <> name) j) FracturedWorld.files
     <> [ Tuple "presets.json" (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
+    <> [ Tuple "capstone/run.json" Capstone.file ]
 
 main :: Effect Unit
 main = case validate of
   Left e -> log ("invalid scenario: " <> e) *> exit' 1
   Right _ -> do
     root <- scenariosRoot
-    for_ [ "fractured-world/v0", "fixtures" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
+    for_ [ "fractured-world/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ outputs \(Tuple path j) -> writeTextFile UTF8 (root <> path) (render j)
     log ("compiled " <> show (length outputs) <> " files")
 

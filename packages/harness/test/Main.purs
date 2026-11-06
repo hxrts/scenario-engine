@@ -16,7 +16,7 @@ import Core.Query (holding)
 import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..), proposalId)
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, nub, nubEq, range, reverse)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (for_)
@@ -30,11 +30,13 @@ import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSea
 import Policy.Program (Program, decodeProgram)
 import Data.Argonaut.Parser (jsonParser)
 import Effects (inWorldOf, runGame)
-import Scenarios.Load (load, loadFixture, loadPresets)
+import Scenarios.Load (load, loadFixture, loadPresets, loadRun)
+import Harness.Capstone (Capstone, decodeCapstone)
 import Test.Spec (describe, it)
 import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments
 import Test.Harness.Views as ViewTests
+import Test.Harness.Capstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
@@ -72,6 +74,14 @@ valid initial r = checkRun initial r.records `shouldEqual` []
 initialOf :: Run -> WorldState
 initialOf r = r.manifest.initial
 
+-- | The capstone run file (DSL-authored), decoded.
+capstone :: Aff Capstone
+capstone = do
+  file <- liftEffect (loadRun "capstone/run")
+  case file of
+    Left e -> throwError (error e)
+    Right j -> either (throwError <<< error) pure (decodeCapstone j)
+
 fixture :: String -> Aff Unit
 fixture name = liftEffect (loadFixture name) >>= case _ of
   Left e -> fail e
@@ -84,6 +94,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   Experiments.spec context
   ViewTests.spec context
+  CapstoneTests.spec context
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
       ctx <- context
@@ -244,53 +255,38 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "10 Signed Proposals: Fixture G1, G2, G3, G5" do
       for_ [ "G1", "G2", "G3", "G3-ban", "G5", "G5-unsigned" ] fixture
 
-    it "11 Trade restriction: a US ban on China, the EU tariff, and infeasible shipments" do
+    it "11 Trade restriction: the DSL-authored US ban, the EU tariff, and a banned shipment" do
+      -- the ban, the tariff and the shipment are the capstone's seat programs (DSL data), not Proposals built here
       ctx <- context
-      -- the US ban is entered as a seat's Proposal in round 1, in force from round 2
-      case instantiate ctx.gameboard ctx.config of
-        Left es -> fail (show es)
-        Right initial -> do
-          let
-            w1 = prepareRound initial.world
-            usBan = { proposal: { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "CN" })) ], signers: [], procedure: Nothing }, signatures: [] }
-          case resolveRound w1 [ usBan ] of
-            Left e -> fail (show e)
-            Right r1 -> case inWorldOf ctx.gameboard of
-              Left e -> fail (show e)
-              Right inWorld -> do
-                -- no seat submits anything: every round is recorded with empty inputs
-                let silent = [ { round: 1, inputs: [], events: [] }, { round: 2, inputs: [], events: [] } ]
-                case runReplay 2 silent (runGame inWorld 2 r1.world) of
-                  Left e -> fail e
-                  Right out -> do
-                    let events = concatMap (_.record.events) out.records
-                    any
-                      ( case _ of
-                          ProcedureOutcome o -> o.executed
-                          _ -> false
-                      )
-                      events `shouldEqual` true
-                    case index out.records 1 of
-                      Just r3 ->
-                        any
-                          ( case _ of
-                              Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
-                              _ -> false
-                          )
-                          (fromFoldable (Map.values r3.world.rules)) `shouldEqual` true
-                      Nothing -> fail "rounds"
-                let
-                  w2 = prepareRound r1.world
-                  ship = { proposal: { id: proposalId 2 (Id "ENCO") 0, author: Id "ENCO", intents: [ Transfer { from: Id "ENCO", to: Id "CN_PRIVATE", resource: Id "E", quantity: Q.fromInt 5 }, Transform { by: Id "ENCO", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ], signers: [ Id "CN_PRIVATE", Id "SHIP" ], procedure: Nothing }, signatures: [ Id "CN_PRIVATE", Id "SHIP" ] }
-                case resolveRound w2 [ ship ] of
-                  Right r2 ->
-                    any
-                      ( case _ of
-                          Rejected x -> x.reason == "shipment banned"
-                          _ -> false
-                      )
-                      r2.record.events `shouldEqual` true
-                  Left e -> fail (show e)
+      cap <- capstone
+      r <- case simulate ctx { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just 4 } of
+        Left e -> throwError (error e)
+        Right x -> pure x
+      let
+        events = concatMap (_.record.events) r.records
+        procedureRan = any
+          ( case _ of
+              ProcedureOutcome o -> o.executed
+              _ -> false
+          )
+          events
+        banned = any
+          ( case _ of
+              Rejected x -> x.reason == "shipment banned"
+              _ -> false
+          )
+          events
+        tariffOnUs = case index r.records 3 of
+          Just rec -> any
+            ( case _ of
+                Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
+                _ -> false
+            )
+            (fromFoldable (Map.values rec.world.rules))
+          Nothing -> false
+      procedureRan `shouldEqual` true
+      tariffOnUs `shouldEqual` true
+      banned `shouldEqual` true
 
     it "12 Resolution consistency: Germany explicit vs implicit" do
       ctx <- context

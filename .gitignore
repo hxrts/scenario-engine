@@ -20,3 +20,6 @@ packages/scenarios/fractured-world/
 packages/scenarios/presets.json
 packages/scenarios/fixtures/
 .claude/worktrees/
+
+# compiled from the capstone DSL (`just scenarios`); transcript.json is a committed recording
+packages/scenarios/capstone/run.json

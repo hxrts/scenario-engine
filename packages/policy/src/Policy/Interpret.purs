@@ -46,6 +46,7 @@ sign program env = map _.id (filter (\p -> any (matches p) program.sign) env.vie
       )
       p.intents
     SignAll -> true
+    SignIf x -> all (holds env) x.when && matches p x.rule
   elem' x xs = any (_ == x) xs
 
 eval :: Env -> Expr -> Q
@@ -115,7 +116,13 @@ draft env n t = case t of
   single i = { intents: [ i ], signers: [], procedure: Nothing }
   procedure = case t of
     Procedure p -> [ { intents: concatMap (intents env) p.intents, signers: p.signers, procedure: Just p.procedure } ]
-    Deal d -> [ { intents: map (\x -> Transfer { from: self x.from, to: self x.to, resource: x.resource, quantity: eval env x.quantity }) d.transfers, signers: d.signers, procedure: Nothing } ]
+    Deal d ->
+      [ { intents: map (\x -> Transfer { from: self x.from, to: self x.to, resource: x.resource, quantity: eval env x.quantity }) d.transfers
+            <> map (\x -> Transform { by: env.view.self.id, transformation: x.transformation, quantity: eval env x.quantity }) d.transforms
+        , signers: d.signers
+        , procedure: Nothing
+        }
+      ]
     _ -> []
   self x = if x == Id "self" then env.view.self.id else x
 
@@ -137,6 +144,9 @@ intents env = case _ of
     in
       if q == Q.zero then [] else [ Transform { by: env.view.self.id, transformation: x.transformation, quantity: q } ]
   EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: x.origin, rate: eval env x.rate })) ]
+  EnactAccessBan x -> [ ChangeRule (Enact (AccessBan { jurisdiction: env.view.self.id, target: x.target })) ]
+  EnactWithholding x -> [ ChangeRule (Enact (Withholding { capacity: x.capacity, units: eval env x.units })) ]
+  RepealRule x -> [ ChangeRule (Repeal x.rule) ]
   ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedThisBoundary env x.target env.view.self.id))
   Procedure _ -> []
   Deal _ -> []

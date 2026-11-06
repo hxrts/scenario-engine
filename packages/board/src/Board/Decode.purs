@@ -10,6 +10,7 @@ module Board.Decode
   , decodeFixture
   , decodeEntity
   , decodeRound
+  , decodeExpect
   , capability
   , intent
   , rule
