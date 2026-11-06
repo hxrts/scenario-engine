@@ -1,49 +1,43 @@
--- | `just scenarios`: validate the DSL scenarios exactly as the loader will decode them,
--- | then write the JSON it reads. The output is gitignored: it is a pure function of
--- | the DSL source.
-module Scenarios.Compile (main) where
+-- | The scenario compiler: the DSL scenarios, validated exactly as the loader will decode them,
+-- | rendered as the JSON files it reads. Pure: `apps/cli` (module `Compile`) writes the files
+-- | under the scenario root. The output is gitignored: it is a pure function of the DSL source.
+module Scenarios.Compile (Output, compile) where
 
 import Prelude
 
-import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
-import Data.Array (length, sortWith)
-import Data.Either (Either(..))
-import Data.Tuple (Tuple(..), fst)
-import Effect (Effect)
-import Effect.Console (log)
-import Foreign.Object as Object
-import Node.Encoding (Encoding(..))
-import Node.FS.Sync (mkdir', writeTextFile)
-import Node.FS.Perms (permsAll)
-import Data.Foldable (for_)
-import Node.Process (exit')
-import DSL.Base (Keyed, Built)
-import Scenarios.Load (checkPresets, decodePresets, fromFiles, scenariosRoot)
-import Scenarios.FracturedWorld as FracturedWorld
-import Scenarios.Presets as Presets
-import Scenarios.Fixtures as Fixtures
-import Scenarios.Capstone as Capstone
 import Board.Decode (decodeFixture)
+import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Bifunctor (lmap)
 import Data.Argonaut.Encode (encodeJson)
+import Data.Array (sortWith)
+import Data.Bifunctor (lmap)
+import Data.Either (Either)
+import Data.Foldable (for_)
+import Data.Tuple (Tuple(..), fst)
+import DSL.Base (Keyed, Built)
+import Foreign.Object as Object
+import Scenarios.Capstone as Capstone
+import Scenarios.Fixtures as Fixtures
+import Scenarios.FracturedWorld as FracturedWorld
+import Scenarios.Load (checkPresets, decodePresets, fromFiles)
+import Scenarios.Presets as Presets
 
--- | Every compiled file, by path under the scenario root (`SCENARIOS_DIR`, default `packages/scenarios`).
+-- | A compiled file: its path under the scenario root, and its text.
+type Output = { path :: String, text :: String }
+
+-- | Every compiled file, or the first validation failure.
+compile :: Either String (Array Output)
+compile = do
+  validate
+  pure (map (\(Tuple path j) -> { path, text: render j }) outputs)
+
+-- | Every compiled file's path under the scenario root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
   map (\(Tuple name j) -> Tuple ("fractured-world/v0/" <> name) j) FracturedWorld.files
     <> [ Tuple "presets.json" (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
-
-main :: Effect Unit
-main = case validate of
-  Left e -> log ("invalid scenario: " <> e) *> exit' 1
-  Right _ -> do
-    root <- scenariosRoot
-    for_ [ "fractured-world/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
-    for_ outputs \(Tuple path j) -> writeTextFile UTF8 (root <> path) (render j)
-    log ("compiled " <> show (length outputs) <> " files")
 
 -- | Decode and validate the compiled scenario exactly as the loader will read it: the
 -- | Gameboard, the Policies, the presets against the Gameboard, and every fixture.

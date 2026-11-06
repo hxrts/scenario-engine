@@ -21,6 +21,9 @@ package:
     - aff
     - bifunctors
     - exceptions
+    - node-buffer
+    - node-fs
+    - node-process
   test:
     main: Test.Adapters.Main
     dependencies:

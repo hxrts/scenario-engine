@@ -29,6 +29,7 @@ import Harness.Options (flagOr, parseFlags)
 import Harness.Simulate (presetSeats, seatsOf, simulate)
 import Harness.Views (marketPrices, roundPressure)
 import Node.Process (argv, exit')
+import Adapters.Scenarios (readScenario)
 import Scenarios.Load (loadContext)
 import Session (Options, session, validId)
 
@@ -93,7 +94,7 @@ usage why = do
 
 runScenario :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runScenario scenario presetName rounds given = do
-  loaded <- loadContext (scenario <> "/v0")
+  loaded <- map (_ >>= loadContext) (readScenario (scenario <> "/v0"))
   case loaded of
     Left e -> fail e
     Right ctx -> case instantiate ctx.gameboard ctx.config of

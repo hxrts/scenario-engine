@@ -28,6 +28,7 @@ package:
       - effect
       - exceptions
       - sp-scenarios
+      - sp-adapters
       - argonaut-core
       - spec
       - spec-node

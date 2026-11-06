@@ -29,6 +29,7 @@ import Handlers.Replay (runReplay)
 import Handlers.Seats (programs)
 import Policy.Interpret (Draft)
 import Core.Draw (Seed(..))
+import Adapters.Scenarios (readScenario)
 import Scenarios.Load (load)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
@@ -36,11 +37,13 @@ import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 type Game = { world :: WorldState, inWorld :: InWorld }
 
 setup :: Aff Game
-setup = liftEffect (load "fractured-world/v0") >>= case _ of
+setup = liftEffect (readScenario "fractured-world/v0") >>= case _ of
   Left e -> throwError (error e)
-  Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
-    Right initial, Right inWorld -> pure { world: initial.world, inWorld }
-    _, _ -> throwError (error "instantiation")
+  Right s -> case load s of
+    Left e -> throwError (error e)
+    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
+      Right initial, Right inWorld -> pure { world: initial.world, inWorld }
+      _, _ -> throwError (error "instantiation")
 
 buy :: String -> Int -> Draft
 buy market n = { intents: [ Trade { market: Id market, quantity: Q.fromInt n, limitPrice: Nothing } ], signers: [], procedure: Nothing }

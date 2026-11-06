@@ -8,22 +8,19 @@ package:
     - partial
     - argonaut-core
     - arrays
-    - effect
     - either
     - foldable-traversable
     - foreign-object
-    - node-buffer
-    - node-fs
     - strings
     - tuples
     - record
     - typelevel-prelude
     - maybe
-    - node-process
   test:
     main: Test.Scenarios.Main
     dependencies:
       - effect
+      - sp-adapters
       - spec
       - spec-node
       - quickcheck

@@ -42,6 +42,7 @@ import Harness.Views (StoredRun, Unreadable)
 import Harness.Views as V
 import Http (Request, Response, serve)
 import Node.Process (argv, exit')
+import Adapters.Scenarios (readScenario)
 import Scenarios.Load (loadContext)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
@@ -60,7 +61,7 @@ main = do
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
     Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
-      Just port | port > 0 && port < 65536 -> loadContext "fractured-world/v0" >>= case _ of
+      Just port | port > 0 && port < 65536 -> map (_ >>= loadContext) (readScenario "fractured-world/v0") >>= case _ of
         Right ctx -> do
           db <- open (flagOr "--db" "runs.db" flags)
           -- a run still marked running was left by a process that stopped before finishing it

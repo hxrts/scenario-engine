@@ -30,6 +30,7 @@ import Handlers.Replay (runReplay)
 import Harness.Capstone (Capstone, decodeCapstone)
 import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Partial.Unsafe (unsafeCrashWith)
+import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadPresets, loadRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -46,7 +47,7 @@ orThrow = either (throwError <<< error) pure
 -- | `packages/scenarios/capstone/transcript.json`, decoded to its entries.
 transcript :: Aff (Array Entry)
 transcript = do
-  file <- liftEffect (loadRun "capstone/transcript") >>= orThrow
+  file <- liftEffect (readText "capstone/transcript.json") >>= orThrow >>= (orThrow <<< loadRun)
   entries <- orThrow (note' "the transcript must be an array" (toArray file))
   traverse entry entries
   where
@@ -73,7 +74,7 @@ type Game = { world :: WorldState, lookup :: EntityId -> Maybe Entity }
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (load "fractured-world/v0") >>= orThrow
+  loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
     Left _ -> throwError (error "instantiation")
@@ -116,7 +117,7 @@ arrayOf k j = toObject j >>= Object.lookup k >>= toArray
 
 capstone :: Aff Capstone
 capstone = do
-  file <- liftEffect (loadRun "capstone/run") >>= orThrow
+  file <- liftEffect (readText "capstone/run.json") >>= orThrow >>= (orThrow <<< loadRun)
   orThrow (decodeCapstone file)
 
 spec :: Spec Unit
@@ -152,8 +153,8 @@ spec = describe "Capstone: recorded transcript and the Run Store" do
       _ -> fail "replayed line should interpret"
 
   it "the capstone run round-trips through the store: saved, reloaded byte-identically, and replayed" do
-    loaded <- liftEffect (load "fractured-world/v0") >>= orThrow
-    presets <- liftEffect loadPresets >>= orThrow
+    loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+    presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
     cap <- capstone
     let
       ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }

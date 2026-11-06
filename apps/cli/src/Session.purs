@@ -38,6 +38,7 @@ import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Seats (programs)
 import Node.Process (exit')
+import Adapters.Scenarios (readScenario)
 import Scenarios.Load (load)
 
 foreign import promptImpl :: String -> EffectFnAff String
@@ -57,7 +58,7 @@ validId s = case uncons cs of
   alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 
 session :: Options -> Effect Unit
-session o = load (o.scenario <> "/v0") >>= case _ of
+session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
   Left e -> log e *> exit' 1
   Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
     -- a seat with no home market is a startup error, named before any round

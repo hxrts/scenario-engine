@@ -29,6 +29,7 @@ import Harness.Analysis (Outcome(..), difference, evaluateObjectives)
 import Harness.Capstone (Capstone, ObjectiveExpect, RoundExpect, decodeCapstone)
 import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, resume, simulate)
 import Harness.Views as Views
+import Adapters.Scenarios (readText)
 import Scenarios.Load (loadRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -36,7 +37,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 -- | The capstone run file, decoded.
 load :: Aff Capstone
 load = do
-  file <- liftEffect (loadRun "capstone/run")
+  file <- liftEffect (map (_ >>= loadRun) (readText "capstone/run.json"))
   case file of
     Left e -> throwError (error e)
     Right j -> case decodeCapstone j of

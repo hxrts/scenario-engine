@@ -23,6 +23,7 @@ package:
     dependencies:
       - effect
       - sp-scenarios
+      - sp-adapters
       - aff
       - arrays
       - argonaut-codecs

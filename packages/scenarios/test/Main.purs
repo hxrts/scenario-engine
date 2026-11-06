@@ -5,7 +5,6 @@ import Prelude
 import Board.Decode as BD
 import Board.Fixture (Field(..), FixtureError(..), checkFixture)
 import Board.Gameboard (Difference(..), Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..), instantiate, reconcile, validateGameboard)
-import Control.Monad.Error.Class (throwError)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
@@ -23,7 +22,6 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (error)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
@@ -32,11 +30,12 @@ import DSL.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, e
 import DSL.World (atLeast, own)
 import DSL.Decision (deal, lit, max', param, program, rule, signProcedures, tradeT, transformT)
 import DSL.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
+import Adapters.Scenarios (readScenario)
 import Scenarios.Load (LoadError(..), checkPresets, decodePresets, fromFiles, load)
 import Scenarios.FracturedWorld (files)
 import Scenarios.FracturedWorld.Policies (policies)
 import Scenarios.Presets as Presets
-import Test.Scenarios.Golden (fixture, golden)
+import Test.Scenarios.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -72,9 +71,9 @@ holdings =
 -- | The reference instance's Gameboard and configuration, as the loader reads them.
 loaded :: Aff { gameboard :: Gameboard, config :: InstantiationConfig }
 loaded = do
-  r <- liftEffect (load "fractured-world/v0")
+  r <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
   case r of
-    Left e -> throwError (error e)
+    Left e -> failWith e
     Right x -> pure x
 
 -- | The reference instance's Fractured World files, as name-and-JSON sections.
@@ -108,9 +107,9 @@ envWith v u = { view: v, params: Object.empty, home: Just (Id "energy-asia"), ra
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Program
 policyNamed gb name = case Object.lookup name gb.policies of
-  Nothing -> throwError (error ("no policy named " <> name))
+  Nothing -> failWith ("no policy named " <> name)
   Just j -> case decodeProgram j of
-    Left e -> throwError (error (printJsonDecodeError e))
+    Left e -> failWith (printJsonDecodeError e)
     Right p -> pure p
 
 -- | A load outcome without its (non-comparable) scenario, for equality checks.
@@ -206,7 +205,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       instantiated = do
         { gameboard, config } <- loaded
         case instantiate gameboard config of
-          Left es -> throwError (error (show es))
+          Left es -> failWith (show es)
           Right x -> pure { gameboard, config, initial: x }
       amount w e r = fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id r) x.accounts)
       capacity w e c = fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id c) x.capacities)

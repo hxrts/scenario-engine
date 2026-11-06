@@ -30,6 +30,7 @@ import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSea
 import Policy.Program (Program, decodeProgram)
 import Data.Argonaut.Parser (jsonParser)
 import Effects (inWorldOf, runGame)
+import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadFixture, loadPresets, loadRun)
 import Harness.Capstone (Capstone, decodeCapstone)
 import Test.Spec (describe, it)
@@ -43,8 +44,8 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 context :: Aff Context
 context = do
-  loaded <- liftEffect (load "fractured-world/v0")
-  presets <- liftEffect loadPresets
+  loaded <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
+  presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
   case loaded, presets of
     Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }
     Left e, _ -> throwError (error e)
@@ -77,13 +78,13 @@ initialOf r = r.manifest.initial
 -- | The capstone run file (DSL-authored), decoded.
 capstone :: Aff Capstone
 capstone = do
-  file <- liftEffect (loadRun "capstone/run")
+  file <- liftEffect (map (_ >>= loadRun) (readText "capstone/run.json"))
   case file of
     Left e -> throwError (error e)
     Right j -> either (throwError <<< error) pure (decodeCapstone j)
 
 fixture :: String -> Aff Unit
-fixture name = liftEffect (loadFixture name) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadFixture name) (readText ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail e
   Right f -> checkFixture f `shouldEqual` []
 
@@ -148,7 +149,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
-      liftEffect (loadFixture "C1") >>= case _ of
+      liftEffect (map (_ >>= loadFixture "C1") (readText "fixtures/C1.json")) >>= case _ of
         Left e -> fail e
         Right f -> do
           let

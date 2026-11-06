@@ -1,13 +1,12 @@
 -- | Engine-level fixtures (docs/05_test_instance.md Part IV) through the shared checker. The
 -- | fixtures are decoded from the DSL's own JSON, so these tests need no compiled output, and
 -- | the golden names are the fixture list itself.
-module Test.Scenarios.Golden (golden, fixture) where
+module Test.Scenarios.Golden (golden, fixture, failWith) where
 
 import Prelude
 
 import Board.Decode (decodeFixture)
 import Board.Fixture (Fixture, checkFixture)
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..), draw)
 import Core.Engine (resolveRound)
 import Core.Invariants (check)
@@ -24,19 +23,23 @@ import Data.Tuple (fst)
 import Effect.Aff (Aff)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
-import Effect.Exception (error)
 import Scenarios.Fixtures as Fixtures
 import Scenarios.FracturedWorld (gameSeed)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | A named fixture, decoded from the DSL output. An unknown name fails the test.
 fixture :: String -> Aff Fixture
 fixture name = case Object.lookup name (Object.fromFoldable Fixtures.fixtures) of
-  Nothing -> throwError (error ("no fixture named " <> name))
+  Nothing -> failWith ("no fixture named " <> name)
   Just j -> case decodeFixture j of
-    Left e -> throwError (error (printJsonDecodeError e))
+    Left e -> failWith (printJsonDecodeError e)
     Right d -> pure { name, world: d.world, rounds: d.rounds }
+
+-- | Fails the test with the message. `fail` throws, so the recursion is never reached; it lets
+-- | an Aff of any type fail without constructing an Error value here.
+failWith :: forall a. String -> Aff a
+failWith msg = fail msg *> failWith msg
 
 firstInputs :: Fixture -> Array SignedProposal
 firstInputs f = fromMaybe [] (_.inputs <$> head f.rounds)
@@ -53,7 +56,7 @@ golden = describe "Golden fixtures" do
   it "a deliberately unbalanced result trips INV-05" do
     f <- fixture "A"
     case resolveRound f.world (firstInputs f) of
-      Left e -> throwError (error (show e))
+      Left e -> failWith (show e)
       Right r -> do
         let tampered = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) (Id "US") r.world.entities } }
         map _.invariant (check f.world tampered) `shouldEqual` [ "INV-05" ]

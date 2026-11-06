@@ -4,6 +4,8 @@ package:
     - prelude
     - effect
     - console
+    - node-buffer
+    - node-fs
     - node-process
     - arrays
     - either

@@ -26,6 +26,7 @@ import Effects (InWorld, homeMarket, inWorldOf, runGame)
 import Foreign.Object as Object
 import Test.Handlers.Run (runTest)
 import Policy.Program (Program, decodeProgram)
+import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -36,7 +37,7 @@ type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (load "fractured-world/v0")
+  loaded <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
   case loaded of
     Left e -> throwError (error e)
     Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
@@ -71,7 +72,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Round runner and Test handler" do
     it "plays five rounds with every seat Conservative and with every seat Passive" do
       g <- setup
-      presets <- liftEffect loadPresets
+      presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
       case presets of
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do

@@ -36,7 +36,7 @@ _deps:
 
 # Compile the DSL scenarios to JSON
 _scenarios:
-    spago run -p sp-scenarios --main Scenarios.Compile
+    spago run -p sp-cli --main Compile
 
 # fmt-check, deps, build, test
 check: _fmt-check _deps build test
