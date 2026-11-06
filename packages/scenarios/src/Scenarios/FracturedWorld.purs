@@ -14,6 +14,7 @@ module Scenarios.FracturedWorld
   , requirements
   , procurement
   , energyShipping
+  , deployment
   , majorMilitaryAction
   , smeSample
   ) where
@@ -106,8 +107,7 @@ transformations = keyed
   , Tuple "energy-shipping" energyShipping
   , Tuple "humanitarian-aid"
       (facility { inputs: keyed [ "E" := 5 ], outputs: keyed [ "S" := 4 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "WORLD_HOUSEHOLDS", maximum: q 2 })
-  , Tuple "military-deployment"
-      (facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := 1 ] })
+  , Tuple "military-deployment" deployment
   , Tuple "major-military-action" majorMilitaryAction
   , Tuple "logistics-investment"
       (facility { inputs: keyed [ "E" := 3 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "GLOBAL_SMES", delay: 1, effects: [ effect { capacity: "transport", perUnit: q 10 } ] })
@@ -124,6 +124,11 @@ procurement payeeEntity = facility { inputs: keyed [ "E" := 2 ], outputs: keyed 
 
 energyShipping :: Built "facility"
 energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: "transport", payee: "SHIP", ownerSigns: true }
+
+-- | A deployment reserves 1 Mil per unit for the round and consumes and produces nothing: the
+-- | reserved Mil is released at commit (docs/05_test_instance.md §13.3).
+deployment :: Built "facility"
+deployment = facility { reserves: keyed [ "Mil" := 1 ] }
 
 majorMilitaryAction :: Built "facility"
 majorMilitaryAction = facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := "0.75" ], minimum: q 12 }

@@ -402,6 +402,31 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             at Q.zero `shouldEqual` []
             at (fromMaybe Q.zero (Q.parse "0.9")) `shouldEqual` [ [ Trade { market: Id "energy-asia", quantity: Q.fromInt (-5), limitPrice: Just (Q.fromInt 2) } ] ]
 
+  describe "Reservations in the DSL" do
+    it "the shipped military-deployment reserves Mil per unit and consumes and produces nothing" do
+      { gameboard } <- loaded
+      case Map.lookup (Id "military-deployment") gameboard.world.transformations of
+        Nothing -> fail "military-deployment is missing"
+        Just t -> do
+          Map.toUnfoldable t.reserves `shouldEqual` [ Tuple (Id "Mil") (Q.fromInt 1) ]
+          Map.isEmpty t.inputs `shouldEqual` true
+          Map.isEmpty t.outputs `shouldEqual` true
+    it "the Deployer preset proposes a reserving deployment and a major action only while the Atlantic price is above 3" do
+      case decodePresets (encodeJson Presets.presets) of
+        Left e -> fail e
+        Right ps -> case Object.lookup "Deployer" ps of
+          Nothing -> fail "no Deployer preset"
+          Just p -> do
+            let
+              us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTransform (Id "major-military-action") ] } }
+              at price = map _.intents (propose p (envWith (us { prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (fromMaybe Q.zero (Q.parse price)) ] }) Q.zero))
+            at "3" `shouldEqual` []
+            -- one Proposal per template: the deployment, then the major action it competes with
+            at "3.01" `shouldEqual`
+              [ [ Transform { by: Id "US", transformation: Id "military-deployment", quantity: Q.fromInt 60 } ]
+              , [ Transform { by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 40 } ]
+              ]
+
   describe "Scenario loader: files and policies fail at load time" do
     it "a key that two section files both define is an error, not an overwrite" do
       outcome (fromFiles (sections <> [ { name: "extra.json", json: encodeJson { resources: Object.empty :: Object Json } } ]))

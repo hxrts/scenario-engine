@@ -306,6 +306,7 @@ facility
    . Union r rest
        ( inputs :: Keyed Qty
        , outputs :: Keyed Qty
+       , reserves :: Keyed Qty
        , cost :: Built "cost"
        , capacity :: String
        , payee :: String

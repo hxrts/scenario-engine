@@ -17,7 +17,7 @@ import Foreign.Object as Object
 import Prim.Row (class Union)
 import Record (union)
 import Scenario.DSL
-import Scenarios.FracturedWorld (asiaTerms, atlanticTerms, coreResources, gameSeed, majorMilitaryAction, procurement, energyShipping, productionCapacity, flows, requirements, resources, smeSample, transport)
+import Scenarios.FracturedWorld (asiaTerms, atlanticTerms, coreResources, deployment, gameSeed, majorMilitaryAction, procurement, energyShipping, productionCapacity, flows, requirements, resources, smeSample, transport)
 import Scenarios.FracturedWorld.Entities (euAggregate, globalSmesAggregate)
 
 -- | Every fixture by name (the golden tests read these names and their JSON).
@@ -36,6 +36,8 @@ fixtures =
   , fixtureC5
   , fixtureDMinor
   , fixtureD
+  , fixtureR
+  , fixtureRAlone
   , fixtureF
   , fixtureG1
   , fixtureG2
@@ -290,6 +292,49 @@ fixtureD = fixture "D"
       , roundOf { expect: expect { accounts: keyed [ Tuple "CN" (keyed [ "Mil" := 92 ]) ] } }
       ]
   }
+
+-- | Fixture R (docs/05_test_instance.md §13.3): the US orders a 60 Mil deployment, which reserves
+-- | 60 Mil, and a 40-unit major action, which consumes 1 Mil per unit. Their claims on 95 Mil
+-- | total 100, so both scale by 95/100: the deployment reserves 57 and the action orders 38.
+-- | The action consumes 38 Mil and returns 28.5 at commit, so US Military is 95 − 38 + 28.5 =
+-- | 85.5. Round 2 shows the reservation released: the 50 Mil transferred are free.
+fixtureR :: Tuple String Json
+fixtureR = fixture "R"
+  { markets: energy [ "US" ] [ "JP" ]
+  , transformations: facilities <> keyed [ Tuple "military-deployment" deployment, Tuple "major-military-action" majorMilitaryAction ]
+  , entities: usAndJapan
+  , rounds:
+      [ roundOf
+          { proposals:
+              [ proposal { author: "US", intents: [ transformI { by: "US", transformation: "military-deployment", quantity: q 60 }, transformI { by: "US", transformation: "major-military-action", quantity: q 40 } ] } ]
+          , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "Mil" := "85.5", "M" := 260 ]) ] }
+          }
+      , roundOf
+          { proposals:
+              [ proposal { author: "US", intents: [ transferI { from: "US", to: "JP", resource: "Mil", quantity: q 50 } ] } ]
+          , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "Mil" := "35.5" ]), Tuple "JP" (keyed [ "Mil" := 86 ]) ] }
+          }
+      ]
+  }
+
+-- | Fixture R-alone: the same major action with no deployment. Nothing competes with it, so its
+-- | 40 units run in full: 95 − 40 + 30 = 85 Mil, against R's 85.5.
+fixtureRAlone :: Tuple String Json
+fixtureRAlone = fixture "R-alone"
+  { markets: energy [ "US" ] [ "JP" ]
+  , transformations: facilities <> keyed [ Tuple "military-deployment" deployment, Tuple "major-military-action" majorMilitaryAction ]
+  , entities: usAndJapan
+  , proposals:
+      [ proposal { author: "US", intents: [ transformI { by: "US", transformation: "major-military-action", quantity: q 40 } ] } ]
+  , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "Mil" := 85 ]) ] }
+  }
+
+-- | The two Mil holders of fixtures R and R-alone: the US seat, which may deploy and act, and Japan.
+usAndJapan :: Keyed (Built "entity")
+usAndJapan = keyed
+  [ Tuple "US" (entity { accounts: keyed [ "M" := 260, "E" := 70, "Mil" := 95 ], capabilities: [ transform "military-deployment", transform "major-military-action", transfer "Mil" ] })
+  , Tuple "JP" (entity { accounts: keyed [ "M" := 150, "E" := 40, "Mil" := 36 ], capabilities: [] })
+  ]
 
 fixtureF :: Tuple String Json
 fixtureF = fixture "F"
