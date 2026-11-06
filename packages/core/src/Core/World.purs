@@ -30,7 +30,28 @@ type WorldState =
   , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
   , deliveries :: Array Delivery -- due at Prepare
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
+  , circulation :: Circulation
   , events :: Array Event -- public history
+  }
+
+-- | The recurring economic cycle (docs/02_type_system.md §6), as data.
+type Circulation =
+  { production :: Array { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef } -- delivered next round
+  , flows :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Quantity } -- fixed income and expenditure
+  , shares :: Array { from :: EntityId, to :: EntityId, share :: Ratio, source :: ShareSource } -- variable flows
+  , requirements :: Array Requirement -- consumed at commit from the net position
+  }
+
+-- | What a variable flow is a share of, from the paying Entity's settlement this round.
+data ShareSource
+  = SalesOf ResourceId -- net Money revenue from selling this Resource on Markets
+  | PayeeReceipts -- Money received as a facility payee
+
+type Requirement =
+  { entity :: EntityId
+  , resource :: ResourceId
+  , amount :: Maybe Quantity -- Nothing: equal to this round's purchases of the Resource
+  , penalty :: Quantity -- reduction of fixed incoming flows per unit unmet
   }
 
 type Delivery =
@@ -59,7 +80,21 @@ data Event
   | Repealed { round :: RoundIndex, id :: RuleId }
   | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, delta :: Quantity }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
+  | Consumed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  | Shortfall { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  | Decayed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | ProcedureOutcome { round :: RoundIndex, proposal :: ProposalId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
+
+derive instance Generic ShareSource _
+derive instance Eq ShareSource
+instance Show ShareSource where
+  show = genericShow
+
+instance EncodeJson ShareSource where
+  encodeJson = genericEncodeJson
+
+instance DecodeJson ShareSource where
+  decodeJson = genericDecodeJson
 
 derive instance Generic Event _
 derive instance Eq Event

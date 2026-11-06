@@ -14,10 +14,11 @@ module Core.Engine
 import Prelude
 
 import Core.Market as Market
+import Core.Represent as Represent
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Capability(..), CapacityRef, Entity, EntityId, Id(..), Intent(..), MarketId, Proposal, ProposalId, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), SignedProposal, Transferability(..), TransformSpec, Transformation)
-import Core.World (Delivery, Event(..), RoundResult, View, WorldState)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityKind(..), Ratio, Capability(..), CapacityRef, Entity, EntityId, Id(..), Intent(..), MarketId, Proposal, ProposalId, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), SignedProposal, Transferability(..), TransformSpec, Transformation, TransformationId)
+import Core.World (Delivery, Event(..), RoundResult, ShareSource(..), View, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, find, foldl, fromFoldable, mapWithIndex, notElem, nub, null, partition, sortWith, zipWith)
 import Data.Either (Either(..), either, note)
 import Data.Map (Map)
@@ -94,7 +95,12 @@ kindOf = case _ of
 -- Phases 4–7: screen, resolve, commit -----------------------------------------
 
 -- | A screened Proposal: signatures, shape, and authority checked; shipping cost attached.
-type Item = { proposal :: Proposal, deal :: Boolean, tariffs :: Array { from :: EntityId, to :: EntityId, amount :: Q } }
+type Item =
+  { proposal :: Proposal
+  , deal :: Boolean
+  , tariffs :: Array { from :: EntityId, to :: EntityId, amount :: Q }
+  , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
+  }
 
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
 resolveRound w inputs0 =
@@ -102,33 +108,43 @@ resolveRound w inputs0 =
     inputs = sortWith (_.proposal.id) inputs0
     screened = map (screen w) inputs
     items = concatMap (either (const []) pure) screened
-    screenEvents = concatMap (either pure (const [])) screened
+    screenEvents = concatMap (either identity _.outcome) screened
     funded = fund w items
+    estimates = Represent.estimate w (map _.proposal items)
+    settled = circulate w (settle w funded.items)
   in
-    commit w inputs (screenEvents <> funded.events) (settle w funded.items)
+    commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
 
 -- | Phase 4: signature completeness, shape, authority, and shipping rules.
-screen :: WorldState -> SignedProposal -> Either Event Item
+screen :: WorldState -> SignedProposal -> Either (Array Event) Item
 screen w { proposal: p, signatures } =
   let
     signed = nub ([ p.author ] <> signatures)
     deal = isNothing p.procedure && any (_ /= p.author) p.signers
-    lapse = Left (Lapsed { round: w.round, proposal: p.id })
-    reject reason = Left (Rejected { round: w.round, proposal: p.id, reason })
+    lapse = Left [ Lapsed { round: w.round, proposal: p.id } ]
+    reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
     signers = nub ([ p.author ] <> p.signers)
     tradeOrRule = case _ of
       Trade _ -> true
       ChangeRule _ -> true
       _ -> false
   in
-    if not (all (_ `elem` signed) signers) then lapse
-    else if deal && any tradeOrRule p.intents then reject "deals bundle only Transfers and Transforms"
-    else case traverse (check signers) p.intents of
-      Left reason -> reject reason
-      Right _ -> case shipping w p of
-        Left reason -> reject reason
-        Right tariffs -> Right { proposal: p, deal, tariffs }
+    case p.procedure of
+      Just pid -> procedureProposal w p signed pid
+      Nothing ->
+        if not (all (_ `elem` signed) signers) then lapse
+        else if deal && any tradeOrRule p.intents then reject "deals bundle only Transfers and Transforms"
+        else ordinary signers deal
   where
+  ordinary signers deal =
+    let
+      reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+    in
+      case traverse (check signers) p.intents of
+        Left reason -> reject reason
+        Right _ -> case shipping w p of
+          Left reason -> reject reason
+          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [] }
   check signers i =
     let
       who = executor p i
@@ -138,18 +154,40 @@ screen w { proposal: p, signatures } =
         Just e
           | not (who `elem` signers) -> Left (show who <> " must sign")
           | not (authorized e.capabilities who i) -> Left (show who <> " is not authorized")
-          | otherwise -> transferable i *> ruleScope e i
+          | otherwise -> transferable i *> ruleScope e i *> atLeastMinimum i
   transferable = case _ of
     Transfer t -> case _.transferability <$> Map.lookup t.resource w.resources of
       Just NonTransferable -> Left (show t.resource <> " is not transferable")
       Nothing -> Left ("unknown resource " <> show t.resource)
       _ -> Right unit
     _ -> Right unit
+  atLeastMinimum = case _ of
+    Transform t | maybe false (\tr -> t.quantity < tr.minimum) (Map.lookup t.transformation w.transformations) ->
+      Left (show t.transformation <> " order below its minimum")
+    _ -> Right unit
   ruleScope e = case _ of
     ChangeRule (Enact (Tariff r)) | r.jurisdiction /= e.id -> Left "a Tariff applies only to the enacting jurisdiction"
     ChangeRule (Enact (AccessBan r)) | r.jurisdiction /= e.id -> Left "an AccessBan applies only to the enacting jurisdiction"
     ChangeRule (Enact (Withholding r)) | not (Map.member r.capacity e.capacities) -> Left "withholding needs the capacity's owner"
     _ -> Right unit
+
+-- | A procedure Proposal (§2.2, §3.3): authored by the Aggregate that holds the procedure,
+-- | it executes this round if the residual weight plus the weights of the members who signed
+-- | exceeds the threshold, and lapses otherwise. Its Intents must fall within the procedure's
+-- | `authorizes`.
+procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProcedureId -> Either (Array Event) Item
+procedureProposal w p signed pid = case Map.lookup p.author w.entities of
+  Just { kind: Aggregate a } | Just proc <- Map.lookup pid a.procedures ->
+    let
+      support = Q.add proc.residualWeight (Q.sumQ (map (\m -> fromMaybe Q.zero (Map.lookup m proc.weights)) (filter (_ /= p.author) signed)))
+      passes = support > proc.threshold
+      outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
+    in
+      if not (all (\i -> executor p i == p.author && authorized proc.authorizes p.author i) p.intents) then
+        Left [ Rejected { round: w.round, proposal: p.id, reason: "outside the procedure's authority" } ]
+      else if not passes then Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
+      else Right { proposal: p, deal: false, tariffs: [], outcome: [ outcome ] }
+  _ -> Left [ Rejected { round: w.round, proposal: p.id, reason: "unknown procedure" } ]
 
 -- | Cross-region Transfers must be bundled with a matching transport order signed by the
 -- | transport capacity's owner, and are subject to access bans and tariffs.
@@ -169,7 +207,7 @@ shipping w p = traverse ship (filter crossRegion transfers)
     tr <- note "unknown transport facility" (Map.lookup tid w.transformations)
     let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transforms p)))
     when (carried /= t.quantity) (Left "a cross-region Transfer needs a matching transport order by the sender")
-    case owner w tr.capacity of
+    case tr.capacity >>= owner w of
       Just o | o `elem` p.signers || o == p.author -> pure unit
       _ -> Left "the transport owner must sign"
     let
@@ -227,7 +265,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
 
 -- | A facility's uniform price at full capacity, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q
-fullPrice w tr = maybe Q.zero (\c -> Market.averagePrice c Q.zero (capacityOf w tr.capacity)) tr.cost
+fullPrice w tr = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe c.domain.hi (capacityOf w <$> tr.capacity))) tr.cost
 
 -- | Effective capacity: the owner's capacity less withheld units.
 capacityOf :: WorldState -> CapacityRef -> Q
@@ -322,16 +360,17 @@ facilities w scaled =
       ( \s -> mapWithIndex (\i x -> { s, i, x }) s.item.proposal.intents # concatMap
           ( \o -> case o.x of
               Transform t -> case Map.lookup t.transformation w.transformations of
-                Just tr -> [ { key: Tuple s.item.proposal.id o.i, deal: s.item.deal, pid: s.item.proposal.id, by: t.by, quantity: Q.mul s.scale t.quantity, capacity: tr.capacity } ]
+                Just tr -> [ { key: Tuple s.item.proposal.id o.i, deal: s.item.deal, pid: s.item.proposal.id, by: t.by, quantity: Q.mul s.scale t.quantity, capacity: tr.capacity, tid: t.transformation } ]
                 Nothing -> []
               _ -> []
           )
       )
       scaled
-    groups = Map.fromFoldableWith (flip (<>)) (map (\o -> Tuple o.capacity [ o ]) orders)
+    -- facilities sharing a capacity form one group; an uncapped facility is its own group
+    groups = Map.fromFoldableWith (flip (<>)) (map (\o -> Tuple (maybe (Left o.tid) Right o.capacity) [ o ]) orders)
     step acc (Tuple ref os) =
       let
-        cap = capacityOf w ref
+        cap = either (const (Q.sumQ (map _.quantity os))) (capacityOf w) ref
         { yes: deals, no: singles } = partition _.deal os
         dealTotal = Q.sumQ (map _.quantity deals)
         overflow = dealTotal > cap
@@ -353,7 +392,7 @@ facilities w scaled =
 
 type Facilities =
   { fills :: Map (Tuple ProposalId Int) Q
-  , totals :: Map CapacityRef Q
+  , totals :: Map (Either TransformationId CapacityRef) Q
   , rejected :: Array ProposalId
   , events :: Array Event
   }
@@ -399,7 +438,7 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
     Transform t -> case Tuple (Map.lookup (Tuple s.item.proposal.id i) facility.fills) (Map.lookup t.transformation w.transformations) of
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
-          price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe q (Map.lookup tr.capacity facility.totals))) tr.cost
+          price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe q (Map.lookup (maybe (Left t.transformation) Right tr.capacity) facility.totals))) tr.cost
           paid = Q.mul price q
           pay l = maybe (adjust (Ent t.by) w.numeraire (Q.sub Q.zero paid) l) (\p -> move (Ent t.by) (Ent p) w.numeraire paid l) tr.payee
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.sub Q.zero (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
@@ -435,10 +474,117 @@ transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
     _ -> a
   ruleId i = Id (show p.id <> "/rule-" <> show i)
 
+-- Circulation (§6) -------------------------------------------------------------
+
+-- | The recurring cycle, evaluated on the round's batch result: production (delivered next
+-- | round), variable revenue shares, operating requirements with shortfall penalties, fixed
+-- | flows, and decay. One function over the Circulation data; no rule-specific paths.
+circulate :: WorldState -> Settlement -> Settlement
+circulate w st0 = decay (fixed (requirements (shares (production st0))))
+  where
+  c = w.circulation
+  net e r st = Q.add (available w e r) (fromMaybe Q.zero (Map.lookup (Tuple (Ent e) r) st.ledger))
+  production st = st
+    { deliveries = st.deliveries <> map (\p -> { round: w.round + 1, entity: p.entity, resource: p.resource, quantity: capacity p.entity p.capacity }) c.production }
+  capacity e ref = fromMaybe Q.zero (Map.lookup e w.entities >>= \x -> Map.lookup ref x.capacities)
+
+  shares st = foldl
+    ( \acc sh ->
+        let
+          base = case sh.source of
+            SalesOf r -> max Q.zero
+              ( Q.sumQ
+                  ( concatMap
+                      ( case _ of
+                          Traded t | t.entity == sh.from && marketBase t.market == Just r -> [ Q.sub Q.zero (Q.mul t.price t.quantity) ]
+                          _ -> []
+                      )
+                      st.events
+                  )
+              )
+            PayeeReceipts -> Q.sumQ
+              ( concatMap
+                  ( case _ of
+                      Transformed t | payeeOf t.transformation == Just sh.from -> [ t.paid ]
+                      _ -> []
+                  )
+                  st.events
+              )
+          amount = Q.mul sh.share base
+        in
+          if amount == Q.zero then acc else acc { ledger = move (Ent sh.from) (Ent sh.to) w.numeraire amount acc.ledger, events = acc.events <> [ Transferred { round: w.round, from: sh.from, to: sh.to, resource: w.numeraire, quantity: amount } ] }
+    )
+    st
+    c.shares
+  marketBase m = _.base <$> Map.lookup m w.markets
+  payeeOf t = Map.lookup t w.transformations >>= _.payee
+
+  -- requirements, returning the penalty owed to each Entity's incoming fixed flows
+  requirements st = foldl
+    ( \acc rq ->
+        let
+          purchases = Q.sumQ
+            ( concatMap
+                ( case _ of
+                    Traded t | t.entity == rq.entity && marketBase t.market == Just rq.resource && t.quantity > Q.zero -> [ t.quantity ]
+                    _ -> []
+                )
+                st.events
+            )
+          needed = fromMaybe purchases rq.amount
+          consumed = min needed (max Q.zero (net rq.entity rq.resource acc.st))
+          short = Q.sub needed consumed
+        in
+          { st: acc.st
+              { ledger = adjust (Ent rq.entity) rq.resource (Q.sub Q.zero consumed) acc.st.ledger
+              , events = acc.st.events
+                  <> (if consumed > Q.zero then [ Consumed { round: w.round, entity: rq.entity, resource: rq.resource, quantity: consumed } ] else [])
+                  <> (if short > Q.zero then [ Shortfall { round: w.round, entity: rq.entity, resource: rq.resource, quantity: short } ] else [])
+              }
+          , penalties: if short > Q.zero then Map.insertWith Q.add rq.entity (Q.mul rq.penalty short) acc.penalties else acc.penalties
+          }
+    )
+    { st, penalties: Map.empty }
+    c.requirements
+
+  -- fixed flows, each Entity's incoming flows reduced pro rata by its penalty (payers keep it)
+  fixed { st, penalties } = foldl
+    ( \acc (Tuple f amount) ->
+        if amount == Q.zero then acc
+        else acc { ledger = move (Ent f.from) (Ent f.to) f.resource amount acc.ledger, events = acc.events <> [ Transferred { round: w.round, from: f.from, to: f.to, resource: f.resource, quantity: amount } ] }
+    )
+    st
+    reduced
+    where
+    reduced = concatMap
+      ( \(Tuple to fs) ->
+          let
+            incoming = Q.sumQ (map _.amount fs)
+            cut = min incoming (fromMaybe Q.zero (Map.lookup to penalties))
+            cuts = Q.proRata cut (map _.amount fs)
+          in
+            zipWith (\f k -> Tuple f (Q.sub f.amount k)) fs cuts
+      )
+      (Map.toUnfoldable (Map.fromFoldableWith (flip (<>)) (map (\f -> Tuple f.to [ f ]) c.flows)) :: Array _)
+
+  decay st = foldl
+    ( \acc (Tuple e r) ->
+        case Map.lookup r w.resources >>= _.decay of
+          Just d ->
+            let
+              lost = Q.mul d.rate (max Q.zero (net e r acc))
+            in
+              if lost == Q.zero then acc
+              else acc { ledger = adjust (Ent e) r (Q.sub Q.zero lost) acc.ledger, events = acc.events <> [ Decayed { round: w.round, entity: e, resource: r, quantity: lost } ] }
+          Nothing -> acc
+    )
+    st
+    (concatMap (\e -> map (Tuple e.id) (fromFoldable (Map.keys e.accounts))) (fromFoldable (Map.values w.entities)))
+
 -- Phase 7: commit -------------------------------------------------------------
 
-commit :: WorldState -> Array SignedProposal -> Array Event -> Settlement -> Either EngineError RoundResult
-commit w inputs screenEvents st = do
+commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
+commit w inputs screenEvents factors st = do
   entities <- traverse applyEntity w.entities
   let
     markets' = mapWithKey'
@@ -455,6 +601,7 @@ commit w inputs screenEvents st = do
       , markets = markets'
       , deliveries = w.deliveries <> st.deliveries
       , scheduled = Map.union st.scheduled w.scheduled
+      , factors = factors
       , events = w.events <> events
       }
   pure { world, record: { round: w.round, inputs, events } }

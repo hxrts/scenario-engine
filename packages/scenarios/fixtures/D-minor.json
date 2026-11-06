@@ -1,0 +1,142 @@
+{
+ "round": 1,
+ "numeraire": "M",
+ "resources": {
+  "M": {
+   "transferability": "Free"
+  },
+  "E": {
+   "transferability": "Free"
+  },
+  "Mil": {
+   "transferability": "Restricted",
+   "reservable": true
+  },
+  "S": {
+   "transferability": "NonTransferable",
+   "decay": "0.1"
+  }
+ },
+ "markets": {
+  "energy-atlantic": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "300"
+   },
+   "reserves": {
+    "M": "700",
+    "E": "350"
+   },
+   "access": [
+    "US",
+    "DE",
+    "UK"
+   ]
+  },
+  "energy-asia": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "200"
+   },
+   "reserves": {
+    "M": "500",
+    "E": "250"
+   },
+   "access": [
+    "SA",
+    "JP"
+   ]
+  }
+ },
+ "transformations": {
+  "defense-procurement": {
+   "inputs": {
+    "E": "2"
+   },
+   "outputs": {
+    "Mil": "1"
+   },
+   "cost": {
+    "base": "8",
+    "slope": "0.5",
+    "lo": "0",
+    "hi": "30"
+   },
+   "capacity": "procurement",
+   "payee": "DEF",
+   "delay": 1
+  },
+  "energy-shipping": {
+   "inputs": {},
+   "outputs": {},
+   "cost": {
+    "base": "0.3",
+    "slope": "0",
+    "lo": "0",
+    "hi": "60"
+   },
+   "capacity": "transport",
+   "payee": "SHIP",
+   "delay": 0
+  },
+  "major-military-action": {
+   "inputs": {
+    "Mil": "1"
+   },
+   "outputs": {
+    "Mil": "0.75"
+   },
+   "delay": 0,
+   "minimum": "12"
+  }
+ },
+ "transport": {
+  "E": "energy-shipping"
+ },
+ "rules": [],
+ "entities": {
+  "US": {
+   "accounts": {
+    "M": "260",
+    "E": "70",
+    "Mil": "95"
+   },
+   "capabilities": [
+    "transform:major-military-action"
+   ]
+  }
+ },
+ "proposals": [
+  {
+   "author": "US",
+   "intents": [
+    {
+     "transform": {
+      "by": "US",
+      "transformation": "major-military-action",
+      "quantity": "8"
+     }
+    }
+   ]
+  }
+ ],
+ "expect": {
+  "accounts": {
+   "US": {
+    "Mil": "95"
+   }
+  },
+  "rejected": [
+   "US"
+  ]
+ },
+ "name": "D-minor"
+}

@@ -1,0 +1,148 @@
+{
+ "round": 1,
+ "numeraire": "M",
+ "resources": {
+  "M": {
+   "transferability": "Free"
+  },
+  "E": {
+   "transferability": "Free"
+  },
+  "Mil": {
+   "transferability": "Restricted",
+   "reservable": true
+  },
+  "S": {
+   "transferability": "NonTransferable",
+   "decay": "0.1"
+  }
+ },
+ "markets": {
+  "energy-atlantic": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "300"
+   },
+   "reserves": {
+    "M": "700",
+    "E": "350"
+   },
+   "access": [
+    "SME",
+    "GLOBAL_SMES"
+   ]
+  },
+  "energy-asia": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "200"
+   },
+   "reserves": {
+    "M": "500",
+    "E": "250"
+   },
+   "access": [
+    "SA",
+    "JP"
+   ]
+  }
+ },
+ "transformations": {
+  "defense-procurement": {
+   "inputs": {
+    "E": "2"
+   },
+   "outputs": {
+    "Mil": "1"
+   },
+   "cost": {
+    "base": "8",
+    "slope": "0.5",
+    "lo": "0",
+    "hi": "30"
+   },
+   "capacity": "procurement",
+   "payee": "DEF",
+   "delay": 1
+  },
+  "energy-shipping": {
+   "inputs": {},
+   "outputs": {},
+   "cost": {
+    "base": "0.3",
+    "slope": "0",
+    "lo": "0",
+    "hi": "60"
+   },
+   "capacity": "transport",
+   "payee": "SHIP",
+   "delay": 0
+  }
+ },
+ "transport": {
+  "E": "energy-shipping"
+ },
+ "rules": [],
+ "entities": {
+  "SME": {
+   "accounts": {
+    "M": "15",
+    "E": "5"
+   },
+   "capabilities": [
+    "trade:energy-atlantic"
+   ]
+  },
+  "GLOBAL_SMES": {
+   "accounts": {
+    "M": "300",
+    "E": "80"
+   },
+   "capabilities": [
+    "trade:energy-atlantic"
+   ],
+   "aggregate": {
+    "policy": "global-smes-v0",
+    "members": [
+     "SME"
+    ]
+   }
+  }
+ },
+ "representations": [
+  {
+   "id": "sme-energy-sample",
+   "actor": "SME",
+   "aggregate": "GLOBAL_SMES",
+   "domain": "E",
+   "weight": "1",
+   "reference": "5",
+   "shrinkage": "0.25",
+   "bound": "0.5",
+   "noiseSpread": "0.1"
+  }
+ ],
+ "proposals": [
+  {
+   "author": "SME",
+   "intents": [
+    {
+     "trade": {
+      "market": "energy-atlantic",
+      "quantity": "4",
+      "limit": "2.1"
+     }
+    }
+   ]
+  }
+ ],
+ "name": "C5"
+}

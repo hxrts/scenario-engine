@@ -49,7 +49,7 @@ clear c x0 bounds = go []
   go removed orders =
     let
       result = settle orders
-      ok o = maybe true (\l -> if o.quantity > Q.zero then result.price <= l else result.price >= l) o.limitPrice
+      ok o = o.quantity == Q.zero || maybe true (\l -> if o.quantity > Q.zero then result.price <= l else result.price >= l) o.limitPrice
       { yes: keep, no: violated } = partition ok orders
     in
       if null violated then result { rejected = removed }

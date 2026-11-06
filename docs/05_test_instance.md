@@ -131,7 +131,8 @@ One global facility produces Military:
 | **Military Procurement** | Money + 2 E per Mil | Military delivered next round | DEF, or CN_PRIVATE for CN ([§3.3](#33-defense-procurement-facility)) |
 | **Public Campaign** | Money | Soft Power | WORLD_HOUSEHOLDS |
 | **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider; the 5 E is consumed in relief; at most twice per Actor per round | WORLD_HOUSEHOLDS |
-| **Military Deployment** | Reserved Mil | Reservation for the round; declared attrition ([§13.3](#133-military-deployment)) | — |
+| **Military Deployment** (`military-deployment`, uncapped) | 1 Mil per unit, returned at commit | Reservation for the round; no loss | — |
+| **Major Military Action** (`major-military-action`, uncapped, minimum 12) | 1 Mil per unit, 0.75 returned at commit | Reservation for the round; 25% attrition ([§13.3](#133-military-deployment)) | — |
 | **Energy Shipping** | 0.3 M per E, paid by the sender; SHIP must sign | Makes a bundled cross-region Energy Transfer of the same quantity valid ([§3.2](#32-transport-capacity-and-trade-restrictions)) | SHIP |
 | **Logistics Investment** | 10 M + 3 E (SHIP only) | +10 E/round `energy-shipping` capacity from next round | GLOBAL_SMES |
 | **Energy Capacity Investment** | 12 M + 3 E + 1 semiconductor unit bought from CHIP by signed Proposal (producers only) | +2 E/round production capacity from next round | GLOBAL_SMES |
@@ -225,7 +226,7 @@ At baseline, production equals operating requirements: **140 E per round**. Proc
 
 Aggregate market demand is 80 E per round (EU 8, CN_PRIVATE 12, US_WORKERS 8, WORLD_HOUSEHOLDS 12, GLOBAL_SMES 40), against `ENERGY_SUPPLIERS`' offer of 40 E. Market prices therefore rise unless the explicit producers (SA, ENCO, BR, NG, and IN, producing 80 E) sell roughly 40 E per round. This is deliberate: it is the producers' leverage.
 
-**Shortfall rule:** each unit of unmet requirement reduces the Entity's fixed incoming transfers for the round ([§8.3](#83-fixed-income-and-expenditure)) by 2 M, which the payers keep. CHIP also loses 2 semiconductor units for the next round per unit of shortfall.
+**Shortfall rule:** each unit of unmet requirement reduces the Entity's fixed incoming transfers for the round ([§8.3](#83-fixed-income-and-expenditure)) by 2 M, which the payers keep.
 
 ### 8.3 Fixed income and expenditure
 

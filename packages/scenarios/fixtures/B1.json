@@ -1,0 +1,171 @@
+{
+ "round": 1,
+ "numeraire": "M",
+ "resources": {
+  "M": {
+   "transferability": "Free"
+  },
+  "E": {
+   "transferability": "Free"
+  },
+  "Mil": {
+   "transferability": "Restricted",
+   "reservable": true
+  },
+  "S": {
+   "transferability": "NonTransferable",
+   "decay": "0.1"
+  }
+ },
+ "markets": {
+  "energy-atlantic": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "300"
+   },
+   "reserves": {
+    "M": "700",
+    "E": "350"
+   },
+   "access": [
+    "DE",
+    "EU"
+   ],
+   "position": "0"
+  },
+  "energy-asia": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "200"
+   },
+   "reserves": {
+    "M": "500",
+    "E": "250"
+   },
+   "access": [
+    "SA",
+    "JP"
+   ]
+  }
+ },
+ "transformations": {
+  "defense-procurement": {
+   "inputs": {
+    "E": "2"
+   },
+   "outputs": {
+    "Mil": "1"
+   },
+   "cost": {
+    "base": "8",
+    "slope": "0.5",
+    "lo": "0",
+    "hi": "30"
+   },
+   "capacity": "procurement",
+   "payee": "DEF",
+   "delay": 1
+  },
+  "energy-shipping": {
+   "inputs": {},
+   "outputs": {},
+   "cost": {
+    "base": "0.3",
+    "slope": "0",
+    "lo": "0",
+    "hi": "60"
+   },
+   "capacity": "transport",
+   "payee": "SHIP",
+   "delay": 0
+  }
+ },
+ "transport": {
+  "E": "energy-shipping"
+ },
+ "rules": [],
+ "entities": {
+  "DE": {
+   "accounts": {
+    "M": "125",
+    "E": "38"
+   },
+   "capabilities": [
+    "transfer:E",
+    "trade:energy-atlantic"
+   ]
+  },
+  "EU": {
+   "accounts": {
+    "M": "320",
+    "E": "125"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "enact:tariff"
+   ],
+   "aggregate": {
+    "policy": "eu-coordination-v0",
+    "members": [
+     "DE"
+    ],
+    "procedures": {
+     "eu-solidarity": {
+      "weights": {
+       "DE": "0.2"
+      },
+      "residualWeight": "0.4",
+      "threshold": "0.45",
+      "authorizes": [
+       "trade:energy-atlantic"
+      ]
+     },
+     "eu-trade": {
+      "weights": {
+       "DE": "0.2"
+      },
+      "residualWeight": "0.48",
+      "threshold": "0.45",
+      "authorizes": [
+       "enact:tariff"
+      ]
+     }
+    }
+   }
+  }
+ },
+ "proposals": [
+  {
+   "author": "DE",
+   "intents": [
+    {
+     "transfer": {
+      "from": "DE",
+      "to": "EU",
+      "resource": "E",
+      "quantity": "10"
+     }
+    }
+   ]
+  }
+ ],
+ "expect": {
+  "accounts": {
+   "DE": {
+    "E": "28"
+   },
+   "EU": {
+    "E": "135"
+   }
+  }
+ },
+ "name": "B1"
+}

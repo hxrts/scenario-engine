@@ -70,7 +70,6 @@ type Capacities = Map CapacityRef Quantity
 type Entity =
   { id :: EntityId
   , accounts :: Holdings
-  , reserved :: Holdings
   , capacities :: Capacities
   , capabilities :: Array Capability
   , kind :: EntityKind
@@ -180,9 +179,10 @@ type Transformation =
   , inputs :: Holdings
   , outputs :: Holdings
   , cost :: Maybe CostFunction
-  , capacity :: CapacityRef
+  , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , payee :: Maybe EntityId
   , delay :: RoundOffset
+  , minimum :: Quantity -- smallest order accepted, e.g. a major military action
   , authority :: Capability
   }
 

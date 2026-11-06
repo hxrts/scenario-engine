@@ -59,7 +59,8 @@ inv04 _ r =
     (Map.toUnfoldable hs :: Array _)
 
 -- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what
--- | facilities produced minus what they consumed (§6). Transfers and trades net to zero.
+-- | facilities produced, less what facilities, requirements, and decay consumed (§6).
+-- | Transfers and trades net to zero.
 inv05 :: WorldState -> RoundResult -> Array Failure
 inv05 before r = concatMap one resources
   where
@@ -84,6 +85,8 @@ inv05 before r = concatMap one resources
         in
           Map.unionWith Q.add acc (Map.unionWith Q.add plus (map (Q.sub Q.zero) (Map.unionWith Q.add minus burned)))
       Nothing -> acc
+    Consumed c -> Map.insertWith Q.add c.resource (Q.sub Q.zero c.quantity) acc
+    Decayed d -> Map.insertWith Q.add d.resource (Q.sub Q.zero d.quantity) acc
     _ -> acc
 
 total :: WorldState -> ResourceId -> Q

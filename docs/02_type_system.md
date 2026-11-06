@@ -40,7 +40,6 @@ Every Entity has the same economic record; its `kind` says whether it is an Acto
 type Entity =
   { id :: EntityId
   , accounts :: Holdings
-  , reserved :: Holdings                                     -- reserved quantities of reservable Resources
   , capacities :: Capacities
   , capabilities :: Array Capability
   , kind :: EntityKind
@@ -114,7 +113,7 @@ type ResourceDefinition =
 
 `Transferability` distinguishes freely transferable, restricted (authority-gated), and non-transferable Resources. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. Which Transformations produce or consume a Resource completes its behavior: a Resource that none produces or consumes is conserved, which is derived, not declared.
 
-Holdings associate Entities with quantities of Resources. Reserved quantities are tracked separately from available quantities.
+Holdings associate Entities with quantities of Resources. A reservation lasts within one round: a deployment escrows the reserved quantity at screening and returns the survivors at commit, so nothing stays reserved across a round boundary.
 
 Not everything economically meaningful is a Resource. Production capacity, transport capacity, market access, political authority, and supply-chain efficiency are economic state or rules attached to Entities, Markets, and Transformations. A semiconductor producer can hold valuable productive capacity without the scenario introducing a semiconductor Resource.
 
@@ -404,9 +403,10 @@ type Transformation =
   , inputs :: Holdings            -- per unit
   , outputs :: Holdings           -- per unit
   , cost :: Maybe CostFunction    -- money price of congestion or increasing marginal cost
-  , capacity :: CapacityRef
+  , capacity :: Maybe CapacityRef -- limiting capacity, shared by facilities naming it; Nothing: uncapped
   , payee :: Maybe EntityId       -- recipient of money paid
   , delay :: RoundOffset
+  , minimum :: Quantity           -- smallest order accepted, e.g. a major military action
   , authority :: Capability
   }
 ```
@@ -464,7 +464,22 @@ Each round's single update includes a recurring stock-flow cycle. Its four compo
 - **Income and expenditure.** Explicit rules distribute earnings, wages, taxes, public spending, and transfers among Entities.
 - **Capacity renewal.** Investments, depreciation, and degradation adjust future capacities.
 
-This requires no additional Resources. It requires production rules, accounting-consistent financial flows, and productive-capacity state.
+This requires no additional Resources. It requires production rules, accounting-consistent financial flows, and productive-capacity state, held in World State as data and applied by one function:
+
+```purescript
+type Circulation =
+  { production :: Array { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef } -- delivered next round
+  , flows :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Quantity } -- fixed income and expenditure
+  , shares :: Array { from :: EntityId, to :: EntityId, share :: Ratio, source :: ShareSource } -- variable flows
+  , requirements :: Array Requirement }                                    -- consumed at commit
+
+data ShareSource = SalesOf ResourceId | PayeeReceipts   -- net sale revenue, or Money received as a facility payee
+
+type Requirement =
+  { entity :: EntityId, resource :: ResourceId
+  , amount :: Maybe Quantity    -- Nothing: equal to this round's purchases of the Resource
+  , penalty :: Quantity }       -- each unit unmet reduces the Entity's fixed incoming flows by this much
+```
 
 Every Resource stock reconciles each round:
 
@@ -522,7 +537,7 @@ The domain constrains which part of the Actor's behavior may influence the Aggre
 
 Representation proceeds through four stages, and the engine records each one:
 
-1. **Observation.** Derived from a validated, escrowed Proposal, before clearing. Escrow means every observation is backed by real resources.
+1. **Observation.** Derived from a validated, escrowed Proposal, before clearing. Escrow means every observation is backed by real resources. A Representation's behavior domain names the Resource whose purchases are observed: the observation is the actor's total proposed buy quantity of that Resource on Markets.
 2. **Estimate.** The adjustment factor, computed and stored by the engine.
 3. **Proposed Aggregate Intent.** The Aggregate Policy's adjusted Proposal.
 4. **Executed result.** The settled outcome after feasibility checks.

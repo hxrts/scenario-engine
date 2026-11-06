@@ -15,7 +15,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Test.Core.Golden (golden, orderIndependent, unbalanced)
+import Test.Core.Golden (golden, orderIndependent, representation, unbalanced)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
 import Test.Spec (describe, it)
@@ -106,9 +106,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "differs across seeds for equal keys" do
       draw (Seed 26021) key `shouldNotEqual` draw (Seed 1) key
   describe "Golden fixtures" do
-    golden [ "A", "A2", "F", "G1", "G2", "G3", "G3-ban", "G4", "G5", "G5-unsigned" ]
+    golden [ "A", "A2", "B1", "B2", "B3", "B4", "B4-unsigned", "C1", "C2", "C3", "D", "D-minor", "F", "G1", "G2", "G3", "G3-ban", "G4", "G5", "G5-unsigned", "circulation" ]
     orderIndependent [ "A", "A2", "F", "G4" ]
     unbalanced
+    representation
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

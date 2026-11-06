@@ -1,6 +1,6 @@
 -- | Decodes the compact fixture JSON in packages/scenarios/fixtures and runs it through
 -- | the engine. One generic golden runner for every engine-level fixture.
-module Test.Core.Fixture (Fixture, Expect, load, run, Outcome) where
+module Test.Core.Fixture (Fixture, Expect, Round, load, run, Outcome) where
 
 import Prelude
 
@@ -8,8 +8,8 @@ import Core.Draw (Seed(..))
 import Core.Engine (EngineError, resolveRound)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (CostFunction, Market, ResourceDefinition, Transformation, Capability(..), Entity, EntityKind(..), Controller(..), Id(..), Intent(..), Rule(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
-import Core.World (RoundResult, WorldState)
+import Core.Types (CollectiveProcedure, Representation, CostFunction, Market, ResourceDefinition, Transformation, Capability(..), Entity, EntityKind(..), Controller(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
+import Core.World (Circulation, RoundResult, ShareSource(..), WorldState)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, printJsonDecodeError, (.:), (.:?), (.!=))
 import Data.Argonaut.Parser (jsonParser)
@@ -18,7 +18,7 @@ import Data.Array.NonEmpty (toArray)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), split)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
@@ -35,9 +35,14 @@ type Expect =
   , deliveries :: Array { entity :: String, resource :: String, quantity :: Q }
   , rejected :: Array String
   , lapsed :: Array String
+  , factors :: Object (Object Q)
+  , scheduled :: Int
+  , procedures :: Array { author :: String, support :: Q, executed :: Boolean }
   }
 
-type Fixture = { name :: String, world :: WorldState, inputs :: Array SignedProposal, expect :: Expect }
+type Round = { inputs :: Array SignedProposal, expect :: Expect }
+
+type Fixture = { name :: String, world :: WorldState, rounds :: Array Round }
 
 type Outcome = Either EngineError RoundResult
 
@@ -46,8 +51,9 @@ load name = do
   text <- readTextFile UTF8 ("packages/scenarios/fixtures/" <> name <> ".json")
   pure (jsonParser text >>= (lmap printJsonDecodeError <<< decodeFixture))
 
-run :: Fixture -> Outcome
-run f = resolveRound f.world f.inputs
+-- | Resolve one round's inputs.
+run :: WorldState -> Round -> Outcome
+run w r = resolveRound w r.inputs
 
 decodeFixture :: Json -> Either JsonDecodeError Fixture
 decodeFixture j = do
@@ -61,21 +67,24 @@ decodeFixture j = do
   transport <- o .: "transport" >>= traverse (pure <<< Id)
   entities <- o .: "entities" >>= traverseKeys entity
   rules <- o .: "rules" >>= traverse rule
-  proposals <- o .: "proposals"
-  inputs <- concat <$> traverse (signed round) (groupByAuthor proposals)
-  expect <- o .: "expect" >>= decodeExpect
+  seed <- o .:? "seed" .!= 26021
+  representations <- o .:? "representations" .!= [] >>= traverse representation
+  circulation <- o .:? "circulation" >>= traverse decodeCirculation
+  roundsJson <- o .:? "rounds" >>= case _ of
+    Just rs -> pure rs
+    Nothing -> pure [ j ]
+  rounds <- traverse (\(Tuple k rj) -> decodeRound (round + k) rj) (mapWithIndex Tuple roundsJson)
   pure
     { name
-    , expect
-    , inputs
+    , rounds
     , world:
         { round
-        , seed: Seed 26021
+        , seed: Seed seed
         , entities: toMap entities
         , resources: toMap resources
         , markets: toMap markets
         , transformations: toMap transformations
-        , representations: []
+        , representations
         , numeraire: Id numeraire
         , transport: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) v) (Object.toUnfoldable transport :: Array _))
         , jurisdiction: Map.empty
@@ -83,6 +92,7 @@ decodeFixture j = do
         , scheduled: Map.empty
         , deliveries: []
         , factors: Map.empty
+        , circulation: fromMaybe emptyCirculation circulation
         , events: []
         }
     }
@@ -92,8 +102,19 @@ decodeFixture j = do
 
   traverseKeys :: forall a. (String -> Json -> Either JsonDecodeError a) -> Object Json -> Either JsonDecodeError (Object a)
   traverseKeys = traverseWithIndex
+  emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
+
+decodeRound :: Int -> Json -> Either JsonDecodeError Round
+decodeRound round j = do
+  o <- decodeJson j
+  proposals <- o .:? "proposals" .!= []
+  inputs <- concat <$> traverse signed (groupByAuthor proposals)
+  expect <- o .:? "expect" >>= maybe (pure noExpect) decodeExpect
+  pure { inputs, expect }
+  where
   groupByAuthor ps = map toArray (groupBy (\a b -> a.author == b.author) (sortWith _.author ps))
-  signed round group = traverse (\(Tuple i p) -> proposal round i p) (mapWithIndex Tuple group)
+  signed group = traverse (\(Tuple i p) -> proposal round i p) (mapWithIndex Tuple group)
+  noExpect = { accounts: Object.empty, reserves: Object.empty, deliveries: [], rejected: [], lapsed: [], factors: Object.empty, scheduled: 0, procedures: [] }
 
 decodeExpect :: Json -> Either JsonDecodeError Expect
 decodeExpect j = do
@@ -103,7 +124,10 @@ decodeExpect j = do
   deliveries <- o .:? "deliveries" .!= []
   rejected <- o .:? "rejected" .!= []
   lapsed <- o .:? "lapsed" .!= []
-  pure { accounts, reserves, deliveries, rejected, lapsed }
+  factors <- o .:? "factors" .!= Object.empty
+  scheduled <- o .:? "scheduled" .!= 0
+  procedures <- o .:? "procedures" .!= []
+  pure { accounts, reserves, deliveries, rejected, lapsed, factors, scheduled, procedures }
 
 resource :: String -> Json -> Either JsonDecodeError ResourceDefinition
 resource id j = do
@@ -115,7 +139,8 @@ resource id j = do
     "NonTransferable" -> Right NonTransferable
     _ -> Left (TypeMismatch "transferability")
   reservable <- o .:? "reservable" .!= false
-  pure { id: Id id, unit: id, transferability, decay: Nothing, reservable }
+  decay <- o .:? "decay"
+  pure { id: Id id, unit: id, transferability, decay: map (\rate -> { rate }) decay, reservable }
 
 costFn :: Json -> Either JsonDecodeError CostFunction
 costFn j = do
@@ -137,7 +162,8 @@ market id j = do
   cost <- o .: "cost" >>= costFn
   reserves <- o .: "reserves"
   access <- o .: "access"
-  pure { id: Id id, base: Id base, quote: Id quote, cost, position: Q.zero, reserves: holdings reserves, access: map Id access }
+  position <- o .:? "position" .!= Q.zero
+  pure { id: Id id, base: Id base, quote: Id quote, cost, position, reserves: holdings reserves, access: map Id access }
 
 transformation :: String -> Json -> Either JsonDecodeError Transformation
 transformation id j = do
@@ -145,10 +171,11 @@ transformation id j = do
   inputs <- o .: "inputs"
   outputs <- o .: "outputs"
   cost <- o .:? "cost" >>= traverse costFn
-  capacity <- o .: "capacity"
+  capacity <- o .:? "capacity"
   payee <- o .:? "payee"
   delay <- o .: "delay"
-  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: Id capacity, payee: map Id payee, delay, authority: MayTransform (Id id) }
+  minimum <- o .:? "minimum" .!= Q.zero
+  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, authority: MayTransform (Id id) }
 
 capability :: String -> Either JsonDecodeError Capability
 capability s = case split (Pattern ":") s of
@@ -166,7 +193,83 @@ entity id j = do
   accounts <- o .: "accounts"
   caps <- o .: "capabilities" >>= traverse capability
   capacities <- o .:? "capacities" .!= Object.empty
-  pure { id: Id id, accounts: holdings accounts, reserved: Map.empty, capacities: holdings capacities, capabilities: caps, kind: Actor (Seat (Id id)) }
+  kind <- o .:? "aggregate" >>= case _ of
+    Nothing -> pure (Actor (Seat (Id id)))
+    Just a -> do
+      policy <- a .: "policy"
+      members <- a .:? "members" .!= []
+      procs <- a .:? "procedures" .!= Object.empty >>= traverseWithIndex (const procedure)
+      pure (Aggregate { policy: Id policy, members: map Id members, procedures: toMap' procs })
+  pure { id: Id id, accounts: holdings accounts, capacities: holdings capacities, capabilities: caps, kind }
+  where
+  toMap' :: forall t a. Object a -> Map.Map (Id t) a
+  toMap' = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
+
+procedure :: Json -> Either JsonDecodeError CollectiveProcedure
+procedure j = do
+  o <- decodeJson j
+  weights <- o .: "weights"
+  residualWeight <- o .: "residualWeight"
+  threshold <- o .: "threshold"
+  authorizes <- o .: "authorizes" >>= traverse capability
+  pure { weights: holdings weights, residualWeight, threshold, authorizes }
+
+representation :: Json -> Either JsonDecodeError Representation
+representation j = do
+  o <- decodeJson j
+  id <- o .: "id"
+  actor <- o .: "actor"
+  aggregate <- o .: "aggregate"
+  domain <- o .: "domain"
+  weight <- o .: "weight"
+  reference <- o .: "reference"
+  shrinkage <- o .: "shrinkage"
+  bound <- o .:? "bound"
+  noiseSpread <- o .:? "noiseSpread" .!= Q.zero
+  pure
+    { id: Id id
+    , actor: Id actor
+    , aggregate: Id aggregate
+    , domain: Id domain
+    , weight
+    , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.sub Q.zero b, hi: b }) bound, noiseSpread }
+    }
+
+decodeCirculation :: Json -> Either JsonDecodeError Circulation
+decodeCirculation j = do
+  o <- decodeJson j
+  production <- o .:? "production" .!= [] >>= traverse \x -> do
+    p <- decodeJson x
+    e <- p .: "entity"
+    r <- p .: "resource"
+    c <- p .: "capacity"
+    pure { entity: Id e, resource: Id r, capacity: Id c }
+  flows <- o .:? "flows" .!= [] >>= traverse \x -> do
+    f <- decodeJson x
+    from <- f .: "from"
+    to <- f .: "to"
+    r <- f .: "resource"
+    amount <- f .: "amount"
+    pure { from: Id from, to: Id to, resource: Id r, amount }
+  shares <- o .:? "shares" .!= [] >>= traverse \x -> do
+    f <- decodeJson x
+    from <- f .: "from"
+    to <- f .: "to"
+    share <- f .: "share"
+    src <- f .: "source"
+    source <- case split (Pattern ":") src of
+      [ "sales", r ] -> Right (SalesOf (Id r))
+      [ "payee" ] -> Right PayeeReceipts
+      _ -> Left (TypeMismatch "share source")
+    pure { from: Id from, to: Id to, share, source }
+  requirements <- o .:? "requirements" .!= [] >>= traverse \x -> do
+    f <- decodeJson x
+    e <- f .: "entity"
+    r <- f .: "resource"
+    amount <- f .:? "amount"
+    penalty <- f .:? "penalty" .!= Q.zero
+    pure { entity: Id e, resource: Id r, amount, penalty }
+  pure { production, flows, shares, requirements }
 
 rule :: Json -> Either JsonDecodeError Rule
 rule j = do
@@ -208,14 +311,16 @@ intent j = do
       tr <- x .: "transformation"
       quantity <- x .: "quantity"
       pure (Transform { by: Id by, transformation: Id tr, quantity })
-    _, _, _ -> Left (TypeMismatch "intent")
+    _, _, _ -> case Object.lookup "enact" o of
+      Just r -> ChangeRule <<< Enact <$> rule r
+      Nothing -> Left (TypeMismatch "intent")
 
-proposal :: Int -> Int -> { author :: String, intents :: Array Json, signers :: Maybe (Array String), signatures :: Maybe (Array String) } -> Either JsonDecodeError SignedProposal
+proposal :: Int -> Int -> { author :: String, intents :: Array Json, signers :: Maybe (Array String), signatures :: Maybe (Array String), procedure :: Maybe String } -> Either JsonDecodeError SignedProposal
 proposal round i p = do
   intents <- traverse intent p.intents
   let author = Id p.author
   pure
-    { proposal: { id: proposalId round author i, author, intents, signers: map Id (unwrapArr p.signers), procedure: Nothing }
+    { proposal: { id: proposalId round author i, author, intents, signers: map Id (unwrapArr p.signers), procedure: map Id p.procedure }
     , signatures: map Id (unwrapArr p.signatures)
     }
   where
