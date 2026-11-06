@@ -174,7 +174,7 @@ Each format has a codec in the package that owns its type. Records are the repla
 
 1. `core`: Num, Types, Draw, Market, Engine, with fixtures A, F, and G as golden tests.
 2. `board` and `scenarios`: load and instantiate The Fractured World.
-3. `policy`, `effects`, `handlers/Test`: full rounds with preset programs.
+3. `policy`, `effects`, and the in-memory test runner (`packages/handlers/test/Test/Handlers/Run.purs`): full rounds with preset programs.
 4. `handlers/Sim`, `harness`, `adapters/Store`: saved runs, seeds, and counterfactuals.
 5. `adapters/Llm`, `handlers/Live`, `apps`: live sessions, AI seats, the dashboard.
 

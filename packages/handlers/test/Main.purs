@@ -24,7 +24,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effects (InWorld, homeMarket, inWorldOf, runGame)
 import Foreign.Object as Object
-import Handlers.Test (runTest)
+import Test.Handlers.Run (runTest)
 import Policy.Program (Program, decodeProgram)
 import Scenarios (load, loadPresets)
 import Test.Spec (describe, it)

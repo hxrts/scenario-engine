@@ -1,5 +1,6 @@
--- | The pure Test handler: seats bound to declarative programs, records kept in memory.
-module Handlers.Test (SeatBindings, runTest) where
+-- | The in-memory test runner: seats bound to declarative programs, records kept in memory.
+-- | Used only by the handler tests; it is not a runtime handler.
+module Test.Handlers.Run (SeatBindings, runTest) where
 
 import Prelude
 

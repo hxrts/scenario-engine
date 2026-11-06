@@ -55,7 +55,7 @@ handleSeats source = interpret (on (Proxy :: _ "seatInput") handle send)
     Propose e v k -> pure (k (source.propose e v))
     Sign e v k -> pure (k (source.sign e v))
 
--- | Collect RECORD purely: the Test handler's record store.
+-- | Collect RECORD purely: the in-memory record store, shared by the replay and test runners.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 collectRecords = go []
   where
