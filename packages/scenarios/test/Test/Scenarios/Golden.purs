@@ -5,7 +5,7 @@ module Test.Scenarios.Golden (golden, fixture, failWith) where
 
 import Prelude
 
-import Board.Decode (decodeFixture)
+import Board.Decode.World (decodeFixture)
 import Board.Fixture (Fixture, checkFixture)
 import Core.Draw (Seed(..), draw)
 import Core.Engine (resolveRound)

@@ -2,9 +2,13 @@ module Test.Scenarios.Main where
 
 import Prelude
 
-import Board.Decode as BD
+import Board.Decode.Common as BD
+import Board.Decode.Intents as BDI
 import Board.Fixture (Field(..), FixtureError(..), checkFixture)
-import Board.Gameboard (Difference(..), Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..), instantiate, reconcile, validateGameboard)
+import Board.Gameboard.Instantiate (instantiate)
+import Board.Gameboard.Reconcile (reconcile)
+import Board.Gameboard.Schema (Difference(..), Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..))
+import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
@@ -164,23 +168,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case BD.intent (intentJson (enactAccessBanI { jurisdiction: "US", target: "CN" })) of
+      case BDI.intent (intentJson (enactAccessBanI { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (AccessBan a))) -> do
           a.jurisdiction `shouldEqual` Id "US"
           a.target `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case BD.rule (builtJson (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case BDI.rule (builtJson (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (Tariff t) -> do
           t.jurisdiction `shouldEqual` Id "US"
           t.origin `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      BD.rule (builtJson (withholdingRule { capacity: "semiconductors", units: q 3 }))
+      BDI.rule (builtJson (withholdingRule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      BD.intent (intentJson (enactWithholdingI { capacity: "semiconductors", units: q 3 }))
+      BDI.intent (intentJson (enactWithholdingI { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ trade "energy-atlantic", transfer "M", transform "energy-shipping", enactTariff, enactAccessBan, enactWithholding ] \c ->

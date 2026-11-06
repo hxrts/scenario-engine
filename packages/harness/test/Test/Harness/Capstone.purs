@@ -6,7 +6,7 @@ module Test.Harness.Capstone (spec) where
 import Prelude
 
 import Board.Fixture (expectRound)
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Engine (prepareRound)

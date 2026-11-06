@@ -9,7 +9,7 @@ import Prelude
 
 import Adapters.Llm (defaultModel)
 import Adapters.Seed (resolveSeed)
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine (prepareRound)
 import Core.Invariants (check)

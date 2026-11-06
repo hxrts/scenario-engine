@@ -3,7 +3,7 @@ module Test.Server.Main where
 import Prelude
 
 import Adapters.Store (open, reader, setSpec)
-import Board.Decode (readJson)
+import Board.Decode.Common (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))

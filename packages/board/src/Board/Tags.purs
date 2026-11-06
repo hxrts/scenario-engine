@@ -1,7 +1,7 @@
 -- | The string grammar of Gameboard tags (docs/03_gameboard.md): the capability, fallback,
 -- | measure, span, and share-source tags. A tag is `kind` or `kind:argument`. The DSL
 -- | (packages/scenarios) builds these strings from the constants here, and the decoders
--- | in `Board.Decode` and `Board.Gameboard` match on the same constants, so the two sides
+-- | in `Board.Decode.*` and `Board.Gameboard.*` match on the same constants, so the two sides
 -- | cannot drift apart.
 module Board.Tags
   ( separator

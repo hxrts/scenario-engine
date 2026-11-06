@@ -8,8 +8,8 @@ import Prelude
 
 import Adapters.Seed (resolveSeed)
 import Adapters.Store (Db, RunInfo, RunSummary, StoredRound, createRun, deleteRun, failRun, failStaleRuns, finish, nowIso, open, persister, reader, setArchived, setSpec, setStatus)
-import Board.Decode (readJson)
-import Board.Gameboard (gameIdOf)
+import Board.Decode.Common (readJson)
+import Board.Gameboard.Schema (gameIdOf)
 import Core.Draw (Seed(..))
 import Core.Invariants (Failure)
 import Core.Types (EntityId)

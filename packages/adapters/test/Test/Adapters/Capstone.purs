@@ -7,8 +7,8 @@ import Prelude
 
 import Adapters.Llm (Backend, interpreter)
 import Adapters.Store (createRun, open, persister, reader)
-import Board.Decode (readJson)
-import Board.Gameboard (instantiate)
+import Board.Decode.Common (readJson)
+import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Engine (observe)
 import Core.Types (Entity, EntityId, Id(..))

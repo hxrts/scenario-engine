@@ -2,12 +2,12 @@ module Test.Handlers.Main where
 
 import Prelude
 
-import Board.Gameboard (instantiate)
+import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Invariants (checkRun)
 import Core.Query (priceOf)
-import Board.Decode (readJsonWith)
+import Board.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
