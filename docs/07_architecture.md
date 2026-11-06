@@ -124,14 +124,18 @@ runRound :: Policies -> WorldState
 
 Randomness needs no effect: every draw is the pure `draw` on the game seed (in-world Policies, estimator noise) or the player seed (seat Policies, supplied by the handler). `INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
 
-**Run store** (`adapters/Store`). It is append-only and reached through the `Record` effect plus a read API:
+**Run store** (`adapters/Store`). It is append-only and reached through the `Record` effect plus a read API. The schema is versioned with `PRAGMA user_version` and migrated in order; a read-only open never creates or migrates a store (docs/06 §8):
 
 ```purescript
-type RunStoreRead m =
-  { manifest :: RunId -> m Manifest
-  , rounds   :: RunId -> m (Array RoundRecord)
-  , metric   :: RunId -> MetricId -> m (Array Point) }
+type RunStoreRead =
+  { runs      :: Effect (Array RunInfo)     -- id, name, status, created, reason
+  , summaries :: Effect (Array RunSummary)  -- the run list: manifest, spec, assertion texts; no records or snapshots
+  , manifest  :: RunId -> Effect (Maybe { spec :: String, manifest :: String })
+  , rounds    :: RunId -> Effect (Array StoredRound)  -- record, snapshot, assertions per round
+  , metric    :: RunId -> MetricId -> MetricsVersion -> Effect (Array { round :: Int, value :: String }) }
 ```
+
+A run that does not finish is marked `failed` with its reason; `failStaleRuns` does the same for runs left `running` by a stopped process.
 
 **Views** (`harness/Views`). Every dashboard element is a pure projection of a stored run to a generic view model, computed server-side; the dashboard only fetches and renders it with four generic components (record table, metric chart, run picker, diff table):
 
@@ -139,6 +143,8 @@ type RunStoreRead m =
 type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
 type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
 ```
+
+The run list is built from summaries, so it never loads snapshots, and a run that cannot be decoded is an `Unreadable` row with its reason. Single-run views load the full run. Scenario-specific names (the procurement transformations, the Military label, the default Market) are one record, `MetricSpec`, with the reference scenario's defaults; the server passes the default. Round-scoped views reject a round outside the run.
 
 **Data formats.** Gameboards, instantiation configs, seat-policy presets, manifests, and round records are JSON. Each has a codec in the package that owns its type. Records are the replay boundary: manifest + round records + seeds reproduce a run ([INV-13](02_type_system.md#inv-13), [INV-31](02_type_system.md#inv-31)).
 

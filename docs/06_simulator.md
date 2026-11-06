@@ -173,6 +173,10 @@ An invalid action is an ordinary outcome. It is recorded with its reason and han
 
 An invariant violation fails the run. The harness preserves the configuration, last valid state, failing round, Intents, Policy, Representation, and procedure outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
 
+A failed run is never left `running`. It is marked `failed` with its reason in each of these cases: an engine error or invariant violation (the reason is the error); an exception while simulating or saving a round, such as a store fault (the reason is the exception); a live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures; they become a clarification, an empty submission, or a plain event listing. At server startup, runs still marked `running` (left by a process that stopped) are marked failed with the reason `interrupted`.
+
+Live play confirms a candidate Proposal only on `y` or `yes`, in any letter case. Any other answer drops the candidate, and the seat is told that it was dropped and that nothing was submitted.
+
 ## 7. Run Assertions
 
 Assertions are evaluated after initialization and after every round. They check engine properties without reimplementing the engine.
@@ -265,7 +269,13 @@ Completed runs are immutable, and a changed configuration always gets a new Run 
 
 Live sessions also keep evidence of each language-model call: the effect, model ID, template and input hashes, a pointer to the raw output, and the decoded result. This evidence lives beside the run, outside the round records. Replay never re-invokes the model; the canonical Proposals and signatures in the round records are enough.
 
-The initial record is written before Round 1. After each round, the round record, snapshot, and assertions are saved atomically. If Round 4 fails, Rounds 1–3 remain available, and the run can be resumed from its last snapshot where that is supported.
+The initial record is written before Round 1. After each round, the round record, snapshot, and assertions are saved atomically. If Round 4 fails, Rounds 1–3 remain available.
+
+**Schema and access.** The schema is versioned with SQLite's `user_version`. Migrations are ordered and append-only: opening the store read-write creates it or applies the missing migrations in one transaction each. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metrics are read at a stated version (`metric(run, metric, version)`), so a projection computed under one definition is never mixed with another.
+
+**Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs; the round must exist.
+
+**Not yet implemented.** Resuming a run from a stored snapshot through the Run Store or the read API (the harness can resume from a snapshot in memory, `Harness.Simulate.resume`); explicit archive and delete of runs; and counterfactual runs linked to their source ([§10.4](#104-counterfactual-experiments)). The Run Store has no such operations, and the read API has no route for them.
 
 A stored seed is insufficient without the versioned PRNG, which is why the manifest records it. Run IDs never influence sampling.
 
@@ -285,13 +295,12 @@ The page shows a sortable, filterable table with these columns: name, Gameboard 
 
 The available actions are:
 
-- **Run**
-- **Duplicate:** edit a copy of the configuration.
-- **Rerun:** same configuration and both seeds.
-- **Variant:** change selected parameters.
-- **Counterfactual** ([§10.4](#104-counterfactual-experiments))
-- **Inspect**
-- **Compare**
+- **Run:** implemented (the form launches a run from a preset, a player seed, and optional game seed and rounds).
+- **Inspect** and **Compare:** implemented.
+- **Duplicate**, **Rerun**, and **Variant:** not yet implemented.
+- **Counterfactual** ([§10.4](#104-counterfactual-experiments)): not yet implemented.
+
+The run list shows every stored run. A run that cannot be read appears with status `unreadable` and its reason; the other runs stay visible. Runs are listed in the order they were created, with the reason for any failed run.
 
 The new-simulation form selects the Gameboard, the configuration, seat Policies or presets, permitted parameters, and both seeds. It separates Gameboard-level parameters from Instantiation-level ones. A Gameboard change creates or selects a Gameboard variant.
 
@@ -303,14 +312,14 @@ The new-simulation form selects the Gameboard, the configuration, seat Policies 
 
 **Balance sheets.** One balance sheet for every explicit Actor and every Aggregate. Aggregates are clearly marked as residual representations.
 
-| Resource | Initial | Current | Reserved | Change |
-|---|---:|---:|---:|---:|
-| Money | | | | Δ |
-| Energy | | | | Δ |
-| Military | | | | Δ |
-| Soft Power | | | | Δ |
+| Resource | Initial | Current | Change |
+|---|---:|---:|---:|
+| Money | | | Δ |
+| Energy | | | Δ |
+| Military | | | Δ |
+| Soft Power | | | Δ |
 
-"Reserved" shows deployed capacity. Each balance sheet also lists the round's flows (production, income, expenditure), signed deals, and non-Resource state such as capacities and market access.
+The view has no "Reserved" column. Reservation (deployed capacity) is not implemented: the engine does not reserve Resources, and the Gameboard's `reservable` flag is decoded but unused. A reserved column would be a constant zero, so it is omitted until reservation exists. Each balance sheet also lists the round's flows (production, income, expenditure), signed deals, and non-Resource state such as capacities and market access. Not yet implemented: the flows and non-Resource state are not in the balance-sheet view yet.
 
 Holdings are not collapsed into a single net-worth figure, because Military and Soft Power have no market price in the Gameboard. Trajectory charts can show any set of Actors and Resources, in absolute terms or as change from the start, and always in their own units.
 
@@ -338,11 +347,11 @@ It does not invent macroeconomic indicators the Gameboard does not define.
 3. **Proposed Aggregate Intent** (round r+1), from the Aggregate's Policy applying the stored factor.
 4. **Executed result** (round r+1), shown beside the representative's own proposed and executed actions.
 
-The view reports the **Representation influence ratio**: the induced change in Aggregate activity divided by the resources the representative directly controls. This is a balancing parameter, not a claim that the representative is an unbiased sample.
+The view reports the **Representation influence ratio**: the induced change in Aggregate activity divided by the resources the representative directly controls. The last round has no round r+1, so its next purchase and influence ratio show `n/a`; a round whose representative bought nothing also shows `n/a` for the ratio. This is a balancing parameter, not a claim that the representative is an unbiased sample.
 
 **Collective procedures.** A separate view covers every procedure an Aggregate holds. Per round it shows each procedure Proposal, the members who signed, the support against the threshold, and the outcome (executed or lapsed), all within that round. An optional resource contribution appears separately, as a Transfer.
 
-**Objectives.** For each Actor, the view lists its objective criteria (Gameboard [§10.5](03_gameboard.md#105-evaluation)) as met or not met, with the measured values. Criteria are evaluated by a pure function over the manifest and round records and never affect the economy.
+**Objectives.** For each Actor, the view lists its objective criteria (Gameboard [§10.5](03_gameboard.md#105-evaluation)) as met, not met, or not evaluated, with the measured values. A criterion is not evaluated when the run has no rounds or its series is empty; it is never reported as met. Criteria are evaluated by a pure function over the manifest and round records and never affect the economy.
 
 **Event inspector.** For any round, it lists in canonical phase order:
 
@@ -365,7 +374,7 @@ Comparison is a core feature. It supports both correctness testing and balancing
 
 The developer selects two to eight runs and picks a baseline. Larger batches are shown as statistical summaries. Metrics can be filtered by Actor, Aggregate, or Market.
 
-The Dashboard flags runs that are not directly comparable: different Gameboard versions, units, round counts, Actor selections, Market definitions, or engines. Incompatible configurations and metrics are flagged, never combined. Trajectories are aligned by simulated time, with no interpolation that has no basis in the data.
+The Dashboard flags runs that are not directly comparable: different Gameboard versions, engines, round counts, units, Market definitions, or Actor selections (the preset every seat plays). The compatibility view names each difference it finds, for example `no: flagged, not combined (engine, Actor selection)`. Units and Market definitions are compared on the manifest's initial World State. Incompatible configurations and metrics are flagged, never combined. Trajectories are aligned by simulated time, with no interpolation that has no basis in the data. A comparison with no valid run is a client error (400); a run that cannot be read is listed with its reason and left out.
 
 ### 10.2 Views
 
@@ -386,6 +395,8 @@ The Dashboard flags runs that are not directly comparable: different Gameboard v
 Any Actor's or Aggregate's trajectory can be compared across runs; for example, German Energy under Baseline, High Scarcity, and Strong EU Weight. Whole-economy metrics are also available, including demand, prices, procurement, Soft Power, concentration, unfilled demand, and the Money distribution. These separate a seat Policy that helps one Actor from a configuration that destabilizes the whole economy.
 
 ### 10.4 Counterfactual experiments
+
+Not yet implemented in the read API or the Dashboard. The harness operation (`Harness.Analysis.counterfactual`) exists and composes `simulate`, but no stored link from a counterfactual run to its source run is written, and no endpoint launches one. The description below is the target.
 
 The counterfactual operation works as follows:
 
@@ -413,7 +424,7 @@ For each Actor, the harness replays the game with alternative presets for that A
 - institutional decisions;
 - the Actor's own objective criteria ([§9.3](05_test_instance.md#93-objectives)).
 
-The Dashboard shows an agency profile for each role, with its objective criteria under each alternative. A role whose alternatives produce negligible differences on every measure is flagged as a balancing finding. Agency matters more than equal starting resources.
+The read API takes the alternative preset (`alternative`, default `Aggressive`) and the player seed (`playerSeed`, default 1) as parameters, and names an unknown preset as a 400 error. The baseline is `preset` (default `Conservative`) on every seat. The Dashboard shows an agency profile for each role, with its objective criteria under each alternative. A role whose alternatives produce negligible differences on every measure is flagged as a balancing finding. Agency matters more than equal starting resources.
 
 ### 10.6 Saved comparisons
 
