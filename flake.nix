@@ -17,15 +17,15 @@
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
               nodejs_22
-              esbuild
               just
             ];
             shellHook = ''
               # purs and spago are pinned in package.json and installed locally via npm
               export PATH="$PWD/node_modules/.bin:$PATH"
               if [ ! -x node_modules/.bin/purs ]; then
-                echo "Installing pinned PureScript toolchain (npm install)..."
-                npm install --silent
+                echo "Installing pinned PureScript toolchain from package-lock.json..."
+                # npm ci installs exactly the locked versions and never rewrites the lock file
+                if [ -f package-lock.json ]; then npm ci --silent; else npm install --silent; fi
               fi
               echo "PureScript $(purs --version) / spago $(spago --version)"
               echo "Run 'just' to list tasks."

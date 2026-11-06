@@ -4,20 +4,24 @@ module Dashboard.Main (main) where
 
 import Prelude
 
-import Dashboard.Api (post, useApi)
+import Dashboard.Api (encode, post, useApi)
 import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, plainTable, recordTable, runPicker, status)
 import Dashboard.DataTable (DataTable, mkDataTable)
+import Dashboard.Launch (LaunchForm, LaunchRequest, emptyForm, validate)
+import Dashboard.Presets (presetNames)
+import Dashboard.Route (Route(..), href, route)
+import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (Json)
-import Data.Array (filter, index, null)
+import Data.Array (elem, find, head, index, null)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.String (Pattern(..), joinWith, split)
+import Data.String as String
 import Effect (Effect)
-import Effect.Aff (launchAff_)
+import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
+import Effect.Uncurried (mkEffectFn1)
 import Harness.Views (Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
@@ -25,8 +29,6 @@ import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler, handler_)
 import React.Basic.Hooks (Component, JSX, component, element, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks as React
-import Dashboard.Route (Route(..), href, route)
-import Dashboard.Theme (themeToggle)
 import Routing.Duplex (parse)
 import Routing.Hash (matchesWith)
 import Web.DOM.NonElementParentNode (getElementById)
@@ -36,11 +38,31 @@ import Web.HTML.Window (document)
 
 type Tab = { key :: String, label :: String, path :: String, render :: Render }
 
+type Fetch = { path :: String, render :: Render } -> JSX
+
+-- | The run's column in the run list (`Table.columns` of `/api/runs`) holds its id.
+runKeyColumn :: Int
+runKeyColumn = 0
+
+-- | The comparison view model (`/api/compare`); each part is one of its fields.
+type CompareView = { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table }
+
 table :: DataTable -> Render
 table grid = as (plainTable grid)
 
 charts :: Render
 charts = as (\(cs :: Array Chart) -> D.div_ (map metricChart cs))
+
+runPath :: String -> String
+runPath id = "/api/runs/" <> encode id
+
+-- | The run's round count, from the Overview's `Rounds` row.
+roundCount :: Table -> Maybe Int
+roundCount t = find (\r -> index r 0 == Just "Rounds") t.rows >>= \r -> index r 1 >>= Int.fromString
+
+-- | A requested round, kept within the run's rounds (0 is the initial state).
+clampRound :: Int -> Int -> Int
+clampRound n r = max 0 (min n r)
 
 -- | Run Details (§9): one tab per view model. `?round` applies to round-scoped views.
 runTabs :: DataTable -> String -> Int -> Array Tab
@@ -56,22 +78,24 @@ runTabs grid id n =
   , tab ("events?round=" <> show n) "Events" (table grid)
   ]
   where
-  tab view label render = { key: label, label, path: "/api/runs/" <> id <> "/" <> view, render }
+  tab view label render = { key: label, label, path: runPath id <> "/" <> view, render }
 
--- | Comparison (§10): one fetch, several renderings, plus agency.
-compareTabs :: DataTable -> String -> Array Tab
-compareTabs grid ids =
-  [ part "Trajectory" (\c -> metricChart c.trajectory)
-  , part "Final state" (\c -> diffTable grid c.final)
-  , part "Baseline diff" (\c -> plainTable grid c.diff)
-  , part "Configuration" (\c -> diffTable grid c.config)
-  , part "Compatibility" (\c -> plainTable grid c.compatibility)
-  , { key: "agency", label: "Agency", path: "/api/agency", render: table grid }
+-- | Comparison (§10): one fetch per part, plus the agency baseline. The trajectory is for one market.
+compareTabs :: DataTable -> Array String -> String -> Array Tab
+compareTabs grid ids market =
+  [ part "Trajectory" (comparePath <> "&market=" <> encode market) (\c -> metricChart c.trajectory)
+  , part "Final state" comparePath (\c -> diffTable grid { baseline: 2 } c.final)
+  , part "Baseline diff" comparePath (\c -> plainTable grid c.diff)
+  , part "Configuration" comparePath (\c -> diffTable grid { baseline: 1 } c.config)
+  , part "Compatibility" comparePath (\c -> plainTable grid c.compatibility)
+  , { key: "agency", label: "Agency (fixed baseline)", path: "/api/agency", render: table grid }
   ]
   where
-  part label f = { key: label, label, path: "/api/compare?runs=" <> ids, render: as (f :: { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table } -> JSX) }
+  comparePath = "/api/compare?runs=" <> joinIds
+  joinIds = String.joinWith "," (map encode ids)
+  part label path f = { key: label, label, path, render: as (f :: CompareView -> JSX) }
 
-tabbed :: ({ path :: String, render :: Render } -> JSX) -> Array Tab -> JSX
+tabbed :: Fetch -> Array Tab -> JSX
 tabbed show' ts = element UI.tabs
   { defaultValue: maybe "" _.key (index ts 0)
   , children:
@@ -84,33 +108,56 @@ mkRuns :: DataTable -> Component Unit
 mkRuns grid = component "Runs" \_ -> React.do
   version /\ setVersion <- useState' 0
   selected /\ setSelected <- useState' []
-  form /\ setForm <- useState { name: "run", preset: "Conservative", playerSeed: "1" }
+  open /\ setOpen <- useState' false
+  form /\ setForm <- useState emptyForm
+  failure /\ setFailure <- useState' Nothing
   runs <- useApi version "/api/runs"
   let
-    launch = launchAff_ do
-      _ <- post "/api/runs" { name: form.name, preset: form.preset, playerSeed: fromMaybe 1 (Int.fromString form.playerSeed), gameSeed: (Nothing :: Maybe Int), rounds: (Nothing :: Maybe Int) } :: _ (Either String Json)
-      liftEffect (setVersion (version + 1))
+    -- A bad form is reported without a request; the server's reply, on success or error, is shown or refreshed.
+    launch = case validate form of
+      Left e -> setFailure (Just e)
+      Right req -> launchAff_ (submit req)
+
+    submit :: LaunchRequest -> Aff Unit
+    submit req = do
+      reply <- post "/api/runs" req :: Aff (Either String { id :: String })
+      liftEffect case reply of
+        Left e -> setFailure (Just e)
+        Right _ -> do
+          setFailure Nothing
+          setOpen false
+          setVersion (version + 1)
   pure case runs of
     Just (Right (t :: Table)) -> D.div
       { className: "flex flex-col gap-4"
       , children:
-          [ recordTable grid (\r -> href <<< Run <$> index r 0) t
+          [ recordTable grid { keyColumn: runKeyColumn } (\r -> href <<< Run <$> index r runKeyColumn) t
           , card "Compare"
-              [ runPicker { runs: t, selected, onChange: setSelected }
-              , D.a { href: href (Compare (joinWith "," selected)), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
+              [ runPicker { runs: t, keyColumn: runKeyColumn, selected, onChange: setSelected }
+              , D.a { href: href (Compare selected), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
               ]
-          , launchSheet form setForm launch
+          , launchSheet { open, setOpen, form, setForm, failure, launch }
           ]
       }
     Just (Left e) -> status (Just e)
     Nothing -> status Nothing
 
-type LaunchForm = { name :: String, preset :: String, playerSeed :: String }
+type LaunchSheet =
+  { open :: Boolean
+  , setOpen :: Boolean -> Effect Unit
+  , form :: LaunchForm
+  , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
+  , failure :: Maybe String
+  , launch :: Effect Unit
+  }
 
--- | The launch form, in a Sheet opened from the run list.
-launchSheet :: LaunchForm -> ((LaunchForm -> LaunchForm) -> Effect Unit) -> Effect Unit -> JSX
-launchSheet form setForm launch = element UI.sheet
-  { children:
+-- | The launch form, in a Sheet opened from the run list. A rejected launch keeps the form open
+-- | and shows the server's message (or the form's own validation message).
+launchSheet :: LaunchSheet -> JSX
+launchSheet s = element UI.sheet
+  { open: s.open
+  , onOpenChange: mkEffectFn1 s.setOpen
+  , children:
       [ element UI.sheetTrigger { asChild: true, children: [ element UI.button { children: [ D.text "Launch a run" ] } ] }
       , element UI.sheetContent
           { children:
@@ -118,10 +165,12 @@ launchSheet form setForm launch = element UI.sheet
               , D.div
                   { className: "flex flex-col gap-4 p-4"
                   , children:
-                      [ field "Name" form.name (\v f -> f { name = v })
-                      , field "Preset" form.preset (\v f -> f { preset = v })
-                      , field "Player seed" form.playerSeed (\v f -> f { playerSeed = v })
-                      , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
+                      [ field "Name" s.form.name (\v f -> f { name = v })
+                      , presetField
+                      , field "Player seed" s.form.playerSeed (\v f -> f { playerSeed = v })
+                      , field "Rounds (blank for the scenario default)" s.form.rounds (\v f -> f { rounds = v })
+                      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) s.failure
+                      , element UI.button { onClick: handler_ s.launch, children: [ D.text "Run" ] }
                       ]
                   }
               ]
@@ -129,24 +178,91 @@ launchSheet form setForm launch = element UI.sheet
       ]
   }
   where
-  field label value set = D.label { className: "flex flex-col gap-1 text-sm", children: [ D.text label, element UI.input { value, onChange: handler targetValue (\v -> setForm (set (fromMaybe "" v))) } ] }
+  field label value set = D.label { className: "flex flex-col gap-1 text-sm", children: [ D.text label, element UI.input { value, onChange: handler targetValue (\v -> s.setForm (set (fromMaybe "" v))) } ] }
+  presetField = D.label
+    { className: "flex flex-col gap-1 text-sm"
+    , children:
+        [ D.text "Preset"
+        , D.select
+            { value: s.form.preset
+            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            , onChange: handler targetValue (\v -> s.setForm (\f -> f { preset = fromMaybe f.preset v }))
+            , children: presetNames <#> \p -> D.option { key: p, value: p, children: [ D.text p ] }
+            }
+        ]
+    }
+
+-- | One run's page: its round (a selector clamped to the run's rounds) and its view tabs.
+mkRunPage :: DataTable -> Fetch -> Component String
+mkRunPage grid show' = component "Run" \id -> React.do
+  overview <- useApi id (runPath id <> "/overview")
+  requested /\ setRequested <- useState' (Nothing :: Maybe Int)
+  pure case overview of
+    Just (Right (t :: Table)) ->
+      let
+        n = fromMaybe 0 (roundCount t)
+        r = clampRound n (fromMaybe n requested)
+      in
+        D.div_
+          [ D.label
+              { className: "text-sm"
+              , children:
+                  [ D.text "Round "
+                  , element UI.input { className: "w-20", "aria-label": "Round", value: show r, onChange: handler targetValue (\v -> setRequested (Int.fromString =<< v)) }
+                  , D.text (" of " <> show n)
+                  ]
+              }
+          , tabbed show' (runTabs grid id r)
+          ]
+    Just (Left e) -> status (Just e)
+    Nothing -> status Nothing
+
+-- | A comparison of runs, with a market selector for the trajectory. The markets come from the first run.
+mkComparePage :: DataTable -> Fetch -> Component (Array String)
+mkComparePage grid show' = component "Compare" \ids -> React.do
+  markets <- useApi ids (runPath (fromMaybe "" (head ids)) <> "/markets")
+  picked /\ setPicked <- useState' (Nothing :: Maybe String)
+  pure case markets of
+    Just (Right (cs :: Array Chart)) ->
+      let
+        names = maybe [] (map _.name <<< _.series) (head cs)
+        market = case picked of
+          Just m | elem m names -> m
+          _ -> if elem "energy-atlantic" names then "energy-atlantic" else fromMaybe "" (head names)
+      in
+        D.div_
+          [ D.label
+              { className: "text-sm"
+              , children:
+                  [ D.text "Market "
+                  , D.select
+                      { value: market
+                      , onChange: handler targetValue (\v -> setPicked v)
+                      , children: names <#> \m -> D.option { key: m, value: m, children: [ D.text m ] }
+                      }
+                  ]
+              }
+          , tabbed show' (compareTabs grid ids market)
+          ]
+    Just (Left e) -> status (Just e)
+    Nothing -> status Nothing
 
 mkApp :: Component Unit
 mkApp = do
   grid <- mkDataTable
   runsPage <- mkRuns grid
   fetchPanel <- panel
+  runPage <- mkRunPage grid fetchPanel
+  comparePage <- mkComparePage grid fetchPanel
   toggle <- themeToggle
   component "App" \_ -> React.do
     current /\ setCurrent <- useState' Runs
-    rounds /\ setRounds <- useState' "5"
     useEffectOnce (matchesWith (parse route) \_ r -> setCurrent r)
-    let
-      roundInput = D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
+    -- Keyed wrappers remount the page when the id changes, so per-run state (the round) resets.
     pure $ shell current (toggle unit) case current of
       Runs -> runsPage unit
-      Run id -> D.div_ [ roundInput, tabbed fetchPanel (runTabs grid id (fromMaybe 5 (Int.fromString rounds))) ]
-      Compare ids -> tabbed fetchPanel (compareTabs grid ids)
+      Run id -> D.div { key: id, children: [ runPage id ] }
+      Compare ids -> D.div { key: String.joinWith "," ids, children: [ comparePage ids ] }
 
 -- | The dashboard block's layout: a sidebar, and an inset with a header and the page.
 shell :: Route -> JSX -> JSX -> JSX
@@ -173,7 +289,7 @@ shell current themeButton page = element UI.sidebarProvider
   title = case current of
     Runs -> "Simulation runs"
     Run id -> "Run " <> id
-    Compare ids -> "Comparing " <> joinWith ", " (filter (_ /= "") (split (Pattern ",") ids))
+    Compare ids -> "Comparing " <> String.joinWith ", " ids
   nav label r = element UI.sidebarMenuItem { key: label, children: [ element UI.sidebarMenuButton { asChild: true, isActive: r == current, children: [ D.a { href: href r, children: [ D.text label ] } ] } ] }
 
 main :: Effect Unit

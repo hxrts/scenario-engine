@@ -158,6 +158,7 @@
             "exceptions",
             "foreign-object",
             "integers",
+            "js-uri",
             "maybe",
             "numbers",
             "prelude",
@@ -176,9 +177,15 @@
         },
         "test": {
           "dependencies": [
+            "argonaut-core",
+            "arrays",
             "effect",
             "either",
             "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "node-fs",
+            "numbers",
             "routing-duplex",
             "spec",
             "spec-node"

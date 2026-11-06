@@ -18,3 +18,5 @@ just sim fractured-world --preset Conservative              # simulate a game
 just session fractured-world --humans US                    # live session (AI seats via pi)
 just serve                                                  # dashboard and JSON API on :8787
 ```
+
+The dashboard smoke test (`just dashboard-test`) also needs the Playwright browsers, installed once: `cd apps/dashboard && npx playwright install`.

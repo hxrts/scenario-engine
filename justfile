@@ -49,16 +49,23 @@ sim *args: _scenarios
 session *args: _scenarios
     spago run -p sp-cli -- session {{args}}
 
-# shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css): generated, never committed; see ui.sha256
+# shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css) are generated,
+# never committed. Their checksums are the baseline in apps/dashboard/ui.sha256 (scripts/ui-checksums.sh).
+#
+# components.json: the `utils`, `lib` and `hooks` aliases name paths that nothing generates. The
+# generated files import `cn` from the npm package `cn` (a dependency in package.json), not from
+# @/lib/utils, and the only alias the output uses is `@/ui`. The aliases stay because the shadcn CLI
+# expects them; they are not references to files in this repo.
 ui_components := "theme-neutral card tabs checkbox button input chart sheet sidebar separator skeleton tooltip"
 
-# Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched
+# Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched.
+# The lock file is copied too, so the CLI resolves the same dependency versions every time.
 _ui-generate:
     #!/usr/bin/env bash
     set -euo pipefail
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"' EXIT
-    cp apps/dashboard/components.json apps/dashboard/tsconfig.json package.json "$tmp/"
+    cp apps/dashboard/components.json apps/dashboard/tsconfig.json package.json package-lock.json "$tmp/"
     printf '@import "tailwindcss";\n' > "$tmp/theme.css"
     (cd "$tmp" && shadcn add -y -o {{ui_components}} > shadcn.log 2>&1) || { cat "$tmp/shadcn.log"; exit 1; }
     rm -rf apps/dashboard/ui
@@ -69,14 +76,16 @@ _ui-generate:
 _ui:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -d apps/dashboard/ui ] && (cd apps/dashboard && shasum -a 256 -c ui.sha256 > /dev/null 2>&1); then exit 0; fi
-    just _ui-generate
-    (cd apps/dashboard && shasum -a 256 -c ui.sha256) || { echo "generated ui/ does not match apps/dashboard/ui.sha256: review the upstream change, then run 'just ui-accept'"; exit 1; }
+    if [ ! -d apps/dashboard/ui ]; then just _ui-generate; fi
+    if ! scripts/ui-checksums.sh check; then
+      echo "apps/dashboard/ui does not match apps/dashboard/ui.sha256. If the upstream change is intended, run 'just ui-accept'. Otherwise run 'rm -rf apps/dashboard/ui' and 'just ui'."
+      exit 1
+    fi
 
 # Regenerate ui/ and accept checksums
 ui-accept:
     just _ui-generate
-    cd apps/dashboard && (find ui -type f; echo theme.css) | LC_ALL=C sort | xargs shasum -a 256 > ui.sha256
+    scripts/ui-checksums.sh record
 
 # Build the _dashboard bundle
 _dashboard: _ui
@@ -87,7 +96,7 @@ _dashboard: _ui
 serve *args: _scenarios _dashboard
     spago run -p sp-server -- {{args}}
 
-# Dashboard smoke test (Playwright)
+# Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
 _dashboard-test: _scenarios _dashboard
     cd apps/dashboard && playwright test
 

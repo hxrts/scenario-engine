@@ -1,6 +1,14 @@
--- | The sortable data table: a PureScript port of shadcn's data-table block. Column headers
--- | toggle ascending and descending sort; numeric cells compare as numbers. A row link makes
--- | the first cell a link, and `mark` highlights a cell. Rows are rendered as given.
+-- | The sortable data table. The markup is hand-written with Tailwind classes that match shadcn's
+-- | table primitives (`table`, `th`, `td`); those primitives are not in `ui_components`, so they
+-- | are not generated (see the justfile). Column headers toggle ascending and descending sort, and
+-- | numeric cells compare as numbers.
+--
+-- | Contract, for every caller:
+-- |   * `rows` are rendered as given, in the order of the view model, apart from the user's sort.
+-- |   * `linkColumn` is the positional index of the column whose cells become links when `link`
+-- |     returns a target for the row. The view model has no key field, so the caller names it.
+-- |   * `mark row i` is called with a row's values and a column index i, and highlights that cell
+-- |     when true. Both are positional: indices are positions in `columns`, not names.
 module Dashboard.DataTable (Props, DataTable, Sort, mkDataTable, sortRows, compareCells, nextSort) where
 
 import Prelude
@@ -16,6 +24,7 @@ import React.Basic.Hooks as React
 type Props =
   { columns :: Array String
   , rows :: Array (Array String)
+  , linkColumn :: Int
   , link :: Array String -> Maybe String
   , mark :: Array String -> Int -> Boolean
   }
@@ -67,11 +76,12 @@ mkDataTable = component "DataTable" \p -> React.do
               }
           ]
       }
+    -- Marked cells use a translucent amber, so the highlight shows on both the light and dark themes.
     cellEl row i value = D.td
       { key: show i
-      , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-100 font-medium" else "")
+      , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-500/20 font-medium" else "")
       , children:
-          [ case (if i == 0 then p.link row else Nothing) of
+          [ case (if i == p.linkColumn then p.link row else Nothing) of
               Just href -> D.a { href, className: "underline", children: [ D.text value ] }
               Nothing -> D.text value
           ]
