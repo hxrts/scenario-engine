@@ -6,6 +6,7 @@ import JS.BigInt (BigInt)
 import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
 import Core.Engine (EngineError, prepareRound, resolveRound)
+import Core.Invariants (check)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q)
 import Core.Num as Q
@@ -361,7 +362,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> show e `shouldEqual` "a round"
     it "caps an uncapped facility's fills at its ceiling, so escrow bounds the settled price" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, cost: Just { base: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Just { base: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], actor "UK" [ MayTransform (Id "F") ] ]) { transformations = Map.singleton (Id "F") fac }
         order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
         filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
@@ -369,7 +370,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "escrows a pooled facility at the pool ceiling, so a member with a larger capacityUse is still bounded" do
       let
         cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
-        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, cost: Just cost, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
+        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Just cost, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "FA") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
         -- UK holds exactly the escrow of its order at the old per-facility ceiling (capacity / 2 = 5, price 1 + 5/2 = 3.5)
         uk = (actor "UK" [ MayTransform (Id "FB") ]) { accounts = Map.singleton (Id "M") (Q.div (Q.fromInt 7) (Q.fromInt 2)) }
@@ -403,6 +404,45 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]), representations = [ rep ] }
         p = { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }
       (Represent.estimate w [ p ]).events `shouldEqual` []
+
+  describe "Reservations (docs/02 §2.3, §8.2)" do
+    it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
+      let
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free, decay: Nothing, reservable: true }
+        dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, reserves: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
+        w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
+        -- 2 units reserve 6 Mil and the Transfer asks 10: 16 escrowed against 10 held, so both scale by 5/8
+        r = resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], submit "US" 1 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.fromInt 10 } ] ]
+      case r of
+        Left e -> show e `shouldEqual` "a round"
+        Right res -> do
+          check w res `shouldEqual` []
+          holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 15) (Q.fromInt 4)
+          holding res.world (Id "JP") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 25) (Q.fromInt 4)
+          concatMap transformedQ res.record.events `shouldEqual` [ Q.fromInt 5 `Q.div` Q.fromInt 4 ]
+          filter
+            ( \e -> case e of
+                Consumed _ -> true
+                _ -> false
+            )
+            res.record.events `shouldEqual` []
+          -- the reservation is released at commit: the next round starts with nothing reserved
+          case resolveRound res.world [ submit "US" 0 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.div (Q.fromInt 15) (Q.fromInt 4) } ] ] of
+            Left e -> show e `shouldEqual` "a round"
+            Right next -> holding next.world (Id "US") (Id "Mil") `shouldEqual` Q.zero
+    it "a reservation alongside inputs leaves the reserved Resource unchanged and still consumes the inputs" do
+      let
+        dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, reserves: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free, decay: Nothing, reservable: true }
+        w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
+      case resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ] ] of
+        Left e -> show e `shouldEqual` "a round"
+        Right res -> do
+          check w res `shouldEqual` []
+          holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.fromInt 10
+          holding res.world (Id "US") (Id "E") `shouldEqual` Q.fromInt 2
 
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)

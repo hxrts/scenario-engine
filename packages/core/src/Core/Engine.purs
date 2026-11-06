@@ -369,6 +369,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
       Just tr ->
         [ { entity: t.by, resource: w.numeraire, amount: Q.mul (fullPrice w tr) t.quantity } ]
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
+          <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.reserves)
     ChangeRule _ -> []
 
 -- | The uniform price of a facility order whose pool fills `q` units.

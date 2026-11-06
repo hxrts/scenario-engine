@@ -239,6 +239,7 @@ transformation id j = do
   o <- decodeJson j
   inputs <- o .:? "inputs" .!= Object.empty
   outputs <- o .:? "outputs" .!= Object.empty
+  reserves <- o .:? "reserves" .!= Object.empty
   cost <- o .:? "cost" >>= traverse costFn
   capacity <- o .:? "capacity"
   payee <- o .:? "payee"
@@ -254,7 +255,7 @@ transformation id j = do
     perUnit <- x .: "perUnit"
     rounds <- x .:? "rounds"
     pure { capacity: Id c, holder: map Id holder, perUnit, rounds }
-  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, maximum, capacityUse, ownerSigns, effects }
+  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, reserves: holdings reserves, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, maximum, capacityUse, ownerSigns, effects }
 
 -- | A capability tag: `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`,
 -- | or `enact:<tariff|accessBan|withholding>`.

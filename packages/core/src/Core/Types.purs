@@ -179,6 +179,7 @@ type Transformation =
   { id :: TransformationId
   , inputs :: Holdings
   , outputs :: Holdings
+  , reserves :: Holdings -- reserved per unit ordered: escrowed and released within the round, never consumed
   , cost :: Maybe CostFunction
   , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , payee :: Maybe EntityId

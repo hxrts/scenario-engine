@@ -40,7 +40,7 @@ import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
@@ -150,6 +150,7 @@ data ValidationError
   | DuplicateCapacityOwner String
   | ProductionWithoutCapacity EntityId String -- a producer does not hold the capacity it produces from
   | FacilityWithoutPayee TransformationId
+  | ReservesNonReservable TransformationId ResourceId -- a facility reserves a Resource that is not reservable
   | MissingFallback EntityId
   | MissingObjective EntityId
   | RequiredNotSelected EntityId
@@ -169,6 +170,7 @@ instance Show ValidationError where
     DuplicateCapacityOwner c -> "capacity has more than one owner: " <> c
     ProductionWithoutCapacity e c -> show e <> " produces from " <> c <> " but does not hold it"
     FacilityWithoutPayee t -> "facility has a cost but no payee: " <> show t
+    ReservesNonReservable t r -> "facility " <> show t <> " reserves " <> show r <> ", which is not reservable"
     MissingFallback e -> "Actor has no fallback: " <> show e
     MissingObjective e -> "Actor has no objective: " <> show e
     RequiredNotSelected e -> "required Actor not selected: " <> show e
@@ -328,7 +330,7 @@ decodeConfig j = do
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> reservations <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -367,7 +369,7 @@ validateGameboard gb config =
   references =
     unknownEntity (concatMap (\m -> m.access) markets)
       <> unknownResource (concatMap (\m -> [ m.base, m.quote ] <> fromFoldable (Map.keys m.reserves)) markets)
-      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs)) facilities)
+      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs) <> fromFoldable (Map.keys t.reserves)) facilities)
       <> unknownCapacity (mapMaybe _.capacity facilities)
       <> unknownCapacity (concatMap (\t -> map _.capacity t.effects) facilities)
       <> unknownEntity (concatMap (\t -> mapMaybe _.holder t.effects) facilities)
@@ -413,6 +415,9 @@ validateGameboard gb config =
             entities
         )
       <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Object.member (unwrap p) gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
+  -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
+  reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
+  notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
   ruleRefs = case _ of
     Tariff x -> unknownEntity [ x.jurisdiction, x.origin ]
     AccessBan x -> unknownEntity [ x.jurisdiction, x.target ]
