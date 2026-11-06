@@ -17,6 +17,7 @@ module Board.Gameboard
   , ValidationError(..)
   , Difference(..)
   , decodeGameboard
+  , gameIdOf
   , decodeConfig
   , validateGameboard
   , instantiate
@@ -60,7 +61,13 @@ type Gameboard =
   , parameters :: Object Q -- named scenario parameters read by Policies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_gameboard.md §4)
+  , label :: Maybe String -- the test-instance label, which names the game (docs/05_test_instance.md §14)
   }
+
+-- | The game id a run records: the Gameboard's id and its test-instance label, `<id>/<label>`.
+-- | Nothing when the Gameboard names no label.
+gameIdOf :: Gameboard -> Maybe String
+gameIdOf gb = (\l -> gb.id <> "/" <> l) <$> gb.label
 
 -- | What an Actor definition adds to its Entity (§6.2).
 type ActorDefinition =
@@ -213,6 +220,7 @@ decodeGameboard j = do
   parameters <- o .:? "parameters" .!= Object.empty
   horizon <- o .: "horizon"
   rounds <- o .: "roundRange" >>= roundRange
+  label <- o .:? "label"
   pure
     { id
     , version
@@ -223,6 +231,7 @@ decodeGameboard j = do
     , parameters
     , horizon
     , rounds
+    , label
     }
   where
   definition _ j' = do

@@ -37,10 +37,15 @@ gameSeed = 26021
 years :: Int
 years = 5
 
+-- | The test-instance label of the reference game: its game id is `fractured-world/<label>`
+-- | (docs/05_test_instance.md §14).
+testLabel :: String
+testLabel = "fractured-world-test-01"
+
 -- | One JSON file per section, as the loader reads them.
 files :: Array (Tuple String Json)
 files =
-  [ Tuple "scenario.json" (encodeJson { id: "fractured-world", version: "v0", numeraire: "M", horizon: years, roundRange: [ 4, 8 ] })
+  [ Tuple "scenario.json" (encodeJson { id: "fractured-world", version: "v0", numeraire: "M", horizon: years, roundRange: [ 4, 8 ], label: testLabel })
   , Tuple "resources.json" (encodeJson { resources })
   , Tuple "markets.json" (encodeJson { markets, transport, jurisdiction })
   , Tuple "transformations.json" (encodeJson { transformations })

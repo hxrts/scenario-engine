@@ -520,7 +520,7 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 
 | Parameter | Value |
 |---|---|
-| Game ID | `fractured-world-test-01` (planned: no run carries a game id yet) |
+| Game ID | `fractured-world/fractured-world-test-01`: the Gameboard id, then the test-instance label (`fractured-world-test-01`, in the Gameboard). Every run records it in its spec. |
 | Gameboard | `fractured-world`, version `v0` |
 | Seats / NPC Actors / Aggregates | 15 / 1 (China) / 6 |
 | Horizon and rounds | 5 years; 5 rounds of 1 year |
