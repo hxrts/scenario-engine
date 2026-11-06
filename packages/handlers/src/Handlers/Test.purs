@@ -8,6 +8,7 @@ import Core.Num (Q)
 import Core.Types (EntityId, MarketId)
 import Core.World (RoundResult)
 import Data.Map (Map)
+import Data.Maybe (Maybe)
 import Effects (RECORD, SEAT_INPUT)
 import Foreign.Object (Object)
 import Handlers.Seats (collectRecords, handleSeats, programs)
@@ -18,7 +19,7 @@ import Type.Row (type (+))
 type SeatBindings =
   { programs :: Map EntityId Program -- a seat without a program submits nothing
   , params :: Object Q
-  , home :: EntityId -> MarketId
+  , home :: EntityId -> Maybe MarketId
   , playerSeed :: Seed
   }
 

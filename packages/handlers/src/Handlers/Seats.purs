@@ -12,7 +12,7 @@ import Data.Array (elem, filter, find, sortWith)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (maybe)
+import Data.Maybe (Maybe, maybe)
 import Effects (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), envFor)
 import Foreign.Object (Object)
 import Policy.Interpret (Draft)
@@ -28,7 +28,7 @@ type SeatSource =
   }
 
 -- | Seats bound to declarative programs; their randomness draws from the player seed.
-programs :: { bound :: Map EntityId Program, params :: Object Q, home :: EntityId -> MarketId, playerSeed :: Seed } -> SeatSource
+programs :: { bound :: Map EntityId Program, params :: Object Q, home :: EntityId -> Maybe MarketId, playerSeed :: Seed } -> SeatSource
 programs b =
   { propose: \e v -> maybe [] (\p -> Policy.propose p (env e v)) (Map.lookup e b.bound)
   , sign: \e v -> maybe [] (\p -> Policy.sign p (env e v)) (Map.lookup e b.bound)

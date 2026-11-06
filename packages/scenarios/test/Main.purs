@@ -100,7 +100,7 @@ chinaView =
 
 -- | An environment whose every draw is `u`, with `$home` at energy-asia.
 envWith :: View -> Q -> Env
-envWith v u = { view: v, params: Object.empty, home: Id "energy-asia", random: const u }
+envWith v u = { view: v, params: Object.empty, home: Just (Id "energy-asia"), random: const u }
 
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Program

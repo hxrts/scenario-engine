@@ -33,7 +33,7 @@ import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (message)
 import Effect.Ref as Ref
-import Effects (ClockF(..), NarrateF(..), homeMarket, inWorldOf, runGame)
+import Effects (ClockF(..), NarrateF(..), checkHomes, homeMarket, inWorldOf, runGame)
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Seats (programs)
@@ -60,6 +60,8 @@ session :: Options -> Effect Unit
 session o = load (o.scenario <> "/v0") >>= case _ of
   Left e -> log e *> exit' 1
   Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
+    -- a seat with no home market is a startup error, named before any round
+    Right initial, Right inWorld | Left e <- checkHomes inWorld initial.world -> log e *> exit' 1
     Right initial, Right inWorld -> launchAff_ do
       let
         w0 = initial.world

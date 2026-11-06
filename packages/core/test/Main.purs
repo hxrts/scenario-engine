@@ -366,6 +366,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
         filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
       Q.sumQ filled `shouldEqual` Q.fromInt 10
+    it "escrows a pooled facility at the pool ceiling, so a member with a larger capacityUse is still bounded" do
+      let
+        cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
+        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, cost: Just cost, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
+        us = (actor "US" [ MayTransform (Id "FA") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        -- UK holds exactly the escrow of its order at the old per-facility ceiling (capacity / 2 = 5, price 1 + 5/2 = 3.5)
+        uk = (actor "UK" [ MayTransform (Id "FB") ]) { accounts = Map.singleton (Id "M") (Q.div (Q.fromInt 7) (Q.fromInt 2)) }
+        w = (baseWorld [ us, uk ]) { transformations = Map.fromFoldable [ Tuple (Id "FA") (fac "FA" 1), Tuple (Id "FB") (fac "FB" 2) ] }
+        -- 8 units of FA (use 1) and 1 unit of FB (use 2) fill the whole capacity of 10: the pool total is 9
+        r = resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "FA", quantity: Q.fromInt 8 } ], submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "FB", quantity: Q.fromInt 1 } ] ]
+      filter
+        ( \e -> case e of
+            Shortfall _ -> true
+            _ -> false
+        )
+        (eventsOf r) `shouldEqual` []
     it "clamps a delivery at zero and records only the change applied" do
       let
         us = (actor "US" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 5) }

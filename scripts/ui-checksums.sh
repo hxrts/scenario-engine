@@ -17,7 +17,8 @@ else
   hash_cmd=(shasum -a 256)
 fi
 
-# Every generated file, sorted in byte order so the list is the same on every machine.
+# Every generated file, sorted in C (byte) order so the list is the same on every machine and matches
+# the sorted manifest list that check compares it with.
 listing() {
   { find ui -type f; echo theme.css; } | LC_ALL=C sort
 }

@@ -41,7 +41,7 @@ import Scenarios (loadContext)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.
-type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
+type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
@@ -102,14 +102,16 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
       skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
     case uncons good of
       Nothing -> failWith 400 (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
-      Just { head: base, tail: others } -> ok
-        { compatibility: V.compatible good
-        , trajectory: V.trajectories good (param "market" V.defaultMetricSpec.market)
-        , final: V.finalState good
-        , diff: V.baselineDiff base others
-        , config: V.configDiff base others
-        , skipped
-        }
+      Just { head: base, tail: others } -> case V.trajectories good (param "market" V.defaultMetricSpec.market) of
+        Left e -> failWith 400 e
+        Right trajectory -> ok
+          { compatibility: V.compatible good
+          , trajectory
+          , final: V.finalState good
+          , diff: V.baselineDiff base others
+          , config: V.configDiff base others
+          , skipped
+          }
   "GET", [ "api", "agency" ] -> case Int.fromString (param "playerSeed" "1") of
     Nothing -> failWith 400 "playerSeed must be an integer"
     Just s -> viewOr (map V.agencyTable (agency ctx (presetSpec ctx (param "preset" "Conservative") (Seed s) [] Nothing) (param "alternative" "Aggressive") (seats ctx)))
@@ -160,9 +162,9 @@ launch ctx db l = do
   let
     id = "run-" <> show (n + 1)
     spec = Object.fromFoldable
-      [ Tuple "preset" l.preset, Tuple "playerSeed" (show (unwrap seed)), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
+      [ Tuple "preset" l.preset, Tuple "playerSeed" (show (unwrap seed)), Tuple "rounds" (maybe "default" show l.rounds) ]
   created <- nowIso
-  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
+  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed [] l.rounds) \manifest -> do
     createRun db { id, name: l.name, created, spec: encodeJson spec, manifest }
     persister db id manifest.initial
   case attempt of

@@ -33,7 +33,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Effect (Effect)
-import Effects (RECORD, SEAT_INPUT, homeMarket, inWorldOf, runGame)
+import Effects (RECORD, SEAT_INPUT, checkHomes, homeMarket, inWorldOf, runGame)
 import Handlers.Seats (SeatSource, collectRecords, handleSeats, programs)
 import Handlers.Sim (runSim)
 import Run as R
@@ -97,6 +97,7 @@ prepare ctx spec from =
       Left es, _ -> Left (show es)
       _, Left e -> Left (show e)
       Right initial, Right inWorld -> do
+        checkHomes inWorld initial.world
         -- a preset named by a seat must exist; a typo is an error, not a seat that silently does nothing
         bound <- traverse
           ( case _ of

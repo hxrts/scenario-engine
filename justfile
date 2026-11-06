@@ -39,7 +39,7 @@ _scenarios:
 check: _fmt-check _deps build test
 
 # check + dashboard smoke test
-all: check _dashboard-test
+all: check dashboard-test
 
 # Simulate a game
 sim scenario *args: _scenarios
@@ -97,7 +97,7 @@ serve *args: _scenarios _dashboard
     spago run -p sp-server -- {{args}}
 
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
-_dashboard-test: _scenarios _dashboard
+dashboard-test: _scenarios _dashboard
     cd apps/dashboard && playwright test
 
 _clean:

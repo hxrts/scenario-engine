@@ -12,7 +12,7 @@ module Scenarios
   , checkPresets
   , loadContext
   , loadFixture
-  , root
+  , scenariosRoot
   ) where
 
 import Prelude
@@ -29,16 +29,18 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Foldable (traverse_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.String (Pattern(..), joinWith, stripSuffix)
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Effect.Exception (message, try)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, readdir)
+import Node.Process (lookupEnv)
 import Policy.Program (Program, decodeProgram, programRefs)
 
 type Loaded = { gameboard :: Gameboard, config :: InstantiationConfig }
@@ -80,8 +82,9 @@ loadContext path = do
 -- | scenario's Gameboard; this reads them alone.
 loadPresets :: Effect (Either String (Object Program))
 loadPresets = do
-  text <- readTextFile UTF8 (root <> presetsFile)
-  pure (jsonParser text >>= decodePresets)
+  root <- scenariosRoot
+  text <- readFileAt (root <> presetsFile)
+  pure (lmap show text >>= \t -> jsonParser t >>= decodePresets)
 
 decodePresets :: Json -> Either String (Object Program)
 decodePresets j = lmap show (presetsFrom j)
@@ -99,13 +102,26 @@ checkPresets gb presets = traverse_ (\(Tuple name p) -> checkRefs ("preset " <> 
 -- | An engine-level fixture from `fixtures/`.
 loadFixture :: String -> Effect (Either String Fixture)
 loadFixture name = do
-  text <- readTextFile UTF8 (root <> "fixtures/" <> name <> ".json")
-  pure (readJsonWith decodeFixtureDoc text)
+  root <- scenariosRoot
+  text <- readFileAt (root <> "fixtures/" <> name <> ".json")
+  pure (lmap show text >>= readJsonWith decodeFixtureDoc)
   where
   decodeFixtureDoc j = map (\d -> { name, world: d.world, rounds: d.rounds }) (decodeFixture j)
 
-root :: String
-root = "packages/scenarios/"
+-- | The scenario tree's directory, with a trailing slash. `SCENARIOS_DIR` sets it; otherwise it is
+-- | `packages/scenarios`, relative to the working directory (the repository root, where `just` runs).
+scenariosRoot :: Effect String
+scenariosRoot = do
+  dir <- fromMaybe "packages/scenarios" <$> lookupEnv "SCENARIOS_DIR"
+  pure (if isJust (stripSuffix (Pattern "/") dir) then dir else dir <> "/")
+
+-- | A file's text, or an Unreadable error naming its path.
+readFileAt :: String -> Effect (Either LoadError String)
+readFileAt path = map (lmap (\ex -> Unreadable path (message ex))) (try (readTextFile UTF8 path))
+
+-- | A directory's entries, or an Unreadable error naming its path.
+readDirAt :: String -> Effect (Either LoadError (Array String))
+readDirAt path = map (lmap (\ex -> Unreadable path (message ex))) (try (readdir path))
 
 -- | `load "fractured-world/v0"`: the scenario, checked, with the shared presets checked
 -- | against it.
@@ -114,19 +130,26 @@ load path = map (lmap show) (loadChecked path)
 
 loadChecked :: String -> Effect (Either LoadError Loaded)
 loadChecked path = do
+  root <- scenariosRoot
   let dir = root <> path <> "/"
-  names <- sort <<< filter (isJust <<< stripSuffix (Pattern ".json")) <$> readdir dir
-  texts <- traverse (\n -> { name: n, text: _ } <$> readTextFile UTF8 (dir <> n)) names
-  case traverse (\t -> { name: t.name, json: _ } <$> lmap (Unreadable t.name) (jsonParser t.text)) texts of
+  listed <- readDirAt dir
+  case listed of
     Left e -> pure (Left e)
-    Right files -> case fromFiles files of
-      Left e -> pure (Left e)
-      Right loaded -> do
-        presetsText <- readTextFile UTF8 (root <> presetsFile)
-        pure do
-          presets <- lmap (Unreadable presetsFile) (jsonParser presetsText) >>= presetsFrom
-          checkPresets loaded.gameboard presets
-          pure loaded
+    Right entries -> do
+      let names = sort (filter (isJust <<< stripSuffix (Pattern ".json")) entries)
+      texts <- sequence <$> traverse (\n -> map (map (\t -> { name: n, text: t })) (readFileAt (dir <> n))) names
+      case texts of
+        Left e -> pure (Left e)
+        Right ts -> case traverse (\t -> { name: t.name, json: _ } <$> lmap (Unreadable (dir <> t.name)) (jsonParser t.text)) ts of
+          Left e -> pure (Left e)
+          Right files -> case fromFiles files of
+            Left e -> pure (Left e)
+            Right loaded -> do
+              presetsText <- readFileAt (root <> presetsFile)
+              pure do
+                presets <- presetsText >>= \t -> lmap (Unreadable (root <> presetsFile)) (jsonParser t) >>= presetsFrom
+                checkPresets loaded.gameboard presets
+                pure loaded
 
 -- | Decode a scenario from its files: every section merged into the Gameboard, the
 -- | Gameboard validated, every Policy decoded and its names resolved, and
