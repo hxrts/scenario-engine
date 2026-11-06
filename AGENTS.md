@@ -12,11 +12,11 @@ The system is implemented: engine, scenario, Policies, harness, Run Store, read 
 - The repo is a spago workspace: `packages/{core,board,policy,scenarios,effects,handlers,adapters,harness}` and `apps/{cli,server,dashboard}`. Each package is named `sp-<dir>`.
 - `just build`: compile everything. `just test`: every package's suite. `just test-pkg core`: one package.
 - Single test: `spago test -p sp-core -- --example "<test name>"` (spec-node filter)
-- `just fmt` / `just fmt-check`: purs-tidy. `just deps`: dependency-direction check (`scripts/check-deps`).
-- `just check`: fmt-check, deps, build, test. `just all`: `check` plus the dashboard's Playwright smoke test (`just dashboard-test`).
+- `just fmt`: purs-tidy.
+- `just check`: fmt-check, deps, build, test. `just all`: `check` plus the dashboard's Playwright smoke test (`just _dashboard-test`). Recipes starting with `_` are internal steps, hidden from `just --list` but still runnable.
 - `just run run fractured-world --preset Conservative --rounds 5`: play a game from the CLI. `just run session fractured-world --humans US --model anthropic/claude-opus-5-5`: live facilitator console (typed input; other seats are AI agents via the `pi` binary, which makes billed model calls).
-- `just serve --db runs.db`: build the dashboard and serve it with the JSON API on :8787. `just dashboard` builds the bundle only (spago, then Vite).
-- Scenarios and presets are authored in the PureScript DSL (`packages/scenarios/src/Scenario/DSL.purs`, `src/Scenarios/`). So are the golden fixtures (`src/Scenarios/Fixtures.purs`): they share the scenario's world pieces, but every expected value stays a literal from the worked examples in `docs/05_test_instance.md`, never computed. `just scenarios` compiles all of them to `fractured-world/v0/*.json`, `presets.json` and `fixtures/*.json`, which are gitignored build outputs; `test`, `run`, `serve` and `dashboard-test` compile them first. Never hand-edit those JSON files.
+- `just serve --db runs.db`: build the dashboard and serve it with the JSON API on :8787.
+- Scenarios and presets are authored in the PureScript DSL (`packages/scenarios/src/Scenario/DSL.purs`, `src/Scenarios/`). So are the golden fixtures (`src/Scenarios/Fixtures.purs`): they share the scenario's world pieces, but every expected value stays a literal from the worked examples in `docs/05_test_instance.md`, never computed. `just _scenarios` compiles all of them to `fractured-world/v0/*.json`, `presets.json` and `fixtures/*.json`, which are gitignored build outputs; `test`, `run`, `serve` and `all` compile them first. Never hand-edit those JSON files.
 - The dashboard (`apps/dashboard`) is PureScript `react-basic-hooks` over vendored shadcn/ui in `apps/dashboard/ui/` (FFI bindings in `Dashboard.UI`, `Dashboard.Api` and `Dashboard.Theme`). View models are computed in `harness/Views`; keep business logic out of the frontend.
 
 `work/` is gitignored scratch space for implementation-process docs such as `work/1.md` (the work plan) and `work/deviations.md`. It is not part of the spec.

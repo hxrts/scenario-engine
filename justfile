@@ -2,7 +2,7 @@ export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
 packages := "core board policy scenarios effects handlers adapters harness cli server dashboard"
 
-default:
+_default:
     @just --list
 
 # Compile every package
@@ -10,13 +10,13 @@ build:
     spago build
 
 # Run every package's test suite
-test: scenarios
+test: _scenarios
     #!/usr/bin/env bash
     set -euo pipefail
     for p in {{packages}}; do spago test -p sp-$p; done
 
-# Run one package's test suite, e.g. `just test-pkg core`
-test-pkg name: scenarios
+# Test one package, e.g. `core`
+test-pkg name: _scenarios
     spago test -p sp-{{name}}
 
 # Format all PureScript sources
@@ -24,25 +24,25 @@ fmt:
     purs-tidy format-in-place "packages/*/src/**/*.purs" "packages/*/test/**/*.purs" "apps/*/src/**/*.purs" "apps/*/test/**/*.purs"
 
 # Check formatting without writing
-fmt-check:
+_fmt-check:
     purs-tidy check "packages/*/src/**/*.purs" "packages/*/test/**/*.purs" "apps/*/src/**/*.purs" "apps/*/test/**/*.purs"
 
-# Check package dependency direction (docs/07_architecture.md §3)
-deps:
+# Check package dependency direction
+_deps:
     node scripts/check-deps
 
-# Compile the DSL scenarios (packages/scenarios/src/Scenarios) to their gitignored JSON
-scenarios:
+# Compile the DSL _scenarios to JSON
+_scenarios:
     spago run -p sp-scenarios --main Scenarios.Compile
 
-# Format check, dependency check, build, and test
-check: fmt-check deps build test
+# fmt-check, deps, build, test
+check: _fmt-check _deps build test
 
-# All phase gates
-all: check dashboard-test
+# check, plus the dashboard smoke test
+all: check _dashboard-test
 
 # Run the CLI
-run *args: scenarios
+run *args: _scenarios
     spago run -p sp-cli -- {{args}}
 
 # shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css): generated, never committed; see ui.sha256
@@ -61,31 +61,31 @@ _ui-generate:
     cp -R "$tmp/ui" apps/dashboard/ui
     sed '/^@import "tailwindcss";$/d' "$tmp/theme.css" > apps/dashboard/theme.css
 
-# Ensure apps/dashboard/ui matches the committed checksums; generate it when absent or stale
-ui:
+# Generate ui/ if missing or stale
+_ui:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -d apps/dashboard/ui ] && (cd apps/dashboard && shasum -a 256 -c ui.sha256 > /dev/null 2>&1); then exit 0; fi
     just _ui-generate
     (cd apps/dashboard && shasum -a 256 -c ui.sha256) || { echo "generated ui/ does not match apps/dashboard/ui.sha256: review the upstream change, then run 'just ui-accept'"; exit 1; }
 
-# Regenerate ui/ from the pinned CLI and record its checksums as the new baseline
+# Regenerate ui/ and accept checksums
 ui-accept:
     just _ui-generate
     cd apps/dashboard && (find ui -type f; echo theme.css) | LC_ALL=C sort | xargs shasum -a 256 > ui.sha256
 
-# Build the dashboard bundle (PureScript, then Vite)
-dashboard: ui
+# Build the _dashboard bundle
+_dashboard: _ui
     spago build -p sp-dashboard
     vite build --config apps/dashboard/vite.config.js
 
-# Serve the read API and dashboard, e.g. `just serve --db runs.db`
-serve *args: scenarios dashboard
+# Serve the API and dashboard
+serve *args: _scenarios _dashboard
     spago run -p sp-server -- {{args}}
 
-# Playwright smoke test against a freshly seeded Run Store
-dashboard-test: scenarios dashboard
+# Dashboard smoke test (Playwright)
+_dashboard-test: _scenarios _dashboard
     cd apps/dashboard && playwright test
 
-clean:
+_clean:
     rm -rf output .spago dist apps/dashboard/dist apps/dashboard/ui apps/dashboard/theme.css

@@ -19,3 +19,4 @@ apps/dashboard/theme.css
 packages/scenarios/fractured-world/
 packages/scenarios/presets.json
 packages/scenarios/fixtures/
+.claude/worktrees/
