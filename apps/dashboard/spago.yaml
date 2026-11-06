@@ -11,6 +11,8 @@ package:
     - bifunctors
     - either
     - exceptions
+    - functions
+    - nullable
     - foreign-object
     - integers
     - maybe

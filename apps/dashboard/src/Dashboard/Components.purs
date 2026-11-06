@@ -14,11 +14,13 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Number as Number
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Data.Nullable (toNullable)
+import Data.Function.Uncurried (mkFn2)
 import Effect.Uncurried (mkEffectFn1)
 import Foreign.Object as Object
 import Harness.Views (Chart, Table)
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, JSX, component, element, keyed)
+import React.Basic.Hooks (Component, JSX, component, element)
 import React.Basic.Hooks as React
 
 type Render = Json -> JSX
@@ -39,22 +41,7 @@ diffTable = cells differs (const Nothing)
 
 cells :: (Array String -> Int -> Boolean) -> (Array String -> Maybe String) -> Table -> JSX
 cells mark link t = card t.title
-  [ element UI.table
-      { children:
-          [ element UI.tableHeader { children: [ element UI.tableRow { children: map (\c -> element UI.tableHead { children: [ D.text c ] }) t.columns } ] }
-          , element UI.tableBody { children: mapWithIndex row t.rows }
-          ]
-      }
-  ]
-  where
-  row n r = keyed (show n) $ element UI.tableRow { children: mapWithIndex (cell r) r }
-  cell r i v = element UI.tableCell
-    { className: if mark r i then "bg-amber-100 font-medium" else ""
-    , children: [ if i == 0 then maybe' (D.text v) (\href -> D.a { href, className: "underline", children: [ D.text v ] }) (link r) else D.text v ]
-    }
-  maybe' d f = case _ of
-    Just x -> f x
-    Nothing -> d
+  [ element UI.dataTable { columns: t.columns, rows: t.rows, link: toNullable <<< link, mark: mkFn2 mark } ]
 
 -- | A Chart as a line per series, by round.
 metricChart :: Chart -> JSX

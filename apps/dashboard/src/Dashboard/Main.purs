@@ -97,17 +97,25 @@ mkRuns = component "Runs" \_ -> React.do
               [ runPicker { runs: t, selected, onChange: setSelected }
               , D.a { href: href (Compare (joinWith "," selected)), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
               ]
-          , card "Launch a run"
-              [ D.div
-                  { className: "flex items-end gap-4"
-                  , children:
-                      [ field "Name" form.name (\v f -> f { name = v })
-                      , field "Preset" form.preset (\v f -> f { preset = v })
-                      , field "Player seed" form.playerSeed (\v f -> f { playerSeed = v })
-                      , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
-                      ]
-                  }
-              ]
+          , element UI.sheet
+              { children:
+                  [ element UI.sheetTrigger { asChild: true, children: [ element UI.button { children: [ D.text "Launch a run" ] } ] }
+                  , element UI.sheetContent
+                      { children:
+                          [ element UI.sheetHeader { children: [ element UI.sheetTitle { children: [ D.text "Launch a run" ] } ] }
+                          , D.div
+                              { className: "flex flex-col gap-4 p-4"
+                              , children:
+                                  [ field "Name" form.name (\v f -> f { name = v })
+                                  , field "Preset" form.preset (\v f -> f { preset = v })
+                                  , field "Player seed" form.playerSeed (\v f -> f { playerSeed = v })
+                                  , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
+                                  ]
+                              }
+                          ]
+                      }
+                  ]
+              }
           ]
       }
     Just (Left e) -> D.pre_ [ D.text e ]
@@ -122,21 +130,40 @@ mkApp = do
     rounds /\ setRounds <- useState' "5"
     useEffectOnce (matchesWith (parse route) \_ r -> setCurrent r)
     let n = fromMaybe 5 (Int.fromString rounds)
-    pure $ D.main
-      { className: "mx-auto flex max-w-6xl flex-col gap-4 p-6"
-      , children:
-          [ D.nav { className: "flex gap-4 text-sm", children: [ D.a { href: href Runs, children: [ D.text "Simulation runs" ] } ] }
-          , case current of
-              Runs -> runsPage unit
-              Run id -> D.div_
-                [ D.h1 { className: "text-xl font-semibold", children: [ D.text id ] }
-                , D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
-                , tabbed fetchPanel (runTabs id n)
-                ]
-              Compare ids -> D.div_
-                [ D.h1 { className: "text-xl font-semibold", children: [ D.text ("Comparing " <> joinWith ", " (filter (_ /= "") (split (Pattern ",") ids))) ] }
-                , tabbed fetchPanel (compareTabs ids)
-                ]
+    let
+      title = case current of
+        Runs -> "Simulation runs"
+        Run id -> "Run " <> id
+        Compare ids -> "Comparing " <> joinWith ", " (filter (_ /= "") (split (Pattern ",") ids))
+      nav label r = element UI.sidebarMenuItem { key: label, children: [ element UI.sidebarMenuButton { asChild: true, isActive: r == current, children: [ D.a { href: href r, children: [ D.text label ] } ] } ] }
+    pure $ element UI.sidebarProvider
+      { children:
+          [ element UI.sidebar
+              { children:
+                  [ element UI.sidebarHeader { children: [ D.span { className: "px-2 font-semibold", children: [ D.text "Scenario Plan" ] } ] }
+                  , element UI.sidebarContent { children: [ element UI.sidebarGroup { children: [ element UI.sidebarMenu { children: [ nav "Simulation runs" Runs ] } ] } ] }
+                  ]
+              }
+          , element UI.sidebarInset
+              { children:
+                  [ D.header
+                      { className: "flex h-12 items-center gap-2 border-b px-4"
+                      , children: [ element UI.sidebarTrigger {}, element UI.separator { orientation: "vertical", className: "h-4" }, D.h1 { className: "font-medium", children: [ D.text title ] } ]
+                      }
+                  , D.main
+                      { className: "flex flex-col gap-4 p-6"
+                      , children:
+                          [ case current of
+                              Runs -> runsPage unit
+                              Run id -> D.div_
+                                [ D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
+                                , tabbed fetchPanel (runTabs id n)
+                                ]
+                              Compare ids -> tabbed fetchPanel (compareTabs ids)
+                          ]
+                      }
+                  ]
+              }
           ]
       }
 

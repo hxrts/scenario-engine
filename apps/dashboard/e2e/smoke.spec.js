@@ -49,3 +49,18 @@ test("incompatible runs are flagged", async ({ page }) => {
   await page.getByRole("tab", { name: "Compatibility" }).click();
   await expect(page.getByRole("tabpanel").getByRole("row").filter({ hasText: "run-4" })).toContainText("flagged");
 });
+
+test("dashboard shell: sidebar nav, launch sheet, sortable data table", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await page.getByRole("link", { name: "Simulation runs" }).click();
+  await expect(page.getByRole("heading", { name: "Simulation runs" })).toBeVisible();
+  await page.getByRole("button", { name: "Launch a run" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Player seed").fill("9");
+  await sheet.getByRole("button", { name: "Run" }).click();
+  await expect(page.getByRole("link", { name: "run-5", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
+  await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
+  await expect(page.getByRole("row").nth(1)).toContainText("9");
+});
