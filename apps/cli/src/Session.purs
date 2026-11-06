@@ -38,7 +38,7 @@ import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Seats (programs)
 import Node.Process (exit')
-import Scenarios (load)
+import Scenarios.Load (load)
 
 foreign import promptImpl :: String -> EffectFnAff String
 foreign import closePrompt :: Effect Unit

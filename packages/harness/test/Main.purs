@@ -30,7 +30,7 @@ import Harness.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSea
 import Policy.Program (Program, decodeProgram)
 import Data.Argonaut.Parser (jsonParser)
 import Effects (inWorldOf, runGame)
-import Scenarios (load, loadFixture, loadPresets)
+import Scenarios.Load (load, loadFixture, loadPresets)
 import Test.Spec (describe, it)
 import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments

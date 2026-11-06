@@ -29,7 +29,7 @@ import Handlers.Replay (runReplay)
 import Handlers.Seats (programs)
 import Policy.Interpret (Draft)
 import Core.Draw (Seed(..))
-import Scenarios (load)
+import Scenarios.Load (load)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 

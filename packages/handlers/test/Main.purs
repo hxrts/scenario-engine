@@ -26,7 +26,7 @@ import Effects (InWorld, homeMarket, inWorldOf, runGame)
 import Foreign.Object as Object
 import Test.Handlers.Run (runTest)
 import Policy.Program (Program, decodeProgram)
-import Scenarios (load, loadPresets)
+import Scenarios.Load (load, loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)

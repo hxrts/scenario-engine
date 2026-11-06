@@ -29,7 +29,7 @@ import Effect.Exception (error, try)
 import Effects (inWorldOf, runGame)
 import Handlers.Replay (runReplay)
 import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
-import Scenarios (load, loadPresets)
+import Scenarios.Load (load, loadPresets)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile)
 import Test.Adapters.Live as Live
 import Test.Spec (describe, it)

@@ -42,7 +42,7 @@ import Harness.Views (StoredRun, Unreadable)
 import Harness.Views as V
 import Http (Request, Response, serve)
 import Node.Process (argv, exit')
-import Scenarios (loadContext)
+import Scenarios.Load (loadContext)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.

@@ -17,8 +17,8 @@ import Node.FS.Sync (mkdir', writeTextFile)
 import Node.FS.Perms (permsAll)
 import Data.Foldable (for_)
 import Node.Process (exit')
-import DSL (Built, Keyed)
-import Scenarios (checkPresets, decodePresets, fromFiles, scenariosRoot)
+import DSL.Base (Keyed, Built)
+import Scenarios.Load (checkPresets, decodePresets, fromFiles, scenariosRoot)
 import Scenarios.FracturedWorld as FracturedWorld
 import Scenarios.Presets as Presets
 import Scenarios.Fixtures as Fixtures

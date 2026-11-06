@@ -2,7 +2,7 @@
 -- | object, except `instantiation.json`, the Instantiation Configuration. The Gameboard, the
 -- | Policy catalog, and the shared seat presets are decoded and checked against each other
 -- | here, so bad data fails at load time and never inside a run.
-module Scenarios
+module Scenarios.Load
   ( Loaded
   , LoadError(..)
   , load

@@ -6,7 +6,8 @@ module Scenarios.FracturedWorld.Policies (policies) where
 import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
-import DSL (Built, Clause, Keyed, enactTariffT, eq, factor, ge, gt, holding, keyed, le, lit, mul, not', param, price, procedureT, program, q, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transformT, transformedLastRound)
+import DSL.Base (q, Keyed, keyed, Built)
+import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, mul, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transformT, transformedLastRound)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
 policies :: Keyed (Built "program")

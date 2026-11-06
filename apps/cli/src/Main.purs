@@ -29,7 +29,7 @@ import Harness.Options (flagOr, parseFlags)
 import Harness.Simulate (presetSeats, seatsOf, simulate)
 import Harness.Views (marketPrices, roundPressure)
 import Node.Process (argv, exit')
-import Scenarios (loadContext)
+import Scenarios.Load (loadContext)
 import Session (Options, session, validId)
 
 main :: Effect Unit

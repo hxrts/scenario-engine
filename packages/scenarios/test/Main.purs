@@ -28,8 +28,11 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
 import Policy.Program (Program, SignRule(..), decodeProgram, programRefs)
-import DSL (builtJson, deal, enactAccessBan, enactAccessBanI, enactTariff, enactWithholding, enactWithholdingI, holdingOf, intentJson, keyed, lit, max', own, param, atLeast, program, q, rule, signProcedures, tariffRule, tradeT, transfer, transform, trade, transformT, withholdingRule)
-import Scenarios (LoadError(..), checkPresets, decodePresets, fromFiles, load)
+import DSL.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, holdingOf)
+import DSL.World (atLeast, own)
+import DSL.Decision (deal, lit, max', param, program, rule, signProcedures, tradeT, transformT)
+import DSL.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
+import Scenarios.Load (LoadError(..), checkPresets, decodePresets, fromFiles, load)
 import Scenarios.FracturedWorld (files)
 import Scenarios.FracturedWorld.Policies (policies)
 import Scenarios.Presets as Presets

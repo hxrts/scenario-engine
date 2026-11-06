@@ -14,7 +14,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
-import Scenarios (loadContext)
+import Scenarios.Load (loadContext)
 import Core.Types (Id(..))
 import Core.World (Event(..), RoundRecord)
 import Harness.Records (recordsEqual)

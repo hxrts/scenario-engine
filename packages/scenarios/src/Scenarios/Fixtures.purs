@@ -16,7 +16,9 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Prim.Row (class Union)
 import Record (union)
-import DSL
+import DSL.Base (Qty, q, Keyed, keyed, (:=), Built, trade, transfer, transform, enactTariff)
+import DSL.World (aggregate, bound, entity, market, production, resource)
+import DSL.Fixture (accessBanRule, delivery, enactTariffI, expect, procedureOutcome, proposal, ref, representation, roundOf, tradeI, transferI, transformI)
 import Scenarios.FracturedWorld (asiaTerms, atlanticTerms, coreResources, defenceAccess, defenceTerms, deployment, gameSeed, majorMilitaryAction, procurement, energyShipping, productionCapacity, flows, requirements, resources, smeSample, transport)
 import Scenarios.FracturedWorld.Entities (euAggregate, globalSmesAggregate)
 

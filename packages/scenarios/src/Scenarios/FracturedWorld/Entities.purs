@@ -9,7 +9,8 @@ module Scenarios.FracturedWorld.Entities (entities, euAggregate, globalSmesAggre
 import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
-import DSL (Built, Capability, Keyed, aggregate, collective, coverage, criterion, cumulative, definition, enactAccessBan, enactTariff, enactWithholding, entity, final, finishes, holdingOf, institutional, keyed, metric, neverShort, objective, own, payeeReceipts, q, shortfallOf, shortfallRounds, trade, transfer, transform, volumeOf, atLeast, capacityOf, (:=))
+import DSL.Base (q, Keyed, keyed, (:=), Built, Capability, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, coverage, institutional, holdingOf, capacityOf, shortfallOf, shortfallRounds, payeeReceipts, volumeOf, final, cumulative)
+import DSL.World (aggregate, atLeast, collective, criterion, definition, entity, finishes, metric, neverShort, objective, own)
 
 -- | Every Entity, in catalog order.
 entities :: Keyed (Built "entity")
