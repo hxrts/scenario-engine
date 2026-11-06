@@ -4,8 +4,29 @@ package:
     - prelude
     - effect
     - console
+    - node-process
+    - argonaut-codecs
+    - argonaut-core
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - functions
+    - integers
+    - maybe
+    - ordered-collections
+    - strings
+    - tuples
     - sp-core
+    - sp-board
+    - sp-policy
+    - sp-scenarios
+    - sp-effects
+    - sp-handlers
+    - sp-adapters
     - sp-harness
+  run:
+    main: Server
   test:
     main: Test.Server.Main
     dependencies:

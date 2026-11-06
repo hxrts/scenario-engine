@@ -3,12 +3,34 @@ package:
   dependencies:
     - prelude
     - effect
-    - sp-core
+    - aff
+    - aff-promise
+    - argonaut-codecs
+    - argonaut-core
+    - arrays
+    - bifunctors
+    - either
+    - exceptions
+    - foreign-object
+    - integers
+    - maybe
+    - numbers
+    - react-basic
+    - react-basic-dom
+    - react-basic-hooks
+    - routing
+    - routing-duplex
+    - strings
+    - tuples
+    - web-dom
+    - web-html
+    - sp-harness
   test:
     main: Test.Dashboard.Main
     dependencies:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck
+      - foldable-traversable
+      - either
+      - routing-duplex

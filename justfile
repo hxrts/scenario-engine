@@ -35,11 +35,24 @@ deps:
 check: fmt-check deps build test
 
 # All phase gates
-all: check
+all: check dashboard-test
 
 # Run the CLI
 run *args:
     spago run -p sp-cli -- {{args}}
+
+# Build the dashboard bundle (PureScript, then Vite)
+dashboard:
+    spago build -p sp-dashboard
+    vite build --config apps/dashboard/vite.config.js
+
+# Serve the read API and dashboard, e.g. `just serve --db runs.db`
+serve *args: dashboard
+    spago run -p sp-server -- {{args}}
+
+# Playwright smoke test against a freshly seeded Run Store
+dashboard-test: dashboard
+    cd apps/dashboard && playwright test
 
 clean:
     rm -rf output .spago dist

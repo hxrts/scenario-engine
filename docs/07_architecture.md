@@ -61,10 +61,11 @@ packages/
     Llm          Interpret, Narrate, AI-agent seats
     Store        Record / RunStore on SQLite
   harness/     SimulationSpec, experiments, counterfactuals, objective evaluation (→ effects, handlers)
+    Views        dashboard view models: generic Table and Chart projections of stored runs
   apps/        entry points only (→ anything above)
     cli          live session and simulation commands
-    server       read-only JSON API over the run store
-    dashboard    PureScript React + shadcn/ui front end
+    server       JSON API: one GET per harness view model, plus POST /api/runs to launch a run
+    dashboard    PureScript react-basic-hooks over vendored shadcn/ui (ui/, via one FFI module)
 test/          property tests per package; fixtures A–G as golden tests
 ```
 
@@ -130,6 +131,13 @@ type RunStoreRead m =
   , metric   :: RunId -> MetricId -> m (Array Point) }
 ```
 
+**Views** (`harness/Views`). Every dashboard element is a pure projection of a stored run to a generic view model, computed server-side; the dashboard only fetches and renders it with four generic components (record table, metric chart, run picker, diff table):
+
+```purescript
+type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
+type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
+```
+
 **Data formats.** Gameboards, instantiation configs, seat-policy presets, manifests, and round records are JSON. Each has a codec in the package that owns its type. Records are the replay boundary: manifest + round records + seeds reproduce a run ([INV-13](02_type_system.md#inv-13), [INV-31](02_type_system.md#inv-31)).
 
 ## 5. Coupling Rules
@@ -137,6 +145,7 @@ type RunStoreRead m =
 - `core` imports no effect library and no IO. JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type (PureScript forbids orphan instances, so they cannot live in a separate module); the engine never calls them.
 - Policies never touch World State directly. They receive a `View` and return Proposals and signatures. The engine never authors or rewrites Intents.
 - Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
+- Views are computed server-side in `harness/Views`; the dashboard holds no business logic.
 - Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.
 - Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` (Reference Instance [§1](05_test_instance.md#1-purpose)).
 - Every invariant has one pure predicate in `core/Invariants`. Tests, the harness, and live sessions share it.

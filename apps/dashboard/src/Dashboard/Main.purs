@@ -1,0 +1,151 @@
+-- | The dashboard (docs/06_simulator.md §9–§10). Pages are configuration lists over the
+-- | generic components; every view model comes from the read API.
+module Dashboard.Main (main) where
+
+import Prelude
+
+import Dashboard.Api (post, useApi)
+import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, recordTable, runPicker)
+import Dashboard.UI as UI
+import Data.Argonaut.Core (Json)
+import Data.Array (filter, index, null)
+import Data.Either (Either(..))
+import Data.Int as Int
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.String (Pattern(..), joinWith, split)
+import Effect (Effect)
+import Effect.Aff (launchAff_)
+import Effect.Class (liftEffect)
+import Effect.Exception (throw)
+import Harness.Views (Chart, Table)
+import React.Basic.DOM as D
+import React.Basic.DOM.Client (createRoot, renderRoot)
+import React.Basic.DOM.Events (targetValue)
+import React.Basic.Events (handler, handler_)
+import React.Basic.Hooks (Component, JSX, component, element, useEffectOnce, useState, useState', (/\))
+import React.Basic.Hooks as React
+import Dashboard.Route (Route(..), href, route)
+import Routing.Duplex (parse)
+import Routing.Hash (matchesWith)
+import Web.DOM.NonElementParentNode (getElementById)
+import Web.HTML (window)
+import Web.HTML.HTMLDocument (toNonElementParentNode)
+import Web.HTML.Window (document)
+
+type Tab = { key :: String, label :: String, path :: String, render :: Render }
+
+table :: Render
+table = as (recordTable (const Nothing))
+
+charts :: Render
+charts = as (\(cs :: Array Chart) -> D.div_ (map metricChart cs))
+
+-- | Run Details (§9): one tab per view model. `?round` applies to round-scoped views.
+runTabs :: String -> Int -> Array Tab
+runTabs id n =
+  [ tab "overview" "Overview" table
+  , tab ("balances?round=" <> show n) "Balance sheets" table
+  , tab "markets" "Markets" charts
+  , tab "facilities" "Facilities" table
+  , tab "economy" "World economy" (as \(e :: { totals :: Chart, flows :: Table, pressure :: Table }) -> D.div_ [ metricChart e.totals, recordTable (const Nothing) e.flows, recordTable (const Nothing) e.pressure ])
+  , tab "representation" "Representation" table
+  , tab "procedures" "Procedures" table
+  , tab "objectives" "Objectives" table
+  , tab ("events?round=" <> show n) "Events" table
+  ]
+  where
+  tab view label render = { key: label, label, path: "/api/runs/" <> id <> "/" <> view, render }
+
+-- | Comparison (§10): one fetch, several renderings, plus agency.
+compareTabs :: String -> Array Tab
+compareTabs ids =
+  [ part "Trajectory" (\c -> metricChart c.trajectory)
+  , part "Final state" (\c -> diffTable c.final)
+  , part "Baseline diff" (\c -> recordTable (const Nothing) c.diff)
+  , part "Configuration" (\c -> diffTable c.config)
+  , part "Compatibility" (\c -> recordTable (const Nothing) c.compatibility)
+  , { key: "agency", label: "Agency", path: "/api/agency", render: table }
+  ]
+  where
+  part label f = { key: label, label, path: "/api/compare?runs=" <> ids, render: as (f :: { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table } -> JSX) }
+
+tabbed :: ({ path :: String, render :: Render } -> JSX) -> Array Tab -> JSX
+tabbed show' ts = element UI.tabs
+  { defaultValue: maybe "" _.key (index ts 0)
+  , children:
+      [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
+        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ show' { path: t.path, render: t.render } ] })
+  }
+
+mkRuns :: Component Unit
+mkRuns = component "Runs" \_ -> React.do
+  version /\ setVersion <- useState' 0
+  selected /\ setSelected <- useState' []
+  form /\ setForm <- useState { name: "run", preset: "Conservative", playerSeed: "1" }
+  runs <- useApi version "/api/runs"
+  let
+    launch = launchAff_ do
+      _ <- post "/api/runs" { name: form.name, preset: form.preset, playerSeed: fromMaybe 1 (Int.fromString form.playerSeed), gameSeed: (Nothing :: Maybe Int), rounds: (Nothing :: Maybe Int) } :: _ (Either String Json)
+      liftEffect (setVersion (version + 1))
+    field label value set = D.label { className: "flex flex-col gap-1 text-sm", children: [ D.text label, element UI.input { value, onChange: handler targetValue (\v -> setForm (set (fromMaybe "" v))) } ] }
+  pure case runs of
+    Just (Right (t :: Table)) -> D.div
+      { className: "flex flex-col gap-4"
+      , children:
+          [ recordTable (\r -> href <<< Run <$> index r 0) t
+          , card "Compare"
+              [ runPicker { runs: t, selected, onChange: setSelected }
+              , D.a { href: href (Compare (joinWith "," selected)), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
+              ]
+          , card "Launch a run"
+              [ D.div
+                  { className: "flex items-end gap-4"
+                  , children:
+                      [ field "Name" form.name (\v f -> f { name = v })
+                      , field "Preset" form.preset (\v f -> f { preset = v })
+                      , field "Player seed" form.playerSeed (\v f -> f { playerSeed = v })
+                      , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
+                      ]
+                  }
+              ]
+          ]
+      }
+    Just (Left e) -> D.pre_ [ D.text e ]
+    Nothing -> D.text "Loading…"
+
+mkApp :: Component Unit
+mkApp = do
+  runsPage <- mkRuns
+  fetchPanel <- panel
+  component "App" \_ -> React.do
+    current /\ setCurrent <- useState' Runs
+    rounds /\ setRounds <- useState' "5"
+    useEffectOnce (matchesWith (parse route) \_ r -> setCurrent r)
+    let n = fromMaybe 5 (Int.fromString rounds)
+    pure $ D.main
+      { className: "mx-auto flex max-w-6xl flex-col gap-4 p-6"
+      , children:
+          [ D.nav { className: "flex gap-4 text-sm", children: [ D.a { href: href Runs, children: [ D.text "Simulation runs" ] } ] }
+          , case current of
+              Runs -> runsPage unit
+              Run id -> D.div_
+                [ D.h1 { className: "text-xl font-semibold", children: [ D.text id ] }
+                , D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
+                , tabbed fetchPanel (runTabs id n)
+                ]
+              Compare ids -> D.div_
+                [ D.h1 { className: "text-xl font-semibold", children: [ D.text ("Comparing " <> joinWith ", " (filter (_ /= "") (split (Pattern ",") ids))) ] }
+                , tabbed fetchPanel (compareTabs ids)
+                ]
+          ]
+      }
+
+main :: Effect Unit
+main = do
+  el <- getElementById "root" =<< (toNonElementParentNode <$> (document =<< window))
+  case el of
+    Nothing -> throw "no #root"
+    Just e -> do
+      app <- mkApp
+      r <- createRoot e
+      renderRoot r (app unit)
