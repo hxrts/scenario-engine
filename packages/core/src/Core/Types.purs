@@ -106,7 +106,8 @@ type ResourceDefinition =
 
 data Transferability = Free | Restricted | NonTransferable
 
--- | Fraction lost per simulated year.
+-- | Fraction of a held Resource lost per round. Instances scale annual rates to their round
+-- | length (INV-28), so a yearly rate is converted before it is declared.
 type DecayRule = { rate :: Ratio }
 
 data Capability
@@ -187,7 +188,6 @@ type Transformation =
   , capacityUse :: Quantity -- capacity drawn per unit ordered
   , ownerSigns :: Boolean -- the capacity's owner must sign every order
   , effects :: Array CapacityEffect -- capacity changes after the delay
-  , authority :: Capability
   }
 
 -- | A per-unit change to a capacity, applied after the facility's delay. `holder` defaults

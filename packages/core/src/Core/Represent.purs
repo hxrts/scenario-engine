@@ -16,8 +16,10 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
--- | A domain names the Resource whose purchases are observed. The observation is the
--- | actor's screened (validated, escrowed) buy quantity, not its executed fill.
+-- | A domain names the Resource whose purchases are observed. The observation is the actor's
+-- | validated buy quantity as proposed: the sum of its Trade quantities over screened Proposals,
+-- | before funding scales them and before clearing. It is what the actor asked to buy, not its
+-- | executed fill.
 observation :: WorldState -> Representation -> Array Proposal -> Maybe Q
 observation w rep ps =
   let
@@ -29,25 +31,26 @@ observation w rep ps =
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))
 
 -- | Clamped deviation from the reference, with seeded sampling noise drawn from the game seed.
-deviation :: WorldState -> Representation -> Q -> Q
-deviation w rep observed =
+-- | Nothing when the reference is zero, since a relative deviation is then undefined.
+deviation :: WorldState -> Representation -> Q -> Maybe Q
+deviation w rep observed = do
+  let e = rep.estimator
+  rel <- Q.divMaybe (Q.sub observed e.reference) e.reference
   let
-    e = rep.estimator
     u = draw w.seed { round: w.round, source: unwrap rep.id, entity: unwrap rep.actor, category: "sampling", index: 0 }
     eps = Q.mul e.noiseSpread (Q.sub (Q.mul (Q.fromInt 2) u) (Q.fromInt 1))
-    raw = Q.add (Q.div (Q.sub observed e.reference) e.reference) eps
-  in
-    maybe raw (\b -> max b.lo (min b.hi raw)) e.deviationBound
+    raw = Q.add rel eps
+  pure (maybe raw (\b -> max b.lo (min b.hi raw)) e.deviationBound)
 
 -- | This round's adjustment factors: 1 + Σ shrinkage × weight × deviation per Aggregate and
--- | domain, over the Representations that have an observation.
+-- | domain, over the Representations that have an observation and a non-zero reference.
 estimate :: WorldState -> Array Proposal -> { factors :: Map EntityId (Map BehaviorDomain Ratio), events :: Array Event }
 estimate w ps =
   let
     terms = concatMap
       ( \rep -> case observation w rep ps of
-          Nothing -> []
-          Just obs -> [ { rep, term: Q.mul rep.estimator.shrinkage (Q.mul rep.weight (deviation w rep obs)) } ]
+          Just obs | Just dev <- deviation w rep obs -> [ { rep, term: Q.mul rep.estimator.shrinkage (Q.mul rep.weight dev) } ]
+          _ -> []
       )
       w.representations
     sums = foldl (\m t -> Map.insertWith Q.add (Tuple t.rep.aggregate t.rep.domain) t.term m) Map.empty terms

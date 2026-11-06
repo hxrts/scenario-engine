@@ -17,9 +17,7 @@ import Data.Array (foldl)
 import Data.Char (toCharCode)
 import Data.Newtype (class Newtype)
 import Data.String.CodeUnits (toCharArray)
-import Data.Maybe (fromMaybe)
 import JS.BigInt (BigInt, asUintN, fromInt, shr, xor)
-import JS.BigInt as BI
 
 newtype Seed = Seed Int
 
@@ -51,18 +49,20 @@ u64 = asUintN 64
 fnv :: String -> BigInt
 fnv = foldl step offset <<< toCharArray
   where
-  offset = big "14695981039346656037"
-  prime = big "1099511628211"
+  offset = fromChunks [ 0xcbf2, 0x9ce4, 0x8422, 0x2325 ]
+  prime = fromChunks [ 0x0001, 0x0000, 0x01b3 ]
   step h c = u64 ((h `xor` fromInt (toCharCode c)) * prime)
 
 -- | SplitMix64 finalizer.
 mix :: BigInt -> BigInt
 mix z0 =
   let
-    z1 = u64 ((z0 `xor` shr z0 (fromInt 30)) * big "13787848793156543929")
-    z2 = u64 ((z1 `xor` shr z1 (fromInt 27)) * big "10723151780598845931")
+    z1 = u64 ((z0 `xor` shr z0 (fromInt 30)) * fromChunks [ 0xbf58, 0x476d, 0x1ce4, 0xe5b9 ])
+    z2 = u64 ((z1 `xor` shr z1 (fromInt 27)) * fromChunks [ 0x94d0, 0x49bb, 0x1331, 0x11eb ])
   in
     z2 `xor` shr z2 (fromInt 31)
 
-big :: String -> BigInt
-big s = fromMaybe (fromInt 0) (BI.fromString s)
+-- | A 64-bit constant from its 16-bit chunks, most significant first. Built from machine-sized
+-- | integers, so it cannot fail to parse.
+fromChunks :: Array Int -> BigInt
+fromChunks = foldl (\acc c -> acc * fromInt 65536 + fromInt c) (fromInt 0)

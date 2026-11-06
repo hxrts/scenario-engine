@@ -8,55 +8,87 @@ module Core.Engine
   , observe
   , resolveRound
   , authorized
+  , authorizedIn
   , executor
   ) where
 
 import Prelude
 
 import Core.Market as Market
-import Core.Represent as Represent
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityKind(..), Ratio, Capability(..), CapacityRef, Entity, EntityId, Id(..), Intent(..), MarketId, Proposal, ProposalId, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), SignedProposal, Transferability(..), TransformSpec, Transformation, TransformationId)
+import Core.Query (capacityHeld, holding, lookupQ, priceOf)
+import Core.Represent as Represent
+import Core.Types (BehaviorDomain, CapacityRef, Capability(..), CollectiveProcedureId, Entity, EntityId, EntityKind(..), Id(..), Intent(..), MarketId, Order, Proposal, ProposalId, Ratio, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), RoundIndex, SignedProposal, Transferability(..), TransferSpec, TransformSpec, Transformation, TransformationId)
 import Core.World (Delivery, Event(..), RoundResult, ShareSource(..), Target(..), View, WorldState)
-import Core.Query (capacityHeld, holding, lookupQ)
-import Data.Array (all, any, concat, concatMap, elem, filter, find, foldl, fromFoldable, notElem, nub, null, partition, sortWith, zipWith)
+import Data.Array (all, any, concat, concatMap, elem, filter, find, foldl, fromFoldable, length, last, mapMaybe, notElem, nub, null, partition, sortWith, zipWith)
 import Data.Either (Either(..), either, note)
+import Data.Int (fromString) as Int
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
+import Data.String (Pattern(..), split)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.FunctorWithIndex (mapWithIndex)
 
-data EngineError = UnknownReference String | NegativeBalance EntityId ResourceId
+data EngineError
+  = UnknownReference String
+  | NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
+  | NegativeReserve MarketId ResourceId -- likewise, for Market reserves
 
 derive instance Eq EngineError
 instance Show EngineError where
   show (UnknownReference r) = "unknown reference: " <> r
   show (NegativeBalance e r) = "negative balance: " <> show e <> " " <> show r
+  show (NegativeReserve m r) = "negative reserve: " <> show m <> " " <> show r
 
 -- Phase 1: prepare ------------------------------------------------------------
 
--- | Apply deliveries due this round and rule changes scheduled at the last boundary.
+-- | Apply deliveries due this round and rule changes scheduled at the last boundary. Idempotent:
+-- | a prepared World State is unchanged by a second call, so `resolveRound` prepares its input
+-- | itself and a caller that has already prepared it gets the same result.
 prepareRound :: WorldState -> WorldState
 prepareRound w =
   let
     { yes: due, no: later } = partition (\d -> d.round <= w.round) w.deliveries
-    withDeliveries = foldl (\acc d -> acc { entities = Map.update (Just <<< deliver d) d.entity acc.entities }) w due
+    applied = foldl (applyDelivery w.round) { entities: w.entities, events: [] } due
     rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (Map.toUnfoldable w.scheduled :: Array _)
     ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (Map.toUnfoldable w.scheduled)
-    deliveryEvents = map (\d -> Delivered { round: w.round, entity: d.entity, target: d.target, quantity: d.quantity }) due
   in
-    withDeliveries { deliveries = later, rules = rules, scheduled = Map.empty, events = w.events <> deliveryEvents <> ruleEvents }
+    w
+      { entities = applied.entities
+      , deliveries = later
+      , rules = rules
+      , scheduled = Map.empty
+      , events = w.events <> applied.events <> ruleEvents
+      }
 
-deliver :: Delivery -> Entity -> Entity
-deliver d e = case d.target of
-  Holding r -> e { accounts = bump r e.accounts }
-  CapacityOf c -> e { capacities = bump c e.capacities }
-  where
-  bump :: forall k. Ord k => k -> Map k Q -> Map k Q
-  bump k = Map.alter (Just <<< max Q.zero <<< Q.add d.quantity <<< fromMaybe Q.zero) k
+type Applied = { entities :: Map EntityId Entity, events :: Array Event }
+
+-- | Apply one due delivery, clamped so that no holding or capacity goes negative. The Delivered
+-- | event records the change actually applied, so reversing a delivery later restores exactly
+-- | what was removed. A delivery to an Entity that does not exist applies nothing and records
+-- | nothing.
+applyDelivery :: RoundIndex -> Applied -> Delivery -> Applied
+applyDelivery round acc d = case Map.lookup d.entity acc.entities of
+  Nothing -> acc
+  Just e ->
+    let
+      before = case d.target of
+        Holding r -> lookupQ r e.accounts
+        CapacityOf c -> lookupQ c e.capacities
+      after = max Q.zero (Q.add before d.quantity)
+      change = Q.sub after before
+      updated = case d.target of
+        Holding r -> e { accounts = Map.insert r after e.accounts }
+        CapacityOf c -> e { capacities = Map.insert c after e.capacities }
+    in
+      if change == Q.zero then acc
+      else
+        { entities: Map.insert d.entity updated acc.entities
+        , events: acc.events <> [ Delivered { round, entity: d.entity, target: d.target, quantity: change } ]
+        }
 
 -- Phase 2: observe ------------------------------------------------------------
 
@@ -65,7 +97,7 @@ observe :: WorldState -> Entity -> View
 observe w self =
   { round: w.round
   , self
-  , prices: map (\m -> Market.marginal m.cost m.position) w.markets
+  , prices: Map.mapMaybeWithKey (\id _ -> priceOf w id) w.markets
   , rules: fromFoldable (Map.values w.rules)
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
@@ -81,7 +113,8 @@ executor p = case _ of
   Transform t -> t.by
   _ -> p.author
 
--- | Whether `caps` authorize `who` to execute the Intent (§2.4).
+-- | Whether `caps` authorize `who` to execute the Intent (§2.4). A Repeal needs only some
+-- | enactment capability here; `authorizedIn` also requires the capability for the repealed Rule's kind.
 authorized :: Array Capability -> EntityId -> Intent -> Boolean
 authorized caps who = case _ of
   Trade o -> MayTrade o.market `elem` caps
@@ -93,11 +126,30 @@ authorized caps who = case _ of
   isEnact (MayEnact _) = true
   isEnact _ = false
 
+-- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
+-- | repeals. An unknown Rule is not authorized to be repealed.
+authorizedIn :: WorldState -> Array Capability -> EntityId -> Intent -> Boolean
+authorizedIn w caps who i = authorized caps who i && case i of
+  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
+  _ -> true
+
 kindOf :: Rule -> RuleKind
 kindOf = case _ of
   Tariff _ -> TariffRule
   AccessBan _ -> AccessBanRule
   Withholding _ -> WithholdingRule
+
+-- | Whether an Entity governs a Rule: a Tariff or AccessBan by its jurisdiction, a Withholding by
+-- | the owner of its capacity. Enacting and repealing both require it.
+governs :: WorldState -> EntityId -> Rule -> Boolean
+governs w who = case _ of
+  Tariff r -> r.jurisdiction == who
+  AccessBan r -> r.jurisdiction == who
+  Withholding r -> owner w r.capacity == Just who
+
+-- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
+owner :: WorldState -> CapacityRef -> Maybe EntityId
+owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
 
 -- Phases 4–7: screen, resolve, commit -----------------------------------------
 
@@ -109,61 +161,98 @@ type Item =
   , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
   }
 
+-- | Whose authority an Intent is checked against: the executor's own capabilities, for an
+-- | ordinary Proposal, or the capabilities a procedure authorizes, for a procedure Proposal.
+data Standing = OwnAuthority | ProcedureAuthority (Array Capability)
+
+-- | Resolve one round. The World State is prepared first (Phase 1), so the caller passes it in
+-- | either prepared or not; the result is the same.
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
-resolveRound w inputs0 =
+resolveRound w0 inputs0 =
   let
-    inputs = sortWith (_.proposal.id) inputs0
-    screened = map (screen w) inputs
+    w = prepareRound w0
+    inputs = sortWith submissionOrder inputs0
+    ids = map (_.proposal.id) inputs
+    -- a duplicated id is ambiguous, so every copy is rejected rather than picking one
+    duplicated = nub (filter (\i -> length (filter (_ == i) ids) > 1) ids)
+    screened = map (screen w duplicated) inputs
     items = concatMap (either (const []) pure) screened
     screenEvents = concatMap (either identity _.outcome) screened
     funded = fund w items
+    -- estimates read the validated proposed quantities, before funding scales them (§7.4)
     estimates = Represent.estimate w (map _.proposal items)
     settled = circulate w (settle w funded.items)
   in
     commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
 
--- | Phase 4: signature completeness, shape, authority, and shipping rules.
-screen :: WorldState -> SignedProposal -> Either (Array Event) Item
-screen w { proposal: p, signatures } = case p.procedure of
-  Just pid -> procedureProposal w p signed pid
-  Nothing
-    | not (all (_ `elem` signed) signers) -> Left [ Lapsed { round: w.round, proposal: p.id } ]
-    | deal && any tradeOrRule p.intents -> reject "deals bundle only Transfers and Transforms"
-    | otherwise -> case traverse (checkIntent w p signers) p.intents *> shipping w p of
-        Left reason -> reject reason
-        Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [] }
+-- | The canonical order of Proposals: by author, then by the numeric index of the author's
+-- | submission (the last segment of the id, so index 10 follows index 2), then by id.
+submissionOrder :: SignedProposal -> Tuple String (Tuple Int String)
+submissionOrder { proposal: p } = Tuple (show p.author) (Tuple index (show p.id))
   where
-  signed = nub ([ p.author ] <> signatures)
-  signers = nub ([ p.author ] <> p.signers)
-  deal = isNothing p.procedure && any (_ /= p.author) p.signers
-  reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
-  tradeOrRule = case _ of
-    Trade _ -> true
-    ChangeRule _ -> true
-    _ -> false
+  index = fromMaybe 0 (Int.fromString (fromMaybe "" (last (split (Pattern "/") (show p.id)))))
 
--- | One Intent of an ordinary Proposal: its executor signs and is authorized, and the
--- | Intent respects transferability, rule scope, the facility's bounds, and owner signing.
-checkIntent :: WorldState -> Proposal -> Array EntityId -> Intent -> Either String Unit
-checkIntent w p signers i = case Map.lookup who w.entities of
+-- | Phase 4: signature completeness, shape, authority, and shipping rules.
+screen :: WorldState -> Array ProposalId -> SignedProposal -> Either (Array Event) Item
+screen w duplicated { proposal: p, signatures } =
+  let
+    signed = nub ([ p.author ] <> signatures)
+    signers = nub ([ p.author ] <> p.signers)
+    deal = isNothing p.procedure && any (_ /= p.author) p.signers
+    reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+    tradeOrRule = case _ of
+      Trade _ -> true
+      ChangeRule _ -> true
+      _ -> false
+    ordinary
+      | not (all (_ `elem` signed) signers) = Left [ Lapsed { round: w.round, proposal: p.id } ]
+      | deal && any tradeOrRule p.intents = reject "deals bundle only Transfers and Transforms"
+      | otherwise = case validate w p signers OwnAuthority of
+          Left reason -> reject reason
+          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [] }
+  in
+    if p.id `elem` duplicated then reject "duplicate proposal id"
+    else case p.procedure of
+      Just pid -> procedureProposal w p signed pid
+      Nothing -> ordinary
+
+-- | Every Intent of a Proposal, then its shipments. Returns the tariffs the shipments owe.
+validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
+validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
+
+-- | One Intent: its executor must sign and be authorized, and the Intent must name known
+-- | references and respect market access, transferability, rule scope, the facility's bounds,
+-- | and owner signing. `signers` are the Entities whose signatures count for this Proposal.
+checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either String Unit
+checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left ("unknown entity " <> show who)
   Just e
     | not (who `elem` signers) -> Left (show who <> " must sign")
-    | not (authorized e.capabilities who i) -> Left (show who <> " is not authorized")
-    | otherwise -> transferable *> ruleScope e *> withinBounds *> ownerSigned
+    | otherwise -> known *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
   where
   who = executor p i
+  caps = case standing of
+    OwnAuthority -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
+    ProcedureAuthority cs -> cs
+  authority = if authorizedIn w caps who i then Right unit else Left (show who <> " is not authorized")
   transformation t = Map.lookup t.transformation w.transformations
-  transferable = case i of
-    Transfer t -> case _.transferability <$> Map.lookup t.resource w.resources of
-      Just NonTransferable -> Left (show t.resource <> " is not transferable")
-      Nothing -> Left ("unknown resource " <> show t.resource)
-      _ -> Right unit
+  known = case i of
+    Trade o | not (Map.member o.market w.markets) -> Left ("unknown market " <> show o.market)
+    Transform t | not (Map.member t.transformation w.transformations) -> Left ("unknown transformation " <> show t.transformation)
+    Transfer t
+      | not (Map.member t.resource w.resources) -> Left ("unknown resource " <> show t.resource)
+      | not (Map.member t.to w.entities) -> Left ("unknown entity " <> show t.to)
+    ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left ("unknown rule " <> show id)
     _ -> Right unit
-  ruleScope e = case i of
-    ChangeRule (Enact (Tariff r)) | r.jurisdiction /= e.id -> Left "a Tariff applies only to the enacting jurisdiction"
-    ChangeRule (Enact (AccessBan r)) | r.jurisdiction /= e.id -> Left "an AccessBan applies only to the enacting jurisdiction"
-    ChangeRule (Enact (Withholding r)) | not (Map.member r.capacity e.capacities) -> Left "withholding needs the capacity's owner"
+  access = case i of
+    Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (show who <> " has no access to " <> show o.market)
+    _ -> Right unit
+  transferable = case i of
+    Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (show t.resource <> " is not transferable")
+    _ -> Right unit
+  scope e = case i of
+    ChangeRule (Enact r) | not (governs w e.id r) -> Left (outOfScope r)
+    ChangeRule (Repeal id) | Just r <- Map.lookup id w.rules, not (governs w e.id r) -> Left "only the governing authority may repeal a Rule"
     _ -> Right unit
   withinBounds = case i of
     Transform t | Just tr <- transformation t, t.quantity < tr.minimum -> Left (show t.transformation <> " order below its minimum")
@@ -175,9 +264,16 @@ checkIntent w p signers i = case Map.lookup who w.entities of
       _ -> Left ("the owner of " <> show t.transformation <> "'s capacity must sign")
     _ -> Right unit
 
--- | A procedure Proposal (§2.2, §3.3): authored by the Aggregate that holds the procedure,
--- | it executes this round if the residual weight plus the weights of the members who signed
--- | exceeds the threshold, and lapses otherwise. Its Intents must fall within the procedure's
+outOfScope :: Rule -> String
+outOfScope = case _ of
+  Tariff _ -> "a Tariff applies only to the enacting jurisdiction"
+  AccessBan _ -> "an AccessBan applies only to the enacting jurisdiction"
+  Withholding _ -> "withholding needs the capacity's owner"
+
+-- | A procedure Proposal (§2.2, §3.3): authored by the Aggregate that holds the procedure, it
+-- | executes this round if the residual weight plus the weights of the members who signed
+-- | exceeds the threshold, and lapses otherwise. Its Intents are all executed by its author and
+-- | must pass the same per-Intent checks as any Proposal, with authority from the procedure's
 -- | `authorizes`.
 procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProcedureId -> Either (Array Event) Item
 procedureProposal w p signed pid = case Map.lookup p.author w.entities of
@@ -187,28 +283,26 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities of
       passes = support > proc.threshold
       outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
     in
-      if not (all (\i -> executor p i == p.author && authorized proc.authorizes p.author i) p.intents) then
-        Left [ Rejected { round: w.round, proposal: p.id, reason: "outside the procedure's authority" } ]
-      else if not passes then Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
-      else Right { proposal: p, deal: false, tariffs: [], outcome: [ outcome ] }
-  _ -> Left [ Rejected { round: w.round, proposal: p.id, reason: "unknown procedure" } ]
+      if not (all (\i -> executor p i == p.author) p.intents) then reject "outside the procedure's authority"
+      else case validate w p signed (ProcedureAuthority proc.authorizes) of
+        Left reason -> reject reason
+        Right tariffs
+          | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
+          | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ] }
+  _ -> reject "unknown procedure"
+  where
+  reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
 
 -- | Cross-region Transfers must be bundled with a matching transport order signed by the
 -- | transport capacity's owner, and are subject to access bans and tariffs.
 shipping :: WorldState -> Proposal -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
-shipping w p = traverse ship (filter crossRegion transfers)
+shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
   where
-  transfers = concatMap
-    ( case _ of
-        Transfer t -> [ t ]
-        _ -> []
-    )
-    p.intents
   crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
   sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
   ship t = do
     tid <- note "no transport facility" (Map.lookup t.resource w.transport)
-    let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transforms p)))
+    let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
     when (carried /= t.quantity) (Left "a cross-region Transfer needs a matching transport order by the sender")
     let
       jf = jur w t.from
@@ -222,19 +316,33 @@ shipping w p = traverse ship (filter crossRegion transfers)
     Tariff r | r.jurisdiction == dest && r.origin == origin -> Q.mul r.rate q
     _ -> Q.zero
 
-transforms :: Proposal -> Array TransformSpec
-transforms p = concatMap
+-- | The Intents of one kind, in order: the one place that selects an Intent kind.
+intentsOf :: forall a. (Intent -> Maybe a) -> Array Intent -> Array a
+intentsOf = mapMaybe
+
+tradesOf :: Array Intent -> Array Order
+tradesOf = intentsOf
   ( case _ of
-      Transform t -> [ t ]
-      _ -> []
+      Trade o -> Just o
+      _ -> Nothing
   )
-  p.intents
+
+transfersOf :: Array Intent -> Array TransferSpec
+transfersOf = intentsOf
+  ( case _ of
+      Transfer t -> Just t
+      _ -> Nothing
+  )
+
+transformsOf :: Array Intent -> Array TransformSpec
+transformsOf = intentsOf
+  ( case _ of
+      Transform t -> Just t
+      _ -> Nothing
+  )
 
 jur :: WorldState -> EntityId -> EntityId
 jur w e = fromMaybe e (Map.lookup e w.jurisdiction)
-
-owner :: WorldState -> CapacityRef -> Maybe EntityId
-owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
 
 -- Escrow and joint feasibility (§3.2, §8.2) -----------------------------------
 
@@ -263,21 +371,30 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
     ChangeRule _ -> []
 
--- | The uniform price of a facility order whose pool fills `q` units. Escrow prices the pool
--- | at its full quantity and settlement at the quantity actually filled, through this one
--- | function, so the escrowed price bounds the settled price by construction.
+-- | The uniform price of a facility order whose pool fills `q` units.
 facilityPrice :: Transformation -> Q -> Q
 facilityPrice tr q = maybe Q.zero (\c -> Market.averagePrice c Q.zero q) tr.cost
 
--- | The most units a facility's pool can fill: its capacity in units of `capacityUse`.
-poolQuantity :: WorldState -> Transformation -> Q
-poolQuantity w tr = case tr.capacity of
-  Just ref | tr.capacityUse > Q.zero -> Q.div (capacityOf w ref) tr.capacityUse
-  _ -> maybe Q.zero (\c -> c.domain.hi) tr.cost
+-- | The most units a facility's pool can fill, its ceiling, which escrow prices at in full and
+-- | settlement never exceeds (§5.3). A capped facility's ceiling is its capacity in units of
+-- | `capacityUse`, rounded down. Otherwise it is the domain ceiling of its cost function.
+-- | Nothing means no ceiling, which only a facility with no cost function has, and that one is
+-- | priced at zero.
+poolCeiling :: WorldState -> Transformation -> Maybe Q
+poolCeiling w tr = case tr.capacity of
+  Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) tr.capacityUse
+  _ -> (\c -> c.domain.hi) <$> tr.cost
 
--- | A facility's uniform price at full capacity, used for escrow.
+-- | A facility's uniform price at its full ceiling, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q
-fullPrice w tr = facilityPrice tr (poolQuantity w tr)
+fullPrice w tr = facilityPrice tr (fromMaybe Q.zero (poolCeiling w tr))
+
+-- | The pool a facility's fills draw on: the shared capacity if it is capped, else the facility
+-- | alone. Facilities in one pool are allocated together and priced at one uniform price.
+poolOf :: TransformationId -> Transformation -> Either TransformationId CapacityRef
+poolOf tid tr = case tr.capacity of
+  Just ref | tr.capacityUse > Q.zero -> Right ref
+  _ -> Left tid
 
 -- | Effective capacity: the owner's capacity less withheld units.
 capacityOf :: WorldState -> CapacityRef -> Q
@@ -353,26 +470,24 @@ settle w scaled0 =
   in
     foldl (\acc f -> f acc) start
       [ markets w scaled
-      , \acc -> foldl (transforms' w facility) acc scaled
+      , \acc -> foldl (settleFacilities w facility) acc scaled
       , \acc -> foldl (transfersAndRules w) acc scaled
       ]
 
--- | Fill facility orders per capacity. Deals that would exceed a capacity are rejected as a
--- | unit; single-author orders share what remains pro rata in whole units.
--- | Allocate every facility's capacity. Facilities sharing a capacity form one group; an
--- | uncapped facility is its own group.
+-- | Facility fills per pool. Deals that would exceed a pool are rejected as a unit; single-author
+-- | orders share what remains pro rata.
 facilities :: WorldState -> Array Scaled -> Facilities
-facilities w scaled = foldl (allocate w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (Map.toUnfoldable groups :: Array _)
+facilities w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (Map.toUnfoldable groups :: Array _)
   where
-  groups = groupBy (\o -> maybe (Left o.tid) Right o.capacity) (facilityOrders w scaled)
+  groups = groupBy _.group (facilityOrders w scaled)
 
 type FacilityOrder =
   { key :: Tuple ProposalId Int
   , deal :: Boolean
   , pid :: ProposalId
   , quantity :: Q
-  , use :: Q
-  , capacity :: Maybe CapacityRef
+  , use :: Q -- capacity drawn per unit ordered: `capacityUse`, or one unit per unit of a pool of its own
+  , group :: Either TransformationId CapacityRef
   , tid :: TransformationId
   }
 
@@ -382,20 +497,31 @@ facilityOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposa
   where
   order s i = case _ of
     Transform t | Just tr <- Map.lookup t.transformation w.transformations ->
-      [ { key: Tuple s.item.proposal.id i, deal: s.item.deal, pid: s.item.proposal.id, quantity: Q.mul s.scale t.quantity, use: tr.capacityUse, capacity: tr.capacity, tid: t.transformation } ]
+      let
+        group = poolOf t.transformation tr
+        use = case group of
+          Right _ -> tr.capacityUse
+          Left _ -> Q.fromInt 1
+      in
+        [ { key: Tuple s.item.proposal.id i, deal: s.item.deal, pid: s.item.proposal.id, quantity: Q.mul s.scale t.quantity, use, group, tid: t.transformation } ]
     _ -> []
 
--- | One capacity group: deals fill in full or are rejected as a unit; single orders share
--- | the remaining capacity pro rata, in whole units of their own orders.
-allocate :: WorldState -> Facilities -> Tuple (Either TransformationId CapacityRef) (Array FacilityOrder) -> Facilities
-allocate w acc (Tuple ref os) =
+-- | One pool: deals fill in full or are rejected as a unit; single orders share the remaining
+-- | capacity pro rata, in whole units of capacity. Each order's quantity is its share divided by
+-- | its `use`, floored to the 0.0001 grid, so an order never draws more than its share. The
+-- | sub-grid remainder stays unfilled. A capped pool's capacity is its cap; an uncapped facility's
+-- | cap is its ceiling, so its fills never exceed the quantity escrow priced.
+allocateGroup :: WorldState -> Facilities -> Tuple (Either TransformationId CapacityRef) (Array FacilityOrder) -> Facilities
+allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
   , totals: foldl (\m (Tuple tid q) -> Map.insertWith Q.add tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
   , rejected: acc.rejected <> rejectedDeals
   , events: acc.events <> map (\pid -> Rejected { round: w.round, proposal: pid, reason: "facility capacity exceeded" }) rejectedDeals
   }
   where
-  cap = either (const (Q.sumQ (map _.quantity os))) (capacityOf w) ref
+  cap = case group of
+    Right ref -> capacityOf w ref
+    Left tid -> fromMaybe (Q.sumQ (map _.quantity os)) (Map.lookup tid w.transformations >>= poolCeiling w)
   { yes: deals, no: singles } = partition _.deal os
   used o = Q.mul o.use o.quantity
   dealTotal = Q.sumQ (map used deals)
@@ -403,7 +529,7 @@ allocate w acc (Tuple ref os) =
   rejectedDeals = if overflow then nub (map _.pid deals) else []
   room = if overflow then cap else Q.sub cap dealTotal
   singleFills
-    | Q.sumQ (map used singles) > room = zipWith (\o u -> if o.use == Q.zero then o.quantity else Q.div u o.use) singles (Q.proRataWhole room (map used singles))
+    | Q.sumQ (map used singles) > room = zipWith (\o u -> fromMaybe Q.zero (Q.divFloor u o.use)) singles (Q.proRataWhole room (map used singles))
     | otherwise = map _.quantity singles
   fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) deals) <> zipWith (\o q -> Tuple o.key q) singles singleFills
 
@@ -418,21 +544,24 @@ markets :: WorldState -> Array Scaled -> Settlement -> Settlement
 markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array _)
   where
   orders = concatMap
-    ( \s -> concatMap
-        ( case _ of
-            Trade o -> [ { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, quantity: Q.mul s.scale o.quantity, limitPrice: o.limitPrice } ]
-            _ -> []
-        )
-        s.item.proposal.intents
+    ( \s -> map
+        (\o -> { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, quantity: Q.mul s.scale o.quantity, limitPrice: o.limitPrice })
+        (tradesOf s.item.proposal.intents)
     )
     scaled
+  -- Trade fills are not capped by `pay`: clearing bounds them by the Market's domain and reserves,
+  -- and escrow funds them (docs/02 §8.2). Their money is escrowed at the limit or the domain ceiling.
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.entity o.pid) (filter (\o -> o.market == id) orders)
-      lo = m.cost.domain.lo
-      hi = m.cost.domain.hi
-      bounds = { minNet: Q.sub lo m.position, maxNet: min (Q.sub hi m.position) (lookupQ m.base m.reserves) }
-      r = Market.clear m.cost m.position bounds os
+      bounds = { minNet: Q.sub m.cost.domain.lo m.position, maxNet: min (Q.sub m.cost.domain.hi m.position) (lookupQ m.base m.reserves) }
+      cleared = Market.clear m.cost m.position bounds os
+      -- A Market pays its sellers in quote from its reserves. If the batch would overdraw them,
+      -- the sell side is rejected and the batch clears on buys alone, which pay out nothing.
+      moneyIn c = Q.sumQ (map (\f -> Q.mul c.price f.quantity) c.fills)
+      solvent c = Q.add (lookupQ m.quote m.reserves) (moneyIn c) >= Q.zero
+      r = if solvent cleared then cleared else Market.clear m.cost m.position bounds (filter (\o -> o.quantity > Q.zero) os)
+      unpaid = if solvent cleared then [] else filter (\o -> o.quantity < Q.zero) os
       fill a f =
         let
           paid = Q.mul r.price f.quantity
@@ -449,14 +578,27 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
         in
           filled
             { positions = Map.insert id (Q.add m.position r.net) acc.positions
-            , events = filled.events <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "limit price not met" }) r.rejected
+            , events = filled.events
+                <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "limit price not met" }) r.rejected
+                <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "the market cannot pay its sellers" }) unpaid
             }
 
-transforms' :: WorldState -> Facilities -> Settlement -> Scaled -> Settlement
-transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
+-- | Settle one Proposal's filled Transforms: pay the facility's payee, consume inputs, produce
+-- | outputs, and schedule capacity effects.
+settleFacilities :: WorldState -> Facilities -> Settlement -> Scaled -> Settlement
+settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
   where
-  -- facilities sharing a capacity and a cost function share one uniform price
-  pricedTotal tr = Q.sumQ (map (\(Tuple _ q) -> q) (filter (\(Tuple tid _) -> maybe false (\x -> x.capacity == tr.capacity && x.cost == tr.cost) (Map.lookup tid w.transformations)) (Map.toUnfoldable facility.totals)))
+  pid = s.item.proposal.id
+  -- facilities in one pool with one cost function share one uniform price
+  pricedTotal tid tr = Q.sumQ
+    ( map (\(Tuple _ q) -> q)
+        ( filter
+            (\(Tuple other _) -> maybe false (\x -> poolOf other x == poolOf tid tr && x.cost == tr.cost) (Map.lookup other w.transformations))
+            (Map.toUnfoldable facility.totals :: Array _)
+        )
+    )
+  -- Capacity effects land on the same boundary as outputs: an output with delay d is visible from
+  -- round + max 1 d, and so is an effect, since a delay of zero is treated as one round.
   effects t tr q = concatMap
     ( \e ->
         let
@@ -468,12 +610,14 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
     )
     tr.effects
   one a (Tuple i intent) = case intent of
-    Transform t -> case Tuple (Map.lookup (Tuple s.item.proposal.id i) facility.fills) (Map.lookup t.transformation w.transformations) of
+    Transform t -> case Tuple (Map.lookup (Tuple pid i) facility.fills) (Map.lookup t.transformation w.transformations) of
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
-          owed = Q.mul (facilityPrice tr (pricedTotal tr)) q
+          owed = Q.mul (facilityPrice tr (pricedTotal t.transformation tr)) q
+          -- escrow funds inputs, so a shortfall here is a backstop: the Transform is rejected, not overdrawn
+          inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (Map.toUnfoldable tr.inputs :: Array _)
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
-          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs)
+          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs :: Array _)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
           produce l = foldl
             ( \l' d -> case d.target of
@@ -483,7 +627,8 @@ transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal
             l
             now
         in
-          case pay w t.by tr.payee w.numeraire owed a of
+          if not inputsHeld then a { events = a.events <> [ Rejected { round: w.round, proposal: pid, reason: show t.transformation <> ": inputs are not held" } ] }
+          else case pay w t.by tr.payee w.numeraire owed a of
             Tuple paid afterPay ->
               afterPay
                 { ledger = produce (consume afterPay.ledger)
@@ -519,6 +664,10 @@ circulate w = decay w <<< fixedFlows w <<< requirements w <<< revenueShares w <<
 groupBy :: forall k a. Ord k => (a -> k) -> Array a -> Map k (Array a)
 groupBy key xs = Map.fromFoldableWith (flip (<>)) (map (\x -> Tuple (key x) [ x ]) xs)
 
+-- | What an Entity can pay or consume: what is owed, capped at what it holds.
+minOwedHeld :: Q -> Q -> Q
+minOwedHeld owed held = min owed (max Q.zero held)
+
 -- | The one way an Entity pays out, used by every settlement payment. It pays at most what it
 -- | holds after the settlement so far, and the remainder is recorded as a Shortfall. With no
 -- | payee (`Nothing`) the amount is destroyed. Returns the amount actually paid.
@@ -531,7 +680,7 @@ pay w from to resource owed st = Tuple paid
     , events = st.events <> shortEvents
     }
   where
-  paid = min owed (max Q.zero (net w from resource st))
+  paid = minOwedHeld owed (net w from resource st)
   short = Q.sub owed paid
   shortEvents = if short > Q.zero then [ Shortfall { round: w.round, entity: from, resource, quantity: short } ] else []
 
@@ -562,9 +711,9 @@ production w st = st { deliveries = st.deliveries <> map scheduled w.circulation
 
 -- | Variable shares of sales revenue or payee receipts, paid in the numeraire.
 revenueShares :: WorldState -> Settlement -> Settlement
-revenueShares w st0 = foldl pay st0 w.circulation.shares
+revenueShares w st0 = foldl payShare st0 w.circulation.shares
   where
-  pay st sh = transfer w sh.from sh.to w.numeraire (Q.mul sh.share (base sh)) st
+  payShare st sh = transfer w sh.from sh.to w.numeraire (Q.mul sh.share (base sh)) st
   base sh = case sh.source of
     SalesOf r -> max Q.zero $ sumEvents
       ( case _ of
@@ -595,7 +744,7 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
         )
         st0
       needed = fromMaybe purchases rq.amount
-      consumed = min needed (max Q.zero (net w rq.entity rq.resource acc.st))
+      consumed = minOwedHeld needed (net w rq.entity rq.resource acc.st)
       short = Q.sub needed consumed
       when' cond ev = if cond then [ ev ] else []
     in
@@ -620,7 +769,8 @@ fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.fr
     in
       zipWith (\f k -> Tuple f (Q.sub f.amount k)) fs (Q.proRata cut (map _.amount fs))
 
--- | Decay of every decaying Resource held.
+-- | Decay of every decaying Resource held. The rate is per round; instances scale annual rates
+-- | to the round length (INV-28).
 decay :: WorldState -> Settlement -> Settlement
 decay w st0 = foldl lose st0 holdings
   where
@@ -628,7 +778,8 @@ decay w st0 = foldl lose st0 holdings
   lose acc (Tuple e r) = case Map.lookup r w.resources >>= _.decay of
     Just d ->
       let
-        lost = Q.mul d.rate (max Q.zero (net w e r acc))
+        held = max Q.zero (net w e r acc)
+        lost = minOwedHeld (Q.mul d.rate held) held
       in
         if lost == Q.zero then acc
         else acc { ledger = adjust (Ent e) r (Q.neg lost) acc.ledger, events = acc.events <> [ Decayed { round: w.round, entity: e, resource: r, quantity: lost } ] }
@@ -638,20 +789,18 @@ decay w st0 = foldl lose st0 holdings
 
 commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
 commit w inputs screenEvents factors st = do
-  entities <- traverse applyEntity w.entities
+  entities <- traverse (\e -> (\accounts -> e { accounts = accounts }) <$> settled (Ent e.id) e.accounts) w.entities
+  marketList <- traverse
+    ( \(Tuple id m) -> (\reserves -> Tuple id m { reserves = reserves, position = fromMaybe m.position (Map.lookup id st.positions) })
+        <$> settled (Mkt id) m.reserves
+    )
+    (Map.toUnfoldable w.markets :: Array _)
   let
-    markets' = mapWithIndex
-      ( \id m -> m
-          { reserves = applyHoldings (Mkt id) m.reserves
-          , position = fromMaybe m.position (Map.lookup id st.positions)
-          }
-      )
-      w.markets
     events = screenEvents <> st.events
     world = w
       { round = w.round + 1
       , entities = entities
-      , markets = markets'
+      , markets = Map.fromFoldable marketList
       , deliveries = w.deliveries <> st.deliveries
       , scheduled = Map.union st.scheduled w.scheduled
       , factors = factors
@@ -660,10 +809,13 @@ commit w inputs screenEvents factors st = do
   pure { world, record: { round: w.round, inputs, events } }
   where
   applyHoldings acct hs = foldl (\h (Tuple (Tuple a r) q) -> if a == acct then Map.insertWith Q.add r q h else h) hs (Map.toUnfoldable st.ledger :: Array _)
-  applyEntity e =
-    let
-      accounts = applyHoldings (Ent e.id) e.accounts
-    in
-      case find (\(Tuple _ q) -> q < Q.zero) (Map.toUnfoldable accounts :: Array _) of
-        Just (Tuple r _) -> Left (NegativeBalance e.id r)
-        Nothing -> Right e { accounts = accounts }
+  -- Settlement caps every payment at what an account holds and escrow funds the rest, so no
+  -- account should go negative. This is an invariant assertion: if one does, the round fails
+  -- rather than recording a corrupt state.
+  settled acct hs = case find (\(Tuple _ q) -> q < Q.zero) (Map.toUnfoldable (applyHoldings acct hs) :: Array _) of
+    Just (Tuple r _) -> Left
+      ( case acct of
+          Ent e -> NegativeBalance e r
+          Mkt m -> NegativeReserve m r
+      )
+    Nothing -> Right (applyHoldings acct hs)
