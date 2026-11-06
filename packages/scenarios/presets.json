@@ -123,9 +123,10 @@
       }
      },
      {
-      "transform": {
-       "quantity": "40",
-       "transformation": "major-military-action"
+      "trade": {
+       "limit": "2.4",
+       "market": "defence-goods",
+       "quantity": "-40"
       }
      }
     ],

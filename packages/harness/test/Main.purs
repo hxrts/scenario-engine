@@ -166,13 +166,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       china cf.base `shouldEqual` true
       china cf.variant `shouldEqual` false
 
-    it "7b Reservation: fixtures R and R-alone (DSL-authored) show a deployment reserving Mil against a major action" do
-      -- R: the deployment reserves 60 and the 40-unit action scales to 38 on the 95 Mil held;
-      -- the reservation is released at commit, so round 2's 50 Mil transfer runs in full
+    it "7b Reservation: fixtures R and R-alone (DSL-authored) show a deployment reserving Mil against a Mil sale" do
+      -- R: the deployment reserves 60 and the 40-unit sale scales to 38 on the 95 Mil held, which
+      -- sells at 2.81 for 106.78 M; the reservation is released at commit, so round 2's 50 Mil
+      -- transfer runs in full (docs/05 §13.3)
       fixture "R"
-      -- R-alone: with no deployment, the same action runs in full
+      -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
-    it "7c Deployer: the shipped preset reserves and scales its action in the rounds the Atlantic price is above 3" do
+    it "7c Deployer: the shipped preset reserves and sells its Mil in the rounds the Atlantic price is above 3" do
       ctx <- context
       r <- run ctx { seats: Map.singleton (Id "US") (Preset "Deployer"), playerSeed: Seed 1, overrides: [], rounds: Nothing }
       valid (initialOf r) r
@@ -184,18 +185,31 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               _ -> Nothing
           )
           rec.record.events
+        -- the US's fill on the defence-goods Market in round i, if it traded there
+        sold i = index r.records i >>= \rec -> findMap
+          ( case _ of
+              Traded t | t.entity == Id "US" && t.market == Id "defence-goods" -> Just t
+              _ -> Nothing
+          )
+          rec.record.events
         usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
+        parse x = fromMaybe Q.zero (Q.parse x)
       -- the price is below 3 at the start of rounds 1 to 3, so the seat holds its Mil
       ordered 0 "military-deployment" `shouldEqual` Nothing
       ordered 2 "military-deployment" `shouldEqual` Nothing
-      -- from round 4 the price is above 3: 60 reserved and 40 ordered on 95 Mil, so both scale by 95/100
+      map _.quantity (sold 0) `shouldEqual` Nothing
+      -- round 4 (index 3): 60 reserved and 40 offered on 95 Mil, so both scale by 95/100: the
+      -- deployment reserves 57 and the sale is 38 Mil at the uniform price 2.81 (C(-38) - C(0)) / -38
       ordered 3 "military-deployment" `shouldEqual` Just (Q.fromInt 57)
-      ordered 3 "major-military-action" `shouldEqual` Just (Q.fromInt 38)
-      usMil 3 `shouldEqual` Just (Q.parse "85.5" # fromMaybe Q.zero)
-      -- round 5 scales again by 85.5/100 on the Mil held
-      ordered 4 "military-deployment" `shouldEqual` Just (Q.parse "51.3" # fromMaybe Q.zero)
-      ordered 4 "major-military-action" `shouldEqual` Just (Q.parse "34.2" # fromMaybe Q.zero)
-      usMil 4 `shouldEqual` Just (Q.parse "76.95" # fromMaybe Q.zero)
+      map _.quantity (sold 3) `shouldEqual` Just (Q.fromInt (-38))
+      map _.price (sold 3) `shouldEqual` Just (parse "2.81")
+      usMil 3 `shouldEqual` Just (Q.fromInt 57)
+      -- round 5 (index 4): 57 Mil held against 100 claimed, so both scale by 0.57: the deployment
+      -- reserves 34.2 and the sale is 22.8 Mil at 2.506 on the curve now at -38
+      ordered 4 "military-deployment" `shouldEqual` Just (parse "34.2")
+      map _.quantity (sold 4) `shouldEqual` Just (parse "-22.8")
+      map _.price (sold 4) `shouldEqual` Just (parse "2.506")
+      usMil 4 `shouldEqual` Just (parse "34.2")
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
       ctx <- context
