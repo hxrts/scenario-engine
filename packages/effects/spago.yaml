@@ -1,0 +1,15 @@
+package:
+  name: sp-effects
+  dependencies:
+    - prelude
+    - run
+    - sp-core
+    - sp-board
+    - sp-policy
+  test:
+    main: Test.Effects.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

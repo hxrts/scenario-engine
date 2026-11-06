@@ -1,0 +1,44 @@
+#!/usr/bin/env node
+// Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3)
+// or if a pure package depends on an effectful library.
+const fs = require("fs");
+const path = require("path");
+
+const allowed = {
+  core: [],
+  board: ["core"],
+  policy: ["core"],
+  scenarios: ["core", "board"],
+  effects: ["core", "board", "policy"],
+  handlers: ["core", "board", "policy", "effects"],
+  adapters: ["core", "board", "policy", "effects", "handlers"],
+  harness: ["core", "board", "policy", "effects", "handlers"],
+  cli: null, server: null, dashboard: null, // apps may depend on anything
+};
+const pure = ["core", "board", "policy"];
+const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
+
+const root = path.join(__dirname, "..");
+const dirs = ["packages", "apps"].flatMap((d) =>
+  fs.readdirSync(path.join(root, d)).map((n) => path.join(root, d, n)));
+
+let errors = [];
+for (const dir of dirs) {
+  const file = path.join(dir, "spago.yaml");
+  if (!fs.existsSync(file)) continue;
+  const text = fs.readFileSync(file, "utf8");
+  const name = text.match(/name:\s*sp-(\S+)/)[1];
+  // package dependencies only: lines before the `test:` section
+  const deps = [...text.split(/\n\s*test:/)[0].matchAll(/^\s+- (\S+)/gm)].map((m) => m[1]);
+  if (!(name in allowed)) { errors.push(`${name}: not in the allowed-dependency table`); continue; }
+  for (const d of deps) {
+    if (d.startsWith("sp-")) {
+      const dep = d.slice(3);
+      if (allowed[name] && !allowed[name].includes(dep)) errors.push(`${name} -> ${dep} is not allowed`);
+    } else if (pure.includes(name) && impure(d)) {
+      errors.push(`${name} is pure but depends on ${d}`);
+    }
+  }
+}
+if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
+console.log("dependency direction ok");

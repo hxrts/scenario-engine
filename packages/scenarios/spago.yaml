@@ -1,0 +1,13 @@
+package:
+  name: sp-scenarios
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-board
+  test:
+    main: Test.Scenarios.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

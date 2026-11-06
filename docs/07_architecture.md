@@ -61,7 +61,10 @@ packages/
     Llm          Interpret, Narrate, AI-agent seats
     Store        Record / RunStore on SQLite
   harness/     SimulationSpec, experiments, counterfactuals, objective evaluation (→ effects, handlers)
-  apps/        entry points only: session, sim CLI, dashboard (→ anything above)
+  apps/        entry points only (→ anything above)
+    cli          live session and simulation commands
+    server       read-only JSON API over the run store
+    dashboard    PureScript React + shadcn/ui front end
 test/          property tests per package; fixtures A–G as golden tests
 ```
 

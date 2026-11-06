@@ -1,0 +1,13 @@
+package:
+  name: sp-dashboard
+  dependencies:
+    - prelude
+    - effect
+    - sp-core
+  test:
+    main: Test.Dashboard.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

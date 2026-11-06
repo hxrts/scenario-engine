@@ -1,0 +1,12 @@
+package:
+  name: sp-board
+  dependencies:
+    - prelude
+    - sp-core
+  test:
+    main: Test.Board.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

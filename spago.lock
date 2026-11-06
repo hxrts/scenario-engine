@@ -1,17 +1,231 @@
 {
   "workspace": {
     "packages": {
-      "scenario-plan": {
-        "path": "./",
+      "sp-adapters": {
+        "path": "packages/adapters",
         "core": {
           "dependencies": [
-            "console",
             "effect",
-            "prelude"
+            "prelude",
+            "run",
+            "sp-board",
+            "sp-core",
+            "sp-effects",
+            "sp-handlers",
+            "sp-policy"
           ]
         },
         "test": {
           "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-board": {
+        "path": "packages/board",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "sp-core"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-cli": {
+        "path": "apps/cli",
+        "core": {
+          "dependencies": [
+            "console",
+            "effect",
+            "prelude",
+            "sp-adapters",
+            "sp-board",
+            "sp-core",
+            "sp-effects",
+            "sp-handlers",
+            "sp-harness",
+            "sp-policy",
+            "sp-scenarios"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-core": {
+        "path": "packages/core",
+        "core": {
+          "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "integers",
+            "js-bigints",
+            "maybe",
+            "newtype",
+            "ordered-collections",
+            "prelude",
+            "strings",
+            "tuples"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-dashboard": {
+        "path": "apps/dashboard",
+        "core": {
+          "dependencies": [
+            "effect",
+            "prelude",
+            "sp-core"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-effects": {
+        "path": "packages/effects",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "run",
+            "sp-board",
+            "sp-core",
+            "sp-policy"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-handlers": {
+        "path": "packages/handlers",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "run",
+            "sp-board",
+            "sp-core",
+            "sp-effects",
+            "sp-policy"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-harness": {
+        "path": "packages/harness",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "run",
+            "sp-board",
+            "sp-core",
+            "sp-effects",
+            "sp-handlers",
+            "sp-policy"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-policy": {
+        "path": "packages/policy",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "sp-core"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-scenarios": {
+        "path": "packages/scenarios",
+        "core": {
+          "dependencies": [
+            "prelude",
+            "sp-board",
+            "sp-core"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-server": {
+        "path": "apps/server",
+        "core": {
+          "dependencies": [
+            "console",
+            "effect",
+            "prelude",
+            "sp-core",
+            "sp-harness"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "quickcheck",
             "spec",
             "spec-node"
           ]
@@ -1125,6 +1339,16 @@
         "prelude"
       ]
     },
+    "js-bigints": {
+      "type": "registry",
+      "version": "2.2.1",
+      "integrity": "sha256-r1rE6Olv5b3JrP32lY2uKJ+eBRTsrVnC983K8VWwqe4=",
+      "dependencies": [
+        "integers",
+        "maybe",
+        "prelude"
+      ]
+    },
     "js-date": {
       "type": "registry",
       "version": "8.0.0",
@@ -1149,6 +1373,20 @@
         "foldable-traversable",
         "invariant",
         "prelude"
+      ]
+    },
+    "lcg": {
+      "type": "registry",
+      "version": "4.0.1",
+      "integrity": "sha256-UJ7clOOCnA/uhvGf/FgfuFHIh/ZVD0Z9SAzKs96JTtk=",
+      "dependencies": [
+        "effect",
+        "integers",
+        "maybe",
+        "numbers",
+        "partial",
+        "prelude",
+        "random"
       ]
     },
     "lists": {
@@ -1507,6 +1745,49 @@
         "tuples"
       ]
     },
+    "quickcheck": {
+      "type": "registry",
+      "version": "8.0.2",
+      "integrity": "sha256-j74DYqCbi5oDtm3iElHFbNNP+ps2ZNMywkp9drQXVAQ=",
+      "dependencies": [
+        "arrays",
+        "console",
+        "control",
+        "effect",
+        "either",
+        "enums",
+        "exceptions",
+        "foldable-traversable",
+        "gen",
+        "identity",
+        "integers",
+        "lazy",
+        "lcg",
+        "lists",
+        "maybe",
+        "newtype",
+        "nonempty",
+        "numbers",
+        "partial",
+        "prelude",
+        "record",
+        "st",
+        "strings",
+        "tailrec",
+        "transformers",
+        "tuples"
+      ]
+    },
+    "random": {
+      "type": "registry",
+      "version": "6.0.1",
+      "integrity": "sha256-ouP2PmeKqGlRwoy7KTDK4zb+dMZ+F4CyqtwCbzU4zpE=",
+      "dependencies": [
+        "effect",
+        "integers",
+        "prelude"
+      ]
+    },
     "record": {
       "type": "registry",
       "version": "4.0.1",
@@ -1524,6 +1805,28 @@
       "dependencies": [
         "effect",
         "prelude"
+      ]
+    },
+    "run": {
+      "type": "registry",
+      "version": "5.0.0",
+      "integrity": "sha256-zGCyG7IamjYWypKMXTP9PFis2ShnoZJKZiu3SbXMc+M=",
+      "dependencies": [
+        "aff",
+        "control",
+        "effect",
+        "either",
+        "free",
+        "maybe",
+        "newtype",
+        "partial",
+        "prelude",
+        "tailrec",
+        "tuples",
+        "type-equality",
+        "typelevel-prelude",
+        "unsafe-coerce",
+        "variant"
       ]
     },
     "safe-coerce": {
@@ -1714,6 +2017,22 @@
       "version": "6.0.1",
       "integrity": "sha256-EWQVn1FKBk8WggRQhs+5oYkj5r9BNmb2j1gDITxhH6o=",
       "dependencies": []
+    },
+    "variant": {
+      "type": "registry",
+      "version": "8.0.0",
+      "integrity": "sha256-Ydrgl8liWEwYQOWW76PdZtg3vxKpoKgsnmFyTLgZkoU=",
+      "dependencies": [
+        "control",
+        "enums",
+        "foldable-traversable",
+        "lists",
+        "maybe",
+        "partial",
+        "prelude",
+        "type-equality",
+        "unsafe-coerce"
+      ]
     }
   }
 }

@@ -1,0 +1,16 @@
+package:
+  name: sp-handlers
+  dependencies:
+    - prelude
+    - run
+    - sp-core
+    - sp-board
+    - sp-policy
+    - sp-effects
+  test:
+    main: Test.Handlers.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

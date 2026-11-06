@@ -1,9 +1,9 @@
-module Test.Main where
+module Test.Harness.Main where
 
 import Prelude
 
 import Effect (Effect)
-import Main (greeting)
+import Harness (packageName)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -11,6 +11,6 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "Main" do
-    it "has a greeting" do
-      greeting `shouldEqual` "Scenario Planning Game"
+  describe "Harness" do
+    it "has a placeholder" do
+      packageName `shouldEqual` "harness"

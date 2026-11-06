@@ -1,0 +1,15 @@
+package:
+  name: sp-server
+  dependencies:
+    - prelude
+    - effect
+    - console
+    - sp-core
+    - sp-harness
+  test:
+    main: Test.Server.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

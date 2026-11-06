@@ -1,0 +1,17 @@
+package:
+  name: sp-harness
+  dependencies:
+    - prelude
+    - run
+    - sp-core
+    - sp-board
+    - sp-policy
+    - sp-effects
+    - sp-handlers
+  test:
+    main: Test.Harness.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

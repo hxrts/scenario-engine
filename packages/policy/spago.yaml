@@ -1,0 +1,12 @@
+package:
+  name: sp-policy
+  dependencies:
+    - prelude
+    - sp-core
+  test:
+    main: Test.Policy.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

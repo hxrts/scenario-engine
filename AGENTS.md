@@ -9,10 +9,11 @@ The repository is at the design stage. `docs/` holds the specification; the code
 ## Environment and commands
 
 - Toolchain: Nix flake (`use flake` via direnv) provides node 22, esbuild, and just. `purs` 0.15.16 and `spago` 1.0.5 are pinned in `package.json` and installed into `node_modules/.bin` by the dev shell.
-- `just build`: `spago build`
-- `just test`: `spago test` (purescript-spec with the spec-node runner; entry point `Test.Main`)
-- Single test: `spago test -- --example "<test name>"` (spec-node filter)
-- `just run`, `just bundle` (to `dist/bundle.js`), `just clean`
+- The repo is a spago workspace: `packages/{core,board,policy,scenarios,effects,handlers,adapters,harness}` and `apps/{cli,server,dashboard}`. Each package is named `sp-<dir>`.
+- `just build`: compile everything. `just test`: every package's suite. `just test-pkg core`: one package.
+- Single test: `spago test -p sp-core -- --example "<test name>"` (spec-node filter)
+- `just fmt` / `just fmt-check`: purs-tidy. `just deps`: dependency-direction check (`scripts/check-deps`).
+- `just check`: fmt-check, deps, build, test. `just all`: every phase gate. `just run -- <args>`: the CLI.
 
 `work/` is gitignored scratch space for implementation-process docs such as `work/roadmap.md`. It is not part of the spec.
 

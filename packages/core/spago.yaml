@@ -1,0 +1,23 @@
+package:
+  name: sp-core
+  dependencies:
+    - prelude
+    - arrays
+    - argonaut-codecs
+    - argonaut-core
+    - either
+    - foldable-traversable
+    - integers
+    - js-bigints
+    - maybe
+    - newtype
+    - ordered-collections
+    - strings
+    - tuples
+  test:
+    main: Test.Core.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck

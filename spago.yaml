@@ -1,14 +1,3 @@
-package:
-  name: scenario-plan
-  dependencies:
-    - console
-    - effect
-    - prelude
-  test:
-    main: Test.Main
-    dependencies:
-      - spec
-      - spec-node
 workspace:
   packageSet:
     registry: 81.11.3

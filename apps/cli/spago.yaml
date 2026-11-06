@@ -1,0 +1,21 @@
+package:
+  name: sp-cli
+  dependencies:
+    - prelude
+    - effect
+    - console
+    - sp-core
+    - sp-board
+    - sp-policy
+    - sp-scenarios
+    - sp-effects
+    - sp-handlers
+    - sp-adapters
+    - sp-harness
+  test:
+    main: Test.Cli.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck
