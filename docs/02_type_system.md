@@ -342,7 +342,7 @@ The consequences of that tariff emerge when Markets and Policies respond to the 
 
 ### 4.4 Shared decision-language interpreter
 
-All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules, each a set of conditions (comparisons over prices, own holdings, stored factors, the round, and parameters; events of the previous round; rules in force) and the templates it proposes (market orders, facility orders, deals, procedure Proposals, tariffs, reciprocal restrictions, and a seeded choice among options), plus sign rules (procedures, facilities, or everything addressed to it). The market `$home` names the Entity's home market. The language grows only when a documented Policy needs more. They differ only in where they are configured and which Entity they drive. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
+All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules, each a set of conditions (comparisons over prices, own holdings, stored factors, the round, and parameters; events of the previous round; rules in force) and the templates it proposes (market orders, facility orders, deals, procedure Proposals, tariffs, reciprocal restrictions, and a seeded choice among options), plus sign rules (procedures, facilities, or everything addressed to it). The market `$home` names the Entity's home market. The interpreter drafts only the ordinary intents its Entity is authorized to execute, using the same `authorized` function the engine applies ([§2.4](#24-capability)). Procedure and deal intents are exempt, because the engine checks them against their own authority. The language grows only when a documented Policy needs more. They differ only in where they are configured and which Entity they drive. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
 
 ## 5. Cost Functions, Markets, and Transformations
 
@@ -420,7 +420,7 @@ type CapacityEffect =   -- per unit ordered; holder defaults to the ordering Ent
   { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
 ```
 
-Investment and disruption are facilities with capacity effects: an investment raises a capacity from the round after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit; those that also share a cost function share one uniform price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
+Investment and disruption are facilities with capacity effects: an investment raises a capacity from the round after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit; those that also share a cost function share one uniform price. That price is a single function of the pool's filled quantity (the average of the CostFunction over the fills). Escrow applies the same function to the pool's full quantity, capacity ÷ `capacityUse`, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
 
 Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available.
 
@@ -653,8 +653,10 @@ All Actor and Aggregate actions for a round are bundled into a single round upda
 
 Two rules make this hold:
 
-- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity; for a facility order, its full-capacity price. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and unused escrow is released at commit.
+- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity; for a facility order, its price at the full quantity its pool can supply (capacity ÷ `capacityUse`, [§5.3](#53-facilities-costed-transformations)). Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and unused escrow is released at commit.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals this round are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying in the same round both draw on opening holdings.
+
+Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error, and it is the engine's backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them.
 
 Passive consumption rules (such as operating requirements), decay, and derived flows (such as revenue sharing) are functions of the batch result. They are evaluated on each Entity's net position at commit, not as later steps.
 
