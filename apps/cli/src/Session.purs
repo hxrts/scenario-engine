@@ -65,7 +65,7 @@ session o = load (o.scenario <> "/v0") >>= case _ of
         dir = "runs/" <> o.id
         evidence ev = appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
         backend = pi { model: o.model, rawDir: dir <> "/raw" }
-        briefing e = maybe "" (\a -> a.capability <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
+        briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open o.db)
       created <- liftEffect nowIso

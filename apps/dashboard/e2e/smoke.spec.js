@@ -19,9 +19,9 @@ const rowWith = (scope, cells) => cells.reduce((rows, text) => rows.filter({ has
 
 test("run list shows each seeded run's id, name, rounds and status", async ({ page }) => {
   await page.goto("/");
-  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0"]);
-  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "fractured-world@v0", "26021", "2", "3", "completed", "0"]);
-  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "fractured-world@v0", "26021", "1", "2", "completed", "0"]);
+  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0", ""]);
+  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "fractured-world@v0", "26021", "2", "3", "completed", "0", ""]);
+  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "fractured-world@v0", "26021", "1", "2", "completed", "0", ""]);
   await expect(page.getByRole("link", { name: "run-1", exact: true })).toHaveAttribute("href", "#/runs/run-1");
 });
 
@@ -42,10 +42,10 @@ test("balance sheets default to the run's last round and show the seeded balance
   await page.getByRole("tab", { name: "Balance sheets" }).click();
   const panel = page.getByRole("tabpanel");
   await expect(panel.getByText("Balance sheets after round 3")).toBeVisible();
-  // [entity, kind, resource, initial, current, reserved, change] at round 3 of run-1
-  await expect(rowWith(page, ["AID", "Actor", "E", "12.0000", "17.0000", "0.0000", "5.0000"])).toHaveCount(1);
-  await expect(rowWith(page, ["BR", "Actor", "E", "85.0000", "111.0000", "0.0000", "26.0000"])).toHaveCount(1);
-  await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210.0000", "122.4000", "0.0000", "-87.6000"])).toHaveCount(1);
+  // [entity, kind, resource, initial, current, change] at round 3 of run-1
+  await expect(rowWith(page, ["AID", "Actor", "E", "12.0000", "17.0000", "5.0000"])).toHaveCount(1);
+  await expect(rowWith(page, ["BR", "Actor", "E", "85.0000", "111.0000", "26.0000"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210.0000", "122.4000", "-87.6000"])).toHaveCount(1);
 });
 
 test("a round past the run's last round is clamped, and the label shows the round shown", async ({ page }) => {
@@ -56,7 +56,7 @@ test("a round past the run's last round is clamped, and the label shows the roun
   await page.getByRole("tab", { name: "Balance sheets" }).click();
   await expect(page.getByRole("tabpanel").getByText("Balance sheets after round 2")).toBeVisible();
   // the round shown is the one read: round 2 of run-4, not its initial state
-  await expect(rowWith(page, ["BR", "Actor", "E", "85.0000", "98.0000", "0.0000", "13.0000"])).toHaveCount(1);
+  await expect(rowWith(page, ["BR", "Actor", "E", "85.0000", "98.0000", "13.0000"])).toHaveCount(1);
 });
 
 test("three-run comparison shows trajectories for the chosen market and the configuration diff", async ({ page }) => {
@@ -88,7 +88,7 @@ test("the agency panel is labelled as a fixed baseline", async ({ page }) => {
 test("incompatible runs are flagged", async ({ page }) => {
   await page.goto("/#/compare/run-1/run-4");
   await page.getByRole("tab", { name: "Compatibility" }).click();
-  await expect(rowWith(page, ["run-4"]).getByRole("cell").last()).toHaveText("no: flagged, not combined");
+  await expect(rowWith(page, ["run-4"]).getByRole("cell").last()).toHaveText("no: flagged, not combined (round count)");
 });
 
 test("the launch form offers the known presets, and rejects a bad player seed without a request", async ({ page }) => {
@@ -135,7 +135,7 @@ test("a launch refreshes the run list with the new run", async ({ page }) => {
   await sheet.getByLabel("Rounds").fill("2");
   await sheet.getByRole("button", { name: "Run" }).click();
   const row = rowWith(page, ["run-5"]);
-  await expect(row.getByRole("cell")).toHaveText(["run-5", "run", "fractured-world@v0", "26021", "9", "2", "completed", "0"]);
+  await expect(row.getByRole("cell")).toHaveText(["run-5", "run", "fractured-world@v0", "26021", "9", "2", "completed", "0", ""]);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 

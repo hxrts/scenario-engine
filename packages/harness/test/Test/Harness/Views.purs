@@ -88,12 +88,13 @@ spec context = describe "Views and error paths" do
 
   it "the last round shows n/a for the next round's purchase and the influence ratio (§9.2)" do
     ctx <- context
-    -- an Aggressive table: its representatives make observations in every round
-    r <- play ctx (everySeat "RandomValid" 5)
+    -- a three-round run whose final round has representative observations; the last round is
+    -- the run's own final round, so the test does not depend on the random choices of later rounds
+    r <- play ctx (everySeat "RandomValid" 3)
     let
       t :: Table
       t = representation (toStored "run-1" r)
-      lastRound = filter (\row -> cell row 0 == "5") t.rows
+      lastRound = filter (\row -> cell row 0 == "3") t.rows
     (length t.rows > 0) `shouldEqual` true
     (length lastRound > 0) `shouldEqual` true
     for_ lastRound \row -> do
