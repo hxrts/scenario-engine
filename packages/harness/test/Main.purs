@@ -32,6 +32,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Effects (inWorldOf, runGame)
 import Scenarios (load, loadFixture, loadPresets)
 import Test.Spec (describe, it)
+import Test.Harness.Experiments as Experiments
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
@@ -82,6 +83,7 @@ price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> margin
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  Experiments.spec context
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
       ctx <- context
@@ -154,6 +156,25 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> throwError (error e)
       china cf.base `shouldEqual` true
       china cf.variant `shouldEqual` false
+
+    it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
+      ctx <- context
+      let
+        labor = program """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
+      r <- run ctx { seats: Map.singleton (Id "LABOR") (Custom labor), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+      valid (initialOf r) r
+      let
+        has f = any (\x -> any f x.record.events) r.records
+        did t = has case _ of
+          Transformed x -> x.by == Id "LABOR" && x.transformation == Id t
+          _ -> false
+      did "public-attention" `shouldEqual` true
+      did "strike" `shouldEqual` true
+      has
+        ( case _ of
+            Decayed x -> x.entity == Id "LABOR" && x.resource == Id "S"
+            _ -> false
+        ) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's disruption raises prices and the books balance" do
       ctx <- context

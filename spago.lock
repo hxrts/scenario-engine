@@ -278,8 +278,11 @@
           "dependencies": [
             "aff",
             "argonaut-core",
+            "datetime",
             "effect",
             "exceptions",
+            "newtype",
+            "now",
             "quickcheck",
             "sp-scenarios",
             "spec",

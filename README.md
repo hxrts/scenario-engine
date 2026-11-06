@@ -4,14 +4,17 @@ A multiplayer economic strategy game where players act as governments, corporati
 
 ## Status
 
-Design stage. The specification is in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md).
+Implemented against the specification in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md). The reference scenario is *The Fractured World*.
 
 ## Development
 
 Requires Nix with direnv (`use flake`). The dev shell installs the pinned PureScript toolchain.
 
 ```sh
-just build   # compile
-just test    # run tests
-just run     # run Main
+just build                                                  # compile
+just check                                                  # format, dependency direction, build, tests
+just all                                                    # check + dashboard smoke test
+just run run fractured-world --preset Conservative          # simulate a game
+just run session fractured-world --humans US                # live session (AI seats via pi)
+just serve --db runs.db                                     # dashboard and JSON API on :8787
 ```

@@ -228,7 +228,7 @@ Instantiate the reference board twice:
 
 Before any decisions differ, the test checks that stocks reconcile, that every liability and capability has exactly one holder, and that behavioral responsibilities are covered exactly once.
 
-In B, Germany then receives a seat Policy that reproduces the implicit baseline. Any later divergence between A and B is an accounting defect.
+The test compares A and B at initialization, where any difference is an accounting defect. It does not then play B with a Germany seat that reproduces the implicit baseline exactly: in A the implicit EU spends Germany's flows internally, so no seat Policy can match it action for action.
 
 ### 7.4 AI interpretation tests
 
@@ -262,6 +262,8 @@ Every run is persisted and survives restarts.
 **Source of truth ([INV-31](02_type_system.md#inv-31)).** The manifest, round records, and snapshots are authoritative. Metrics are reproducible projections of them. When a metric definition changes, its values are recomputed and the records stay untouched. Snapshots support fast inspection; records explain outcomes. Neither replaces the other. Every outcome traces to its inputs, Policies, and configuration.
 
 Completed runs are immutable, and a changed configuration always gets a new Run ID.
+
+Live sessions also keep evidence of each language-model call: the effect, model ID, template and input hashes, a pointer to the raw output, and the decoded result. This evidence lives beside the run, outside the round records. Replay never re-invokes the model; the canonical Proposals and signatures in the round records are enough.
 
 The initial record is written before Round 1. After each round, the round record, snapshot, and assertions are saved atomically. If Round 4 fails, Rounds 1–3 remain available, and the run can be resumed from its last snapshot where that is supported.
 
@@ -392,7 +394,7 @@ The counterfactual operation works as follows:
 3. Replay the run.
 4. Compare it against the original as the baseline.
 
-Both seeds and all DrawKeys are held fixed, so the difference measures the intervention's total modeled effect, including downstream consequences. Counterfactual runs are ordinary immutable runs, linked to their source run.
+In the Dashboard, a variant or counterfactual is launched as an ordinary run (preset, player seed, overrides) and then opened beside its source in the comparison view. Both seeds and all DrawKeys are held fixed, so the difference measures the intervention's total modeled effect, including downstream consequences. Counterfactual runs are ordinary immutable runs, linked to their source run.
 
 Typical questions:
 

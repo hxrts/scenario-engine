@@ -390,7 +390,7 @@ Policies are declarative decision programs run by the shared interpreter (Type S
 1. If the US conducted a major military action (≥ 12 Mil deployed) in the previous round, order 4 Mil from the procurement facility.
 2. If the beginning-of-round `energy-asia` price exceeds 3.2 M/E, offer up to 12 E on that node.
 3. If a US restriction targeting China was enacted in the previous round, enact the reciprocal restriction, effective at the next round boundary.
-4. When actions exceed the budget, procurement takes priority over discretionary Energy trades.
+4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant makes them exceed it, the engine scales China's own actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)); a priority order between them would be a scenario-level addition.
 
 The NPC does not improvise outside its declared Policy.
 
@@ -785,6 +785,14 @@ Verifies signature completeness, lapsing, atomic settlement of bundled Intents, 
 
 Vary one parameter at a time from the baseline before combining changes.
 
+**Baseline simulation results.** The simulator's variant experiments ([Simulator §11](06_simulator.md#11-experiments), `packages/harness/test/Test/Harness/Experiments.purs`) leave the parameters above unchanged. They pass every invariant in every variant, and they bear on the gameplay questions of [§29](#29-gameplay-questions) as follows:
+
+- *Seat presets.* `Conservative` only buys below 2.5 M/E while holding under 30 E. Prices pass 2.5 by Round 2, so twelve of the fifteen seats never act under it, and the agency report finds those seats unmeasurable against `Passive`. Against an active baseline (`RandomValid`), every seat has a measurable effect. Agency is therefore analysed against an active baseline.
+- *Small players (Q1).* LABOR, SME, and AID move prices and other Actors' holdings measurably. The SME Representation is weak at these values: the shrinkage sweep 0–0.5 moves the final Atlantic price by at most 0.0001 M/E, and game seeds 1–3 give results identical to 4 dp. Reference, shrinkage, and bound are the levers to raise its influence in playtesting.
+- *Markets (Q3).* The Round 3 disruption raises the Atlantic price monotonically with the cut (2.75 → 2.86 → 3.08 M/E for 0, 12, 24 E). Supplier offers trade volume against price as expected.
+- *Escalation and coordination (Q2, Q4).* No reference preset enacts a major military action or a tariff, so the major-action threshold and the EU matching tariff have no effect under the presets. They are exercised by Fixtures D and E and by Test 11.
+- *Circulation (Q5).* Money keeps moving. The largest holder's share of Money rises from 0.098 to at most 0.145 over five rounds in every variant.
+
 ## 29. Gameplay Questions
 
 1. **Are small players consequential?** Do SME, LABOR, and AID decisions affect larger Actors, and does the influence ratio stay in range?
@@ -838,20 +846,20 @@ Example version boundaries: a revised cost curve or circulation flow is a Gamebo
 
 The first complete test succeeds when the engine can:
 
-1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks.
-2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration.
-3. Trade on both nodes with limit prices and partial fills, and ship across regions through the shipping facility under tariffs and bans.
-4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees.
-5. Treat deployment as a reservation with declared attrition.
-6. Produce, spend, and decay Soft Power.
-7. Run the circulation cycle and pass reconciliation every round.
-8. Generate China's conditional behavior and baseline Aggregate behavior.
-9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority.
-10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions.
-11. Settle fully signed Proposals atomically and let incompletely signed ones lapse.
-12. Resolve simultaneous actions deterministically and order-independently.
-13. Execute five years and produce a replayable history and structured events for reporting.
-14. Evaluate every Actor's objective criteria from the records.
+1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* scenarios: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
+2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*; harness: *12 Resolution consistency*.
+3. Trade on both nodes with limit prices and partial fills, and ship across regions through the shipping facility under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden); harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
+4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden); handlers: *Fixture D end to end*; harness: *7 NPC response*.
+5. Treat deployment as a reservation with declared attrition. *Proved by:* Fixtures D and D-minor (golden).
+6. Produce, spend, and decay Soft Power. *Proved by:* harness: *Soft Power is produced, spent, and decays*.
+7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden); harness: *1 Full game*, *8 Scarcity*; INV-05 asserted every round.
+8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* policy: *china-strategic-v0 procures after a major US action*; harness: *7 NPC response*.
+9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden); harness: *5 Germany and EU*.
+10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3, C5 and *C4* (golden); harness: *6 SME Representation*.
+11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden); harness: *10 Signed Proposals*.
+12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*; harness: *3 Submission order*.
+13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* harness: *2 Replay*; adapters: *13 Persistence*, *a scripted live session equals replaying…*.
+14. Evaluate every Actor's objective criteria from the records. *Proved by:* harness: *14 Agency*.
 
 The test does not need realistic macroeconomic forecasting; its objective is coherent, consequential, explainable interaction.
 

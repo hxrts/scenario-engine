@@ -27,5 +27,8 @@ package:
       - argonaut-core
       - spec
       - spec-node
+      - now
+      - datetime
+      - newtype
       - quickcheck
       - spec-quickcheck
