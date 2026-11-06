@@ -158,7 +158,7 @@ Investments change future capacity, which is economic state; they never create E
 
 The instance uses the four Intent categories of the Type System:
 
-- **Trade:** a regional Energy order.
+- **Trade:** a regional Energy order, placed on a named node or routed by pair ([02 §5.2](02_type_system.md#52-exchange-markets)). The shipped Policies place explicit node orders only.
 - **Transfer:** a one-way gift or payment of a transferable Resource; a cross-region Energy Transfer must be bundled with a shipping order ([§3.2](#32-transport-capacity-and-trade-restrictions)).
 - **Transform:** procurement, campaigns, aid, deployment, shipping, investment, strikes. Each names the Entity that executes it.
 - **ChangeRule:** enacting or repealing a Rule (`Tariff` for import tariffs, `AccessBan` for shipment bans, `Withholding` for CHIP's semiconductor units).

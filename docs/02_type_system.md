@@ -163,6 +163,7 @@ This table is the single source of term definitions. The other specifications us
 | **Estimator** | The configured function that turns a representative's observed behavior into an Aggregate adjustment. |
 | **Preset** | A named parameter set for a declarative program, such as the seat-policy preset `Conservative`. |
 | **Transformation** | A declared recipe that changes quantities, optionally priced by a CostFunction and limited by capacity. |
+| **Best execution** | The Entity-facing form of an order that names a base and quote pair, not a Market. The engine routes it across the Markets for that pair the Entity can trade on ([§5.2](#52-exchange-markets)). |
 | **Facility** | The player-facing name for a costed Transformation, such as defense procurement. Its accounting is that of a Transformation, not a Market. |
 | **Payee** | The Entity that receives Money paid into a facility. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
@@ -192,7 +193,7 @@ Intents are the only input to the engine. The engine never knows or cares how an
 
 The Intent algebra contains four categories:
 
-- **Trade:** An order on a public Market, with an optional limit price.
+- **Trade:** An order on a public Market, with an optional limit price. A **Route** is the Trade with its Market omitted: a best-execution order for a base and quote pair, executed across the Markets for that pair ([§5.2](#52-exchange-markets)). A Route must carry a limit price.
 - **Transfer:** A movement of a Resource from one Entity to another. Alone it is a gift or payment; bundled in a multi-signer Proposal it is one side of a deal. Its `from` must be a required signer.
 - **Transform:** Execute a declared Transformation, such as production, consumption, procurement, or investment. Its `by` must be a required signer.
 - **ChangeRule:** Enact or repeal a Rule under the Entity's authority. A repeal names an existing Rule, and only the authority that governs it (its jurisdiction, or a Withholding's capacity owner) may repeal it.
@@ -206,11 +207,18 @@ type Order =
   , limitPrice :: Maybe Price
   }
 
+type RouteOrder =                 -- a Trade with its Market omitted ([§5.2](#52-exchange-markets))
+  { pair :: { base :: ResourceId, quote :: ResourceId }
+  , quantity :: Quantity
+  , limitPrice :: Maybe Price     -- required
+  }
+
 type TransferSpec =
   { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
 
 data Intent
   = Trade Order
+  | Route RouteOrder
   | Transfer TransferSpec
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
   | ChangeRule RuleChange
@@ -392,6 +400,16 @@ The base Resource is the good being exchanged. The quote Resource is the denomin
 The same cost function prices purchases and sales using positive and negative quantities, subject to inventory and reserve constraints.
 
 Markets cannot supply resources they do not hold. A regional Market is expressed through `access`.
+
+**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair; the regional Markets remain the physical structure (cost curves, reserves, access). In the scenario JSON a routed trade is a `trade` whose `market` is `null` and which names its pair by `base` and `quote`; an explicit trade names its Market and is unchanged. The Route is a separate Intent constructor, not a `null` field on `Order`, so explicit Trades keep their encoding.
+
+- **Candidates.** The Markets whose base and quote match the order, to which the Entity has access (`access`) and for which it holds the trade capability. A routed order with no candidate is rejected at screening. An explicit order on an inaccessible Market is still rejected.
+- **Limit.** A routed order must carry a limit price, for both sides. Screening rejects one without it. Its escrow ceiling is therefore its limit: for a buy, limit × quantity; for a sell, its quantity ([§8.2](#82-single-round-update-and-snapshot-discipline)).
+- **Merit order.** Candidates are taken in order of their opening marginal price (the snapshot's `p(position)`): lowest first for a buy, highest first for a sell. Ties break by MarketId.
+- **Split rule.** Routed orders are planned in canonical order (EntityId, ProposalId, Intent index), never submission order. Each candidate in merit order takes the largest quantity whose batch price, the uniform price of its net position change (`averagePrice`, [§5.5](#55-simultaneous-clearing)) including explicit orders and slices already planned there, stays within a cap. The cap is the limit, or the opening marginal price of the next candidate if that is tighter. The Market's bounds (domain and reserves) also bind. The rest of the order passes to the next candidate. The last candidate's cap is the limit alone.
+- **Clearing.** The planned slices are ordinary Market orders. Each Market then clears its batch as a whole ([§5.5](#55-simultaneous-clearing)): pro rata within the Market, limit removal, and bounds and reserves are unchanged. Fills settle through the same path as explicit Market fills.
+- **Guarantees.** The split is deterministic and order-independent ([INV-11](#inv-11)). An Entity's fills across Markets sum to its routed quantity or less, and per-Market fills are pro rata within each Market. No Market's planned price exceeds the routed limit, and no Market is filled beyond its domain or reserves ([INV-06](#inv-06)).
+- **Non-guarantees.** The split does not equalise marginal prices across Markets. The next candidate's cap is its opening price, not its price after the slices. Explicit orders that clearing removes for their limit change the batch after planning, so a slice may be removed in clearing and then stays unfilled, not re-routed. The unfilled remainder is not reported as a rejection.
 
 ### 5.3 Facilities (costed Transformations)
 
@@ -652,7 +670,7 @@ All Actor and Aggregate actions for a round are bundled into a single round upda
 
 Two rules make this hold:
 
-- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity; for a facility order, its price at its pool ceiling (the capacity ÷ the smallest `capacityUse` in its pool, or the top of the cost domain for an uncapped facility, [§5.3](#53-facilities-costed-transformations)). Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and unused escrow is released at commit.
+- **Funding from the snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its buy escrow is limit × quantity, and its sell escrow is its quantity, whichever Markets it fills in; for a facility order, its price at its pool ceiling (the capacity ÷ the smallest `capacityUse` in its pool, or the top of the cost domain for an uncapped facility, [§5.3](#53-facilities-costed-transformations)). Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against those escrows, and routed orders count against them exactly as explicit ones do. Unused escrow is released at commit.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals this round are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying in the same round both draw on opening holdings.
 
 Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error, and it is the engine's backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them.
