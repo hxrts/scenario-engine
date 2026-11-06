@@ -20,6 +20,7 @@ module Core.Num
   , floorInt
   , toUnits
   , fromUnits
+  , toDisplayNumber
   ) where
 
 import Prelude hiding (add, sub, mul, div, zero)
@@ -28,7 +29,7 @@ import Prelude as P
 import Data.Argonaut.Core (fromString, toString) as J
 import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..))
 import Data.Argonaut.Encode (class EncodeJson)
-import Data.Array (all, findIndex, foldl, mapWithIndex, sortBy, zipWith)
+import Data.Array (all, any, findIndex, foldl, mapWithIndex, sortBy, zipWith)
 import Data.Char (toCharCode)
 import Data.Either (note)
 import Data.Foldable (sum)
@@ -38,6 +39,7 @@ import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
 import JS.BigInt (BigInt)
 import JS.BigInt as BI
+import Partial.Unsafe (unsafeCrashWith)
 
 -- | A quantity in units of 10⁻⁴.
 newtype Q = Q BigInt
@@ -79,10 +81,12 @@ sub (Q a) (Q b) = Q (a - b)
 mul :: Q -> Q -> Q
 mul (Q a) (Q b) = Q (divRound (a * b) scale)
 
--- | Quotient, rounded half-to-even. Division by zero yields zero, so a caller whose divisor can
--- | be zero must use `divMaybe`, or check the divisor first.
+-- | Quotient, rounded half-to-even. Division by zero is a programming error and fails loudly; a
+-- | caller whose divisor can be zero must use `divMaybe` (or `divFloor`) instead.
 div :: Q -> Q -> Q
-div a b = fromMaybe zero (divMaybe a b)
+div a b = case divMaybe a b of
+  Just q -> q
+  Nothing -> unsafeCrashWith "Q.div: division by zero (use divMaybe)"
 
 -- | Quotient, rounded half-to-even; Nothing when the divisor is zero.
 divMaybe :: Q -> Q -> Maybe Q
@@ -90,12 +94,23 @@ divMaybe (Q a) (Q b)
   | b == P.zero = Nothing
   | otherwise = Just (Q (divRound (a * scale) b))
 
--- | Quotient truncated toward zero to the 0.0001 grid, so that `divFloor a b * b <= a` for
--- | non-negative operands. Nothing when the divisor is zero.
+-- | Quotient truncated toward zero to the 0.0001 grid (rounded down for non-negative operands), so
+-- | that `divFloor a b * b <= a` there: use it where a quotient must never grant more than its
+-- | numerator. Nothing when the divisor is zero.
 divFloor :: Q -> Q -> Maybe Q
 divFloor (Q a) (Q b)
   | b == P.zero = Nothing
-  | otherwise = Just (Q (P.div (a * scale) b))
+  | otherwise = Just (Q (truncDiv (a * scale) b))
+
+-- | Integer division truncating toward zero (BigInt `div` rounds toward negative infinity).
+truncDiv :: BigInt -> BigInt -> BigInt
+truncDiv n d =
+  let
+    q = P.div (absBig n) (absBig d)
+  in
+    if (n < P.zero) /= (d < P.zero) then negate q else q
+  where
+  absBig x = if x < P.zero then negate x else x
 
 -- | Integer division of `n` by `d` rounded half-to-even.
 divRound :: BigInt -> BigInt -> BigInt
@@ -157,25 +172,27 @@ format (Q u) =
   in
     (if negative then "-" else "") <> BI.toString i <> "." <> padded
 
--- | Split `total` in proportion to `weights` in steps of `unit`, largest remainder. `total` is
--- | first floored to a whole number of steps: the fraction of a step below it is not allocated,
--- | so the allocated sum is `total` rounded down to a multiple of `unit`. Each share is a whole
--- | number of steps, and leftover steps go to the largest remainders; ties go to the earlier
--- | index, so callers must order their inputs canonically. If the weights sum to zero, nothing
--- | is allocated and every share is zero.
+-- | Split `total` in proportion to `weights` in steps of `unit`, largest remainder. The shares
+-- | always sum to `total` rounded toward zero to a multiple of `unit` (exactly `total` when it is
+-- | already on that grid): the sub-step fraction is not allocated. Each share is a whole number of
+-- | steps; leftover steps go to the largest remainders, and ties go to the earlier index, so
+-- | callers must order their inputs canonically. Weights must be non-negative (a negative weight
+-- | fails loudly). If the weights sum to zero, nothing is allocated and every share is zero.
 allocate :: BigInt -> Q -> Array Q -> Array Q
-allocate unit (Q total) weights =
-  if wsum == P.zero then map (const zero) weights
-  else mapWithIndex (\i f -> Q ((f + bonus i) * unit)) floors
-  where
-  ws = map toUnits weights
-  wsum = sum ws
-  steps = P.div total unit
-  floors = map (\w -> P.div (steps * w) wsum) ws
-  rems = zipWith (\w f -> steps * w - f * wsum) ws floors
-  leftover = fromMaybe 0 (BI.toInt (steps - sum floors))
-  ranked = map fst $ sortBy (\a b -> compare (snd b) (snd a) <> compare (fst a) (fst b)) (mapWithIndex Tuple rems)
-  bonus i = if maybe false (_ < leftover) (findIndex (_ == i) ranked) then one else P.zero
+allocate unit (Q total) weights
+  | any (_ < P.zero) (map toUnits weights) = unsafeCrashWith "Q.allocate: negative weight"
+  | total < P.zero = map neg (allocate unit (neg (Q total)) weights)
+  | otherwise = shares
+      where
+      ws = map toUnits weights
+      wsum = sum ws
+      shares = if wsum == P.zero then map (const zero) weights else mapWithIndex (\i f -> Q ((f + bonus i) * unit)) floors
+      steps = P.div total unit
+      floors = map (\w -> P.div (steps * w) wsum) ws
+      rems = zipWith (\w f -> steps * w - f * wsum) ws floors
+      leftover = fromMaybe 0 (BI.toInt (steps - sum floors))
+      ranked = map fst $ sortBy (\a b -> compare (snd b) (snd a) <> compare (fst a) (fst b)) (mapWithIndex Tuple rems)
+      bonus i = if maybe false (_ < leftover) (findIndex (_ == i) ranked) then one else P.zero
 
 -- | Pro-rata split in steps of 0.0001.
 proRata :: Q -> Array Q -> Array Q
@@ -185,6 +202,11 @@ proRata = allocate one
 proRataWhole :: Q -> Array Q -> Array Q
 proRataWhole = allocate scale
 
--- | The integer part of a non-negative quantity.
+-- | The largest integer not above the quantity (BigInt `div` is a floor, so negatives round down).
 floorInt :: Q -> Int
 floorInt (Q u) = fromMaybe 0 (BI.toInt (P.div u scale))
+
+-- | The one float boundary: a quantity as a JavaScript `Number`, for display-only scaling (chart
+-- | axes). Never feed the result back into economic state; parse with `parse` instead.
+toDisplayNumber :: Q -> Number
+toDisplayNumber (Q u) = BI.toNumber u / 10000.0

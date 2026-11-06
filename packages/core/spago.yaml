@@ -13,6 +13,7 @@ package:
     - maybe
     - newtype
     - ordered-collections
+    - partial
     - strings
     - tuples
   test:

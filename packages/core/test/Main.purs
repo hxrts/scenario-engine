@@ -2,6 +2,8 @@ module Test.Core.Main where
 
 import Prelude
 
+import JS.BigInt (BigInt)
+import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
 import Core.Engine (EngineError, prepareRound, resolveRound)
 import Core.Market (averagePrice, clear)
@@ -14,11 +16,11 @@ import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..
 import Data.Tuple (Tuple(..))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (concatMap, filter, length)
+import Data.Array (all, concatMap, filter, length, zip)
 import Data.Array.NonEmpty (cons')
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Effect (Effect)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
@@ -78,6 +80,13 @@ q :: String -> Q
 q s = case Q.parse s of
   Just x -> x
   Nothing -> Q.zero
+
+-- | The 0.0001 scale, as a BigInt, for checks that work on raw units.
+scale4 :: BigInt
+scale4 = BI.fromInt 10000
+
+bigAbs :: BigInt -> BigInt
+bigAbs x = if x < BI.fromInt 0 then negate x else x
 
 -- Engine fixtures -----------------------------------------------------------------
 
@@ -190,7 +199,70 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       Q.divMaybe (q "1") Q.zero `shouldEqual` Nothing
       Q.divFloor (q "1") Q.zero `shouldEqual` Nothing
       Q.divFloor (q "2") (q "3") `shouldEqual` Just (q "0.6666")
+      Q.divFloor (q "-1") (q "3") `shouldEqual` Just (q "-0.3333")
+      Q.divFloor (q "1") (q "-3") `shouldEqual` Just (q "-0.3333")
+    it "a quotient that rounds up can overdraw its numerator, so a scale must use divFloor" do
+      Q.mul (Q.div (q "2") (q "3")) (q "3") `shouldEqual` q "2.0001"
+      Q.mul (fromMaybe Q.zero (Q.divFloor (q "2") (q "3"))) (q "3") `shouldEqual` q "1.9998"
+    it "a negative total is allocated by its magnitude and then negated" do
+      Q.proRata (q "-0.0002") [ Q.fromInt 1, Q.fromInt 1, Q.fromInt 1 ] `shouldEqual` [ q "-0.0001", q "-0.0001", Q.zero ]
       Q.divMaybe (q "2") (q "4") `shouldEqual` Just (q "0.5")
+    it "format always writes exactly four decimals" do
+      Q.format (Q.fromInt 3) `shouldEqual` "3.0000"
+      Q.format (q "-0.5") `shouldEqual` "-0.5000"
+      Q.format (q "0.0001") `shouldEqual` "0.0001"
+    it "parse is strict: more than four decimals is an error, never a silent rounding" do
+      Q.parse "0.00005" `shouldEqual` Nothing
+      Q.parse "1.00000" `shouldEqual` Nothing
+      Q.parse "1.0000" `shouldEqual` Just (Q.fromInt 1)
+      Q.parse "" `shouldEqual` Nothing
+      Q.parse "1e3" `shouldEqual` Nothing
+    it "rounds the 0.00005 and 0.00015 ties half to even" do
+      Q.div (q "0.0001") (q "2") `shouldEqual` q "0.0000"
+      Q.div (q "0.0003") (q "2") `shouldEqual` q "0.0002"
+      Q.div (q "0.0005") (q "2") `shouldEqual` q "0.0002"
+      Q.div (q "0.0007") (q "2") `shouldEqual` q "0.0004"
+      Q.div (q "-0.0003") (q "2") `shouldEqual` q "-0.0002"
+      Q.mul (q "0.0005") (q "0.5") `shouldEqual` q "0.0002"
+      Q.mul (q "0.0015") (q "0.1") `shouldEqual` q "0.0002"
+    it "a product or quotient is symmetric under negation" $ quickCheck do
+      a <- genQ
+      b <- genQ
+      pure ((Q.mul (Q.neg a) b == Q.neg (Q.mul a b)) && (Q.div (Q.neg a) b == Q.neg (Q.div a b)) === true)
+    it "divMaybe is the nearest grid point: the remainder is at most half a step" $ quickCheck do
+      a <- genQ
+      b <- genQ
+      pure $ case Q.divMaybe a b of
+        Nothing -> Q.toUnits b === BI.fromInt 0
+        Just r -> (bigAbs (BI.fromInt 2 * Q.toUnits r * Q.toUnits b - BI.fromInt 2 * Q.toUnits a * scale4) <= bigAbs (Q.toUnits b)) === true
+    it "divFloor never grants more than its numerator for non-negative operands" $ quickCheck do
+      a <- Q.abs <$> genQ
+      b <- Q.abs <$> genQ
+      pure $ case Q.divFloor a b of
+        Nothing -> Q.toUnits b === BI.fromInt 0
+        Just r -> ((Q.toUnits r * Q.toUnits b <= Q.toUnits a * scale4) === true)
+    it "floorInt is a true floor, so negative quantities round down" do
+      Q.floorInt (q "0.9999") `shouldEqual` 0
+      Q.floorInt (q "-0.0001") `shouldEqual` (-1)
+      Q.floorInt (q "-0.5") `shouldEqual` (-1)
+      Q.floorInt (q "-2") `shouldEqual` (-2)
+      Q.floorInt (q "2.5") `shouldEqual` 2
+    it "proRata conserves the total exactly, for any sign and any non-negative weights" $ quickCheck do
+      total <- genQ
+      ws <- arrayOf (Q.abs <$> genQ)
+      pure (if Q.sumQ ws == Q.zero then Q.sumQ (Q.proRata total ws) === Q.zero else Q.sumQ (Q.proRata total ws) === total)
+    it "proRataWhole conserves the whole-unit part of a non-negative total exactly" $ quickCheck do
+      total <- Q.abs <$> genQ
+      ws <- arrayOf (Q.abs <$> genQ)
+      let whole = Q.fromUnits (Q.toUnits total `div` scale4 * scale4)
+      pure (if length ws == 0 || Q.sumQ ws == Q.zero then true === true else Q.sumQ (Q.proRataWhole total ws) === whole)
+    it "proRata gives a zero-weight entry nothing, and shares never go negative for non-negative totals" $ quickCheck do
+      total <- Q.abs <$> genQ
+      ws <- arrayOf (Q.abs <$> genQ)
+      pure ((all (\(Tuple w sh) -> w /= Q.zero || sh == Q.zero) (zip ws (Q.proRata total ws)) && all (_ >= Q.zero) (Q.proRata total ws)) === true)
+    it "toDisplayNumber is the only float boundary and is exact for display" do
+      Q.toDisplayNumber (q "1.5") `shouldEqual` 1.5
+      Q.toDisplayNumber (q "-0.0001") `shouldEqual` (-0.0001)
   describe "Core.Market clearing" do
     let
       cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.fromInt 0, hi: Q.fromInt 100 } }

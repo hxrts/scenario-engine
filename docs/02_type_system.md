@@ -769,6 +769,17 @@ A `DrawKey` names the draw's semantic purpose: round, Representation or Policy, 
 
 All quantities, prices, and settlement amounts use fixed-point arithmetic with **4 decimal places**, rounded **half-to-even** at each settlement step. Uniform batch prices are rounded before they are multiplied by quantities. No floating-point arithmetic enters economic state. Other specifications reference this rule and do not restate it.
 
+The numeric rules below are implemented once, in `Core.Num` (`Q`). Every boundary imports that module; no other code parses, rounds, or formats an economic value.
+
+- **Representation.** A `Q` is an arbitrary-precision integer count of 10⁻⁴ units (`BigInt`). Addition, subtraction and negation are exact.
+- **Rounding.** A product or quotient that leaves the 4-decimal grid is rounded half-to-even (ties to the even last digit, symmetric in sign). Uniform batch prices are rounded once, before they multiply quantities. Rounding at the grid is the only rounding: nothing is truncated silently.
+- **Remainders.** A total split among shares uses `proRata` (or `proRataWhole`, which first floors the total to whole units): largest remainder, ties to the earlier index in canonical order. The shares sum to the total exactly, so nothing is created or lost. A quotient used as a *scale* (a fraction of a claim that may be funded) uses `divFloor`, rounded toward zero, so that the scaled amount never exceeds its numerator; a half-even quotient can round up and overdraw.
+- **Overflow and underflow.** None. Arbitrary precision means no quantity saturates or wraps. A negative holding is an invariant violation (INV-04), not a numeric event.
+- **Division by zero.** Explicit. `div` fails loudly; a caller whose divisor can be zero uses `divMaybe` or `divFloor` and handles `Nothing`.
+- **Parse.** `Q.parse` is the only decimal parser: an optional sign, one or more digits, and optionally a point followed by one to four digits. Anything else, including a fifth decimal, is an error; no input is rounded silently. JSON decoding, the DSL's quantity literals, and any dashboard value read back all use it.
+- **Format.** `Q.format` is the only formatter: an optional `-`, the integer part, and exactly four decimals, with no grouping and no trailing-zero trimming. `show`, JSON encoding, the CLI, the harness views and the dashboard all reach it.
+- **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion to a float, for display only (chart axis scaling); its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.
+
 ## 10. Design Boundaries
 
 The type system deliberately does not prescribe the following:

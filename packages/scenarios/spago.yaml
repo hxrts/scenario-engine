@@ -5,6 +5,7 @@ package:
     - sp-core
     - sp-board
     - sp-policy
+    - partial
     - argonaut-core
     - arrays
     - effect

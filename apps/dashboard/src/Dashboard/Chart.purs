@@ -4,22 +4,20 @@ module Dashboard.Chart (Series, plotValue, chartRows) where
 import Prelude
 
 import Data.Array (concatMap, cons, filter, nub, sort)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe, maybe)
 import Data.Int (toNumber)
-import Data.Number (isFinite)
-import Data.Number as Number
+import Core.Num as Q
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 
 type Series = { name :: String, points :: Array { round :: Int, value :: String } }
 
--- | A value as a plottable number. Anything unparseable (or not finite) is Nothing: the point is
--- | left out of the plot, so it never appears as a zero.
+-- | A value as a plottable number: parsed exactly by the one decimal parser, then converted at the
+-- | display boundary (`Q.toDisplayNumber`). Anything unparseable is Nothing: the point is left out
+-- | of the plot, so it never appears as a zero.
 plotValue :: String -> Maybe Number
-plotValue s = case Number.fromString s of
-  Just n | isFinite n -> Just n
-  _ -> Nothing
+plotValue s = Q.toDisplayNumber <$> Q.parse s
 
 -- | One row per round, keyed by series name, with `round` as a number. A series with no
 -- | plottable value for a round has no key in that row, which the chart draws as a gap.
