@@ -34,10 +34,12 @@ type Props = { id :: String, archived :: Boolean, rounds :: Maybe Int, target ::
 -- | A rerun's outcome, shown in the panel with a link to the new run.
 type Notice = { text :: String, run :: String }
 
+-- | The rerun's message: whether its records match the source's when the server reports it, and
+-- | otherwise only that the rerun exists (the link to it is always shown).
 rerunText :: Derived -> String
 rerunText d = case d.recordsMatch of
-  Just true -> "Rerun created. Its records match this run."
-  Just false -> "Rerun created. Its records differ from this run."
+  Just true -> "Rerun created. Records match the source."
+  Just false -> "Rerun created. Records differ from the source."
   Nothing -> "Rerun created."
 
 mkRunActions :: Component Props

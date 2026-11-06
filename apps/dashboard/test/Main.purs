@@ -124,7 +124,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       stringify (resumeBody 4) `shouldEqual` "{\"rounds\":4}"
     it "the derive reply carries the new id, and recordsMatch only when the server reports it" do
       decodeText "{\"id\":\"run-6\",\"source\":\"run-1\",\"kind\":\"rerun\",\"recordsMatch\":true}" `shouldEqual` Right { id: "run-6", recordsMatch: Just true }
-      decodeText "{\"id\":\"run-7\",\"source\":\"run-1\",\"kind\":\"duplicate\"}" `shouldEqual` Right { id: "run-7", recordsMatch: Nothing }
+      decodeText "{\"id\":\"run-7\",\"source\":\"run-1\",\"kind\":\"rerun\",\"recordsMatch\":false}" `shouldEqual` Right { id: "run-7", recordsMatch: Just false }
+      decodeText "{\"id\":\"run-8\",\"source\":\"run-1\",\"kind\":\"duplicate\"}" `shouldEqual` Right { id: "run-8", recordsMatch: Nothing }
   describe "Run list reads" do
     it "a run's archived flag and source come from its columns" do
       runInfo runList "run-3" `shouldEqual` Just { id: "run-3", archived: true, source: "run-1" }

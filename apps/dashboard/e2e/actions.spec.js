@@ -121,14 +121,29 @@ test("a blank name is refused without a request", async ({ page }) => {
   expect(posts).toBe(0);
 });
 
-test("a rerun reports whether its records match, and links to the new run", async ({ page }) => {
+for (const [recordsMatch, message] of [
+  [true, "Records match the source."],
+  [false, "Records differ from the source."],
+]) {
+  test(`a rerun reporting recordsMatch ${recordsMatch} says so, and links to the new run`, async ({ page }) => {
+    await mockReads(page);
+    await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ id: "run-8", source: "run-1", kind: "rerun", recordsMatch }, 201)));
+    await page.goto("/#/runs/run-1");
+    await page.getByRole("region", { name: "Rerun", exact: true }).getByRole("button", { name: "Rerun", exact: true }).click();
+    await expect(page.getByText(message)).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open run-8" })).toHaveAttribute("href", "#/runs/run-8");
+    await expect(page).toHaveURL(/#\/runs\/run-1$/);
+  });
+}
+
+test("a rerun reply without recordsMatch only links to the new run", async ({ page }) => {
   await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ id: "run-8", source: "run-1", kind: "rerun", recordsMatch: true }, 201)));
+  await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ id: "run-8", source: "run-1", kind: "rerun" }, 201)));
   await page.goto("/#/runs/run-1");
   await page.getByRole("region", { name: "Rerun", exact: true }).getByRole("button", { name: "Rerun", exact: true }).click();
-  await expect(page.getByText("Its records match this run.")).toBeVisible();
+  await expect(page.getByText("Rerun created.", { exact: false })).toBeVisible();
+  await expect(page.getByText(/Records (match|differ)/)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Open run-8" })).toHaveAttribute("href", "#/runs/run-8");
-  await expect(page).toHaveURL(/#\/runs\/run-1$/);
 });
 
 test("delete needs the exact run id, then removes the run and returns to the list", async ({ page }) => {
