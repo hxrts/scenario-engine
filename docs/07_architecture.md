@@ -50,7 +50,7 @@ packages/
     Invariants   INV checks as pure predicates over (World, RoundResult)
   board/       Gameboard schema (incl. Objectives), validation, instantiation (pure; → core)
   policy/      decision-language interpreter and presets (pure; → core)
-  effects/     effect signatures and runRound (Run; → core, policy)
+  effects/     Effects.Signatures (effect rows), Effects.Environment (in-world policies), Effects.Round (runRound, runGame; Run; → core, policy)
   scenarios/   data plus pure decoding and compilation; no IO: fractured-world/v0/*.json, presets.json, fixtures (→ board, policy)
     DSL.*          typed wrappers (DSL.Base, World, Decision, Fixture) over the JSON the decoders read; records checked against allowed fields
     Scenarios.Load decodes and checks a scenario package, its presets and fixtures from the file texts it is given

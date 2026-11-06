@@ -672,7 +672,7 @@ type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
 resolveRound :: WorldState -> Array SignedProposal
              -> Either EngineError RoundResult
 
--- Round runner (Policy layer): effectful, written against effect signatures (§8.4)
+-- Round runner (`Effects.Round`): effectful, written against effect signatures (§8.4)
 runRound :: Policies -> WorldState
          -> Run (SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
 runRound policies world0 = do
@@ -693,7 +693,7 @@ The round runner evaluates every Policy, seat or in-world, through the same code
 
 The whole system is pure. The engine has no effects at all: `resolveRound` is a pure function of World State and signed Proposals. In-world randomness, such as estimator sampling noise, uses the pure keyed `draw` function ([§9.1](#91-numerics-and-randomness)) with the game seed held in World State, so it needs no effect.
 
-Everything impure is an algebraic effect, and only the round runner and the code around it (sessions, the harness, Dashboard reads) use effects. That code is written against effect signatures, never concrete IO:
+Everything impure is an algebraic effect, and only the round runner and the code around it (sessions, the harness, Dashboard reads) use effects. The signatures are declared in `Effects.Signatures`, with no implementation; the round runner is `Effects.Round`, which is written against them and never concrete IO:
 
 | Effect | Operation |
 |---|---|
