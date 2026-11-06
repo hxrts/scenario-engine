@@ -1,18 +1,40 @@
 {
+ "jurisdiction": {
+  "CN_PRIVATE": "CN",
+  "DE": "EU",
+  "DEF": "US",
+  "ENCO": "US",
+  "LABOR": "US",
+  "SME": "US",
+  "US_WORKERS": "US"
+ },
  "markets": {
-  "energy-atlantic": {
+  "energy-asia": {
+   "access": [
+    "CN",
+    "IN",
+    "JP",
+    "SA",
+    "CHIP",
+    "CN_PRIVATE",
+    "WORLD_HOUSEHOLDS",
+    "SHIP",
+    "ENERGY_SUPPLIERS"
+   ],
    "base": "E",
-   "quote": "M",
    "cost": {
     "base": "2",
-    "slope": "0.02",
+    "hi": "200",
     "lo": "-80",
-    "hi": "300"
+    "slope": "0.02"
    },
+   "quote": "M",
    "reserves": {
-    "M": "700",
-    "E": "350"
-   },
+    "E": "250",
+    "M": "500"
+   }
+  },
+  "energy-atlantic": {
    "access": [
     "US",
     "DE",
@@ -29,44 +51,22 @@
     "GLOBAL_SMES",
     "SHIP",
     "ENERGY_SUPPLIERS"
-   ]
-  },
-  "energy-asia": {
+   ],
    "base": "E",
-   "quote": "M",
    "cost": {
     "base": "2",
-    "slope": "0.02",
+    "hi": "300",
     "lo": "-80",
-    "hi": "200"
+    "slope": "0.02"
    },
+   "quote": "M",
    "reserves": {
-    "M": "500",
-    "E": "250"
-   },
-   "access": [
-    "CN",
-    "IN",
-    "JP",
-    "SA",
-    "CHIP",
-    "CN_PRIVATE",
-    "WORLD_HOUSEHOLDS",
-    "SHIP",
-    "ENERGY_SUPPLIERS"
-   ]
+    "E": "350",
+    "M": "700"
+   }
   }
  },
  "transport": {
   "E": "energy-shipping"
- },
- "jurisdiction": {
-  "ENCO": "US",
-  "DEF": "US",
-  "LABOR": "US",
-  "SME": "US",
-  "US_WORKERS": "US",
-  "CN_PRIVATE": "CN",
-  "DE": "EU"
  }
 }

@@ -15,6 +15,9 @@ package:
     - node-fs
     - strings
     - tuples
+    - typelevel-prelude
+    - maybe
+    - node-process
   test:
     main: Test.Scenarios.Main
     dependencies:

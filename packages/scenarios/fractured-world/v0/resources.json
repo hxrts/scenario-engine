@@ -1,18 +1,18 @@
 {
  "resources": {
-  "M": {
-   "transferability": "Free"
-  },
   "E": {
    "transferability": "Free"
   },
+  "M": {
+   "transferability": "Free"
+  },
   "Mil": {
-   "transferability": "Restricted",
-   "reservable": true
+   "reservable": true,
+   "transferability": "Restricted"
   },
   "S": {
-   "transferability": "NonTransferable",
-   "decay": "0.1"
+   "decay": "0.1",
+   "transferability": "NonTransferable"
   }
  }
 }

@@ -10,13 +10,13 @@ build:
     spago build
 
 # Run every package's test suite
-test:
+test: scenarios
     #!/usr/bin/env bash
     set -euo pipefail
     for p in {{packages}}; do spago test -p sp-$p; done
 
 # Run one package's test suite, e.g. `just test-pkg core`
-test-pkg name:
+test-pkg name: scenarios
     spago test -p sp-{{name}}
 
 # Format all PureScript sources
@@ -31,6 +31,10 @@ fmt-check:
 deps:
     node scripts/check-deps
 
+# Compile the DSL scenarios (packages/scenarios/src/Scenarios) to their gitignored JSON
+scenarios:
+    spago run -p sp-scenarios --main Scenarios.Compile
+
 # Format check, dependency check, build, and test
 check: fmt-check deps build test
 
@@ -38,7 +42,7 @@ check: fmt-check deps build test
 all: check dashboard-test
 
 # Run the CLI
-run *args:
+run *args: scenarios
     spago run -p sp-cli -- {{args}}
 
 # Build the dashboard bundle (PureScript, then Vite)
@@ -47,11 +51,11 @@ dashboard:
     vite build --config apps/dashboard/vite.config.js
 
 # Serve the read API and dashboard, e.g. `just serve --db runs.db`
-serve *args: dashboard
+serve *args: scenarios dashboard
     spago run -p sp-server -- {{args}}
 
 # Playwright smoke test against a freshly seeded Run Store
-dashboard-test: dashboard
+dashboard-test: scenarios dashboard
     cd apps/dashboard && playwright test
 
 clean:

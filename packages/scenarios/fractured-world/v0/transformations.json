@@ -1,81 +1,117 @@
 {
  "transformations": {
   "defense-procurement": {
+   "capacity": "semiconductors",
+   "capacityUse": "0.5",
+   "cost": {
+    "base": "8",
+    "hi": "30",
+    "lo": "0",
+    "slope": "0.5"
+   },
+   "delay": 1,
    "inputs": {
     "E": "2"
    },
    "outputs": {
     "Mil": "1"
    },
-   "cost": {
-    "base": "8",
-    "slope": "0.5",
-    "lo": "0",
-    "hi": "30"
-   },
-   "capacity": "semiconductors",
-   "capacityUse": "0.5",
-   "delay": 1,
    "payee": "DEF"
   },
   "defense-procurement-cn": {
+   "capacity": "semiconductors",
+   "capacityUse": "0.5",
+   "cost": {
+    "base": "8",
+    "hi": "30",
+    "lo": "0",
+    "slope": "0.5"
+   },
+   "delay": 1,
    "inputs": {
     "E": "2"
    },
    "outputs": {
     "Mil": "1"
    },
-   "cost": {
-    "base": "8",
-    "slope": "0.5",
-    "lo": "0",
-    "hi": "30"
-   },
-   "capacity": "semiconductors",
-   "capacityUse": "0.5",
-   "delay": 1,
    "payee": "CN_PRIVATE"
   },
-  "public-attention": {
-   "outputs": {
-    "S": "1"
-   },
+  "energy-capacity-investment": {
+   "capacity": "semiconductors",
+   "capacityUse": "1",
    "cost": {
-    "base": "3",
-    "slope": "0.2",
+    "base": "12",
+    "hi": "1000",
     "lo": "0",
-    "hi": "50"
+    "slope": "0"
    },
-   "capacity": "attention",
-   "payee": "WORLD_HOUSEHOLDS",
-   "maximum": "10"
+   "delay": 1,
+   "effects": [
+    {
+     "capacity": "energy-production",
+     "perUnit": "2"
+    }
+   ],
+   "inputs": {
+    "E": "3"
+   },
+   "ownerSigns": true,
+   "payee": "GLOBAL_SMES"
   },
   "energy-shipping": {
+   "capacity": "transport",
    "cost": {
     "base": "0.3",
-    "slope": "0",
+    "hi": "60",
     "lo": "0",
-    "hi": "60"
+    "slope": "0"
    },
-   "capacity": "transport",
-   "payee": "SHIP",
-   "ownerSigns": true
+   "ownerSigns": true,
+   "payee": "SHIP"
   },
   "humanitarian-aid": {
+   "cost": {
+    "base": "10",
+    "hi": "1000",
+    "lo": "0",
+    "slope": "0"
+   },
    "inputs": {
     "E": "5"
    },
+   "maximum": "2",
    "outputs": {
     "S": "4"
    },
+   "payee": "WORLD_HOUSEHOLDS"
+  },
+  "logistics-investment": {
    "cost": {
     "base": "10",
-    "slope": "0",
+    "hi": "1000",
     "lo": "0",
-    "hi": "1000"
+    "slope": "0"
    },
-   "payee": "WORLD_HOUSEHOLDS",
-   "maximum": "2"
+   "delay": 1,
+   "effects": [
+    {
+     "capacity": "transport",
+     "perUnit": "10"
+    }
+   ],
+   "inputs": {
+    "E": "3"
+   },
+   "payee": "GLOBAL_SMES"
+  },
+  "major-military-action": {
+   "inputs": {
+    "Mil": "1"
+   },
+   "minimum": "12",
+   "outputs": {
+    "Mil": "0.75"
+   }
   },
   "military-deployment": {
    "inputs": {
@@ -85,69 +121,28 @@
     "Mil": "1"
    }
   },
-  "major-military-action": {
-   "inputs": {
-    "Mil": "1"
+  "public-attention": {
+   "capacity": "attention",
+   "cost": {
+    "base": "3",
+    "hi": "50",
+    "lo": "0",
+    "slope": "0.2"
    },
+   "maximum": "10",
    "outputs": {
-    "Mil": "0.75"
+    "S": "1"
    },
-   "minimum": "12"
-  },
-  "logistics-investment": {
-   "inputs": {
-    "E": "3"
-   },
-   "cost": {
-    "base": "10",
-    "slope": "0",
-    "lo": "0",
-    "hi": "1000"
-   },
-   "payee": "GLOBAL_SMES",
-   "delay": 1,
-   "effects": [
-    {
-     "capacity": "transport",
-     "perUnit": "10"
-    }
-   ]
-  },
-  "energy-capacity-investment": {
-   "inputs": {
-    "E": "3"
-   },
-   "cost": {
-    "base": "12",
-    "slope": "0",
-    "lo": "0",
-    "hi": "1000"
-   },
-   "payee": "GLOBAL_SMES",
-   "delay": 1,
-   "capacity": "semiconductors",
-   "capacityUse": "1",
-   "ownerSigns": true,
-   "effects": [
-    {
-     "capacity": "energy-production",
-     "perUnit": "2"
-    }
-   ]
+   "payee": "WORLD_HOUSEHOLDS"
   },
   "strike": {
-   "inputs": {
-    "S": "8"
-   },
    "cost": {
     "base": "5",
-    "slope": "0",
+    "hi": "1",
     "lo": "0",
-    "hi": "1"
+    "slope": "0"
    },
-   "payee": "US_WORKERS",
    "delay": 1,
-   "maximum": "1",
    "effects": [
     {
      "capacity": "energy-production",
@@ -161,7 +156,12 @@
      "perUnit": "-3.75",
      "rounds": 1
     }
-   ]
+   ],
+   "inputs": {
+    "S": "8"
+   },
+   "maximum": "1",
+   "payee": "US_WORKERS"
   }
  }
 }

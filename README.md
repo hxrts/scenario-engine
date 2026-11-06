@@ -14,6 +14,7 @@ Requires Nix with direnv (`use flake`). The dev shell installs the pinned PureSc
 just build                                                  # compile
 just check                                                  # format, dependency direction, build, tests
 just all                                                    # check + dashboard smoke test
+just scenarios                                              # compile the DSL scenarios to JSON
 just run run fractured-world --preset Conservative          # simulate a game
 just run session fractured-world --humans US                # live session (AI seats via pi)
 just serve --db runs.db                                     # dashboard and JSON API on :8787

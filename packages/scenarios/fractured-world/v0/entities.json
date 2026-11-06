@@ -1,309 +1,65 @@
 {
  "entities": {
-  "US": {
+  "AID": {
    "accounts": {
-    "M": "260",
-    "E": "70",
-    "Mil": "95",
-    "S": "60"
+    "E": "12",
+    "M": "45",
+    "S": "55"
    },
    "capabilities": [
     "trade:energy-atlantic",
     "transfer:M",
     "transfer:E",
-    "transform:military-deployment",
-    "transform:major-military-action",
-    "transform:public-attention",
     "transform:humanitarian-aid",
-    "transfer:Mil",
-    "transform:defense-procurement",
-    "enact:tariff",
-    "enact:accessBan",
+    "transform:public-attention",
     "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
-    "required": true,
-    "seat": true,
+    "capability": "Aid; Energy relief; Soft Power",
+    "dependency": "EU donations; Energy purchases",
+    "fallback": "coverage:WORLD_HOUSEHOLDS",
     "npc": [],
     "objective": {
-     "description": "Military leadership, solvent",
      "criteria": [
       {
+       "atLeast": "-20",
        "metric": {
         "entities": [
-         "US"
-        ],
-        "measure": "holding:Mil",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": {
-        "entities": [
-         "CN"
-        ],
-        "measure": "holding:Mil",
-        "negated": false
-       }
-      },
-      {
-       "metric": {
-        "entities": [
-         "US"
-        ],
-        "measure": "holding:M",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "200"
-      }
-     ]
-    },
-    "capability": "Tariffs and shipment bans; deployment; largest procurement budget",
-    "dependency": "Energy above its holdings; procurement capacity"
-   }
-  },
-  "DE": {
-   "accounts": {
-    "M": "125",
-    "E": "38",
-    "Mil": "24",
-    "S": "45"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:public-attention",
-    "transform:humanitarian-aid",
-    "transform:military-deployment",
-    "transfer:Mil",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [],
-    "objective": {
-     "description": "Energy security",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "DE"
+         "EU",
+         "CN_PRIVATE",
+         "US_WORKERS",
+         "GLOBAL_SMES",
+         "ENERGY_SUPPLIERS",
+         "WORLD_HOUSEHOLDS"
         ],
         "measure": "shortfall:E",
         "negated": true
        },
-       "over": "everyRound",
-       "atLeast": "0"
+       "over": "cumulative"
       },
       {
+       "atLeast": "55",
        "metric": {
         "entities": [
-         "DE"
-        ],
-        "measure": "holding:M",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "110"
-      }
-     ]
-    },
-    "capability": "Signs EU procedure Proposals; optional solidarity contributions",
-    "dependency": "Atlantic Energy; tax revenue from the EU residual",
-    "fallback": "coverage:EU"
-   }
-  },
-  "IN": {
-   "accounts": {
-    "M": "180",
-    "E": "65",
-    "Mil": "65",
-    "S": "35"
-   },
-   "capabilities": [
-    "trade:energy-asia",
-    "transfer:M",
-    "transfer:E",
-    "transform:military-deployment",
-    "transform:major-military-action",
-    "transform:public-attention",
-    "transform:humanitarian-aid",
-    "transfer:Mil",
-    "transform:defense-procurement",
-    "transform:energy-capacity-investment",
-    "enact:tariff",
-    "enact:accessBan",
-    "transform:energy-shipping"
-   ],
-   "capacities": {
-    "energy-production": "5"
-   },
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [
-     "government-default-v0"
-    ],
-    "objective": {
-     "description": "Industrial autonomy",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "IN"
-        ],
-        "measure": "capacity:energy-production",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "7"
-      },
-      {
-       "metric": {
-        "entities": [
-         "IN"
-        ],
-        "measure": "shortfall:E",
-        "negated": true
-       },
-       "over": "everyRound",
-       "atLeast": "0"
-      }
-     ]
-    },
-    "capability": "Energy production (5); tariffs",
-    "dependency": "Asia Energy prices",
-    "fallback": "policy:government-default-v0"
-   }
-  },
-  "JP": {
-   "accounts": {
-    "M": "150",
-    "E": "40",
-    "Mil": "36",
-    "S": "48"
-   },
-   "capabilities": [
-    "trade:energy-asia",
-    "transfer:M",
-    "transfer:E",
-    "transform:military-deployment",
-    "transform:major-military-action",
-    "transform:public-attention",
-    "transform:humanitarian-aid",
-    "transfer:Mil",
-    "transform:defense-procurement",
-    "enact:tariff",
-    "enact:accessBan",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [
-     "government-default-v0"
-    ],
-    "objective": {
-     "description": "Energy security, credible defense",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "JP"
-        ],
-        "measure": "shortfall:E",
-        "negated": true
-       },
-       "over": "everyRound",
-       "atLeast": "0"
-      },
-      {
-       "metric": {
-        "entities": [
-         "JP"
-        ],
-        "measure": "holding:Mil",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "36"
-      }
-     ]
-    },
-    "capability": "Tariffs; procurement; large Asia purchasing",
-    "dependency": "Imports and transport; no production",
-    "fallback": "policy:government-default-v0"
-   }
-  },
-  "UK": {
-   "accounts": {
-    "M": "130",
-    "E": "30",
-    "Mil": "38",
-    "S": "47"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:military-deployment",
-    "transform:major-military-action",
-    "transform:public-attention",
-    "transform:humanitarian-aid",
-    "transfer:Mil",
-    "transform:defense-procurement",
-    "enact:tariff",
-    "enact:accessBan",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [
-     "government-default-v0"
-    ],
-    "objective": {
-     "description": "Diplomatic influence",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "UK"
+         "AID"
         ],
         "measure": "holding:S",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "47"
-      },
-      {
-       "metric": {
-        "entities": [
-         "UK"
-        ],
-        "measure": "holding:M",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "110"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Limit crisis damage"
     },
-    "capability": "Tariffs; procurement; campaigns",
-    "dependency": "Atlantic Energy",
-    "fallback": "policy:government-default-v0"
+    "required": false,
+    "seat": true
    }
   },
   "BR": {
    "accounts": {
-    "M": "105",
     "E": "85",
+    "M": "105",
     "Mil": "25",
     "S": "32"
    },
@@ -326,15 +82,16 @@
     "energy-production": "13"
    },
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Energy production (13); capacity investment",
+    "dependency": "Semiconductor units for investment",
+    "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
     ],
     "objective": {
-     "description": "Stronger finances",
      "criteria": [
       {
+       "atLeast": "150",
        "metric": {
         "entities": [
          "BR"
@@ -342,22 +99,395 @@
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "150"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Stronger finances"
     },
-    "capability": "Energy production (13); capacity investment",
-    "dependency": "Semiconductor units for investment",
-    "fallback": "policy:government-default-v0"
+    "required": false,
+    "seat": true
    }
   },
-  "SA": {
+  "CHIP": {
    "accounts": {
-    "M": "155",
-    "E": "110",
-    "Mil": "32",
-    "S": "28"
+    "E": "55",
+    "M": "135",
+    "S": "30"
+   },
+   "capabilities": [
+    "trade:energy-asia",
+    "transfer:M",
+    "transfer:E",
+    "enact:withholding",
+    "transform:public-attention",
+    "transform:energy-shipping"
+   ],
+   "capacities": {
+    "semiconductors": "15"
+   },
+   "definition": {
+    "capability": "Owns 15 units/round of semiconductor capacity backing procurement; may withhold or sell units",
+    "dependency": "6 E/round operating Energy",
+    "fallback": "policy:firm-default-v0",
+    "npc": [
+     "firm-default-v0"
+    ],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "0",
+       "metric": {
+        "entities": [
+         "CHIP"
+        ],
+        "measure": "shortfall:E",
+        "negated": true
+       },
+       "over": "everyRound"
+      },
+      {
+       "atLeast": "150",
+       "metric": {
+        "entities": [
+         "CHIP"
+        ],
+        "measure": "holding:M",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Secure Energy inputs"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "CN": {
+   "accounts": {
+    "E": "95",
+    "M": "255",
+    "Mil": "88",
+    "S": "57"
+   },
+   "capabilities": [
+    "trade:energy-asia",
+    "transfer:M",
+    "transfer:E",
+    "transform:military-deployment",
+    "transform:major-military-action",
+    "transform:public-attention",
+    "transform:humanitarian-aid",
+    "transfer:Mil",
+    "transform:defense-procurement-cn",
+    "enact:tariff",
+    "enact:accessBan",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Tariffs and shipment bans; deployment",
+    "dependency": "Asia Energy prices; CN_PRIVATE tax base",
+    "npc": [
+     "china-strategic-v0"
+    ],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": {
+        "entities": [
+         "US"
+        ],
+        "measure": "holding:Mil",
+        "negated": false
+       },
+       "metric": {
+        "entities": [
+         "CN"
+        ],
+        "measure": "holding:Mil",
+        "negated": false
+       },
+       "over": "final"
+      },
+      {
+       "atLeast": "200",
+       "metric": {
+        "entities": [
+         "CN"
+        ],
+        "measure": "holding:M",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Military parity, solvent"
+    },
+    "required": true,
+    "seat": true
+   }
+  },
+  "CN_PRIVATE": {
+   "accounts": {
+    "E": "85",
+    "M": "210",
+    "S": "25"
+   },
+   "aggregate": {
+    "members": [],
+    "policy": "cn-private-v0"
+   },
+   "capabilities": [
+    "trade:energy-asia",
+    "transfer:M",
+    "transfer:E",
+    "transform:energy-shipping"
+   ],
+   "capacities": {}
+  },
+  "DE": {
+   "accounts": {
+    "E": "38",
+    "M": "125",
+    "Mil": "24",
+    "S": "45"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:public-attention",
+    "transform:humanitarian-aid",
+    "transform:military-deployment",
+    "transfer:Mil",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Signs EU procedure Proposals; optional solidarity contributions",
+    "dependency": "Atlantic Energy; tax revenue from the EU residual",
+    "fallback": "coverage:EU",
+    "npc": [],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "0",
+       "metric": {
+        "entities": [
+         "DE"
+        ],
+        "measure": "shortfall:E",
+        "negated": true
+       },
+       "over": "everyRound"
+      },
+      {
+       "atLeast": "110",
+       "metric": {
+        "entities": [
+         "DE"
+        ],
+        "measure": "holding:M",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Energy security"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "DEF": {
+   "accounts": {
+    "E": "30",
+    "M": "110",
+    "Mil": "5",
+    "S": "18"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:public-attention",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Operates procurement and receives non-Chinese revenue",
+    "dependency": "CHIP's semiconductor capacity; strikes",
+    "fallback": "policy:firm-default-v0",
+    "npc": [
+     "firm-default-v0"
+    ],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "300",
+       "metric": {
+        "entities": [
+         "DEF"
+        ],
+        "measure": "payeeReceipts",
+        "negated": false
+       },
+       "over": "cumulative"
+      }
+     ],
+     "description": "Procurement revenue"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "ENCO": {
+   "accounts": {
+    "E": "140",
+    "M": "140",
+    "S": "20"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:energy-capacity-investment",
+    "transform:public-attention",
+    "transform:energy-shipping"
+   ],
+   "capacities": {
+    "energy-production": "25"
+   },
+   "definition": {
+    "capability": "Energy production (25); capacity investment",
+    "dependency": "Semiconductor units; strikes",
+    "fallback": "policy:firm-default-v0",
+    "npc": [
+     "firm-default-v0"
+    ],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "220",
+       "metric": {
+        "entities": [
+         "ENCO"
+        ],
+        "measure": "holding:M",
+        "negated": false
+       },
+       "over": "final"
+      },
+      {
+       "atLeast": "27",
+       "metric": {
+        "entities": [
+         "ENCO"
+        ],
+        "measure": "capacity:energy-production",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Profit and supply growth"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "ENERGY_SUPPLIERS": {
+   "accounts": {
+    "E": "240",
+    "M": "200",
+    "S": "22"
+   },
+   "aggregate": {
+    "members": [],
+    "policy": "energy-suppliers-v0"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "trade:energy-asia",
+    "transfer:M",
+    "transfer:E",
+    "transform:energy-shipping"
+   ],
+   "capacities": {
+    "energy-production": "60"
+   }
+  },
+  "EU": {
+   "accounts": {
+    "E": "125",
+    "M": "320",
+    "Mil": "50",
+    "S": "75"
+   },
+   "aggregate": {
+    "members": [
+     "DE"
+    ],
+    "policy": "eu-coordination-v0",
+    "procedures": {
+     "eu-solidarity": {
+      "authorizes": [
+       "trade:energy-atlantic"
+      ],
+      "residualWeight": "0.4",
+      "threshold": "0.45",
+      "weights": {
+       "DE": "0.2"
+      }
+     },
+     "eu-trade": {
+      "authorizes": [
+       "enact:tariff"
+      ],
+      "residualWeight": "0.48",
+      "threshold": "0.45",
+      "weights": {
+       "DE": "0.2"
+      }
+     }
+    }
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "enact:tariff",
+    "transform:energy-shipping"
+   ],
+   "capacities": {}
+  },
+  "GLOBAL_SMES": {
+   "accounts": {
+    "E": "80",
+    "M": "300",
+    "S": "25"
+   },
+   "aggregate": {
+    "members": [
+     "SME"
+    ],
+    "policy": "global-smes-v0"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:energy-shipping"
+   ],
+   "capacities": {}
+  },
+  "IN": {
+   "accounts": {
+    "E": "65",
+    "M": "180",
+    "Mil": "65",
+    "S": "35"
    },
    "capabilities": [
     "trade:energy-asia",
@@ -375,50 +505,161 @@
     "transform:energy-shipping"
    ],
    "capacities": {
-    "energy-production": "25"
+    "energy-production": "5"
    },
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Energy production (5); tariffs",
+    "dependency": "Asia Energy prices",
+    "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
     ],
     "objective": {
-     "description": "Energy wealth",
      "criteria": [
       {
+       "atLeast": "7",
        "metric": {
         "entities": [
-         "SA"
+         "IN"
+        ],
+        "measure": "capacity:energy-production",
+        "negated": false
+       },
+       "over": "final"
+      },
+      {
+       "atLeast": "0",
+       "metric": {
+        "entities": [
+         "IN"
+        ],
+        "measure": "shortfall:E",
+        "negated": true
+       },
+       "over": "everyRound"
+      }
+     ],
+     "description": "Industrial autonomy"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "JP": {
+   "accounts": {
+    "E": "40",
+    "M": "150",
+    "Mil": "36",
+    "S": "48"
+   },
+   "capabilities": [
+    "trade:energy-asia",
+    "transfer:M",
+    "transfer:E",
+    "transform:military-deployment",
+    "transform:major-military-action",
+    "transform:public-attention",
+    "transform:humanitarian-aid",
+    "transfer:Mil",
+    "transform:defense-procurement",
+    "enact:tariff",
+    "enact:accessBan",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Tariffs; procurement; large Asia purchasing",
+    "dependency": "Imports and transport; no production",
+    "fallback": "policy:government-default-v0",
+    "npc": [
+     "government-default-v0"
+    ],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "0",
+       "metric": {
+        "entities": [
+         "JP"
+        ],
+        "measure": "shortfall:E",
+        "negated": true
+       },
+       "over": "everyRound"
+      },
+      {
+       "atLeast": "36",
+       "metric": {
+        "entities": [
+         "JP"
+        ],
+        "measure": "holding:Mil",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Energy security, credible defense"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "LABOR": {
+   "accounts": {
+    "E": "4",
+    "M": "30",
+    "S": "42"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:strike",
+    "transform:public-attention",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Strike, declared or withheld each round",
+    "dependency": "Dues; Soft Power",
+    "fallback": "coverage:US_WORKERS",
+    "npc": [],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": "260",
+       "metric": {
+        "entities": [
+         "US_WORKERS"
         ],
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "250"
+       "over": "final"
       },
       {
+       "atLeast": "30",
        "metric": {
         "entities": [
-         "SA"
+         "LABOR"
         ],
-        "measure": "holding:E",
+        "measure": "holding:S",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "60"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Workers' position and influence"
     },
-    "capability": "Largest government production (25)",
-    "dependency": "Transport for Atlantic sales",
-    "fallback": "policy:government-default-v0"
+    "required": false,
+    "seat": true
    }
   },
   "NG": {
    "accounts": {
-    "M": "85",
     "E": "60",
+    "M": "85",
     "Mil": "18",
     "S": "24"
    },
@@ -441,15 +682,16 @@
     "energy-production": "12"
    },
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Energy production (12); capacity investment",
+    "dependency": "Semiconductor units; investment",
+    "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
     ],
     "objective": {
-     "description": "National capacity",
      "criteria": [
       {
+       "atLeast": "14",
        "metric": {
         "entities": [
          "NG"
@@ -457,10 +699,10 @@
         "measure": "capacity:energy-production",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "14"
+       "over": "final"
       },
       {
+       "atLeast": "90",
        "metric": {
         "entities": [
          "NG"
@@ -468,130 +710,82 @@
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "90"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "National capacity"
     },
-    "capability": "Energy production (12); capacity investment",
-    "dependency": "Semiconductor units; investment",
-    "fallback": "policy:government-default-v0"
+    "required": false,
+    "seat": true
    }
   },
-  "ENCO": {
+  "SA": {
    "accounts": {
-    "M": "140",
-    "E": "140",
-    "S": "20"
+    "E": "110",
+    "M": "155",
+    "Mil": "32",
+    "S": "28"
    },
    "capabilities": [
-    "trade:energy-atlantic",
+    "trade:energy-asia",
     "transfer:M",
     "transfer:E",
-    "transform:energy-capacity-investment",
+    "transform:military-deployment",
+    "transform:major-military-action",
     "transform:public-attention",
+    "transform:humanitarian-aid",
+    "transfer:Mil",
+    "transform:defense-procurement",
+    "transform:energy-capacity-investment",
+    "enact:tariff",
+    "enact:accessBan",
     "transform:energy-shipping"
    ],
    "capacities": {
     "energy-production": "25"
    },
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Largest government production (25)",
+    "dependency": "Transport for Atlantic sales",
+    "fallback": "policy:government-default-v0",
     "npc": [
-     "firm-default-v0"
+     "government-default-v0"
     ],
     "objective": {
-     "description": "Profit and supply growth",
      "criteria": [
       {
+       "atLeast": "250",
        "metric": {
         "entities": [
-         "ENCO"
+         "SA"
         ],
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "220"
+       "over": "final"
       },
       {
+       "atLeast": "60",
        "metric": {
         "entities": [
-         "ENCO"
+         "SA"
         ],
-        "measure": "capacity:energy-production",
+        "measure": "holding:E",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "27"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Energy wealth"
     },
-    "capability": "Energy production (25); capacity investment",
-    "dependency": "Semiconductor units; strikes",
-    "fallback": "policy:firm-default-v0"
-   }
-  },
-  "CHIP": {
-   "accounts": {
-    "M": "135",
-    "E": "55",
-    "S": "30"
-   },
-   "capabilities": [
-    "trade:energy-asia",
-    "transfer:M",
-    "transfer:E",
-    "enact:withholding",
-    "transform:public-attention",
-    "transform:energy-shipping"
-   ],
-   "capacities": {
-    "semiconductors": "15"
-   },
-   "definition": {
     "required": false,
-    "seat": true,
-    "npc": [
-     "firm-default-v0"
-    ],
-    "objective": {
-     "description": "Secure Energy inputs",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "CHIP"
-        ],
-        "measure": "shortfall:E",
-        "negated": true
-       },
-       "over": "everyRound",
-       "atLeast": "0"
-      },
-      {
-       "metric": {
-        "entities": [
-         "CHIP"
-        ],
-        "measure": "holding:M",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "150"
-      }
-     ]
-    },
-    "capability": "Owns 15 units/round of semiconductor capacity backing procurement; may withhold or sell units",
-    "dependency": "6 E/round operating Energy",
-    "fallback": "policy:firm-default-v0"
+    "seat": true
    }
   },
   "SHIP": {
    "accounts": {
-    "M": "110",
     "E": "65",
+    "M": "110",
     "S": "25"
    },
    "capabilities": [
@@ -607,15 +801,16 @@
     "transport": "60"
    },
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Owns the energy-shipping facility and chooses which shipments to sign; arbitrage",
+    "dependency": "4 E/round fuel; shipment bans",
+    "fallback": "policy:firm-default-v0",
     "npc": [
      "firm-default-v0"
     ],
     "objective": {
-     "description": "Open routes, high throughput",
      "criteria": [
       {
+       "atLeast": "150",
        "metric": {
         "entities": [
          "SHIP"
@@ -623,10 +818,10 @@
         "measure": "volume:energy-shipping",
         "negated": false
        },
-       "over": "cumulative",
-       "atLeast": "150"
+       "over": "cumulative"
       },
       {
+       "atLeast": "130",
        "metric": {
         "entities": [
          "SHIP"
@@ -634,113 +829,19 @@
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "130"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Open routes, high throughput"
     },
-    "capability": "Owns the energy-shipping facility and chooses which shipments to sign; arbitrage",
-    "dependency": "4 E/round fuel; shipment bans",
-    "fallback": "policy:firm-default-v0"
-   }
-  },
-  "DEF": {
-   "accounts": {
-    "M": "110",
-    "E": "30",
-    "Mil": "5",
-    "S": "18"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:public-attention",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
     "required": false,
-    "seat": true,
-    "npc": [
-     "firm-default-v0"
-    ],
-    "objective": {
-     "description": "Procurement revenue",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "DEF"
-        ],
-        "measure": "payeeReceipts",
-        "negated": false
-       },
-       "over": "cumulative",
-       "atLeast": "300"
-      }
-     ]
-    },
-    "capability": "Operates procurement and receives non-Chinese revenue",
-    "dependency": "CHIP's semiconductor capacity; strikes",
-    "fallback": "policy:firm-default-v0"
-   }
-  },
-  "LABOR": {
-   "accounts": {
-    "M": "30",
-    "E": "4",
-    "S": "42"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:strike",
-    "transform:public-attention",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [],
-    "objective": {
-     "description": "Workers' position and influence",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "US_WORKERS"
-        ],
-        "measure": "holding:M",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "260"
-      },
-      {
-       "metric": {
-        "entities": [
-         "LABOR"
-        ],
-        "measure": "holding:S",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "30"
-      }
-     ]
-    },
-    "capability": "Strike, declared or withheld each round",
-    "dependency": "Dues; Soft Power",
-    "fallback": "coverage:US_WORKERS"
+    "seat": true
    }
   },
   "SME": {
    "accounts": {
-    "M": "15",
     "E": "5",
+    "M": "15",
     "S": "12"
    },
    "capabilities": [
@@ -751,13 +852,14 @@
    ],
    "capacities": {},
    "definition": {
-    "required": false,
-    "seat": true,
+    "capability": "Representation of Global SME demand",
+    "dependency": "Atlantic prices; small cash",
+    "fallback": "coverage:GLOBAL_SMES",
     "npc": [],
     "objective": {
-     "description": "Business viability",
      "criteria": [
       {
+       "atLeast": "15",
        "metric": {
         "entities": [
          "SME"
@@ -765,10 +867,10 @@
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "15"
+       "over": "final"
       },
       {
+       "atLeast": "-1",
        "metric": {
         "entities": [
          "GLOBAL_SMES"
@@ -776,81 +878,24 @@
         "measure": "shortfallRounds:E",
         "negated": true
        },
-       "over": "final",
-       "atLeast": "-1"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Business viability"
     },
-    "capability": "Representation of Global SME demand",
-    "dependency": "Atlantic prices; small cash",
-    "fallback": "coverage:GLOBAL_SMES"
+    "required": false,
+    "seat": true
    }
   },
-  "AID": {
+  "UK": {
    "accounts": {
-    "M": "45",
-    "E": "12",
-    "S": "55"
+    "E": "30",
+    "M": "130",
+    "Mil": "38",
+    "S": "47"
    },
    "capabilities": [
     "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:humanitarian-aid",
-    "transform:public-attention",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "definition": {
-    "required": false,
-    "seat": true,
-    "npc": [],
-    "objective": {
-     "description": "Limit crisis damage",
-     "criteria": [
-      {
-       "metric": {
-        "entities": [
-         "EU",
-         "CN_PRIVATE",
-         "US_WORKERS",
-         "GLOBAL_SMES",
-         "ENERGY_SUPPLIERS",
-         "WORLD_HOUSEHOLDS"
-        ],
-        "measure": "shortfall:E",
-        "negated": true
-       },
-       "over": "cumulative",
-       "atLeast": "-20"
-      },
-      {
-       "metric": {
-        "entities": [
-         "AID"
-        ],
-        "measure": "holding:S",
-        "negated": false
-       },
-       "over": "final",
-       "atLeast": "55"
-      }
-     ]
-    },
-    "capability": "Aid; Energy relief; Soft Power",
-    "dependency": "EU donations; Energy purchases",
-    "fallback": "coverage:WORLD_HOUSEHOLDS"
-   }
-  },
-  "CN": {
-   "accounts": {
-    "M": "255",
-    "E": "95",
-    "Mil": "88",
-    "S": "57"
-   },
-   "capabilities": [
-    "trade:energy-asia",
     "transfer:M",
     "transfer:E",
     "transform:military-deployment",
@@ -858,142 +903,124 @@
     "transform:public-attention",
     "transform:humanitarian-aid",
     "transfer:Mil",
-    "transform:defense-procurement-cn",
+    "transform:defense-procurement",
     "enact:tariff",
     "enact:accessBan",
     "transform:energy-shipping"
    ],
    "capacities": {},
    "definition": {
-    "required": true,
-    "seat": true,
+    "capability": "Tariffs; procurement; campaigns",
+    "dependency": "Atlantic Energy",
+    "fallback": "policy:government-default-v0",
     "npc": [
-     "china-strategic-v0"
+     "government-default-v0"
     ],
     "objective": {
-     "description": "Military parity, solvent",
      "criteria": [
       {
+       "atLeast": "47",
        "metric": {
+        "entities": [
+         "UK"
+        ],
+        "measure": "holding:S",
+        "negated": false
+       },
+       "over": "final"
+      },
+      {
+       "atLeast": "110",
+       "metric": {
+        "entities": [
+         "UK"
+        ],
+        "measure": "holding:M",
+        "negated": false
+       },
+       "over": "final"
+      }
+     ],
+     "description": "Diplomatic influence"
+    },
+    "required": false,
+    "seat": true
+   }
+  },
+  "US": {
+   "accounts": {
+    "E": "70",
+    "M": "260",
+    "Mil": "95",
+    "S": "60"
+   },
+   "capabilities": [
+    "trade:energy-atlantic",
+    "transfer:M",
+    "transfer:E",
+    "transform:military-deployment",
+    "transform:major-military-action",
+    "transform:public-attention",
+    "transform:humanitarian-aid",
+    "transfer:Mil",
+    "transform:defense-procurement",
+    "enact:tariff",
+    "enact:accessBan",
+    "transform:energy-shipping"
+   ],
+   "capacities": {},
+   "definition": {
+    "capability": "Tariffs and shipment bans; deployment; largest procurement budget",
+    "dependency": "Energy above its holdings; procurement capacity",
+    "npc": [],
+    "objective": {
+     "criteria": [
+      {
+       "atLeast": {
         "entities": [
          "CN"
         ],
         "measure": "holding:Mil",
         "negated": false
        },
-       "over": "final",
-       "atLeast": {
+       "metric": {
         "entities": [
          "US"
         ],
         "measure": "holding:Mil",
         "negated": false
-       }
+       },
+       "over": "final"
       },
       {
+       "atLeast": "200",
        "metric": {
         "entities": [
-         "CN"
+         "US"
         ],
         "measure": "holding:M",
         "negated": false
        },
-       "over": "final",
-       "atLeast": "200"
+       "over": "final"
       }
-     ]
+     ],
+     "description": "Military leadership, solvent"
     },
-    "capability": "Tariffs and shipment bans; deployment",
-    "dependency": "Asia Energy prices; CN_PRIVATE tax base"
-   }
-  },
-  "EU": {
-   "accounts": {
-    "M": "320",
-    "E": "125",
-    "Mil": "50",
-    "S": "75"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "enact:tariff",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "aggregate": {
-    "policy": "eu-coordination-v0",
-    "members": [
-     "DE"
-    ],
-    "procedures": {
-     "eu-solidarity": {
-      "weights": {
-       "DE": "0.2"
-      },
-      "residualWeight": "0.4",
-      "threshold": "0.45",
-      "authorizes": [
-       "trade:energy-atlantic"
-      ]
-     },
-     "eu-trade": {
-      "weights": {
-       "DE": "0.2"
-      },
-      "residualWeight": "0.48",
-      "threshold": "0.45",
-      "authorizes": [
-       "enact:tariff"
-      ]
-     }
-    }
-   }
-  },
-  "CN_PRIVATE": {
-   "accounts": {
-    "M": "210",
-    "E": "85",
-    "S": "25"
-   },
-   "capabilities": [
-    "trade:energy-asia",
-    "transfer:M",
-    "transfer:E",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
-   "aggregate": {
-    "policy": "cn-private-v0",
-    "members": []
+    "required": true,
+    "seat": true
    }
   },
   "US_WORKERS": {
    "accounts": {
-    "M": "260",
     "E": "60",
+    "M": "260",
     "S": "45"
    },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "transfer:M",
-    "transfer:E",
-    "transform:energy-shipping"
-   ],
-   "capacities": {},
    "aggregate": {
-    "policy": "us-workers-v0",
     "members": [
      "LABOR"
-    ]
-   }
-  },
-  "GLOBAL_SMES": {
-   "accounts": {
-    "M": "300",
-    "E": "80",
-    "S": "25"
+    ],
+    "policy": "us-workers-v0"
    },
    "capabilities": [
     "trade:energy-atlantic",
@@ -1001,40 +1028,19 @@
     "transfer:E",
     "transform:energy-shipping"
    ],
-   "capacities": {},
-   "aggregate": {
-    "policy": "global-smes-v0",
-    "members": [
-     "SME"
-    ]
-   }
-  },
-  "ENERGY_SUPPLIERS": {
-   "accounts": {
-    "M": "200",
-    "E": "240",
-    "S": "22"
-   },
-   "capabilities": [
-    "trade:energy-atlantic",
-    "trade:energy-asia",
-    "transfer:M",
-    "transfer:E",
-    "transform:energy-shipping"
-   ],
-   "capacities": {
-    "energy-production": "60"
-   },
-   "aggregate": {
-    "policy": "energy-suppliers-v0",
-    "members": []
-   }
+   "capacities": {}
   },
   "WORLD_HOUSEHOLDS": {
    "accounts": {
-    "M": "360",
     "E": "90",
+    "M": "360",
     "S": "35"
+   },
+   "aggregate": {
+    "members": [
+     "AID"
+    ],
+    "policy": "world-households-v0"
    },
    "capabilities": [
     "trade:energy-asia",
@@ -1044,12 +1050,6 @@
    ],
    "capacities": {
     "attention": "50"
-   },
-   "aggregate": {
-    "policy": "world-households-v0",
-    "members": [
-     "AID"
-    ]
    }
   }
  }

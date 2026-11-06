@@ -1,31 +1,31 @@
 {
- "seed": 26021,
- "rounds": 5,
- "seats": {
-  "US": "seat-1",
-  "DE": "seat-2",
-  "IN": "seat-3",
-  "JP": "seat-4",
-  "UK": "seat-5",
-  "BR": "seat-6",
-  "SA": "seat-7",
-  "NG": "seat-8",
-  "ENCO": "seat-9",
-  "CHIP": "seat-10",
-  "SHIP": "seat-11",
-  "DEF": "seat-12",
-  "LABOR": "seat-13",
-  "SME": "seat-14",
-  "AID": "seat-15"
- },
  "npcs": {
   "CN": "china-strategic-v0"
  },
  "representations": [
   {
-   "scheme": "sme-energy-sample",
    "actor": "SME",
+   "scheme": "sme-energy-sample",
    "weight": "1"
   }
- ]
+ ],
+ "rounds": 5,
+ "seats": {
+  "AID": "seat-15",
+  "BR": "seat-6",
+  "CHIP": "seat-10",
+  "DE": "seat-2",
+  "DEF": "seat-12",
+  "ENCO": "seat-9",
+  "IN": "seat-3",
+  "JP": "seat-4",
+  "LABOR": "seat-13",
+  "NG": "seat-8",
+  "SA": "seat-7",
+  "SHIP": "seat-11",
+  "SME": "seat-14",
+  "UK": "seat-5",
+  "US": "seat-1"
+ },
+ "seed": 26021
 }

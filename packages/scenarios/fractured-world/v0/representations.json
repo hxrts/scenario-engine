@@ -1,18 +1,18 @@
 {
  "schemes": [
   {
-   "id": "sme-energy-sample",
+   "domain": "E",
    "eligibleActors": [
     "SME"
    ],
-   "target": "GLOBAL_SMES",
-   "domain": "E",
    "estimator": {
-    "reference": "5",
-    "shrinkage": "0.25",
     "bound": "0.5",
-    "noiseSpread": "0.1"
-   }
+    "noiseSpread": "0.1",
+    "reference": "5",
+    "shrinkage": "0.25"
+   },
+   "id": "sme-energy-sample",
+   "target": "GLOBAL_SMES"
   }
  ]
 }

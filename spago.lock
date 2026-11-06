@@ -169,6 +169,7 @@
             "react-basic-hooks",
             "routing",
             "routing-duplex",
+            "sp-board",
             "sp-harness",
             "strings",
             "tuples",
@@ -332,14 +333,17 @@
             "either",
             "foldable-traversable",
             "foreign-object",
+            "maybe",
             "node-buffer",
             "node-fs",
+            "node-process",
             "prelude",
             "sp-board",
             "sp-core",
             "sp-policy",
             "strings",
-            "tuples"
+            "tuples",
+            "typelevel-prelude"
           ]
         },
         "test": {

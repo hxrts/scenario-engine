@@ -1,307 +1,307 @@
 {
  "circulation": {
-  "production": [
-   {
-    "entity": "ENERGY_SUPPLIERS",
-    "resource": "E",
-    "capacity": "energy-production"
-   },
-   {
-    "entity": "SA",
-    "resource": "E",
-    "capacity": "energy-production"
-   },
-   {
-    "entity": "ENCO",
-    "resource": "E",
-    "capacity": "energy-production"
-   },
-   {
-    "entity": "BR",
-    "resource": "E",
-    "capacity": "energy-production"
-   },
-   {
-    "entity": "NG",
-    "resource": "E",
-    "capacity": "energy-production"
-   },
-   {
-    "entity": "IN",
-    "resource": "E",
-    "capacity": "energy-production"
-   }
-  ],
   "flows": [
    {
+    "amount": "15",
     "from": "US_WORKERS",
-    "to": "US",
     "resource": "M",
-    "amount": "15"
+    "to": "US"
    },
    {
+    "amount": "5",
     "from": "GLOBAL_SMES",
-    "to": "US",
     "resource": "M",
-    "amount": "5"
+    "to": "US"
    },
    {
+    "amount": "20",
     "from": "CN_PRIVATE",
-    "to": "CN",
     "resource": "M",
-    "amount": "20"
+    "to": "CN"
    },
    {
+    "amount": "10",
     "from": "EU",
-    "to": "DE",
     "resource": "M",
-    "amount": "10"
+    "to": "DE"
    },
    {
+    "amount": "10",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "IN",
     "resource": "M",
-    "amount": "10"
+    "to": "IN"
    },
    {
+    "amount": "10",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "JP",
     "resource": "M",
-    "amount": "10"
+    "to": "JP"
    },
    {
+    "amount": "8",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "UK",
     "resource": "M",
-    "amount": "8"
+    "to": "UK"
    },
    {
+    "amount": "6",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "BR",
     "resource": "M",
-    "amount": "6"
+    "to": "BR"
    },
    {
+    "amount": "4",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "NG",
     "resource": "M",
-    "amount": "4"
+    "to": "NG"
    },
    {
+    "amount": "12",
     "from": "US",
-    "to": "US_WORKERS",
     "resource": "M",
-    "amount": "12"
+    "to": "US_WORKERS"
    },
    {
+    "amount": "18",
     "from": "CN",
-    "to": "CN_PRIVATE",
     "resource": "M",
-    "amount": "18"
+    "to": "CN_PRIVATE"
    },
    {
+    "amount": "8",
     "from": "DE",
-    "to": "EU",
     "resource": "M",
-    "amount": "8"
+    "to": "EU"
    },
    {
+    "amount": "8",
     "from": "IN",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "8"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "8",
     "from": "JP",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "8"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "6",
     "from": "UK",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "6"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "5",
     "from": "BR",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "5"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "3",
     "from": "NG",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "3"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "6",
     "from": "ENCO",
-    "to": "US_WORKERS",
     "resource": "M",
-    "amount": "6"
+    "to": "US_WORKERS"
    },
    {
+    "amount": "6",
     "from": "DEF",
-    "to": "US_WORKERS",
     "resource": "M",
-    "amount": "6"
+    "to": "US_WORKERS"
    },
    {
+    "amount": "6",
     "from": "CHIP",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "6"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "5",
     "from": "SHIP",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "5"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "10",
     "from": "GLOBAL_SMES",
-    "to": "WORLD_HOUSEHOLDS",
     "resource": "M",
-    "amount": "10"
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
+    "amount": "6",
     "from": "GLOBAL_SMES",
-    "to": "US_WORKERS",
     "resource": "M",
-    "amount": "6"
+    "to": "US_WORKERS"
    },
    {
+    "amount": "12",
     "from": "US_WORKERS",
-    "to": "GLOBAL_SMES",
     "resource": "M",
-    "amount": "12"
+    "to": "GLOBAL_SMES"
    },
    {
+    "amount": "12",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "GLOBAL_SMES",
     "resource": "M",
-    "amount": "12"
+    "to": "GLOBAL_SMES"
    },
    {
+    "amount": "3",
     "from": "US_WORKERS",
-    "to": "SME",
     "resource": "M",
-    "amount": "3"
+    "to": "SME"
    },
    {
+    "amount": "4",
     "from": "WORLD_HOUSEHOLDS",
-    "to": "SHIP",
     "resource": "M",
-    "amount": "4"
+    "to": "SHIP"
    },
    {
+    "amount": "3",
     "from": "US_WORKERS",
-    "to": "LABOR",
     "resource": "M",
-    "amount": "3"
+    "to": "LABOR"
    },
    {
+    "amount": "3",
     "from": "EU",
-    "to": "AID",
     "resource": "M",
-    "amount": "3"
+    "to": "AID"
    },
    {
+    "amount": "6",
     "from": "DEF",
-    "to": "CHIP",
     "resource": "M",
-    "amount": "6"
+    "to": "CHIP"
+   }
+  ],
+  "production": [
+   {
+    "capacity": "energy-production",
+    "entity": "ENERGY_SUPPLIERS",
+    "resource": "E"
+   },
+   {
+    "capacity": "energy-production",
+    "entity": "SA",
+    "resource": "E"
+   },
+   {
+    "capacity": "energy-production",
+    "entity": "ENCO",
+    "resource": "E"
+   },
+   {
+    "capacity": "energy-production",
+    "entity": "BR",
+    "resource": "E"
+   },
+   {
+    "capacity": "energy-production",
+    "entity": "NG",
+    "resource": "E"
+   },
+   {
+    "capacity": "energy-production",
+    "entity": "IN",
+    "resource": "E"
+   }
+  ],
+  "requirements": [
+   {
+    "amount": "10",
+    "entity": "US",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "10",
+    "entity": "CN",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "8",
+    "entity": "DE",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "8",
+    "entity": "IN",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "8",
+    "entity": "JP",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "8",
+    "entity": "EU",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "6",
+    "entity": "UK",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "6",
+    "entity": "CHIP",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "amount": "4",
+    "entity": "SHIP",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "entity": "CN_PRIVATE",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "entity": "US_WORKERS",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "entity": "WORLD_HOUSEHOLDS",
+    "penalty": "2",
+    "resource": "E"
+   },
+   {
+    "entity": "GLOBAL_SMES",
+    "penalty": "2",
+    "resource": "E"
    }
   ],
   "shares": [
    {
     "from": "ENERGY_SUPPLIERS",
-    "to": "WORLD_HOUSEHOLDS",
     "share": "0.5",
-    "source": "sales:E"
+    "source": "sales:E",
+    "to": "WORLD_HOUSEHOLDS"
    },
    {
     "from": "DEF",
-    "to": "US_WORKERS",
     "share": "0.25",
-    "source": "payee"
-   }
-  ],
-  "requirements": [
-   {
-    "entity": "US",
-    "resource": "E",
-    "amount": "10",
-    "penalty": "2"
-   },
-   {
-    "entity": "CN",
-    "resource": "E",
-    "amount": "10",
-    "penalty": "2"
-   },
-   {
-    "entity": "DE",
-    "resource": "E",
-    "amount": "8",
-    "penalty": "2"
-   },
-   {
-    "entity": "IN",
-    "resource": "E",
-    "amount": "8",
-    "penalty": "2"
-   },
-   {
-    "entity": "JP",
-    "resource": "E",
-    "amount": "8",
-    "penalty": "2"
-   },
-   {
-    "entity": "EU",
-    "resource": "E",
-    "amount": "8",
-    "penalty": "2"
-   },
-   {
-    "entity": "UK",
-    "resource": "E",
-    "amount": "6",
-    "penalty": "2"
-   },
-   {
-    "entity": "CHIP",
-    "resource": "E",
-    "amount": "6",
-    "penalty": "2"
-   },
-   {
-    "entity": "SHIP",
-    "resource": "E",
-    "amount": "4",
-    "penalty": "2"
-   },
-   {
-    "entity": "CN_PRIVATE",
-    "resource": "E",
-    "penalty": "2"
-   },
-   {
-    "entity": "US_WORKERS",
-    "resource": "E",
-    "penalty": "2"
-   },
-   {
-    "entity": "WORLD_HOUSEHOLDS",
-    "resource": "E",
-    "penalty": "2"
-   },
-   {
-    "entity": "GLOBAL_SMES",
-    "resource": "E",
-    "penalty": "2"
+    "source": "payee",
+    "to": "US_WORKERS"
    }
   ]
  }

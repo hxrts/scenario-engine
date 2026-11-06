@@ -1,10 +1,10 @@
 {
- "id": "fractured-world",
- "version": "v0",
- "numeraire": "M",
  "horizon": 5,
+ "id": "fractured-world",
+ "numeraire": "M",
  "roundRange": [
   4,
   8
- ]
+ ],
+ "version": "v0"
 }

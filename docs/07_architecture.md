@@ -11,7 +11,7 @@
 - **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Everything impure is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
 - **One-way dependencies.** Packages depend only downward ([§3](#3-codebase-layout)). Packages that sit side by side never import each other.
 - **Narrow seams.** Packages meet at a few small interfaces ([§4](#4-key-interfaces)). Code behind an interface can be rewritten without touching its callers.
-- **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types.
+- **Data, not code, for scenarios.** Gameboards, instantiations, fixtures, and preset programs are declarative data decoded into core types. Scenarios and presets are authored in a small typed PureScript DSL that compiles to that data; the engine only ever reads the compiled JSON.
 - **Small.** One concept lives in one module. There are no frameworks inside the core.
 
 ## 2. Runtime Shape
@@ -52,6 +52,8 @@ packages/
   policy/      decision-language interpreter and presets (pure; → core)
   effects/     effect signatures and runRound (Run; → core, policy)
   scenarios/   data plus its loader: fractured-world/v0/*.json, presets.json, fixtures (→ board, policy)
+    Scenario.DSL   typed wrappers over the JSON the decoders read; records checked against allowed fields
+    Scenarios.*    The Fractured World and the presets in the DSL; Compile validates them and writes the JSON (gitignored)
   handlers/    concrete interpreters, one module per handler (→ effects)
     Live         SeatInput via Interpret, Clock deadlines
     Sim          SeatInput via bound seat Policies, player-seed stream
@@ -69,7 +71,7 @@ packages/
 test/          property tests per package; fixtures A–G as golden tests
 ```
 
-Dependency order, read bottom to top: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios` is data plus a loader that decodes it through `board` and `policy`.
+Dependency order, read bottom to top: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios` is data plus a loader that decodes it through `board` and `policy`, and the DSL source that the data is compiled from. The decoders remain the single definition of the format: the DSL emits exactly what they read, and compiling validates the output through the loader. The compiled JSON is a build output, not committed.
 
 ## 4. Key Interfaces
 

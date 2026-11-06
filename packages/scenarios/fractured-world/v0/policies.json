@@ -3,25 +3,33 @@
   "china-strategic-v0": {
    "rules": [
     {
-     "when": [
-      {
-       "transformedLastRound": {
-        "by": "US",
-        "transformation": "major-military-action",
-        "atLeast": "12"
-       }
-      }
-     ],
      "propose": [
       {
        "transform": {
-        "transformation": "defense-procurement-cn",
-        "quantity": "4"
+        "quantity": "4",
+        "transformation": "defense-procurement-cn"
+       }
+      }
+     ],
+     "when": [
+      {
+       "transformedLastRound": {
+        "atLeast": "12",
+        "by": "US",
+        "transformation": "major-military-action"
        }
       }
      ]
     },
     {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-asia",
+        "quantity": "-12"
+       }
+      }
+     ],
      "when": [
       {
        "gt": [
@@ -31,233 +39,21 @@
         "3.2"
        ]
       }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-asia",
-        "quantity": "-12"
-       }
-      }
      ]
     },
     {
-     "when": [
-      {
-       "restrictedLastRound": {
-        "by": "US",
-        "target": "CN"
-       }
-      }
-     ],
      "propose": [
       {
        "reciprocate": {
         "target": "US"
        }
       }
-     ]
-    }
-   ]
-  },
-  "eu-coordination-v0": {
-   "rules": [
-    {
+     ],
      "when": [
       {
-       "le": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": "8"
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "gt": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": "4"
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "gt": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "procedure": {
-        "id": "eu-solidarity",
-        "signers": [
-         "DE"
-        ],
-        "intents": [
-         {
-          "trade": {
-           "market": "energy-atlantic",
-           "quantity": "-8"
-          }
-         }
-        ]
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "restrictionInForce": {
-        "by": "US"
-       }
-      },
-      {
-       "not": {
-        "restrictionInForce": {
-         "by": "EU"
-        }
-       }
-      }
-     ],
-     "propose": [
-      {
-       "procedure": {
-        "id": "eu-trade",
-        "signers": [
-         "DE"
-        ],
-        "intents": [
-         {
-          "enactTariff": {
-           "origin": "US",
-           "rate": {
-            "param": "eu-matching-tariff"
-           }
-          }
-         }
-        ]
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "restrictionInForce": {
-        "by": "CN"
-       }
-      },
-      {
-       "not": {
-        "restrictionInForce": {
-         "by": "EU"
-        }
-       }
-      }
-     ],
-     "propose": [
-      {
-       "procedure": {
-        "id": "eu-trade",
-        "signers": [
-         "DE"
-        ],
-        "intents": [
-         {
-          "enactTariff": {
-           "origin": "CN",
-           "rate": {
-            "param": "eu-matching-tariff"
-           }
-          }
-         }
-        ]
-       }
-      }
-     ]
-    }
-   ]
-  },
-  "global-smes-v0": {
-   "rules": [
-    {
-     "when": [
-      {
-       "le": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3.5"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": {
-         "mul": [
-          "40",
-          {
-           "factor": "E"
-          }
-         ]
-        }
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "gt": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3.5"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": {
-         "mul": [
-          "32",
-          {
-           "factor": "E"
-          }
-         ]
-        }
+       "restrictedLastRound": {
+        "by": "US",
+        "target": "CN"
        }
       }
      ]
@@ -267,16 +63,6 @@
   "cn-private-v0": {
    "rules": [
     {
-     "when": [
-      {
-       "le": [
-        {
-         "price": "energy-asia"
-        },
-        "3"
-       ]
-      }
-     ],
      "propose": [
       {
        "trade": {
@@ -284,77 +70,7 @@
         "quantity": "12"
        }
       }
-     ]
-    },
-    {
-     "when": [
-      {
-       "gt": [
-        {
-         "price": "energy-asia"
-        },
-        "3"
-       ]
-      }
      ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-asia",
-        "quantity": "9"
-       }
-      }
-     ]
-    }
-   ]
-  },
-  "us-workers-v0": {
-   "rules": [
-    {
-     "when": [
-      {
-       "le": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": "8"
-       }
-      }
-     ]
-    },
-    {
-     "when": [
-      {
-       "gt": [
-        {
-         "price": "energy-atlantic"
-        },
-        "3"
-       ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": "6"
-       }
-      }
-     ]
-    }
-   ]
-  },
-  "world-households-v0": {
-   "rules": [
-    {
      "when": [
       {
        "le": [
@@ -364,17 +80,17 @@
         "3"
        ]
       }
-     ],
+     ]
+    },
+    {
      "propose": [
       {
        "trade": {
         "market": "energy-asia",
-        "quantity": "12"
+        "quantity": "9"
        }
       }
-     ]
-    },
-    {
+     ],
      "when": [
       {
        "gt": [
@@ -383,14 +99,6 @@
         },
         "3"
        ]
-      }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-asia",
-        "quantity": "9"
-       }
       }
      ]
     }
@@ -399,6 +107,21 @@
   "energy-suppliers-v0": {
    "rules": [
     {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": {
+         "sub": [
+          "0",
+          {
+           "param": "supplier-offer-atlantic"
+          }
+         ]
+        }
+       }
+      }
+     ],
      "when": [
       {
        "not": {
@@ -424,7 +147,9 @@
         ]
        }
       }
-     ],
+     ]
+    },
+    {
      "propose": [
       {
        "trade": {
@@ -433,15 +158,13 @@
          "sub": [
           "0",
           {
-           "param": "supplier-offer-atlantic"
+           "param": "supplier-offer-atlantic-high"
           }
          ]
         }
        }
       }
-     ]
-    },
-    {
+     ],
      "when": [
       {
        "not": {
@@ -465,48 +188,9 @@
         }
        ]
       }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-atlantic",
-        "quantity": {
-         "sub": [
-          "0",
-          {
-           "param": "supplier-offer-atlantic-high"
-          }
-         ]
-        }
-       }
-      }
      ]
     },
     {
-     "when": [
-      {
-       "eq": [
-        {
-         "round": null
-        },
-        {
-         "param": "disruption-round"
-        }
-       ]
-      },
-      {
-       "not": {
-        "ge": [
-         {
-          "price": "energy-atlantic"
-         },
-         {
-          "param": "supplier-high-price"
-         }
-        ]
-       }
-      }
-     ],
      "propose": [
       {
        "trade": {
@@ -533,9 +217,7 @@
         }
        }
       }
-     ]
-    },
-    {
+     ],
      "when": [
       {
        "eq": [
@@ -548,16 +230,20 @@
        ]
       },
       {
-       "ge": [
-        {
-         "price": "energy-atlantic"
-        },
-        {
-         "param": "supplier-high-price"
-        }
-       ]
+       "not": {
+        "ge": [
+         {
+          "price": "energy-atlantic"
+         },
+         {
+          "param": "supplier-high-price"
+         }
+        ]
+       }
       }
-     ],
+     ]
+    },
+    {
      "propose": [
       {
        "trade": {
@@ -584,9 +270,46 @@
         }
        }
       }
+     ],
+     "when": [
+      {
+       "eq": [
+        {
+         "round": null
+        },
+        {
+         "param": "disruption-round"
+        }
+       ]
+      },
+      {
+       "ge": [
+        {
+         "price": "energy-atlantic"
+        },
+        {
+         "param": "supplier-high-price"
+        }
+       ]
+      }
      ]
     },
     {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-asia",
+        "quantity": {
+         "sub": [
+          "0",
+          {
+           "param": "supplier-offer-asia"
+          }
+         ]
+        }
+       }
+      }
+     ],
      "when": [
       {
        "not": {
@@ -612,7 +335,9 @@
         ]
        }
       }
-     ],
+     ]
+    },
+    {
      "propose": [
       {
        "trade": {
@@ -621,15 +346,13 @@
          "sub": [
           "0",
           {
-           "param": "supplier-offer-asia"
+           "param": "supplier-offer-asia-high"
           }
          ]
         }
        }
       }
-     ]
-    },
-    {
+     ],
      "when": [
       {
        "not": {
@@ -653,48 +376,9 @@
         }
        ]
       }
-     ],
-     "propose": [
-      {
-       "trade": {
-        "market": "energy-asia",
-        "quantity": {
-         "sub": [
-          "0",
-          {
-           "param": "supplier-offer-asia-high"
-          }
-         ]
-        }
-       }
-      }
      ]
     },
     {
-     "when": [
-      {
-       "eq": [
-        {
-         "round": null
-        },
-        {
-         "param": "disruption-round"
-        }
-       ]
-      },
-      {
-       "not": {
-        "ge": [
-         {
-          "price": "energy-asia"
-         },
-         {
-          "param": "supplier-high-price"
-         }
-        ]
-       }
-      }
-     ],
      "propose": [
       {
        "trade": {
@@ -721,9 +405,7 @@
         }
        }
       }
-     ]
-    },
-    {
+     ],
      "when": [
       {
        "eq": [
@@ -736,16 +418,20 @@
        ]
       },
       {
-       "ge": [
-        {
-         "price": "energy-asia"
-        },
-        {
-         "param": "supplier-high-price"
-        }
-       ]
+       "not": {
+        "ge": [
+         {
+          "price": "energy-asia"
+         },
+         {
+          "param": "supplier-high-price"
+         }
+        ]
+       }
       }
-     ],
+     ]
+    },
+    {
      "propose": [
       {
        "trade": {
@@ -772,24 +458,181 @@
         }
        }
       }
+     ],
+     "when": [
+      {
+       "eq": [
+        {
+         "round": null
+        },
+        {
+         "param": "disruption-round"
+        }
+       ]
+      },
+      {
+       "ge": [
+        {
+         "price": "energy-asia"
+        },
+        {
+         "param": "supplier-high-price"
+        }
+       ]
+      }
      ]
     }
    ]
   },
-  "government-default-v0": {},
-  "firm-default-v0": {
+  "eu-coordination-v0": {
    "rules": [
     {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": "8"
+       }
+      }
+     ],
+     "when": [
+      {
+       "le": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3"
+       ]
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": "4"
+       }
+      }
+     ],
      "when": [
       {
        "gt": [
         {
-         "holding": "E"
+         "price": "energy-atlantic"
         },
-        "30"
+        "3"
        ]
       }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "procedure": {
+        "id": "eu-solidarity",
+        "intents": [
+         {
+          "trade": {
+           "market": "energy-atlantic",
+           "quantity": "-8"
+          }
+         }
+        ],
+        "signers": [
+         "DE"
+        ]
+       }
+      }
      ],
+     "when": [
+      {
+       "gt": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3"
+       ]
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "procedure": {
+        "id": "eu-trade",
+        "intents": [
+         {
+          "enactTariff": {
+           "origin": "US",
+           "rate": {
+            "param": "eu-matching-tariff"
+           }
+          }
+         }
+        ],
+        "signers": [
+         "DE"
+        ]
+       }
+      }
+     ],
+     "when": [
+      {
+       "restrictionInForce": {
+        "by": "US"
+       }
+      },
+      {
+       "not": {
+        "restrictionInForce": {
+         "by": "EU"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "procedure": {
+        "id": "eu-trade",
+        "intents": [
+         {
+          "enactTariff": {
+           "origin": "CN",
+           "rate": {
+            "param": "eu-matching-tariff"
+           }
+          }
+         }
+        ],
+        "signers": [
+         "DE"
+        ]
+       }
+      }
+     ],
+     "when": [
+      {
+       "restrictionInForce": {
+        "by": "CN"
+       }
+      },
+      {
+       "not": {
+        "restrictionInForce": {
+         "by": "EU"
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "firm-default-v0": {
+   "rules": [
+    {
      "propose": [
       {
        "trade": {
@@ -804,12 +647,169 @@
         }
        }
       }
+     ],
+     "when": [
+      {
+       "gt": [
+        {
+         "holding": "E"
+        },
+        "30"
+       ]
+      }
      ]
     }
    ],
    "sign": [
     {
      "facility": "energy-shipping"
+    }
+   ]
+  },
+  "global-smes-v0": {
+   "rules": [
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": {
+         "mul": [
+          "40",
+          {
+           "factor": "E"
+          }
+         ]
+        }
+       }
+      }
+     ],
+     "when": [
+      {
+       "le": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3.5"
+       ]
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": {
+         "mul": [
+          "32",
+          {
+           "factor": "E"
+          }
+         ]
+        }
+       }
+      }
+     ],
+     "when": [
+      {
+       "gt": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3.5"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "government-default-v0": {},
+  "us-workers-v0": {
+   "rules": [
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": "8"
+       }
+      }
+     ],
+     "when": [
+      {
+       "le": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3"
+       ]
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-atlantic",
+        "quantity": "6"
+       }
+      }
+     ],
+     "when": [
+      {
+       "gt": [
+        {
+         "price": "energy-atlantic"
+        },
+        "3"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "world-households-v0": {
+   "rules": [
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-asia",
+        "quantity": "12"
+       }
+      }
+     ],
+     "when": [
+      {
+       "le": [
+        {
+         "price": "energy-asia"
+        },
+        "3"
+       ]
+      }
+     ]
+    },
+    {
+     "propose": [
+      {
+       "trade": {
+        "market": "energy-asia",
+        "quantity": "9"
+       }
+      }
+     ],
+     "when": [
+      {
+       "gt": [
+        {
+         "price": "energy-asia"
+        },
+        "3"
+       ]
+      }
+     ]
     }
    ]
   }

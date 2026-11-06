@@ -16,7 +16,7 @@ The system is implemented: engine, scenario, Policies, harness, Run Store, read 
 - `just check`: fmt-check, deps, build, test. `just all`: `check` plus the dashboard's Playwright smoke test (`just dashboard-test`).
 - `just run run fractured-world --preset Conservative --rounds 5`: play a game from the CLI. `just run session fractured-world --humans US --model anthropic/claude-opus-5-5`: live facilitator console (typed input; other seats are AI agents via the `pi` binary, which makes billed model calls).
 - `just serve --db runs.db`: build the dashboard and serve it with the JSON API on :8787. `just dashboard` builds the bundle only (spago, then Vite).
-- Scenario data lives in `packages/scenarios/` (`fractured-world/v0/*.json`, `presets.json`, `fixtures/*.json`). Fixtures are golden tests; edit expectations there, not in code.
+- Scenarios and presets are authored in the PureScript DSL (`packages/scenarios/src/Scenario/DSL.purs`, `src/Scenarios/`). `just scenarios` compiles them to `fractured-world/v0/*.json` and `presets.json`, which are gitignored build outputs; `test`, `run`, `serve` and `dashboard-test` compile them first. Never hand-edit those JSON files. Fixtures (`fixtures/*.json`) are hand-written golden tests; edit expectations there, not in code.
 - The dashboard (`apps/dashboard`) is PureScript `react-basic-hooks` over vendored shadcn/ui in `apps/dashboard/ui/` (one FFI module, `Dashboard.UI`). View models are computed in `harness/Views`; keep business logic out of the frontend.
 
 `work/` is gitignored scratch space for implementation-process docs such as `work/1.md` (the work plan) and `work/deviations.md`. It is not part of the spec.

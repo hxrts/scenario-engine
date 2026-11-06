@@ -1,8 +1,56 @@
 {
- "Passive": {},
+ "Accumulator": {
+  "rules": [
+   {
+    "propose": [
+     {
+      "trade": {
+       "limit": "3",
+       "market": "$home",
+       "quantity": "10"
+      }
+     }
+    ],
+    "when": [
+     {
+      "le": [
+       {
+        "price": "$home"
+       },
+       "3"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "Aggressive": {
+  "rules": [
+   {
+    "propose": [
+     {
+      "transform": {
+       "quantity": "4",
+       "transformation": "defense-procurement"
+      }
+     }
+    ],
+    "when": []
+   }
+  ]
+ },
  "Conservative": {
   "rules": [
    {
+    "propose": [
+     {
+      "trade": {
+       "limit": "2.5",
+       "market": "$home",
+       "quantity": "5"
+      }
+     }
+    ],
     "when": [
      {
       "gt": [
@@ -20,101 +68,6 @@
        "2.5"
       ]
      }
-    ],
-    "propose": [
-     {
-      "trade": {
-       "market": "$home",
-       "quantity": "5",
-       "limit": "2.5"
-      }
-     }
-    ]
-   }
-  ]
- },
- "Aggressive": {
-  "rules": [
-   {
-    "when": [],
-    "propose": [
-     {
-      "transform": {
-       "transformation": "defense-procurement",
-       "quantity": "4"
-      }
-     }
-    ]
-   }
-  ]
- },
- "Accumulator": {
-  "rules": [
-   {
-    "when": [
-     {
-      "le": [
-       {
-        "price": "$home"
-       },
-       "3"
-      ]
-     }
-    ],
-    "propose": [
-     {
-      "trade": {
-       "market": "$home",
-       "quantity": "10",
-       "limit": "3"
-      }
-     }
-    ]
-   }
-  ]
- },
- "Trader": {
-  "rules": [
-   {
-    "when": [
-     {
-      "le": [
-       {
-        "price": "$home"
-       },
-       "2.2"
-      ]
-     }
-    ],
-    "propose": [
-     {
-      "trade": {
-       "market": "$home",
-       "quantity": "5",
-       "limit": "2.2"
-      }
-     }
-    ]
-   },
-   {
-    "when": [
-     {
-      "gt": [
-       {
-        "price": "$home"
-       },
-       "3"
-      ]
-     }
-    ],
-    "propose": [
-     {
-      "trade": {
-       "market": "$home",
-       "quantity": "-5",
-       "limit": "3"
-      }
-     }
     ]
    }
   ]
@@ -126,63 +79,18 @@
    }
   ]
  },
- "Opportunistic": {
-  "rules": [
-   {
-    "when": [
-     {
-      "gt": [
-       {
-        "price": "$home"
-       },
-       "3"
-      ]
-     }
-    ],
-    "propose": [
-     {
-      "trade": {
-       "market": "$home",
-       "quantity": "-5",
-       "limit": "3"
-      }
-     }
-    ]
-   }
-  ],
-  "sign": [
-   {
-    "all": null
-   }
-  ]
- },
- "Investor": {
-  "rules": [
-   {
-    "when": [
-     {
-      "gt": [
-       {
-        "holding": "M"
-       },
-       "100"
-      ]
-     }
-    ],
-    "propose": [
-     {
-      "transform": {
-       "transformation": "energy-capacity-investment",
-       "quantity": "1"
-      }
-     }
-    ]
-   }
-  ]
- },
  "CrisisResponse": {
   "rules": [
    {
+    "propose": [
+     {
+      "trade": {
+       "limit": "4",
+       "market": "$home",
+       "quantity": "3"
+      }
+     }
+    ],
     "when": [
      {
       "gt": [
@@ -200,23 +108,68 @@
        }
       ]
      }
-    ],
+    ]
+   }
+  ]
+ },
+ "Investor": {
+  "rules": [
+   {
     "propose": [
      {
-      "trade": {
-       "market": "$home",
-       "quantity": "3",
-       "limit": "4"
+      "transform": {
+       "quantity": "1",
+       "transformation": "energy-capacity-investment"
       }
+     }
+    ],
+    "when": [
+     {
+      "gt": [
+       {
+        "holding": "M"
+       },
+       "100"
+      ]
      }
     ]
    }
   ]
  },
+ "Opportunistic": {
+  "rules": [
+   {
+    "propose": [
+     {
+      "trade": {
+       "limit": "3",
+       "market": "$home",
+       "quantity": "-5"
+      }
+     }
+    ],
+    "when": [
+     {
+      "gt": [
+       {
+        "price": "$home"
+       },
+       "3"
+      ]
+     }
+    ]
+   }
+  ],
+  "sign": [
+   {
+    "all": null
+   }
+  ]
+ },
+ "Passive": {},
  "RandomValid": {
   "rules": [
    {
-    "when": [],
     "propose": [
      {
       "choose": [
@@ -225,18 +178,65 @@
        },
        {
         "trade": {
+         "limit": "3",
          "market": "$home",
-         "quantity": "5",
-         "limit": "3"
+         "quantity": "5"
         }
        },
        {
         "trade": {
+         "limit": "2",
          "market": "$home",
-         "quantity": "-5",
-         "limit": "2"
+         "quantity": "-5"
         }
        }
+      ]
+     }
+    ],
+    "when": []
+   }
+  ]
+ },
+ "Trader": {
+  "rules": [
+   {
+    "propose": [
+     {
+      "trade": {
+       "limit": "2.2",
+       "market": "$home",
+       "quantity": "5"
+      }
+     }
+    ],
+    "when": [
+     {
+      "le": [
+       {
+        "price": "$home"
+       },
+       "2.2"
+      ]
+     }
+    ]
+   },
+   {
+    "propose": [
+     {
+      "trade": {
+       "limit": "3",
+       "market": "$home",
+       "quantity": "-5"
+      }
+     }
+    ],
+    "when": [
+     {
+      "gt": [
+       {
+        "price": "$home"
+       },
+       "3"
       ]
      }
     ]
