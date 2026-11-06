@@ -25,6 +25,7 @@ import React.Basic.Events (handler, handler_)
 import React.Basic.Hooks (Component, JSX, component, element, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks as React
 import Dashboard.Route (Route(..), href, route)
+import Dashboard.Theme (themeToggle)
 import Routing.Duplex (parse)
 import Routing.Hash (matchesWith)
 import Web.DOM.NonElementParentNode (getElementById)
@@ -133,20 +134,21 @@ mkApp :: Component Unit
 mkApp = do
   runsPage <- mkRuns
   fetchPanel <- panel
+  toggle <- themeToggle
   component "App" \_ -> React.do
     current /\ setCurrent <- useState' Runs
     rounds /\ setRounds <- useState' "5"
     useEffectOnce (matchesWith (parse route) \_ r -> setCurrent r)
     let
       roundInput = D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
-    pure $ shell current case current of
+    pure $ shell current (toggle unit) case current of
       Runs -> runsPage unit
       Run id -> D.div_ [ roundInput, tabbed fetchPanel (runTabs id (fromMaybe 5 (Int.fromString rounds))) ]
       Compare ids -> tabbed fetchPanel (compareTabs ids)
 
 -- | The dashboard block's layout: a sidebar, and an inset with a header and the page.
-shell :: Route -> JSX -> JSX
-shell current page = element UI.sidebarProvider
+shell :: Route -> JSX -> JSX -> JSX
+shell current themeButton page = element UI.sidebarProvider
   { children:
       [ element UI.sidebar
           { children:
@@ -158,7 +160,7 @@ shell current page = element UI.sidebarProvider
           { children:
               [ D.header
                   { className: "flex h-12 items-center gap-2 border-b px-4"
-                  , children: [ element UI.sidebarTrigger {}, element UI.separator { orientation: "vertical", className: "h-4" }, D.h1 { className: "font-medium", children: [ D.text title ] } ]
+                  , children: [ element UI.sidebarTrigger {}, element UI.separator { orientation: "vertical", className: "h-4" }, D.h1 { className: "font-medium", children: [ D.text title ] }, D.div { className: "ml-auto", children: [ themeButton ] } ]
                   }
               , D.main { className: "flex flex-col gap-4 p-6", children: [ page ] }
               ]

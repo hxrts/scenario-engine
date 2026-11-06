@@ -7,9 +7,8 @@ module Dashboard.Tailwind
   , a, button
   ) where
 
-import Prelude
-
 import React.Basic.DOM as D
+import React.Basic.Events (EventHandler)
 import React.Basic.Hooks (JSX)
 
 div :: String -> Array JSX -> JSX
@@ -61,5 +60,5 @@ small cn children = D.small { className: cn, children }
 a :: String -> String -> Array JSX -> JSX
 a cn href children = D.a { className: cn, href, children }
 
-button :: String -> { onClick :: EffectFnPlaceholder } -> Array JSX -> JSX
-button = \_ _ _ -> D.text ""
+button :: String -> EventHandler -> Array JSX -> JSX
+button cn onClick children = D.button { className: cn, onClick, children }
