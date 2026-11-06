@@ -1,0 +1,46 @@
+[
+ {
+  "text": "ban shipments into India",
+  "reply": {
+   "kind": "understood",
+   "proposals": [
+    {
+     "intents": [ { "values": [ { "values": [ { "values": [ { "target": "IN", "jurisdiction": "US" } ], "tag": "AccessBan" } ], "tag": "Enact" } ], "tag": "ChangeRule" } ],
+     "signers": [],
+     "procedure": null
+    }
+   ]
+  },
+  "expect": {
+   "kind": "understood",
+   "intents": [ { "values": [ { "values": [ { "values": [ { "target": "IN", "jurisdiction": "US" } ], "tag": "AccessBan" } ], "tag": "Enact" } ], "tag": "ChangeRule" } ]
+  }
+ },
+ {
+  "text": "buy ten energy",
+  "reply": {
+   "kind": "understood",
+   "proposals": [
+    {
+     "intents": [ { "values": [ { "quantity": "10.0000", "market": "energy-atlantic", "limitPrice": null } ], "tag": "Trade" } ],
+     "signers": [],
+     "procedure": null
+    }
+   ]
+  },
+  "expect": {
+   "kind": "understood",
+   "intents": [ { "values": [ { "quantity": "10.0000", "market": "energy-atlantic", "limitPrice": null } ], "tag": "Trade" } ]
+  }
+ },
+ {
+  "text": "buy some energy",
+  "reply": { "kind": "clarify", "message": "How much energy, on which market?" },
+  "expect": { "kind": "clarify", "message": "How much energy, on which market?" }
+ },
+ {
+  "text": "seize the Chinese fleet",
+  "reply": { "kind": "inadmissible", "message": "the US holds no authority over Chinese forces" },
+  "expect": { "kind": "inadmissible", "message": "the US holds no authority over Chinese forces" }
+ }
+]

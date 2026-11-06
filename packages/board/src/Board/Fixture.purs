@@ -3,7 +3,7 @@
 -- | invariant. Pure; returns the failures. Shared by the golden tests and the harness.
 -- |
 -- | Only the expectations a round gives are checked; an absent expectation asserts nothing.
-module Board.Fixture (Fixture, Field(..), FixtureError(..), checkFixture) where
+module Board.Fixture (Fixture, Field(..), FixtureError(..), checkFixture, expectRound) where
 
 import Prelude
 

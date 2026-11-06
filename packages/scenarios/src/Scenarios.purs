@@ -12,6 +12,7 @@ module Scenarios
   , checkPresets
   , loadContext
   , loadFixture
+  , loadRun
   , scenariosRoot
   ) where
 
@@ -107,6 +108,13 @@ loadFixture name = do
   pure (lmap show text >>= readJsonWith decodeFixtureDoc)
   where
   decodeFixtureDoc j = map (\d -> { name, world: d.world, rounds: d.rounds }) (decodeFixture j)
+
+-- | A run file under the scenario tree, parsed to JSON (`capstone/run`, for `capstone/run.json`).
+loadRun :: String -> Effect (Either String Json)
+loadRun name = do
+  root <- scenariosRoot
+  text <- readFileAt (root <> name <> ".json")
+  pure (lmap show text >>= jsonParser)
 
 -- | The scenario tree's directory, with a trailing slash. `SCENARIOS_DIR` sets it; otherwise it is
 -- | `packages/scenarios`, relative to the working directory (the repository root, where `just` runs).

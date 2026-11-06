@@ -32,6 +32,7 @@ import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Scenarios (load, loadPresets)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile)
 import Test.Adapters.Live as Live
+import Test.Adapters.Capstone as CapstoneTests
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -53,6 +54,7 @@ manifestOf = do
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   Live.spec
+  CapstoneTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
       loaded <- liftEffect (load "fractured-world/v0") >>= orThrow
