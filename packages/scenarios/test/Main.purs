@@ -15,7 +15,11 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
+import Policy.Program (SignRule(..), decodeProgram)
+import Scenario.DSL (builtJson, enactAccessBanI, intentJson, lit, max', program, q, rule, signProcedures, tariffRule, transformT)
 import Scenarios (load)
+import Board.Decode as BD
+import Core.Types (Intent(..), Rule(..), RuleChange(..))
 import Test.Scenarios.Golden (golden)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -52,6 +56,35 @@ holdings =
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   golden
+  describe "Scenario DSL builders" do
+    it "max' and signProcedures compile to a program the decoder accepts" do
+      let
+        p = program
+          { rules: [ rule [] [ transformT { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) } ] ]
+          , sign: [ signProcedures [ "EU" ] ]
+          }
+      case decodeProgram (builtJson p) of
+        Left e -> fail (show e)
+        Right prog -> do
+          length prog.rules `shouldEqual` 1
+          case prog.sign of
+            [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
+            _ -> fail "expected one procedures sign rule"
+    it "enactAccessBanI decodes to an AccessBan enactment" do
+      case BD.intent (intentJson (enactAccessBanI { jurisdiction: "US", target: "CN" })) of
+        Left e -> fail (show e)
+        Right (ChangeRule (Enact (AccessBan a))) -> do
+          a.jurisdiction `shouldEqual` Id "US"
+          a.target `shouldEqual` Id "CN"
+        Right other -> fail ("unexpected intent " <> show other)
+    it "tariffRule decodes to a Tariff" do
+      case BD.rule (builtJson (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+        Left e -> fail (show e)
+        Right (Tariff t) -> do
+          t.jurisdiction `shouldEqual` Id "US"
+          t.origin `shouldEqual` Id "CN"
+        Right other -> fail ("unexpected rule " <> show other)
+
   describe "The Fractured World" do
     let
       loaded = do

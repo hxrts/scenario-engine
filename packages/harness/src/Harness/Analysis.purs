@@ -9,7 +9,6 @@ module Harness.Analysis
   , difference
   , counterfactual
   , playerSeedRuns
-  , gameSeedRuns
   , AgencyProfile
   , agency
   ) where
@@ -139,9 +138,6 @@ playerSeedRuns :: Context -> SimulationSpec -> Array Int -> Either String (Array
 playerSeedRuns ctx spec seeds = traverse (\s -> simulate ctx spec { playerSeed = Seed s }) seeds
 
 -- | Game-seed variation: the player seed fixed, the game seed varied (§11).
-gameSeedRuns :: Context -> SimulationSpec -> Array Int -> Either String (Array Run)
-gameSeedRuns ctx spec seeds = traverse (\s -> simulate (ctx { config = ctx.config { seed = Seed s } }) spec) seeds
-
 -- Agency (§10.5) ----------------------------------------------------------------------
 
 type AgencyProfile =

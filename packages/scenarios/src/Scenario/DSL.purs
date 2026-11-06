@@ -14,6 +14,7 @@ module Scenario.DSL
   , (:=)
   , entry
   , Built
+  , builtJson
   , Capability
   , trade
   , transfer
@@ -102,6 +103,7 @@ module Scenario.DSL
   , program
   -- fixtures
   , Intent
+  , intentJson
   , tradeI
   , transferI
   , transformI
@@ -166,6 +168,10 @@ infix 6 entry as :=
 
 -- | A built JSON fragment of one kind (a market, a facility, an entity, …).
 newtype Built (kind :: Symbol) = Built Json
+
+-- | The JSON a builder emits, for decoding in tests and tooling.
+builtJson :: forall kind. Built kind -> Json
+builtJson (Built j) = j
 
 instance EncodeJson (Built kind) where
   encodeJson (Built j) = j
@@ -565,6 +571,9 @@ program = build
 
 -- | A canonical Intent, as a fixture's Proposals carry it.
 newtype Intent = Intent Json
+
+intentJson :: Intent -> Json
+intentJson (Intent j) = j
 
 instance EncodeJson Intent where
   encodeJson (Intent j) = j
