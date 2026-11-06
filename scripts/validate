@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Argument check for the just recipes that take arguments. Runs before anything is built, so a
+# bad call fails in milliseconds with a hint. The programs still validate their own input; this
+# only mirrors their flags (apps/cli/src/Main.purs, apps/server/src/Server.purs).
+set -euo pipefail
+recipe=$1
+shift
+
+scenarios="fractured-world"
+presets=$(grep -o 'Tuple "[A-Za-z]*"' packages/scenarios/src/Scenarios/Presets.purs | cut -d'"' -f2 | tr '\n' ' ')
+packages=$(just --evaluate packages)
+
+case $recipe in
+  sim)      usage="just sim <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]"
+            example="just sim fractured-world --preset Conservative --rounds 5"
+            flags="--preset --rounds --seed" positional=scenario ;;
+  session)  usage="just session <scenario> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
+            example="just session fractured-world --humans US --rounds 3"
+            flags="--humans --model --rounds --window --id --db --seed" positional=scenario ;;
+  serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
+            example="just serve --port 9000"
+            flags="--db --port --static" positional= ;;
+  test-pkg) usage="just test-pkg <package>"
+            example="just test-pkg core"
+            flags= positional=package ;;
+esac
+
+fail() {
+  echo "error: $1"
+  echo
+  echo "usage: $usage"
+  case $positional in
+    scenario) echo "  scenarios: $scenarios" ;;
+    package)  echo "  packages:  $packages" ;;
+  esac
+  [ "$recipe" = sim ] && echo "  presets:   $presets"
+  echo
+  echo "e.g. $example"
+  exit 1
+}
+
+one_of() { [[ " $2 " == *" $1 "* ]]; }
+
+if [ -n "$positional" ]; then
+  [ $# -gt 0 ] && [[ "$1" != -* ]] || fail "missing $positional"
+  case $positional in
+    scenario) one_of "$1" "$scenarios" || fail "unknown scenario '$1'" ;;
+    package)  one_of "$1" "$packages" || fail "unknown package '$1'"
+              [ $# -eq 1 ] || fail "test-pkg takes one package" ;;
+  esac
+  shift
+fi
+
+while [ $# -gt 0 ]; do
+  flag=$1
+  one_of "$flag" "$flags" || fail "unknown option '$flag'"
+  [ $# -ge 2 ] || fail "$flag needs a value"
+  value=$2
+  case $flag in
+    --rounds|--port) [[ "$value" =~ ^[1-9][0-9]*$ ]] || fail "$flag must be a whole number of at least 1, got '$value'" ;;
+    --window|--seed) [[ "$value" =~ ^[0-9]+$ ]] || fail "$flag must be a whole number, got '$value'" ;;
+    --preset)        one_of "$value" "$presets" || fail "unknown preset '$value'" ;;
+  esac
+  shift 2
+done

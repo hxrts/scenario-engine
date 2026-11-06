@@ -16,8 +16,11 @@ test: _scenarios
     for p in {{packages}}; do spago test -p sp-$p; done
 
 # Test one package
-test-pkg name: _scenarios
-    spago test -p sp-{{name}}
+[positional-arguments]
+test-pkg *args:
+    @scripts/validate test-pkg "$@"
+    @just _scenarios
+    spago test -p sp-"$1"
 
 # Format all PureScript sources
 fmt:
@@ -31,7 +34,7 @@ _fmt-check:
 _deps:
     node scripts/check-deps
 
-# Compile the DSL _scenarios to JSON
+# Compile the DSL scenarios to JSON
 _scenarios:
     spago run -p sp-scenarios --main Scenarios.Compile
 
@@ -42,12 +45,19 @@ check: _fmt-check _deps build test
 all: check dashboard-test
 
 # Simulate a game
-sim scenario *args: _scenarios
-    spago run -p sp-cli -- run {{scenario}} {{args}}
+[positional-arguments]
+sim *args:
+    @scripts/validate sim "$@"
+    @just _scenarios
+    spago run -p sp-cli -- run "$@"
 
 # Live facilitator session
-session scenario *args: _scenarios
-    spago run -p sp-cli -- session {{scenario}} {{args}}
+[positional-arguments]
+session *args:
+    @scripts/validate session "$@"
+    @just _scenarios
+    spago run -p sp-cli -- session "$@"
+
 
 # shadcn/ui components (apps/dashboard/ui) and their theme (apps/dashboard/theme.css) are generated,
 # never committed. Their checksums are the baseline in apps/dashboard/ui.sha256 (scripts/ui-checksums.sh).
@@ -93,8 +103,11 @@ _dashboard: _ui
     vite build --config apps/dashboard/vite.config.js
 
 # Serve the API and dashboard
-serve *args: _scenarios _dashboard
-    spago run -p sp-server -- {{args}}
+[positional-arguments]
+serve *args:
+    @scripts/validate serve "$@"
+    @just _scenarios _dashboard
+    spago run -p sp-server -- "$@"
 
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
 dashboard-test: _scenarios _dashboard
