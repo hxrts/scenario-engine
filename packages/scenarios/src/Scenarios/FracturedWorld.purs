@@ -80,7 +80,7 @@ markets = keyed
   ]
 
 -- | The Entities that may trade Military: the US and its allies, Germany, the UK, and Japan.
--- | Each holds the `trade "defence-goods"` capability (Entities.purs), so the Market's access
+-- | Each holds the `trade "defence-goods"` capability (Entities/Capabilities.purs), so the Market's access
 -- | list and the capabilities agree.
 defenceAccess :: Array String
 defenceAccess = [ "US", "DE", "UK", "JP" ]
