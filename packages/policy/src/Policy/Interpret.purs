@@ -10,7 +10,7 @@ import Core.Num as Q
 import Core.Query (lookupQ)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), Intent(..), MarketId, ProposalId, Rule(..), RuleChange(..))
 import Core.World (Event(..), View)
-import Data.Array (all, any, concatMap, filter, index, length, null)
+import Data.Array (all, any, concatMap, filter, foldl, index, length, mapMaybe, null)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
@@ -20,11 +20,18 @@ import Policy.Program (Cond(..), Expr(..), Program, SignRule(..), Template(..))
 -- | A Proposal before the round runner assigns its id and author.
 type Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
 
--- | `home` resolves the market named `$home`; `random` draws seeded values in [0, 1).
+-- | `home` resolves the market named `$home`; `random` draws seeded values in [0, 1), one
+-- | per index. The interpreter passes a fresh index to every Choose it meets.
 type Env = { view :: View, params :: Object Q, home :: MarketId, random :: Int -> Q }
 
+-- | The Drafts of every Clause whose conditions hold. The draw counter runs through the
+-- | whole Program, so each Choose draws independently of the others.
 propose :: Program -> Env -> Array Draft
-propose program env = concatMap (\r -> if all (holds env) r.when then concatMap (draft env) r.propose else []) program.rules
+propose program env = (foldl clause { next: 0, drafts: [] } program.rules).drafts
+  where
+  clause acc r
+    | all (holds env) r.when = foldl (\a t -> let d = draft env a.next t in { next: d.next, drafts: a.drafts <> d.drafts }) acc r.propose
+    | otherwise = acc
 
 sign :: Program -> Env -> Array ProposalId
 sign program env = map _.id (filter (\p -> any (matches p) program.sign) env.view.toSign)
@@ -43,10 +50,12 @@ sign program env = map _.id (filter (\p -> any (matches p) program.sign) env.vie
 eval :: Env -> Expr -> Q
 eval env = case _ of
   Lit q -> q
+  -- Program.params checks every name against the Gameboard at load time, so the default is unreachable
   Param name -> fromMaybe Q.zero (Object.lookup name env.params)
   Round -> Q.fromInt env.view.round
   Price m -> lookupQ (market env m) env.view.prices
   Holding r -> lookupQ r env.view.self.accounts
+  -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)
   Factor d -> fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors)
   Mul a b -> Q.mul (eval env a) (eval env b)
   Sub a b -> Q.sub (eval env a) (eval env b)
@@ -87,15 +96,20 @@ jurisdictionOf = case _ of
   Tariff x -> Just x.jurisdiction
   Withholding _ -> Nothing
 
-draft :: Env -> Template -> Array Draft
-draft env t = case t of
+-- | The Draft(s) one template yields, and the draw counter after it. A Choose consumes one
+-- | draw for its pick, then interprets the chosen option with the next counter value.
+draft :: Env -> Int -> Template -> { next :: Int, drafts :: Array Draft }
+draft env n t = case t of
   Choose options -> case index options (pick (length options)) of
-    Just o -> draft env o
-    Nothing -> []
-  _ -> map single (filter (authorized env.view.self.capabilities env.view.self.id) (intents env t)) <> procedure
+    Just o -> draft env (n + 1) o
+    Nothing -> { next: n + 1, drafts: [] }
+  _ ->
+    { next: n
+    , drafts: map single (filter (authorized env.view.self.capabilities env.view.self.id) (intents env t)) <> procedure
+    }
   where
   -- index ⌊u × n⌋ for a draw u in [0, 1)
-  pick n = Q.floorInt (Q.mul (env.random 0) (Q.fromInt n))
+  pick count = Q.floorInt (Q.mul (env.random n) (Q.fromInt count))
   single i = { intents: [ i ], signers: [], procedure: Nothing }
   procedure = case t of
     Procedure p -> [ { intents: concatMap (intents env) p.intents, signers: p.signers, procedure: Just p.procedure } ]
@@ -103,7 +117,8 @@ draft env t = case t of
     _ -> []
   self x = if x == Id "self" then env.view.self.id else x
 
--- | The Intents one template yields; a non-positive quantity yields nothing.
+-- | The Intents one template yields. A zero quantity yields nothing; any other quantity is
+-- | passed on, and the engine rejects what it cannot settle (a negative transform, for one).
 intents :: Env -> Template -> Array Intent
 intents env = case _ of
   TradeT x ->
@@ -115,18 +130,19 @@ intents env = case _ of
     let
       q = eval env x.quantity
     in
-      if q > Q.zero then [ Transform { by: env.view.self.id, transformation: x.transformation, quantity: q } ] else []
+      if q == Q.zero then [] else [ Transform { by: env.view.self.id, transformation: x.transformation, quantity: q } ]
   EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: x.origin, rate: eval env x.rate })) ]
-  ReciprocateLastRound x -> map (ChangeRule <<< Enact <<< mirror) (restrictedThisBoundary env x.target env.view.self.id)
+  ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedThisBoundary env x.target env.view.self.id))
   Procedure _ -> []
   Deal _ -> []
   Choose _ -> []
-  Nothing' -> []
+  NoAction -> []
   where
+  -- the restriction, turned back on the Entity that enacted it; a Withholding has no mirror
   mirror = case _ of
-    AccessBan r -> AccessBan { jurisdiction: env.view.self.id, target: r.jurisdiction }
-    Tariff r -> Tariff { jurisdiction: env.view.self.id, origin: r.jurisdiction, rate: r.rate }
-    w -> w
+    AccessBan r -> Just (AccessBan { jurisdiction: env.view.self.id, target: r.jurisdiction })
+    Tariff r -> Just (Tariff { jurisdiction: env.view.self.id, origin: r.jurisdiction, rate: r.rate })
+    Withholding _ -> Nothing
 
 -- | `$home` names the Entity's home market.
 market :: Env -> MarketId -> MarketId

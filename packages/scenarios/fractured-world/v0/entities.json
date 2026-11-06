@@ -16,8 +16,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Aid; Energy relief; Soft Power",
     "dependency": "EU donations; Energy purchases",
+    "description": "Aid; Energy relief; Soft Power",
     "fallback": "coverage:WORLD_HOUSEHOLDS",
     "npc": [],
     "objective": {
@@ -82,8 +82,8 @@
     "energy-production": "13"
    },
    "definition": {
-    "capability": "Energy production (13); capacity investment",
     "dependency": "Semiconductor units for investment",
+    "description": "Energy production (13); capacity investment",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -126,8 +126,8 @@
     "semiconductors": "15"
    },
    "definition": {
-    "capability": "Owns 15 units/round of semiconductor capacity backing procurement; may withhold or sell units",
     "dependency": "6 E/round operating Energy",
+    "description": "Owns 15 units/round of semiconductor capacity backing procurement; may withhold or sell units",
     "fallback": "policy:firm-default-v0",
     "npc": [
      "firm-default-v0"
@@ -186,8 +186,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Tariffs and shipment bans; deployment",
     "dependency": "Asia Energy prices; CN_PRIVATE tax base",
+    "description": "Tariffs and shipment bans; deployment",
     "npc": [
      "china-strategic-v0"
     ],
@@ -265,8 +265,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Signs EU procedure Proposals; optional solidarity contributions",
     "dependency": "Atlantic Energy; tax revenue from the EU residual",
+    "description": "Signs EU procedure Proposals; optional solidarity contributions",
     "fallback": "coverage:EU",
     "npc": [],
     "objective": {
@@ -316,8 +316,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Operates procurement and receives non-Chinese revenue",
     "dependency": "CHIP's semiconductor capacity; strikes",
+    "description": "Operates procurement and receives non-Chinese revenue",
     "fallback": "policy:firm-default-v0",
     "npc": [
      "firm-default-v0"
@@ -360,8 +360,8 @@
     "energy-production": "25"
    },
    "definition": {
-    "capability": "Energy production (25); capacity investment",
     "dependency": "Semiconductor units; strikes",
+    "description": "Energy production (25); capacity investment",
     "fallback": "policy:firm-default-v0",
     "npc": [
      "firm-default-v0"
@@ -508,8 +508,8 @@
     "energy-production": "5"
    },
    "definition": {
-    "capability": "Energy production (5); tariffs",
     "dependency": "Asia Energy prices",
+    "description": "Energy production (5); tariffs",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -568,8 +568,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Tariffs; procurement; large Asia purchasing",
     "dependency": "Imports and transport; no production",
+    "description": "Tariffs; procurement; large Asia purchasing",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -621,8 +621,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Strike, declared or withheld each round",
     "dependency": "Dues; Soft Power",
+    "description": "Strike, declared or withheld each round",
     "fallback": "coverage:US_WORKERS",
     "npc": [],
     "objective": {
@@ -682,8 +682,8 @@
     "energy-production": "12"
    },
    "definition": {
-    "capability": "Energy production (12); capacity investment",
     "dependency": "Semiconductor units; investment",
+    "description": "Energy production (12); capacity investment",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -745,8 +745,8 @@
     "energy-production": "25"
    },
    "definition": {
-    "capability": "Largest government production (25)",
     "dependency": "Transport for Atlantic sales",
+    "description": "Largest government production (25)",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -801,8 +801,8 @@
     "transport": "60"
    },
    "definition": {
-    "capability": "Owns the energy-shipping facility and chooses which shipments to sign; arbitrage",
     "dependency": "4 E/round fuel; shipment bans",
+    "description": "Owns the energy-shipping facility and chooses which shipments to sign; arbitrage",
     "fallback": "policy:firm-default-v0",
     "npc": [
      "firm-default-v0"
@@ -852,8 +852,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Representation of Global SME demand",
     "dependency": "Atlantic prices; small cash",
+    "description": "Representation of Global SME demand",
     "fallback": "coverage:GLOBAL_SMES",
     "npc": [],
     "objective": {
@@ -910,8 +910,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Tariffs; procurement; campaigns",
     "dependency": "Atlantic Energy",
+    "description": "Tariffs; procurement; campaigns",
     "fallback": "policy:government-default-v0",
     "npc": [
      "government-default-v0"
@@ -970,8 +970,8 @@
    ],
    "capacities": {},
    "definition": {
-    "capability": "Tariffs and shipment bans; deployment; largest procurement budget",
     "dependency": "Energy above its holdings; procurement capacity",
+    "description": "Tariffs and shipment bans; deployment; largest procurement budget",
     "npc": [],
     "objective": {
      "criteria": [

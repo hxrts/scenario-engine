@@ -1,30 +1,73 @@
--- | Loads a scenario package: every JSON file in its directory is merged into one
--- | Gameboard object, except `instantiation.json`, the Instantiation Configuration.
-module Scenarios (Loaded, load, fromFiles, loadPresets, decodePresets, loadContext, loadFixture, root) where
+-- | Loads a scenario package: every JSON file in its directory is merged into one Gameboard
+-- | object, except `instantiation.json`, the Instantiation Configuration. The Gameboard, the
+-- | Policy catalog, and the shared seat presets are decoded and checked against each other
+-- | here, so bad data fails at load time and never inside a run.
+module Scenarios
+  ( Loaded
+  , LoadError(..)
+  , load
+  , fromFiles
+  , loadPresets
+  , decodePresets
+  , checkPresets
+  , loadContext
+  , loadFixture
+  , root
+  ) where
 
 import Prelude
 
-import Board.Decode (decodeWorld, readJsonWith)
+import Board.Decode (decodeFixture, readJsonWith)
 import Board.Fixture (Fixture)
-import Board.Gameboard (Gameboard, InstantiationConfig, decodeConfig, decodeGameboard)
+import Board.Gameboard (Gameboard, InstantiationConfig, RefKind(..), ValidationError, decodeConfig, decodeGameboard, validateGameboard)
+import Core.Types (Id(..))
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Argonaut.Decode (printJsonDecodeError)
+import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, foldl, sort)
+import Data.Array (filter, find, foldl, head, sort)
 import Data.Bifunctor (lmap)
-import Data.Either (Either, note)
-import Data.String (Pattern(..), stripSuffix)
+import Data.Either (Either(..), note)
+import Data.Foldable (traverse_)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.String (Pattern(..), joinWith, stripSuffix)
 import Data.Traversable (traverse)
+import Data.TraversableWithIndex (traverseWithIndex)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Program (Program, decodeProgram)
-import Data.TraversableWithIndex (traverseWithIndex)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, readdir)
+import Policy.Program (Program, decodeProgram, programRefs)
 
 type Loaded = { gameboard :: Gameboard, config :: InstantiationConfig }
+
+-- | Why a scenario, its presets, or a fixture does not load.
+data LoadError
+  = Unreadable String String -- a file that cannot be read or parsed, and why
+  | NotAnObject String -- a section file whose JSON is not an object
+  | DuplicateKey String String -- a section file defines a key another section already defines
+  | Undecodable String JsonDecodeError -- something that does not decode, and the decoder's error
+  | Invalid (Array ValidationError) -- the Gameboard or configuration fails its checks
+  | Unresolved String RefKind String -- a policy or preset names something the world lacks
+
+derive instance Eq LoadError
+
+instance Show LoadError where
+  show = case _ of
+    Unreadable f why -> f <> ": " <> why
+    NotAnObject f -> f <> ": a section must be a JSON object"
+    DuplicateKey f k -> f <> ": key " <> k <> " is already defined by another section"
+    Undecodable what e -> what <> ": " <> printJsonDecodeError e
+    Invalid es -> "invalid scenario: " <> joinWith "; " (map show es)
+    Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref
+
+instantiationFile :: String
+instantiationFile = "instantiation.json"
+
+presetsFile :: String
+presetsFile = "presets.json"
 
 -- | A scenario with the seat presets: everything a simulation context needs.
 loadContext :: String -> Effect (Either String { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program })
@@ -33,46 +76,109 @@ loadContext path = do
   presets <- loadPresets
   pure ({ gameboard: _, config: _, presets: _ } <$> map _.gameboard loaded <*> map _.config loaded <*> presets)
 
--- | The seat-policy presets (docs/06_simulator.md §4.2).
+-- | The seat-policy presets (docs/06_simulator.md §4.2). `load` also checks them against the
+-- | scenario's Gameboard; this reads them alone.
 loadPresets :: Effect (Either String (Object Program))
 loadPresets = do
-  text <- readTextFile UTF8 (root <> "presets.json")
+  text <- readTextFile UTF8 (root <> presetsFile)
   pure (jsonParser text >>= decodePresets)
 
 decodePresets :: Json -> Either String (Object Program)
-decodePresets j = do
-  o <- note "presets must be an object" (toObject j)
-  lmap printJsonDecodeError (traverseWithIndex (const decodeProgram) o)
+decodePresets j = lmap show (presetsFrom j)
+
+presetsFrom :: Json -> Either LoadError (Object Program)
+presetsFrom j = do
+  o <- note (NotAnObject presetsFile) (toObject j)
+  lmap (Undecodable presetsFile) (traverseWithIndex (const decodeProgram) o)
+
+-- | Every preset's markets, resources, transformations, entities and parameters resolve in
+-- | the Gameboard (`$home` and `self` excepted).
+checkPresets :: Gameboard -> Object Program -> Either LoadError Unit
+checkPresets gb presets = traverse_ (\(Tuple name p) -> checkRefs ("preset " <> name) gb p) (Object.toUnfoldable presets :: Array _)
 
 -- | An engine-level fixture from `fixtures/`.
 loadFixture :: String -> Effect (Either String Fixture)
 loadFixture name = do
   text <- readTextFile UTF8 (root <> "fixtures/" <> name <> ".json")
-  pure (readJsonWith decodeWorld text)
+  pure (readJsonWith decodeFixtureDoc text)
+  where
+  decodeFixtureDoc j = map (\d -> { name, world: d.world, rounds: d.rounds }) (decodeFixture j)
 
 root :: String
 root = "packages/scenarios/"
 
--- | `load "fractured-world/v0"`
+-- | `load "fractured-world/v0"`: the scenario, checked, with the shared presets checked
+-- | against it.
 load :: String -> Effect (Either String Loaded)
-load path = do
+load path = map (lmap show) (loadChecked path)
+
+loadChecked :: String -> Effect (Either LoadError Loaded)
+loadChecked path = do
   let dir = root <> path <> "/"
   names <- sort <<< filter (isJust <<< stripSuffix (Pattern ".json")) <$> readdir dir
   texts <- traverse (\n -> { name: n, text: _ } <$> readTextFile UTF8 (dir <> n)) names
-  pure (traverse (\t -> { name: t.name, json: _ } <$> jsonParser t.text) texts >>= fromFiles)
+  case traverse (\t -> { name: t.name, json: _ } <$> lmap (Unreadable t.name) (jsonParser t.text)) texts of
+    Left e -> pure (Left e)
+    Right files -> case fromFiles files of
+      Left e -> pure (Left e)
+      Right loaded -> do
+        presetsText <- readTextFile UTF8 (root <> presetsFile)
+        pure do
+          presets <- lmap (Unreadable presetsFile) (jsonParser presetsText) >>= presetsFrom
+          checkPresets loaded.gameboard presets
+          pure loaded
 
--- | Decode a scenario from its files: every section merged into the Gameboard, and
--- | `instantiation.json` as the configuration.
-fromFiles :: Array { name :: String, json :: Json } -> Either String Loaded
+-- | Decode a scenario from its files: every section merged into the Gameboard, the
+-- | Gameboard validated, every Policy decoded and its names resolved, and
+-- | `instantiation.json` decoded as the configuration.
+fromFiles :: Array { name :: String, json :: Json } -> Either LoadError Loaded
 fromFiles files = do
-  configJson <- note "missing instantiation.json" (map _.json (headOf (filter (\p -> p.name == "instantiation.json") files)))
-  gameboard <- lmap printJsonDecodeError (decodeGameboard (merge (map _.json (filter (\p -> p.name /= "instantiation.json") files))))
-  config <- lmap printJsonDecodeError (decodeConfig configJson)
+  configJson <- note (Unreadable instantiationFile "missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
+  config <- lmap (Undecodable instantiationFile) (decodeConfig configJson)
+  merged <- merge (filter (\f -> f.name /= instantiationFile) files)
+  decoded <- lmap (Undecodable "the Gameboard") (decodeGameboard merged)
+  gameboard <- lmap Invalid (validateGameboard decoded config)
+  checkPolicies gameboard
   pure { gameboard, config }
   where
   headOf = case _ of
     [ x ] -> Just x
     _ -> Nothing
 
-  merge :: Array Json -> Json
-  merge = fromObject <<< foldl (\acc j -> maybe acc (flip Object.union acc) (toObject j)) Object.empty
+-- | Every section object merged into one. A section that is not an object, or a key that two
+-- | sections both define, fails: nothing is overwritten silently.
+merge :: Array { name :: String, json :: Json } -> Either LoadError Json
+merge files = map fromObject (foldl step (Right Object.empty) files)
+  where
+  step acc f = do
+    o <- acc
+    x <- note (NotAnObject f.name) (toObject f.json)
+    case find (\k -> Object.member k o) (Object.keys x) of
+      Just k -> Left (DuplicateKey f.name k)
+      Nothing -> Right (Object.union o x)
+
+-- | Every Policy in the catalog decodes, and every name it uses resolves in the Gameboard.
+checkPolicies :: Gameboard -> Either LoadError Unit
+checkPolicies gb = traverse_ check (Object.toUnfoldable gb.policies :: Array _)
+  where
+  check (Tuple name j) = do
+    p <- lmap (Undecodable ("policy " <> name)) (decodeProgram j)
+    checkRefs ("policy " <> name) gb p
+
+-- | The first name a Program uses that the Gameboard lacks. `$home` is the Entity's own
+-- | home market, resolved by the interpreter, so it is not checked here.
+checkRefs :: String -> Gameboard -> Program -> Either LoadError Unit
+checkRefs what gb p =
+  maybe (Right unit) (\(Tuple kind ref) -> Left (Unresolved what kind ref)) (head missing)
+  where
+  r = programRefs p
+  w = gb.world
+  missing = concat'
+    [ tag EntityRef (filter (\e -> not (Map.member (Id e) w.entities)) r.entities)
+    , tag MarketRef (filter (\m -> m /= "$home" && not (Map.member (Id m) w.markets)) r.markets)
+    , tag ResourceRef (filter (\x -> not (Map.member (Id x) w.resources)) r.resources)
+    , tag TransformationRef (filter (\t -> not (Map.member (Id t) w.transformations)) r.transformations)
+    , tag ParameterRef (filter (\x -> not (Object.member x gb.parameters)) r.parameters)
+    ]
+  tag kind = map (Tuple kind)
+  concat' = foldl (\acc xs -> acc <> xs) []

@@ -67,6 +67,7 @@
         "test": {
           "dependencies": [
             "effect",
+            "partial",
             "quickcheck",
             "spec",
             "spec-node",
@@ -313,6 +314,7 @@
             "effect",
             "node-buffer",
             "node-fs",
+            "partial",
             "quickcheck",
             "spec",
             "spec-node",

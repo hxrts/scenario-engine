@@ -13,7 +13,9 @@ module Board.Gameboard
   , Scheme
   , InstantiationConfig
   , InitialWorld
+  , RefKind(..)
   , ValidationError(..)
+  , Difference(..)
   , decodeGameboard
   , decodeConfig
   , validateGameboard
@@ -24,13 +26,14 @@ module Board.Gameboard
 import Prelude
 
 import Board.Decode (decodeWorld, toMap)
+import Board.Tags (capacityKind, cumulativeKind, coverageKind, everyRoundKind, finalKind, holdingKind, omissionKind, payeeReceiptsKind, policyKind, shortfallKind, shortfallRoundsKind, splitTag, volumeKind)
 import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, Capability(..), Controller(..), EntityId, EntityKind(..), Estimator, Id(..), PolicyId, ResourceId, CapacityRef, TransformationId)
-import Core.World (Manifest, WorldState)
 import Core.Query (lookupQ)
-import Data.Argonaut.Core (Json)
+import Core.Types (BehaviorDomain, Capability(..), CapacityRef, Controller(..), EntityId, EntityKind(..), Estimator, Id(..), PolicyId, ResourceId, Rule(..), TransformationId)
+import Core.World (Manifest, ShareSource(SalesOf), WorldState)
+import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Array (all, any, concatMap, elem, filter, foldl, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -39,7 +42,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.Newtype (unwrap)
-import Data.String (Pattern(..), split)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
@@ -54,10 +56,10 @@ type Gameboard =
   , world :: WorldState -- resources, Markets, facilities, circulation, rules, and every Entity
   , actors :: Map EntityId ActorDefinition
   , schemes :: Array Scheme
-  , policies :: Object Json -- the Policy catalog (declarative programs)
+  , policies :: Object Json -- the Policy catalog (declarative programs), decoded and checked by the scenario loader
   , parameters :: Object Q -- named scenario parameters read by Policies
-  , horizon :: Int
-  , rounds :: { min :: Int, max :: Int }
+  , horizon :: Int -- years
+  , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_gameboard.md §4)
   }
 
 -- | What an Actor definition adds to its Entity (§6.2).
@@ -67,7 +69,7 @@ type ActorDefinition =
   , npc :: Array PolicyId -- NPC Policies it may take
   , fallback :: Maybe Fallback
   , objective :: Maybe Objective
-  , capability :: String
+  , description :: String -- what the Actor does; prose for briefings, not an authority
   , dependency :: String
   }
 
@@ -117,9 +119,36 @@ type InstantiationConfig =
 
 type InitialWorld = { world :: WorldState, manifest :: Manifest }
 
+-- | The kind of thing a reference names, for `UnknownReference`.
+data RefKind
+  = ResourceRef
+  | MarketRef
+  | TransformationRef
+  | EntityRef
+  | CapacityName
+  | SchemeRef
+  | PolicyRef
+  | ParameterRef
+
+derive instance Eq RefKind
+
+instance Show RefKind where
+  show = case _ of
+    ResourceRef -> "resource"
+    MarketRef -> "market"
+    TransformationRef -> "transformation"
+    EntityRef -> "entity"
+    CapacityName -> "capacity"
+    SchemeRef -> "scheme"
+    PolicyRef -> "policy"
+    ParameterRef -> "parameter"
+
+-- | Every way a Gameboard, its configuration, or an instantiation can be wrong. Each
+-- | constructor names one check, so a caller and its tests match on the specific failure.
 data ValidationError
-  = UnknownReference String
-  | DuplicateCapacityOwner CapacityRef
+  = UnknownReference RefKind String
+  | DuplicateCapacityOwner String
+  | ProductionWithoutCapacity EntityId String -- a producer does not hold the capacity it produces from
   | FacilityWithoutPayee TransformationId
   | MissingFallback EntityId
   | MissingObjective EntityId
@@ -127,13 +156,18 @@ data ValidationError
   | ControllerNotAllowed EntityId
   | ProcedureExceedsAuthority EntityId
   | IneligibleRepresentative EntityId
-  | ResolutionInconsistent EntityId (Array String)
+  | ResolutionInconsistent EntityId (Array Difference) -- implicit coverage would change the economy
+  | CoverageNotAggregate EntityId EntityId -- an Actor's coverage fallback names a non-Aggregate
+  | SchemeTargetNotAggregate String EntityId -- a Representation scheme's target is not an Aggregate
+  | RoundsOutOfRange { rounds :: Int, min :: Int, max :: Int }
 
 derive instance Eq ValidationError
+
 instance Show ValidationError where
   show = case _ of
-    UnknownReference r -> "unknown reference: " <> r
-    DuplicateCapacityOwner c -> "capacity has more than one owner: " <> show c
+    UnknownReference k r -> "unknown " <> show k <> " reference: " <> r
+    DuplicateCapacityOwner c -> "capacity has more than one owner: " <> c
+    ProductionWithoutCapacity e c -> show e <> " produces from " <> c <> " but does not hold it"
     FacilityWithoutPayee t -> "facility has a cost but no payee: " <> show t
     MissingFallback e -> "Actor has no fallback: " <> show e
     MissingObjective e -> "Actor has no objective: " <> show e
@@ -142,6 +176,25 @@ instance Show ValidationError where
     ProcedureExceedsAuthority e -> "procedure authorizes more than its Aggregate holds: " <> show e
     IneligibleRepresentative e -> "Actor not eligible for its Representation: " <> show e
     ResolutionInconsistent e ds -> "making " <> show e <> " implicit changes the economy: " <> show ds
+    CoverageNotAggregate a agg -> "coverage fallback of " <> show a <> " names " <> show agg <> ", which is not an Aggregate"
+    SchemeTargetNotAggregate s t -> "scheme " <> s <> " targets " <> show t <> ", which is not an Aggregate"
+    RoundsOutOfRange r -> "configured " <> show r.rounds <> " rounds is outside the supported range " <> show r.min <> " to " <> show r.max
+
+-- | A difference between two instantiations of the same economy (§14.2).
+data Difference
+  = StockDiffers String Q Q
+  | CapacityDiffers String Q Q
+  | WeightDiffers String Q Q
+  | AuthorityDiffers
+
+derive instance Eq Difference
+
+instance Show Difference where
+  show = case _ of
+    StockDiffers k l r -> "stock " <> k <> ": " <> show l <> " vs " <> show r
+    CapacityDiffers k l r -> "capacity " <> k <> ": " <> show l <> " vs " <> show r
+    WeightDiffers k l r -> "procedure weight " <> k <> ": " <> show l <> " vs " <> show r
+    AuthorityDiffers -> "institutional authority differs"
 
 -- Decoding -----------------------------------------------------------------------
 
@@ -158,8 +211,8 @@ decodeGameboard j = do
   schemes <- o .:? "schemes" .!= [] >>= traverse scheme
   policies <- o .:? "policies" .!= Object.empty
   parameters <- o .:? "parameters" .!= Object.empty
-  horizon <- o .:? "horizon" .!= 5
-  rs <- o .:? "roundRange" .!= [ 4, 8 ]
+  horizon <- o .: "horizon"
+  rounds <- o .: "roundRange" >>= roundRange
   pure
     { id
     , version
@@ -169,9 +222,7 @@ decodeGameboard j = do
     , policies
     , parameters
     , horizon
-    , rounds: case rs of
-        [ a, b ] -> { min: a, max: b }
-        _ -> { min: 1, max: horizon }
+    , rounds
     }
   where
   definition _ j' = do
@@ -181,9 +232,9 @@ decodeGameboard j = do
     npc <- d .:? "npc" .!= []
     fallback <- d .:? "fallback" >>= traverse decodeFallback
     objective <- d .:? "objective" >>= traverse decodeObjective
-    capability' <- d .:? "capability" .!= ""
+    description <- d .:? "description" .!= ""
     dependency <- d .:? "dependency" .!= ""
-    pure { required, seat, npc: map Id npc, fallback, objective, capability: capability', dependency }
+    pure { required, seat, npc: map Id npc, fallback, objective, description, dependency }
   scheme j' = do
     s <- decodeJson j'
     id <- s .: "id"
@@ -203,14 +254,23 @@ decodeGameboard j = do
       , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
       }
 
+-- | `[min, max]`: the supported round counts, with 1 <= min <= max.
+roundRange :: Json -> Either JsonDecodeError { min :: Int, max :: Int }
+roundRange j = do
+  xs <- decodeJson j
+  case xs of
+    [ a, b ] | a >= 1 && a <= b -> Right { min: a, max: b }
+    _ -> Left (Named "roundRange" (UnexpectedValue j))
+
+-- | A fallback tag: `coverage:<aggregate>`, `policy:<policy>`, or `omission`.
 decodeFallback :: Json -> Either JsonDecodeError Fallback
 decodeFallback j = do
   s <- decodeJson j
-  case split (Pattern ":") s of
-    [ "coverage", agg ] -> Right (ImplicitCoverage (Id agg))
-    [ "policy", p ] -> Right (InstitutionalPolicy (Id p))
-    [ "omission" ] -> Right PermittedOmission
-    _ -> Left (TypeMismatch ("fallback " <> s))
+  case splitTag s of
+    { kind, arg: Just a } | kind == coverageKind -> Right (ImplicitCoverage (Id a))
+    { kind, arg: Just a } | kind == policyKind -> Right (InstitutionalPolicy (Id a))
+    { kind, arg: Nothing } | kind == omissionKind -> Right PermittedOmission
+    _ -> Left (Named "fallback" (UnexpectedValue j))
 
 decodeObjective :: Json -> Either JsonDecodeError Objective
 decodeObjective j = do
@@ -219,30 +279,31 @@ decodeObjective j = do
   criteria <- o .: "criteria" >>= traverse \c -> do
     x <- decodeJson c
     metric <- x .: "metric" >>= metricRef
-    over <- x .:? "over" .!= "final" >>= case _ of
-      "final" -> Right Final
-      "everyRound" -> Right EveryRound
-      "cumulative" -> Right Cumulative
-      s -> Left (TypeMismatch ("span " <> s))
+    over <- x .:? "over" .!= finalKind >>= span
     atLeast <- x .: "atLeast" >>= \b -> case decodeJson b of
       Right q -> Right (Fixed q)
       Left _ -> Of <$> metricRef b
     pure { metric, over, atLeast }
   pure { description, criteria }
   where
+  span s
+    | s == finalKind = Right Final
+    | s == everyRoundKind = Right EveryRound
+    | s == cumulativeKind = Right Cumulative
+    | otherwise = Left (Named "span" (UnexpectedValue (fromString s)))
   metricRef j' = do
     m <- decodeJson j'
     entities <- m .: "entities"
     negated <- m .:? "negated" .!= false
     s <- m .: "measure"
-    measure <- case split (Pattern ":") s of
-      [ "holding", r ] -> Right (HoldingOf (Id r))
-      [ "capacity", c ] -> Right (CapacityAmount (Id c))
-      [ "shortfall", r ] -> Right (ShortfallOf (Id r))
-      [ "shortfallRounds", r ] -> Right (ShortfallRounds (Id r))
-      [ "payeeReceipts" ] -> Right PayeeReceipts
-      [ "volume", t ] -> Right (VolumeOf (Id t))
-      _ -> Left (TypeMismatch ("measure " <> s))
+    measure <- case splitTag s of
+      { kind, arg: Just r } | kind == holdingKind -> Right (HoldingOf (Id r))
+      { kind, arg: Just c } | kind == capacityKind -> Right (CapacityAmount (Id c))
+      { kind, arg: Just r } | kind == shortfallKind -> Right (ShortfallOf (Id r))
+      { kind, arg: Just r } | kind == shortfallRoundsKind -> Right (ShortfallRounds (Id r))
+      { kind, arg: Nothing } | kind == payeeReceiptsKind -> Right PayeeReceipts
+      { kind, arg: Just t } | kind == volumeKind -> Right (VolumeOf (Id t))
+      _ -> Left (Named "measure" (UnexpectedValue (fromString s)))
     pure { entities: map Id entities, measure, negated }
 
 decodeConfig :: Json -> Either JsonDecodeError InstantiationConfig
@@ -267,7 +328,7 @@ decodeConfig j = do
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> owners <> payees <> fallbacks <> objectives <> procedures
+    structural = references <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -275,25 +336,107 @@ validateGameboard gb config =
     if null errors then Right gb else Left errors
   where
   w = gb.world
-  ids = Map.keys w.entities
-  known e = e `elem` fromFoldable ids
-  unknown what = UnknownReference what
+  entities = fromFoldable (Map.values w.entities)
+  markets = fromFoldable (Map.values w.markets)
+  facilities = fromFoldable (Map.values w.transformations)
+  aggregates = concatMap
+    ( \e -> case e.kind of
+        Aggregate a -> [ Tuple e.id a ]
+        _ -> []
+    )
+    entities
+  isAggregate e = any (\(Tuple id _) -> id == e) aggregates
+  -- capacities an Entity holds, by name
+  held = nub (concatMap (\e -> map show (fromFoldable (Map.keys e.capacities))) entities)
+  -- capacities a facility, an effect, or the production list refers to
+  referenced = nub
+    ( map show (mapMaybe _.capacity facilities)
+        <> concatMap (\t -> map (show <<< _.capacity) t.effects) facilities
+        <> map (show <<< _.capacity) w.circulation.production
+    )
+
+  -- An unknown name in any position: one error per name.
+  missing :: forall k v. Ord k => (k -> String) -> RefKind -> Map k v -> Array k -> Array ValidationError
+  missing name kind m xs = map (UnknownReference kind <<< name) (filter (\x -> not (Map.member x m)) xs)
+  unknownEntity = missing show EntityRef w.entities
+  unknownResource = missing show ResourceRef w.resources
+  unknownTransformation = missing show TransformationRef w.transformations
+  -- a capacity named by a facility, effect, rule, or production entry must be held by some Entity
+  unknownCapacity xs = map (UnknownReference CapacityName <<< show) (filter (\c -> not (show c `elem` held)) xs)
+
   references =
-    map (unknown <<< show) (filter (not <<< known) (concatMap (\m -> m.access) (fromFoldable (Map.values w.markets))))
-      <> map (unknown <<< show) (filter (not <<< known) (mapMaybe _.payee (fromFoldable (Map.values w.transformations))))
-      <> map (unknown <<< show) (filter (not <<< known) (concatMap (\f -> [ f.from, f.to ]) w.circulation.flows))
-      <> map (unknown <<< show) (filter (not <<< known) (map _.target gb.schemes))
-      <> map (unknown <<< show) (filter (\p -> not (Object.member (unwrap p) gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
+    unknownEntity (concatMap (\m -> m.access) markets)
+      <> unknownResource (concatMap (\m -> [ m.base, m.quote ] <> fromFoldable (Map.keys m.reserves)) markets)
+      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs)) facilities)
+      <> unknownCapacity (mapMaybe _.capacity facilities)
+      <> unknownCapacity (concatMap (\t -> map _.capacity t.effects) facilities)
+      <> unknownEntity (concatMap (\t -> mapMaybe _.holder t.effects) facilities)
+      <> unknownEntity (mapMaybe _.payee facilities)
+      <> unknownResource (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities)
+      <> map (UnknownReference CapacityName) (filter (\c -> not (c `elem` referenced)) held)
+      <> unknownEntity (concatMap (\p -> [ p.entity ]) w.circulation.production)
+      <> unknownResource (concatMap (\p -> [ p.resource ]) w.circulation.production)
+      <> unknownEntity (concatMap (\f -> [ f.from, f.to ]) w.circulation.flows)
+      <> unknownResource (map _.resource w.circulation.flows)
+      <> unknownEntity (concatMap (\s -> [ s.from, s.to ]) w.circulation.shares)
+      <> unknownResource
+        ( concatMap
+            ( \s -> case s.source of
+                SalesOf r -> [ r ]
+                _ -> []
+            )
+            w.circulation.shares
+        )
+      <> unknownEntity (map _.entity w.circulation.requirements)
+      <> unknownResource (map _.resource w.circulation.requirements)
+      <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.jurisdiction :: Array _))
+      <> concatMap ruleRefs (fromFoldable (Map.values w.rules))
+      <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transport :: Array _))
+      <> unknownTransformation (map (\(Tuple _ t) -> t) (Map.toUnfoldable w.transport :: Array _))
+      <> unknownEntity (map _.target gb.schemes)
+      <> unknownEntity (concatMap _.eligibleActors gb.schemes)
+      <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (Id (unwrap s.domain)) w.resources)) gb.schemes)
+      <> unknownEntity
+        ( concatMap
+            ( \e -> case e.kind of
+                Aggregate a -> a.members
+                _ -> []
+            )
+            entities
+        )
+      <> unknownEntity
+        ( concatMap
+            ( \e -> case e.kind of
+                Aggregate a -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values a.procedures))
+                _ -> []
+            )
+            entities
+        )
+      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Object.member (unwrap p) gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
+  ruleRefs = case _ of
+    Tariff x -> unknownEntity [ x.jurisdiction, x.origin ]
+    AccessBan x -> unknownEntity [ x.jurisdiction, x.target ]
+    Withholding x -> unknownCapacity [ x.capacity ]
   aggregatePolicies = concatMap
     ( \e -> case e.kind of
         Aggregate a -> [ a.policy ]
         _ -> []
     )
-    (fromFoldable (Map.values w.entities))
-  owners = map (\g -> DuplicateCapacityOwner (NEA.head g)) (filter (\g -> NEA.length g > 1) (group (sort (concatMap (\e -> fromFoldable (Map.keys e.capacities)) (fromFoldable (Map.values w.entities)) # filter (\c -> not (sharedProduction c))))))
+    entities
+  capacities = concatMap productionHeld w.circulation.production
+    <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
+    <> concatMap schemeTarget gb.schemes
+    <> (map (\g -> DuplicateCapacityOwner (show (NEA.head g))) (filter (\g -> NEA.length g > 1) (group (sort (concatMap (\e -> fromFoldable (Map.keys e.capacities)) entities # filter (\c -> not (sharedProduction c)))))))
   -- production capacity is held by each producer under one name; every other capacity has one owner
   sharedProduction c = any (\p -> p.capacity == c) w.circulation.production
-  payees = map (\t -> FacilityWithoutPayee t.id) (filter (\t -> isJust t.cost && isNothing t.payee) (fromFoldable (Map.values w.transformations)))
+  productionHeld p = case Map.lookup p.entity w.entities of
+    Just e | not (Map.member p.capacity e.capacities) -> [ ProductionWithoutCapacity p.entity (show p.capacity) ]
+    _ -> []
+  coverageAggregate (Tuple e d) = case d.fallback of
+    Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregate agg) -> [ CoverageNotAggregate e agg ]
+    _ -> []
+  schemeTarget s = if Map.member s.target w.entities && not (isAggregate s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
+  payees = map (\t -> FacilityWithoutPayee t.id) (filter (\t -> isJust t.cost && isNothing t.payee) facilities)
   fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   procedures = concatMap
@@ -301,7 +444,10 @@ validateGameboard gb config =
         Aggregate a | any (\p -> not (all (_ `elem` e.capabilities) p.authorizes)) (fromFoldable (Map.values a.procedures)) -> [ ProcedureExceedsAuthority e.id ]
         _ -> []
     )
-    (fromFoldable (Map.values w.entities))
+    entities
+  roundCount =
+    if config.rounds < gb.rounds.min || config.rounds > gb.rounds.max then [ RoundsOutOfRange { rounds: config.rounds, min: gb.rounds.min, max: gb.rounds.max } ]
+    else []
   consistent e = case Map.lookup e gb.actors of
     Just { fallback: Just (ImplicitCoverage _) } ->
       let
@@ -352,7 +498,7 @@ instantiate gb config =
     ( \r -> case schemeOf r.scheme of
         Just s | r.actor `elem` s.eligibleActors && selected r.actor -> []
         Just _ -> [ IneligibleRepresentative r.actor ]
-        Nothing -> [ UnknownReference r.scheme ]
+        Nothing -> [ UnknownReference SchemeRef r.scheme ]
     )
     config.representations
   schemeOf id = case filter (\s -> s.id == id) gb.schemes of
@@ -413,26 +559,26 @@ mergeInto agg e w = case Map.lookup e w.entities of
 
 -- | Two instantiations differing only in explicitness must describe the same initial
 -- | economy: stocks, capacities, institutional authority, and procedure weights.
-reconcile :: InitialWorld -> InitialWorld -> Either (Array String) Unit
+reconcile :: InitialWorld -> InitialWorld -> Either (Array Difference) Unit
 reconcile a b =
   let
-    diffs = compare' "stock" (stocks a.world) (stocks b.world)
-      <> compare' "capacity" (capacities a.world) (capacities b.world)
-      <> compare' "procedure weight" (weights a.world) (weights b.world)
-      <> (if authority a.world == authority b.world then [] else [ "institutional authority differs" ])
+    diffs = compare' StockDiffers (stocks a.world) (stocks b.world)
+      <> compare' CapacityDiffers (capacities a.world) (capacities b.world)
+      <> compare' WeightDiffers (weights a.world) (weights b.world)
+      <> (if authority a.world == authority b.world then [] else [ AuthorityDiffers ])
   in
     if null diffs then Right unit else Left diffs
   where
-  compare' :: forall k. Ord k => Show k => String -> Map k Q -> Map k Q -> Array String
-  compare' what x y = concatMap (diff what x y) (nub (fromFoldable (Map.keys x) <> fromFoldable (Map.keys y)))
+  compare' :: forall k. Ord k => Show k => (String -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> Array Difference
+  compare' mk x y = concatMap (diff mk x y) (nub (fromFoldable (Map.keys x) <> fromFoldable (Map.keys y)))
 
-  diff :: forall k. Ord k => Show k => String -> Map k Q -> Map k Q -> k -> Array String
-  diff what x y k =
+  diff :: forall k. Ord k => Show k => (String -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> k -> Array Difference
+  diff mk x y k =
     let
       l = lookupQ k x
       r = lookupQ k y
     in
-      if l == r then [] else [ what <> " " <> show k <> ": " <> show l <> " vs " <> show r ]
+      if l == r then [] else [ mk (show k) l r ]
   stocks w = sumMaps (map _.accounts (fromFoldable (Map.values w.entities)) <> map _.reserves (fromFoldable (Map.values w.markets)))
   capacities w = sumMaps (map _.capacities (fromFoldable (Map.values w.entities)))
 

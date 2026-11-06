@@ -5,7 +5,6 @@ module Scenarios.Compile (main) where
 
 import Prelude
 
-import Board.Gameboard (validateGameboard)
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
 import Data.Array (length, sortWith)
 import Data.Either (Either(..))
@@ -19,11 +18,11 @@ import Node.FS.Perms (permsAll)
 import Data.Foldable (for_)
 import Node.Process (exit')
 import Scenario.DSL (Built, Keyed)
-import Scenarios (decodePresets, fromFiles, root)
+import Scenarios (checkPresets, decodePresets, fromFiles, root)
 import Scenarios.FracturedWorld as FracturedWorld
 import Scenarios.Presets as Presets
 import Scenarios.Fixtures as Fixtures
-import Board.Decode (decodeWorld)
+import Board.Decode (decodeFixture)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Bifunctor (lmap)
 import Data.Argonaut.Encode (encodeJson)
@@ -43,15 +42,14 @@ main = case validate of
     for_ outputs \(Tuple path j) -> writeTextFile UTF8 (root <> path) (render j)
     log ("compiled " <> show (length outputs) <> " files")
 
--- | Decode and validate the compiled scenario exactly as the loader will read it.
+-- | Decode and validate the compiled scenario exactly as the loader will read it: the
+-- | Gameboard, the Policies, the presets against the Gameboard, and every fixture.
 validate :: Either String Unit
 validate = do
-  loaded <- fromFiles (map (\(Tuple name json) -> { name, json }) FracturedWorld.files)
-  _ <- case validateGameboard loaded.gameboard loaded.config of
-    Left errors -> Left (show errors)
-    Right _ -> Right unit
-  _ <- decodePresets (encodeJson Presets.presets)
-  for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeWorld j)
+  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) FracturedWorld.files))
+  presets <- decodePresets (encodeJson Presets.presets)
+  lmap show (checkPresets loaded.gameboard presets)
+  for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeFixture j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.
 render :: Json -> String
