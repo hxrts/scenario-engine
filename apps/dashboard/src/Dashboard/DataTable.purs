@@ -15,7 +15,7 @@ import Prelude
 
 import Data.Array (index, mapWithIndex, sortBy)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Number as Number
+import Core.Num as Q
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
 import React.Basic.Hooks (Component, JSX, component, useState', (/\))
@@ -54,7 +54,7 @@ sortRows (Just s) rows = sortBy cmp rows
 
 -- | Numbers compare as numbers when both cells parse; otherwise as text.
 compareCells :: String -> String -> Ordering
-compareCells a b = case Number.fromString a, Number.fromString b of
+compareCells a b = case Q.parse a, Q.parse b of
   Just x, Just y -> compare x y
   _, _ -> compare a b
 

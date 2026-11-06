@@ -6,6 +6,7 @@ import Board.Decode as BD
 import Board.Fixture (Field(..), FixtureError(..), checkFixture)
 import Board.Gameboard (Difference(..), Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..), instantiate, reconcile, validateGameboard)
 import Control.Monad.Error.Class (throwError)
+import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
 import Core.World (Event(..), ShareSource(..), View, WorldState)
@@ -98,8 +99,8 @@ chinaView =
   }
 
 -- | An environment whose every draw is `u`, with `$home` at energy-asia.
-envWith :: View -> Number -> Env
-envWith v u = { view: v, params: Object.empty, home: Id "energy-asia", random: const (fromMaybe Q.zero (Q.parse (show u))) }
+envWith :: View -> Q -> Env
+envWith v u = { view: v, params: Object.empty, home: Id "energy-asia", random: const u }
 
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Program
@@ -382,9 +383,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "china-strategic-v0 procures after a major US action, and only with the capability" do
       { gameboard } <- loaded
       p <- policyNamed gameboard "china-strategic-v0"
-      map _.intents (propose p (envWith chinaView 0.0))
+      map _.intents (propose p (envWith chinaView Q.zero))
         `shouldEqual` [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
-      map _.intents (propose p (envWith (chinaView { self = chinaView.self { capabilities = [] } }) 0.0)) `shouldEqual` []
+      map _.intents (propose p (envWith (chinaView { self = chinaView.self { capabilities = [] } }) Q.zero)) `shouldEqual` []
     it "RandomValid's choose picks an option by its own seeded draw" do
       case decodePresets (encodeJson Presets.presets) of
         Left e -> fail e
@@ -395,8 +396,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               sme = chinaView { self = chinaView.self { id = Id "SME", capabilities = [ MayTrade (Id "energy-asia") ] } }
               at u = map _.intents (propose p (envWith sme u))
             -- three options: noAction, buy 5 at 3, sell 5 at 2; a draw of 0.9 picks the last
-            at 0.0 `shouldEqual` []
-            at 0.9 `shouldEqual` [ [ Trade { market: Id "energy-asia", quantity: Q.fromInt (-5), limitPrice: Just (Q.fromInt 2) } ] ]
+            at Q.zero `shouldEqual` []
+            at (fromMaybe Q.zero (Q.parse "0.9")) `shouldEqual` [ [ Trade { market: Id "energy-asia", quantity: Q.fromInt (-5), limitPrice: Just (Q.fromInt 2) } ] ]
 
   describe "Scenario loader: files and policies fail at load time" do
     it "a key that two section files both define is an error, not an overwrite" do

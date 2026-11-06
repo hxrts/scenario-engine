@@ -427,7 +427,8 @@ fund w items =
     keptDemand = total kept
     singleDemand = total singles
     room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)
-    ratio key amt = if amt > room key then Q.div (max Q.zero (room key)) amt else Q.fromInt 1
+    -- rounded down, so scale × amt never exceeds the room (a half-even round-up could overdraw it)
+    ratio key amt = if amt > room key then fromMaybe Q.zero (Q.divFloor (max Q.zero (room key)) amt) else Q.fromInt 1
     entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (Map.toUnfoldable singleDemand :: Array _))
     scaleOf item = fromMaybe (Q.fromInt 1) (Map.lookup item.proposal.author entityScale)
   in

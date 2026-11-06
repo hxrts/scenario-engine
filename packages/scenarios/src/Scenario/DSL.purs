@@ -129,10 +129,13 @@ module Scenario.DSL
 import Prelude
 
 import Board.Tags as T
+import Core.Num as Q
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
+import Partial.Unsafe (unsafeCrashWith)
 import Prim.Row (class Union)
 
 -- Quantities and maps ----------------------------------------------------------------
@@ -144,7 +147,8 @@ instance EncodeJson Qty where
   encodeJson (Qty s) = fromString s
 
 -- | Quantities are written as an `Int` or as a decimal `String` ("0.02"), never a
--- | floating-point `Number`.
+-- | floating-point `Number`. A string must pass the one decimal parser (`Q.parse`, at most 4
+-- | decimals), so a bad literal fails when the scenario is authored, not when it is decoded.
 class ToQty a where
   q :: a -> Qty
 
@@ -155,7 +159,9 @@ instance ToQty Int where
   q = Qty <<< show
 
 instance ToQty String where
-  q = Qty
+  q s = case Q.parse s of
+    Just _ -> Qty s
+    Nothing -> unsafeCrashWith ("not a fixed-point quantity (sign, digits, at most 4 decimals): " <> s)
 
 -- | A JSON object from key–value pairs: holdings, catalogs, parameters, seats.
 newtype Keyed a = Keyed (Array (Tuple String a))
