@@ -63,7 +63,7 @@ type SimulationSpec =
   , rounds :: Maybe Int }               -- defaults to the configuration's round count
 ```
 
-The specification must be enough to reproduce the complete economic history with the same engine version. The game seed lives only in the `InstantiationConfig`. The player seed drives all seat-Policy randomness and is recorded in the run manifest.
+The specification must be enough to reproduce the complete economic history with the same engine version. The game seed lives only in the `InstantiationConfig`. The player seed drives all seat-Policy randomness; the program boundary resolves it to a concrete value before `simulate` is called (see the seed rule in §5), and the run's stored spec records that value.
 
 ### 3.1 Configuration inheritance
 
@@ -124,6 +124,8 @@ Every seat has exactly one bound seat Policy. A seat Policy that produces nothin
 ## 5. Deterministic Randomness
 
 Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
+
+**The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`, `playerSeed` absent or null means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through one function in the adapters package. The stored spec records the resolved seed, never an absent value. `simulate` and the other harness functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
 
 ```purescript
 simulate
@@ -277,7 +279,7 @@ The initial record is written before Round 1. After each round, the round record
 
 **Not yet implemented.** Resuming a run from a stored snapshot through the Run Store or the read API (the harness can resume from a snapshot in memory, `Harness.Simulate.resume`); explicit archive and delete of runs; and counterfactual runs linked to their source ([§10.4](#104-counterfactual-experiments)). The Run Store has no such operations, and the read API has no route for them.
 
-A stored seed is insufficient without the versioned PRNG, which is why the manifest records it. Run IDs never influence sampling.
+A stored seed is insufficient without the versioned PRNG, which is why the manifest records it. The player seed is recorded in the run's stored spec as the resolved value, whether it was injected or drawn. Run IDs never influence sampling.
 
 Initial storage is a local database such as SQLite, accessed through a Run Store interface. That interface supports save, retrieve, list and filter, full round histories, metric series, labels, resume, and explicit archive or delete. The Dashboard reads through it and never touches engine internals.
 
@@ -491,7 +493,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
-| 1 | Full game | Three preset configurations: all `Conservative`; all `Passive`; `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with [INV-01](02_type_system.md#inv-01)–16 passing; the cycle sustains five years ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)); the same seeds reproduce, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
+| 1 | Full game | Three preset configurations: all `Conservative`; all `Passive`; `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with [INV-01](02_type_system.md#inv-01)–16 passing; the cycle sustains five years ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)); the same seeds reproduce, a drawn player seed and the same value injected give identical records and spec, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
 | 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values; [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |

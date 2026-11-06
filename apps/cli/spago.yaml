@@ -12,6 +12,7 @@ package:
     - ordered-collections
     - strings
     - tuples
+    - newtype
     - foldable-traversable
     - argonaut-codecs
     - sp-core

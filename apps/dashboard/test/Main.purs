@@ -67,15 +67,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Object.lookup "b") (chartRows series) `shouldEqual` [ Just 2.0 ]
   describe "Launch form" do
     it "the default form is a valid request with the scenario's default rounds" do
-      validate emptyForm `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, gameSeed: Nothing, rounds: Nothing }
+      validate emptyForm `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: Nothing, gameSeed: Nothing, rounds: Nothing }
     it "rounds, when given, must be a whole number of at least 1" do
-      validate (emptyForm { rounds = " 4 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: 1, gameSeed: Nothing, rounds: Just 4 }
+      validate (emptyForm { rounds = " 4 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: Nothing, gameSeed: Nothing, rounds: Just 4 }
       validate (emptyForm { rounds = "0" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
       validate (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
     it "a preset must be one of the known presets" do
       validate (emptyForm { preset = "Nope" }) `shouldEqual` Left "Unknown preset: Nope"
-    it "the player seed must be a whole number, and the name must not be blank" do
-      validate (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number."
+    it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
+      validate (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: Just 7, gameSeed: Nothing, rounds: Nothing }
+      validate (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
+    it "the name must not be blank" do
       validate (emptyForm { name = "  " }) `shouldEqual` Left "Name is required."
   describe "Presets" do
     it "the launch form offers exactly the compiled presets" do

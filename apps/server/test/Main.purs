@@ -2,7 +2,8 @@ module Test.Server.Main where
 
 import Prelude
 
-import Adapters.Store (open)
+import Adapters.Store (open, reader)
+import Board.Decode (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
@@ -13,7 +14,7 @@ import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
 import Scenarios (loadContext)
-import Server (route)
+import Server (Launched, route)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -29,9 +30,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           let
             api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
             launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, gameSeed: (Nothing :: Maybe Int), rounds: Just 3 }))
-          a <- launch "a" 1
-          a.body `shouldEqual` "{\"id\":\"run-1\"}"
-          _ <- launch "b" 2
+          a <- launch "a" (Just 1)
+          a.body `shouldEqual` "{\"playerSeed\":1,\"id\":\"run-1\"}"
+          _ <- launch "b" (Just 2)
           list <- api "GET" "/api/runs" [] ""
           list.body `shouldSatisfy` contains (Pattern "run-2")
           bal <- api "GET" "/api/runs/run-1/balances" [ { k: "round", v: "3" } ] ""
@@ -51,6 +52,36 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- the agency analysis names an unknown preset explicitly
           badPreset <- api "GET" "/api/agency" [ { k: "alternative", v: "NoSuchPreset" } ] ""
           badPreset.status `shouldEqual` 400
-          badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: 1, gameSeed: (Nothing :: Maybe Int), rounds: Just 2 }))
+          badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: Just 1, gameSeed: (Nothing :: Maybe Int), rounds: Just 2 }))
           badLaunch.status `shouldEqual` 400
+        Left e -> fail e
+    it "a drawn player seed and the same seed injected make the same run" do
+      liftEffect (loadContext "fractured-world/v0") >>= case _ of
+        Right ctx -> do
+          db <- liftEffect (open ":memory:")
+          let
+            api method path body = liftEffect (route ctx db { method, path, query: Object.empty, body })
+            launch name seed = api "POST" "/api/runs" (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, gameSeed: (Nothing :: Maybe Int), rounds: Just 3 }))
+          -- an absent seed is drawn once at launch; the reply names the seed used
+          drawn <- api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"Conservative\",\"rounds\":3}"
+          drawn.status `shouldEqual` 200
+          let reply = readJson drawn.body :: Either String Launched
+          seed <- case reply of
+            Right r -> pure r.playerSeed
+            Left e -> fail ("no seed in reply " <> drawn.body <> ": " <> e) *> pure 0
+          -- the same seed injected explicitly
+          explicit <- launch "e" (Just seed)
+          explicit.body `shouldSatisfy` contains (Pattern ("\"playerSeed\":" <> show seed))
+          let store = reader db
+          -- the stored spec records the concrete seed, and the two runs store identical specs and manifests
+          drawnRun <- liftEffect (store.manifest "run-1")
+          explicitRun <- liftEffect (store.manifest "run-2")
+          drawnRun `shouldEqual` explicitRun
+          case drawnRun of
+            Just m -> m.spec `shouldSatisfy` contains (Pattern ("\"playerSeed\":\"" <> show seed <> "\""))
+            Nothing -> fail "the drawn run has no stored spec"
+          drawnRows <- liftEffect (store.rounds "run-1")
+          explicitRows <- liftEffect (store.rounds "run-2")
+          map _.record drawnRows `shouldEqual` map _.record explicitRows
+          map _.snapshot drawnRows `shouldEqual` map _.snapshot explicitRows
         Left e -> fail e

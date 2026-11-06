@@ -8,9 +8,10 @@ module Session (Options, session, validId) where
 import Prelude
 
 import Adapters.Llm (agents, interpreter, narrator, pi)
+import Adapters.Seed (resolveSeed)
 import Adapters.Store (createRun, failRun, finish, nowIso, open, persister)
 import Board.Gameboard (instantiate)
-import Core.Draw (Seed(..))
+import Core.Draw (Seed)
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
@@ -22,6 +23,7 @@ import Data.Foldable (for_)
 import Data.Int (toNumber)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
+import Data.Newtype (unwrap)
 import Data.String (Pattern(..), joinWith, split)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -42,7 +44,7 @@ foreign import promptImpl :: String -> EffectFnAff String
 foreign import closePrompt :: Effect Unit
 foreign import appendLine :: String -> String -> Effect Unit
 
-type Options = { scenario :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String }
+type Options = { scenario :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 -- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
 -- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
@@ -66,12 +68,14 @@ session o = load (o.scenario <> "/v0") >>= case _ of
         evidence ev = appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
         backend = pi { model: o.model, rawDir: dir <> "/raw" }
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
+      -- the player seed is resolved once, here, and recorded in the session's spec
+      seed <- liftEffect (resolveSeed o.seed)
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open o.db)
       created <- liftEffect nowIso
-      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans ]), manifest: initial.manifest }
+      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ]), manifest: initial.manifest }
       save <- liftEffect (persister db o.id w0)
-      liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans)
+      liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> log ("Briefing " <> show h <> ": " <> briefing h)
       out <- attempt $ runLive
         { seat: \e -> if e `elem` humans then Human else Agent
@@ -87,7 +91,7 @@ session o = load (o.scenario <> "/v0") >>= case _ of
               liftEffect (Ref.modify_ (_ <> [ Tuple r (show d) ]) closed *> log ("— round " <> show r <> " " <> show d <> " window closed —"))
             pure a
         , agents: agents backend evidence briefing
-        , programs: programs { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: Seed 1 }
+        , programs: programs { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: seed }
         , record: \r -> do
             liftEffect (save r)
             front <- narrator backend evidence (Narrate r identity)

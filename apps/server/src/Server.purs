@@ -1,10 +1,11 @@
 -- | The read API (docs/06_simulator.md §9–§10): one JSON endpoint per view model over the Run
 -- | Store, plus `POST /api/runs` to launch a simulation. Every view is computed in
 -- | `Harness.Views`; this module only routes and decodes.
-module Server (main, route, Launch, LoadError(..)) where
+module Server (main, route, Launch, Launched, LoadError(..)) where
 
 import Prelude
 
+import Adapters.Seed (resolveSeed)
 import Adapters.Store (Db, RunInfo, RunSummary, StoredRound, createRun, failRun, failStaleRuns, finish, nowIso, open, persister, reader)
 import Board.Decode (readJson)
 import Core.Draw (Seed(..))
@@ -16,6 +17,7 @@ import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (catMaybes, concat, drop, filter, find, fromFoldable, length, uncons, zip)
 import Data.Either (Either(..), either, hush)
+import Data.Newtype (unwrap)
 import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -37,8 +39,12 @@ import Http (Request, Response, serve)
 import Node.Process (argv, exit')
 import Scenarios (loadContext)
 
--- | `POST /api/runs` body: every seat plays one preset.
-type Launch = { name :: String, preset :: String, playerSeed :: Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
+-- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
+-- | at launch; the reply carries the seed used either way.
+type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, gameSeed :: Maybe Int, rounds :: Maybe Int }
+
+-- | The reply to a launch: the new run, and the player seed it was played with.
+type Launched = { id :: String, playerSeed :: Int }
 
 -- | Why a stored run cannot be served: it is not in the store, or it is there but unreadable.
 data LoadError = Missing | Unreadable String
@@ -83,7 +89,7 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
   "GET", [ "api", "runs" ] -> runSummaries db >>= ok <<< V.runList
   "POST", [ "api", "runs" ] -> case parse req.body of
     Left e -> failWith 400 e
-    Right l -> launch ctx db l >>= either (failWith 400) (\id -> ok { id })
+    Right l -> launch ctx db l >>= either (failWith 400) ok
   "GET", [ "api", "runs", id, view ] -> loadRun db id >>= case _ of
     Right r -> runView view r
     Left Missing -> failWith 404 ("no run " <> id)
@@ -106,7 +112,7 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
         }
   "GET", [ "api", "agency" ] -> case Int.fromString (param "playerSeed" "1") of
     Nothing -> failWith 400 "playerSeed must be an integer"
-    Just s -> viewOr (map V.agencyTable (agency ctx (presetSpec ctx (param "preset" "Conservative") s [] Nothing) (param "alternative" "Aggressive") (seats ctx)))
+    Just s -> viewOr (map V.agencyTable (agency ctx (presetSpec ctx (param "preset" "Conservative") (Seed s) [] Nothing) (param "alternative" "Aggressive") (seats ctx)))
   _, _ -> failWith 404 req.path
   where
   param k d = fromMaybe d (Object.lookup k req.query)
@@ -141,20 +147,22 @@ seats :: Context -> Array EntityId
 seats ctx = fromFoldable (Map.keys ctx.config.seats)
 
 -- | Every seat plays one preset.
-presetSpec :: Context -> String -> Int -> Array Override -> Maybe Int -> SimulationSpec
-presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed: Seed playerSeed, overrides, rounds }
+presetSpec :: Context -> String -> Seed -> Array Override -> Maybe Int -> SimulationSpec
+presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed, overrides, rounds }
 
--- | Run a simulation to completion, persisting every round; returns the new run's id. A run that
--- | throws (a store or simulation fault) is marked failed with the cause, and the error goes on.
-launch :: Context -> Db -> Launch -> Effect (Either String String)
+-- | Run a simulation to completion, persisting every round; returns the new run's id and the seed it
+-- | used. The seed is resolved here, before the run starts, and the stored spec records that value.
+-- | A run that throws (a store or simulation fault) is marked failed with the cause, and the error goes on.
+launch :: Context -> Db -> Launch -> Effect (Either String Launched)
 launch ctx db l = do
   n <- length <$> (reader db).runs
+  seed <- resolveSeed (Seed <$> l.playerSeed)
   let
     id = "run-" <> show (n + 1)
     spec = Object.fromFoldable
-      [ Tuple "preset" l.preset, Tuple "playerSeed" (show l.playerSeed), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
+      [ Tuple "preset" l.preset, Tuple "playerSeed" (show (unwrap seed)), Tuple "gameSeed" (maybe "default" show l.gameSeed), Tuple "rounds" (maybe "default" show l.rounds) ]
   created <- nowIso
-  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset l.playerSeed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
+  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed (maybe [] (pure <<< GameSeed) l.gameSeed) l.rounds) \manifest -> do
     createRun db { id, name: l.name, created, spec: encodeJson spec, manifest }
     persister db id manifest.initial
   case attempt of
@@ -162,7 +170,7 @@ launch ctx db l = do
       failRun db id ("exception: " <> message ex)
       throwException ex
     Right (Left e) -> pure (Left e)
-    Right (Right r) -> finish db id r $> Right id
+    Right (Right r) -> finish db id r $> Right { id, playerSeed: unwrap seed }
 
 -- | The run list: one summary per stored run, read without records or snapshots. A run that
 -- | cannot be decoded is listed as unreadable, with the reason; the others stay visible.
