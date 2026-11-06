@@ -183,8 +183,17 @@ type Transformation =
   , payee :: Maybe EntityId
   , delay :: RoundOffset
   , minimum :: Quantity -- smallest order accepted, e.g. a major military action
+  , maximum :: Maybe Quantity -- largest order accepted per Entity per round
+  , capacityUse :: Quantity -- capacity drawn per unit ordered
+  , ownerSigns :: Boolean -- the capacity's owner must sign every order
+  , effects :: Array CapacityEffect -- capacity changes after the delay
   , authority :: Capability
   }
+
+-- | A per-unit change to a capacity, applied after the facility's delay. `holder` defaults
+-- | to the ordering Entity; `rounds` limits how long the change lasts.
+type CapacityEffect =
+  { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
 
 -- Representation (§7) --------------------------------------------------------
 

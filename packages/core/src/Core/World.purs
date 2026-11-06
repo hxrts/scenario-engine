@@ -54,8 +54,11 @@ type Requirement =
   , penalty :: Quantity -- reduction of fixed incoming flows per unit unmet
   }
 
+-- | A scheduled change to a holding or a capacity, applied at Prepare.
 type Delivery =
-  { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
+
+data Target = Holding ResourceId | CapacityOf CapacityRef
 
 -- | What a Policy sees (INV-16).
 type View =
@@ -75,7 +78,7 @@ data Event
   | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
   | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }
-  | Delivered { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  | Delivered { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
   | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, delta :: Quantity }
@@ -84,6 +87,17 @@ data Event
   | Shortfall { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | Decayed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | ProcedureOutcome { round :: RoundIndex, proposal :: ProposalId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
+
+derive instance Generic Target _
+derive instance Eq Target
+instance Show Target where
+  show = genericShow
+
+instance EncodeJson Target where
+  encodeJson = genericEncodeJson
+
+instance DecodeJson Target where
+  decodeJson = genericDecodeJson
 
 derive instance Generic ShareSource _
 derive instance Eq ShareSource

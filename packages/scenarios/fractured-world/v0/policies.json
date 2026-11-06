@@ -1,0 +1,13 @@
+{
+ "policies": {
+  "china-strategic-v0": {},
+  "eu-coordination-v0": {},
+  "global-smes-v0": {},
+  "cn-private-v0": {},
+  "us-workers-v0": {},
+  "energy-suppliers-v0": {},
+  "world-households-v0": {},
+  "government-default-v0": {},
+  "firm-default-v0": {}
+ }
+}

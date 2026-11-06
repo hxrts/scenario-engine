@@ -1,0 +1,72 @@
+{
+ "markets": {
+  "energy-atlantic": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "300"
+   },
+   "reserves": {
+    "M": "700",
+    "E": "350"
+   },
+   "access": [
+    "US",
+    "DE",
+    "UK",
+    "BR",
+    "NG",
+    "ENCO",
+    "DEF",
+    "LABOR",
+    "SME",
+    "AID",
+    "EU",
+    "US_WORKERS",
+    "GLOBAL_SMES",
+    "SHIP",
+    "ENERGY_SUPPLIERS"
+   ]
+  },
+  "energy-asia": {
+   "base": "E",
+   "quote": "M",
+   "cost": {
+    "base": "2",
+    "slope": "0.02",
+    "lo": "-80",
+    "hi": "200"
+   },
+   "reserves": {
+    "M": "500",
+    "E": "250"
+   },
+   "access": [
+    "CN",
+    "IN",
+    "JP",
+    "SA",
+    "CHIP",
+    "CN_PRIVATE",
+    "WORLD_HOUSEHOLDS",
+    "SHIP",
+    "ENERGY_SUPPLIERS"
+   ]
+  }
+ },
+ "transport": {
+  "E": "energy-shipping"
+ },
+ "jurisdiction": {
+  "ENCO": "US",
+  "DEF": "US",
+  "LABOR": "US",
+  "SME": "US",
+  "US_WORKERS": "US",
+  "CN_PRIVATE": "CN",
+  "DE": "EU"
+ }
+}

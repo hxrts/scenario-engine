@@ -1,23 +1,21 @@
 -- | One generic golden runner: every fixture's expected balances, deliveries, rejections,
 -- | and lapses must hold exactly, and every invariant must hold.
-module Test.Core.Golden (golden, orderIndependent, unbalanced, representation) where
+module Test.Board.Golden (golden, orderIndependent, unbalanced, representation) where
 
 import Prelude
 
 import Core.Invariants (check)
 import Core.Num as Q
 import Core.Types (Id(..), proposalId)
-import Core.World (Event(..), RoundResult, WorldState)
+import Core.World (Event(..), RoundResult, Target(..), WorldState)
 import Data.Array (concatMap, cons, deleteAt, filter, head, index, length, range, sort, sortWith, uncons)
 import Core.Engine (prepareRound, resolveRound)
 import Core.Draw (Seed(..), draw)
 import Core.Represent (adjustedTarget)
-import Data.Either (hush)
-import Control.Monad (when)
 import Data.Foldable (foldM)
 import Effect.Aff (Aff)
 import Partial.Unsafe (unsafeCrashWith)
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (for_)
@@ -26,7 +24,8 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Control.Monad.Error.Class (throwError)
 import Foreign.Object as Object
-import Test.Core.Fixture (Expect, load, run)
+import Board.Decode (Expect)
+import Test.Board.Fixture (load, run)
 import Test.Spec (Spec, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -87,7 +86,14 @@ expectRound before ex r = do
       )
       r.record.events
   when (ex.deliveries /= []) $
-    sortWith show (map (\d -> { entity: show d.entity, resource: show d.resource, quantity: d.quantity }) pending)
+    sortWith show
+      ( concatMap
+          ( \d -> case d.target of
+              Holding res -> [ { entity: show d.entity, resource: show res, quantity: d.quantity } ]
+              _ -> []
+          )
+          pending
+      )
       `shouldEqual` sortWith show ex.deliveries
   rejected `shouldEqual` ids ex.rejected
   lapsed `shouldEqual` ids ex.lapsed

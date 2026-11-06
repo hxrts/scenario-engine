@@ -325,9 +325,9 @@ CHIP owns 15 semiconductor units per round, which by default back the procuremen
 | DE | Government accounts held in the EU Aggregate as member-government accounts; Germany's 0.20 weight folds into the EU's residual weight (0.60 solidarity, 0.68 trade) |
 | IN, JP, UK, BR, SA, NG | `government-default-v0` controls the same accounts: baseline spending, no discretionary actions |
 | ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts and capacities: keeps semiconductor capacity backing procurement and the DEF supply contract, sells surplus Energy; for SHIP, signs shipping Proposals up to capacity |
-| LABOR | Permitted omission: accounts merge into US_WORKERS; no strike capability |
-| SME | Permitted omission: accounts merge into GLOBAL_SMES; no Representation |
-| AID | Permitted omission: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
+| LABOR | Implicit coverage: accounts merge into US_WORKERS; no strike capability |
+| SME | Implicit coverage: accounts merge into GLOBAL_SMES; no Representation |
+| AID | Implicit coverage: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
 
 Initialization fails if any responsibility is unassigned ([INV-25](02_type_system.md#inv-25)).
 

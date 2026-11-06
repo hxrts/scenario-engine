@@ -1,21 +1,31 @@
 -- | Decodes the compact fixture JSON in packages/scenarios/fixtures and runs it through
 -- | the engine. One generic golden runner for every engine-level fixture.
-module Test.Core.Fixture (Fixture, Expect, Round, load, run, Outcome) where
+-- | JSON decoding for scenario data. The schema mirrors the core types one to one; this
+-- | module adds decoding only, never a second model.
+module Board.Decode
+  ( decodeWorld
+  , decodeEntity
+  , decodeRound
+  , capability
+  , intent
+  , rule
+  , holdings
+  , toMap
+  , Round
+  , Expect
+  ) where
 
 import Prelude
 
 import Core.Draw (Seed(..))
-import Core.Engine (EngineError, resolveRound)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (CollectiveProcedure, Representation, CostFunction, Market, ResourceDefinition, Transformation, Capability(..), Entity, EntityKind(..), Controller(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
-import Core.World (Circulation, RoundResult, ShareSource(..), WorldState)
+import Core.World (Circulation, ShareSource(..), WorldState)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, printJsonDecodeError, (.:), (.:?), (.!=))
-import Data.Argonaut.Parser (jsonParser)
+import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Array (mapWithIndex, groupBy, sortWith, concat)
 import Data.Array.NonEmpty (toArray)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -23,11 +33,8 @@ import Data.String (Pattern(..), split)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
-import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Node.Encoding (Encoding(..))
-import Node.FS.Sync (readTextFile)
 
 type Expect =
   { accounts :: Object (Object Q)
@@ -42,31 +49,20 @@ type Expect =
 
 type Round = { inputs :: Array SignedProposal, expect :: Expect }
 
-type Fixture = { name :: String, world :: WorldState, rounds :: Array Round }
-
-type Outcome = Either EngineError RoundResult
-
-load :: String -> Effect (Either String Fixture)
-load name = do
-  text <- readTextFile UTF8 ("packages/scenarios/fixtures/" <> name <> ".json")
-  pure (jsonParser text >>= (lmap printJsonDecodeError <<< decodeFixture))
-
--- | Resolve one round's inputs.
-run :: WorldState -> Round -> Outcome
-run w r = resolveRound w r.inputs
-
-decodeFixture :: Json -> Either JsonDecodeError Fixture
-decodeFixture j = do
+-- | A World State and its rounds, from the compact scenario schema.
+decodeWorld :: Json -> Either JsonDecodeError { name :: String, world :: WorldState, rounds :: Array Round }
+decodeWorld j = do
   o <- decodeJson j
-  name <- o .: "name"
-  round <- o .: "round"
+  name <- o .:? "name" .!= ""
+  round <- o .:? "round" .!= 1
   numeraire <- o .: "numeraire"
   resources <- o .: "resources" >>= traverseKeys resource
   markets <- o .: "markets" >>= traverseKeys market
   transformations <- o .: "transformations" >>= traverseKeys transformation
-  transport <- o .: "transport" >>= traverse (pure <<< Id)
-  entities <- o .: "entities" >>= traverseKeys entity
-  rules <- o .: "rules" >>= traverse rule
+  transport <- o .:? "transport" .!= Object.empty >>= traverse (pure <<< Id)
+  jurisdiction <- o .:? "jurisdiction" .!= Object.empty
+  entities <- o .: "entities" >>= traverseKeys decodeEntity
+  rules <- o .:? "rules" .!= [] >>= traverse rule
   seed <- o .:? "seed" .!= 26021
   representations <- o .:? "representations" .!= [] >>= traverse representation
   circulation <- o .:? "circulation" >>= traverse decodeCirculation
@@ -87,7 +83,7 @@ decodeFixture j = do
         , representations
         , numeraire: Id numeraire
         , transport: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) v) (Object.toUnfoldable transport :: Array _))
-        , jurisdiction: Map.empty
+        , jurisdiction: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) (Id v)) (Object.toUnfoldable jurisdiction :: Array (Tuple String String)))
         , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) rules)
         , scheduled: Map.empty
         , deliveries: []
@@ -97,9 +93,6 @@ decodeFixture j = do
         }
     }
   where
-  toMap :: forall t a. Object a -> Map.Map (Id t) a
-  toMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
-
   traverseKeys :: forall a. (String -> Json -> Either JsonDecodeError a) -> Object Json -> Either JsonDecodeError (Object a)
   traverseKeys = traverseWithIndex
   emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
@@ -151,6 +144,9 @@ costFn j = do
   hi <- o .: "hi"
   pure { base, slope, domain: { lo, hi } }
 
+toMap :: forall t a. Object a -> Map.Map (Id t) a
+toMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
+
 holdings :: forall t. Object Q -> Map.Map (Id t) Q
 holdings = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
 
@@ -168,14 +164,24 @@ market id j = do
 transformation :: String -> Json -> Either JsonDecodeError Transformation
 transformation id j = do
   o <- decodeJson j
-  inputs <- o .: "inputs"
-  outputs <- o .: "outputs"
+  inputs <- o .:? "inputs" .!= Object.empty
+  outputs <- o .:? "outputs" .!= Object.empty
   cost <- o .:? "cost" >>= traverse costFn
   capacity <- o .:? "capacity"
   payee <- o .:? "payee"
-  delay <- o .: "delay"
+  delay <- o .:? "delay" .!= 0
   minimum <- o .:? "minimum" .!= Q.zero
-  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, authority: MayTransform (Id id) }
+  maximum <- o .:? "maximum"
+  capacityUse <- o .:? "capacityUse" .!= Q.fromInt 1
+  ownerSigns <- o .:? "ownerSigns" .!= false
+  effects <- o .:? "effects" .!= [] >>= traverse \e -> do
+    x <- decodeJson e
+    c <- x .: "capacity"
+    holder <- x .:? "holder"
+    perUnit <- x .: "perUnit"
+    rounds <- x .:? "rounds"
+    pure { capacity: Id c, holder: map Id holder, perUnit, rounds }
+  pure { id: Id id, inputs: holdings inputs, outputs: holdings outputs, cost, capacity: map Id capacity, payee: map Id payee, delay, minimum, maximum, capacityUse, ownerSigns, effects, authority: MayTransform (Id id) }
 
 capability :: String -> Either JsonDecodeError Capability
 capability s = case split (Pattern ":") s of
@@ -187,8 +193,8 @@ capability s = case split (Pattern ":") s of
   [ "enact", "withholding" ] -> Right (MayEnact WithholdingRule)
   _ -> Left (TypeMismatch ("capability " <> s))
 
-entity :: String -> Json -> Either JsonDecodeError Entity
-entity id j = do
+decodeEntity :: String -> Json -> Either JsonDecodeError Entity
+decodeEntity id j = do
   o <- decodeJson j
   accounts <- o .: "accounts"
   caps <- o .: "capabilities" >>= traverse capability
@@ -199,11 +205,8 @@ entity id j = do
       policy <- a .: "policy"
       members <- a .:? "members" .!= []
       procs <- a .:? "procedures" .!= Object.empty >>= traverseWithIndex (const procedure)
-      pure (Aggregate { policy: Id policy, members: map Id members, procedures: toMap' procs })
+      pure (Aggregate { policy: Id policy, members: map Id members, procedures: toMap procs })
   pure { id: Id id, accounts: holdings accounts, capacities: holdings capacities, capabilities: caps, kind }
-  where
-  toMap' :: forall t a. Object a -> Map.Map (Id t) a
-  toMap' = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
 
 procedure :: Json -> Either JsonDecodeError CollectiveProcedure
 procedure j = do

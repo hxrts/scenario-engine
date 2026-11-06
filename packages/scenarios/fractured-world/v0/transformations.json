@@ -1,0 +1,167 @@
+{
+ "transformations": {
+  "defense-procurement": {
+   "inputs": {
+    "E": "2"
+   },
+   "outputs": {
+    "Mil": "1"
+   },
+   "cost": {
+    "base": "8",
+    "slope": "0.5",
+    "lo": "0",
+    "hi": "30"
+   },
+   "capacity": "semiconductors",
+   "capacityUse": "0.5",
+   "delay": 1,
+   "payee": "DEF"
+  },
+  "defense-procurement-cn": {
+   "inputs": {
+    "E": "2"
+   },
+   "outputs": {
+    "Mil": "1"
+   },
+   "cost": {
+    "base": "8",
+    "slope": "0.5",
+    "lo": "0",
+    "hi": "30"
+   },
+   "capacity": "semiconductors",
+   "capacityUse": "0.5",
+   "delay": 1,
+   "payee": "CN_PRIVATE"
+  },
+  "public-attention": {
+   "outputs": {
+    "S": "1"
+   },
+   "cost": {
+    "base": "3",
+    "slope": "0.2",
+    "lo": "0",
+    "hi": "50"
+   },
+   "capacity": "attention",
+   "payee": "WORLD_HOUSEHOLDS",
+   "maximum": "10"
+  },
+  "energy-shipping": {
+   "cost": {
+    "base": "0.3",
+    "slope": "0",
+    "lo": "0",
+    "hi": "60"
+   },
+   "capacity": "transport",
+   "payee": "SHIP",
+   "ownerSigns": true
+  },
+  "humanitarian-aid": {
+   "inputs": {
+    "E": "5"
+   },
+   "outputs": {
+    "S": "4"
+   },
+   "cost": {
+    "base": "10",
+    "slope": "0",
+    "lo": "0",
+    "hi": "1000"
+   },
+   "payee": "WORLD_HOUSEHOLDS",
+   "maximum": "2"
+  },
+  "military-deployment": {
+   "inputs": {
+    "Mil": "1"
+   },
+   "outputs": {
+    "Mil": "1"
+   }
+  },
+  "major-military-action": {
+   "inputs": {
+    "Mil": "1"
+   },
+   "outputs": {
+    "Mil": "0.75"
+   },
+   "minimum": "12"
+  },
+  "logistics-investment": {
+   "inputs": {
+    "E": "3"
+   },
+   "cost": {
+    "base": "10",
+    "slope": "0",
+    "lo": "0",
+    "hi": "1000"
+   },
+   "payee": "GLOBAL_SMES",
+   "delay": 1,
+   "effects": [
+    {
+     "capacity": "transport",
+     "perUnit": "10"
+    }
+   ]
+  },
+  "energy-capacity-investment": {
+   "inputs": {
+    "E": "3"
+   },
+   "cost": {
+    "base": "12",
+    "slope": "0",
+    "lo": "0",
+    "hi": "1000"
+   },
+   "payee": "GLOBAL_SMES",
+   "delay": 1,
+   "capacity": "semiconductors",
+   "capacityUse": "1",
+   "ownerSigns": true,
+   "effects": [
+    {
+     "capacity": "energy-production",
+     "perUnit": "2"
+    }
+   ]
+  },
+  "strike": {
+   "inputs": {
+    "S": "8"
+   },
+   "cost": {
+    "base": "5",
+    "slope": "0",
+    "lo": "0",
+    "hi": "1"
+   },
+   "payee": "US_WORKERS",
+   "delay": 1,
+   "maximum": "1",
+   "effects": [
+    {
+     "capacity": "energy-production",
+     "holder": "ENCO",
+     "perUnit": "-6.25",
+     "rounds": 1
+    },
+    {
+     "capacity": "semiconductors",
+     "holder": "CHIP",
+     "perUnit": "-3.75",
+     "rounds": 1
+    }
+   ]
+  }
+ }
+}

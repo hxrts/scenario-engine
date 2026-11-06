@@ -407,9 +407,20 @@ type Transformation =
   , payee :: Maybe EntityId       -- recipient of money paid
   , delay :: RoundOffset
   , minimum :: Quantity           -- smallest order accepted, e.g. a major military action
+  , maximum :: Maybe Quantity     -- largest order accepted per Entity per round
+  , capacityUse :: Quantity       -- capacity drawn per unit ordered
+  , ownerSigns :: Boolean         -- the capacity's owner must sign every order
+  , effects :: Array CapacityEffect -- capacity changes applied after the delay
   , authority :: Capability
   }
 ```
+
+```purescript
+type CapacityEffect =   -- per unit ordered; holder defaults to the ordering Entity
+  { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
+```
+
+Investment and disruption are facilities with capacity effects: an investment raises a capacity from the round after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit; those that also share a cost function share one uniform price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
 
 Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available.
 

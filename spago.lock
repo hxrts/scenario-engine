@@ -29,13 +29,28 @@
         "path": "packages/board",
         "core": {
           "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "argonaut-generic",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
             "prelude",
-            "sp-core"
+            "sp-core",
+            "strings",
+            "tuples"
           ]
         },
         "test": {
           "dependencies": [
+            "aff",
             "effect",
+            "node-buffer",
+            "node-fs",
+            "partial",
             "quickcheck",
             "spec",
             "spec-node",
@@ -92,12 +107,7 @@
         },
         "test": {
           "dependencies": [
-            "aff",
             "effect",
-            "foreign-object",
-            "node-buffer",
-            "node-fs",
-            "partial",
             "quickcheck",
             "spec",
             "spec-node",
@@ -212,14 +222,27 @@
         "path": "packages/scenarios",
         "core": {
           "dependencies": [
+            "argonaut-core",
+            "arrays",
+            "effect",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "node-buffer",
+            "node-fs",
             "prelude",
             "sp-board",
-            "sp-core"
+            "sp-core",
+            "strings",
+            "tuples"
           ]
         },
         "test": {
           "dependencies": [
+            "argonaut-codecs",
             "effect",
+            "maybe",
+            "ordered-collections",
             "quickcheck",
             "spec",
             "spec-node",

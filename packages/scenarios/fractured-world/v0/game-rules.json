@@ -1,0 +1,16 @@
+{
+ "parameters": {
+  "eu-matching-tariff": "0.5",
+  "major-action-threshold": "12",
+  "supplier-offer-atlantic": "24",
+  "supplier-offer-asia": "16",
+  "supplier-offer-atlantic-high": "30",
+  "supplier-offer-asia-high": "20",
+  "supplier-high-price": "2.6",
+  "disruption-round": "3",
+  "disruption-cut-atlantic": "12",
+  "disruption-cut-asia": "8",
+  "maximum-import-tariff": "1"
+ },
+ "rules": []
+}

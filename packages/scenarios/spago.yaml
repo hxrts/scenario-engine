@@ -4,6 +4,16 @@ package:
     - prelude
     - sp-core
     - sp-board
+    - argonaut-core
+    - arrays
+    - effect
+    - either
+    - foldable-traversable
+    - foreign-object
+    - node-buffer
+    - node-fs
+    - strings
+    - tuples
   test:
     main: Test.Scenarios.Main
     dependencies:
@@ -12,3 +22,6 @@ package:
       - spec-node
       - quickcheck
       - spec-quickcheck
+      - argonaut-codecs
+      - maybe
+      - ordered-collections

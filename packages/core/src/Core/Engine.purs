@@ -18,7 +18,7 @@ import Core.Represent as Represent
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityKind(..), Ratio, Capability(..), CapacityRef, Entity, EntityId, Id(..), Intent(..), MarketId, Proposal, ProposalId, ResourceId, Rule(..), RuleChange(..), RuleId, RuleKind(..), SignedProposal, Transferability(..), TransformSpec, Transformation, TransformationId)
-import Core.World (Delivery, Event(..), RoundResult, ShareSource(..), View, WorldState)
+import Core.World (Delivery, Event(..), RoundResult, ShareSource(..), Target(..), View, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, find, foldl, fromFoldable, mapWithIndex, notElem, nub, null, partition, sortWith, zipWith)
 import Data.Either (Either(..), either, note)
 import Data.Map (Map)
@@ -41,15 +41,20 @@ prepareRound :: WorldState -> WorldState
 prepareRound w =
   let
     { yes: due, no: later } = partition (\d -> d.round <= w.round) w.deliveries
-    withDeliveries = foldl (\acc d -> acc { entities = Map.update (Just <<< credit d.resource d.quantity) d.entity acc.entities }) w due
+    withDeliveries = foldl (\acc d -> acc { entities = Map.update (Just <<< deliver d) d.entity acc.entities }) w due
     rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (Map.toUnfoldable w.scheduled :: Array _)
     ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (Map.toUnfoldable w.scheduled)
-    deliveryEvents = map (\d -> Delivered { round: w.round, entity: d.entity, resource: d.resource, quantity: d.quantity }) due
+    deliveryEvents = map (\d -> Delivered { round: w.round, entity: d.entity, target: d.target, quantity: d.quantity }) due
   in
     withDeliveries { deliveries = later, rules = rules, scheduled = Map.empty, events = w.events <> deliveryEvents <> ruleEvents }
 
-credit :: ResourceId -> Q -> Entity -> Entity
-credit r q e = e { accounts = Map.alter (Just <<< Q.add q <<< fromMaybe Q.zero) r e.accounts }
+deliver :: Delivery -> Entity -> Entity
+deliver d e = case d.target of
+  Holding r -> e { accounts = bump r e.accounts }
+  CapacityOf c -> e { capacities = bump c e.capacities }
+  where
+  bump :: forall k. Ord k => k -> Map k Q -> Map k Q
+  bump k = Map.alter (Just <<< max Q.zero <<< Q.add d.quantity <<< fromMaybe Q.zero) k
 
 -- Phase 2: observe ------------------------------------------------------------
 
@@ -154,16 +159,24 @@ screen w { proposal: p, signatures } =
         Just e
           | not (who `elem` signers) -> Left (show who <> " must sign")
           | not (authorized e.capabilities who i) -> Left (show who <> " is not authorized")
-          | otherwise -> transferable i *> ruleScope e i *> atLeastMinimum i
+          | otherwise -> transferable i *> ruleScope e i *> atLeastMinimum i *> ownerSigned signers i
   transferable = case _ of
     Transfer t -> case _.transferability <$> Map.lookup t.resource w.resources of
       Just NonTransferable -> Left (show t.resource <> " is not transferable")
       Nothing -> Left ("unknown resource " <> show t.resource)
       _ -> Right unit
     _ -> Right unit
+  ownerSigned signers = case _ of
+    Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns ->
+      case tr.capacity >>= owner w of
+        Just o | o `elem` signers -> Right unit
+        _ -> Left ("the owner of " <> show t.transformation <> "'s capacity must sign")
+    _ -> Right unit
   atLeastMinimum = case _ of
     Transform t | maybe false (\tr -> t.quantity < tr.minimum) (Map.lookup t.transformation w.transformations) ->
       Left (show t.transformation <> " order below its minimum")
+    Transform t | maybe false (\tr -> maybe false (t.quantity > _) tr.maximum) (Map.lookup t.transformation w.transformations) ->
+      Left (show t.transformation <> " order above its maximum")
     _ -> Right unit
   ruleScope e = case _ of
     ChangeRule (Enact (Tariff r)) | r.jurisdiction /= e.id -> Left "a Tariff applies only to the enacting jurisdiction"
@@ -204,12 +217,8 @@ shipping w p = traverse ship (filter crossRegion transfers)
   sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
   ship t = do
     tid <- note "no transport facility" (Map.lookup t.resource w.transport)
-    tr <- note "unknown transport facility" (Map.lookup tid w.transformations)
     let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transforms p)))
     when (carried /= t.quantity) (Left "a cross-region Transfer needs a matching transport order by the sender")
-    case tr.capacity >>= owner w of
-      Just o | o `elem` p.signers || o == p.author -> pure unit
-      _ -> Left "the transport owner must sign"
     let
       jf = jur w t.from
       jt = jur w t.to
@@ -360,7 +369,7 @@ facilities w scaled =
       ( \s -> mapWithIndex (\i x -> { s, i, x }) s.item.proposal.intents # concatMap
           ( \o -> case o.x of
               Transform t -> case Map.lookup t.transformation w.transformations of
-                Just tr -> [ { key: Tuple s.item.proposal.id o.i, deal: s.item.deal, pid: s.item.proposal.id, by: t.by, quantity: Q.mul s.scale t.quantity, capacity: tr.capacity, tid: t.transformation } ]
+                Just tr -> [ { key: Tuple s.item.proposal.id o.i, deal: s.item.deal, pid: s.item.proposal.id, by: t.by, quantity: Q.mul s.scale t.quantity, use: tr.capacityUse, capacity: tr.capacity, tid: t.transformation } ]
                 Nothing -> []
               _ -> []
           )
@@ -372,16 +381,20 @@ facilities w scaled =
       let
         cap = either (const (Q.sumQ (map _.quantity os))) (capacityOf w) ref
         { yes: deals, no: singles } = partition _.deal os
-        dealTotal = Q.sumQ (map _.quantity deals)
+        used o = Q.mul o.use o.quantity
+        dealTotal = Q.sumQ (map used deals)
         overflow = dealTotal > cap
         rejectedDeals = if overflow then nub (map _.pid deals) else []
         room = if overflow then cap else Q.sub cap dealTotal
-        wanted = Q.sumQ (map _.quantity singles)
-        singleFills = if wanted > room then Q.proRataWhole room (map _.quantity singles) else map _.quantity singles
+        wanted = Q.sumQ (map used singles)
+        -- singles share the remaining capacity pro rata, in whole units of their own orders
+        singleFills =
+          if wanted > room then zipWith (\o u -> if o.use == Q.zero then o.quantity else Q.div u o.use) singles (Q.proRataWhole room (map used singles))
+          else map _.quantity singles
         fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) deals) <> zipWith (\o q -> Tuple o.key q) singles singleFills
       in
         { fills: Map.union acc.fills (Map.fromFoldable fills)
-        , totals: Map.insert ref (Q.sumQ (map snd' fills)) acc.totals
+        , totals: foldl (\m (Tuple tid q) -> Map.insertWith Q.add tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
         , rejected: acc.rejected <> rejectedDeals
         , events: acc.events <> map (\pid -> Rejected { round: w.round, proposal: pid, reason: "facility capacity exceeded" }) rejectedDeals
         }
@@ -392,7 +405,7 @@ facilities w scaled =
 
 type Facilities =
   { fills :: Map (Tuple ProposalId Int) Q
-  , totals :: Map (Either TransformationId CapacityRef) Q
+  , totals :: Map TransformationId Q -- filled quantity per facility
   , rejected :: Array ProposalId
   , events :: Array Event
   }
@@ -434,21 +447,39 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
 transforms' :: WorldState -> Facilities -> Settlement -> Scaled -> Settlement
 transforms' w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
   where
+  -- facilities sharing a capacity and a cost function share one uniform price
+  pricedTotal tr = Q.sumQ (map (\(Tuple _ q) -> q) (filter (\(Tuple tid _) -> maybe false (\x -> x.capacity == tr.capacity && x.cost == tr.cost) (Map.lookup tid w.transformations)) (Map.toUnfoldable facility.totals)))
+  effects t tr q = concatMap
+    ( \e ->
+        let
+          holder = fromMaybe t.by e.holder
+          start = w.round + max 1 tr.delay
+          change = { round: start, entity: holder, target: CapacityOf e.capacity, quantity: Q.mul e.perUnit q }
+        in
+          [ change ] <> maybe [] (\n -> [ change { round = start + n, quantity = Q.sub Q.zero change.quantity } ]) e.rounds
+    )
+    tr.effects
   one a (Tuple i intent) = case intent of
     Transform t -> case Tuple (Map.lookup (Tuple s.item.proposal.id i) facility.fills) (Map.lookup t.transformation w.transformations) of
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
-          price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (fromMaybe q (Map.lookup (maybe (Left t.transformation) Right tr.capacity) facility.totals))) tr.cost
+          price = maybe Q.zero (\c -> Market.averagePrice c Q.zero (pricedTotal tr)) tr.cost
           paid = Q.mul price q
           pay l = maybe (adjust (Ent t.by) w.numeraire (Q.sub Q.zero paid) l) (\p -> move (Ent t.by) (Ent p) w.numeraire paid l) tr.payee
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.sub Q.zero (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
-          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, resource: r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs)
+          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
-          produce l = foldl (\l' d -> adjust (Ent d.entity) d.resource d.quantity l') l now
+          produce l = foldl
+            ( \l' d -> case d.target of
+                Holding r -> adjust (Ent d.entity) r d.quantity l'
+                CapacityOf _ -> l'
+            )
+            l
+            now
         in
           a
             { ledger = produce (consume (pay a.ledger))
-            , deliveries = a.deliveries <> later
+            , deliveries = a.deliveries <> later <> effects t tr q
             , events = a.events <> [ Transformed { round: w.round, by: t.by, transformation: t.transformation, quantity: q, paid } ]
             }
       _ -> a
@@ -485,7 +516,7 @@ circulate w st0 = decay (fixed (requirements (shares (production st0))))
   c = w.circulation
   net e r st = Q.add (available w e r) (fromMaybe Q.zero (Map.lookup (Tuple (Ent e) r) st.ledger))
   production st = st
-    { deliveries = st.deliveries <> map (\p -> { round: w.round + 1, entity: p.entity, resource: p.resource, quantity: capacity p.entity p.capacity }) c.production }
+    { deliveries = st.deliveries <> map (\p -> { round: w.round + 1, entity: p.entity, target: Holding p.resource, quantity: capacity p.entity p.capacity }) c.production }
   capacity e ref = fromMaybe Q.zero (Map.lookup e w.entities >>= \x -> Map.lookup ref x.capacities)
 
   shares st = foldl
