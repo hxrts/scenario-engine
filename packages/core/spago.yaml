@@ -5,6 +5,7 @@ package:
     - arrays
     - argonaut-codecs
     - argonaut-core
+    - argonaut-generic
     - either
     - foldable-traversable
     - integers
@@ -21,3 +22,4 @@ package:
       - spec
       - spec-node
       - quickcheck
+      - spec-quickcheck

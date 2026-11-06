@@ -20,7 +20,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -37,7 +38,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -63,7 +65,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -73,6 +76,7 @@
           "dependencies": [
             "argonaut-codecs",
             "argonaut-core",
+            "argonaut-generic",
             "arrays",
             "either",
             "foldable-traversable",
@@ -91,7 +95,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -109,7 +114,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -129,7 +135,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -150,7 +157,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -172,7 +180,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -189,7 +198,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -207,7 +217,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -227,7 +238,8 @@
             "effect",
             "quickcheck",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       }
@@ -968,6 +980,22 @@
         "prelude",
         "strings",
         "tailrec"
+      ]
+    },
+    "argonaut-generic": {
+      "type": "registry",
+      "version": "8.0.0",
+      "integrity": "sha256-qUuZpoEip2knLFPT14OnRc1BkZcr3Nyy+GSfqVQGM9c=",
+      "dependencies": [
+        "argonaut-codecs",
+        "argonaut-core",
+        "arrays",
+        "bifunctors",
+        "control",
+        "either",
+        "foreign-object",
+        "partial",
+        "prelude"
       ]
     },
     "arraybuffer-types": {
@@ -1900,6 +1928,22 @@
         "prelude",
         "spec",
         "strings",
+        "tuples"
+      ]
+    },
+    "spec-quickcheck": {
+      "type": "registry",
+      "version": "5.0.2",
+      "integrity": "sha256-pmnLu9e9Yk+Yx4hi71XwbyuPS27ya4hjTOKk2KFK/Ns=",
+      "dependencies": [
+        "aff",
+        "arrays",
+        "effect",
+        "foldable-traversable",
+        "lists",
+        "maybe",
+        "prelude",
+        "quickcheck",
         "tuples"
       ]
     },

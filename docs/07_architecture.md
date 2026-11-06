@@ -41,6 +41,7 @@ packages/
   core/        pure types and engine; depends only on prelude-level libs
     Num          fixed-point quantities (4 dp, half-even)
     Types        Entity, Capability, Resource, Intent, Rule, Proposal, View, Market, CollectiveProcedure, Representation, …
+    World        WorldState, View, Event, round records, Manifest
     Draw         keyed PRNG: draw :: Seed → DrawKey → UnitInterval
     Market       CostFunction, clearing
     Transform    facilities, recipes, circulation
@@ -134,7 +135,7 @@ type RunStoreRead m =
 
 ## 5. Coupling Rules
 
-- `core` imports no effect library, no IO, and no JSON. Codecs live beside the types in a separate `core/Codec` module, so the engine never depends on them.
+- `core` imports no effect library and no IO. JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type (PureScript forbids orphan instances, so they cannot live in a separate module); the engine never calls them.
 - Policies never touch World State directly. They receive a `View` and return Proposals and signatures. The engine never authors or rewrites Intents.
 - Handlers translate effects only. They contain no game logic, and economic rules live only in `core`.
 - Adapters are replaceable. The SQLite store, the LLM provider, and the dashboard can each be swapped without changing anything above `handlers`.

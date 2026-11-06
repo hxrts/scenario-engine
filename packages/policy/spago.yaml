@@ -10,3 +10,4 @@ package:
       - spec
       - spec-node
       - quickcheck
+      - spec-quickcheck

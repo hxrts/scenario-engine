@@ -40,6 +40,7 @@ Every Entity has the same economic record; its `kind` says whether it is an Acto
 type Entity =
   { id :: EntityId
   , accounts :: Holdings
+  , reserved :: Holdings                                     -- reserved quantities of reservable Resources
   , capacities :: Capacities
   , capabilities :: Array Capability
   , kind :: EntityKind
@@ -383,7 +384,7 @@ type Market =
   , cost :: CostFunction
   , position :: Quantity
   , reserves :: Holdings
-  , access :: AccessRules
+  , access :: Array EntityId        -- Entities that may trade on this Market
   }
 ```
 
