@@ -28,7 +28,7 @@ Each round runs in five steps:
 
 1. **Briefing.** Players receive the current state of the world.
 2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band; the system has no negotiation protocol.
-3. **Submission.** Players announce their decisions orally. One side of an agreed deal proposes it (for example, "20 Energy to Japan for 48 Money"), and the other side signs it. AI converts these into structured actions and confirms anything materially ambiguous before the deadline. A deal that isn't signed by everyone involved simply lapses.
+3. **Submission.** Players announce their intended actions. One side of an agreed deal proposes it (for example, "20 Energy to Japan for 48 Money"), and the other side signs it. AI converts these into structured actions and confirms anything materially ambiguous before the deadline. A deal that isn't signed by everyone involved simply lapses.
 4. **Resolution.** The engine resolves every player, NPC, and implicit-economy action together as one round update.
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
