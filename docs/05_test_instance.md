@@ -44,7 +44,7 @@ The instance uses exactly four Resources. All quantities are abstract game units
 |---|---|---|---|---|---|
 | **Money** | M | Nothing (issuance disabled in v0), so it is conserved | Transferable and tradable | None | No |
 | **Energy** | E | Production / consumption | Transferable and tradable | None | No |
-| **Military** | Mil | Procurement / declared attrition | Government-to-government Transfer only, under procurement authority | None | Yes, by deployment |
+| **Military** | Mil | Procurement / declared attrition | Government-to-government Transfer, under procurement authority; a Trade on the `defence-goods` Market for the US and its allies ([§3.5](#35-defence-goods-market)) | None | Yes, by deployment |
 | **Soft Power** | S | Campaigns and aid / spending and decay | Non-transferable | 10% per simulated year | No |
 
 Any Resource can be escrowed at screening (Type System [§8.2](02_type_system.md#82-single-round-update-and-snapshot-discipline)). Energy is one undifferentiated commodity; geography is expressed through regional Markets and transport capacity rather than additional Resources. The game does not model tactical combat.
@@ -123,6 +123,20 @@ One global facility produces Military:
 - **Cost:** **p(q) = 3 + 0.2q**, **C(q) = 3q + 0.1q²**, where q is total Soft Power generated this round; uniform price C(Q)/Q.
 - **Capacity:** 50 S per round globally, 10 S per Actor; over-subscription pro rata.
 - **Payee:** WORLD_HOUSEHOLDS, standing in for the media sector.
+
+### 3.5 Defence-goods market
+
+**Market ID:** `defence-goods`. An exchange Market ([Type System §5.2](02_type_system.md#52-exchange-markets)) that trades Military for Money.
+
+| Market ID | Base / quote | Money reserve | Military reserve | Access | Operational interval |
+|---|---|---:|---:|---|---|
+| `defence-goods` | Mil / M | 300 M | 60 Mil | US, DE, UK, JP | −80 ≤ x ≤ 20 |
+
+**Cost:** p(x) = 3 + 0.01x, **C(x) = 3x + 0.005x²**, where x is the Market's cumulative net Military sold. The price runs from 2.2 to 3.2 across the interval, the same order as the Energy Markets; the initial price is 3 M/Mil. The upper bound sits 40 Mil below the Military reserve (the Energy Markets sit 50 E below theirs), and the lower bound is the Energy Markets' −80. The Money reserve pays sellers.
+
+**Access:** the US and its allies, which are Germany, the UK and Japan. Each holds the `trade defence-goods` capability, so the access rule and the capabilities agree. No other Entity may trade on it.
+
+**Orders:** as on the Energy Markets ([§3.1](#31-regional-energy-markets)). A sale is a negative quantity whose limit is the minimum average price, and it escrows its quantity of Military at screening. A Military sale is a Trade, not a Transfer: the Market is the counterparty, so the Military goes into its reserve and the seller receives Money at the curve. Transferability's authority rule governs Transfers only, so the Trade route is the one by which Military leaves a holder for Money.
 
 ## 4. Transformations
 
@@ -296,7 +310,7 @@ The reference instantiation selects all fifteen seat roles plus China as an NPC.
 
 | ID | Actor | Category | Region | Distinctive capability | Dependency | Objective ([§9.3](#93-objectives)) |
 |---|---|---|---|---|---|---|
-| US | US Head of State | Government | Atlantic | Tariffs and shipment bans; deployment; largest procurement budget | Energy above its holdings; procurement capacity | Military leadership, solvent |
+| US | US Head of State | Government | Atlantic | Tariffs and shipment bans; deployment; Military sales on the defence-goods Market; largest procurement budget | Energy above its holdings; procurement capacity | Military leadership, solvent |
 | DE | German Chancellor | Government | Atlantic | Signs EU procedure Proposals; optional solidarity contributions | Atlantic Energy; tax revenue from the EU residual | Energy security |
 | IN | Indian Prime Minister | Government | Asia | Energy production (5); tariffs | Asia Energy prices | Industrial autonomy |
 | JP | Japanese Prime Minister | Government | Asia | Tariffs; procurement; large Asia purchasing | Imports and transport; no production | Energy security, credible defense |
@@ -496,7 +510,7 @@ Tariffs, shipment bans, withholding, and strikes take effect at the next round b
 
 A deployment reserves the Mil for the round and cannot be redeployed or transferred. The shipped `military-deployment` reserves 1 Mil per unit and has no input or output: the reserved Mil is unavailable to the same Entity's other actions in the round and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). A deployment of at least 12 Mil is a **major military action** for NPC rules and reporting. **Declared attrition (provisional):** a major action loses 25% of the deployed units; smaller deployments lose none. Survivors return at the end of the round.
 
-**Shipped reservation (Fixture R).** The `Deployer` preset ([06 §4.2](06_simulator.md#42-presets)) runs for the US seat. While the Atlantic price is above 3, it orders a 60-unit deployment and a 40-unit major military action in the same round. Their claims on the US's 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the action orders 38. The action consumes 38 Mil and returns 28.5 at commit, so US Military is 95 − 38 + 28.5 = **85.5**. Without the deployment the action runs in full: 95 − 40 + 30 = **85** (Fixture R-alone). The deployment itself is unchanged in its holdings. In a five-round game with the other seats Passive, the Atlantic price is 2.97 at the start of round 3 and 3.29 at the start of round 4, so the preset fires in rounds 4 and 5. Round 5 starts at 85.5 Mil against 100 claimed, so both scale by 0.855: the deployment reserves 51.3, the action orders 34.2, and US Military ends at 85.5 − 34.2 + 25.65 = **76.95**. Without the deployment the action would run in full, ending at 75. Military is the only Resource the reservation touches; China's Policy reads only the action's ordered size (≥ 12), which 38 and 34.2 still meet, so its procurement is unchanged.
+**Shipped reservation (Fixture R).** The `Deployer` preset ([06 §4.2](06_simulator.md#42-presets)) runs for the US seat. While the Atlantic price is above 3, it reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil, both in the same round. Their claims on the US's 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the sale sells 38 Mil. The Market is fresh, so the uniform price is (C(−38) − C(0)) / −38 = 2.81, and the sale pays 38 × 2.81 = **106.78 M**. US Military is 95 − 38 = **57** (the reserved 57 are not consumed), and US Money rises by 106.78. Without the deployment the sale runs in full: 40 Mil at 2.80, paying 112 M, and US Military is 95 − 40 = **55** (Fixture R-alone). In a five-round game with the other seats Passive, the Atlantic price is 2.97 at the start of round 3 and 3.29 at the start of round 4, so the preset fires in rounds 4 and 5. Round 5 starts at 57 Mil against 100 claimed, so both scale by 0.57: the deployment reserves 34.2 and the sale sells 22.8 Mil at 2.506, since the curve now starts at −38 and (C(−60.8) − C(−38)) / −22.8 = 57.1368 / 22.8 = 2.506, which clears the 2.4 limit. US Military ends at 57 − 22.8 = **34.2**. China no longer procures in round 5: its Policy reads the US's major military action, which the preset no longer orders, so the 4 Mil order (36 M, 8 E) that the earlier shipped reservation produced is gone. Military is still the only Resource the reservation holds back, and the Money from the sale is credited at commit.
 
 ### 13.4 Soft Power
 
@@ -591,6 +605,7 @@ Aggregates are in italics. Government holdings cover only government-controlled 
 | `energy-asia` | x = 0; 500 M and 250 E; 2 M/E |
 | Defense procurement | 0 orders; 30 Mil capacity |
 | Public attention | 0 activity; 50 S capacity; 10 S per Actor |
+| `defence-goods` | x = 0; 300 M and 60 Mil; 3 M/Mil |
 | `energy-shipping` | 60 E/round capacity; 0.3 M/E |
 | Semiconductor capacity | 15 units/round, all backing procurement |
 | Production capacity | 140 E/round ([§8.1](#81-energy-production)) |
@@ -855,7 +870,7 @@ The first complete test succeeds when the engine can:
 2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*; harness: *12 Resolution consistency*.
 3. Trade on both nodes with limit prices and partial fills, and ship across regions through the shipping facility under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden); harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
 4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden); handlers: *Fixture D end to end*; harness: *7 NPC response*.
-5. Treat deployment as a reservation with declared attrition. *Proved by:* Fixtures R, R-alone, D and D-minor (golden).
+5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden); harness: *7b Reservation*, *7c Deployer*.
 6. Produce, spend, and decay Soft Power. *Proved by:* harness: *Soft Power is produced, spent, and decays*.
 7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden); harness: *1 Full game*, *8 Scarcity*; INV-05 asserted every round.
 8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* policy: *china-strategic-v0 procures after a major US action*; harness: *7 NPC response*.
