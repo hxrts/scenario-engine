@@ -5,7 +5,7 @@ module Scenarios.Presets where
 import Prelude (negate)
 
 import Data.Tuple (Tuple(..))
-import Scenario.DSL (Built, Keyed, choose, gt, holding, keyed, le, lit, none, price, program, rule, signAll, tradeT, transformT)
+import Scenario.DSL (Built, Clause, Keyed, choose, gt, holding, keyed, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2).
 presets :: Keyed (Built "program")
@@ -54,20 +54,21 @@ trader = program
   { rules:
       [ rule [ le (price "$home") (lit "2.2") ]
           [ tradeT { market: "$home", quantity: (lit 5), limit: (lit "2.2") } ]
-      , rule [ gt (price "$home") (lit 3) ]
-          [ tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 3) } ]
+      , sellAboveThree
       ]
   }
+
+-- | Sell 5 when the home price is above 3, at a limit of 3. Shared by Trader and Opportunistic.
+sellAboveThree :: Clause
+sellAboveThree = rule [ gt (price "$home") (lit 3) ]
+  [ tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 3) } ]
 
 cooperative :: Built "program"
 cooperative = program { sign: [ signAll ] }
 
 opportunistic :: Built "program"
 opportunistic = program
-  { rules:
-      [ rule [ gt (price "$home") (lit 3) ]
-          [ tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 3) } ]
-      ]
+  { rules: [ sellAboveThree ]
   , sign: [ signAll ]
   }
 
@@ -91,6 +92,6 @@ randomvalid :: Built "program"
 randomvalid = program
   { rules:
       [ rule []
-          [ choose [ none, tradeT { market: "$home", quantity: (lit 5), limit: (lit 3) }, tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 2) } ] ]
+          [ choose [ noAction, tradeT { market: "$home", quantity: (lit 5), limit: (lit 3) }, tradeT { market: "$home", quantity: (lit (-5)), limit: (lit 2) } ] ]
       ]
   }

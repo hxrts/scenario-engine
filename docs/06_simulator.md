@@ -67,7 +67,7 @@ The specification must be enough to reproduce the complete economic history with
 
 ### 3.1 Configuration inheritance
 
-A specification may reference a baseline and apply declarative overrides. For example: start from `fractured-world-test-01`, raise Energy production capacity by 20%, cut procurement capacity from 30 to 20, set SME estimator shrinkage to 0.40, and give the US the `Aggressive` preset.
+A specification may reference a baseline and apply declarative overrides. For example: start from `fractured-world-test-01` (an illustrative baseline; no test-instance id exists yet), raise Energy production capacity by 20%, cut procurement capacity from 30 to 20, set SME estimator shrinkage to 0.40, and give the US the `Aggressive` preset.
 
 Overrides must respect the layer boundaries. Tuning an instance changes declarative data, never engine code:
 
@@ -102,20 +102,20 @@ Illustrative preset seat Policies:
 
 ### 4.2 Presets
 
-Preset programs are named parameter sets of the shared interpreter, not separate programs:
+Preset programs are named parameter sets of the shared interpreter, not separate programs. The presets are the executable definition: this table states what each one does (`packages/scenarios/src/Scenarios/Presets.purs`). "Home price" is the price of the Entity's home market, and every quantity is in Resource units per round.
 
 | Preset | Behavior |
 |---|---|
-| `Passive` | Submits no discretionary actions. |
-| `Conservative` | Maintains reserve targets and buys only below a limit price. |
-| `Aggressive` | Prioritizes Military procurement and restrictions against rivals. |
-| `Accumulator` | Buys a target Resource up to a holding target. |
-| `Trader` | Buys below and sells above configured price bands. |
-| `Cooperative` | Proposes configured deals, signs offers within configured terms, and signs procedure Proposals. |
-| `Opportunistic` | Proposes and signs deals only while their terms are favorable at the snapshot. |
-| `Investor` | Spends surplus on capacity-building Transformations. |
-| `CrisisResponse` | Switches to reserve preservation when a declared stress indicator triggers. |
-| `RandomValid` | Picks among valid actions using seeded draws. |
+| `Passive` | Submits nothing. |
+| `Conservative` | Buys 5 Energy at a limit of 2.5 while its Energy holding is below 30 and the home price is at most 2.5. |
+| `Aggressive` | Runs `defense-procurement` at 4 units every round. It has no restrictions. |
+| `Accumulator` | Buys 10 Energy at a limit of 3 while the home price is at most 3. It has no holding target. |
+| `Trader` | Buys 5 Energy at a limit of 2.2 while the home price is at most 2.2; sells 5 at a limit of 3 while it is above 3. The bands are fixed in the preset. |
+| `Cooperative` | Proposes nothing. Signs every Proposal addressed to it. |
+| `Opportunistic` | Sells 5 Energy at a limit of 3 while the home price is above 3. Signs every Proposal addressed to it. |
+| `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100. |
+| `CrisisResponse` | Buys 3 Energy at a limit of 4 while the home price is above 3.5 and its Energy holding is below 20. |
+| `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
 
 ### 4.3 Coverage
 
@@ -481,7 +481,7 @@ Evaluation combines each Actor's measurable objective criteria with system-level
 
 ## 13. Reference Coverage
 
-The initial suite runs *The Fractured World* (`fractured-world-test-01`). Its contents are defined in the reference test instance specification and are not restated here.
+The initial suite runs *The Fractured World* (the reference Gameboard `fractured-world`, version `v0`). Its contents are defined in the reference test instance specification and are not restated here.
 
 Every one of the fifteen seats receives a simple, predictable preset seat Policy, so its actions can be checked independently.
 

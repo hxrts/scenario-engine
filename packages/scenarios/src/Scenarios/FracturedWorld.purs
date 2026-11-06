@@ -1,6 +1,22 @@
 -- | *The Fractured World* (docs/05_test_instance.md), authored in the scenario DSL.
 -- | `just scenarios` compiles it to `packages/scenarios/fractured-world/v0/*.json`.
-module Scenarios.FracturedWorld (files, resources, coreResources, atlanticTerms, asiaTerms, transport, productionCapacity, flows, requirements, defenseProcurement, defenseProcurementCn, energyShipping, majorMilitaryAction) where
+module Scenarios.FracturedWorld
+  ( files
+  , gameSeed
+  , years
+  , resources
+  , coreResources
+  , atlanticTerms
+  , asiaTerms
+  , transport
+  , productionCapacity
+  , flows
+  , requirements
+  , procurement
+  , energyShipping
+  , majorMilitaryAction
+  , smeSample
+  ) where
 
 import Prelude (negate, (<>))
 
@@ -8,14 +24,23 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Tuple (Tuple(..))
 import Record (union)
-import Scenario.DSL (Built, Keyed, Qty, cost, effect, estimator, facility, flow, free, keyed, market, nonTransferable, payee, production, q, representative, requirement, resource, restricted, sales, scheme, share, (:=))
+import Scenario.DSL (Built, Keyed, Qty, assignment, cost, effect, estimator, facility, flow, free, keyed, market, nonTransferable, payee, production, q, requirement, resource, restricted, sales, scheme, share, (:=))
 import Scenarios.FracturedWorld.Entities (entities)
 import Scenarios.FracturedWorld.Policies (policies)
+
+-- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
+-- | in-world seed; fixtures and golden tests use it too.
+gameSeed :: Int
+gameSeed = 26021
+
+-- | The reference horizon in years, which is also its round count: one round per year.
+years :: Int
+years = 5
 
 -- | One JSON file per section, as the loader reads them.
 files :: Array (Tuple String Json)
 files =
-  [ Tuple "scenario.json" (encodeJson { id: "fractured-world", version: "v0", numeraire: "M", horizon: 5, roundRange: [ 4, 8 ] })
+  [ Tuple "scenario.json" (encodeJson { id: "fractured-world", version: "v0", numeraire: "M", horizon: years, roundRange: [ 4, 8 ] })
   , Tuple "resources.json" (encodeJson { resources })
   , Tuple "markets.json" (encodeJson { markets, transport, jurisdiction })
   , Tuple "transformations.json" (encodeJson { transformations })
@@ -69,8 +94,8 @@ jurisdiction = keyed
 
 transformations :: Keyed (Built "facility")
 transformations = keyed
-  [ Tuple "defense-procurement" defenseProcurement
-  , Tuple "defense-procurement-cn" defenseProcurementCn
+  [ Tuple "defense-procurement" (procurement "DEF")
+  , Tuple "defense-procurement-cn" (procurement "CN_PRIVATE")
   , Tuple "public-attention"
       (facility { outputs: keyed [ "S" := 1 ], cost: cost { base: q 3, slope: q "0.2", lo: q 0, hi: q 50 }, capacity: "attention", payee: "WORLD_HOUSEHOLDS", maximum: q 10 })
   , Tuple "energy-shipping" energyShipping
@@ -87,12 +112,10 @@ transformations = keyed
       (facility { inputs: keyed [ "S" := 8 ], cost: cost { base: q 5, slope: q 0, lo: q 0, hi: q 1 }, payee: "US_WORKERS", delay: 1, maximum: q 1, effects: [ effect { capacity: "energy-production", holder: "ENCO", perUnit: q "-6.25", rounds: 1 }, effect { capacity: "semiconductors", holder: "CHIP", perUnit: q "-3.75", rounds: 1 } ] })
   ]
 
--- | Facilities the fixtures share with the scenario.
-defenseProcurement :: Built "facility"
-defenseProcurement = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "DEF" }
-
-defenseProcurementCn :: Built "facility"
-defenseProcurementCn = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: "CN_PRIVATE" }
+-- | Military procurement: Energy and semiconductor capacity into Military, paid to `payeeEntity`.
+-- | Procurement by the US and its rivals differ only in the payee.
+procurement :: String -> Built "facility"
+procurement payeeEntity = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: payeeEntity }
 
 energyShipping :: Built "facility"
 energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: "transport", payee: "SHIP", ownerSigns: true }
@@ -100,6 +123,8 @@ energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi:
 majorMilitaryAction :: Built "facility"
 majorMilitaryAction = facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := "0.75" ], minimum: q 12 }
 
+-- | The Entities that produce Energy (their capacities are on the Entities; this list must
+-- | agree with them, which validation checks).
 productionCapacity :: Array (Built "production")
 productionCapacity =
   [ production { entity: "ENERGY_SUPPLIERS", resource: "E", capacity: "energy-production" }
@@ -167,9 +192,30 @@ requirements =
   , requirement { entity: "GLOBAL_SMES", resource: "E", penalty: q 2 }
   ]
 
+-- | The SME Representation (docs/05 §12): Global SMEs' Energy demand, estimated from SME's
+-- | sample. Its scheme and the fixtures' Representations share these values.
+smeSample
+  :: { id :: String
+     , actor :: String
+     , aggregate :: String
+     , domain :: String
+     , reference :: Qty
+     , shrinkage :: Qty
+     , bound :: Qty
+     }
+smeSample =
+  { id: "sme-energy-sample"
+  , actor: "SME"
+  , aggregate: "GLOBAL_SMES"
+  , domain: "E"
+  , reference: q 5
+  , shrinkage: q "0.25"
+  , bound: q "0.5"
+  }
+
 schemes :: Array (Built "scheme")
 schemes =
-  [ scheme { id: "sme-energy-sample", eligibleActors: [ "SME" ], target: "GLOBAL_SMES", domain: "E", estimator: estimator { reference: q 5, shrinkage: q "0.25", bound: q "0.5", noiseSpread: q "0.1" } }
+  [ scheme { id: smeSample.id, eligibleActors: [ smeSample.actor ], target: smeSample.aggregate, domain: smeSample.domain, estimator: estimator { reference: smeSample.reference, shrinkage: smeSample.shrinkage, bound: smeSample.bound, noiseSpread: q "0.1" } }
   ]
 
 parameters :: Keyed Qty
@@ -187,10 +233,10 @@ parameters = keyed
   , "maximum-import-tariff" := 1
   ]
 
-instantiation :: { seed :: Int, rounds :: Int, seats :: Keyed String, npcs :: Keyed String, representations :: Array (Built "representative") }
+instantiation :: { seed :: Int, rounds :: Int, seats :: Keyed String, npcs :: Keyed String, representations :: Array (Built "assignment") }
 instantiation =
-  { seed: 26021
-  , rounds: 5
+  { seed: gameSeed
+  , rounds: years
   , seats: keyed
       [ Tuple "US" "seat-1"
       , Tuple "DE" "seat-2"
@@ -209,5 +255,5 @@ instantiation =
       , Tuple "AID" "seat-15"
       ]
   , npcs: keyed [ Tuple "CN" "china-strategic-v0" ]
-  , representations: [ representative { scheme: "sme-energy-sample", actor: "SME", weight: q 1 } ]
+  , representations: [ assignment { scheme: smeSample.id, actor: smeSample.actor, weight: q 1 } ]
   }

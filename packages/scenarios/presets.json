@@ -174,7 +174,7 @@
      {
       "choose": [
        {
-        "none": null
+        "noAction": null
        },
        {
         "trade": {

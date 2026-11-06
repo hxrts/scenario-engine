@@ -2,7 +2,7 @@
 
 **Version:** 0.2  
 **Status:** Experimental configuration; all scenario choices and numerical parameters are provisional  
-**Scenario ID:** `fractured-world-v0`  
+**Scenario ID:** `fractured-world`, version `v0` (Gameboard `fractured-world@v0`)  
 **Implementation language:** PureScript
 
 ---
@@ -520,8 +520,8 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 
 | Parameter | Value |
 |---|---|
-| Game ID | `fractured-world-test-01` |
-| Gameboard | `fractured-world-v0` |
+| Game ID | `fractured-world-test-01` (planned: no run carries a game id yet) |
+| Gameboard | `fractured-world`, version `v0` |
 | Seats / NPC Actors / Aggregates | 15 / 1 (China) / 6 |
 | Horizon and rounds | 5 years; 5 rounds of 1 year |
 | Real-world session | About 6 hours |
@@ -827,14 +827,17 @@ Recorded each round; dashboard metrics are versioned projections of snapshots an
 
 ## 31. Configuration Package
 
-The instance is a versioned configuration package containing no new foundational types; tuning it changes data, not engine code:
+The instance is a versioned configuration package containing no new foundational types; tuning it changes data, not engine code. Its files are compiled from the DSL by `just scenarios`:
 
 ```text
-test-instances/fractured-world/v0/
-  scenario  verticals/  resources  markets  transformations  circulation
-  entities  capabilities  objectives  relationships  policies  representations
-  game-rules  instantiation  initial-conditions  test-fixtures/
+packages/scenarios/
+  fractured-world/v0/   scenario  resources  markets  transformations  circulation
+                        entities  representations  game-rules  policies  instantiation
+  presets.json          the seat presets, shared by every scenario (docs/06 §4.2)
+  fixtures/             the engine-level fixtures A–G (generated, not committed)
 ```
+
+Each section file is one JSON object, merged into the Gameboard; `instantiation.json` is the Instantiation Configuration. Capabilities, objectives, and relationships are kept inside `entities.json` (and in the DSL), not in files of their own; verticals and initial conditions have no file yet.
 
 Example version boundaries: a revised cost curve or circulation flow is a Gameboard change; a different initial node reserve within the permitted range is an Instantiation change; new player assignments need no engine change.
 
@@ -855,7 +858,7 @@ The first complete test succeeds when the engine can:
 7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden); harness: *1 Full game*, *8 Scarcity*; INV-05 asserted every round.
 8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* policy: *china-strategic-v0 procures after a major US action*; harness: *7 NPC response*.
 9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden); harness: *5 Germany and EU*.
-10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3, C5 and *C4* (golden); harness: *6 SME Representation*.
+10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 and *C4* (golden); C5 checks the seeded noise only, with no balance expectation (golden invariants and its noise test); harness: *6 SME Representation*.
 11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden); harness: *10 Signed Proposals*.
 12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*; harness: *3 Submission order*.
 13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* harness: *2 Replay*; adapters: *13 Persistence*, *a scripted live session equals replaying…*.

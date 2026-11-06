@@ -2,9 +2,11 @@
 -- | JSON that `board` and `policy` decode. Every term is a thin wrapper around that JSON, so
 -- | the format stays defined in one place: the decoders.
 -- |
--- | Record builders accept any subset of their allowed fields: a misspelt or mistyped field
--- | fails to compile, and only the fields given are emitted (absent fields take the
--- | decoder's default).
+-- | Record builders take any subset of their allowed fields, given as a row `Union`: a
+-- | misspelt or mistyped field fails to compile, and only the fields given are emitted. An
+-- | absent field takes the decoder's default, or is a decode error if the decoder requires
+-- | it. Tagged strings (capabilities, fallbacks, measures, spans, share sources) are built
+-- | from the constants in `Board.Tags`, the same constants the decoders match on.
 module Scenario.DSL
   ( Qty
   , class ToQty
@@ -53,8 +55,9 @@ module Scenario.DSL
   , objective
   , criterion
   , metric
+  , class ToBound
+  , bound
   , atLeast
-  , matching
   , own
   , finishes
   , neverShort
@@ -64,7 +67,7 @@ module Scenario.DSL
   , requirement
   , scheme
   , estimator
-  , representative
+  , assignment
   -- decision language
   , Expr
   , lit
@@ -93,12 +96,12 @@ module Scenario.DSL
   , deal
   , reciprocate
   , choose
-  , none
+  , noAction
   , SignRule
   , signProcedures
   , signFacility
   , signAll
-  , Rule
+  , Clause
   , rule
   , program
   -- fixtures
@@ -109,18 +112,23 @@ module Scenario.DSL
   , transformI
   , enactTariffI
   , enactAccessBanI
+  , enactWithholdingI
   , proposal
   , expect
+  , ref
+  , refAt
   , delivery
   , procedureOutcome
   , roundOf
   , representation
   , accessBanRule
   , tariffRule
+  , withholdingRule
   ) where
 
 import Prelude
 
+import Board.Tags as T
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Tuple (Tuple(..))
@@ -191,22 +199,22 @@ instance EncodeJson (Tagged kind) where
 type Capability = Tagged "capability"
 
 trade :: String -> Capability
-trade m = Tagged ("trade:" <> m)
+trade m = Tagged (T.tag T.tradeKind m)
 
 transfer :: String -> Capability
-transfer r = Tagged ("transfer:" <> r)
+transfer r = Tagged (T.tag T.transferKind r)
 
 transform :: String -> Capability
-transform t = Tagged ("transform:" <> t)
+transform t = Tagged (T.tag T.transformKind t)
 
 enactTariff :: Capability
-enactTariff = Tagged "enact:tariff"
+enactTariff = Tagged (T.tag T.enactKind T.tariffKind)
 
 enactAccessBan :: Capability
-enactAccessBan = Tagged "enact:accessBan"
+enactAccessBan = Tagged (T.tag T.enactKind T.accessBanKind)
 
 enactWithholding :: Capability
-enactWithholding = Tagged "enact:withholding"
+enactWithholding = Tagged (T.tag T.enactKind T.withholdingKind)
 
 free :: Tagged "transferability"
 free = Tagged "Free"
@@ -219,47 +227,47 @@ nonTransferable = Tagged "NonTransferable"
 
 -- | The Actor's accounts and activity stay in an Aggregate.
 coverage :: String -> Tagged "fallback"
-coverage a = Tagged ("coverage:" <> a)
+coverage a = Tagged (T.tag T.coverageKind a)
 
 -- | The same accounts, driven by an in-world Policy.
 institutional :: String -> Tagged "fallback"
-institutional p = Tagged ("policy:" <> p)
+institutional p = Tagged (T.tag T.policyKind p)
 
 omission :: Tagged "fallback"
-omission = Tagged "omission"
+omission = Tagged T.omissionKind
 
 holdingOf :: String -> Tagged "measure"
-holdingOf r = Tagged ("holding:" <> r)
+holdingOf r = Tagged (T.tag T.holdingKind r)
 
 capacityOf :: String -> Tagged "measure"
-capacityOf c = Tagged ("capacity:" <> c)
+capacityOf c = Tagged (T.tag T.capacityKind c)
 
 shortfallOf :: String -> Tagged "measure"
-shortfallOf r = Tagged ("shortfall:" <> r)
+shortfallOf r = Tagged (T.tag T.shortfallKind r)
 
 shortfallRounds :: String -> Tagged "measure"
-shortfallRounds r = Tagged ("shortfallRounds:" <> r)
+shortfallRounds r = Tagged (T.tag T.shortfallRoundsKind r)
 
 payeeReceipts :: Tagged "measure"
-payeeReceipts = Tagged "payeeReceipts"
+payeeReceipts = Tagged T.payeeReceiptsKind
 
 volumeOf :: String -> Tagged "measure"
-volumeOf t = Tagged ("volume:" <> t)
+volumeOf t = Tagged (T.tag T.volumeKind t)
 
 final :: Tagged "span"
-final = Tagged "final"
+final = Tagged T.finalKind
 
 everyRound :: Tagged "span"
-everyRound = Tagged "everyRound"
+everyRound = Tagged T.everyRoundKind
 
 cumulative :: Tagged "span"
-cumulative = Tagged "cumulative"
+cumulative = Tagged T.cumulativeKind
 
 sales :: String -> Tagged "share source"
-sales r = Tagged ("sales:" <> r)
+sales r = Tagged (T.tag T.salesKind r)
 
 payee :: Tagged "share source"
-payee = Tagged "payee"
+payee = Tagged T.payeeKind
 
 -- World (docs/03_gameboard.md) ------------------------------------------------------
 
@@ -271,8 +279,13 @@ resource
   -> Built "resource"
 resource = build
 
-cost :: { base :: Qty, slope :: Qty, lo :: Qty, hi :: Qty } -> Built "cost"
-cost = Built <<< encodeJson
+cost
+  :: forall r rest
+   . Union r rest (base :: Qty, slope :: Qty, lo :: Qty, hi :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "cost"
+cost = build
 
 market
   :: forall r rest
@@ -334,8 +347,13 @@ aggregate
 aggregate = build
 
 -- | A collective procedure on an Aggregate's own Proposals.
-collective :: { weights :: Keyed Qty, residualWeight :: Qty, threshold :: Qty, authorizes :: Array Capability } -> Built "procedure"
-collective = Built <<< encodeJson
+collective
+  :: forall r rest
+   . Union r rest (weights :: Keyed Qty, residualWeight :: Qty, threshold :: Qty, authorizes :: Array Capability)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "procedure"
+collective = build
 
 -- | An Actor definition: seat eligibility, fallback, and objective.
 definition
@@ -346,7 +364,7 @@ definition
        , npc :: Array String
        , fallback :: Tagged "fallback"
        , objective :: Built "objective"
-       , capability :: String
+       , description :: String
        , dependency :: String
        )
   => EncodeJson (Record r)
@@ -354,8 +372,13 @@ definition
   -> Built "definition"
 definition = build
 
-objective :: { description :: String, criteria :: Array (Built "criterion") } -> Built "objective"
-objective = Built <<< encodeJson
+objective
+  :: forall r rest
+   . Union r rest (description :: String, criteria :: Array (Built "criterion"))
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "objective"
+objective = build
 
 criterion
   :: forall r rest
@@ -373,12 +396,25 @@ metric
   -> Built "metric"
 metric = build
 
--- | A criterion's bound: a fixed quantity, or another metric to match.
-atLeast :: forall a. ToQty a => a -> Built "bound"
-atLeast = Built <<< encodeJson <<< q
+-- | A criterion's bound: a fixed quantity, or a metric the Entity must match.
+class ToBound a where
+  bound :: a -> Built "bound"
 
-matching :: Built "metric" -> Built "bound"
-matching (Built j) = Built j
+instance ToBound Int where
+  bound = Built <<< encodeJson <<< q
+
+instance ToBound String where
+  bound = Built <<< encodeJson <<< q
+
+instance ToBound Qty where
+  bound = Built <<< encodeJson <<< q
+
+instance ToBound (Built "metric") where
+  bound = Built <<< encodeJson
+
+-- | `atLeast 200` is a fixed bound; `atLeast (own "CN" (holdingOf "Mil"))` matches another measure.
+atLeast :: forall a. ToBound a => a -> Built "bound"
+atLeast = bound
 
 -- | One Entity's own measure.
 own :: String -> Tagged "measure" -> Built "metric"
@@ -392,14 +428,29 @@ finishes e m b = criterion { metric: own e m, over: final, atLeast: b }
 neverShort :: String -> String -> Built "criterion"
 neverShort e r = criterion { metric: metric { entities: [ e ], measure: shortfallOf r, negated: true }, over: everyRound, atLeast: atLeast 0 }
 
-production :: { entity :: String, resource :: String, capacity :: String } -> Built "production"
-production = Built <<< encodeJson
+production
+  :: forall r rest
+   . Union r rest (entity :: String, resource :: String, capacity :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "production"
+production = build
 
-flow :: { from :: String, to :: String, resource :: String, amount :: Qty } -> Built "flow"
-flow = Built <<< encodeJson
+flow
+  :: forall r rest
+   . Union r rest (from :: String, to :: String, resource :: String, amount :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "flow"
+flow = build
 
-share :: { from :: String, to :: String, share :: Qty, source :: Tagged "share source" } -> Built "share"
-share = Built <<< encodeJson
+share
+  :: forall r rest
+   . Union r rest (from :: String, to :: String, share :: Qty, source :: Tagged "share source")
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "share"
+share = build
 
 requirement
   :: forall r rest
@@ -410,8 +461,13 @@ requirement
 requirement = build
 
 -- | A Representation scheme on an Aggregate.
-scheme :: { id :: String, eligibleActors :: Array String, target :: String, domain :: String, estimator :: Built "estimator" } -> Built "scheme"
-scheme = Built <<< encodeJson
+scheme
+  :: forall r rest
+   . Union r rest (id :: String, eligibleActors :: Array String, target :: String, domain :: String, estimator :: Built "estimator")
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "scheme"
+scheme = build
 
 estimator
   :: forall r rest
@@ -421,14 +477,14 @@ estimator
   -> Built "estimator"
 estimator = build
 
--- | An instantiation's representative assignment.
-representative
+-- | An instantiation's assignment of an Actor to a Representation scheme.
+assignment
   :: forall r rest
    . Union r rest (scheme :: String, actor :: String, weight :: Qty)
   => EncodeJson (Record r)
   => Record r
-  -> Built "representative"
-representative = build
+  -> Built "assignment"
+assignment = build
 
 -- Decision language (docs/02_type_system.md §4.4) -------------------------------------
 
@@ -491,13 +547,28 @@ eq a b = Cond (binary "eq" a b)
 not' :: Cond -> Cond
 not' (Cond c) = Cond (tag "not" c)
 
-transformedLastRound :: { by :: String, transformation :: String, atLeast :: Qty } -> Cond
+transformedLastRound
+  :: forall r rest
+   . Union r rest (by :: String, transformation :: String, atLeast :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Cond
 transformedLastRound = Cond <<< tag "transformedLastRound" <<< encodeJson
 
-restrictedLastRound :: { by :: String, target :: String } -> Cond
+restrictedLastRound
+  :: forall r rest
+   . Union r rest (by :: String, target :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Cond
 restrictedLastRound = Cond <<< tag "restrictedLastRound" <<< encodeJson
 
-restrictionInForce :: { by :: String } -> Cond
+restrictionInForce
+  :: forall r rest
+   . Union r rest (by :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Cond
 restrictionInForce = Cond <<< tag "restrictionInForce" <<< encodeJson
 
 newtype Template = Template Json
@@ -514,27 +585,53 @@ tradeT
   -> Template
 tradeT = Template <<< tag "trade" <<< encodeJson
 
-transformT :: { transformation :: String, quantity :: Expr } -> Template
+transformT
+  :: forall r rest
+   . Union r rest (transformation :: String, quantity :: Expr)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
 transformT = Template <<< tag "transform" <<< encodeJson
 
 -- | An Aggregate's own procedure Proposal, for its members to sign.
-procedureT :: { id :: String, signers :: Array String, intents :: Array Template } -> Template
+procedureT
+  :: forall r rest
+   . Union r rest (id :: String, signers :: Array String, intents :: Array Template)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
 procedureT = Template <<< tag "procedure" <<< encodeJson
 
-enactTariffT :: { origin :: String, rate :: Expr } -> Template
+enactTariffT
+  :: forall r rest
+   . Union r rest (origin :: String, rate :: Expr)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
 enactTariffT = Template <<< tag "enactTariff" <<< encodeJson
 
-deal :: { signers :: Array String, transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr } } -> Template
+deal
+  :: forall r rest
+   . Union r rest (signers :: Array String, transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr })
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
 deal = Template <<< tag "deal" <<< encodeJson
 
-reciprocate :: { target :: String } -> Template
+reciprocate
+  :: forall r rest
+   . Union r rest (target :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
 reciprocate = Template <<< tag "reciprocate" <<< encodeJson
 
 choose :: Array Template -> Template
 choose = Template <<< tag "choose" <<< encodeJson
 
-none :: Template
-none = Template (tag "none" jsonNull)
+-- | Propose nothing: an option for `choose`, or a clause's whole proposal.
+noAction :: Template
+noAction = Template (tag "noAction" jsonNull)
 
 newtype SignRule = SignRule Json
 
@@ -550,18 +647,19 @@ signFacility = SignRule <<< tag "facility" <<< fromString
 signAll :: SignRule
 signAll = SignRule (tag "all" jsonNull)
 
-newtype Rule = Rule Json
+-- | One clause of a Program: when every condition holds, propose the templates.
+newtype Clause = Clause Json
 
-instance EncodeJson Rule where
-  encodeJson (Rule j) = j
+instance EncodeJson Clause where
+  encodeJson (Clause j) = j
 
 -- | When every condition holds, propose the templates. `when` may be empty.
-rule :: Array Cond -> Array Template -> Rule
-rule when propose = Rule (encodeJson { when, propose })
+rule :: Array Cond -> Array Template -> Clause
+rule when propose = Clause (encodeJson { when, propose })
 
 program
   :: forall r rest
-   . Union r rest (rules :: Array Rule, sign :: Array SignRule)
+   . Union r rest (rules :: Array Clause, sign :: Array SignRule)
   => EncodeJson (Record r)
   => Record r
   -> Built "program"
@@ -586,17 +684,45 @@ tradeI
   -> Intent
 tradeI = Intent <<< tag "trade" <<< encodeJson
 
-transferI :: { from :: String, to :: String, resource :: String, quantity :: Qty } -> Intent
+transferI
+  :: forall r rest
+   . Union r rest (from :: String, to :: String, resource :: String, quantity :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
 transferI = Intent <<< tag "transfer" <<< encodeJson
 
-transformI :: { by :: String, transformation :: String, quantity :: Qty } -> Intent
+transformI
+  :: forall r rest
+   . Union r rest (by :: String, transformation :: String, quantity :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
 transformI = Intent <<< tag "transform" <<< encodeJson
 
-enactTariffI :: { jurisdiction :: String, origin :: String, rate :: Qty } -> Intent
-enactTariffI = Intent <<< tag "enact" <<< tag "tariff" <<< encodeJson
+enactTariffI
+  :: forall r rest
+   . Union r rest (jurisdiction :: String, origin :: String, rate :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
+enactTariffI r = Intent (tag "enact" (tag "tariff" (encodeJson r)))
 
-enactAccessBanI :: { jurisdiction :: String, target :: String } -> Intent
-enactAccessBanI = Intent <<< tag "enact" <<< tag "accessBan" <<< encodeJson
+enactAccessBanI
+  :: forall r rest
+   . Union r rest (jurisdiction :: String, target :: String)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
+enactAccessBanI r = Intent (tag "enact" (tag "accessBan" (encodeJson r)))
+
+enactWithholdingI
+  :: forall r rest
+   . Union r rest (capacity :: String, units :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Intent
+enactWithholdingI r = Intent (tag "enact" (tag "withholding" (encodeJson r)))
 
 -- | A Proposal and the signatures it gathered. Ids follow from the author and order.
 proposal
@@ -607,15 +733,24 @@ proposal
   -> Built "proposal"
 proposal = build
 
--- | Exact expected results after a round; only the fields given are checked.
+-- | A Proposal named in an expectation: its author's first Proposal in the round.
+ref :: String -> Built "proposal ref"
+ref author = Built (encodeJson author)
+
+-- | The Proposal at a position among its author's Proposals in the round.
+refAt :: String -> Int -> Built "proposal ref"
+refAt author index = Built (encodeJson { author, index })
+
+-- | Exact expected results after a round. Only the fields given are checked: `deliveries: []`
+-- | asserts that nothing was delivered, while an absent field asserts nothing.
 expect
   :: forall r rest
    . Union r rest
        ( accounts :: Keyed (Keyed Qty)
        , reserves :: Keyed (Keyed Qty)
        , deliveries :: Array (Built "delivery")
-       , rejected :: Array String
-       , lapsed :: Array String
+       , rejected :: Array (Built "proposal ref")
+       , lapsed :: Array (Built "proposal ref")
        , factors :: Keyed (Keyed Qty)
        , scheduled :: Int
        , procedures :: Array (Built "procedure outcome")
@@ -625,11 +760,22 @@ expect
   -> Built "expect"
 expect = build
 
-delivery :: { entity :: String, resource :: String, quantity :: Qty } -> Built "delivery"
-delivery = Built <<< encodeJson
+delivery
+  :: forall r rest
+   . Union r rest (entity :: String, resource :: String, quantity :: Qty)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "delivery"
+delivery = build
 
-procedureOutcome :: { author :: String, support :: Qty, executed :: Boolean } -> Built "procedure outcome"
-procedureOutcome = Built <<< encodeJson
+-- | The outcome of a procedure Proposal: its author's first Proposal unless `index` says otherwise.
+procedureOutcome
+  :: forall r rest
+   . Union r rest (author :: String, index :: Int, support :: Qty, executed :: Boolean)
+  => EncodeJson (Record r)
+  => Record r
+  -> Built "procedure outcome"
+procedureOutcome = build
 
 -- | One round of a multi-round fixture.
 roundOf
@@ -655,3 +801,6 @@ accessBanRule r = Built (encodeJson { accessBan: r })
 
 tariffRule :: { jurisdiction :: String, origin :: String, rate :: Qty } -> Built "rule"
 tariffRule r = Built (encodeJson { tariff: r })
+
+withholdingRule :: { capacity :: String, units :: Qty } -> Built "rule"
+withholdingRule r = Built (encodeJson { withholding: r })

@@ -1,11 +1,12 @@
 -- | The Fractured World's in-world Policy catalog: the China NPC, Aggregate baselines, and
--- | institutional fallbacks (docs/05_test_instance.md §11). `just scenarios` compiles it to `packages/scenarios/fractured-world/v0/policies.json`.
-module Scenarios.FracturedWorld.Policies where
+-- | institutional fallbacks (docs/05_test_instance.md §11). `just scenarios` compiles it to
+-- | `packages/scenarios/fractured-world/v0/policies.json`.
+module Scenarios.FracturedWorld.Policies (policies) where
 
-import Prelude (negate)
+import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
-import Scenario.DSL (Built, Keyed, enactTariffT, eq, factor, ge, gt, holding, keyed, le, lit, mul, not', param, price, procedureT, program, q, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transformT, transformedLastRound)
+import Scenario.DSL (Built, Clause, Keyed, enactTariffT, eq, factor, ge, gt, holding, keyed, le, lit, mul, not', param, price, procedureT, program, q, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transformT, transformedLastRound)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
 policies :: Keyed (Built "program")
@@ -42,12 +43,15 @@ euCoordination = program
           [ tradeT { market: "energy-atlantic", quantity: (lit 4) } ]
       , rule [ gt (price "energy-atlantic") (lit 3) ]
           [ procedureT { id: "eu-solidarity", signers: [ "DE" ], intents: [ tradeT { market: "energy-atlantic", quantity: (lit (-8)) } ] } ]
-      , rule [ restrictionInForce { by: "US" }, not' (restrictionInForce { by: "EU" }) ]
-          [ procedureT { id: "eu-trade", signers: [ "DE" ], intents: [ enactTariffT { origin: "US", rate: (param "eu-matching-tariff") } ] } ]
-      , rule [ restrictionInForce { by: "CN" }, not' (restrictionInForce { by: "EU" }) ]
-          [ procedureT { id: "eu-trade", signers: [ "DE" ], intents: [ enactTariffT { origin: "CN", rate: (param "eu-matching-tariff") } ] } ]
+      , tariffMatch "US"
+      , tariffMatch "CN"
       ]
   }
+
+-- | The EU matches a rival's restriction with a tariff of its own, unless it already has one in force.
+tariffMatch :: String -> Clause
+tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: "EU" }) ]
+  [ procedureT { id: "eu-trade", signers: [ "DE" ], intents: [ enactTariffT { origin: origin, rate: (param "eu-matching-tariff") } ] } ]
 
 globalSmes :: Built "program"
 globalSmes = program
@@ -89,27 +93,30 @@ worldHouseholds = program
       ]
   }
 
+-- | The Energy suppliers' offers in one Market, parameterized by the market and the
+-- | suffix its scenario parameters carry (`supplier-offer-<suffix>`, `disruption-cut-<suffix>`).
+-- | Below the high price they offer the base volume; at or above it, the high volume. In the
+-- | disruption round the offer is cut by the disruption amount.
+supplierOffers :: String -> String -> Array Clause
+supplierOffers m suffix =
+  [ rule [ notDisruption, low ] [ offer (sub (lit 0) (param base)) ]
+  , rule [ notDisruption, high ] [ offer (sub (lit 0) (param baseHigh)) ]
+  , rule [ disruption, low ] [ offer (sub (sub (lit 0) (param base)) (sub (lit 0) (param cut))) ]
+  , rule [ disruption, high ] [ offer (sub (sub (lit 0) (param baseHigh)) (sub (lit 0) (param cut))) ]
+  ]
+  where
+  base = "supplier-offer-" <> suffix
+  baseHigh = base <> "-high"
+  cut = "disruption-cut-" <> suffix
+  disruption = eq round (param "disruption-round")
+  notDisruption = not' disruption
+  low = not' (ge (price m) (param "supplier-high-price"))
+  high = ge (price m) (param "supplier-high-price")
+  offer quantity = tradeT { market: m, quantity: quantity }
+
 energySuppliers :: Built "program"
 energySuppliers = program
-  { rules:
-      [ rule [ not' (eq round (param "disruption-round")), not' (ge (price "energy-atlantic") (param "supplier-high-price")) ]
-          [ tradeT { market: "energy-atlantic", quantity: (sub (lit 0) (param "supplier-offer-atlantic")) } ]
-      , rule [ not' (eq round (param "disruption-round")), ge (price "energy-atlantic") (param "supplier-high-price") ]
-          [ tradeT { market: "energy-atlantic", quantity: (sub (lit 0) (param "supplier-offer-atlantic-high")) } ]
-      , rule [ eq round (param "disruption-round"), not' (ge (price "energy-atlantic") (param "supplier-high-price")) ]
-          [ tradeT { market: "energy-atlantic", quantity: (sub (sub (lit 0) (param "supplier-offer-atlantic")) (sub (lit 0) (param "disruption-cut-atlantic"))) } ]
-      , rule [ eq round (param "disruption-round"), ge (price "energy-atlantic") (param "supplier-high-price") ]
-          [ tradeT { market: "energy-atlantic", quantity: (sub (sub (lit 0) (param "supplier-offer-atlantic-high")) (sub (lit 0) (param "disruption-cut-atlantic"))) } ]
-      , rule [ not' (eq round (param "disruption-round")), not' (ge (price "energy-asia") (param "supplier-high-price")) ]
-          [ tradeT { market: "energy-asia", quantity: (sub (lit 0) (param "supplier-offer-asia")) } ]
-      , rule [ not' (eq round (param "disruption-round")), ge (price "energy-asia") (param "supplier-high-price") ]
-          [ tradeT { market: "energy-asia", quantity: (sub (lit 0) (param "supplier-offer-asia-high")) } ]
-      , rule [ eq round (param "disruption-round"), not' (ge (price "energy-asia") (param "supplier-high-price")) ]
-          [ tradeT { market: "energy-asia", quantity: (sub (sub (lit 0) (param "supplier-offer-asia")) (sub (lit 0) (param "disruption-cut-asia"))) } ]
-      , rule [ eq round (param "disruption-round"), ge (price "energy-asia") (param "supplier-high-price") ]
-          [ tradeT { market: "energy-asia", quantity: (sub (sub (lit 0) (param "supplier-offer-asia-high")) (sub (lit 0) (param "disruption-cut-asia"))) } ]
-      ]
-  }
+  { rules: supplierOffers "energy-atlantic" "atlantic" <> supplierOffers "energy-asia" "asia" }
 
 governmentDefault :: Built "program"
 governmentDefault = program {}
