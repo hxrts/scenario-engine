@@ -342,7 +342,7 @@ The consequences of that tariff emerge when Markets and Policies respond to the 
 
 ### 4.4 Shared decision-language interpreter
 
-All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. They differ only in where they are configured and which Entity they drive. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
+All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules, each a set of conditions (comparisons over prices, own holdings, stored factors, the round, and parameters; events of the previous round; rules in force) and the templates it proposes (market orders, facility orders, deals, procedure Proposals, tariffs, reciprocal restrictions, and a seeded choice among options), plus sign rules (procedures, facilities, or everything addressed to it). The market `$home` names the Entity's home market. The language grows only when a documented Policy needs more. They differ only in where they are configured and which Entity they drive. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
 
 ## 5. Cost Functions, Markets, and Transformations
 
@@ -673,7 +673,7 @@ resolveRound :: WorldState -> Array SignedProposal
 
 -- Round runner (Policy layer): effectful, written against effect signatures (§8.4)
 runRound :: Policies -> WorldState
-         -> Run (RANDOM + SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
+         -> Run (SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
 runRound policies world0 = do
   let world = prepareRound world0                           -- phase 1 (engine, pure)
       views = observe world                                 -- phase 2 (engine, pure)
@@ -696,7 +696,6 @@ Everything impure is an algebraic effect, and only the round runner and the code
 
 | Effect | Operation |
 |---|---|
-| `Random` | Keyed draws from a named stream: `random :: Stream -> DrawKey -> UnitInterval` |
 | `SeatInput` | A seat's Proposals in Propose and its signatures in Sign |
 | `Interpret` | Transcript → candidate Intents, with confirmation |
 | `Narrate` | Resolved events → front page and balance-sheet text |
@@ -706,7 +705,7 @@ Everything impure is an algebraic effect, and only the round runner and the code
 Handlers choose the context; the round runner is the same code under all of them:
 
 - **Live session:** `SeatInput` via humans and `Interpret`; `Clock` enforces deadlines.
-- **Simulation:** `SeatInput` via preset programs or AI agents; `Random` serves the game and player streams.
+- **Simulation:** `SeatInput` via preset programs or AI agents, whose randomness draws from the player seed.
 - **Replay:** `SeatInput` feeds recorded Proposals and signatures.
 - **Test:** all handlers pure.
 
@@ -755,13 +754,12 @@ IDs 18, 20, and 32–35 are retired.
 
 Mechanics are deterministic by default. Randomness is introduced only where a Gameboard rule or estimator explicitly calls for it, such as estimator sampling noise.
 
-Each game instance has exactly one **game seed**, fixed at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness, declared shocks) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness; it exists only under the simulation handler, and live play has none. Nothing reads system randomness. Every draw is made by one pure function; the `Random` effect selects the seed by stream:
+Each game instance has exactly one **game seed**, fixed at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness, declared shocks) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness; it exists only under the simulation handler, and live play has none. Nothing reads system randomness. Every draw is made by one pure function, so randomness needs no effect: the round runner passes in-world Policies draws on the game seed, and the seat handler passes seat Policies draws on the player seed. The two streams are the two seeds:
 
 ```purescript
 draw   :: Seed -> DrawKey -> UnitInterval     -- pure, in core
 
-data Stream = Game | Player
-random :: Stream -> DrawKey -> UnitInterval   -- Random effect; the stream selects the game or player seed
+data Stream = Game | Player                   -- Game: in-world draws; Player: seat draws (simulation only)
 ```
 
 The streams never share draws, so varying the player seed never changes an in-world draw, and vice versa.

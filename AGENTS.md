@@ -13,7 +13,7 @@ The repository is at the design stage. `docs/` holds the specification; the code
 - `just build`: compile everything. `just test`: every package's suite. `just test-pkg core`: one package.
 - Single test: `spago test -p sp-core -- --example "<test name>"` (spec-node filter)
 - `just fmt` / `just fmt-check`: purs-tidy. `just deps`: dependency-direction check (`scripts/check-deps`).
-- `just check`: fmt-check, deps, build, test. `just all`: every phase gate. `just run -- <args>`: the CLI.
+- `just check`: fmt-check, deps, build, test. `just all`: every phase gate. `just run run fractured-world --preset Conservative --rounds 5`: play a game from the CLI.
 
 `work/` is gitignored scratch space for implementation-process docs such as `work/roadmap.md`. It is not part of the spec.
 
@@ -41,8 +41,8 @@ Spec conventions:
 - **Proposals and signatures.** Each Intent is carried by a Proposal. A deal needs every named signer and bundles only Transfers and Transforms, settling atomically. A collective procedure is a weighted-signature rule on an Aggregate's own Proposal: it executes in the same round if the signed weight exceeds the threshold. A Proposal whose signature rule isn't met lapses; nothing ever blocks a round.
 - **Representation lags one round.** The engine stores an adjustment factor in round r, and the Aggregate's Policy applies it in round r+1.
 - **One bundled round update.** Clearing is uniform and there is no ordering within a round. Actions are funded from opening holdings through escrow, and receipts are credited at commit.
-- **Purity.** All impurity goes through algebraic effects (`Run` row: `RANDOM`, `SEAT_INPUT`, `RECORD`, plus `INTERPRET`, `NARRATE`, `CLOCK` for live play). Handlers (Live, Sim, Replay, Test) choose the context and contain no game logic.
-- **Randomness.** Draws are keyed (pure `draw :: Seed -> DrawKey -> UnitInterval`; the `Random` effect picks the seed by stream). Each game instance has exactly one game seed for in-world draws. The simulator adds a separate player seed for seat-policy randomness, and the two streams never share draws.
+- **Purity.** All impurity goes through algebraic effects (`Run` row: `SEAT_INPUT`, `RECORD`, plus `INTERPRET`, `NARRATE`, `CLOCK` for live play). Handlers (Live, Sim, Replay, Test) choose the context and contain no game logic.
+- **Randomness.** Draws are keyed and pure (`draw :: Seed -> DrawKey -> UnitInterval`); no effect is needed. Each game instance has exactly one game seed for in-world draws. The simulator adds a separate player seed for seat-policy randomness, and the two streams never share draws.
 - **Numerics.** All economic quantities use fixed-point arithmetic, 4 decimal places, rounded half-to-even, with no floats.
 - **Planned layout** (`07_architecture.md`): a spago workspace in which dependencies point one way only: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios/` holds data only (JSON). `core` imports no effects, IO or JSON. Each invariant is a single pure predicate in `core/Invariants`, shared by the tests, the harness and live play.
 - **Tests.** Fixtures A–G become golden tests against `resolveRound`. Replay under the Replay handler must reproduce a run exactly.

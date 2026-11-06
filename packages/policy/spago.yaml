@@ -3,10 +3,21 @@ package:
   dependencies:
     - prelude
     - sp-core
+    - argonaut-codecs
+    - argonaut-core
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
   test:
     main: Test.Policy.Main
     dependencies:
       - effect
+      - node-buffer
+      - node-fs
       - spec
       - spec-node
       - quickcheck

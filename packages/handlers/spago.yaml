@@ -7,10 +7,21 @@ package:
     - sp-board
     - sp-policy
     - sp-effects
+    - either
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
+    - type-equality
+    - typelevel-prelude
   test:
     main: Test.Handlers.Main
     dependencies:
       - effect
+      - sp-scenarios
+      - aff
+      - arrays
+      - argonaut-codecs
       - spec
       - spec-node
       - quickcheck

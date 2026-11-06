@@ -4,6 +4,16 @@ package:
     - prelude
     - effect
     - console
+    - node-process
+    - arrays
+    - either
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - strings
+    - tuples
+    - foldable-traversable
+    - argonaut-codecs
     - sp-core
     - sp-board
     - sp-policy

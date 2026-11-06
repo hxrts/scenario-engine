@@ -1,6 +1,6 @@
 -- | Loads a scenario package: every JSON file in its directory is merged into one
 -- | Gameboard object, except `instantiation.json`, the Instantiation Configuration.
-module Scenarios (Loaded, load, root) where
+module Scenarios (Loaded, load, loadPresets, root) where
 
 import Prelude
 
@@ -15,11 +15,23 @@ import Data.String (Pattern(..), stripSuffix)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Traversable (traverse)
 import Effect (Effect)
+import Foreign.Object (Object)
 import Foreign.Object as Object
+import Policy.Program (Program, decodeProgram)
+import Data.TraversableWithIndex (traverseWithIndex)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, readdir)
 
 type Loaded = { gameboard :: Gameboard, config :: InstantiationConfig }
+
+-- | The seat-policy presets (docs/06_simulator.md §4.2).
+loadPresets :: Effect (Either String (Object Program))
+loadPresets = do
+  text <- readTextFile UTF8 (root <> "presets.json")
+  pure do
+    j <- jsonParser text
+    o <- note "presets must be an object" (toObject j)
+    lmap printJsonDecodeError (traverseWithIndex (const decodeProgram) o)
 
 root :: String
 root = "packages/scenarios/"

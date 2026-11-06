@@ -39,7 +39,7 @@ The harness is a development component, not a fourth layer of economic semantics
 
 The harness invokes the same instantiation and resolution operations used in live play. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
 
-The harness is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). Its simulation handler interprets `SeatInput` with bound seat Policies, `Random` with the game and player seeds, and `Record` with the Run Store. The replay handler feeds recorded Proposals and signatures instead. The round runner and engine code are the same as in live play.
+The harness is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). Its simulation handler interprets `SeatInput` with bound seat Policies (their randomness drawn from the player seed) and `Record` with the Run Store. The replay handler feeds recorded Proposals and signatures instead. The round runner and engine code are the same as in live play.
 
 The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The harness only generates inputs, records results, and evaluates them. The Dashboard is read-only and never alters authoritative state or run histories. Changing any parameter creates a new run.
 
@@ -123,7 +123,7 @@ Every seat has exactly one bound seat Policy. A seat Policy that produces nothin
 
 ## 5. Deterministic Randomness
 
-Mechanics are deterministic by default. Randomness enters only through the `Random` effect, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
+Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
 ```purescript
 simulate

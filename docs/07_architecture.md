@@ -23,7 +23,6 @@
    ┌─────────────── round runner (effectful) ───────────────┐
    │  prepare/observe ──► Propose ──► Sign ──► resolveRound │
    │      (pure)        SeatInput  SeatInput     (pure)     │
-   │                    Random      Random                  │
    └───────────────────────────────┬────────────────────────┘
                                    │ Record
                                    ▼
@@ -52,7 +51,7 @@ packages/
   board/       Gameboard schema (incl. Objectives), validation, instantiation (pure; → core)
   policy/      decision-language interpreter and presets (pure; → core)
   effects/     effect signatures and runRound (Run; → core, policy)
-  scenarios/   data only: fractured-world/v0/*.json, fixtures (→ board)
+  scenarios/   data plus its loader: fractured-world/v0/*.json, presets.json, fixtures (→ board, policy)
   handlers/    concrete interpreters, one module per handler (→ effects)
     Live         SeatInput via Interpret, Clock deadlines
     Sim          SeatInput via bound seat Policies, player-seed stream
@@ -69,7 +68,7 @@ packages/
 test/          property tests per package; fixtures A–G as golden tests
 ```
 
-Dependency order, read bottom to top: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios` is data loaded through `board`.
+Dependency order, read bottom to top: `core ← board, policy ← effects ← handlers ← adapters, harness ← apps`. `scenarios` is data plus a loader that decodes it through `board` and `policy`.
 
 ## 4. Key Interfaces
 
@@ -115,12 +114,12 @@ evaluateObjectives :: Manifest -> Array RoundRecord -> Map EntityId (Array Crite
 **Effects** (`effects`). These are the only impure vocabulary in the system:
 
 ```purescript
-type RoundEffects r = (RANDOM + SEAT_INPUT + RECORD + r)
+type RoundEffects r = (SEAT_INPUT + RECORD + r)
 runRound :: Policies -> WorldState
          -> Run (RoundEffects r) (Either EngineError RoundResult)
 ```
 
-`RANDOM` exposes `random :: Stream -> DrawKey -> UnitInterval`; the stream selects the game or player seed, and the handler calls the pure `draw`. `INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
+Randomness needs no effect: every draw is the pure `draw` on the game seed (in-world Policies, estimator noise) or the player seed (seat Policies, supplied by the handler). `INTERPRET`, `NARRATE`, and `CLOCK` are added only by the live and reporting stacks.
 
 **Run store** (`adapters/Store`). It is append-only and reached through the `Record` effect plus a read API:
 

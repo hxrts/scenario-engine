@@ -62,8 +62,16 @@
         "path": "apps/cli",
         "core": {
           "dependencies": [
+            "argonaut-codecs",
+            "arrays",
             "console",
             "effect",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "node-process",
+            "ordered-collections",
             "prelude",
             "sp-adapters",
             "sp-board",
@@ -72,7 +80,9 @@
             "sp-handlers",
             "sp-harness",
             "sp-policy",
-            "sp-scenarios"
+            "sp-scenarios",
+            "strings",
+            "tuples"
           ]
         },
         "test": {
@@ -138,11 +148,21 @@
         "path": "packages/effects",
         "core": {
           "dependencies": [
+            "argonaut-codecs",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
             "prelude",
             "run",
             "sp-board",
             "sp-core",
-            "sp-policy"
+            "sp-policy",
+            "tuples",
+            "type-equality",
+            "typelevel-prelude"
           ]
         },
         "test": {
@@ -159,18 +179,29 @@
         "path": "packages/handlers",
         "core": {
           "dependencies": [
+            "either",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
             "prelude",
             "run",
             "sp-board",
             "sp-core",
             "sp-effects",
-            "sp-policy"
+            "sp-policy",
+            "tuples",
+            "type-equality",
+            "typelevel-prelude"
           ]
         },
         "test": {
           "dependencies": [
+            "aff",
+            "argonaut-codecs",
+            "arrays",
             "effect",
             "quickcheck",
+            "sp-scenarios",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -204,13 +235,24 @@
         "path": "packages/policy",
         "core": {
           "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
             "prelude",
-            "sp-core"
+            "sp-core",
+            "tuples"
           ]
         },
         "test": {
           "dependencies": [
             "effect",
+            "node-buffer",
+            "node-fs",
             "quickcheck",
             "spec",
             "spec-node",
@@ -233,6 +275,7 @@
             "prelude",
             "sp-board",
             "sp-core",
+            "sp-policy",
             "strings",
             "tuples"
           ]

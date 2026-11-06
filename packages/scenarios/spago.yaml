@@ -4,6 +4,7 @@ package:
     - prelude
     - sp-core
     - sp-board
+    - sp-policy
     - argonaut-core
     - arrays
     - effect

@@ -13,6 +13,7 @@ module Core.Num
   , format
   , proRata
   , proRataWhole
+  , floorInt
   , toUnits
   , fromUnits
   ) where
@@ -152,3 +153,7 @@ proRata = allocate one
 -- | Pro-rata split in whole units (largest remainder).
 proRataWhole :: Q -> Array Q -> Array Q
 proRataWhole = allocate scale
+
+-- | The integer part of a non-negative quantity.
+floorInt :: Q -> Int
+floorInt (Q u) = fromMaybe 0 (BI.toInt (P.div u scale))

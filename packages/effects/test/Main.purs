@@ -3,14 +3,9 @@ module Test.Effects.Main where
 import Prelude
 
 import Effect (Effect)
-import Effects (packageName)
-import Test.Spec (describe, it)
-import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
+-- | The round runner is exercised end to end by the handlers suite.
 main :: Effect Unit
-main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "Effects" do
-    it "has a placeholder" do
-      packageName `shouldEqual` "effects"
+main = runSpecAndExitProcess [ consoleReporter ] (pure unit)

@@ -6,6 +6,16 @@ package:
     - sp-core
     - sp-board
     - sp-policy
+    - argonaut-codecs
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
+    - type-equality
+    - typelevel-prelude
   test:
     main: Test.Effects.Main
     dependencies:

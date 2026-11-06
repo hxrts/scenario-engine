@@ -2,15 +2,142 @@ module Test.Handlers.Main where
 
 import Prelude
 
+import Board.Gameboard (instantiate)
+import Control.Monad.Error.Class (throwError)
+import Core.Draw (Seed(..))
+import Core.Engine (prepareRound)
+import Core.Invariants (check)
+import Core.Num as Q
+import Core.Types (EntityId, Id(..))
+import Core.World (Event(..), RoundResult, WorldState)
+import Data.Argonaut.Decode (printJsonDecodeError)
+import Data.Argonaut.Parser (jsonParser)
+import Data.Array (any, concatMap, foldl, index, length)
+import Data.Either (Either(..))
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Traversable (for_)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Handlers (packageName)
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Exception (error)
+import Effects (InWorld, homeMarket, inWorldOf, runGame)
+import Foreign.Object as Object
+import Handlers.Test (runTest)
+import Policy.Program (Program, decodeProgram)
+import Scenarios (load, loadPresets)
 import Test.Spec (describe, it)
-import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
+type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q.Q }
+
+setup :: Aff Game
+setup = do
+  loaded <- liftEffect (load "fractured-world/v0")
+  case loaded of
+    Left e -> throwError (error e)
+    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
+      Right initial, Right inWorld -> pure { world: initial.world, inWorld, params: gameboard.parameters }
+      Left es, _ -> throwError (error (show es))
+      _, Left e -> throwError (error (printJsonDecodeError e))
+
+program :: String -> Program
+program text = case jsonParser text >>= \j -> either' (decodeProgram j) of
+  Right p -> p
+  Left _ -> { rules: [], sign: [] }
+  where
+  either' = case _ of
+    Right x -> Right x
+    Left e -> Left (printJsonDecodeError e)
+
+-- | Play `n` rounds with the given seat programs; every round's invariants must hold.
+play :: Game -> Int -> Map.Map EntityId Program -> Aff (Array RoundResult)
+play g n programs = do
+  let
+    out = runTest { programs, params: g.params, home: homeMarket g.world, playerSeed: Seed 1 } (runGame g.inWorld n g.world)
+  case out.value of
+    Left e -> fail (show e)
+    Right _ -> pure unit
+  void $ foldlM'
+    ( \prev r -> do
+        check (prepareRound prev) r `shouldEqual` []
+        pure r.world
+    )
+    g.world
+    out.records
+  pure out.records
+  where
+  foldlM' f z xs = foldl (\acc x -> acc >>= \a -> f a x) (pure z) xs
+
+seats :: Array String
+seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
+
+price :: RoundResult -> String -> Q.Q
+price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> x.cost.base `Q.add` Q.mul x.cost.slope x.position)
+
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "Handlers" do
-    it "has a placeholder" do
-      packageName `shouldEqual` "handlers"
+  describe "Round runner and Test handler" do
+    it "plays five rounds with every seat Conservative and with every seat Passive" do
+      g <- setup
+      presets <- liftEffect loadPresets
+      case presets of
+        Left e -> fail e
+        Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
+          let p = fromMaybe { rules: [], sign: [] } (Object.lookup name ps)
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple (Id s) p) seats))
+          length records `shouldEqual` 5
+
+    it "Fixture D end to end: China procures after the recorded US deployment" do
+      g <- setup
+      records <- play g 3 (Map.singleton (Id "US") (program """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
+      let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.entities >>= \x -> Map.lookup (Id e) x.accounts)
+      case index records 0, index records 1, index records 2 of
+        Just r1, Just r2, Just r3 -> do
+          (fromMaybe Q.zero (Map.lookup (Id "US") r1.world.entities >>= \x -> Map.lookup (Id "Mil") x.accounts)) `shouldEqual` Q.fromInt 92
+          any
+            ( case _ of
+                Transformed t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4
+                _ -> false
+            )
+            r2.record.events `shouldEqual` true
+          cn r2 "Mil" `shouldEqual` Q.fromInt 88 -- ordered in round 2, delivered at round 3's Prepare
+          cn r3 "Mil" `shouldEqual` Q.fromInt 92
+        _, _, _ -> fail "expected three rounds"
+
+    it "Fixture E: the Round 3 disruption raises the Atlantic price" do
+      g <- setup
+      records <- play g 3 Map.empty
+      case index records 1, index records 2 of
+        Just r2, Just r3 -> (price r3 "energy-atlantic" > price r2 "energy-atlantic") `shouldEqual` true
+        _, _ -> fail "expected three rounds"
+
+    it "a seat and an NPC sign each other's Proposals in the same round" do
+      g0 <- setup
+      let
+        g = g0
+          { world = g0.world { markets = Map.update (\m -> Just m { position = Q.fromInt 60 }) (Id "energy-atlantic") g0.world.markets }
+          , inWorld = g0.inWorld { programs = Map.insert (Id "china-strategic-v0") (program """{"sign":[{"all":null}]}""") g0.inWorld.programs }
+          }
+      records <- play g 1
+        ( Map.fromFoldable
+            [ Tuple (Id "DE") (program """{"sign":[{"procedures":["eu-solidarity"]}]}""")
+            , Tuple (Id "SA") (program """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
+            ]
+        )
+      let events = concatMap (_.record.events) records
+      any
+        ( case _ of
+            ProcedureOutcome o -> o.executed && o.support == fromMaybe Q.zero (Q.parse "0.6")
+            _ -> false
+        )
+        events `shouldEqual` true
+      any
+        ( case _ of
+            Transferred t -> t.from == Id "CN" && t.to == Id "SA" && t.quantity == Q.fromInt 25
+            _ -> false
+        )
+        events `shouldEqual` true

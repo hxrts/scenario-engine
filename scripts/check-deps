@@ -8,7 +8,7 @@ const allowed = {
   core: [],
   board: ["core"],
   policy: ["core"],
-  scenarios: ["core", "board"],
+  scenarios: ["core", "board", "policy"],
   effects: ["core", "board", "policy"],
   handlers: ["core", "board", "policy", "effects"],
   adapters: ["core", "board", "policy", "effects", "handlers"],
