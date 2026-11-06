@@ -1,9 +1,12 @@
 import { spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const sha256 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
+
+// A file name unique per call: clock, process and a counter. Raw logs are evidence, not randomness.
+let callNo = 0;
 
 // One fresh, ephemeral, tool-less pi process per call. Resolves to the final assistant
 // text; the raw JSONL event stream is saved under rawDir (one file per call, never shared) and
@@ -23,7 +26,7 @@ export const piImpl = (model) => (rawDir) => (system) => (input) => (onError, on
     let path;
     try {
       mkdirSync(rawDir, { recursive: true });
-      path = join(rawDir, `${sha256(system + input)}-${randomUUID()}.jsonl`);
+      path = join(rawDir, `${sha256(system + input)}-${Date.now()}-${process.pid}-${++callNo}.jsonl`);
       writeFileSync(path, raw);
     } catch (err) {
       return fail(err);

@@ -755,7 +755,9 @@ IDs 18, 20, and 32–35 are retired.
 
 Mechanics are deterministic by default. Randomness is introduced only where a Gameboard rule or estimator explicitly calls for it, such as estimator sampling noise.
 
-Each game instance has exactly one **game seed**, fixed at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness, declared shocks) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness; it exists only under the simulation handler, and live play has none. Nothing reads system randomness. Every draw is made by one pure function, so randomness needs no effect: the round runner passes in-world Policies draws on the game seed, and the seat handler passes seat Policies draws on the player seed. The two streams are the two seeds:
+Randomness is drawn once per run, before initialization, at the program boundary. A run has one seed per stream, and each is either injected explicitly or drawn once from the operating system when absent. The drawn value is the concrete seed the run uses, and it is recorded in the manifest or spec. No other code reads entropy, so during a run there is no entropy: **the same seed gives the same run**, and recording the seed makes the run replayable. The simulation core takes concrete seeds only.
+
+Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness, declared shocks) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness; it exists only under the simulation handler, and live play has none. Every draw is made by one pure function, so randomness needs no effect: the round runner passes in-world Policies draws on the game seed, and the seat handler passes seat Policies draws on the player seed. The two streams are the two seeds:
 
 ```purescript
 draw   :: Seed -> DrawKey -> UnitInterval     -- pure, in core

@@ -27,6 +27,7 @@ package:
     - sp-harness
     - exceptions
     - nullable
+    - newtype
   run:
     main: Server
   test:
