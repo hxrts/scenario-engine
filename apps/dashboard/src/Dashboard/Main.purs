@@ -6,6 +6,7 @@ import Prelude
 
 import Dashboard.Api (post, useApi)
 import Dashboard.Components (Render, as, card, diffTable, metricChart, panel, plainTable, recordTable, runPicker, status)
+import Dashboard.DataTable (DataTable, mkDataTable)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Array (filter, index, null)
@@ -35,37 +36,37 @@ import Web.HTML.Window (document)
 
 type Tab = { key :: String, label :: String, path :: String, render :: Render }
 
-table :: Render
-table = as plainTable
+table :: DataTable -> Render
+table grid = as (plainTable grid)
 
 charts :: Render
 charts = as (\(cs :: Array Chart) -> D.div_ (map metricChart cs))
 
 -- | Run Details (§9): one tab per view model. `?round` applies to round-scoped views.
-runTabs :: String -> Int -> Array Tab
-runTabs id n =
-  [ tab "overview" "Overview" table
-  , tab ("balances?round=" <> show n) "Balance sheets" table
+runTabs :: DataTable -> String -> Int -> Array Tab
+runTabs grid id n =
+  [ tab "overview" "Overview" (table grid)
+  , tab ("balances?round=" <> show n) "Balance sheets" (table grid)
   , tab "markets" "Markets" charts
-  , tab "facilities" "Facilities" table
-  , tab "economy" "World economy" (as \(e :: { totals :: Chart, flows :: Table, pressure :: Table }) -> D.div_ [ metricChart e.totals, plainTable e.flows, plainTable e.pressure ])
-  , tab "representation" "Representation" table
-  , tab "procedures" "Procedures" table
-  , tab "objectives" "Objectives" table
-  , tab ("events?round=" <> show n) "Events" table
+  , tab "facilities" "Facilities" (table grid)
+  , tab "economy" "World economy" (as \(e :: { totals :: Chart, flows :: Table, pressure :: Table }) -> D.div_ [ metricChart e.totals, plainTable grid e.flows, plainTable grid e.pressure ])
+  , tab "representation" "Representation" (table grid)
+  , tab "procedures" "Procedures" (table grid)
+  , tab "objectives" "Objectives" (table grid)
+  , tab ("events?round=" <> show n) "Events" (table grid)
   ]
   where
   tab view label render = { key: label, label, path: "/api/runs/" <> id <> "/" <> view, render }
 
 -- | Comparison (§10): one fetch, several renderings, plus agency.
-compareTabs :: String -> Array Tab
-compareTabs ids =
+compareTabs :: DataTable -> String -> Array Tab
+compareTabs grid ids =
   [ part "Trajectory" (\c -> metricChart c.trajectory)
-  , part "Final state" (\c -> diffTable c.final)
-  , part "Baseline diff" (\c -> plainTable c.diff)
-  , part "Configuration" (\c -> diffTable c.config)
-  , part "Compatibility" (\c -> plainTable c.compatibility)
-  , { key: "agency", label: "Agency", path: "/api/agency", render: table }
+  , part "Final state" (\c -> diffTable grid c.final)
+  , part "Baseline diff" (\c -> plainTable grid c.diff)
+  , part "Configuration" (\c -> diffTable grid c.config)
+  , part "Compatibility" (\c -> plainTable grid c.compatibility)
+  , { key: "agency", label: "Agency", path: "/api/agency", render: table grid }
   ]
   where
   part label f = { key: label, label, path: "/api/compare?runs=" <> ids, render: as (f :: { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table } -> JSX) }
@@ -79,8 +80,8 @@ tabbed show' ts = element UI.tabs
   }
 
 -- | Simulation Runs (§9.1): the run list, run selection for comparison, and launching.
-mkRuns :: Component Unit
-mkRuns = component "Runs" \_ -> React.do
+mkRuns :: DataTable -> Component Unit
+mkRuns grid = component "Runs" \_ -> React.do
   version /\ setVersion <- useState' 0
   selected /\ setSelected <- useState' []
   form /\ setForm <- useState { name: "run", preset: "Conservative", playerSeed: "1" }
@@ -93,7 +94,7 @@ mkRuns = component "Runs" \_ -> React.do
     Just (Right (t :: Table)) -> D.div
       { className: "flex flex-col gap-4"
       , children:
-          [ recordTable (\r -> href <<< Run <$> index r 0) t
+          [ recordTable grid (\r -> href <<< Run <$> index r 0) t
           , card "Compare"
               [ runPicker { runs: t, selected, onChange: setSelected }
               , D.a { href: href (Compare (joinWith "," selected)), className: if null selected then "pointer-events-none opacity-50" else "underline", children: [ D.text "Compare selected" ] }
@@ -132,7 +133,8 @@ launchSheet form setForm launch = element UI.sheet
 
 mkApp :: Component Unit
 mkApp = do
-  runsPage <- mkRuns
+  grid <- mkDataTable
+  runsPage <- mkRuns grid
   fetchPanel <- panel
   toggle <- themeToggle
   component "App" \_ -> React.do
@@ -143,8 +145,8 @@ mkApp = do
       roundInput = D.label { className: "text-sm", children: [ D.text "Round ", element UI.input { className: "w-20", "aria-label": "Round", value: rounds, onChange: handler targetValue (setRounds <<< fromMaybe "5") } ] }
     pure $ shell current (toggle unit) case current of
       Runs -> runsPage unit
-      Run id -> D.div_ [ roundInput, tabbed fetchPanel (runTabs id (fromMaybe 5 (Int.fromString rounds))) ]
-      Compare ids -> tabbed fetchPanel (compareTabs ids)
+      Run id -> D.div_ [ roundInput, tabbed fetchPanel (runTabs grid id (fromMaybe 5 (Int.fromString rounds))) ]
+      Compare ids -> tabbed fetchPanel (compareTabs grid ids)
 
 -- | The dashboard block's layout: a sidebar, and an inset with a header and the page.
 shell :: Route -> JSX -> JSX -> JSX

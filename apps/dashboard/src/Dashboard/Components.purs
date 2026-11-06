@@ -5,6 +5,7 @@ module Dashboard.Components (recordTable, plainTable, status, diffTable, metricC
 import Prelude
 
 import Dashboard.Api (useApi)
+import Dashboard.DataTable (DataTable)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
@@ -14,8 +15,6 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Number as Number
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Data.Nullable (toNullable)
-import Data.Function.Uncurried (mkFn2)
 import Effect.Uncurried (mkEffectFn1)
 import Foreign.Object as Object
 import Harness.Views (Chart, Table)
@@ -30,12 +29,12 @@ card title body = element UI.card
   { children: [ element UI.cardHeader { children: [ element UI.cardTitle { children: [ D.text title ] } ] }, element UI.cardContent { children: body } ] }
 
 -- | A view-model Table; `link` turns a row into a link on its first cell.
-recordTable :: (Array String -> Maybe String) -> Table -> JSX
-recordTable link t = cells (\_ _ -> false) link t
+recordTable :: DataTable -> (Array String -> Maybe String) -> Table -> JSX
+recordTable grid link t = cells grid (\_ _ -> false) link t
 
 -- | A Table with no row links.
-plainTable :: Table -> JSX
-plainTable = recordTable (const Nothing)
+plainTable :: DataTable -> Table -> JSX
+plainTable grid = recordTable grid (const Nothing)
 
 -- | A fetch in progress, or its error.
 status :: Maybe String -> JSX
@@ -44,14 +43,14 @@ status = case _ of
   Just e -> D.pre { className: "text-destructive", children: [ D.text e ] }
 
 -- | A Table whose value cells are highlighted where they differ from the first value column.
-diffTable :: Table -> JSX
-diffTable = cells differs (const Nothing)
+diffTable :: DataTable -> Table -> JSX
+diffTable grid = cells grid differs (const Nothing)
   where
   differs row i = i > 1 && index row i /= index row 1
 
-cells :: (Array String -> Int -> Boolean) -> (Array String -> Maybe String) -> Table -> JSX
-cells mark link t = card t.title
-  [ element UI.dataTable { columns: t.columns, rows: t.rows, link: toNullable <<< link, mark: mkFn2 mark } ]
+cells :: DataTable -> (Array String -> Int -> Boolean) -> (Array String -> Maybe String) -> Table -> JSX
+cells grid mark link t = card t.title
+  [ grid { columns: t.columns, rows: t.rows, link, mark } ]
 
 -- | A Chart as a line per series, by round.
 metricChart :: Chart -> JSX

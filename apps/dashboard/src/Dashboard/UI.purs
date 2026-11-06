@@ -23,12 +23,6 @@ foreign import checkbox :: C
 foreign import badge :: C
 foreign import button :: C
 foreign import input :: C
-foreign import table :: C
-foreign import tableHeader :: C
-foreign import tableBody :: C
-foreign import tableRow :: C
-foreign import tableHead :: C
-foreign import tableCell :: C
 foreign import chartContainer :: C
 foreign import chartTooltip :: C
 foreign import chartTooltipContent :: C
@@ -55,4 +49,3 @@ foreign import sidebarMenuButton :: C
 foreign import sidebarInset :: C
 foreign import sidebarTrigger :: C
 foreign import separator :: C
-foreign import dataTable :: C

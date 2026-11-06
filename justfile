@@ -46,7 +46,7 @@ run *args: scenarios
     spago run -p sp-cli -- {{args}}
 
 # shadcn/ui components generated into apps/dashboard/ui (never committed; see ui.sha256)
-ui_components := "card tabs select checkbox badge button input table chart sheet sidebar separator skeleton tooltip"
+ui_components := "card tabs select checkbox badge button input chart sheet sidebar separator skeleton tooltip"
 
 # Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched
 _ui-generate:
