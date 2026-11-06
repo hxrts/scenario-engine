@@ -277,7 +277,14 @@ The initial record is written before Round 1. After each round, the round record
 
 **Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs; the round must exist.
 
-**Not yet implemented.** Resuming a run from a stored snapshot through the Run Store or the read API (the harness can resume from a snapshot in memory, `Harness.Simulate.resume`); explicit archive and delete of runs; and counterfactual runs linked to their source ([§10.4](#104-counterfactual-experiments)). The Run Store has no such operations, and the read API has no route for them.
+**Run operations.** The read API serves these routes over the Run Store:
+
+- `POST /api/runs/:id/derive` with `kind` set to `duplicate`, `rerun`, `variant`, or `counterfactual`, and optionally `name`, `preset`, `playerSeed` (`null` draws a new seed), `rounds`, and `overrides` (counterfactual only). Reply `201 {id, source, kind}`. A duplicate or rerun takes no change to the spec; a rerun is the claim that its records reproduce. A variant replaces the given fields; a counterfactual adds the given overrides. Every derived run stores `source` and `kind` in its spec and in its own columns, so the link is durable. An unknown source is 404; a bad kind, preset or override is 400.
+- `POST /api/runs/:id/resume` with `{rounds}`. A completed run is extended to `rounds` total rounds from the snapshot after its last completed round, and is updated in place. Reply `200 {id, rounds}`; a `rounds` not above the current count is 400.
+- `POST /api/runs/:id/archive` and `/unarchive`, both idempotent. The default run list leaves archived runs out; `?archived=true` includes them. The list has `Archived` and `Source` columns after the existing ones.
+- `DELETE /api/runs/:id?confirm=:id` removes the run with its rounds and metrics. Without a matching `confirm` it is 400. A run that cites the deleted one keeps its `source`, which shows as deleted.
+
+Every run stores its `gameId` (`<gameboard id>/<label>`) in its spec, and the overview shows it. Overrides are stored in the spec in their JSON form (`Harness.Overrides`). Runs created before the `gameId` field have none. The Dashboard controls for these operations are not yet built.
 
 A stored seed is insufficient without the versioned PRNG, which is why the manifest records it. The player seed is recorded in the run's stored spec as the resolved value, whether it was injected or drawn. Run IDs never influence sampling.
 
@@ -299,8 +306,7 @@ The available actions are:
 
 - **Run:** implemented (the form launches a run from a preset, a player seed, and optional game seed and rounds).
 - **Inspect** and **Compare:** implemented.
-- **Duplicate**, **Rerun**, and **Variant:** not yet implemented.
-- **Counterfactual** ([§10.4](#104-counterfactual-experiments)): not yet implemented.
+- **Duplicate**, **Rerun**, **Variant**, and **Counterfactual** ([§10.4](#104-counterfactual-experiments)): served by the read API (§8). The Dashboard controls are not yet built.
 
 The run list shows every stored run. A run that cannot be read appears with status `unreadable` and its reason; the other runs stay visible. Runs are listed in the order they were created, with the reason for any failed run.
 
@@ -398,7 +404,7 @@ Any Actor's or Aggregate's trajectory can be compared across runs; for example, 
 
 ### 10.4 Counterfactual experiments
 
-Not yet implemented in the read API or the Dashboard. The harness operation (`Harness.Analysis.counterfactual`) exists and composes `simulate`, but no stored link from a counterfactual run to its source run is written, and no endpoint launches one. The description below is the target.
+The read API launches a counterfactual as `POST /api/runs/:id/derive` with `kind` `counterfactual` (§8), and stores its link to the source run. The Dashboard does not yet launch one. The description below is the target.
 
 The counterfactual operation works as follows:
 
