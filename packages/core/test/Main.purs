@@ -15,6 +15,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
+import Test.Core.Golden (golden, orderIndependent, unbalanced)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
 import Test.Spec (describe, it)
@@ -43,9 +44,9 @@ genRule = oneOf $ cons'
 
 genIntent :: Gen Intent
 genIntent = oneOf $ cons'
-  ((\m q l -> Trade { market: m, quantity: q, limitPrice: l }) <$> genId <*> genQ <*> oneOf (cons' (pure Nothing) [ Just <$> genQ ]))
-  [ (\f t r q -> Transfer { from: f, to: t, resource: r, quantity: q }) <$> genId <*> genId <*> genId <*> genQ
-  , (\b t q -> Transform { by: b, transformation: t, quantity: q }) <$> genId <*> genId <*> genQ
+  ((\m n l -> Trade { market: m, quantity: n, limitPrice: l }) <$> genId <*> genQ <*> oneOf (cons' (pure Nothing) [ Just <$> genQ ]))
+  [ (\f t r n -> Transfer { from: f, to: t, resource: r, quantity: n }) <$> genId <*> genId <*> genId <*> genQ
+  , (\b t n -> Transform { by: b, transformation: t, quantity: n }) <$> genId <*> genId <*> genQ
   , ChangeRule <<< Enact <$> genRule
   , ChangeRule <<< Repeal <$> genId
   ]
@@ -104,6 +105,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure ((u >= Q.zero && u < Q.fromInt 1) === true)
     it "differs across seeds for equal keys" do
       draw (Seed 26021) key `shouldNotEqual` draw (Seed 1) key
+  describe "Golden fixtures" do
+    golden [ "A", "A2", "F", "G1", "G2", "G3", "G3-ban", "G4", "G5", "G5-unsigned" ]
+    orderIndependent [ "A", "A2", "F", "G4" ]
+    unbalanced
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

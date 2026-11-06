@@ -92,7 +92,12 @@
         },
         "test": {
           "dependencies": [
+            "aff",
             "effect",
+            "foreign-object",
+            "node-buffer",
+            "node-fs",
+            "partial",
             "quickcheck",
             "spec",
             "spec-node",

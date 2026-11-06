@@ -18,7 +18,12 @@ package:
   test:
     main: Test.Core.Main
     dependencies:
+      - aff
       - effect
+      - foreign-object
+      - partial
+      - node-buffer
+      - node-fs
       - spec
       - spec-node
       - quickcheck

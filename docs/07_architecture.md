@@ -78,7 +78,7 @@ These are the seams. Every other piece is an internal detail of a package.
 **Engine** (`core/Engine`). This is pure and is the only operation that mutates the economy:
 
 ```purescript
-resolveRound :: Engine -> WorldState -> Array SignedProposal
+resolveRound :: WorldState -> Array SignedProposal
              -> Either EngineError RoundResult   -- next World, events, records
 ```
 
@@ -116,7 +116,7 @@ evaluateObjectives :: Manifest -> Array RoundRecord -> Map EntityId (Array Crite
 
 ```purescript
 type RoundEffects r = (RANDOM + SEAT_INPUT + RECORD + r)
-runRound :: Engine -> Policies -> WorldState
+runRound :: Policies -> WorldState
          -> Run (RoundEffects r) (Either EngineError RoundResult)
 ```
 

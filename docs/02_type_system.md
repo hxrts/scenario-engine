@@ -426,7 +426,8 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 - Scoped or regional Market nodes.
 - Market access rules that determine which Entities may trade.
 - `Tariff` and `AccessBan` Rules applied to particular jurisdictions and origins ([§3](#3-intents-and-economic-actions)).
-- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)).
+- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)). Two Entities are in the same region when some Market for the Resource lets both trade. A cross-region Transfer must be bundled with a matching order on the Resource's transport facility, executed by the sender and signed by the owner of that facility's capacity. An `AccessBan` makes the shipment infeasible; a `Tariff` adds its rate to the shipment, paid by the sender to the restricting jurisdiction.
+- Facilities that share a capacity share its limit and its uniform price; for example, two procurement facilities with different payees can draw on one production capacity.
 
 Trade restrictions, tariffs, and sanctions therefore have identifiable mechanical effects: they change access, prices, or throughput for specific participants.
 
@@ -579,7 +580,7 @@ Both effects are independently validated, and neither is counted twice.
 
 World State is the complete economic snapshot at a round boundary.
 
-It includes Entities, their accounts and capacities, Markets, the Rules in force, reservations, scheduled events, stored estimates, Policy memory, and the current point in simulated time.
+It includes Entities, their accounts and capacities, Markets, facilities, the Rules in force, rule changes scheduled for the next boundary, pending deliveries, stored estimates, Policy memory, the event history, and the current point in simulated time. It also names the numeraire (the Resource facility costs are paid in), each Resource's transport facility, and each Entity's jurisdiction where it is not the Entity itself.
 
 Policies read World State but cannot mutate it; they only submit Intents.
 
@@ -641,18 +642,18 @@ The fundamental engine operation is a pure state transition.
 type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
 
 -- Engine: signed Proposals are its only input
-resolveRound :: Engine -> WorldState -> Array SignedProposal
+resolveRound :: WorldState -> Array SignedProposal
              -> Either EngineError RoundResult
 
 -- Round runner (Policy layer): effectful, written against effect signatures (§8.4)
-runRound :: Engine -> Policies -> WorldState
+runRound :: Policies -> WorldState
          -> Run (RANDOM + SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
-runRound engine policies world0 = do
-  let world = prepareRound engine world0                    -- phase 1 (engine, pure)
-      views = observe engine world                          -- phase 2 (engine, pure)
+runRound policies world0 = do
+  let world = prepareRound world0                           -- phase 1 (engine, pure)
+      views = observe world                                 -- phase 2 (engine, pure)
   proposals <- propose policies views                       -- 3a: seats, NPCs, Aggregates
   signed    <- sign policies views proposals                -- 3b
-  let result = resolveRound engine world signed             -- phases 4–7 (engine, pure)
+  let result = resolveRound world signed                    -- phases 4–7 (engine, pure)
   traverse_ record result
   pure result
 ```
