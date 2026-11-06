@@ -34,7 +34,7 @@ import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (Error, error, message)
-import Effects (InterpretF(..), Interpretation(..), NarrateF(..))
+import Effects.Signatures (InterpretF(..), Interpretation(..), NarrateF(..))
 import Policy.Interpret (Draft)
 
 -- | One model call: the system template and the JSON payload, to the reply text and the

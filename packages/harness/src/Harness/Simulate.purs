@@ -34,7 +34,9 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Effect (Effect)
-import Effects (RECORD, SEAT_INPUT, checkHomes, homeMarket, inWorldOf, runGame)
+import Effects.Environment (checkHomes, homeMarket, inWorldOf)
+import Effects.Round (runGame)
+import Effects.Signatures (RECORD, SEAT_INPUT)
 import Handlers.Seats (SeatSource, collectRecords, handleSeats, programs)
 import Handlers.Sim (runSim)
 import Run as R

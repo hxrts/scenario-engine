@@ -6,7 +6,7 @@ import Prelude
 import Core.World (RoundResult)
 import Data.Either (Either(..))
 import Effect (Effect)
-import Effects (RECORD, RecordF(..), SEAT_INPUT)
+import Effects.Signatures (RECORD, RecordF(..), SEAT_INPUT)
 import Handlers.Seats (SeatSource, handleSeats)
 import Run (Run, case_, on, peel)
 import Type.Proxy (Proxy(..))

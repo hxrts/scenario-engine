@@ -13,7 +13,8 @@ import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe, maybe)
-import Effects (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), envFor)
+import Effects.Environment (envFor)
+import Effects.Signatures (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
 import Policy.Interpret (Draft)
 import Policy.Interpret as Policy

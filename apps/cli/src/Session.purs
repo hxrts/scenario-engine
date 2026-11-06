@@ -33,7 +33,9 @@ import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (message)
 import Effect.Ref as Ref
-import Effects (ClockF(..), NarrateF(..), checkHomes, homeMarket, inWorldOf, runGame)
+import Effects.Environment (checkHomes, homeMarket, inWorldOf)
+import Effects.Round (runGame)
+import Effects.Signatures (ClockF(..), NarrateF(..))
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Seats (programs)
