@@ -18,7 +18,7 @@ import Node.FS.Perms (permsAll)
 import Data.Foldable (for_)
 import Node.Process (exit')
 import Scenario.DSL (Built, Keyed)
-import Scenarios (checkPresets, decodePresets, fromFiles, root)
+import Scenarios (checkPresets, decodePresets, fromFiles, scenariosRoot)
 import Scenarios.FracturedWorld as FracturedWorld
 import Scenarios.Presets as Presets
 import Scenarios.Fixtures as Fixtures
@@ -27,7 +27,7 @@ import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Bifunctor (lmap)
 import Data.Argonaut.Encode (encodeJson)
 
--- | Every compiled file, by path under `packages/scenarios/`.
+-- | Every compiled file, by path under the scenario root (`SCENARIOS_DIR`, default `packages/scenarios`).
 outputs :: Array (Tuple String Json)
 outputs =
   map (\(Tuple name j) -> Tuple ("fractured-world/v0/" <> name) j) FracturedWorld.files
@@ -38,6 +38,7 @@ main :: Effect Unit
 main = case validate of
   Left e -> log ("invalid scenario: " <> e) *> exit' 1
   Right _ -> do
+    root <- scenariosRoot
     for_ [ "fractured-world/v0", "fixtures" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ outputs \(Tuple path j) -> writeTextFile UTF8 (root <> path) (render j)
     log ("compiled " <> show (length outputs) <> " files")
