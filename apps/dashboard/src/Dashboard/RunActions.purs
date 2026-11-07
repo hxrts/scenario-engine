@@ -1,5 +1,5 @@
 -- | The manage actions on a run's page (docs/06_simulator.md §9.2): resume, archive, and delete. Each
--- | action sends one request to the server. A bad form is shown without a request; a rejected request
+-- | action sends one request through the client. A bad form is shown without a request; a rejected request
 -- | shows the server's message; a success refreshes this run, or opens the Runs page after a delete.
 -- | Nothing here decides what an action does. Derivation (duplicate, rerun, variant, counterfactual) is
 -- | API-only and has no control in the dashboard.
@@ -7,28 +7,28 @@ module Dashboard.RunActions (Props, mkRunActions) where
 
 import Prelude
 
-import Dashboard.Api (command, encode, remove, post, runPath)
-import Dashboard.RunForms (requiredRounds, resumeBody)
+import Dashboard.Client as Client
+import Dashboard.Components (errorBlock, labelled, textInput)
 import Dashboard.Route (Route(..), route)
+import Dashboard.RunForms (requiredRounds)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import React.Basic.DOM as D
-import React.Basic.DOM.Events (targetValue)
-import React.Basic.Events (handler, handler_)
-import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
+import React.Basic.Events (handler_)
+import React.Basic.Hooks (Component, component, element, useState', (/\))
 import React.Basic.Hooks as React
 import Routing.Duplex (print)
 import Routing.Hash (setHash)
 
--- | The run's id, whether it is archived, its completed rounds and its target rounds (when the
--- | overview reports one: Resume is offered only while the run is shorter than the target), and a
--- | callback that refreshes the page after an archive or a resume.
-type Props = { id :: String, archived :: Boolean, rounds :: Maybe Int, target :: Maybe Int, onChanged :: Effect Unit }
+-- | The run's id, whether it is archived, its completed rounds and its target rounds (Resume is offered
+-- | only while the run is shorter than its target), and a callback that refreshes the page after an
+-- | archive or a resume.
+type Props = { id :: String, archived :: Boolean, rounds :: Int, target :: Int, onChanged :: Effect Unit }
 
 mkRunActions :: Component Props
 mkRunActions = component "RunActions" \p -> React.do
@@ -46,21 +46,17 @@ mkRunActions = component "RunActions" \p -> React.do
           Left e -> setFailure (Just e)
           Right b -> setFailure Nothing *> done b
 
-    archive = submit (Right unit) (\_ -> command (runPath p.id <> (if p.archived then "/unarchive" else "/archive"))) \(_ :: Json) -> p.onChanged
+    archive = submit (Right unit) (\_ -> Client.archive p.id p.archived) \(_ :: Json) -> p.onChanged
 
-    resume = submit (requiredRounds resumeRounds) (\n -> post (runPath p.id <> "/resume") (resumeBody n)) \(_ :: Json) -> do
+    resume = submit (requiredRounds resumeRounds) (\n -> Client.resume p.id n) \(_ :: Json) -> do
       setResumeRounds ""
       p.onChanged
 
     -- one click deletes: the request names the run it deletes, which is the server's own check
-    delete = submit (Right unit) (\_ -> remove (runPath p.id <> "?confirm=" <> encode p.id)) \(_ :: Json) ->
+    delete = submit (Right unit) (\_ -> Client.delete p.id) \(_ :: Json) ->
       p.onChanged *> setHash (print route Runs)
 
-    canResume = case p.rounds, p.target of
-      Just r, Just t -> r < t
-      _, _ -> false
-
-    failureText = maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) failure
+    canResume = p.rounds < p.target
 
   pure $ D.div_
     [ D.div
@@ -71,7 +67,7 @@ mkRunActions = component "RunActions" \p -> React.do
                 , className: "flex flex-col gap-2"
                 , children:
                     [ D.div { className: "font-medium", children: [ D.text "Resume" ] }
-                    , field "Length to run to" resumeRounds setResumeRounds
+                    , labelled (D.text "Length to run to") (textInput { value: resumeRounds, required: false, onChange: setResumeRounds })
                     , element UI.button { onClick: handler_ resume, children: [ D.text "Resume" ] }
                     ]
                 }
@@ -83,14 +79,7 @@ mkRunActions = component "RunActions" \p -> React.do
                     , element UI.button { onClick: handler_ delete, children: [ D.text "Delete run" ] }
                     ]
                 }
-            , failureText
+            , errorBlock failure
             ]
         }
     ]
-
--- | A labelled text input, for the form fields.
-field :: String -> String -> (String -> Effect Unit) -> JSX
-field label value set = D.label
-  { className: "flex flex-col gap-1 text-sm"
-  , children: [ D.text label, element UI.input { value, onChange: handler targetValue (\v -> set (fromMaybe "" v)) } ]
-  }

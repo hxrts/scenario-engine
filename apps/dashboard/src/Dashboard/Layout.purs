@@ -4,7 +4,7 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (page, section, grid, panel) where
+module Dashboard.Layout (page, section, grid, panel, caption, purpose) where
 
 import Prelude
 
@@ -21,7 +21,7 @@ page p = D.div
           { className: "flex flex-col gap-1"
           , children:
               [ D.h1 { className: "text-2xl font-semibold tracking-tight", children: [ D.text p.title ] }
-              , D.p { className: "text-sm text-muted-foreground", children: [ D.text p.purpose ] }
+              , purpose p.purpose
               ]
           }
       ] <> p.children
@@ -36,7 +36,7 @@ section s = D.section
           { className: "flex flex-col gap-1"
           , children:
               [ D.h2 { className: "text-lg font-semibold", children: [ D.text s.title ] }
-              , D.p { className: "text-sm text-muted-foreground", children: [ D.text s.purpose ] }
+              , purpose s.purpose
               ]
           }
       , D.div { className: "flex min-w-0 flex-col gap-stack", children: s.children }
@@ -58,7 +58,7 @@ panel p = D.section
               [ element UI.cardHeader
                   { children:
                       [ element UI.cardTitle { children: [ D.text p.title ] }
-                      , D.p { className: "text-sm text-muted-foreground", children: [ D.text p.purpose ] }
+                      , purpose p.purpose
                       ]
                   }
               , element UI.cardContent { className: "flex min-w-0 flex-col gap-stack", children: p.children }
@@ -76,3 +76,11 @@ spanClass n = case n of
   7 -> "col-span-12 lg:col-span-7"
   8 -> "col-span-12 lg:col-span-8"
   _ -> "col-span-12"
+
+-- | A one-line purpose, under a heading or a title.
+purpose :: String -> JSX
+purpose t = D.p { className: "text-sm text-muted-foreground", children: [ D.text t ] }
+
+-- | A caption: a small, medium-weight line that names a plot or a table.
+caption :: String -> JSX
+caption t = D.p { className: "text-sm font-medium", children: [ D.text t ] }

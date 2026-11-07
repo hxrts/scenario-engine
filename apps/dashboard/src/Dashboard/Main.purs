@@ -1,41 +1,47 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
 -- | results, lineage and actions), Prepare (launch a run of the scenario), and Compare (runs side by
--- | side). Every view model comes from the read API.
+-- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
+-- | glossary once, before any page renders.
 module Dashboard.Main (main) where
 
 import Prelude
 
 import Control.Alt ((<|>))
-import Dashboard.Api (encode, get, post, runPath, useApi, useFetch)
-import Dashboard.Components (as, diffTable, fetched, groupedBars, overlayChart, placeholderFrame, status, tableOf)
+import Dashboard.Api (Loaded, useLoad)
+import Dashboard.Client (CompareView)
+import Dashboard.Client as Client
+import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, overlayChart, placeholderFrame, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, mkDataTable)
-import Dashboard.Launch (LaunchForm, LaunchRequest, Scenario, emptyForm, nextRunName, roundChoices, roundValue, scenarioOf, summary, validate)
+import Dashboard.Glossary (glossaryContext)
+import Dashboard.Launch (LaunchForm, LaunchRequest, Scenario, emptyForm, roundChoices, roundValue, summary, validate)
 import Dashboard.Layout as Layout
-import Dashboard.Presets (presetNames)
-import Dashboard.Results (mkRunResults, roundCount, roundTarget)
+import Dashboard.Palette (runSwatch)
+import Dashboard.Results (mkRunResults)
 import Dashboard.Route (Route(..), href, route)
 import Dashboard.RunActions as Actions
-import Dashboard.Runs (mergeRuns, readableIds, runInfo, runInfos, sourceRow)
+import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
-import Data.Array as Array
-import Data.Array (elem, filter, find, findIndex, index, null, reverse)
+import Data.Array (elem, filter, find, findIndex, index, length, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Aff, launchAff, launchAff_, killFiber)
+import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
-import Effect.Exception (error, throw)
+import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
-import Analysis.Views.Common (Bars, Chart, Table)
+import Analysis.Views.Common (Table)
+import Analysis.Views.Overview (RunList, RunOverview)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler, handler_)
-import React.Basic.Hooks (Component, JSX, component, element, useEffect, useEffectOnce, useState, useState', (/\))
+import React.Basic.Hooks (Component, Hook, JSX, component, element, provider, useEffect, useEffectOnce, useState, useState', (/\))
+import React.Basic.Hooks.Aff (UseAff)
 import React.Basic.Hooks as React
 import Routing.Duplex (parse, print)
 import Routing.Hash (matchesWith, setHash)
@@ -47,59 +53,25 @@ import Web.HTML.Window (document)
 -- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
 type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
 
-type Render = Json -> JSX
+-- | A fetched view: its key, its request, and how it renders (`Fetched` in `Dashboard.Components`).
+type Fetch = { key :: String, load :: Aff (Either String Json), render :: Render } -> JSX
 
-type Fetched = { path :: String, render :: Render } -> JSX
-
--- | The run's column in the run list (`Table.columns` of `/api/runs`) holds its id.
+-- | The run list's id column: a run's id is its first cell, and a click on it selects the run.
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | The comparison view model (`/api/compare`); each part is one of its fields.
-type CompareView =
-  { markets :: Array Chart
-  , netWorth :: Array { player :: String, chart :: Chart }
-  , standings :: Bars
-  , balance :: { spread :: Bars, gini :: Bars }
-  , keyValues :: Table
-  , final :: Table
-  , diff :: Table
-  , config :: Table
-  , compatibility :: Table
-  , seeds :: Table
-  }
+-- | The run list, every run: the default list, then the archived runs (`/api/runs` and `?archived=true`),
+-- | merged. The list keeps the default order and lists the archived runs after it.
+listRuns :: Aff (Either String RunList)
+listRuns = do
+  shown <- Client.runs false
+  more <- Client.runs true
+  pure (mergeRuns <$> shown <*> more)
 
--- | The run list. Without `archived` it is the runs that are not archived; with it, the archived
--- | runs are listed too (the list's `?archived=true`), in one table.
-listRuns :: Boolean -> Aff (Either String Table)
-listRuns archived = do
-  shown <- get "/api/runs"
-  if not archived then pure shown
-  else do
-    more <- get "/api/runs?archived=true"
-    pure (mergeRuns <$> shown <*> more)
-
--- | The run list without its archived runs (the Archived column says "yes" for them).
-withoutArchived :: Table -> Table
-withoutArchived t = case findIndex (_ == "Archived") t.columns of
-  Just ai -> t { rows = filter (\r -> index r ai /= Just "yes") t.rows }
-  Nothing -> t
-
--- | The most recent run (the list is in creation order) that can be read: a run the server could not
--- | decode has the status `unreadable`, and has no results to show.
-latestReadable :: Table -> Maybe String
-latestReadable t = do
-  si <- findIndex (_ == "Status") t.columns
-  row <- find (\r -> index r si /= Just "unreadable") (reverse t.rows)
-  index row runKeyColumn
-
--- | A Source cell links to the source run when the list has it.
-runLinks :: Table -> Int -> Array String -> Maybe String
-runLinks t i row
-  | Just i == findIndex (_ == "Source") t.columns = do
-      s <- sourceRow t row
-      if elem s (map _.id (runInfos t)) then Just (href (Run s)) else Nothing
-  | otherwise = Nothing
+-- | The run list, loaded for a key: a new key (an archive, a delete, a resume) reloads it. The previous list
+-- | stays on screen, dimmed, until the new one arrives. Every page that lists runs uses this hook.
+useRunList :: Int -> Hook (UseAff Int (Tuple Int (Either String RunList))) (Loaded (Either String RunList))
+useRunList version = useLoad version listRuns
 
 -- | The tabs: each shows its purpose line, then its content.
 tabbed :: Array Tab -> JSX
@@ -110,8 +82,16 @@ tabbed ts = element UI.tabs
         <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.p { className: "mb-3 text-sm text-muted-foreground", children: [ D.text t.purpose ] }, t.content ] })
   }
 
+-- | A Source cell links to the source run when the list has it.
+runLinks :: RunList -> Int -> Array String -> Maybe String
+runLinks t i row
+  | Just i == findIndex (_ == "Source") t.columns = do
+      s <- index row i
+      if s /= "" && elem s (map _.id t.runs) then Just (href (Run s)) else Nothing
+  | otherwise = Nothing
+
 -- | The run list as a table. A row click selects that run; the selected row is highlighted.
-runTable :: DataTable -> Table -> { selected :: String, select :: String -> Effect Unit } -> JSX
+runTable :: DataTable -> RunList -> { selected :: String, select :: String -> Effect Unit } -> JSX
 runTable grid t s = D.div
   { className: "overflow-x-auto"
   , children:
@@ -126,8 +106,7 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's view: the form, the scenario it launches, the default name, the failure
--- | message, and the Run action.
+-- | The launch form's view: the form, the scenario it launches, the failure message, and the Run action.
 type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
@@ -137,27 +116,27 @@ type LaunchView =
   , launch :: Effect Unit
   }
 
--- | The launch form's fields, each with its default, then the summary line under them and the Run
--- | button. A required field's label carries an asterisk and the word `required`; an optional one says
--- | `optional` and its default. The round choices and the game seed come from the scenario.
 -- | The launch action: what Run will play, any error, and the Run button. It sits in its own column.
 launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.scenario.rounds v.form) ] }
-      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) v.failure
+      , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Preset and Scenario. Every other field has a default, so Run needs no edits." ] }
+      , Layout.purpose "Required: Preset and Scenario. Every other field has a default, so Run needs no edits."
       ]
   }
 
+-- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
+-- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
+-- | come from the scenario.
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset presetNames (\x f -> f { preset = x })
+      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.scenario.presets (\x f -> f { preset = x })
       , selectField { label: "Scenario", required: true, note: "required, the one scenario the server runs" } scenarioName [ scenarioName ] (\_ f -> f)
       , selectField
           { label: "Rounds", required: false, note: "optional, defaults to " <> show v.scenario.rounds.default <> " rounds; allowed " <> show v.scenario.rounds.min <> " to " <> show v.scenario.rounds.max }
@@ -176,25 +155,14 @@ launchFields v = D.div
   }
   where
   scenarioName = v.scenario.name <> "@" <> v.scenario.version
-  textField f value set = D.label
-    { className: "flex flex-col gap-1 text-sm"
-    , children:
-        [ fieldHeading f
-        , element UI.input { value, "aria-required": f.required, onChange: handler targetValue (\x -> v.setForm (set (fromMaybe "" x))) }
-        ]
-    }
+  textField f value set = labelled (fieldHeading f) $ textInput
+    { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
-  selectField f value options set = D.label
-    { className: "flex flex-col gap-1 text-sm"
-    , children:
-        [ fieldHeading f
-        , D.select
-            { value
-            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            , onChange: handler targetValue (\x -> v.setForm (set (fromMaybe value x)))
-            , children: options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
-            }
-        ]
+  selectField f value options set = labelled (fieldHeading f) $ D.select
+    { value
+    , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+    , onChange: handler targetValue (\x -> v.setForm (set (fromMaybe value x)))
+    , children: options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
     }
   fieldHeading f = D.span
     { className: "flex flex-col"
@@ -204,32 +172,32 @@ launchFields v = D.div
         ]
     }
 
--- | Prepare: launch a run of the scenario. The form starts with its defaults (the next run name, the
--- | preset Conservative, the scenario's round count, a drawn player seed), so Run needs no edits. A
+-- | Prepare: launch a run of the scenario. The form starts with its defaults (the scenario's next run name,
+-- | the preset Conservative, the scenario's round count, a drawn player seed), so Run needs no edits. A
 -- | launch the server accepts opens the new run.
 mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  runs <- useFetch unit (listRuns true)
-  scenario <- useFetch unit (map (_ >>= scenarioOf) (get "/api/scenario" :: Aff (Either String Json)))
+  loaded <- useLoad unit Client.scenario
   let
-    -- the default name is known once the run list is; until then it is "run"
-    loadedName = case runs of
-      Just (Right t) -> nextRunName (map _.id (runInfos t))
-      _ -> ""
+    scenario = case loaded.value of
+      Just (Right s) -> Just s
+      _ -> Nothing
+    -- the default name is known once the scenario is; until then it is "run"
+    loadedName = maybe "" _.defaultName scenario
     defaultName = if loadedName == "" then "run" else loadedName
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
     launch = case scenario of
-      Just (Right s) -> case validate defaultName s.rounds form of
+      Just s -> case validate s form of
         Left e -> setFailure (Just e)
         Right req -> setFailure Nothing *> launchAff_ (submit req)
-      _ -> setFailure (Just "The scenario has not loaded, so the run cannot be launched.")
+      Nothing -> setFailure (Just "The scenario has not loaded, so the run cannot be launched.")
 
     submit :: LaunchRequest -> Aff Unit
     submit req = do
-      reply <- post "/api/runs" req :: Aff (Either String { id :: String })
+      reply <- Client.launch req
       liftEffect case reply of
         Left e -> setFailure (Just e)
         Right r -> setHash (print route (Run r.id))
@@ -248,9 +216,8 @@ mkPrepare = component "Prepare" \_ -> React.do
                 , purpose: "Each option's default is shown beside it. Only Preset and Scenario are required."
                 , children:
                     [ case scenario of
-                        Just (Right s) -> launchFields { form, setForm, scenario: s, defaultName, failure, launch }
-                        Just (Left e) -> status (Just e)
-                        Nothing -> status Nothing
+                        Just s -> launchFields { form, setForm, scenario: s, defaultName, failure, launch }
+                        Nothing -> status (loadError loaded.value)
                     ]
                 }
             , Layout.panel
@@ -259,58 +226,68 @@ mkPrepare = component "Prepare" \_ -> React.do
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
                     [ case scenario of
-                        Just (Right s) -> launchAction { form, setForm, scenario: s, defaultName, failure, launch }
-                        Just (Left e) -> status (Just e)
-                        Nothing -> status Nothing
+                        Just s -> launchAction { form, setForm, scenario: s, defaultName, failure, launch }
+                        Nothing -> status (loadError loaded.value)
                     ]
                 }
             ]
         ]
     }
+  where
+  -- the scenario's failure, or nothing while it loads
+  loadError = case _ of
+    Just (Left e) -> Just e
+    _ -> Nothing
 
--- | The manage panel's actions for one run: archive, resume and delete. The run's rounds and target
--- | come from its overview, so Resume is offered only while the run is shorter than its target.
-mkManage :: Component { id :: String, archived :: Boolean, onChanged :: Effect Unit }
-mkManage = do
+-- | The run page: the selected run's overview, fetched once, and the two things that use it: the results
+-- | and the manage panel (archive, resume, delete). Each action refreshes the page through `onChanged`.
+mkRunPage :: DataTable -> Component { id :: String, archived :: Boolean, version :: Int, onChanged :: Effect Unit }
+mkRunPage grid = do
+  results <- mkRunResults grid
   actions <- Actions.mkRunActions
-  component "Manage" \p -> React.do
-    overview <- useApi p.id (runPath p.id <> "/overview")
-    pure $ case overview of
-      Just (Right (t :: Table)) -> actions { id: p.id, archived: p.archived, rounds: roundCount t, target: roundTarget t, onChanged: p.onChanged }
-      Just (Left e) -> status (Just e)
-      Nothing -> status Nothing
+  component "RunPage" \p -> React.do
+    -- the overview reloads when the run changes or an action on it has been taken (the version)
+    overview <- useLoad (Tuple p.id p.version) (Client.overview p.id)
+    pure $ D.div
+      { className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
+      , children:
+          [ results { id: p.id, overview }
+          , Layout.panel
+              { span: 12
+              , title: "Manage this run"
+              , purpose: "Resume, archive or delete this run."
+              , children: [ manage actions p overview.value ]
+              }
+          ]
+      }
+  where
+  manage actions p = case _ of
+    Just (Right (o :: RunOverview)) -> actions { id: p.id, archived: p.archived, rounds: o.rounds, target: o.target, onChanged: p.onChanged }
+    Just (Left e) -> status (Just e)
+    Nothing -> status Nothing
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
 -- | selection, the latest readable run. The selected run's results come first; its lineage and its
 -- | manage actions are stacked under them. Selecting a row changes the route, so a selected run has
--- | its own address. Archive, resume and delete bump `version`, which refetches the list and remounts
--- | the selected run's panels.
+-- | its own address. Archive, resume and delete bump `version`, which reloads the list and remounts
+-- | the selected run's page.
 mkRuns :: DataTable -> Component { selected :: Maybe String }
 mkRuns grid = do
-  results <- mkRunResults grid
-  manage <- mkManage
+  runPage <- mkRunPage grid
   component "Runs" \p -> React.do
     archived /\ setArchived <- useState' false
     version /\ setVersion <- useState' 0
-    -- every run, fetched on each change. The previous list stays on screen until the new one
-    -- arrives, so an archive or delete does not blank the page; the archived box only filters rows
-    everyRun /\ setEveryRun <- useState' (Nothing :: Maybe (Either String Table))
-    useEffect version do
-      fiber <- launchAff do
-        result <- listRuns true
-        liftEffect (setEveryRun (Just result))
-      pure (launchAff_ (killFiber (error "superseded") fiber))
+    everyRun <- useRunList version
     pure $ Layout.page
       { title: "Runs"
       , purpose: "Every stored run, with the selected run's results and actions beside the list. With no run selected, the latest readable run is shown."
       , children:
-          [ case everyRun of
+          [ case everyRun.value of
               Just (Left e) -> status (Just e)
-              Just (Right (all :: Table)) ->
+              Just (Right all) ->
                 let
-                  t = if archived then all else withoutArchived all
+                  t = shownRuns archived all
                   current = fromMaybe "" (p.selected <|> latestReadable t)
-                  info = runInfo all current
                 in
                   Layout.grid
                     [ Layout.panel
@@ -331,19 +308,7 @@ mkRuns grid = do
                         , purpose: "The selected run's results appear here."
                         , children: [ D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run yet. Prepare a run to see its results here." ] } ]
                         }
-                      else D.div
-                        { key: show version
-                        , className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
-                        , children:
-                            [ results { id: current, status: maybe "" _.status info }
-                            , Layout.panel
-                                { span: 12
-                                , title: "Manage this run"
-                                , purpose: "Resume, archive or delete this run."
-                                , children: [ manage { id: current, archived: maybe false _.archived info, onChanged: setVersion (version + 1) } ]
-                                }
-                            ]
-                        }
+                      else runPage { id: current, archived: maybe false _.archived (flagsOf all current), version, onChanged: setVersion (version + 1) }
                     ]
               Nothing -> status Nothing
           ]
@@ -356,47 +321,36 @@ mkRuns grid = do
 mkCompare :: DataTable -> Component (Array String)
 mkCompare grid = do
   fetch <- fetched
+  comparison <- mkComparison grid fetch
   component "Compare" \ids -> React.do
-    everyRun <- useFetch unit (listRuns true)
-    shown /\ setShown <- useState' (Nothing :: Maybe (Either String CompareView))
-    picked /\ setPicked <- useState' (Nothing :: Maybe String)
-    useEffect (String.joinWith "," ids) do
-      if null ids then setShown Nothing *> pure (pure unit)
-      else do
-        fiber <- launchAff do
-          result <- (get (comparePath ids) :: Aff (Either String CompareView))
-          liftEffect (setShown (Just result))
-        pure (launchAff_ (killFiber (error "superseded") fiber))
+    everyRun <- useRunList 0
     pure $ Layout.page
       { title: "Compare runs"
       , purpose: "Runs side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
-          [ case everyRun of
-              Just (Right (t :: Table)) -> choices t ids
+          [ case everyRun.value of
+              Just (Right t) -> choices t ids
               Just (Left e) -> status (Just e)
               Nothing -> status Nothing
-          , plots grid fetch ids shown picked (setPicked)
+          , if null ids then plots grid fetch [] Nothing Nothing (\_ -> pure unit)
+            else comparison ids
           ]
       }
 
--- | The comparison's request: the ids, each encoded as one path segment.
-comparePath :: Array String -> String
-comparePath ids = "/api/compare?runs=" <> String.joinWith "," (map encode ids)
-
--- | A plot in its grid cell: a title on one line, then the plot. Half width from `lg`, so a plot and
--- | its placeholder take the same box.
-item :: String -> JSX -> JSX
-item title child = D.div
-  { className: "col-span-12 flex min-w-0 flex-col gap-2 lg:col-span-6"
-  , children: [ D.p { className: "text-sm font-medium", children: [ D.text title ] }, child ]
-  }
+-- | The comparison of the ticked runs, fetched for their ids. The view stays mounted while the ids change
+-- | (so the last comparison shows until the next arrives); the player picked for net worth is kept here.
+mkComparison :: DataTable -> Fetch -> Component (Array String)
+mkComparison grid fetch = component "Comparison" \ids -> React.do
+  loaded <- useLoad (String.joinWith "," ids) (Client.compare ids)
+  picked /\ setPicked <- useState' (Nothing :: Maybe String)
+  pure $ plots grid fetch ids loaded.value picked setPicked
 
 -- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
 -- | order: how each Market's price moves, how each player's net worth moves, who ends ahead, how even
 -- | the outcome is, and what the key values are. Until a comparison is loaded, each plot's frame is
 -- | shown in the same place and size, so nothing moves when the data arrives. The tables in the tabs
 -- | hold the rest.
-plots :: DataTable -> Fetched -> Array String -> Maybe (Either String CompareView) -> Maybe String -> (Maybe String -> Effect Unit) -> JSX
+plots :: DataTable -> Fetch -> Array String -> Maybe (Either String CompareView) -> Maybe String -> (Maybe String -> Effect Unit) -> JSX
 plots grid fetch ids shown picked setPicked = D.div
   { className: "flex min-w-0 flex-col gap-section"
   , children:
@@ -434,12 +388,12 @@ plots grid fetch ids shown picked setPicked = D.div
           , purpose: "The comparison's full tables, one tab each."
           , children:
               [ tabbed
-                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: 2 } c.final ] } }
+                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: c.baseline } c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
-                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: 1 } c.config ] } }
+                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: c.baseline } c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
-                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { path: "/api/agency", render: as \(t :: Table) -> tableOf grid t } }
+                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: Client.agency, render: as \(t :: Table) -> tableOf grid t } }
                   ]
               ]
           }
@@ -455,6 +409,11 @@ plots grid fetch ids shown picked setPicked = D.div
     Just (Right c) -> f c
     Just (Left e) -> [ status (Just e) ]
     Nothing -> [ waitingContent ]
+
+  item title child = D.div
+    { className: "col-span-12 flex min-w-0 flex-col gap-2 lg:col-span-6"
+    , children: [ Layout.caption title, child ]
+    }
 
   -- the two balance plots side by side, each in its own panel
   balance spreadPlot giniPlot = Layout.grid
@@ -488,7 +447,7 @@ plots grid fetch ids shown picked setPicked = D.div
 -- | comparison (the route's ids, in the order ticked; the first is the baseline), and unticking removes
 -- | it: a run is removed only by unticking it. Each tick changes the route. A ticked run shows the
 -- | colour its plots and tables use.
-choices :: Table -> Array String -> JSX
+choices :: RunList -> Array String -> JSX
 choices t ids = Layout.section
   { title: "Choose runs"
   , purpose: "Every readable run. Tick a run to compare it; untick it to remove it. The first run ticked is the baseline."
@@ -503,7 +462,7 @@ choices t ids = Layout.section
                       { checked: elem id ids
                       , onCheckedChange: mkEffectFn1 (\on -> setHash (print route (Compare (toggled id on))))
                       }
-                  , D.span { className: "size-3 shrink-0 rounded-full " <> swatch id }
+                  , D.span { className: "size-3 shrink-0 rounded-full " <> runSwatch ids id }
                   , D.span { className: "font-medium", children: [ D.text id ] }
                   , D.span { className: "text-muted-foreground", children: [ D.text (if index ids 0 == Just id then "baseline" else "") ] }
                   ]
@@ -515,17 +474,6 @@ choices t ids = Layout.section
   toggled id on
     | on = if elem id ids then ids else ids <> [ id ]
     | otherwise = filter (_ /= id) ids
-  -- the run's colour: the same position in the ids as the plots use (Dashboard.Chart.colourOf)
-  swatch id = swatchClass (fromMaybe 0 (findIndex (_ == id) ids) `mod` 5)
-
--- | A colour swatch's class: one theme chart colour, named in full so Tailwind finds it.
-swatchClass :: Int -> String
-swatchClass n = case n of
-  0 -> "bg-[var(--chart-1)]"
-  1 -> "bg-[var(--chart-2)]"
-  2 -> "bg-[var(--chart-3)]"
-  3 -> "bg-[var(--chart-4)]"
-  _ -> "bg-[var(--chart-5)]"
 
 -- | The top bar: the app name, then the three pages (Runs, Prepare, and Compare with how many runs it
 -- | holds). Every item is a link on every page. The comparison set lives in the App, so every page sees it.
@@ -545,7 +493,7 @@ shell current compareSet themeButton page = D.div
                           , children:
                               [ navLink "Prepare" Prepare (current == Prepare)
                               , navLink "Runs" Runs (isRuns current)
-                              , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (Array.length compareSet) <> ")") (Compare compareSet) (isCompare current)
+                              , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (length compareSet) <> ")") (Compare compareSet) (isCompare current)
                               ]
                           }
                       , D.div { className: "ml-auto", children: [ themeButton ] }
@@ -573,9 +521,10 @@ shell current compareSet themeButton page = D.div
     , children: [ D.text label ]
     }
 
--- | The app: the routes and the comparison set (the ids of the Compare route, shown in the top bar).
--- | `#/runs` and `#/runs/:id` render the same Runs component, so its list keeps its state as a run is
--- | selected.
+-- | The app: the routes and the comparison set (the ids of the Compare route, shown in the top bar). The
+-- | glossary loads first: until it has, the app shows only its status; the pages then read it through
+-- | `glossaryContext`. `#/runs` and `#/runs/:id` render the same Runs component, so its list keeps its
+-- | state as a run is selected.
 mkApp :: Component Unit
 mkApp = do
   grid <- mkDataTable
@@ -584,6 +533,7 @@ mkApp = do
   compare <- mkCompare grid
   toggle <- themeToggle
   component "App" \_ -> React.do
+    glossary <- useLoad unit Client.glossary
     current /\ setCurrent <- useState' Runs
     compareSet /\ setCompareSet <- useState' ([] :: Array String)
     useEffectOnce $ matchesWith (parse route) \_ r -> do
@@ -591,11 +541,16 @@ mkApp = do
       case r of
         Compare ids -> setCompareSet ids
         _ -> pure unit
-    pure $ shell current compareSet (toggle unit) case current of
-      Runs -> runsPage { selected: Nothing }
-      Run id -> runsPage { selected: Just id }
-      Prepare -> prepare unit
-      Compare ids -> compare ids
+    let
+      page = case current of
+        Runs -> runsPage { selected: Nothing }
+        Run id -> runsPage { selected: Just id }
+        Prepare -> prepare unit
+        Compare ids -> compare ids
+    pure case glossary.value of
+      Just (Right g) -> provider glossaryContext (Just g) [ shell current compareSet (toggle unit) page ]
+      Just (Left e) -> status (Just e)
+      Nothing -> status Nothing
 
 main :: Effect Unit
 main = do

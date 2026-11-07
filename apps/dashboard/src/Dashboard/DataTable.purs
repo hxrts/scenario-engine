@@ -16,11 +16,11 @@ import Prelude
 import Data.Array (index, mapWithIndex, sortBy)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Core.Num as Q
-import Dashboard.Glossary as Glossary
+import Dashboard.Glossary (definitionOf, emptyCell, glossaryContext)
 import Effect (Effect)
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
-import React.Basic.Hooks (Component, JSX, component, useState', (/\))
+import React.Basic.Hooks (Component, JSX, component, useContext, useState', (/\))
 import React.Basic.Hooks as React
 
 type Props =
@@ -65,6 +65,7 @@ compareCells a b = case Q.parse a, Q.parse b of
 
 mkDataTable :: Component Props
 mkDataTable = component "DataTable" \p -> React.do
+  glossary <- useContext glossaryContext
   sort /\ setSort <- useState' (Nothing :: Maybe Sort)
   let
     -- The indicator's slot is always rendered at a fixed width, so sorting never moves the header text.
@@ -73,7 +74,7 @@ mkDataTable = component "DataTable" \p -> React.do
       _ -> ""
     header i name = D.th
       { key: show i
-      , title: Glossary.columnDefinition name
+      , title: definitionOf glossary name
       , className: "h-10 min-w-24 px-2 text-left align-middle font-medium text-muted-foreground"
       , children:
           [ D.button
@@ -92,7 +93,7 @@ mkDataTable = component "DataTable" \p -> React.do
       { key: show i
       , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-500/20 font-medium" else "")
       , children:
-          [ if value == "" then emptyText (Glossary.emptyCell (fromMaybe "" (index p.columns i)))
+          [ if value == "" then emptyText (emptyCell glossary (fromMaybe "" (index p.columns i)))
             else case p.onRow, i == 0 of
               Just select, true -> D.button { className: "underline", onClick: handler_ (select row), children: [ D.text value ] }
               _, _ -> case p.link i row of

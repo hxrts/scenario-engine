@@ -1,47 +1,46 @@
--- | Reads of the run list's Table (`/api/runs`) by column name: an archived flag, the source run
--- | a run was derived from, and the runs derived from a given run. Pure; the server decides the
--- | values, and this only reads the columns it returns.
-module Dashboard.Runs (RunInfo, runInfos, runInfo, mergeRuns, derivedFrom, sourceRow, readableIds) where
+-- | Reads of the run list (`GET /api/runs`), pure. The list's rows are its table; its `runs` are the typed
+-- | flags of the same runs (archived, readable), read here and nowhere else. The server decides the values.
+module Dashboard.Runs (mergeRuns, shownRuns, readableIds, latestReadable, flagsOf) where
 
 import Prelude
 
-import Data.Array (elem, filter, findIndex, find, index)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Analysis.Views.Common (Table)
+import Analysis.Views.Overview (RunFlags, RunList)
+import Data.Array (elem, filter, find, index, reverse)
+import Data.Maybe (Maybe(..))
 
-type RunInfo = { id :: String, status :: String, archived :: Boolean, source :: String }
+-- | The run id of a row: its first column.
+rowId :: Array String -> String
+rowId row = case index row 0 of
+  Just id -> id
+  Nothing -> ""
 
--- | The value of a named column in a row, or "" when the table has no such column.
-cell :: Table -> String -> Array String -> String
-cell t name row = fromMaybe "" (findIndex (_ == name) t.columns >>= \i -> index row i)
-
-infoOf :: Table -> Array String -> RunInfo
-infoOf t row = { id: cell t "Run" row, status: cell t "Status" row, archived: cell t "Archived" row == "yes", source: cell t "Source" row }
-
-runInfos :: Table -> Array RunInfo
-runInfos t = map (infoOf t) t.rows
-
-runInfo :: Table -> String -> Maybe RunInfo
-runInfo t id = find (\r -> r.id == id) (runInfos t)
-
--- | The rows of the first table, then the rows of the second whose run is not already listed. Both
--- | are the run list, so they share columns. The first table's title and columns are kept.
-mergeRuns :: Table -> Table -> Table
-mergeRuns a b = a { rows = a.rows <> filter (\r -> not (elem (cell b "Run" r) listed)) b.rows }
+-- | The rows and flags of the first list, then those of the second whose run is not already listed. Both
+-- | are the run list, so they share columns. The first list's title and columns are kept.
+mergeRuns :: RunList -> RunList -> RunList
+mergeRuns a b =
+  a
+    { rows = a.rows <> filter (\r -> not (elem (rowId r) listed)) b.rows
+    , runs = a.runs <> filter (\f -> not (elem f.id listed)) b.runs
+    }
   where
-  listed = map (cell a "Run") a.rows
+  listed = map (\r -> rowId r) a.rows
 
--- | The Source cell of a row: the id of the run it was derived from, or Nothing for an original run.
-sourceRow :: Table -> Array String -> Maybe String
-sourceRow t row = case cell t "Source" row of
-  "" -> Nothing
-  s -> Just s
+-- | The list without its archived runs, unless `archived` asks for them too.
+shownRuns :: Boolean -> RunList -> RunList
+shownRuns archived t
+  | archived = t
+  | otherwise = t { rows = filter (\r -> elem (rowId r) kept) t.rows, runs = filter (\f -> not f.archived) t.runs }
+      where
+      kept = map _.id (filter (\f -> not f.archived) t.runs)
 
--- | The ids of the runs the server can read (every status but `unreadable`), in list order: the choices
--- | the Compare page offers.
-readableIds :: Table -> Array String
-readableIds t = map (cell t "Run") (filter (\row -> cell t "Status" row /= "unreadable") t.rows)
+-- | The flags of a run in the list.
+flagsOf :: RunList -> String -> Maybe RunFlags
+flagsOf t id = find (\f -> f.id == id) t.runs
 
--- | The ids of the runs whose Source is this run, in list order.
-derivedFrom :: Table -> String -> Array String
-derivedFrom t id = map _.id (filter (\r -> r.source == id) (runInfos t))
+-- | The ids of the runs the server can read, in list order: the choices the Compare page offers.
+readableIds :: RunList -> Array String
+readableIds t = map _.id (filter _.readable t.runs)
+
+-- | The most recent run (the list is in creation order) that can be read.
+latestReadable :: RunList -> Maybe String
+latestReadable t = map _.id (find _.readable (reverse t.runs))

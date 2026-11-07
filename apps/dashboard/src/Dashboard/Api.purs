@@ -1,5 +1,6 @@
--- | Calls to the read API, decoded with the shared codecs.
-module Dashboard.Api (get, post, command, remove, useApi, useFetch, encode, runPath) where
+-- | The low-level requests of the read and write API, decoded with the shared codecs, and the one
+-- | fetch hook the pages use. The paths are not here: `Dashboard.Client` names every endpoint.
+module Dashboard.Api (get, post, command, remove, encode, Loaded, useLoad) where
 
 import Prelude
 
@@ -11,14 +12,15 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Exception (message)
 import JSURI (encodeURIComponent)
 import React.Basic.Hooks (Hook)
-import React.Basic.Hooks.Aff (UseAff, useAff)
+import React.Basic.Hooks as React
+import React.Basic.Hooks.Aff (UseAff, useSteppingAff)
 
 foreign import fetchTextImpl :: String -> String -> String -> Effect (Promise String)
 
@@ -48,14 +50,15 @@ remove url = call "DELETE" url ""
 encode :: String -> String
 encode s = fromMaybe s (encodeURIComponent s)
 
--- | The API path of a run; the id is one encoded segment.
-runPath :: String -> String
-runPath id = "/api/runs/" <> encode id
+-- | A load's state: the value shown, and whether it is the last loaded value while the current key
+-- | loads (`busy`). A key that has not loaded yet shows nothing.
+type Loaded a = { value :: Maybe a, busy :: Boolean }
 
--- | Fetch a view; refetches whenever the path (or the extra key) changes.
-useApi :: forall a k. Eq k => DecodeJson a => k -> String -> Hook (UseAff (Tuple k String) (Either String a)) (Maybe (Either String a))
-useApi k path = useAff (Tuple k path) (get path)
-
--- | Run an action (a fetch of any shape) once per key: refetches when the key changes.
-useFetch :: forall a k. Eq k => k -> Aff a -> Hook (UseAff k a) (Maybe a)
-useFetch k action = useAff k action
+-- | Load an action for a key. A new key supersedes the one in flight (its request is cancelled), and
+-- | the last loaded value stays on screen, marked busy, until the new key's value arrives.
+useLoad :: forall a k. Eq k => k -> Aff a -> Hook (UseAff k (Tuple k a)) (Loaded a)
+useLoad k action = React.do
+  loaded <- useSteppingAff k (Tuple k <$> action)
+  pure case loaded of
+    Nothing -> { value: Nothing, busy: true }
+    Just (Tuple k' a) -> { value: Just a, busy: k' /= k }

@@ -4,10 +4,15 @@
 // store, and a run created here would shift them. The comparison answer is built here from the ids it is asked
 // for, the way the server builds it, so each test checks the page's mapping of the view, not the statistics.
 import { test, expect } from "@playwright/test";
-import { mockReads, json } from "./mocks.js";
+import { mockReads, json, COLUMNS } from "./mocks.js";
+import { section } from "./helpers.js";
 
 const NAMES = { "run-a": "Alpha", "run-b": "Beta" };
-const row = (id) => [id, NAMES[id], "fractured-world@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
+// A run's row in the run list: one cell per column the list shows.
+const row = (id) => {
+  const cells = { Run: id, Name: NAMES[id], Gameboard: "fractured-world@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
+  return COLUMNS.map((c) => cells[c]);
+};
 
 // A run's column header: its name and id.
 const header = (id) => `${NAMES[id]} (${id})`;
@@ -43,6 +48,7 @@ function comparison(ids) {
     config: table("Configuration differences", ["Parameter", ...ids.map(header)], [["preset", ...ids.map(() => "Conservative")]]),
     compatibility: table("Compatibility", ["Run", "Comparable with the first"], ids.map((id, i) => [header(id), i === 0 ? "yes" : "yes"])),
     seeds: table("Seed-to-seed variation", ["Run"], [["one run of this specification"]]),
+    baseline: header(ids[0]),
   };
 }
 
@@ -58,7 +64,7 @@ test.beforeEach(async ({ page }) => {
 const choice = (page, id) => page.locator("label").filter({ has: page.getByText(id, { exact: true }) }).getByRole("checkbox");
 
 // The key-values table: the section headed "Key values".
-const keyValues = (page) => page.locator("section").filter({ has: page.getByRole("heading", { name: "Key values", exact: true }) });
+const keyValues = (page) => section(page, "Key values");
 
 // The first market price plot (its frame is named "Price, <market>").
 const firstPrice = (page) => page.getByRole("figure", { name: /^Price, / }).first();
@@ -138,10 +144,10 @@ test("the page has the planned plots: prices by market, net worth, standings, an
 
 test("the net-worth plot overlays one line per run for the chosen player", async ({ page }) => {
   await page.goto("/#/compare/run-a/run-b");
-  const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Net worth over time", exact: true }) });
-  const plot = section.getByRole("figure", { name: /^Net worth, / });
+  const netWorth = section(page, "Net worth over time");
+  const plot = netWorth.getByRole("figure", { name: /^Net worth, / });
   await expect(plot).toBeVisible();
   await expect(plot.locator(".recharts-line")).toHaveCount(2);
-  await section.getByRole("combobox").selectOption({ index: 1 });
+  await netWorth.getByRole("combobox").selectOption({ index: 1 });
   await expect(plot.locator(".recharts-line")).toHaveCount(2);
 });

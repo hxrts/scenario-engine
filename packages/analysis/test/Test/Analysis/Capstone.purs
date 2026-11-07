@@ -77,7 +77,11 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     r <- runOf ctx (specOf cap)
     let
       sr = toStored "capstone" r
+
+      table :: forall r. String -> { rows :: Array (Array String) | r } -> _
       table name t = if length t.rows > 0 then pure unit else fail ("empty view: " <> name)
+
+      fromEither :: forall r. String -> Either String { rows :: Array (Array String) | r } -> _
       fromEither name = case _ of
         Left e -> fail (name <> ": " <> e)
         Right t -> table name t

@@ -120,7 +120,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
-The Dashboard's launch form offers the same eleven names (`Dashboard.Presets`).
+The Dashboard's launch form offers the same names: `GET /api/scenario` sends them (`Scenarios.Presets.presetNames`, in the order written).
 
 ### 4.3 Coverage
 
@@ -304,16 +304,18 @@ The server (`apps/server`, routed by `Server.Routes`) serves JSON. Every other m
 
 | Method and path | Purpose | Replies |
 |---|---|---|
-| `GET /api/scenario` | The launch form's scenario: name, version, round range (`min`, `max`), default rounds, game seed. | 200 |
-| `GET /api/runs[?archived=true]` | The run list (`Table`). Archived runs are left out unless `archived=true`. | 200 |
+| `GET /api/scenario` | The launch form's scenario: name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
+| `GET /api/runs[?archived=true]` | The run list: a `Table` plus `runs`, the typed flags of each run in the table's order (`id`, `archived`, `readable`; a run that cannot be decoded is not readable). Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat. Body: `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch |
-| `GET /api/runs/:id/:view[?round=n]` | One view. `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
+| `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is a `Table` plus `rounds` and `target` (completed and target rounds), `facts` (the header's label and value pairs: Name, Scenario, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
+| `GET /api/runs/:id/entities` | The run's Entities: `entities`, each `{id, seat}` (`seat` is true for an Actor, false for an Aggregate), and `default`, the first seat (or the first Entity). | 200. 404. 500 |
 | `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Analysis.Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth (M)`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
 | `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 for a rerun whose source cannot be compared |
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200 `{deleted}`. 400 without a matching `confirm`. 404 |
-| `GET /api/compare?runs=a,b[&market=m]` | Compare runs. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`. | 200. 400 when no run is valid or `market` is unknown |
+| `GET /api/compare?runs=a,b[&market=m]` | Compare runs. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's column). | 200. 400 when no run is valid or `market` is unknown |
+| `GET /api/glossary` | The glossary the dashboard shows: `definitions` and `reasons` by column or field name, `unnamed` (the text for a name with no entry, with `{name}`), and `price` (the prefix and text of the overview's `Final price` fields, with `{market}`). Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency[?playerSeed=n&preset=p&alternative=a]` | Agency analysis: every seat plays `preset` (default `Conservative`), then each Actor in turn plays `alternative` (default `Aggressive`). `playerSeed` defaults to 1. | 200. 400 for a bad seed or an unknown preset |
 
 Operation rules:
@@ -337,7 +339,7 @@ The Dashboard has three pages, each on its own hash route, and a top bar that li
 
 **Display kinds.** Every number a page, the CLI, or a Compare view shows has one display kind ([02 §9.1](02_type_system.md#91-numerics-and-randomness)). The stored and computed values stay exact at four decimals. A **quantity** (Money and Resource counts) shows whole numbers without decimals and otherwise at most two: holdings, balance sheets, net worth, standings, flows, pressure, procured units, shortfalls, and the balance spread. A **price** shows two decimals with trailing zeros trimmed: the marginal price and its change, in the Marginal prices chart and the Compare agency table. A **ratio** shows two decimals: the Gini coefficient, the Representation shares, procedure support and threshold, and tariff rates. Chart axes and tooltips use the chart's kind, and the plotted lines keep full precision. The Prepare form's inputs and the JSON API's text are unchanged.
 
-**Layout.** One 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`. Every visible table column and overview field has a plain-language definition on hover (`Dashboard.Glossary`).
+**Layout.** One 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`. Every visible table column and overview field has a plain-language definition on hover: the server's glossary (`GET /api/glossary`), loaded before the first page renders and looked up by `Dashboard.Glossary`. Every request the dashboard makes goes through `Dashboard.Client`, one typed function per endpoint, and the views are fetched once per selection: the run page fetches its overview once and passes it to its results and its manage panel.
 
 ### 9.1 Simulation Runs
 
@@ -353,7 +355,7 @@ The server performs and validates every operation. The dashboard sends the reque
 
 ### 9.2 Run Details
 
-The page opens with a compact header: run id, name, scenario, status, rounds completed out of target, and game id. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
+The page opens with a compact header: run id, then the overview's facts (name, scenario, status, rounds completed out of target, and game id). Resume is offered from the overview's `rounds` and `target`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
 
 1. **Key figures.** The five statistics the sections answer with, each with its question, definition, and formula. Each is a `Statistic` record in the module that computes it, and the dashboard renders that record. No view computes an economic statistic in the browser.
 2. **Marginal prices.** The marginal price of each Market after every round (`markets`, first chart).
@@ -364,7 +366,7 @@ The page opens with a compact header: run id, name, scenario, status, rounds com
 7. **Balance measures.** The spread and the Gini coefficient of final net worth (`balance`).
 8. **Objectives.** Each Actor's objective criteria as met, not met, or not evaluated, with the measured values (`objectives`). A criterion is not evaluated when the run has no rounds or its series is empty. It is never reported as met.
 9. **Final balance sheet.** Every Entity's holdings (Actors, NPCs, and Aggregates, with a `Kind` column) by Resource at the final round: `Initial`, `Current`, and `Change` (`balances`). There is no Reserved column, because a reservation does not outlive its round. Aggregates are residual representations.
-10. **Entity balance sheet.** A selector of the run's Entities, defaulting to the first Actor (which stands for the first seat, because the balances view does not say which Actors are seats). It draws **Holdings by Resource**, one line per held Resource in its own unit, and **Net worth** in M on its own scale, from `/api/runs/:id/entity/:entity` (§8.1).
+10. **Entity balance sheet.** A selector of the run's Entities, defaulting to the first seat. `GET /api/runs/:id/entities` says which Entities are seats and which is the default. It draws **Holdings by Resource**, one line per held Resource in its own unit, and **Net worth** in M on its own scale, from `/api/runs/:id/entity/:entity` (§8.1).
 
 **Definitions.** *Net worth* is Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource (the regional Energy Markets), its price is their mean, so a holding counts once. Soft Power has no Market and is not counted. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Analysis.Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The *spread* is the highest minus the lowest final net worth. The *Gini coefficient* is 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative (`Analysis.Views.Balance`).
 
@@ -384,14 +386,14 @@ Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of t
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| Name | optional | `run-N`, the next run id | A label. The dashboard fills a blank name with the default. The API requires a `name`. |
-| Preset | required | Conservative | The seat Policy every seat plays. |
+| Name | optional | `defaultName`, the next run id (`run-N`) | A label. The server names the default, and the dashboard fills a blank name with it. The API requires a `name`. |
+| Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/scenario` sends. |
 | Scenario | required | `meridian@v0` | The one scenario the server serves. |
-| Rounds | optional | the scenario's default (5) | A select of the scenario's supported counts (4 to 8). |
+| Rounds | optional | the scenario's default (5) | A select of the scenario's supported counts (4 to 8). Resume applies the same round-count rule: a whole number within the bounds. |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
 | Game seed | read-only | the scenario's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
 
-A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, and game seed come from `GET /api/scenario`.
+A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, game seed, default name, and presets come from `GET /api/scenario`.
 
 ### 9.4 Compare
 

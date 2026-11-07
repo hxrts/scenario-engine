@@ -7,6 +7,7 @@ module DSL.Base
   , q
   , Keyed
   , keyed
+  , keyNames
   , (:=)
   , entry
   , Built(..)
@@ -86,6 +87,10 @@ derive newtype instance Semigroup (Keyed a)
 
 keyed :: forall a. Array (Tuple String a) -> Keyed a
 keyed = Keyed
+
+-- | The keys of a keyed map, in the order they were written.
+keyNames :: forall a. Keyed a -> Array String
+keyNames (Keyed kvs) = map (\(Tuple k _) -> k) kvs
 
 -- | A holding: `"M" := 260`, `"E" := "0.5"`.
 entry :: forall a. ToQty a => String -> a -> Tuple String Qty

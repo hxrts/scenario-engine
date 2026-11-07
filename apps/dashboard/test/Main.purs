@@ -3,36 +3,28 @@ module Test.Dashboard.Main where
 import Prelude
 
 import Core.Num (Kind(..))
-import Dashboard.Chart (chartRows, plotValue, shownKey)
+import Core.Num as Q
+import Dashboard.Chart (chartRows, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
-import Dashboard.Launch (RoundRange, Scenario, emptyForm, nextRunName, roundChoices, roundValue, summary, validate)
-import Dashboard.Presets (presetNames)
+import Dashboard.Launch (RoundRange, Scenario, emptyForm, roundChoices, roundValue, summary, validate)
 import Dashboard.Route (Route(..), route)
-import Dashboard.RunForms (requiredRounds, resumeBody)
-import Dashboard.Runs (derivedFrom, mergeRuns, readableIds, runInfo, sourceRow)
-import Data.Argonaut.Core (stringify, toNumber, toObject, toString)
+import Dashboard.RunForms (requiredRounds, resumeBody, rounds)
+import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
+import Data.Argonaut.Core (stringify, toNumber, toString)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (sort)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..), isLeft, note)
+import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
-import Analysis.Views.Common (Table)
-import Data.Foldable (for_)
 import Effect (Effect)
-import Effect.Class (liftEffect)
+import Analysis.Views.Overview (RunFlags, RunList)
+import Data.Foldable (for_)
 import Foreign.Object as Object
-import Node.Encoding (Encoding(..))
-import Node.FS.Sync (readTextFile)
 import Routing.Duplex (parse, print)
 import Test.Spec (describe, it)
-import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
+import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
--- | The compiled presets, from the repository root (`just test` and `just dashboard-test` compile them first).
-presetsPath :: String
-presetsPath = "packages/scenarios/presets.json"
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -57,8 +49,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])
   describe "Compare choices" do
     it "every readable run is a choice, and an unreadable run is not" do
-      let t = { title: "Simulation runs", columns: [ "Run", "Status" ], rows: [ [ "run-1", "completed" ], [ "run-2", "unreadable" ], [ "run-3", "completed" ] ] } :: Table
-      readableIds t `shouldEqual` [ "run-1", "run-3" ]
+      readableIds (listOf [ flag "run-1" false true, flag "run-2" false false, flag "run-3" false true ]) `shouldEqual` [ "run-1", "run-3" ]
   describe "Data table sorting" do
     it "numeric cells compare as numbers, text as text" do
       compareCells "9" "10" `shouldEqual` LT
@@ -75,11 +66,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       sortRows Nothing rows `shouldEqual` rows
   describe "Metric chart values" do
     it "only numbers are plotted" do
-      plotValue "1.5" `shouldEqual` Just 1.5
-      plotValue "-2" `shouldEqual` Just (-2.0)
-      plotValue "abc" `shouldEqual` Nothing
-      plotValue "" `shouldEqual` Nothing
-      plotValue "NaN" `shouldEqual` Nothing
+      (Q.toDisplayNumber <$> Q.parse "1.5") `shouldEqual` Just 1.5
+      (Q.toDisplayNumber <$> Q.parse "-2") `shouldEqual` Just (-2.0)
+      (Q.toDisplayNumber <$> Q.parse "abc") `shouldEqual` Nothing
+      (Q.toDisplayNumber <$> Q.parse "") `shouldEqual` Nothing
     it "an unparseable point is a gap in its series, not a zero" do
       let series = [ { name: "a", points: [ { round: 0, value: "1" }, { round: 1, value: "oops" }, { round: 2, value: "3" } ] } ]
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Quantity series) `shouldEqual` [ Just 1.0, Nothing, Just 3.0 ]
@@ -94,14 +84,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Launch form: defaults" do
     it "the empty form is a valid request: the default name, Conservative, a drawn seed, the scenario's rounds" do
-      validate "run-3" scenarioRounds emptyForm `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate scenario emptyForm `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "a blank or spaced name is the default name; a typed name is trimmed" do
-      validate "run-3" scenarioRounds (emptyForm { name = "  " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-      validate "run-3" scenarioRounds (emptyForm { name = " copy " }) `shouldEqual` Right { name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-    it "the default name is the next run id: one more than the highest run number listed" do
-      nextRunName [] `shouldEqual` "run-1"
-      nextRunName [ "run-1", "run-2", "run-7" ] `shouldEqual` "run-8"
-      nextRunName [ "base", "run-x", "run-3" ] `shouldEqual` "run-4"
+      validate scenario (emptyForm { name = "  " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate scenario (emptyForm { name = " copy " }) `shouldEqual` Right { name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "the round count shown is the scenario's default when blank, and the typed count otherwise" do
       roundValue scenarioRounds "" `shouldEqual` 5
       roundValue scenarioRounds " 7 " `shouldEqual` 7
@@ -111,29 +97,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       summary scenarioRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
     it "rounds, when given, must be a whole number in the scenario's range" do
-      validate "run-1" scenarioRounds (emptyForm { rounds = " 6 " }) `shouldEqual` Right { name: "run-1", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
-      validate "run-1" scenarioRounds (emptyForm { rounds = "4" }) `shouldEqual` Right { name: "run-1", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
-      validate "run-1" scenarioRounds (emptyForm { rounds = "8" }) `shouldEqual` Right { name: "run-1", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate "run-1" scenarioRounds (emptyForm { rounds = "3" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8, or blank for the default."
-      validate "run-1" scenarioRounds (emptyForm { rounds = "9" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8, or blank for the default."
-      validate "run-1" scenarioRounds (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8, or blank for the default."
-    it "a preset must be one of the known presets; Trader is accepted" do
-      validate "run-1" scenarioRounds (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
-      validate "run-1" scenarioRounds (emptyForm { preset = "Trader" }) `shouldEqual` Right { name: "run-1", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
+      validate scenario (emptyForm { rounds = " 6 " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
+      validate scenario (emptyForm { rounds = "4" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
+      validate scenario (emptyForm { rounds = "8" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
+      validate scenario (emptyForm { rounds = "3" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
+      validate scenario (emptyForm { rounds = "9" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
+      validate scenario (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
+    it "a preset must be one the scenario offers; Trader is accepted" do
+      validate scenario (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
+      validate scenario (emptyForm { preset = "Trader" }) `shouldEqual` Right { name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
     it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
-      validate "run-1" scenarioRounds (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { name: "run-1", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
-      validate "run-1" scenarioRounds (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
+      validate scenario (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
+      validate scenario (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Scenario reply" do
-    it "the scenario's name, round range and game seed are decoded from GET /api/scenario" do
-      decodeScenario "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021}"
-        `shouldEqual` Right { name: "meridian", version: "v0", rounds: scenarioRounds, gameSeed: 26021 }
+    it "the scenario's name, round range, game seed, default name and presets are decoded from GET /api/scenario" do
+      decodeScenario "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
+        `shouldEqual` Right scenario
       decodeScenario "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
-  describe "Presets" do
-    it "the launch form offers exactly the compiled presets" do
-      text <- liftEffect (readTextFile UTF8 presetsPath)
-      case jsonParser text >>= \j -> note "presets.json is not an object" (toObject j) of
-        Left e -> fail e
-        Right o -> sort (Object.keys o) `shouldEqual` sort presetNames
+  describe "Round count rule" do
+    it "the launch form and the resume form apply one rule: a whole number within the bounds" do
+      rounds { min: 4, max: Just 8 } " 6 " `shouldEqual` Right 6
+      rounds { min: 4, max: Just 8 } "9" `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
+      rounds { min: 1, max: Nothing } "12" `shouldEqual` Right 12
+      rounds { min: 1, max: Nothing } "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
   describe "Run actions: form rules" do
     it "resume rounds are a whole number of at least 1" do
       requiredRounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
@@ -143,29 +129,39 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a resume body is the rounds" do
       stringify (resumeBody 4) `shouldEqual` "{\"rounds\":4}"
   describe "Run list reads" do
-    it "a run's archived flag and source come from its columns" do
-      runInfo runList "run-3" `shouldEqual` Just { id: "run-3", status: "", archived: true, source: "run-1" }
-      runInfo runList "run-1" `shouldEqual` Just { id: "run-1", status: "", archived: false, source: "" }
-      runInfo runList "nope" `shouldEqual` Nothing
-    it "the runs derived from a run are those whose source it is" do
-      derivedFrom runList "run-1" `shouldEqual` [ "run-2", "run-3" ]
-      derivedFrom runList "run-2" `shouldEqual` []
-    it "a Source cell names the source run, and is empty for an original run" do
-      sourceRow runList row2 `shouldEqual` Just "run-1"
-      sourceRow runList row1 `shouldEqual` Nothing
+    it "a run's archived and readable flags are typed, and the list keeps the run order" do
+      flagsOf runList "run-3" `shouldEqual` Just (flag "run-3" true true)
+      flagsOf runList "nope" `shouldEqual` Nothing
+    it "archived runs are hidden unless asked for, with their rows" do
+      map _.id (shownRuns false runList).runs `shouldEqual` [ "run-1", "run-2" ]
+      map _.id (shownRuns true runList).runs `shouldEqual` [ "run-1", "run-2", "run-3" ]
+      (shownRuns false runList).rows `shouldEqual` [ row1, row2 ]
+    it "the latest readable run is the last one in the list that can be read" do
+      latestReadable runList `shouldEqual` Just "run-3"
+      latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
     it "the archived runs are added to the list once, after the others" do
-      mergeRuns (runList { rows = [ row1, row2 ] }) (runList { rows = [ row2, row3 ] }) `shouldEqual` runList
+      mergeRuns (listOf [ flag "run-1" false true, flag "run-2" false true ]) (listOf [ flag "run-2" false true, flag "run-3" true true ]) `shouldEqual` listOf [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ]
   where
-  row1 = [ "run-1", "base", "", "no", "" ]
-  row2 = [ "run-2", "seed", "", "no", "run-1" ]
-  row3 = [ "run-3", "old", "", "yes", "run-1" ]
+  row1 = [ "run-1", "base", "no" ]
+  row2 = [ "run-2", "seed", "no" ]
+  row3 = [ "run-3", "old", "yes" ]
 
-  runList :: Table
-  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Reason", "Archived", "Source" ], rows: [ row1, row2, row3 ] }
+  flag :: String -> Boolean -> Boolean -> RunFlags
+  flag id archived readable = { id, archived, readable }
+
+  -- a run list whose rows are one row per run, in the order given
+  listOf :: Array RunFlags -> RunList
+  listOf fs = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: map (\f -> [ f.id, f.id, if f.archived then "yes" else "no" ]) fs, runs: fs }
+
+  runList :: RunList
+  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
 
   -- the meridian scenario's round range: 4 to 8, with 5 by default
   scenarioRounds :: RoundRange
   scenarioRounds = { min: 4, max: 8, default: 5 }
+
+  scenario :: Scenario
+  scenario = { name: "meridian", version: "v0", rounds: scenarioRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
 
   decodeScenario :: String -> Either String Scenario
   decodeScenario s = jsonParser s >>= \j -> lmap printJsonDecodeError (decodeJson j)

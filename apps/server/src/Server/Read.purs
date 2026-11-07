@@ -6,6 +6,7 @@ module Server.Read
   , runSummaries
   , loadRun
   , getView
+  , entitiesView
   , entityView
   , compareView
   , agencyView
@@ -150,6 +151,13 @@ getView ctx store query id view = loadRun store id >>= case _ of
     "events" -> viewOr (roundParam 1 >>= Balances.events r)
     _ -> failWith 404 view
 
+-- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
+entitiesView :: StoreBackend -> String -> Effect Response
+entitiesView store id = loadRun store id >>= case _ of
+  Right r -> ok (Entity.entityList r)
+  Left Missing -> failWith 404 ("no run " <> id)
+  Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
+
 -- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Analysis.Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
 entityView :: StoreBackend -> String -> String -> Effect Response
@@ -180,6 +188,7 @@ compareView ctx store query = do
         , balance: Compare.balanceBars good
         , keyValues: Compare.keyValues ctx.gameboard good
         , final: Compare.finalState good
+        , baseline: base.id
         , diff: Compare.baselineDiff base others
         , config: Compare.configDiff base others
         , seeds: Balance.seedVariation (Compare.sameSpecification good)

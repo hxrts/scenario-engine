@@ -7,16 +7,12 @@
 // the assertions do not depend on the code they check.
 import { test, expect } from "@playwright/test";
 import { mockReads, ACTIVE, COLUMNS } from "./mocks.js";
-
-const PRESETS = ["Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid", "Deployer"];
+import { postSpy, rowWith, section } from "./helpers.js";
 
 test.beforeAll(async ({ request }) => {
   for (const [name, preset, playerSeed, rounds] of [["base", "Conservative", 1, 3], ["seed", "Conservative", 2, 3], ["variant", "Aggressive", 1, 3], ["short", "Conservative", 1, 2]])
     await request.post("/api/runs", { data: { name, preset, playerSeed, gameSeed: null, rounds } });
 });
-
-// The row of the visible table whose cells include every given text exactly.
-const rowWith = (scope, cells) => cells.reduce((rows, text) => rows.filter({ has: scope.getByRole("cell", { name: text, exact: true }) }), scope.getByRole("row"));
 
 // The row of a scoped table whose accessible name is its cells' text in order.
 const rowNamed = (scope, cells) => scope.getByRole("row", { name: cells.join(" "), exact: true });
@@ -67,19 +63,19 @@ test("the Actions section charts one bar per player, with plain-language legend 
     "Proposals rejected",
   ];
   await page.goto("/#/runs/run-1");
-  const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Actions", exact: true }) });
-  const chart = section.locator(".recharts-wrapper").first();
+  const actions = section(page, "Actions");
+  const chart = actions.locator(".recharts-wrapper").first();
   await expect(chart.locator(".recharts-bar")).toHaveCount(labels.length);
   // one bar per player: the x axis has a tick per player, and the table has a row per player
   // the player names are the axis ticks that are not numbers (the value axis's ticks are numbers)
   const ticks = chart.locator(".recharts-cartesian-axis-tick-value").filter({ hasNotText: /^[0-9.,]+$/ });
   await expect.poll(() => ticks.count()).toBeGreaterThan(1);
   const players = await ticks.count();
-  await expect(section.getByRole("table").getByRole("row")).toHaveCount(players + 1);
+  await expect(actions.getByRole("table").getByRole("row")).toHaveCount(players + 1);
   // the legend names each segment in plain language, and the table's headers are the same labels
   for (const label of labels) {
     await expect(chart.getByText(label, { exact: true })).toBeVisible();
-    await expect(section.getByRole("columnheader", { name: label, exact: true })).toBeVisible();
+    await expect(actions.getByRole("columnheader", { name: label, exact: true })).toBeVisible();
   }
 });
 
@@ -257,47 +253,34 @@ test("sorting by a column does not move the header: its width is the same before
   expect((await header.boundingBox()).width).toBeCloseTo(before.width, 0);
 });
 
-// The launch form's section on Prepare.
-// the launch fields, the summary and the Run button sit in two panels, so checks look across the page
-const launchForm = (page) => page;
-
-test("the launch form on Prepare offers the known presets and the scenario's rounds, and rejects a bad player seed without a request", async ({ page }) => {
-  let posts = 0;
-  await page.route("**/api/runs", (route) => {
-    if (route.request().method() === "POST") posts += 1;
-    return route.continue();
-  });
+test("the launch form on Prepare offers the known presets and the scenario's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
+  const { presets } = await (await request.get("/api/scenario")).json();
+  const posts = postSpy(page);
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
-  await expect(launch.getByLabel("Preset")).toHaveValue("Conservative");
-  await expect(launch.getByLabel("Preset").locator("option")).toHaveText(PRESETS);
-  await expect(launch.getByLabel("Rounds")).toHaveValue("5");
-  await expect(launch.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
-  await expect(launch.getByLabel("Scenario").locator("option")).toHaveText(["meridian@v0"]);
-  await expect(launch.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
-  await launch.getByLabel("Player seed").fill("x");
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(launch.getByText("Player seed must be a whole number.")).toBeVisible();
-  expect(posts).toBe(0);
+  await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
+  await expect(page.getByLabel("Preset").locator("option")).toHaveText(presets);
+  await expect(page.getByLabel("Rounds")).toHaveValue("5");
+  await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
+  await expect(page.getByLabel("Scenario").locator("option")).toHaveText(["meridian@v0"]);
+  await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
+  await page.getByLabel("Player seed").fill("x");
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByText("Player seed must be a whole number.")).toBeVisible();
+  expect(posts.count).toBe(0);
 });
 
 test("Run with no edits launches the default run: Conservative, the scenario's rounds and a drawn seed", async ({ page, request }) => {
-  let body = null;
-  await page.route("**/api/runs", (route) => {
-    if (route.request().method() === "POST") body = route.request().postDataJSON();
-    return route.continue();
-  });
+  const spy = postSpy(page);
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
   // the name shows the next run id as its default, and the summary says what Run will play
-  await expect(launch.getByLabel("Name")).toHaveValue(/^run-\d+$/);
-  const name = await launch.getByLabel("Name").inputValue();
-  await expect(launch.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page.getByLabel("Name")).toHaveValue(/^run-\d+$/);
+  const name = await page.getByLabel("Name").inputValue();
+  await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
   // the request leaves the seed and the rounds to the server, and the name is the default
-  expect(body).toEqual({ name, preset: "Conservative", playerSeed: null, rounds: null });
+  expect(spy.body).toEqual({ name, preset: "Conservative", playerSeed: null, rounds: null });
   // the run is in the list with the scenario's rounds and a seed, and its overview names the preset
   const row = rowWith(page, [id]);
   await expect(row.getByRole("cell").nth(5)).toHaveText("5");
@@ -307,20 +290,15 @@ test("Run with no edits launches the default run: Conservative, the scenario's r
 });
 
 test("a non-default preset and round count are sent, and the run plays them", async ({ page, request }) => {
-  let body = null;
-  await page.route("**/api/runs", (route) => {
-    if (route.request().method() === "POST") body = route.request().postDataJSON();
-    return route.continue();
-  });
+  const spy = postSpy(page);
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
-  await launch.getByLabel("Preset").selectOption("Trader");
-  await launch.getByLabel("Rounds").selectOption("6");
-  await expect(launch.getByText("This run: Trader, 6 rounds, seed drawn at launch.")).toBeVisible();
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await page.getByLabel("Preset").selectOption("Trader");
+  await page.getByLabel("Rounds").selectOption("6");
+  await expect(page.getByText("This run: Trader, 6 rounds, seed drawn at launch.")).toBeVisible();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
-  expect(body).toMatchObject({ preset: "Trader", playerSeed: null, rounds: 6 });
+  expect(spy.body).toMatchObject({ preset: "Trader", playerSeed: null, rounds: 6 });
   await expect(rowWith(page, [id]).getByRole("cell").nth(5)).toHaveText("6");
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
   expect(overview.rows).toContainEqual(["Preset", "Trader"]);
@@ -328,10 +306,9 @@ test("a non-default preset and round count are sent, and the run plays them", as
 
 test("the Scenario and Game seed are shown read-only, with the scenario's seed as the default", async ({ page }) => {
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
-  await expect(launch.getByText("Game seed", { exact: true })).toBeVisible();
-  await expect(launch.getByText("26021", { exact: true })).toBeVisible();
-  await expect(launch.getByLabel("Game seed")).toHaveCount(0);
+  await expect(page.getByText("Game seed", { exact: true })).toBeVisible();
+  await expect(page.getByText("26021", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Game seed")).toHaveCount(0);
 });
 
 test("a rejected launch shows the server's message on Prepare and stays there", async ({ page }) => {
@@ -348,23 +325,21 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
 
 test("the launch form marks its required fields, and states the default of each optional one", async ({ page }) => {
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
-  await expect(launch.locator("label", { hasText: "Preset" })).toContainText("required");
-  await expect(launch.locator("label", { hasText: "Scenario" })).toContainText("required");
-  await expect(launch.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
-  await expect(launch.locator("label", { hasText: "Player seed" })).toContainText("optional");
-  await expect(launch.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
-  await expect(launch.locator("label", { hasText: "Game seed" })).toHaveCount(0);
-  await expect(launch.getByText("Required: Preset and Scenario.")).toBeVisible();
+  await expect(page.locator("label", { hasText: "Preset" })).toContainText("required");
+  await expect(page.locator("label", { hasText: "Scenario" })).toContainText("required");
+  await expect(page.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
+  await expect(page.locator("label", { hasText: "Player seed" })).toContainText("optional");
+  await expect(page.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
+  await expect(page.locator("label", { hasText: "Game seed" })).toHaveCount(0);
+  await expect(page.getByText("Required: Preset and Scenario.")).toBeVisible();
 });
 
 test("a launch opens the new run's page", async ({ page }) => {
   await page.goto("/#/prepare");
-  const launch = launchForm(page);
-  await launch.getByLabel("Preset").selectOption("Trader");
-  await launch.getByLabel("Player seed").fill("9");
-  await launch.getByLabel("Rounds").selectOption("6");
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await page.getByLabel("Preset").selectOption("Trader");
+  await page.getByLabel("Player seed").fill("9");
+  await page.getByLabel("Rounds").selectOption("6");
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   await expect(page.getByRole("heading", { name: /^Run run-\d+$/ })).toBeVisible();
 });
@@ -374,9 +349,13 @@ test("the run list is sortable by a column", async ({ page }) => {
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
   // the seeds of the runs in this shared store vary (launches draw seeds), so the check is the order, not a value
-  const seeds = (await page.locator("tbody tr td:nth-child(5)").allTextContents()).map(Number);
-  expect(seeds.length).toBeGreaterThan(1);
-  expect(seeds).toEqual([...seeds].sort((a, b) => b - a));
+  // scoped to the run list: the same page also shows the latest run's results, whose tables have a fifth column too
+  const runList = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Player seed" }) });
+  await expect(async () => {
+    const seeds = (await runList.locator("tbody tr td:nth-child(5)").allTextContents()).map(Number);
+    expect(seeds.length).toBeGreaterThan(1);
+    expect(seeds).toEqual([...seeds].sort((a, b) => b - a));
+  }).toPass();
 });
 
 test("the run list has a column set the page uses (no Created column is shown until the server sends one)", async ({ page }) => {

@@ -10,6 +10,7 @@ module Server.Launch
   , failInterrupted
   , Scenario
   , scenarioInfo
+  , nextRunId
   ) where
 
 import Prelude
@@ -19,7 +20,7 @@ import Adapters.Random (resolveSeed)
 import Board.Decode.Common (readJson)
 import Board.Gameboard.Schema (gameIdOf)
 import Core.Draw (Seed(..))
-import Data.Array (concatMap, foldl, mapMaybe)
+import Data.Array (concatMap, filter, foldl, mapMaybe)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -28,7 +29,9 @@ import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
 import Effects.Store (createRun, failRun, failRunning, finish, listSummaries)
+import Foreign.Object as Object
 import Analysis.Views.Metrics (roundMetrics)
+import Scenarios.Presets (presetNames)
 import Handlers.Store (StoreBackend, persister, runStore)
 import Simulator.Recipe (Derivation, encodeSpec)
 import Simulator.Simulate (Context, Override, presetSpec, simulateWith)
@@ -97,13 +100,25 @@ nextRunId store = do
   pure ("run-" <> show (n + 1))
 
 -- | `GET /api/scenario`: the scenario the launch form runs. Its supported round counts (`min`, `max`)
--- | and the round count a launch without `rounds` plays (`default`); the game seed the scenario fixes.
-type Scenario = { name :: String, version :: String, rounds :: { min :: Int, max :: Int, default :: Int }, gameSeed :: Int }
-
-scenarioInfo :: Context -> Scenario
-scenarioInfo ctx =
-  { name: ctx.gameboard.id
-  , version: ctx.gameboard.version
-  , rounds: { min: ctx.gameboard.rounds.min, max: ctx.gameboard.rounds.max, default: ctx.config.rounds }
-  , gameSeed: unwrap ctx.config.seed
+-- | and the round count a launch without `rounds` plays (`default`); the game seed the scenario fixes;
+-- | the default run name (the next run id); and the presets every seat may play, in the scenario's order.
+type Scenario =
+  { name :: String
+  , version :: String
+  , rounds :: { min :: Int, max :: Int, default :: Int }
+  , gameSeed :: Int
+  , defaultName :: String
+  , presets :: Array String
   }
+
+scenarioInfo :: Context -> StoreBackend -> Effect Scenario
+scenarioInfo ctx store = do
+  next <- nextRunId store
+  pure
+    { name: ctx.gameboard.id
+    , version: ctx.gameboard.version
+    , rounds: { min: ctx.gameboard.rounds.min, max: ctx.gameboard.rounds.max, default: ctx.config.rounds }
+    , gameSeed: unwrap ctx.config.seed
+    , defaultName: next
+    , presets: filter (\n -> Object.member n ctx.presets) presetNames
+    }

@@ -175,6 +175,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "[\"Preset\",\"Conservative\"]")
         Left e -> fail e
+    it "the typed fields the dashboard reads: the scenario's default name and presets, the overview's rounds and target, the run flags, the entities and the glossary" do
+      liftEffect (map (_ >>= loadContext) (readScenario fileOps "meridian/v0")) >>= case _ of
+        Right ctx -> do
+          db <- liftEffect (open ":memory:")
+          let api method path query body = liftEffect (route ctx (sqliteBackend db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          scen <- api "GET" "/api/scenario" [] ""
+          scen.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-1\"")
+          scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Passive\",\"Conservative\"")
+          _ <- api "POST" "/api/runs" [] "{\"name\":\"t\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
+          scen2 <- api "GET" "/api/scenario" [] ""
+          scen2.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-2\"")
+          overview <- api "GET" "/api/runs/run-1/overview" [] ""
+          overview.body `shouldSatisfy` contains (Pattern "\"rounds\":2")
+          overview.body `shouldSatisfy` contains (Pattern "\"target\":2")
+          overview.body `shouldSatisfy` contains (Pattern "\"value\":\"2 of 2\"")
+          list <- api "GET" "/api/runs" [] ""
+          list.body `shouldSatisfy` contains (Pattern "\"runs\":[{")
+          list.body `shouldSatisfy` contains (Pattern "\"readable\":true")
+          entities <- api "GET" "/api/runs/run-1/entities" [] ""
+          entities.status `shouldEqual` 200
+          entities.body `shouldSatisfy` contains (Pattern "\"seat\":true")
+          glossary <- api "GET" "/api/glossary" [] ""
+          glossary.body `shouldSatisfy` contains (Pattern "\"Game ID\"")
+        Left e -> fail e
     it "the run list has archived and source columns after the existing ones" do
       liftEffect (map (_ >>= loadContext) (readScenario fileOps "meridian/v0")) >>= case _ of
         Right ctx -> do

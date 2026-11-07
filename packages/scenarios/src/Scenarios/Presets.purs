@@ -6,7 +6,7 @@ import Prelude (negate)
 import Scenarios.Names as N
 
 import Data.Tuple (Tuple(..))
-import DSL.Base (Keyed, keyed, Built)
+import DSL.Base (Keyed, keyed, keyNames, Built)
 import DSL.Decision (Clause, Expr, choose, deal, gt, holding, le, lit, noAction, price, strategy, rule, signAll, tradeT, transformT)
 import Policy.Tags as T
 
@@ -25,6 +25,10 @@ presets = keyed
   , Tuple "RandomValid" randomvalid
   , Tuple "Deployer" deployer
   ]
+
+-- | The preset names, in the order the presets are written (the order the launch form offers them).
+presetNames :: Array String
+presetNames = keyNames presets
 
 -- | Buy `quantity` on the home Market while its price is at or below `threshold`, at a limit of `limit`.
 buyBelow :: Expr -> Expr -> Expr -> Clause

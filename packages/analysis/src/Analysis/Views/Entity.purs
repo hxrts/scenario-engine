@@ -7,18 +7,23 @@
 module Analysis.Views.Entity
   ( entityHistory
   , entityIds
+  , EntityChoice
+  , EntityList
+  , entityList
   ) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Core.Num (Kind(..))
 import Core.Num as Q
 import Core.Query (accountsOf, holding)
-import Core.Types (EntityId, ResourceId)
+import Core.Types (EntityId, EntityKind(..), ResourceId)
 import Core.World (WorldState)
-import Data.Array (any, concatMap, cons, filter, fromFoldable, length, nub, range, sort)
+import Data.Array (any, concatMap, cons, filter, find, fromFoldable, head, length, nub, range, sort)
 import Data.Either (Either(..))
 import Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Analysis.Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series, unitOf)
 import Analysis.Views.Standings (netWorth)
@@ -26,6 +31,26 @@ import Analysis.Views.Standings (netWorth)
 -- | Every Entity in the run's initial World State, in Entity order: the names `entityHistory` accepts.
 entityIds :: StoredRun -> Array EntityId
 entityIds r = fromFoldable (Map.keys r.manifest.initial.entities)
+
+-- | An Entity the run has, and whether it is a seat (an Actor, not an Aggregate).
+type EntityChoice = { id :: String, seat :: Boolean }
+
+-- | The Entities of a run in Entity order, and the one shown when none is chosen: the first seat
+-- | (or the first Entity, when the run has no seat). `default` is "" only for a run with no Entities.
+type EntityList = { default :: String, entities :: Array EntityChoice }
+
+entityList :: StoredRun -> EntityList
+entityList r =
+  { default: fromMaybe "" (map _.id (find _.seat entities) <|> map _.id (head entities))
+  , entities
+  }
+  where
+  entities :: Array EntityChoice
+  entities = map choice (Map.toUnfoldable r.manifest.initial.entities)
+  choice (Tuple e ent) = { id: show e, seat: notAggregate ent.kind }
+  notAggregate = case _ of
+    Aggregate _ -> false
+    _ -> true
 
 -- | An Entity's balance sheet after every round, from round 0 to the final round. An Entity the run
 -- | does not have is an error that lists the valid ones.

@@ -119,6 +119,13 @@ sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 
 `View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature.
 
+**Dashboard client** (`apps/dashboard`, `Dashboard.Client`). One typed function per request, and the only place the endpoint paths are written (with `Dashboard.Api`, the low-level requests and the load hook). The pages hold no paths:
+
+```purescript
+overview :: String -> Aff (Either String RunOverview)   -- GET /api/runs/:id/overview
+runs     :: Boolean -> Aff (Either String RunList)      -- GET /api/runs, with archived runs when True
+```
+
 **Effects** (`effects`). The only impure vocabulary in the system:
 
 ```purescript

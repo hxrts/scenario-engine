@@ -3,13 +3,11 @@
 // the e2e server's seeded run-1, so the Entities are the ones the run has.
 
 import { test, expect } from "@playwright/test";
-
-// The section, found by its heading.
-const section = (page) => page.locator("section", { has: page.getByRole("heading", { name: "Entity balance sheet", exact: true }) });
+import { section } from "./helpers.js";
 
 test("the Runs page has an entity balance sheet: a selector defaulting to the first Entity, and no table", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  const s = section(page);
+  const s = section(page, "Entity balance sheet");
   await expect(s.getByRole("heading", { name: "Entity balance sheet", exact: true })).toBeVisible();
   const selector = s.getByRole("combobox", { name: "Entity", exact: true });
   await expect(selector).toBeVisible();
@@ -23,7 +21,7 @@ test("the Runs page has an entity balance sheet: a selector defaulting to the fi
 
 test("choosing an entity updates its holdings plot and legend, and its net worth plot", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  const s = section(page);
+  const s = section(page, "Entity balance sheet");
   const selector = s.getByRole("combobox", { name: "Entity", exact: true });
   await expect(selector).toBeVisible();
   const values = await selector.locator("option").evaluateAll((opts) => opts.map((o) => o.value));
