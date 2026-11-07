@@ -120,6 +120,7 @@ stackedBars c = D.div
   }
   where
   bar b = Object.fromFoldable (cons (Tuple "player" (fromString b.player)) (map (\s -> Tuple s.key (fromNumber (toNumber s.count))) b.counts))
+
 -- | A plot's frame: a labelled figure of a fixed height, so the plot takes the same room whether or
 -- | not its data has arrived, and the page does not move when it does.
 plotFrame :: String -> JSX -> JSX
