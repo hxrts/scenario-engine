@@ -12,7 +12,7 @@ import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Exception (Error, error, message)
 
 defaultModel :: String
-defaultModel = "anthropic/claude-opus-5-5"
+defaultModel = "openrouter/deepseek/deepseek-v4-flash-latest"
 
 foreign import piImpl :: String -> String -> String -> String -> EffectFnAff { text :: String, raw :: String }
 

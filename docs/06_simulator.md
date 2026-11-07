@@ -180,7 +180,7 @@ Live play has no confirmation step. Each human player's audio is transcribed, an
 | Command | Behaviour |
 |---|---|
 | `run <premise> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds (default 5, at least 1). The player seed is `--seed`, else drawn and printed. Prints a per-round summary and does not save to the Run Store. |
-| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` submit one audio recording per round, then give no further input. The rest are AI-agent seats. Defaults: model `anthropic/claude-opus-5-5`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`. |
+| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` submit one audio recording per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`. |
 | `server [--db file] [--port n] [--static dir]` (`just serve`) | The read API and the dashboard. Defaults: `runs.db`, port 8787 (1–65535), static `apps/dashboard/dist`. |
 
 An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The premise argument is the premise's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
