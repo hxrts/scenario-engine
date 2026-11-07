@@ -11,6 +11,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, Qty, Keyed, keyed, (:=), Built, transfer, trade, enactTariff)
 import DSL.World (aggregate, entity)
 import DSL.Fixture (enactTariffI, expect, procedureOutcome, proposal, ref, transferI, tradeI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energyAt, fixture)
 import Scenarios.Meridian.Entities.Aggregates (euAggregate)
 
@@ -18,8 +19,8 @@ import Scenarios.Meridian.Entities.Aggregates (euAggregate)
 -- | is the EU's agent in `eu-solidarity` (docs/05 §12.1); it is a separate account with no policy.
 germanyAndEu :: Qty -> Keyed (Built "entity")
 germanyAndEu pool = keyed
-  [ Tuple N.de (entity { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ transfer N.energy, trade N.energyAtlantic ] })
-  , Tuple N.eu (entity { accounts: keyed [ N.money := 320, N.energy := 125 ], capabilities: [ trade N.energyAtlantic, enactTariff ], aggregate: euAggregate })
+  [ Tuple N.de (entity { accounts: pickAccounts N.de [ N.money, N.energy ], capabilities: [ transfer N.energy, trade N.energyAtlantic ] })
+  , Tuple N.eu (entity { accounts: pickAccounts N.eu [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic, enactTariff ], aggregate: euAggregate })
   , Tuple N.euPool (entity { accounts: keyed [ N.energy := pool ], capabilities: [], aggregate: aggregate { policy: N.policySolidarityPool, members: [] } })
   ]
 
@@ -44,7 +45,7 @@ fixtureB2 = fixture "B2"
   { markets: energyAt (q 60) atlanticAccess [ N.sa, N.jp ]
   , entities: germanyAndEu (q 0)
   , proposals:
-      [ proposal { author: N.eu, procedure: "eu-solidarity", intents: [ transferI { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [ N.de ] } ]
+      [ proposal { author: N.eu, procedure: N.euSolidarity, intents: [ transferI { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [ N.de ] } ]
   , expect: expect { accounts: keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 117 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]), Tuple N.euPool (keyed [ N.energy := 0 ]) ], reserves: keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ], procedures: [ procedureOutcome { author: N.eu, support: q "0.6", executed: true } ] }
   }
 
@@ -55,7 +56,7 @@ fixtureB2Pool = fixture "B2-pool"
   { markets: energyAt (q 60) atlanticAccess [ N.sa, N.jp ]
   , entities: germanyAndEu (q 10)
   , proposals:
-      [ proposal { author: N.eu, procedure: "eu-solidarity", intents: [ transferI { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [ N.de ] } ]
+      [ proposal { author: N.eu, procedure: N.euSolidarity, intents: [ transferI { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [ N.de ] } ]
   , expect: expect { accounts: keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 125 ]), Tuple N.euPool (keyed [ N.energy := 2 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]) ], reserves: keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ], procedures: [ procedureOutcome { author: N.eu, support: q "0.6", executed: true } ] }
   }
 
@@ -64,7 +65,7 @@ fixtureB3 = fixture "B3"
   { markets: energyAt (q 60) atlanticAccess [ N.sa, N.jp ]
   , entities: germanyAndEu (q 0)
   , proposals:
-      [ proposal { author: N.eu, procedure: "eu-solidarity", intents: [ tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [] } ]
+      [ proposal { author: N.eu, procedure: N.euSolidarity, intents: [ tradeI { market: N.energyAtlantic, quantity: q (-8) } ], signers: [ N.de ], signatures: [] } ]
   , expect: expect { accounts: keyed [ Tuple N.eu (keyed [ N.money := 320, N.energy := 125 ]) ], lapsed: [ ref N.eu ], procedures: [ procedureOutcome { author: N.eu, support: q "0.4", executed: false } ] }
   }
 
@@ -75,7 +76,7 @@ euTradeTariff name signatures support = fixture name
   { markets: energyAt (q 0) atlanticAccess [ N.sa, N.jp ]
   , entities: germanyAndEu (q 0)
   , proposals:
-      [ proposal { author: N.eu, procedure: "eu-trade", intents: [ enactTariffI { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ], signers: [ N.de ], signatures: signatures } ]
+      [ proposal { author: N.eu, procedure: N.euTrade, intents: [ enactTariffI { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ], signers: [ N.de ], signatures: signatures } ]
   , expect: expect { scheduled: 1, procedures: [ procedureOutcome { author: N.eu, support: q support, executed: true } ] }
   }
 

@@ -11,6 +11,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, keyed, (:=), transform)
 import DSL.World (entity)
 import DSL.Fixture (delivery, expect, proposal, ref, roundOf, transformI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, facilities, fixture)
 import Scenarios.Meridian (majorMilitaryAction, procurement)
 
@@ -21,7 +22,7 @@ fixtureDMinor = fixture "D-minor"
   , entities: keyed
       [ Tuple N.us
           ( entity
-              { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95 ], capabilities: [ transform N.majorMilitaryAction ] }
+              { accounts: pickAccounts N.us [ N.money, N.energy, N.mil ], capabilities: [ transform N.majorMilitaryAction ] }
           )
       ]
   , proposals:
@@ -36,19 +37,19 @@ fixtureD = fixture "D"
   , entities: keyed
       [ Tuple N.us
           ( entity
-              { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95 ], capabilities: [ transform N.majorMilitaryAction ] }
+              { accounts: pickAccounts N.us [ N.money, N.energy, N.mil ], capabilities: [ transform N.majorMilitaryAction ] }
           )
       , Tuple N.cn
           ( entity
-              { accounts: keyed [ N.money := 255, N.energy := 95, N.mil := 88 ], capabilities: [ transform N.defenseProcurementCn ] }
+              { accounts: pickAccounts N.cn [ N.money, N.energy, N.mil ], capabilities: [ transform N.defenseProcurementCn ] }
           )
       , Tuple N.cnPrivate
           ( entity
-              { accounts: keyed [ N.money := 210, N.energy := 85 ], capabilities: [] }
+              { accounts: pickAccounts N.cnPrivate [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.def
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 30, N.mil := 5 ], capabilities: [], capacities: keyed [] }
+              { accounts: pickAccounts N.def [ N.money, N.energy, N.mil ], capabilities: [], capacities: keyed [] }
           )
       , Tuple N.chip
           ( entity

@@ -9,6 +9,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (keyed, (:=))
 import DSL.World (entity)
 import DSL.Fixture (expect, roundOf)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, fixture)
 import Scenarios.Meridian (coreResources, flows, productionCapacity, requirements)
 
@@ -21,91 +22,91 @@ fixtureCirculation = fixture "circulation"
   , entities: keyed
       [ Tuple N.us
           ( entity
-              { accounts: keyed [ N.money := 260, N.energy := 70 ], capabilities: [] }
+              { accounts: pickAccounts N.us [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.de
           ( entity
-              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [] }
+              { accounts: pickAccounts N.de [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.india
           ( entity
-              { accounts: keyed [ N.money := 180, N.energy := 65 ], capabilities: [], capacities: keyed [ N.energyProduction := 5 ] }
+              { accounts: pickAccounts N.india [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 5 ] }
           )
       , Tuple N.jp
           ( entity
-              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [] }
+              { accounts: pickAccounts N.jp [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.uk
           ( entity
-              { accounts: keyed [ N.money := 130, N.energy := 30 ], capabilities: [] }
+              { accounts: pickAccounts N.uk [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.br
           ( entity
-              { accounts: keyed [ N.money := 105, N.energy := 85 ], capabilities: [], capacities: keyed [ N.energyProduction := 13 ] }
+              { accounts: pickAccounts N.br [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 13 ] }
           )
       , Tuple N.sa
           ( entity
-              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
+              { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
           )
       , Tuple N.ng
           ( entity
-              { accounts: keyed [ N.money := 85, N.energy := 60 ], capabilities: [], capacities: keyed [ N.energyProduction := 12 ] }
+              { accounts: pickAccounts N.ng [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 12 ] }
           )
       , Tuple N.enco
           ( entity
-              { accounts: keyed [ N.money := 140, N.energy := 140 ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
+              { accounts: pickAccounts N.enco [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
           )
       , Tuple N.chip
           ( entity
-              { accounts: keyed [ N.money := 135, N.energy := 55 ], capabilities: [] }
+              { accounts: pickAccounts N.chip [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.ship
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [] }
+              { accounts: pickAccounts N.ship [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.def
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [] }
+              { accounts: pickAccounts N.def [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.labor
           ( entity
-              { accounts: keyed [ N.money := 30, N.energy := 4 ], capabilities: [] }
+              { accounts: pickAccounts N.labor [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.sme
           ( entity
-              { accounts: keyed [ N.money := 15, N.energy := 5 ], capabilities: [] }
+              { accounts: pickAccounts N.sme [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.aid
           ( entity
-              { accounts: keyed [ N.money := 45, N.energy := 12 ], capabilities: [] }
+              { accounts: pickAccounts N.aid [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.cn
           ( entity
-              { accounts: keyed [ N.money := 255, N.energy := 95 ], capabilities: [] }
+              { accounts: pickAccounts N.cn [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.eu
           ( entity
-              { accounts: keyed [ N.money := 320, N.energy := 125 ], capabilities: [] }
+              { accounts: pickAccounts N.eu [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.cnPrivate
           ( entity
-              { accounts: keyed [ N.money := 210, N.energy := 85 ], capabilities: [] }
+              { accounts: pickAccounts N.cnPrivate [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.usWorkers
           ( entity
-              { accounts: keyed [ N.money := 260, N.energy := 60 ], capabilities: [] }
+              { accounts: pickAccounts N.usWorkers [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.globalSmes
           ( entity
-              { accounts: keyed [ N.money := 300, N.energy := 80 ], capabilities: [] }
+              { accounts: pickAccounts N.globalSmes [ N.money, N.energy ], capabilities: [] }
           )
       , Tuple N.energySuppliers
           ( entity
-              { accounts: keyed [ N.money := 200, N.energy := 240 ], capabilities: [], capacities: keyed [ N.energyProduction := 60 ] }
+              { accounts: pickAccounts N.energySuppliers [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.energyProduction := 60 ] }
           )
       , Tuple N.worldHouseholds
           ( entity
-              { accounts: keyed [ N.money := 360, N.energy := 90 ], capabilities: [] }
+              { accounts: pickAccounts N.worldHouseholds [ N.money, N.energy ], capabilities: [] }
           )
       ]
   , circulation: { production: productionCapacity, flows, requirements }

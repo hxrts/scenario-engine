@@ -9,6 +9,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, keyed, (:=), transform)
 import DSL.World (entity)
 import DSL.Fixture (delivery, expect, proposal, transformI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, fixture)
 import Scenarios.Meridian (coreResources)
 
@@ -19,19 +20,19 @@ fixtureF = fixture "F"
   , entities: keyed
       [ Tuple N.us
           ( entity
-              { accounts: keyed [ N.money := 260, N.energy := 70 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
+              { accounts: pickAccounts N.us [ N.money, N.energy ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
       , Tuple N.uk
           ( entity
-              { accounts: keyed [ N.money := 130, N.energy := 30 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
+              { accounts: pickAccounts N.uk [ N.money, N.energy ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
       , Tuple N.jp
           ( entity
-              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
+              { accounts: pickAccounts N.jp [ N.money, N.energy ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
       , Tuple N.def
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [], capacities: keyed [] }
+              { accounts: pickAccounts N.def [ N.money, N.energy ], capabilities: [], capacities: keyed [] }
           )
       , Tuple N.chip
           ( entity

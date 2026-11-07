@@ -10,14 +10,15 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, Keyed, keyed, (:=), Built, transfer, transform)
 import DSL.World (entity)
 import DSL.Fixture (accessBanRule, expect, proposal, ref, transferI, transformI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, fixture)
 import Scenarios.Meridian (coreResources)
 
 -- | Fixtures G1 to G5: transfers between Saudi Arabia and Japan, with and without signatures.
 saAndJp :: Keyed (Built "entity")
 saAndJp = keyed
-  [ Tuple N.sa (entity { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
-  , Tuple N.jp (entity { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
+  [ Tuple N.sa (entity { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
+  , Tuple N.jp (entity { accounts: pickAccounts N.jp [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
   ]
 
 fixtureG1 :: Tuple String Json
@@ -48,15 +49,15 @@ fixtureG3Ban = fixture "G3-ban"
   , entities: keyed
       [ Tuple N.sa
           ( entity
-              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
+              { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
           )
       , Tuple N.de
           ( entity
-              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.de [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.ship
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
+              { accounts: pickAccounts N.ship [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
           )
       ]
   , proposals:
@@ -71,15 +72,15 @@ fixtureG3 = fixture "G3"
   , entities: keyed
       [ Tuple N.sa
           ( entity
-              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
+              { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
           )
       , Tuple N.de
           ( entity
-              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.de [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.ship
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
+              { accounts: pickAccounts N.ship [ N.money, N.energy ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
           )
       ]
   , proposals:
@@ -94,15 +95,15 @@ fixtureG4 = fixture "G4"
   , entities: keyed
       [ Tuple N.labor
           ( entity
-              { accounts: keyed [ N.money := 30, N.energy := 4 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.labor [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.enco
           ( entity
-              { accounts: keyed [ N.money := 140, N.energy := 140 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.enco [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.def
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.def [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:
@@ -117,15 +118,15 @@ fixtureG5Unsigned = fixture "G5-unsigned"
   , entities: keyed
       [ Tuple N.sa
           ( entity
-              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.jp
           ( entity
-              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.jp [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.ship
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.ship [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:
@@ -140,15 +141,15 @@ fixtureG5 = fixture "G5"
   , entities: keyed
       [ Tuple N.sa
           ( entity
-              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.sa [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.jp
           ( entity
-              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.jp [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       , Tuple N.ship
           ( entity
-              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
+              { accounts: pickAccounts N.ship [ N.money, N.energy ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:

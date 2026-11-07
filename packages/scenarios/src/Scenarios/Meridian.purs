@@ -1,5 +1,10 @@
 -- | *Meridian* (docs/05_test_instance.md), authored in the scenario DSL.
 -- | `just scenarios` compiles it to `packages/scenarios/meridian/v0/*.json`.
+--
+-- | NPC list decision (work/3.md, Packet F): the instantiation `npcs` is written by hand, and it is
+-- | the one place that names who starts as an NPC. Seat Covers do not derive it: `NpcOnly` is the
+-- | only Cover that runs with no fallback, and only CN holds it today, so one entry is clearer than
+-- | a derivation over the seats. The holdings each Entity starts with are in `Meridian.Holdings`.
 module Scenarios.Meridian
   ( files
   , gameSeed
@@ -35,6 +40,7 @@ import Record (union)
 import DSL.Base (Qty, q, Keyed, keyed, (:=), Built, free, restricted, nonTransferable, sales, payee)
 import DSL.World (assignment, cost, effect, estimator, facility, flow, market, production, requirement, resource, scheme, share)
 import Scenarios.Meridian.Entities (entities)
+import Scenarios.Meridian.Holdings (capacityHolders)
 import Scenarios.Meridian.Parameters (disruptionRound, parameters, supplierAsia, supplierAtlantic)
 import Scenarios.Meridian.Policies (policies)
 
@@ -99,20 +105,31 @@ asiaMarket access = market (union asiaTerms { access })
 defenceAccess :: Array String
 defenceAccess = [ N.us, N.de, N.uk, N.jp ]
 
+-- | What a Meridian Market trades and prices: its base and quote Resources, its curve, and its
+-- | reserves. Access is set per use.
+type MarketTerms = { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
+
 -- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
 -- | the same order as the Energy Markets. Its reserves hold 60 Mil, so the upper bound sits 40
 -- | below that reserve (the Energy Markets sit 50 below theirs); the lower bound is the Energy
 -- | Markets' −80, and the Money reserve of 300 pays sellers. Access is `defenceAccess`.
-defenceTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
+defenceTerms :: MarketTerms
 defenceTerms = { base: N.mil, quote: N.money, cost: cost { base: q 3, slope: q "0.01", lo: q (-80), hi: q 20 }, reserves: keyed [ N.money := 300, N.mil := 60 ] }
 
--- | Each regional Energy Market's curve and reserves; access is set per use.
-atlanticTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
-atlanticTerms = { base: N.energy, quote: N.money, cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 300 }, reserves: keyed [ N.money := 700, N.energy := 350 ] }
+-- | The terms of a regional Energy Market (docs/05_test_instance.md §3.1): Energy for Money on
+-- | p(x) = 2 + 0.02x, with a lower bound of −80. The two Energy Markets differ only in their upper
+-- | bound and reserves, which the caller gives; access is set per use.
+energyTerms :: { hi :: Qty, reserves :: Keyed Qty } -> MarketTerms
+energyTerms { hi, reserves } = { base: N.energy, quote: N.money, cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi }, reserves }
 
-asiaTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
-asiaTerms = { base: N.energy, quote: N.money, cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 200 }, reserves: keyed [ N.money := 500, N.energy := 250 ] }
+-- | The Atlantic Energy Market: upper bound 300; reserves hold 700 Money and 350 Energy.
+atlanticTerms :: MarketTerms
+atlanticTerms = energyTerms { hi: q 300, reserves: keyed [ N.money := 700, N.energy := 350 ] }
+
+-- | The Asian Energy Market: upper bound 200; reserves hold 500 Money and 250 Energy.
+asiaTerms :: MarketTerms
+asiaTerms = energyTerms { hi: q 200, reserves: keyed [ N.money := 500, N.energy := 250 ] }
 
 -- | The facility that carries each Resource between regions.
 transport :: Keyed String
@@ -169,12 +186,10 @@ deployment = facility { reserves: keyed [ N.mil := 1 ] }
 majorMilitaryAction :: Built "facility"
 majorMilitaryAction = facility { inputs: keyed [ N.mil := 1 ], outputs: keyed [ N.mil := "0.75" ], minimum: q 12 }
 
--- | The Entities that produce Energy. Each holds an energy-production capacity on its Entity (the
--- | capacities are on the Entities; validation checks that this list agrees with them).
+-- | The Entities that produce Energy: every Entity that holds an energy-production capacity
+-- | (Meridian.Holdings), in catalog order.
 productionCapacity :: Array (Built "production")
-productionCapacity = map (\entity -> production { entity, resource: N.energy, capacity: N.energyProduction }) producers
-  where
-  producers = [ N.energySuppliers, N.sa, N.enco, N.br, N.ng, N.india ]
+productionCapacity = map (\entity -> production { entity, resource: N.energy, capacity: N.energyProduction }) (capacityHolders N.energyProduction)
 
 flows :: Array (Built "flow")
 flows =

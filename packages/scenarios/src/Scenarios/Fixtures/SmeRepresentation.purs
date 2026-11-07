@@ -9,6 +9,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (Qty, q, Keyed, keyed, (:=), Built, trade)
 import DSL.World (entity)
 import DSL.Fixture (expect, proposal, ref, representation, tradeI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, fixture)
 import Scenarios.Meridian (smeSample)
 import Scenarios.Meridian.Entities.Aggregates (globalSmesAggregate)
@@ -16,8 +17,8 @@ import Scenarios.Meridian.Entities.Aggregates (globalSmesAggregate)
 -- | The SME and its Representation's Aggregate (fixtures C1 to C5).
 smeAndGlobalSmes :: Keyed (Built "entity")
 smeAndGlobalSmes = keyed
-  [ Tuple N.sme (entity { accounts: keyed [ N.money := 15, N.energy := 5 ], capabilities: [ trade N.energyAtlantic ] })
-  , Tuple N.globalSmes (entity { accounts: keyed [ N.money := 300, N.energy := 80 ], capabilities: [ trade N.energyAtlantic ], aggregate: globalSmesAggregate })
+  [ Tuple N.sme (entity { accounts: pickAccounts N.sme [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ] })
+  , Tuple N.globalSmes (entity { accounts: pickAccounts N.globalSmes [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ], aggregate: globalSmesAggregate })
   ]
 
 -- | The SME Representation of the reference instance, with the fixture's noise.

@@ -9,12 +9,13 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, keyed, (:=), Built, trade, transfer, enactTariff)
 import DSL.World (aggregate, collective, entity)
 import Scenarios.Meridian.Entities.Capabilities (dealer, shipping)
+import Scenarios.Meridian.Holdings (accountsOf, capacitiesOf)
 
 eu :: Built "entity"
 eu = entity
-  { accounts: keyed [ N.money := 320, N.energy := 125, N.mil := 50, N.softPower := 75 ]
+  { accounts: accountsOf N.eu
   , capabilities: dealer N.energyAtlantic <> [ enactTariff ] <> shipping
-  , capacities: keyed []
+  , capacities: capacitiesOf N.eu
   , aggregate: euAggregate
   }
 
@@ -22,55 +23,55 @@ eu = entity
 -- | empty. The EU's solidarity procedure draws on it as the EU's agent (`euAggregate`).
 euPool :: Built "entity"
 euPool = entity
-  { accounts: keyed [ N.energy := 0 ]
+  { accounts: accountsOf N.euPool
   , capabilities: []
-  , capacities: keyed []
+  , capacities: capacitiesOf N.euPool
   , aggregate: aggregate { policy: N.policySolidarityPool, members: [] }
   }
 
 cnPrivate :: Built "entity"
 cnPrivate = entity
-  { accounts: keyed [ N.money := 210, N.energy := 85, N.softPower := 25 ]
+  { accounts: accountsOf N.cnPrivate
   , capabilities: dealer N.energyAsia <> shipping
-  , capacities: keyed []
+  , capacities: capacitiesOf N.cnPrivate
   , aggregate: aggregate { policy: N.policyCnPrivate, members: [] }
   }
 
 usWorkers :: Built "entity"
 usWorkers = entity
-  { accounts: keyed [ N.money := 260, N.energy := 60, N.softPower := 45 ]
+  { accounts: accountsOf N.usWorkers
   , capabilities: dealer N.energyAtlantic <> shipping
-  , capacities: keyed []
+  , capacities: capacitiesOf N.usWorkers
   , aggregate: aggregate { policy: N.policyUsWorkers, members: [ N.labor ] }
   }
 
 globalSmes :: Built "entity"
 globalSmes = entity
-  { accounts: keyed [ N.money := 300, N.energy := 80, N.softPower := 25 ]
+  { accounts: accountsOf N.globalSmes
   , capabilities: dealer N.energyAtlantic <> shipping
-  , capacities: keyed []
+  , capacities: capacitiesOf N.globalSmes
   , aggregate: globalSmesAggregate
   }
 
 energySuppliers :: Built "entity"
 energySuppliers = entity
-  { accounts: keyed [ N.money := 200, N.energy := 240, N.softPower := 22 ]
+  { accounts: accountsOf N.energySuppliers
   , capabilities: [ trade N.energyAtlantic, trade N.energyAsia, transfer N.money, transfer N.energy ] <> shipping
-  , capacities: keyed [ N.energyProduction := 60 ]
+  , capacities: capacitiesOf N.energySuppliers
   , aggregate: aggregate { policy: N.policyEnergySuppliers, members: [] }
   }
 
 worldHouseholds :: Built "entity"
 worldHouseholds = entity
-  { accounts: keyed [ N.money := 360, N.energy := 90, N.softPower := 35 ]
+  { accounts: accountsOf N.worldHouseholds
   , capabilities: dealer N.energyAsia <> shipping
-  , capacities: keyed [ N.attention := 50 ]
+  , capacities: capacitiesOf N.worldHouseholds
   , aggregate: aggregate { policy: N.policyWorldHouseholds, members: [ N.aid ] }
   }
 
 -- | The EU and its two collective procedures; fixtures reuse it.
 euAggregate :: Built "aggregate"
-euAggregate = aggregate { policy: N.policyEuCoordination, members: [ N.de, N.euPool ], procedures: keyed [ Tuple "eu-solidarity" solidarity, Tuple "eu-trade" tradeProcedure ] }
+euAggregate = aggregate { policy: N.policyEuCoordination, members: [ N.de, N.euPool ], procedures: keyed [ Tuple N.euSolidarity solidarity, Tuple N.euTrade tradeProcedure ] }
   where
   -- The pool is a member with no weight: it acts for the EU in this procedure without signing (docs/02 §2.2).
   solidarity = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ trade N.energyAtlantic, transfer N.energy ] }

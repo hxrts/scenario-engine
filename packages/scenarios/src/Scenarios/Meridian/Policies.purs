@@ -45,7 +45,7 @@ euCoordination = strategy
       banded N.energyAtlantic 3 8 4
         <>
           [ rule [ gt (price N.energyAtlantic) (lit 3), ge (holding N.energy) (lit 8) ]
-              [ procedureT { id: "eu-solidarity", signers: [ N.de ], intents: [ transferT { from: N.euPool, to: N.eu, resource: N.energy, quantity: (lit 8) }, tradeT { market: N.energyAtlantic, quantity: (lit (-8)) } ] } ]
+              [ procedureT { id: N.euSolidarity, signers: [ N.de ], intents: [ transferT { from: N.euPool, to: N.eu, resource: N.energy, quantity: (lit 8) }, tradeT { market: N.energyAtlantic, quantity: (lit (-8)) } ] } ]
           , tariffMatch N.us
           , tariffMatch N.cn
           ]
@@ -54,7 +54,7 @@ euCoordination = strategy
 -- | The EU matches a rival's restriction with a tariff of its own, unless it already has one in force.
 tariffMatch :: String -> Clause
 tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: N.eu }) ]
-  [ procedureT { id: "eu-trade", signers: [ N.de ], intents: [ enactTariffT { origin: origin, rate: (param euMatchingTariff) } ] } ]
+  [ procedureT { id: N.euTrade, signers: [ N.de ], intents: [ enactTariffT { origin: origin, rate: (param euMatchingTariff) } ] } ]
 
 -- | A price band: trade `below` while the Market's price is at or below `threshold`, and `above`
 -- | while it is above. Every band in the catalog is this shape.

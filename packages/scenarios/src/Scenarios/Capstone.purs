@@ -56,7 +56,7 @@ usWithoutDeployment = strategy
 -- | procedure when the Atlantic price is above 3: round 4 starts above 3, Germany does not sign,
 -- | and the procedure lapses; round 5 starts above 3 again, Germany signs, and it executes.
 de :: Built "strategy"
-de = strategy { sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "eu-solidarity" ]), signProcedures [ "eu-trade" ] ] }
+de = strategy { sign: [ signIf [ ge round (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
 
 -- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then

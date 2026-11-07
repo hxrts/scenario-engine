@@ -11,14 +11,15 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, Keyed, keyed, (:=), Built, trade)
 import DSL.World (entity)
 import DSL.Fixture (expect, proposal, ref, tradeI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, fixture)
 import Scenarios.Meridian (coreResources)
 
 -- | Two Energy traders in the Atlantic market: the US and Germany (fixtures A and A2).
 atlanticTraders :: Keyed (Built "entity")
 atlanticTraders = keyed
-  [ Tuple N.us (entity { accounts: keyed [ N.money := 260, N.energy := 70 ], capabilities: [ trade N.energyAtlantic ], capacities: keyed [] })
-  , Tuple N.de (entity { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ trade N.energyAtlantic ], capacities: keyed [] })
+  [ Tuple N.us (entity { accounts: pickAccounts N.us [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ], capacities: keyed [] })
+  , Tuple N.de (entity { accounts: pickAccounts N.de [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ], capacities: keyed [] })
   ]
 
 -- | Fixtures A and A2: two Atlantic traders, with and without a limit price.

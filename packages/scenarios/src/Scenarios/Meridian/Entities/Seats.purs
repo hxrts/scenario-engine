@@ -10,9 +10,10 @@ import Data.Argonaut.Core (fromObject, toObject)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Maybe (Maybe(..), maybe)
 import Foreign.Object as Object
-import DSL.Base (Built(..), Capability, Keyed, Qty, Tagged, keyed, (:=), trade, transfer, transform, enactWithholding, coverage, institutional, holdingOf, capacityOf, shortfallOf, shortfallRounds, payeeReceipts, volumeOf, final, cumulative)
+import DSL.Base (Built(..), Capability, Keyed, Qty, Tagged, trade, transfer, transform, enactWithholding, coverage, institutional, holdingOf, capacityOf, shortfallOf, shortfallRounds, payeeReceipts, volumeOf, final, cumulative)
 import DSL.World (atLeast, criterion, definition, entity, finishes, metric, neverShort, objective, own, totalAtLeast)
 import Scenarios.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
+import Scenarios.Meridian.Holdings (accountsOf, capacitiesOf)
 import Scenarios.Names as N
 
 -- | How a seat is driven when it has no player, and what covers it.
@@ -72,10 +73,6 @@ fallbackOf = case _ of
   Covered a -> Just (coverage a)
   _ -> Nothing
 
--- | A seat with no capacities.
-noCapacities :: Keyed Qty
-noCapacities = keyed []
-
 -- | The two regional Energy Markets, by name.
 atlantic :: String
 atlantic = N.energyAtlantic
@@ -89,9 +86,9 @@ investment = [ transform N.energyCapacityInvestment ]
 
 us :: Built "entity"
 us = seat
-  { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95, N.softPower := 60 ]
+  { accounts: accountsOf N.us
   , capabilities: government atlantic N.defenseProcurement <> allied
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.us
   , required: true
   , cover: Unassigned
   , objective: objective
@@ -107,9 +104,9 @@ us = seat
 
 de :: Built "entity"
 de = seat
-  { accounts: keyed [ N.money := 125, N.energy := 38, N.mil := 24, N.softPower := 45 ]
+  { accounts: accountsOf N.de
   , capabilities: dealer atlantic <> allied <> [ transform N.publicAttention, transform N.humanitarianAid, transform N.militaryDeployment, transfer N.mil, transfer N.energy ] <> shipping
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.de
   , required: false
   , cover: Covered N.eu
   , objective: objective
@@ -125,9 +122,9 @@ de = seat
 
 india :: Built "entity"
 india = seat
-  { accounts: keyed [ N.money := 180, N.energy := 65, N.mil := 65, N.softPower := 35 ]
+  { accounts: accountsOf N.india
   , capabilities: government asia N.defenseProcurement <> investment
-  , capacities: keyed [ N.energyProduction := 5 ]
+  , capacities: capacitiesOf N.india
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -143,9 +140,9 @@ india = seat
 
 jp :: Built "entity"
 jp = seat
-  { accounts: keyed [ N.money := 150, N.energy := 40, N.mil := 36, N.softPower := 48 ]
+  { accounts: accountsOf N.jp
   , capabilities: government asia N.defenseProcurement <> allied
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.jp
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -161,9 +158,9 @@ jp = seat
 
 uk :: Built "entity"
 uk = seat
-  { accounts: keyed [ N.money := 130, N.energy := 30, N.mil := 38, N.softPower := 47 ]
+  { accounts: accountsOf N.uk
   , capabilities: government atlantic N.defenseProcurement <> allied
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.uk
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -179,9 +176,9 @@ uk = seat
 
 br :: Built "entity"
 br = seat
-  { accounts: keyed [ N.money := 105, N.energy := 85, N.mil := 25, N.softPower := 32 ]
+  { accounts: accountsOf N.br
   , capabilities: government atlantic N.defenseProcurement <> investment
-  , capacities: keyed [ N.energyProduction := 13 ]
+  , capacities: capacitiesOf N.br
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -194,9 +191,9 @@ br = seat
 
 sa :: Built "entity"
 sa = seat
-  { accounts: keyed [ N.money := 155, N.energy := 110, N.mil := 32, N.softPower := 28 ]
+  { accounts: accountsOf N.sa
   , capabilities: government asia N.defenseProcurement <> investment
-  , capacities: keyed [ N.energyProduction := 25 ]
+  , capacities: capacitiesOf N.sa
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -212,9 +209,9 @@ sa = seat
 
 ng :: Built "entity"
 ng = seat
-  { accounts: keyed [ N.money := 85, N.energy := 60, N.mil := 18, N.softPower := 24 ]
+  { accounts: accountsOf N.ng
   , capabilities: government atlantic N.defenseProcurement <> investment
-  , capacities: keyed [ N.energyProduction := 12 ]
+  , capacities: capacitiesOf N.ng
   , required: false
   , cover: Governed N.policyGovernmentDefault
   , objective: objective
@@ -230,9 +227,9 @@ ng = seat
 
 enco :: Built "entity"
 enco = seat
-  { accounts: keyed [ N.money := 140, N.energy := 140, N.softPower := 20 ]
+  { accounts: accountsOf N.enco
   , capabilities: dealer atlantic <> investment <> [ transform N.publicAttention ] <> shipping
-  , capacities: keyed [ N.energyProduction := 25 ]
+  , capacities: capacitiesOf N.enco
   , required: false
   , cover: Governed N.policyFirmDefault
   , objective: objective
@@ -248,9 +245,9 @@ enco = seat
 
 chip :: Built "entity"
 chip = seat
-  { accounts: keyed [ N.money := 135, N.energy := 55, N.softPower := 30 ]
+  { accounts: accountsOf N.chip
   , capabilities: dealer asia <> [ enactWithholding, transform N.publicAttention ] <> shipping
-  , capacities: keyed [ N.semiconductors := 15 ]
+  , capacities: capacitiesOf N.chip
   , required: false
   , cover: Governed N.policyFirmDefault
   , objective: objective
@@ -266,9 +263,9 @@ chip = seat
 
 ship :: Built "entity"
 ship = seat
-  { accounts: keyed [ N.money := 110, N.energy := 65, N.softPower := 25 ]
+  { accounts: accountsOf N.ship
   , capabilities: [ trade atlantic, trade asia, transfer N.money, transfer N.energy, transform N.logisticsInvestment, transform N.publicAttention ] <> shipping
-  , capacities: keyed [ N.transport := 60 ]
+  , capacities: capacitiesOf N.ship
   , required: false
   , cover: Governed N.policyFirmDefault
   , objective: objective
@@ -284,9 +281,9 @@ ship = seat
 
 def :: Built "entity"
 def = seat
-  { accounts: keyed [ N.money := 110, N.energy := 30, N.mil := 5, N.softPower := 18 ]
+  { accounts: accountsOf N.def
   , capabilities: dealer atlantic <> [ transform N.publicAttention ] <> shipping
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.def
   , required: false
   , cover: Governed N.policyFirmDefault
   , objective: objective
@@ -299,9 +296,9 @@ def = seat
 
 labor :: Built "entity"
 labor = seat
-  { accounts: keyed [ N.money := 30, N.energy := 4, N.softPower := 42 ]
+  { accounts: accountsOf N.labor
   , capabilities: dealer atlantic <> [ transform N.strike, transform N.publicAttention ] <> shipping
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.labor
   , required: false
   , cover: Covered N.usWorkers
   , objective: objective
@@ -317,9 +314,9 @@ labor = seat
 
 sme :: Built "entity"
 sme = seat
-  { accounts: keyed [ N.money := 15, N.energy := 5, N.softPower := 12 ]
+  { accounts: accountsOf N.sme
   , capabilities: dealer atlantic <> shipping
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.sme
   , required: false
   , cover: Covered N.globalSmes
   , objective: objective
@@ -335,9 +332,9 @@ sme = seat
 
 aid :: Built "entity"
 aid = seat
-  { accounts: keyed [ N.money := 45, N.energy := 12, N.softPower := 55 ]
+  { accounts: accountsOf N.aid
   , capabilities: dealer atlantic <> [ transform N.humanitarianAid, transform N.publicAttention ] <> shipping
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.aid
   , required: false
   , cover: Covered N.worldHouseholds
   , objective: objective
@@ -353,9 +350,9 @@ aid = seat
 
 cn :: Built "entity"
 cn = seat
-  { accounts: keyed [ N.money := 255, N.energy := 95, N.mil := 88, N.softPower := 57 ]
+  { accounts: accountsOf N.cn
   , capabilities: government asia N.defenseProcurementCn
-  , capacities: noCapacities
+  , capacities: capacitiesOf N.cn
   , required: true
   , cover: NpcOnly N.policyChinaStrategic
   , objective: objective

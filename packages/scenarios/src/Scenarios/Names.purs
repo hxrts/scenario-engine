@@ -177,6 +177,13 @@ policyFirmDefault = "firm-default-v0"
 policySolidarityPool :: String
 policySolidarityPool = "solidarity-pool-v0"
 
+-- Procedures (the collective procedures of the EU Aggregate, Meridian.Entities.Aggregates) ------
+euSolidarity :: String
+euSolidarity = "eu-solidarity"
+
+euTrade :: String
+euTrade = "eu-trade"
+
 -- Files (the scenario package's JSON sections and the Gameboard's instantiation) ----------
 
 scenarioFile :: String

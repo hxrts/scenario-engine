@@ -13,6 +13,7 @@ import Data.Tuple (Tuple(..))
 import DSL.Base (q, Keyed, keyed, (:=), Built, trade, transfer, transform)
 import DSL.World (entity, market)
 import DSL.Fixture (expect, proposal, roundOf, tradeI, transferI, transformI)
+import Scenarios.Meridian.Holdings (pickAccounts)
 import Scenarios.Fixtures.Common (energy, facilities, fixture)
 import Scenarios.Meridian (defenceAccess, defenceTerms, deployment)
 
@@ -68,7 +69,7 @@ defenceMarkets = energy [ N.us ] [ N.jp ] <> keyed [ Tuple N.defenceGoods (marke
 -- | defence-goods Market, and Japan, an ally.
 usAndJapan :: Keyed (Built "entity")
 usAndJapan = keyed
-  [ Tuple N.us (entity { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95 ], capabilities: [ transform N.militaryDeployment, trade N.defenceGoods, transfer N.mil ] })
-  , Tuple N.jp (entity { accounts: keyed [ N.money := 150, N.energy := 40, N.mil := 36 ], capabilities: [] })
+  [ Tuple N.us (entity { accounts: pickAccounts N.us [ N.money, N.energy, N.mil ], capabilities: [ transform N.militaryDeployment, trade N.defenceGoods, transfer N.mil ] })
+  , Tuple N.jp (entity { accounts: pickAccounts N.jp [ N.money, N.energy, N.mil ], capabilities: [] })
   ]
 
