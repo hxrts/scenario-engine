@@ -8,7 +8,7 @@ module Dashboard.Results (mkRunResults, Props, roundCount, roundTarget) where
 import Prelude
 
 import Dashboard.Api (runPath, useApi)
-import Dashboard.Components (as, fetched, metricChart, status, tableOf)
+import Dashboard.Components (as, fetched, metricChart, stackedBars, status, tableOf)
 import Dashboard.Glossary (emptyCell)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
@@ -18,7 +18,7 @@ import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
-import Harness.Views.Actions (actionsStat)
+import Harness.Views.Actions (ActionsChart, actionsStat)
 import Harness.Views.Balance (giniStat, spreadStat)
 import Harness.Views.Common (Chart, Statistic, Table)
 import Harness.Views.Drivers (driversStat)
@@ -31,9 +31,9 @@ import React.Basic.Hooks as React
 -- | Compare page, not here.
 type Props = { id :: String, status :: String }
 
--- | The actions view model's totals (`/api/runs/:id/actions`): the run total per Actor. The per-round
--- | counts are in the API only.
-type Actions = { totals :: Table }
+-- | The actions view model's run chart and run totals (`/api/runs/:id/actions`). The per-round counts
+-- | are in the API only.
+type Actions = { chart :: ActionsChart, totals :: Table }
 
 -- | The balance view model's measures (`/api/runs/:id/balance`): the spread and Gini at the final round.
 -- | The objective completion is in the API only; the objectives table shows the same criteria.
@@ -151,8 +151,8 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
             }
         , Layout.section
             { title: "Actions"
-            , purpose: "What players do over the whole run: per player, trades, transforms, transfers paid, deals signed and Proposals rejected."
-            , children: [ fetch { path: path "actions", render: as \(a :: Actions) -> titled grid a.totals } ]
+            , purpose: "What each player does over the whole run, by kind of action: one bar per player, and the table gives the exact counts."
+            , children: [ fetch { path: path "actions", render: as \(a :: Actions) -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ stackedBars a.chart, titled grid a.totals ] } } ]
             }
         , Layout.section
             { title: "Drivers"

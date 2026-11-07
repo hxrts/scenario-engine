@@ -58,6 +58,31 @@ test("the run page shows standings, net worth, actions, drivers, balance measure
   await expect(page.getByRole("columnheader", { name: "Criterion", exact: true })).toBeVisible();
 });
 
+test("the Actions section charts one bar per player, with plain-language legend labels that match the table headers", async ({ page }) => {
+  const labels = [
+    "Market trades (buys and sells)",
+    "Production and procurement",
+    "Payments to other players",
+    "Deals signed",
+    "Proposals rejected",
+  ];
+  await page.goto("/#/runs/run-1");
+  const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Actions", exact: true }) });
+  const chart = section.locator(".recharts-wrapper").first();
+  await expect(chart.locator(".recharts-bar")).toHaveCount(labels.length);
+  // one bar per player: the x axis has a tick per player, and the table has a row per player
+  // the player names are the axis ticks that are not numbers (the value axis's ticks are numbers)
+  const ticks = chart.locator(".recharts-cartesian-axis-tick-value").filter({ hasNotText: /^[0-9.,]+$/ });
+  await expect.poll(() => ticks.count()).toBeGreaterThan(1);
+  const players = await ticks.count();
+  await expect(section.getByRole("table").getByRole("row")).toHaveCount(players + 1);
+  // the legend names each segment in plain language, and the table's headers are the same labels
+  for (const label of labels) {
+    await expect(chart.getByText(label, { exact: true })).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: label, exact: true })).toBeVisible();
+  }
+});
+
 test("the run page has no disclosure: no details or summary element, and no Details control", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();

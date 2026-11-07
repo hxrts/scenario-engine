@@ -1,7 +1,7 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
 -- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
-module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, fetched, status, definition, Render, as, card) where
+module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, stackedBars, fetched, status, definition, Render, as, card) where
 
 import Prelude
 
@@ -9,13 +9,15 @@ import Dashboard.Api (useApi)
 import Dashboard.Chart (chartRows)
 import Dashboard.DataTable (DataTable)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, fromNumber, fromString)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
-import Data.Array (index, mapWithIndex)
+import Data.Array (cons, index, mapWithIndex)
+import Data.Int (toNumber)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
+import Harness.Views.Actions (ActionsChart)
 import Harness.Views.Common (Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, element)
@@ -89,6 +91,35 @@ metricChart c = D.div
           }
       ]
   }
+
+-- | A stacked bar chart: one bar per player, stacked by kind, with a legend of the kinds' labels. The
+-- | chart's purpose line is shown above it; the counts are the view model's, mapped onto the bars here.
+stackedBars :: ActionsChart -> JSX
+stackedBars c = D.div
+  { className: "flex min-w-0 flex-col gap-2"
+  , children:
+      [ D.p { className: "text-sm font-medium", children: [ D.text c.title ] }
+      , D.p { className: "text-sm text-muted-foreground", children: [ D.text c.purpose ] }
+      , element UI.chartContainer
+          { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.kinds)
+          , className: "h-80 w-full"
+          , children:
+              [ element UI.barChart
+                  { data: map bar c.bars
+                  , children:
+                      [ element UI.cartesianGrid { vertical: false }
+                      , element UI.xAxis { dataKey: "player" }
+                      , element UI.yAxis { allowDecimals: false }
+                      , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+                      , element UI.chartLegend { content: element UI.chartLegendContent {} }
+                      ] <> map (\k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: "var(--color-" <> k.key <> ")", isAnimationActive: false }) c.kinds
+                  }
+              ]
+          }
+      ]
+  }
+  where
+  bar b = Object.fromFoldable (cons (Tuple "player" (fromString b.player)) (map (\s -> Tuple s.key (fromNumber (toNumber s.count))) b.counts))
 
 -- | Decode a view model and render it, or show the decoding error.
 as :: forall a. DecodeJson a => (a -> JSX) -> Render

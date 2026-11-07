@@ -24,6 +24,8 @@ foreign import chartLegend :: C
 foreign import chartLegendContent :: C
 foreign import lineChart :: C
 foreign import line :: C
+foreign import barChart :: C
+foreign import bar :: C
 foreign import xAxis :: C
 foreign import yAxis :: C
 foreign import cartesianGrid :: C
