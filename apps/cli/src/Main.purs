@@ -8,7 +8,7 @@ module Main (main) where
 import Prelude
 
 import Adapters.Pi (defaultModel)
-import Adapters.Seed (resolveSeed)
+import Adapters.Random (resolveSeed)
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine.Prepare (prepareRound)

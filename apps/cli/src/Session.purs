@@ -9,7 +9,7 @@ import Prelude
 
 import Adapters.Clock (nowIso)
 import Adapters.Pi (pi)
-import Adapters.Seed (resolveSeed)
+import Adapters.Random (resolveSeed)
 import Adapters.SQLite (open, sqliteBackend)
 import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed)

@@ -11,6 +11,11 @@
 - **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Impure work is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
 - **One-way dependencies.** A package depends only on the packages in its row of the table in [§3](#3-codebase-layout). Packages at the same level never import each other.
 - **Narrow seams.** Packages meet at the small interfaces in [§4](#4-key-interfaces). Code behind an interface can change without touching its callers.
+- **Three layers for impure work.** Each concern has one home:
+  - **Adapters expose devices.** An adapter wraps one device (the filesystem, SQLite, a process, the clock, the OS seed) as raw primitives: text in, text out, or one statement. It knows nothing of games, runs, prompts or scenarios.
+  - **Effects define the program's interface to a device.** A module in `effects` declares the operations a program may request, with their typed requests and replies. It contains no implementation.
+  - **Handlers hold the program logic.** A handler interprets an effect's operations over a device primitive. Prompt building, reply decoding, fallbacks, run lifecycle, and recording belong here. Handlers never import adapters; the composition root wires the two.
+  - A new device is a new adapter; a new program need is a new operation and its handler. Domain rules are not in any of the three; they stay in `core`, `board`, `policy` and `scenarios`.
 - **Scenarios are data.** Gameboards, instantiations, fixtures, and presets are declarative data, authored in a typed PureScript DSL that compiles to JSON. The engine reads only the compiled files. Fixture expected values are literals, never computed.
 - **Small.** One concept per module. No frameworks inside the core.
 
@@ -33,7 +38,7 @@ Each round is one call to `runRound`. Seats propose and sign through `SEAT_INPUT
 
 ## 3. Codebase Layout
 
-The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. `just check` runs `scripts/check-deps`, which fails if a package depends on a package outside this table, or if a pure package (`core`, `board`, `policy`) depends on an effect, `aff`, `run`, or `node-*` library. Test sections are not checked, so test suites may import more (for example, the handler and simulator tests use `sp-scenarios` and `sp-adapters`).
+The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. `just check` runs `scripts/check-deps`, which fails if a package depends on a package outside this table, or if a pure package (`core`, `board`, `policy`) depends on an effect, `aff`, `run`, or `node-*` library. Test sections may import more, except that the simulator's tests may not import `analysis`, which depends on the simulator (a cycle).
 
 | Package | May depend on |
 |---|---|
@@ -68,7 +73,7 @@ packages/
                decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD over a
                StoreBackend); test/Test/Handlers/Stub holds the stub backend and the recording replay
   adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.SQLite (SQLite statements and the JSON
-               text of stored values; `sqliteBackend`), Adapters.Clock (wall clock), Adapters.Seed (the only OS seed),
+               text of stored values; `sqliteBackend`), Adapters.Clock (wall clock), Adapters.Random (the only OS seed),
                Adapters.Filesystem (file reads, directory listings, environment variables; `fileOps`)
   simulator/   Simulator.Simulate, Overrides, Records, Options, Capstone (simulation orchestration)
   analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models)
@@ -127,7 +132,7 @@ The request and reply types of each operation are declared beside it in `effects
 
 Randomness needs no effect. Every draw is the pure `Core.Draw.draw` on the game seed or the player seed, and the handler supplies the player seed.
 
-**Simulation** (`simulator`, `Simulator.Simulate`). The simulator runs a spec through `runRound` with a chosen handler. It reads no entropy: the seed is resolved before the call (`Adapters.Seed`).
+**Simulation** (`simulator`, `Simulator.Simulate`). The simulator runs a spec through `runRound` with a chosen handler. It reads no entropy: the seed is resolved before the call (`Adapters.Random`).
 
 ```purescript
 simulate     :: Context -> SimulationSpec -> Either String Run
@@ -151,7 +156,7 @@ type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendR
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.SQLite.sqliteBackend` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `capstone/transcript.json`; neither is production code.
 
-**Run Store** (`effects/Signatures` `STORE`, `handlers/Store`, `adapters/Store`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
+**Run Store** (`effects/Signatures` `STORE`, `effects/Store` constructors, `handlers/Store`, `adapters/SQLite`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
 
 ```purescript
 data StoreF a = CreateRun NewRun (Unit -> a) | FailRunning String (Int -> a) | ... | ListRuns (Array RunInfo -> a) | ReadRounds String (Array StoredRound -> a) | ...

@@ -16,7 +16,7 @@ module Server.Launch
 
 import Prelude
 
-import Adapters.Seed (resolveSeed)
+import Adapters.Random (resolveSeed)
 import Adapters.Clock (nowIso)
 import Effects.Store (createRun, failRun, failRunning, listSummaries)
 import Handlers.Store (StoreBackend, finish, persister, runStore)

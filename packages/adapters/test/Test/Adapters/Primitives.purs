@@ -8,7 +8,7 @@ import Prelude
 import Adapters.Clock (nowIso)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile, readScenario)
-import Adapters.Seed (resolveSeed)
+import Adapters.Random (resolveSeed)
 import Core.Draw (Seed(..))
 import Data.Array (length, sort)
 import Data.Either (Either(..))
