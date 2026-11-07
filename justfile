@@ -99,7 +99,14 @@ ui-accept:
 
 # Build the _dashboard bundle
 _dashboard: _ui
+    #!/usr/bin/env bash
+    set -euo pipefail
     spago build -p sp-dashboard
+    # the bundle is rebuilt only when something it is built from is newer than it
+    if [ -f apps/dashboard/dist/index.html ] && [ -z "$(find apps/dashboard/src apps/dashboard/ui apps/dashboard/app.css apps/dashboard/theme.css apps/dashboard/index.html apps/dashboard/main.js apps/dashboard/vite.config.mjs apps/dashboard/ports.mjs output/Dashboard* -newer apps/dashboard/dist/index.html -print -quit)" ]; then
+      echo "dashboard bundle is up to date"
+      exit 0
+    fi
     vite build --config apps/dashboard/vite.config.mjs
 
 # Serve the API and dashboard
