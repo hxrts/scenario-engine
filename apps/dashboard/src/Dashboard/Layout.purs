@@ -4,23 +4,13 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (page, section, grid, panel, tile, details) where
+module Dashboard.Layout (page, section, grid, panel, details) where
 
 import Prelude
 
 import Dashboard.UI as UI
 import React.Basic.DOM as D
 import React.Basic.Hooks (JSX, element)
-
--- | A figure: a label (with its definition on hover) and its value, on three of the 12 columns.
-tile :: { label :: String, title :: String, value :: JSX } -> JSX
-tile t = D.div
-  { className: "col-span-6 min-w-0 rounded-md border p-3 lg:col-span-3"
-  , children:
-      [ D.p { className: "text-xs text-muted-foreground", title: t.title, children: [ D.text t.label ] }
-      , D.div { className: "break-words text-lg font-semibold", children: [ t.value ] }
-      ]
-  }
 
 -- | One topic's deep views, behind a single Details disclosure that is closed until opened.
 details :: { title :: String, purpose :: String, children :: Array JSX } -> JSX

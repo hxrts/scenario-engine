@@ -16,7 +16,7 @@ import Dashboard.Presets (presetNames)
 import Dashboard.Results (mkRunResults, roundCount, roundTarget)
 import Dashboard.Route (Route(..), href, route)
 import Dashboard.RunActions as Actions
-import Dashboard.Runs (RunInfo, derivedFrom, mergeRuns, runInfo, runInfos, sourceRow)
+import Dashboard.Runs (RunInfo, derivedFrom, mergeRuns, readableIds, runInfo, runInfos, sourceRow)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
@@ -57,7 +57,7 @@ runKeyColumn :: Int
 runKeyColumn = 0
 
 -- | The comparison view model (`/api/compare`); each part is one of its fields.
-type CompareView = { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table }
+type CompareView = { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table, seeds :: Table }
 
 -- | The run list. Without `archived` it is the runs that are not archived; with it, the archived
 -- | runs are listed too (the list's `?archived=true`), in one table.
@@ -97,6 +97,7 @@ compareTabs grid ids market =
   , part "Baseline diff" "The holdings that differ from the first run, for each run, as a change." comparePath (\c -> tableOf grid c.diff)
   , part "Configuration" "The specification settings that differ between the runs; differing values are highlighted." comparePath (\c -> diffTable grid { baseline: 1 } c.config)
   , part "Compatibility" "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection." comparePath (\c -> tableOf grid c.compatibility)
+  , part "Seed variation" "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported." comparePath (\c -> tableOf grid c.seeds)
   , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", path: "/api/agency", render: as \(t :: Table) -> tableOf grid t }
   ]
   where
@@ -257,7 +258,7 @@ mkManage = do
 -- | manage actions are stacked under them. Selecting a row changes the route, so a selected run has
 -- | its own address. Archive, resume and delete bump `version`, which refetches the list and remounts
 -- | the selected run's panels.
-mkRuns :: DataTable -> Component { selected :: Maybe String, compareSet :: Array String, toggle :: String -> Effect Unit }
+mkRuns :: DataTable -> Component { selected :: Maybe String }
 mkRuns grid = do
   results <- mkRunResults grid
   manage <- mkManage
@@ -305,16 +306,9 @@ mkRuns grid = do
                             [ Layout.panel
                                 { span: 12
                                 , title: "Results"
-                                , purpose: "The run's key results: its figures, price, balances, objectives, and rejections and shortfalls. Each deeper topic is under its Details."
+                                , purpose: "The run's results in the order of the five questions: standings, net worth, actions, drivers beside prices, and the balance of the game. Each deeper topic is under its Details."
                                 , children:
-                                    [ results
-                                        { id: current
-                                        , inComparison: elem current p.compareSet
-                                        , comparisonCount: Array.length p.compareSet
-                                        , comparisonHref: href (Compare p.compareSet)
-                                        , toggleComparison: p.toggle current
-                                        }
-                                    ]
+                                    [ results { id: current } ]
                                 }
                             , Layout.panel
                                 { span: 12
@@ -356,14 +350,19 @@ mkCompare grid = do
   fetch <- fetched
   component "Compare" \ids -> React.do
     markets <- useApi ids (runPath (fromMaybe "" (head ids)) <> "/markets")
+    everyRun <- useFetch unit (listRuns true)
     picked /\ setPicked <- useState' (Nothing :: Maybe String)
     pure $ Layout.page
       { title: "Compare runs"
       , purpose: "Runs side by side: their price trajectories, final holdings, configuration differences, and compatibility."
       , children:
-          [ if null ids then Layout.section
+          [ case everyRun of
+              Just (Right (t :: Table)) -> choices t ids
+              Just (Left e) -> status (Just e)
+              Nothing -> status Nothing
+          , if null ids then Layout.section
               { title: "No runs selected"
-              , purpose: "Add a run to the comparison from its results, then open the comparison."
+              , purpose: "Tick runs in the list above to compare them."
               , children: [ D.a { href: href Runs, className: "underline", children: [ D.text "Go to the run list" ] } ]
               }
             else Layout.section
@@ -394,6 +393,35 @@ mkCompare grid = do
               }
           ]
       }
+
+-- | The Compare page's choices: every readable run as a checkbox, so no id is typed. Ticking a run adds
+-- | it to the comparison (the route's ids, in the order ticked; the first is the baseline), and
+-- | unticking removes it. Each tick changes the route.
+choices :: Table -> Array String -> JSX
+choices t ids = Layout.section
+  { title: "Choose runs"
+  , purpose: "Every readable run. Tick the runs to compare; the first run ticked is the baseline."
+  , children:
+      [ D.div
+          { className: "flex flex-col gap-2"
+          , children: readableIds t <#> \id -> D.label
+              { key: id
+              , className: "flex items-center gap-2 text-sm"
+              , children:
+                  [ element UI.checkbox
+                      { checked: elem id ids
+                      , onCheckedChange: mkEffectFn1 (\on -> setHash (print route (Compare (toggled id on))))
+                      }
+                  , D.text id
+                  ]
+              }
+          }
+      ]
+  }
+  where
+  toggled id on
+    | on = if elem id ids then ids else ids <> [ id ]
+    | otherwise = filter (_ /= id) ids
 
 -- | The market selector and the tabs, for the chosen market (the trajectory's default is the Atlantic energy market).
 marketPicker :: Array Chart -> Maybe String -> (Maybe String -> Effect Unit) -> Array String -> DataTable -> Fetched -> JSX
@@ -463,7 +491,7 @@ shell current compareSet themeButton page = D.div
     , children: [ D.text label ]
     }
 
--- | The app: the routes and the comparison set (added from any run, and taken from a compare route).
+-- | The app: the routes and the comparison set (the ids of the Compare route, shown in the top bar).
 -- | `#/runs` and `#/runs/:id` render the same Runs component, so its list keeps its state as a run is
 -- | selected.
 mkApp :: Component Unit
@@ -481,11 +509,9 @@ mkApp = do
       case r of
         Compare ids -> setCompareSet ids
         _ -> pure unit
-    let
-      toggleComparison id = setCompareSet (if elem id compareSet then filter (_ /= id) compareSet else compareSet <> [ id ])
     pure $ shell current compareSet (toggle unit) case current of
-      Runs -> runsPage { selected: Nothing, compareSet, toggle: toggleComparison }
-      Run id -> runsPage { selected: Just id, compareSet, toggle: toggleComparison }
+      Runs -> runsPage { selected: Nothing }
+      Run id -> runsPage { selected: Just id }
       Prepare -> prepare unit
       Compare ids -> D.div { key: String.joinWith "," ids, children: [ compare ids ] }
 

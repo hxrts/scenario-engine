@@ -1,7 +1,7 @@
 -- | Reads of the run list's Table (`/api/runs`) by column name: an archived flag, the source run
 -- | a run was derived from, and the runs derived from a given run. Pure; the server decides the
 -- | values, and this only reads the columns it returns.
-module Dashboard.Runs (RunInfo, runInfos, runInfo, mergeRuns, derivedFrom, sourceRow) where
+module Dashboard.Runs (RunInfo, runInfos, runInfo, mergeRuns, derivedFrom, sourceRow, readableIds) where
 
 import Prelude
 
@@ -36,6 +36,11 @@ sourceRow :: Table -> Array String -> Maybe String
 sourceRow t row = case cell t "Source" row of
   "" -> Nothing
   s -> Just s
+
+-- | The ids of the runs the server can read (every status but `unreadable`), in list order: the choices
+-- | the Compare page offers.
+readableIds :: Table -> Array String
+readableIds t = map (cell t "Run") (filter (\row -> cell t "Status" row /= "unreadable") t.rows)
 
 -- | The ids of the runs whose Source is this run, in list order.
 derivedFrom :: Table -> String -> Array String

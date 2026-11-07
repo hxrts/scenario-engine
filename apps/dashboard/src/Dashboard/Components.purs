@@ -1,7 +1,7 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
 -- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
-module Dashboard.Components (tableOf, linkedTable, diffTable, fieldList, metricChart, fetched, status, Render, as, card) where
+module Dashboard.Components (tableOf, linkedTable, diffTable, fieldList, metricChart, fetched, status, definition, Render, as, card) where
 
 import Prelude
 
@@ -17,7 +17,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Harness.Views.Common (Chart, Table)
+import Harness.Views.Common (Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, element)
 import React.Basic.Hooks as React
@@ -28,6 +28,13 @@ type Render = Json -> JSX
 card :: String -> Array JSX -> JSX
 card title body = element UI.card
   { children: [ element UI.cardHeader { children: [ element UI.cardTitle { children: [ D.text title ] } ] }, element UI.cardContent { children: body } ] }
+
+-- | A statistic's name and its one-line definition, shown above the view that holds it.
+definition :: Statistic -> JSX
+definition s = D.p
+  { className: "text-sm text-muted-foreground"
+  , children: [ D.span { className: "font-medium text-foreground", children: [ D.text (s.name <> ": ") ] }, D.text s.definition ]
+  }
 
 -- | A view-model Table as a sortable table. Its cells are plain text.
 tableOf :: DataTable -> Table -> JSX

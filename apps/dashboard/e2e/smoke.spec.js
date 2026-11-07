@@ -39,21 +39,23 @@ test("the home page shows the latest run's results without any extra click", asy
   // the latest readable run is run-1 in the mocked list; its summary is visible at once
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
   await expect(page.getByText("Price", { exact: true })).toBeVisible();
-  await expect(page.getByText("Balances", { exact: true })).toBeVisible();
-  await expect(page.getByText("Objectives", { exact: true })).toBeVisible();
-  await expect(page.getByText("Rejections and shortfalls", { exact: true })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "Shortfalls (E)" })).toBeVisible();
+  await expect(page.getByText("Balance of the game", { exact: true })).toBeVisible();
+  await expect(page.getByText("Drivers", { exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Driver", exact: true })).toBeVisible();
 });
 
-test("a run's key results are visible without opening any tab or Details section", async ({ page }) => {
+test("the standings come before any Details, and the net-worth chart and drivers timeline are present", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  // the balances after the final round (round 3), the same figures the balance sheets show
-  await expect(rowWith(page, ["AID", "Actor", "E", "12.0000", "17.0000", "5.0000"])).toHaveCount(1);
-  await expect(rowWith(page, ["BR", "Actor", "E", "85.0000", "111.0000", "26.0000"])).toHaveCount(1);
-  // the price chart and the objectives table are on the page
-  await expect(page.locator(".recharts-wrapper").first()).toBeVisible();
-  await expect(page.locator(".recharts-line")).not.toHaveCount(0);
-  await expect(page.getByRole("columnheader", { name: "Objective", exact: true })).toBeVisible();
+  // the standings table is the first view in the results: its heading precedes every Details disclosure
+  const standings = page.getByRole("heading", { name: "Standings", exact: true });
+  await expect(standings).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Change from start (M)", exact: true })).toBeVisible();
+  const firstDetails = page.locator("details").first();
+  expect((await standings.boundingBox()).y).toBeLessThan((await firstDetails.boundingBox()).y);
+  // the net-worth chart has one line per player, and the drivers timeline sits beside the price chart
+  await expect(page.getByText("Net worth by player (M)", { exact: true })).toBeVisible();
+  await expect(page.locator(".recharts-line").first()).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Driver", exact: true })).toBeVisible();
   // and no Details section is open
   await expect(page.locator("details[open]")).toHaveCount(0);
 });
@@ -128,28 +130,26 @@ test("a round past the run's last round is clamped, and the balances shown are t
   await expect(rowNamed(details(page, "Balance sheets by round"), ["BR", "Actor", "E", "85.0000", "98.0000", "13.0000"])).toHaveCount(1);
 });
 
-test("a run is added to the comparison from its results, and the comparison shows the selected runs", async ({ page }) => {
-  // the runs are numbered by the store, so the ids come from the page: the latest run, then the oldest
-  await page.goto("/#/runs");
-  const latest = (await page.getByRole("heading", { name: /^Run / }).textContent()).replace("Run ", "");
-  await page.getByRole("button", { name: "Add to comparison", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Compare (1)" })).toBeVisible();
-  const oldest = (await page.getByRole("button", { name: /^run-/ }).first().textContent()).trim();
-  await page.getByRole("button", { name: oldest, exact: true }).click();
-  await expect(page.getByRole("heading", { name: `Run ${oldest}` })).toBeVisible();
-  await page.getByRole("button", { name: "Add to comparison", exact: true }).click();
-  await page.getByRole("link", { name: "Compare (2)" }).click();
-  await expect(page).toHaveURL(new RegExp(`#/compare/${latest}/${oldest}$`));
-  await expect(page.getByRole("heading", { name: "Runs compared" })).toBeVisible();
-  await expect(page.getByRole("link", { name: latest, exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: oldest, exact: true })).toBeVisible();
+test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("button", { name: /comparison/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /comparison/i })).toHaveCount(0);
+  await page.goto("/#/compare");
+  for (const id of ["run-1", "run-2", "run-3", "run-4"])
+    await expect(page.getByRole("checkbox", { name: id, exact: true })).toBeVisible();
 });
 
-test("the comparison is reachable from a run's page too", async ({ page }) => {
-  await page.goto("/#/runs/run-3");
-  await page.getByRole("button", { name: "Add to comparison", exact: true }).click();
-  await page.getByRole("link", { name: "Compare (1)" }).click();
+test("choosing runs on the Compare page builds the comparison from the ticked runs, in the order ticked", async ({ page }) => {
+  await page.goto("/#/compare");
+  await page.getByRole("checkbox", { name: "run-3", exact: true }).click();
   await expect(page).toHaveURL(/#\/compare\/run-3$/);
+  await page.getByRole("checkbox", { name: "run-1", exact: true }).click();
+  await expect(page).toHaveURL(/#\/compare\/run-3\/run-1$/);
+  await expect(page.getByRole("link", { name: "Compare (2)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Runs compared" })).toBeVisible();
+  // unticking a run takes it out of the comparison
+  await page.getByRole("checkbox", { name: "run-3", exact: true }).click();
+  await expect(page).toHaveURL(/#\/compare\/run-1$/);
 });
 
 test("three-run comparison shows trajectories for the chosen market and the configuration diff", async ({ page }) => {

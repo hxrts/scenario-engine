@@ -8,7 +8,7 @@ import Dashboard.Launch (emptyForm, validate)
 import Dashboard.Presets (presetNames)
 import Dashboard.Route (Route(..), route)
 import Dashboard.RunForms (Derived, derivedOf, deleteConfirmed, deriveBody, optionalPreset, optionalRounds, optionalSeed, requiredName, requiredRounds, resumeBody, variantSpec)
-import Dashboard.Runs (derivedFrom, mergeRuns, runInfo, sourceRow)
+import Dashboard.Runs (derivedFrom, mergeRuns, readableIds, runInfo, sourceRow)
 import Data.Argonaut.Core (stringify, toObject)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (sort)
@@ -52,6 +52,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a run id with reserved characters is one segment, encoded and decoded intact" do
       parse route (print route (Run "a/b c")) `shouldEqual` Right (Run "a/b c")
       parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])
+  describe "Compare choices" do
+    it "every readable run is a choice, and an unreadable run is not" do
+      let t = { title: "Simulation runs", columns: [ "Run", "Status" ], rows: [ [ "run-1", "completed" ], [ "run-2", "unreadable" ], [ "run-3", "completed" ] ] } :: Table
+      readableIds t `shouldEqual` [ "run-1", "run-3" ]
   describe "Data table sorting" do
     it "numeric cells compare as numbers, text as text" do
       compareCells "9" "10" `shouldEqual` LT
