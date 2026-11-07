@@ -16,7 +16,7 @@ import Data.Maybe (fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Analysis.Views.Common (Bars)
+import Views.Common (Bars)
 
 type Series = { name :: String, points :: Array { round :: Int, value :: String } }
 

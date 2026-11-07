@@ -17,7 +17,7 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Analysis.Views.Overview (RunFlags, RunList)
+import Views.Overview (RunFlags, RunList)
 import Data.Foldable (for_)
 import Foreign.Object as Object
 import Routing.Duplex (parse, print)

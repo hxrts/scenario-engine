@@ -1,6 +1,6 @@
 -- | The server's entry point (docs/06_simulator.md §8–§10): parses the flags, opens the Run Store,
 -- | and serves the routes of `Server.Routes` on the port. The handlers live in `Server.Read`,
--- | `Server.Launch`, and `Server.Derive`; the views are computed in `Analysis.Views`.
+-- | `Server.Launch`, and `Server.Derive`; the views are computed in `Views`.
 module Server (main) where
 
 import Prelude

@@ -38,7 +38,7 @@ import Effects.Store (createRun, failRun, finish)
 import Foreign.Object as Object
 import Handlers.Live (runLive)
 import Handlers.Llm (agents, interpreter, narrator)
-import Analysis.Views.Metrics (roundMetrics)
+import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore)
 import Node.Process (exit')
 import Game.Assemble (assemble, liveBindings, withRounds)

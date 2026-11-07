@@ -3,7 +3,7 @@
 -- | questions in order: the key figures, the marginal prices, the standings, net worth over time, the
 -- | actions players take, the drivers, the balance of the game, the objectives, and the final balance
 -- | sheet. Every number comes from the read API; this module chooses what to show and where, and renders
--- | each statistic's definition from its record in `Analysis.Views`.
+-- | each statistic's definition from its record in `Views`.
 module Dashboard.Results (mkRunResults, Props) where
 
 import Prelude
@@ -18,12 +18,12 @@ import Dashboard.Layout as Layout
 import Data.Array (index)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), maybe)
-import Analysis.Views.Actions (ActionsChart, actionsStat)
-import Analysis.Views.Balance (giniStat, spreadStat)
-import Analysis.Views.Common (Chart, Table)
-import Analysis.Views.Drivers (driversStat)
-import Analysis.Views.Overview (Fact, RunOverview)
-import Analysis.Views.Standings (netWorthStat)
+import Views.Actions (ActionsChart, actionsStat)
+import Views.Balance (giniStat, spreadStat)
+import Views.Common (Chart, Table)
+import Views.Drivers (driversStat)
+import Views.Overview (Fact, RunOverview)
+import Views.Standings (netWorthStat)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, useContext)
 import React.Basic.Hooks as React

@@ -27,7 +27,7 @@ import Effects.Signatures (Spec, Stored, StoredRound)
 import Effects.Store (deleteRun, failRun, finish, listRuns, readManifest, readRounds, setArchived, setSpec, setStatus)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Analysis.Views.Metrics (roundMetrics)
+import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, persister, runStore)
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)

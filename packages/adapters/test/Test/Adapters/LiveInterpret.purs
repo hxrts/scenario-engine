@@ -27,7 +27,7 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (interpreter)
 import Node.Process (exit', lookupEnv)
-import Test.Adapters.Game (presetGame)
+import Testkit.Meridian (presetSeats)
 
 -- | The fixed transcripts: the US and Germany describe one trade, and Japan says something unrelated.
 transcripts :: Array Transcript
@@ -39,7 +39,7 @@ transcripts =
 
 world :: Aff WorldState
 world = do
-  g <- presetGame [] "Passive" Nothing
+  g <- presetSeats [] "Passive" Nothing
   pure g.world
 
 -- | One joint pass, then the checks. A failed check throws; the caller reports and exits 1.

@@ -1,6 +1,6 @@
 -- | The read handlers (docs/06_simulator.md §8–§10): the run list summaries, a stored run decoded
 -- | whole, the per-run views, the comparison, and the agency analysis. Every view is computed in
--- | `Analysis.Views`; this module decodes the stored text, picks the view, and replies.
+-- | `Views`; this module decodes the stored text, picks the view, and replies.
 module Server.Read
   ( param
   , runSummaries
@@ -30,21 +30,21 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Analysis.Agency (agency)
+import Experiments.Agency (agency)
 import Game.Assemble (assemblePreset, configuredSeats)
 import Game.Premise (GameboardParts)
 import Core.Draw (Seed(..))
-import Analysis.Views.Actions as Actions
-import Analysis.Views.Balance as Balance
-import Analysis.Views.Balances as Balances
-import Analysis.Views.Common (StoredRun, defaultMetricSpec)
-import Analysis.Views.Compare as Compare
-import Analysis.Views.Drivers as Drivers
-import Analysis.Views.Entity as Entity
-import Analysis.Views.Markets as Markets
-import Analysis.Views.Overview as Overview
-import Analysis.Views.Representation as Representation
-import Analysis.Views.Standings as Standings
+import Views.Actions as Actions
+import Views.Balance as Balance
+import Views.Balances as Balances
+import Views.Common (StoredRun, defaultMetricSpec)
+import Views.Compare as Compare
+import Views.Drivers as Drivers
+import Views.Entity as Entity
+import Views.Markets as Markets
+import Views.Overview as Overview
+import Views.Representation as Representation
+import Views.Standings as Standings
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, ok, viewOr)
 
@@ -160,7 +160,7 @@ entitiesView store id = loadRun store id >>= case _ of
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
 
--- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Analysis.Views.Entity`).
+-- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
 entityView :: StoreBackend -> String -> String -> Effect Response
 entityView store id entity = loadRun store id >>= case _ of

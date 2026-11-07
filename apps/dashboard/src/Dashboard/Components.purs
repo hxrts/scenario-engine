@@ -42,8 +42,8 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Foreign.Object as Object
 import Unsafe.Coerce (unsafeCoerce)
-import Analysis.Views.Actions (ActionsChart)
-import Analysis.Views.Common (Bars, Chart, Statistic, Table)
+import Views.Actions (ActionsChart)
+import Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler)

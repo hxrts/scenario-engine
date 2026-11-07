@@ -1,0 +1,33 @@
+package:
+  name: sp-views
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-schema
+    - sp-checks
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
+    - strings
+    - newtype
+    - argonaut-core
+  test:
+    main: Test.Views.Main
+    dependencies:
+      - aff
+      - effect
+      - exceptions
+      - sp-testkit
+      - sp-checks
+      - argonaut-core
+      - spec
+      - spec-node
+      - now
+      - datetime
+      - newtype
+      - quickcheck
+      - spec-quickcheck

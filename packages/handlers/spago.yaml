@@ -30,6 +30,7 @@ package:
       - sp-premises
       - sp-checks
       - sp-adapters
+      - sp-testkit
       - aff
       - exceptions
       - partial

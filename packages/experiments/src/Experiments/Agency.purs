@@ -1,0 +1,87 @@
+-- | Counterfactuals, player-seed runs and agency (docs/06_simulator.md §10.4–§11, §10.5). Every
+-- | experiment composes the pure `simulate`; none has its own run loop. The views present the results.
+module Experiments.Agency
+  ( difference
+  , counterfactual
+  , playerSeedRuns
+  , agency
+  ) where
+
+import Prelude
+
+import Core.Draw (Seed(..))
+import Core.Num as Q
+import Core.Query (eventsOf)
+import Core.Query as Query
+import Core.Types (EntityId)
+import Core.World (Event(..), WorldState)
+import Data.Array (concatMap, filter, length, zipWith)
+import Data.Either (Either(..), hush)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), maybe)
+import Data.Traversable (traverse)
+import Checks.Objectives (evaluateObjectives)
+import Foreign.Object (Object)
+import Foreign.Object as Object
+import Core.Strategy (Strategy)
+import Schema.Gameboard (Gameboard)
+import Game.Error (GameError(..))
+import Game.Types (Game, SeatBinding(..))
+import Simulator.Simulate (SimRun, simulate)
+import Views.Agency (AgencyProfile)
+import Views.Difference (Difference, differenceOfWorlds)
+
+finalWorld :: SimRun -> Maybe WorldState
+finalWorld r = hush r.final
+
+-- | The difference of two runs' final states; a run that did not finish has no difference.
+difference :: SimRun -> SimRun -> Difference
+difference base other = case finalWorld base, finalWorld other of
+  Just a, Just b -> differenceOfWorlds a b
+  _, _ -> { holdings: [], prices: [] }
+
+-- | Change exactly one thing and replay with both seeds fixed (§10.4).
+counterfactual :: Seed -> Game -> (Game -> Game) -> Either GameError { base :: SimRun, variant :: SimRun, difference :: Difference }
+counterfactual seed game change = do
+  base <- simulate seed game
+  variant <- simulate seed (change game)
+  pure { base, variant, difference: difference base variant }
+
+-- | Player-seed distribution: the game seed fixed, the player seed varied (§11).
+playerSeedRuns :: Game -> Array Int -> Either GameError (Array SimRun)
+playerSeedRuns game seeds = traverse (\s -> simulate (Seed s) game) seeds
+
+-- | For each seat, replay with the alternative preset while everything else is fixed. The
+-- | alternative must be a known preset: `simulate` names an unknown one, so it is an error, not a silent baseline.
+agency :: Gameboard -> Object Strategy -> Seed -> Game -> String -> Array EntityId -> Either GameError (Array AgencyProfile)
+agency gameboard presets seed game alternative actors = do
+  base <- simulate seed game
+  replacement <- maybe (Left (UnknownPreset alternative)) Right (Object.lookup alternative presets)
+  traverse (profile base replacement) actors
+  where
+  profile base replacement actor = do
+    variant <- simulate seed game { seats = Map.insert actor (Strategy replacement) game.seats }
+    let
+      d = difference base variant
+      isAggregate e = maybe false Query.isAggregate (finalWorld base >>= \w -> Map.lookup e w.entities)
+      absSum xs = Q.sumQ (map Q.abs xs)
+      prices = absSum (map _.delta d.prices)
+      others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
+      aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
+      outcomes r = concatMap (\x -> eventsOf executedOf x.record.events) r.records
+      executedOf = case _ of
+        ProcedureOutcome o -> Just o.executed
+        _ -> Nothing
+      institutions = if outcomes base == outcomes variant then 0 else 1
+      own r = map _.outcome (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives gameboard r.records)))
+      objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
+    pure
+      { actor
+      , alternative
+      , prices
+      , others
+      , aggregates
+      , institutions
+      , objectives
+      , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
+      }

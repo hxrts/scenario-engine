@@ -1,12 +1,12 @@
 -- | The glossary's lookups for the tables and the header. The text is the server's (`GET /api/glossary`,
--- | `Analysis.Views.Glossary`): this module only finds the entry for a name and fills its placeholders.
+-- | `Views.Glossary`): this module only finds the entry for a name and fills its placeholders.
 -- | The app provides the loaded glossary through `glossaryContext`, and renders nothing until it is loaded,
 -- | so a lookup without one is blank.
 module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyCell) where
 
 import Prelude
 
-import Analysis.Views.Glossary (Glossary)
+import Views.Glossary (Glossary)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), Replacement(..), replaceAll, stripPrefix)
 import Foreign.Object as Object

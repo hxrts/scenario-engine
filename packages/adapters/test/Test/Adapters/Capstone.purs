@@ -6,7 +6,7 @@ module Test.Adapters.Capstone (spec) where
 import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
-import Analysis.Views.Metrics (metricsVersion, roundMetrics)
+import Views.Metrics (metricsVersion, roundMetrics)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Data.Argonaut.Core (stringify)
@@ -29,12 +29,13 @@ import Handlers.Seats (seatEnv)
 import Handlers.Store (persister, runStore)
 import Premises.Capstone as C
 import Simulator.Simulate (simulate, simulateWith)
-import Test.Adapters.Game (capstoneGame, orThrow)
+import Testkit.Capstone (load)
+import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 capstone :: Aff Game
-capstone = capstoneGame
+capstone = map _.game load
 
 spec :: Spec Unit
 spec = describe "Capstone: the Run Store" do

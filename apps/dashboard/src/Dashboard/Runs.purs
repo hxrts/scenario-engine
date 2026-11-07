@@ -4,7 +4,7 @@ module Dashboard.Runs (mergeRuns, shownRuns, readableIds, latestReadable, flagsO
 
 import Prelude
 
-import Analysis.Views.Overview (RunFlags, RunList)
+import Views.Overview (RunFlags, RunList)
 import Data.Array (elem, filter, find, index, reverse)
 import Data.Maybe (Maybe(..))
 

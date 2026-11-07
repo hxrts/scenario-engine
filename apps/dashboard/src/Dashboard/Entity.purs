@@ -14,7 +14,7 @@ import Data.Array (elem)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Analysis.Views.Entity (EntityList)
+import Views.Entity (EntityList)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler)

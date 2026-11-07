@@ -27,11 +27,11 @@ import Foreign.Object as Object
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, listRuns, listSummaries, readManifest, readMetric, readRounds, setArchived, setSpec, setStatus)
-import Analysis.Views.Metrics (metricsVersion, roundMetrics)
+import Views.Metrics (metricsVersion, roundMetrics)
 import Handlers.Store (persister, recorder, runStore)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
-import Test.Adapters.Game (presetGame)
+import Testkit.Meridian (presetSeats)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
@@ -51,7 +51,7 @@ orThrow = case _ of
 -- | The initial manifest of the reference scenario, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  g <- presetGame [] "Passive" Nothing
+  g <- presetSeats [] "Passive" Nothing
   pure g.manifest
 
 main :: Effect Unit
@@ -61,7 +61,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PrimitiveTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      g <- presetGame [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
+      g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
       let
         seed = Seed 7
       db <- liftEffect (open ":memory:")
@@ -149,7 +149,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
-      g <- presetGame [ "US", "DE" ] "Passive" (Just 2)
+      g <- presetSeats [ "US", "DE" ] "Passive" (Just 2)
       let
         seed = Seed 3
         said = [ { seat: Id "US", text: "I will buy ten energy" } ]
@@ -185,7 +185,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      g <- presetGame [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
+      g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
       let
         seed = Seed 1
       db <- liftEffect (open ":memory:")

@@ -24,7 +24,7 @@ package:
     - sp-handlers
     - sp-adapters
     - sp-simulator
-    - sp-analysis
+    - sp-views
     - aff
     - refs
     - integers

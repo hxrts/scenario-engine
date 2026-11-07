@@ -1,0 +1,35 @@
+package:
+  name: sp-experiments
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-schema
+    - sp-checks
+    - sp-views
+    - sp-game
+    - sp-simulator
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - transformers
+  test:
+    main: Test.Experiments.Main
+    dependencies:
+      - aff
+      - effect
+      - console
+      - exceptions
+      - sp-testkit
+      - sp-checks
+      - sp-views
+      - sp-game
+      - sp-simulator
+      - argonaut-core
+      - spec
+      - spec-node
+      - now
+      - datetime
+      - newtype

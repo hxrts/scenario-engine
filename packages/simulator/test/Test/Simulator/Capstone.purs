@@ -1,6 +1,6 @@
 -- | The simulator's checks on the capstone (`Premises.Capstone`): an eight-round run authored in the DSL,
 -- | checked for invariants, expectations, replay, and resume. The analysis checks on the same run
--- | (objectives, counterfactual, view models) are in the analysis suite (Test.Analysis.Capstone).
+-- | (objectives, counterfactual, view models) are in the analysis suite (Test.Views.Capstone).
 module Test.Simulator.Capstone (spec) where
 
 import Prelude

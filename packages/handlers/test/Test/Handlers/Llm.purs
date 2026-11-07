@@ -6,7 +6,6 @@ module Test.Handlers.Llm (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposalBodyShape, proposedDealShape)

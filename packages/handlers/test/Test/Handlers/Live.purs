@@ -7,8 +7,7 @@ module Test.Handlers.Live (spec) where
 
 import Prelude
 
-import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise)
+import Testkit.Meridian (unseated)
 import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Control.Monad.Error.Class (throwError)
@@ -34,7 +33,6 @@ import Handlers.Seats (seatEnv)
 import Game.Assemble (assemble)
 import Game.Premise (Premise(..))
 import Game.Types (Game, SeatBinding(..))
-import Premises.Load (loadPremise)
 import Handlers.Replay (runReplay)
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.InWorld (inWorldOf)
@@ -46,13 +44,7 @@ import Core.Num as Q
 import Foreign.Object (Object)
 
 setup :: Aff Game
-setup = liftEffect (readPremise fileOps "meridian/v0") >>= case _ of
-  Left e -> throwError (error e)
-  Right s -> case loadPremise s of
-    Left e -> throwError (error e)
-    Right parts -> case assemble (GameboardPremise parts) Map.empty [] of
-      Right g -> pure g
-      Left e -> throwError (error (show e))
+setup = unseated
 
 -- | The stub model for live play: the joint pass proposes a trade when a transcript names one, the
 -- | narrator writes a fixed front page, and each AI seat says one line.

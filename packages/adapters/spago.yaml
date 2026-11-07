@@ -29,7 +29,8 @@ package:
   test:
     main: Test.Adapters.Main
     dependencies:
-      - sp-analysis
+      - sp-views
+      - sp-testkit
       - aff
       - effect
       - exceptions

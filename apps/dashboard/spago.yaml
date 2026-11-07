@@ -27,7 +27,7 @@ package:
     - web-html
     - sp-core
     - sp-schema
-    - sp-analysis
+    - sp-views
     - sp-board
   test:
     main: Test.Dashboard.Main

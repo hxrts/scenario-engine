@@ -25,7 +25,8 @@ package:
     - sp-handlers
     - sp-adapters
     - sp-simulator
-    - sp-analysis
+    - sp-views
+    - sp-experiments
     - exceptions
     - nullable
     - newtype
@@ -39,3 +40,4 @@ package:
       - spec-node
       - quickcheck
       - spec-quickcheck
+      - sp-testkit

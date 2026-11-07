@@ -30,7 +30,7 @@ import Effect (Effect)
 import Effect.Exception (message, throwException, try)
 import Effects.Store (createRun, failRun, failRunning, finish, listSummaries)
 import Foreign.Object as Object
-import Analysis.Views.Metrics (roundMetrics)
+import Views.Metrics (roundMetrics)
 import Premises.Presets (presetNames)
 import Handlers.Store (StoreBackend, persister, runStore)
 import Game.Assemble (assemblePreset)

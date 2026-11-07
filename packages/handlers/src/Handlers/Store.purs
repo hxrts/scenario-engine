@@ -98,7 +98,7 @@ persister b metricsOf id initial = do
   pure \r -> save r []
 
 -- | A RECORD target that also stores the round's transcripts, in the same write as the round. The
--- | metric rows come from `metricsOf` (the composition root passes `Analysis.Views.Metrics.roundMetrics`),
+-- | metric rows come from `metricsOf` (the composition root passes `Views.Metrics.roundMetrics`),
 -- | so the handler persists them without computing them.
 recorder :: StoreBackend -> (RoundResult -> Array Metric) -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
 recorder b metricsOf id initial = do

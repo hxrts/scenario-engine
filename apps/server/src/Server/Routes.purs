@@ -11,8 +11,8 @@ import Data.Either (Either(..), either)
 import Data.String (Pattern(..), split)
 import Effect (Effect)
 import Game.Premise (GameboardParts)
-import Analysis.Views.Glossary (glossary)
-import Analysis.Views.Overview as Overview
+import Views.Glossary (glossary)
+import Views.Overview as Overview
 import Http (Request, Response)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)

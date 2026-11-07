@@ -1,6 +1,6 @@
 -- | The shared path for a literal premise (fixture): it plays through `simulate` with its Proposals
 -- | and signatures as Script bindings, and the records are checked against the premise's rounds. Every
--- | suite that checks a fixture (the golden tests, the analysis and simulator suites) calls this.
+-- | suite that checks a fixture (the golden tests, the views, experiments and simulator suites) calls this.
 module Testkit.Fixture (checkLiteral) where
 
 import Prelude
