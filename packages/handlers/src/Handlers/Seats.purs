@@ -13,10 +13,9 @@ import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe, maybe)
-import Effects.Environment (envFor)
 import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
-import Policy.Interpret (Draft)
+import Policy.Interpret (Draft, envFor)
 import Policy.Interpret as Policy
 import Policy.Program (Program)
 import Run (Run, case_, interpret, on, peel, send)

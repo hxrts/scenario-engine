@@ -30,7 +30,7 @@ import Effect.Aff (Aff, launchAff, launchAff_, killFiber)
 import Effect.Class (liftEffect)
 import Effect.Exception (error, throw)
 import Effect.Uncurried (mkEffectFn1)
-import Harness.Views.Common (Bars, Chart, Table)
+import Analysis.Views.Common (Bars, Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
 import React.Basic.DOM.Events (targetValue)

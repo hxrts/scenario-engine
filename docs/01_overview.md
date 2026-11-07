@@ -132,7 +132,7 @@ Every role should have a meaningful capability, a dependency that others can pro
 | [`03_gameboard.md`](03_gameboard.md) | How a scenario is configured |
 | [`04_instantiated_game.md`](04_instantiated_game.md) | How a game is initialized and run |
 | [`05_test_instance.md`](05_test_instance.md) | Meridian reference scenario and fixtures A–G |
-| [`06_simulator.md`](06_simulator.md) | Simulation harness (seat Policies, replay, experiments), run store, dashboard, and mandatory tests |
+| [`06_simulator.md`](06_simulator.md) | Simulator (seat Policies, replay, experiments), run store, dashboard, and mandatory tests |
 | [`07_architecture.md`](07_architecture.md) | Codebase layout, module boundaries, and key interfaces |
 | [`08_coverage.md`](08_coverage.md) | Audit of which tests exercise each feature, and the capstone run |
 

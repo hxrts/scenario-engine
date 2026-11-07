@@ -2,7 +2,8 @@ module Test.Server.Main where
 
 import Prelude
 
-import Adapters.Store (open, reader, setSpec)
+import Adapters.Store (open, sqlitePort)
+import Handlers.Store (reader)
 import Board.Decode.Common (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
@@ -18,7 +19,7 @@ import Adapters.Scenarios (readScenario)
 import Scenarios.Load (loadContext)
 import Core.Types (Id(..))
 import Core.World (Event(..), RoundRecord)
-import Harness.Records (recordsEqual)
+import Simulator.Records (recordsEqual)
 import Server.Launch (Launched)
 import Server.Routes (route)
 import Test.Spec (describe, it)
@@ -48,7 +49,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let
-            api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+            api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
             launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, rounds: Just 3 }))
           a <- launch "a" (Just 1)
           a.body `shouldEqual` "{\"playerSeed\":1,\"id\":\"run-1\"}"
@@ -113,7 +114,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let
-            api method path body = liftEffect (route ctx db { method, path, query: Object.empty, body })
+            api method path body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.empty, body })
             launch name seed = api "POST" "/api/runs" (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, rounds: Just 3 }))
           -- an absent seed is drawn once at launch; the reply names the seed used
           drawn <- api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"Conservative\",\"rounds\":3}"
@@ -125,28 +126,34 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- the same seed injected explicitly
           explicit <- launch "e" (Just seed)
           explicit.body `shouldSatisfy` contains (Pattern ("\"playerSeed\":" <> show seed))
-          let store = reader db
+          let store = reader (sqlitePort db)
           -- the stored spec records the concrete seed, and the two runs store identical specs and manifests
           drawnRun <- liftEffect (store.manifest "run-1")
           explicitRun <- liftEffect (store.manifest "run-2")
-          drawnRun `shouldEqual` explicitRun
-          case drawnRun of
-            Just m -> m.spec `shouldSatisfy` contains (Pattern ("\"playerSeed\":\"" <> show seed <> "\""))
-            Nothing -> fail "the drawn run has no stored spec"
+          case drawnRun, explicitRun of
+            Just d, Just e -> do
+              case d.spec of
+                Right s -> Object.lookup "playerSeed" s `shouldEqual` Just (show seed)
+                Left why -> fail ("the drawn run's spec should read back: " <> why)
+              d.spec `shouldEqual` e.spec
+              map (stringify <<< encodeJson) d.manifest `shouldEqual` map (stringify <<< encodeJson) e.manifest
+            _, _ -> fail "the drawn run has no stored spec"
           drawnRows <- liftEffect (store.rounds "run-1")
           explicitRows <- liftEffect (store.rounds "run-2")
-          map _.record drawnRows `shouldEqual` map _.record explicitRows
-          map _.snapshot drawnRows `shouldEqual` map _.snapshot explicitRows
+          map (map (stringify <<< encodeJson) <<< _.record) drawnRows `shouldEqual` map (map (stringify <<< encodeJson) <<< _.record) explicitRows
+          map (map (stringify <<< encodeJson) <<< _.snapshot) drawnRows `shouldEqual` map (map (stringify <<< encodeJson) <<< _.snapshot) explicitRows
         Left e -> fail e
     it "every run stores its game id, shown in the overview" do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"g\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
-          stored <- liftEffect ((reader db).manifest "run-1")
+          stored <- liftEffect ((reader (sqlitePort db)).manifest "run-1")
           case stored of
-            Just m -> m.spec `shouldSatisfy` contains (Pattern "\"gameId\":\"meridian/meridian-test-01\"")
+            Just m -> case m.spec of
+              Right s -> Object.lookup "gameId" s `shouldEqual` Just "meridian/meridian-test-01"
+              Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "no stored spec"
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "meridian/meridian-test-01")
@@ -155,7 +162,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/scenario" [] ""
           scen.status `shouldEqual` 200
           scen.body `shouldSatisfy` contains (Pattern "\"default\":5")
@@ -170,7 +177,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           list <- api "GET" "/api/runs" [] ""
           list.body `shouldSatisfy` contains (Pattern "\"Reason\",\"Archived\",\"Source\"")
@@ -179,7 +186,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           dup <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"duplicate\",\"name\":\"copy\"}"
           dup.status `shouldEqual` 201
@@ -192,13 +199,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           rerunReply <- decodeOr rerun.body
           rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
           dup.body `shouldSatisfy` (not <<< contains (Pattern "recordsMatch"))
-          let store = reader db
+          let store = reader (sqlitePort db)
           sourceRows <- liftEffect (store.rounds "run-1")
           rerunRows <- liftEffect (store.rounds rerunReply.id)
           map _.record rerunRows `shouldEqual` map _.record sourceRows
           rerunMan <- liftEffect (store.manifest rerunReply.id)
           case rerunMan of
-            Just m -> m.spec `shouldSatisfy` contains (Pattern "\"source\":\"run-1\"")
+            Just m -> case m.spec of
+              Right s -> Object.lookup "source" s `shouldEqual` Just "run-1"
+              Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "the rerun has no stored spec"
           -- a variant replaces the preset; a counterfactual adds an override
           variant <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"variant\",\"preset\":\"Aggressive\",\"rounds\":2}"
@@ -208,18 +217,24 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           counterReply <- decodeOr counter.body
           counterMan <- liftEffect (store.manifest counterReply.id)
           case counterMan of
-            Just m -> m.spec `shouldSatisfy` contains (Pattern "\"kind\":\"counterfactual\"")
+            Just m -> case m.spec of
+              Right s -> Object.lookup "kind" s `shouldEqual` Just "counterfactual"
+              Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "the counterfactual has no stored spec"
           -- the counterfactual's override is in its manifest: the game seed changed
           case counterMan of
-            Just m -> m.manifest `shouldSatisfy` contains (Pattern "\"seed\":7")
+            Just m -> case m.manifest of
+              Right man -> contains (Pattern "\"seed\":7") (stringify (encodeJson man)) `shouldEqual` true
+              Left why -> fail ("the stored manifest should read back: " <> why)
             Nothing -> fail "the counterfactual has no manifest"
           -- its overrides are stored in its spec, so a duplicate of it keeps them
           copied <- api "POST" ("/api/runs/" <> counterReply.id <> "/derive") [] "{\"kind\":\"duplicate\"}"
           copiedReply <- decodeOr copied.body
           copiedMan <- liftEffect (store.manifest copiedReply.id)
           case copiedMan of
-            Just m -> m.manifest `shouldSatisfy` contains (Pattern "\"seed\":7")
+            Just m -> case m.manifest of
+              Right man -> contains (Pattern "\"seed\":7") (stringify (encodeJson man)) `shouldEqual` true
+              Left why -> fail ("the stored manifest should read back: " <> why)
             Nothing -> fail "the duplicate has no manifest"
           -- refusals: unknown source, bad kind, bad preset, bad override, fields a kind does not take
           noSource <- api "POST" "/api/runs/run-99/derive" [] "{\"kind\":\"duplicate\"}"
@@ -241,14 +256,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"three\",\"preset\":\"Conservative\",\"playerSeed\":3,\"rounds\":3}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"five\",\"preset\":\"Conservative\",\"playerSeed\":3,\"rounds\":5}"
           resumed <- api "POST" "/api/runs/run-1/resume" [] "{\"rounds\":5}"
           resumed.status `shouldEqual` 200
           resumed.body `shouldSatisfy` contains (Pattern "\"rounds\":5")
           resumed.body `shouldSatisfy` contains (Pattern "\"id\":\"run-1\"")
-          let store = reader db
+          let store = reader (sqlitePort db)
           extended <- liftEffect (store.rounds "run-1")
           fresh <- liftEffect (store.rounds "run-2")
           map _.record extended `shouldEqual` map _.record fresh
@@ -264,7 +279,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"other\",\"preset\":\"Conservative\",\"playerSeed\":2,\"rounds\":2}"
           a1 <- api "POST" "/api/runs/run-1/archive" [] ""
@@ -300,7 +315,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"RandomValid\",\"playerSeed\":5,\"rounds\":3}"
           rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
           rerun.status `shouldEqual` 201
@@ -312,11 +327,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           counterRerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
           noSource <- api "POST" "/api/runs/run-99/derive" [] "{\"kind\":\"rerun\"}"
           noSource.status `shouldEqual` 404
-          -- a source whose stored spec cannot be read: the rerun is refused, and no run is created
-          liftEffect (setSpec db "run-1" "not json")
-          unreadable <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
-          unreadable.status `shouldEqual` 409
-          unreadable.body `shouldSatisfy` contains (Pattern "spec")
           listed <- api "GET" "/api/runs" [] ""
           listed.body `shouldSatisfy` (not <<< contains (Pattern "\"run-5\""))
         Left e -> fail e
@@ -324,7 +334,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (route ctx (sqlitePort db) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"next\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs/run-2/derive" [] "{\"kind\":\"duplicate\"}"

@@ -16,27 +16,26 @@ module Server.Launch
 import Prelude
 
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (Db, createRun, failRun, finish, nowIso, persister, reader)
+import Adapters.Store (nowIso)
+import Handlers.Store (StorePort, createRun, finish, persister, reader)
 import Board.Decode.Common (readJson)
 import Board.Gameboard.Schema (gameIdOf)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (concatMap, foldl, fromFoldable, mapMaybe)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
-import Data.Nullable (toMaybe)
 import Data.String (Pattern(..), stripPrefix)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
 import Foreign.Object as Object
-import Harness.Overrides (encodeOverrides)
-import Harness.Simulate (Context, Override, SimulationSpec, presetSeats, simulateWith)
+import Simulator.Overrides (encodeOverrides)
+import Simulator.Simulate (Context, Override, SimulationSpec, presetSeats, simulateWith)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.
@@ -60,16 +59,16 @@ readLaunch :: String -> Either String Launch
 readLaunch = readJson
 
 -- | Launch a run from a preset on every seat.
-launch :: Context -> Db -> Launch -> Effect (Either String Launched)
-launch ctx db l = start ctx db { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
+launch :: Context -> StorePort -> Launch -> Effect (Either String Launched)
+launch ctx store l = start ctx store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
 -- | seed it used. The seed is resolved here, before the run starts, and the stored spec records that
 -- | value. Nothing is stored unless the spec instantiates. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
-start :: Context -> Db -> Start -> Effect (Either String Launched)
-start ctx db l = do
-  id <- nextRunId db
+start :: Context -> StorePort -> Start -> Effect (Either String Launched)
+start ctx store l = do
+  id <- nextRunId store
   seed <- resolveSeed (Seed <$> l.playerSeed)
   let
     spec = Object.fromFoldable $
@@ -83,22 +82,22 @@ start ctx db l = do
     kind = _.kind <$> l.derivation
   created <- nowIso
   attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed l.overrides l.rounds) \manifest -> do
-    createRun db { id, name: l.name, created, spec: encodeJson spec, manifest, source, kind }
-    persister db id manifest.initial
+    createRun store { id, name: l.name, created, spec, manifest, source, kind }
+    persister store id manifest.initial
   case attempt of
     Left ex -> do
-      failRun db id ("exception: " <> message ex)
+      store.failRun id ("exception: " <> message ex)
       throwException ex
     Right (Left e) -> pure (Left e)
-    Right (Right r) -> finish db id r $> Right { id, playerSeed: unwrap seed }
+    Right (Right r) -> finish store id r $> Right { id, playerSeed: unwrap seed }
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
 -- | link cannot come to resolve to a different run.
-nextRunId :: Db -> Effect String
-nextRunId db = do
-  rows <- (reader db).summaries
+nextRunId :: StorePort -> Effect String
+nextRunId store = do
+  rows <- (reader store).summaries
   let
-    cited = concatMap (\r -> [ r.id ] <> maybe [] pure (toMaybe r.source)) rows
+    cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
 

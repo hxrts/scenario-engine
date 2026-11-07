@@ -12,7 +12,7 @@ import Dashboard.Layout as Layout
 import Data.Array (elem, find, findIndex, head, index, nub)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
-import Harness.Views.Common (Chart, Table)
+import Analysis.Views.Common (Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler)

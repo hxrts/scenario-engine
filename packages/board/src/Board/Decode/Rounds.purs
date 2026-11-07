@@ -1,5 +1,5 @@
 -- | Decoders for a round: its Proposals (signed Intents) and its `expect` checks. The
--- | expectation types are read by the fixture harness and by the capstone checks.
+-- | expectation types are read by the fixture checker and by the capstone checks.
 module Board.Decode.Rounds
   ( ProposalRef
   , Delivery

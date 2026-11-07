@@ -1,8 +1,9 @@
 -- | Instantiation (docs/04_instantiated_game.md §10): a Gameboard and its configuration become
 -- | the initial World State, with controllers, fallbacks, account partitioning, procedure
--- | weights, and Representations resolved.
+-- | weights, and Representations resolved. `checkHomes` is the startup check that follows it.
 module Board.Gameboard.Instantiate
   ( instantiate
+  , checkHomes
   ) where
 
 import Prelude
@@ -10,13 +11,13 @@ import Prelude
 import Board.Gameboard.Schema (Fallback(..), Gameboard, InitialWorld, InstantiationConfig, RefKind(..), ValidationError(..))
 import Core.Draw (drawVersion)
 import Core.Num as Q
-import Core.Query (lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..))
+import Core.Query (homeMarket, lookupQ)
+import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..))
 import Core.World (WorldState)
-import Data.Array (concatMap, elem, filter, foldl, fromFoldable, nub, null)
+import Data.Array (concatMap, elem, filter, find, foldl, fromFoldable, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.Tuple (Tuple(..))
 
 -- | Controllers and fallbacks, account partitioning and procedure weights, Representation
@@ -113,3 +114,10 @@ mergeInto agg e w = case Map.lookup e w.entities of
         _ -> acc <> [ r ]
     )
     []
+
+-- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market,
+-- | because `$home` names it. An acting Entity with none is a startup error, named here, before any round.
+checkHomes :: (Entity -> Boolean) -> WorldState -> Either String Unit
+checkHomes acts w = case find (\e -> acts e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
+  Just e -> Left ("entity " <> show e.id <> " acts but has no accessible market, so it has no home market")
+  Nothing -> Right unit

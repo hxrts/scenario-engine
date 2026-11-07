@@ -252,7 +252,7 @@ schemes =
 -- | removes it, and never turns it into a purchase). It is the shock that flips the most preset
 -- | behaviours without any round of the reference disruption: Accumulator, Trader, Opportunistic and
 -- | Deployer change their Atlantic actions as the price crosses 3.0. Run it as overrides of the
--- | reference game; the harness test "Major shock" pins what it flips.
+-- | reference game; the simulator test "Major shock" pins what it flips.
 majorShock :: Array (Tuple String String)
 majorShock =
   [ Tuple "disruption-round" "1"

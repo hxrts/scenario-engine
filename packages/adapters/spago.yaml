@@ -31,7 +31,7 @@ package:
       - effect
       - exceptions
       - ordered-collections
-      - sp-harness
+      - sp-simulator
       - sp-scenarios
       - strings
       - refs

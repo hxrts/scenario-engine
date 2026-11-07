@@ -171,7 +171,7 @@ A run's state is:
 - the appended **round records**, one per round ([§11](#11-round-execution)).
 - the **manifest**.
 
-`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset programs in the harness), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
+`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset programs in the simulator), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
 
 The **manifest** is immutable and holds:
 

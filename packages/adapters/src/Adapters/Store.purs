@@ -1,58 +1,38 @@
--- | The Run Store adapter (docs/06_simulator.md §8): the manifest written before Round 1,
--- | then each round's record, snapshot, assertions, and versioned metrics saved atomically.
--- | Runs are append-only; reads go through `RunStoreRead`. The schema is versioned with
--- | PRAGMA user_version and migrated in order when the store is opened read-write.
+-- | The SQLite Run Store adapter (docs/06_simulator.md §8): opens the store file and implements the
+-- | `StorePort` that `Handlers.Store` interprets. This module does the JSON: a typed value is encoded
+-- | to the text the store keeps, and a stored text is decoded back, or is a `Left` naming what failed
+-- | (`Handlers.Store.Stored`). The SQL is in `Store.js`. Runs are append-only; the schema is versioned
+-- | with PRAGMA user_version and migrated in order when the store is opened read-write.
 module Adapters.Store
   ( Db
-  , RunInfo
-  , RunSummary
-  , StoredRound
-  , RunStoreRead
   , open
   , openReadOnly
   , schemaVersion
   , busyTimeout
   , configuredBusyTimeout
-  , createRun
-  , setArchived
-  , setSpec
-  , deleteRun
-  , nowIso
-  , persister
-  , recorder
-  , setStatus
-  , finish
-  , failRun
   , failStaleRuns
-  , reader
-  , metricsVersion
+  , nowIso
+  , sqlitePort
   ) where
 
 import Prelude
 
-import Core.Engine.Prepare (prepareRound)
-import Core.Invariants (check)
-import Core.Market (marginal)
-import Core.World (Manifest, RoundResult, WorldState)
-import Data.Argonaut.Core (Json, stringify)
-import Data.Argonaut.Encode (encodeJson)
-import Data.Either (Either, either)
+import Board.Decode.Common (readJson)
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode (class DecodeJson)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Bifunctor (lmap)
 import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, runFn1, runFn2, runFn3, runFn4, runFn8)
-import Data.Map as Map
-import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe, toNullable)
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Ref as Ref
-import Effects.Signatures (Transcript)
+import Handlers.Store (Metric, MetricRow, RunInfo, RunSummary, Stored, StoredManifest, StoredRound, StorePort)
 
 foreign import data Db :: Type
 
-type RunInfo = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
+-- | The rows as SQLite returns them: texts, with a nullable reason and source, which the port maps to Maybe.
+type RunInfoRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
 
--- | A run's list row: its stored manifest and specification, and the assertion texts of its
--- | rounds. No records or snapshots. `source` is the run it was derived from, if any.
-type RunSummary =
+type RunSummaryRow =
   { id :: String
   , name :: String
   , status :: String
@@ -65,9 +45,9 @@ type RunSummary =
   , assertions :: Array String
   }
 
-type StoredRound = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
+type ManifestRow = { spec :: String, manifest :: String }
 
-type Metric = { metric :: String, version :: String, value :: String }
+type RoundRow = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
 
 foreign import openImpl :: String -> Effect Db
 foreign import openReadOnlyImpl :: String -> Effect Db
@@ -82,11 +62,11 @@ foreign import appendRoundImpl :: Fn8 Db String Int String String String String 
 foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
 foreign import failStaleRunsImpl :: Fn2 Db String (Effect Int)
-foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfo))
-foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummary))
-foreign import manifestImpl :: Fn2 Db String (Effect (Nullable { spec :: String, manifest :: String }))
-foreign import roundsImpl :: Fn2 Db String (Effect (Array StoredRound))
-foreign import metricImpl :: Fn4 Db String String String (Effect (Array { round :: Int, value :: String }))
+foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfoRow))
+foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummaryRow))
+foreign import manifestImpl :: Fn2 Db String (Effect (Nullable ManifestRow))
+foreign import roundsImpl :: Fn2 Db String (Effect (Array RoundRow))
+foreign import metricImpl :: Fn4 Db String String String (Effect (Array MetricRow))
 
 -- | Open the store read-write: created and migrated if needed. Other connections' locks are
 -- | waited for (busy timeout) rather than failing at once.
@@ -110,9 +90,9 @@ configuredBusyTimeout = busyTimeoutMs
 busyTimeout :: Db -> Effect Int
 busyTimeout = busyTimeoutImpl
 
--- | The version of the metric definitions; recomputing a projection never edits records.
-metricsVersion :: String
-metricsVersion = "v1"
+-- | Mark every run still `running` as failed (its process ended first); returns the count.
+failStaleRuns :: Db -> String -> Effect Int
+failStaleRuns db reason = runFn2 failStaleRunsImpl db reason
 
 -- | The current time, for a run's `created` field.
 foreign import nowIsoImpl :: Effect String
@@ -120,76 +100,59 @@ foreign import nowIsoImpl :: Effect String
 nowIso :: Effect String
 nowIso = nowIsoImpl
 
--- | Register a run and its manifest before Round 1. `source` and `kind` are set for a run derived
--- | from another (docs/06_simulator.md §10.4); both are Nothing for a run launched directly.
-createRun :: Db -> { id :: String, name :: String, created :: String, spec :: Json, manifest :: Manifest, source :: Maybe String, kind :: Maybe String } -> Effect Unit
-createRun db r = runFn8 createRunImpl db r.id r.name (stringify r.spec) (stringify (encodeJson r.manifest)) r.created (toNullable r.source) (toNullable r.kind)
+-- JSON -------------------------------------------------------------------------------------
 
--- | Set or clear a run's archive flag. Idempotent.
-setArchived :: Db -> String -> Boolean -> Effect Unit
-setArchived db id archived = runFn3 setArchivedImpl db id archived
+-- | Encode a value to the text the store keeps.
+toText :: forall a. EncodeJson a => a -> String
+toText = stringify <<< encodeJson
 
--- | Replace a run's stored specification text.
-setSpec :: Db -> String -> String -> Effect Unit
-setSpec db id spec = runFn3 setSpecImpl db id spec
+-- | Decode a stored text, naming what it was when it fails (the label is the reader's message prefix).
+fromText :: forall a. DecodeJson a => String -> String -> Stored a
+fromText what text = lmap (\e -> what <> ": " <> e) (readJson text)
 
--- | Remove a run with its rounds and metrics; returns how many runs were removed.
-deleteRun :: Db -> String -> Effect Int
-deleteRun db id = runFn2 deleteRunImpl db id
-
--- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
-persister :: Db -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
-persister db id initial = do
-  save <- recorder db id initial
-  pure \r -> save r []
-
--- | A RECORD target that also stores the round's transcripts, in the same transaction as the round.
-recorder :: Db -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
-recorder db id initial = do
-  previous <- Ref.new initial
-  pure \r transcripts -> do
-    before <- Ref.read previous
-    runFn8 appendRoundImpl db id r.record.round
-      (stringify (encodeJson r.record))
-      (stringify (encodeJson r.world))
-      (stringify (encodeJson (check (prepareRound before) r)))
-      (stringify (encodeJson transcripts))
-      (metrics r)
-    Ref.write r.world previous
-
--- | Versioned projections: each Market's price after the round.
-metrics :: RoundResult -> Array Metric
-metrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: show (marginal m.cost m.position) })
-  (Map.toUnfoldable r.world.markets)
-
--- | Mark a finished run completed, or failed with the error as its reason.
-finish :: forall e a. Show e => Db -> String -> Either e a -> Effect Unit
-finish db id out = either (failRun db id <<< show) (const (setStatus db id "completed")) out
-
-setStatus :: Db -> String -> String -> Effect Unit
-setStatus db id status = runFn3 setStatusImpl db id status
-
--- | Mark a run failed, recording why. Used for exceptions as well as engine errors.
-failRun :: Db -> String -> String -> Effect Unit
-failRun db id reason = runFn3 failRunImpl db id reason
-
--- | Mark every run still `running` as failed (its process ended first); returns the count.
-failStaleRuns :: Db -> String -> Effect Int
-failStaleRuns db reason = runFn2 failStaleRunsImpl db reason
-
-type RunStoreRead =
-  { runs :: Effect (Array RunInfo)
-  , summaries :: Effect (Array RunSummary)
-  , manifest :: String -> Effect (Maybe { spec :: String, manifest :: String })
-  , rounds :: String -> Effect (Array StoredRound)
-  , metric :: String -> String -> String -> Effect (Array { round :: Int, value :: String })
-  }
-
-reader :: Db -> RunStoreRead
-reader db =
-  { runs: runFn1 listRunsImpl db
-  , summaries: runFn1 summariesImpl db
-  , manifest: \id -> toMaybe <$> runFn2 manifestImpl db id
-  , rounds: runFn2 roundsImpl db
+-- | The Run Store as a port: each operation is one SQLite statement or transaction, with the values
+-- | encoded on the way in and decoded on the way out.
+sqlitePort :: Db -> StorePort
+sqlitePort db =
+  { createRun: \r -> runFn8 createRunImpl db r.id r.name (toText r.spec) (toText r.manifest) r.created (toNullable r.source) (toNullable r.kind)
+  , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (toText r.record) (toText r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
+  , setStatus: \id status -> runFn3 setStatusImpl db id status
+  , failRun: \id reason -> runFn3 failRunImpl db id reason
+  , setSpec: \id spec -> runFn3 setSpecImpl db id (toText spec)
+  , setArchived: \id archived -> runFn3 setArchivedImpl db id archived
+  , deleteRun: \id -> runFn2 deleteRunImpl db id
+  , runs: map (map runInfo) (runFn1 listRunsImpl db)
+  , summaries: map (map runSummary) (runFn1 summariesImpl db)
+  , manifest: \id -> map (map manifestOf <<< toMaybe) (runFn2 manifestImpl db id)
+  , rounds: \id -> map (map roundOf) (runFn2 roundsImpl db id)
   , metric: \id metric version -> runFn4 metricImpl db id metric version
   }
+  where
+  runInfo :: RunInfoRow -> RunInfo
+  runInfo r = { id: r.id, name: r.name, status: r.status, created: r.created, reason: toMaybe r.reason }
+
+  runSummary :: RunSummaryRow -> RunSummary
+  runSummary r =
+    { id: r.id
+    , name: r.name
+    , status: r.status
+    , created: r.created
+    , reason: toMaybe r.reason
+    , spec: fromText "spec" r.spec
+    , manifest: fromText "manifest" r.manifest
+    , archived: r.archived
+    , source: toMaybe r.source
+    , assertions: map (fromText "assertions") r.assertions
+    }
+
+  manifestOf :: ManifestRow -> StoredManifest
+  manifestOf r = { spec: fromText "spec" r.spec, manifest: fromText "manifest" r.manifest }
+
+  roundOf :: RoundRow -> StoredRound
+  roundOf r =
+    { round: r.round
+    , record: fromText ("round " <> show r.round <> " record") r.record
+    , snapshot: fromText ("round " <> show r.round <> " snapshot") r.snapshot
+    , assertions: fromText ("round " <> show r.round <> " assertions") r.assertions
+    , transcripts: fromText ("round " <> show r.round <> " transcripts") r.transcripts
+    }

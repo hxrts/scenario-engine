@@ -11,11 +11,11 @@ module Server.Derive
 
 import Prelude
 
-import Adapters.Store (Db, StoredRound, deleteRun, failRun, finish, persister, reader, setArchived, setSpec, setStatus)
+import Handlers.Store (Spec, Stored, StorePort, StoredRound, finish, persister, reader)
 import Board.Decode.Common (readJson)
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
-import Data.Argonaut.Core (Json, isNull, stringify, toString)
+import Data.Argonaut.Core (Json, isNull, toString)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Argonaut.Parser (jsonParser)
@@ -29,11 +29,11 @@ import Effect (Effect)
 import Effect.Exception (message, throwException, try)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Harness.Overrides (decodeOverrides)
-import Harness.Records (recordsEqual)
-import Harness.Simulate (Context, Override, resumeWith)
+import Simulator.Overrides (decodeOverrides)
+import Simulator.Records (recordsEqual)
+import Simulator.Simulate (Context, Override, resumeWith)
 import Http (Response)
-import Server.Errors (LoadError(..), decodeAs, describe, failWith, json, ok)
+import Server.Errors (LoadError(..), describe, failWith, json, ok)
 import Server.Launch (presetSpec, start)
 import Server.Read (loadRun)
 
@@ -53,17 +53,17 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Context -> Db -> String -> String -> Effect Response
-deriveRun ctx db sourceId body = case readJson body :: Either String (Object Json) of
+deriveRun :: Context -> StorePort -> String -> String -> Effect Response
+deriveRun ctx store sourceId body = case readJson body :: Either String (Object Json) of
   Left e -> failWith 400 e
   Right o -> case Object.lookup "kind" o >>= toString of
     Just kind | kind `elem` kinds -> do
-      runs <- (reader db).runs
+      runs <- (reader store).runs
       case find (\r -> r.id == sourceId) runs of
         Nothing -> failWith 404 ("no run " <> sourceId)
         Just info -> do
           -- a rerun is judged against the source's stored records, so they are read before it starts
-          source <- if kind == "rerun" then Just <$> loadRun db sourceId else pure Nothing
+          source <- if kind == "rerun" then Just <$> loadRun store sourceId else pure Nothing
           case source of
             Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
             Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
@@ -71,15 +71,15 @@ deriveRun ctx db sourceId body = case readJson body :: Either String (Object Jso
               | info.status /= "completed" -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> info.status <> ", not completed")
               | null src.records -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
             _ -> do
-              stored <- (reader db).manifest sourceId
-              case stored <#> \m -> decodeAs "spec" m.spec >>= storedRecipe of
+              stored <- (reader store).manifest sourceId
+              case stored <#> \m -> m.spec >>= storedRecipe of
                 Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
                 Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
                 Just (Right base) -> case deriveRecipe kind o base of
                   Left e -> failWith 400 e
                   Right recipe -> do
                     let name = fromMaybe (info.name <> " (" <> kind <> ")") (Object.lookup "name" o >>= toString)
-                    started <- start ctx db
+                    started <- start ctx store
                       { name
                       , preset: recipe.preset
                       , playerSeed: recipe.playerSeed
@@ -91,7 +91,7 @@ deriveRun ctx db sourceId body = case readJson body :: Either String (Object Jso
                       Left e, _ -> failWith 400 e
                       Right l, Just (Right src) -> do
                         -- the new run's records are read back from the store, as the source's are
-                        new <- loadRun db l.id
+                        new <- loadRun store l.id
                         case new of
                           Right n -> json 201
                             ( Object.fromFoldable
@@ -157,18 +157,18 @@ storedRecipe s = do
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: Context -> Db -> String -> String -> Effect Response
-resumeRun ctx db id body = case readJson body :: Either String Resume of
+resumeRun :: Context -> StorePort -> String -> String -> Effect Response
+resumeRun ctx store id body = case readJson body :: Either String Resume of
   Left e -> failWith 400 e
   Right { rounds } -> do
-    runs <- (reader db).runs
+    runs <- (reader store).runs
     case find (\r -> r.id == id) runs of
       Nothing -> failWith 404 ("no run " <> id)
       Just info
         | info.status /= "completed" -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> info.status)
         | otherwise -> do
-            stored <- (reader db).manifest id
-            rows <- (reader db).rounds id
+            stored <- (reader store).manifest id
+            rows <- (reader store).rounds id
             case stored, last rows of
               Just m, Just latest -> case prepare m.spec latest (length rows) of
                 Left e -> failWith 500 ("run " <> id <> " is unreadable: " <> e)
@@ -176,45 +176,45 @@ resumeRun ctx db id body = case readJson body :: Either String Resume of
                   | rounds <= p.done -> failWith 400 ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
                   | otherwise -> do
                       attempt <- try $ resumeWith ctx (presetSpec ctx p.base.preset p.seed p.base.overrides (Just rounds)) (Just { world: p.snapshot, done: p.done }) \_ -> do
-                        setStatus db id "running"
-                        setSpec db id (stringify (encodeJson (Object.insert "rounds" (show rounds) p.spec)))
-                        persister db id p.snapshot
+                        store.setStatus id "running"
+                        store.setSpec id (Object.insert "rounds" (show rounds) p.spec)
+                        persister store id p.snapshot
                       case attempt of
                         Left ex -> do
-                          failRun db id ("exception: " <> message ex)
+                          store.failRun id ("exception: " <> message ex)
                           throwException ex
                         Right (Left e) -> failWith 400 e
                         Right (Right r) -> do
-                          finish db id r
+                          finish store id r
                           either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r
               _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
-  prepare :: String -> StoredRound -> Int -> Either String { spec :: Object String, base :: Recipe, seed :: Seed, snapshot :: WorldState, done :: Int }
+  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
-    spec <- decodeAs "spec" text
+    spec <- text
     base <- storedRecipe spec
     seed <- note "the stored spec has no player seed" base.playerSeed
-    snapshot <- decodeAs ("round " <> show latest.round <> " snapshot") latest.snapshot
+    snapshot <- latest.snapshot
     pure { spec, base, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
-setArchive :: Db -> String -> Boolean -> Effect Response
-setArchive db id archived = do
-  present <- hasRun db id
+setArchive :: StorePort -> String -> Boolean -> Effect Response
+setArchive store id archived = do
+  present <- hasRun store id
   if not present then failWith 404 ("no run " <> id)
   else do
-    setArchived db id archived
+    store.setArchived id archived
     ok { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
-deleteOne :: Db -> String -> String -> Effect Response
-deleteOne db id confirm
+deleteOne :: StorePort -> String -> String -> Effect Response
+deleteOne store id confirm
   | confirm /= id = failWith 400 ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
-      n <- deleteRun db id
+      n <- store.deleteRun id
       if n == 0 then failWith 404 ("no run " <> id) else ok { deleted: id }
 
-hasRun :: Db -> String -> Effect Boolean
-hasRun db id = (\runs -> length (filter (\r -> r.id == id) runs) > 0) <$> (reader db).runs
+hasRun :: StorePort -> String -> Effect Boolean
+hasRun store id = (\runs -> length (filter (\r -> r.id == id) runs) > 0) <$> (reader store).runs

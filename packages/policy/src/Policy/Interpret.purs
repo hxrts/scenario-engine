@@ -1,15 +1,17 @@
 -- | The decision-language interpreter: a Program and an authorized View produce the
 -- | Entity's draft Proposals (Propose) and the ids it signs (Sign). Pure.
-module Policy.Interpret (Draft, Env, propose, sign) where
+module Policy.Interpret (Draft, Env, envFor, propose, sign) where
 
 import Prelude
 
+import Core.Draw (Seed, draw)
 import Core.Engine.Screen (authorized)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (lookupQ)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), Intent(..), MarketId, ProposalId, Rule(..), RuleChange(..))
 import Core.World (Event(..), View)
+import Data.Newtype (unwrap)
 import Data.Array (all, any, concatMap, filter, foldl, index, length, mapMaybe, null)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -24,6 +26,16 @@ type Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: 
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every
 -- | Choose it meets.
 type Env = { view :: View, params :: Object Q, home :: Maybe MarketId, random :: Int -> Q }
+
+-- | The policy environment of an Entity at a View. Draws are keyed by the source (the
+-- | in-world stream or a seat's stream), the round, and the Entity, so streams never share draws.
+envFor :: { params :: Object Q, home :: EntityId -> Maybe MarketId, seed :: Seed, source :: String } -> EntityId -> View -> Env
+envFor c e v =
+  { view: v
+  , params: c.params
+  , home: c.home e
+  , random: \i -> draw c.seed { round: v.round, source: c.source, entity: unwrap e, category: "choice", index: i }
+  }
 
 -- | The Drafts of every Clause whose conditions hold. The draw counter runs through the
 -- | whole Program, so each Choose draws independently of the others.

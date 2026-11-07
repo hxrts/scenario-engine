@@ -1,15 +1,16 @@
 -- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat program for each seat that exercises the features the audit found
 -- | untested together. `just scenarios` compiles it to `packages/scenarios/capstone/run.json`,
--- | which the harness decodes through the normal Policy and Board paths. The world and the
+-- | which the simulator decodes through the normal Policy and Board paths. The world and the
 -- | Entity Policies are the shipped ones; only the seat programs and the expectations are here.
-module Scenarios.Capstone (file, rounds, playerSeed) where
+module Scenarios.Capstone (file, rounds, playerSeed, JointLine, jointLines) where
 
-import Prelude ((==), map)
+import Prelude ((==), map, ($), (<<<))
 
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Tuple (Tuple(..))
+import Foreign.Object as Object
 import DSL.Base (Built, Keyed, (:=), keyed, q)
 import DSL.Decision (deal, enactAccessBanT, enactWithholdingT, eq, ge, gt, lit, price, program, repealT, round, rule, signAll, signFacility, signIf, signProcedures, tradeT, transformT)
 import DSL.Fixture (expect, procedureOutcome, refAt)
@@ -130,9 +131,9 @@ seats usProgram = keyed
   , Tuple "AID" passive
   ]
 
--- | Round expectations, checked by the harness with the fixture checker. The values are the
+-- | Round expectations, checked by the simulator with the fixture checker. The values are the
 -- | capstone run's own (the seat programs above on the shipped economics): each one is
--- | explained by its mechanism in the comment, and the harness fails if any drifts.
+-- | explained by its mechanism in the comment, and the simulator fails if any drifts.
 expectations :: Array Json
 expectations =
   [ roundExp 2 (expect { scheduled: 1 }) -- the US ban is enacted, in force from round 3
@@ -191,3 +192,49 @@ file = encodeJson
   , objectives: baseObjectives
   , counterfactualObjectives
   }
+
+-- Joint pass ------------------------------------------------------------------------------
+
+-- | One exchange of the capstone's joint pass (docs/08_coverage.md): the seat's transcript, the
+-- | model's reply as the wire carries it, and the Intents the joint pass must make of it, in the
+-- | engine's JSON encoding. The generator (`apps/cli`, module `Transcript`) runs each exchange through
+-- | the recording port and writes `capstone/transcript.json`; the handler suite replays that file.
+type JointLine = { text :: String, reply :: Json, expect :: Array Json }
+
+obj :: Array (Tuple String Json) -> Json
+obj = fromObject <<< Object.fromFoldable
+
+-- | An Intent in the engine's encoding: a tagged object with its `values` and its `tag`.
+intent :: String -> Array Json -> Json
+intent t vs = obj [ Tuple "values" (fromArray vs), Tuple "tag" (fromString t) ]
+
+-- | The model's reply to one transcript: one Proposal by `author`, agreed by its own seat.
+proposalReply :: String -> Json -> Json
+proposalReply author i = obj
+  [ Tuple "proposals" $ fromArray
+      [ obj
+          [ Tuple "author" (fromString author)
+          , Tuple "intents" (fromArray [ i ])
+          , Tuple "signers" (fromArray [])
+          , Tuple "agreed" (fromArray [ fromString author ])
+          ]
+      ]
+  ]
+
+-- | The US's ban on shipments into India, as the joint pass reads it: a rule change that enacts an
+-- | access ban on IN.
+banIntent :: Json
+banIntent = intent "ChangeRule"
+  [ intent "Enact" [ intent "AccessBan" [ obj [ Tuple "target" (fromString "IN"), Tuple "jurisdiction" (fromString "US") ] ] ] ]
+
+-- | The US buying ten Energy in the Atlantic market at no limit price.
+tradeIntent :: Json
+tradeIntent = intent "Trade"
+  [ obj [ Tuple "quantity" (fromString "10.0000"), Tuple "market" (fromString "energy-atlantic"), Tuple "limitPrice" jsonNull ] ]
+
+-- | The capstone's joint-pass exchanges, in the order the recording holds them.
+jointLines :: Array JointLine
+jointLines =
+  [ { text: "ban shipments into India", reply: proposalReply "US" banIntent, expect: [ banIntent ] }
+  , { text: "buy ten energy", reply: proposalReply "US" tradeIntent, expect: [ tradeIntent ] }
+  ]

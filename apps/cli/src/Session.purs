@@ -7,12 +7,13 @@ module Session (Options, session, validId) where
 
 import Prelude
 
-import Adapters.Llm (agents, interpreter, narrator, pi)
+import Adapters.Llm (pi)
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (createRun, failRun, finish, nowIso, open, recorder)
-import Board.Gameboard.Instantiate (instantiate)
+import Adapters.Store (nowIso, open, sqlitePort)
+import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed)
 import Core.Num as Q
+import Core.Query (homeMarket)
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
@@ -34,11 +35,13 @@ import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (message)
 import Effect.Ref as Ref
-import Effects.Environment (checkHomes, homeMarket, inWorldOf)
+import Policy.InWorld (acts, inWorldOf)
 import Effects.Round (runGame)
 import Effects.Signatures (ClockF(..), InterpretF(..), NarrateF(..), Transcript)
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
+import Handlers.Llm (agents, interpreter, narrator)
+import Handlers.Store (createRun, finish, recorder)
 import Handlers.Seats (programs)
 import Node.Process (exit')
 import Adapters.Scenarios (readScenario)
@@ -65,22 +68,22 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
   Left e -> log e *> exit' 1
   Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
     -- a seat with no home market is a startup error, named before any round
-    Right initial, Right inWorld | Left e <- checkHomes inWorld initial.world -> log e *> exit' 1
+    Right initial, Right inWorld | Left e <- checkHomes (acts inWorld) initial.world -> log e *> exit' 1
     Right initial, Right inWorld -> launchAff_ do
       let
         w0 = initial.world
         humans = map Id (filter (_ /= "") (split (Pattern ",") o.humans)) :: Array EntityId
         dir = "runs/" <> o.id
-        evidence ev = appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
-        backend = pi { model: o.model, rawDir: dir <> "/raw" }
+        backend = pi { model: o.model, rawDir: dir <> "/raw", evidence: \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev)) }
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
       -- the player seed is resolved once, here, and recorded in the session's spec
       seed <- liftEffect (resolveSeed o.seed)
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open o.db)
+      let port = sqlitePort db
       created <- liftEffect nowIso
-      liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ]), manifest: initial.manifest, source: Nothing, kind: Nothing }
-      save <- liftEffect (recorder db o.id w0)
+      liftEffect $ createRun port { id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: initial.manifest, source: Nothing, kind: Nothing }
+      save <- liftEffect (recorder port o.id w0)
       -- the last joint pass's transcripts, stored with the round they were read for
       joints <- liftEffect (Ref.new (Nothing :: Maybe { round :: Int, transcripts :: Array Transcript }))
       liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
@@ -89,14 +92,14 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
         { seat: \e -> if e `elem` humans then Human else Agent
         , ask: \p -> fromEffectFnAff $ promptImpl ("[round " <> show p.round <> ", " <> show p.window <> " window] " <> show p.seat <> "> ")
         , notify: \_ text -> liftEffect (log ("  " <> text))
-        , interpret: remember joints (interpreter backend evidence w0)
+        , interpret: remember joints (interpreter backend w0)
         , clock: \(Await r d a) -> do
             seen <- liftEffect (Ref.read closed)
             unless (Tuple r (show d) `elem` seen) do
               delay (Milliseconds (toNumber (o.window * 1000)))
               liftEffect (Ref.modify_ (_ <> [ Tuple r (show d) ]) closed *> log ("— round " <> show r <> " " <> show d <> " window closed —"))
             pure a
-        , agents: agents backend evidence briefing
+        , agents: agents backend briefing
         , programs: programs { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: seed }
         , record: \r failed -> do
             seen <- liftEffect (Ref.read joints)
@@ -105,20 +108,20 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
                 Just j | j.round == r.record.round -> j.transcripts
                 _ -> []
             liftEffect (save r transcripts)
-            front <- narrator backend evidence failed (Narrate r identity)
+            front <- narrator backend failed (Narrate r identity)
             liftEffect (report humans r front)
         }
         (runGame inWorld o.rounds w0)
       liftEffect $ case out of
         -- an exception (a backend that could not be started, input ended, a store fault) fails the run
         Left ex -> do
-          failRun db o.id (message ex)
+          port.failRun o.id (message ex)
           closePrompt
           log ("Session failed: " <> message ex)
           log ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
           exit' 1
         Right result -> do
-          finish db o.id result
+          finish port o.id result
           closePrompt
           case result of
             Left e -> do

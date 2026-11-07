@@ -24,7 +24,8 @@ package:
     - sp-effects
     - sp-handlers
     - sp-adapters
-    - sp-harness
+    - sp-simulator
+    - sp-analysis
     - exceptions
     - nullable
     - newtype

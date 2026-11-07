@@ -1,4 +1,4 @@
--- | Read-only queries over a World State, shared by the engine, invariants, harness views,
+-- | Read-only queries over a World State, shared by the engine, invariants, analysis views,
 -- | and tests. Absent entries read as zero.
 module Core.Query
   ( lookupQ
@@ -7,6 +7,7 @@ module Core.Query
   , priceOf
   , totalHolding
   , isAggregate
+  , homeMarket
   ) where
 
 import Prelude
@@ -16,7 +17,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (CapacityRef, Entity, EntityId, EntityKind(..), MarketId, Price, ResourceId)
 import Core.World (WorldState)
-import Data.Array (fromFoldable)
+import Data.Array (elem, find, fromFoldable)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe, fromMaybe)
@@ -44,3 +45,7 @@ isAggregate :: Entity -> Boolean
 isAggregate e = case e.kind of
   Aggregate _ -> true
   _ -> false
+
+-- | An Entity's home market: the first Market (by id) it has access to, or Nothing when it has none.
+homeMarket :: WorldState -> EntityId -> Maybe MarketId
+homeMarket w e = map _.id (find (\m -> e `elem` m.access) (fromFoldable (Map.values w.markets)))

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+// A short digest of a prompt template or payload: evidence (Adapters.Llm) and the raw file names.
 export const sha256 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 // A file name unique per call: clock, process and a counter. Raw logs are evidence, not randomness.
@@ -45,10 +46,4 @@ export const piImpl = (model) => (rawDir) => (system) => (input) => (onError, on
     onSuccess({ text, raw: path });
   });
   return (_, onCancelError, onCancelSuccess) => { settled = true; child.kill(); onCancelSuccess(); };
-};
-
-// The first {...} object in a reply (models sometimes wrap JSON in prose or fences).
-export const firstObject = (s) => {
-  const i = s.indexOf("{"), j = s.lastIndexOf("}");
-  return i >= 0 && j > i ? s.slice(i, j + 1) : s;
 };

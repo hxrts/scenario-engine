@@ -2,7 +2,7 @@
 -- | answer the five questions in order: the key figures, the marginal prices, the standings, net worth
 -- | over time, the actions players take, the drivers, the balance of the game, the objectives, and the
 -- | final balance sheet. Every number comes from the read API; this module chooses what to show and
--- | where, and renders each statistic's definition from its record in `Harness.Views`.
+-- | where, and renders each statistic's definition from its record in `Analysis.Views`.
 module Dashboard.Results (mkRunResults, Props, roundCount, roundTarget) where
 
 import Prelude
@@ -18,11 +18,11 @@ import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Tuple (Tuple(..))
-import Harness.Views.Actions (ActionsChart, actionsStat)
-import Harness.Views.Balance (giniStat, spreadStat)
-import Harness.Views.Common (Chart, Statistic, Table)
-import Harness.Views.Drivers (driversStat)
-import Harness.Views.Standings (netWorthStat)
+import Analysis.Views.Actions (ActionsChart, actionsStat)
+import Analysis.Views.Balance (giniStat, spreadStat)
+import Analysis.Views.Common (Chart, Statistic, Table)
+import Analysis.Views.Drivers (driversStat)
+import Analysis.Views.Standings (netWorthStat)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, useEffect, useState', (/\))
 import React.Basic.Hooks as React

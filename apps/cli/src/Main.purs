@@ -1,7 +1,7 @@
 -- | Command line. `run <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
--- | the harness's `simulate` or the live runner; unknown options and bad values are usage
+-- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
 -- | errors (exit status 1).
 module Main (main) where
 
@@ -25,9 +25,9 @@ import Effect (Effect)
 import Effect.Console (log)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Harness.Options (flagOr, parseFlags)
-import Harness.Simulate (presetSeats, seatsOf, simulate)
-import Harness.Views.Markets (marketPrices, roundPressure)
+import Simulator.Options (flagOr, parseFlags)
+import Simulator.Simulate (presetSeats, seatsOf, simulate)
+import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Scenarios (readScenario)
 import Scenarios.Load (loadContext)

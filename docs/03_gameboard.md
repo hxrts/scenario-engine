@@ -319,7 +319,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-`just _scenarios` compiles the DSL in `packages/scenarios/src` through `Scenarios.Compile` into the Meridian files, presets, fixtures, and capstone run file. Before anything is written, each is decoded and checked. The outputs are gitignored and generated: edit the DSL, not the JSON.
+`just _scenarios` compiles the DSL in `packages/scenarios/src` through `Scenarios.Compile` into the Meridian files, presets, fixtures, and capstone run file; then `apps/cli`'s `Transcript` regenerates the capstone recording (`capstone/transcript.json`) with no model call. Before anything is written, each is decoded and checked. The outputs are gitignored and generated: edit the DSL, not the JSON.
 
 ## 13. Provenance and Versioning
 

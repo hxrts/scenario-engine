@@ -40,12 +40,53 @@
             "partial",
             "quickcheck",
             "refs",
-            "sp-harness",
             "sp-scenarios",
+            "sp-simulator",
             "spec",
             "spec-node",
             "spec-quickcheck",
             "strings"
+          ]
+        }
+      },
+      "sp-analysis": {
+        "path": "packages/analysis",
+        "core": {
+          "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
+            "effect",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "newtype",
+            "ordered-collections",
+            "prelude",
+            "sp-board",
+            "sp-core",
+            "sp-simulator",
+            "strings",
+            "tuples",
+            "typelevel-prelude"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "aff",
+            "argonaut-core",
+            "datetime",
+            "effect",
+            "exceptions",
+            "newtype",
+            "now",
+            "quickcheck",
+            "sp-adapters",
+            "sp-scenarios",
+            "spec",
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
@@ -102,13 +143,14 @@
             "prelude",
             "refs",
             "sp-adapters",
+            "sp-analysis",
             "sp-board",
             "sp-core",
             "sp-effects",
             "sp-handlers",
-            "sp-harness",
             "sp-policy",
             "sp-scenarios",
+            "sp-simulator",
             "strings",
             "tuples"
           ]
@@ -178,9 +220,9 @@
             "react-basic-hooks",
             "routing",
             "routing-duplex",
+            "sp-analysis",
             "sp-board",
             "sp-core",
-            "sp-harness",
             "strings",
             "tuples",
             "unsafe-coerce",
@@ -218,7 +260,6 @@
             "ordered-collections",
             "prelude",
             "run",
-            "sp-board",
             "sp-core",
             "sp-policy",
             "tuples",
@@ -241,6 +282,8 @@
         "core": {
           "dependencies": [
             "aff",
+            "argonaut-codecs",
+            "argonaut-core",
             "arrays",
             "effect",
             "either",
@@ -248,6 +291,7 @@
             "maybe",
             "ordered-collections",
             "prelude",
+            "refs",
             "run",
             "sp-board",
             "sp-core",
@@ -265,50 +309,8 @@
             "argonaut-codecs",
             "arrays",
             "effect",
-            "quickcheck",
-            "sp-adapters",
-            "sp-scenarios",
-            "spec",
-            "spec-node",
-            "spec-quickcheck"
-          ]
-        }
-      },
-      "sp-harness": {
-        "path": "packages/harness",
-        "core": {
-          "dependencies": [
-            "argonaut-codecs",
-            "argonaut-core",
-            "arrays",
-            "effect",
-            "either",
-            "foldable-traversable",
-            "foreign-object",
-            "maybe",
-            "newtype",
-            "ordered-collections",
-            "prelude",
-            "run",
-            "sp-board",
-            "sp-core",
-            "sp-effects",
-            "sp-handlers",
-            "sp-policy",
-            "strings",
-            "tuples",
-            "typelevel-prelude"
-          ]
-        },
-        "test": {
-          "dependencies": [
-            "aff",
-            "argonaut-core",
-            "datetime",
-            "effect",
             "exceptions",
-            "newtype",
-            "now",
+            "partial",
             "quickcheck",
             "sp-adapters",
             "sp-scenarios",
@@ -409,13 +411,14 @@
             "ordered-collections",
             "prelude",
             "sp-adapters",
+            "sp-analysis",
             "sp-board",
             "sp-core",
             "sp-effects",
             "sp-handlers",
-            "sp-harness",
             "sp-policy",
             "sp-scenarios",
+            "sp-simulator",
             "strings",
             "tuples"
           ]
@@ -424,6 +427,50 @@
           "dependencies": [
             "effect",
             "quickcheck",
+            "spec",
+            "spec-node",
+            "spec-quickcheck"
+          ]
+        }
+      },
+      "sp-simulator": {
+        "path": "packages/simulator",
+        "core": {
+          "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
+            "effect",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "newtype",
+            "ordered-collections",
+            "prelude",
+            "run",
+            "sp-board",
+            "sp-core",
+            "sp-effects",
+            "sp-handlers",
+            "sp-policy",
+            "strings",
+            "tuples",
+            "typelevel-prelude"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "aff",
+            "argonaut-core",
+            "datetime",
+            "effect",
+            "exceptions",
+            "newtype",
+            "now",
+            "quickcheck",
+            "sp-adapters",
+            "sp-scenarios",
             "spec",
             "spec-node",
             "spec-quickcheck"

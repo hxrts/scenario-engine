@@ -1,6 +1,6 @@
 -- | The round runner and game loop (docs/02_type_system.md §8.3). Written against effects only:
--- | it uses the signatures in `Effects.Signatures` and the policy environment in
--- | `Effects.Environment`; handlers choose the context it runs in.
+-- | it uses the signatures in `Effects.Signatures` and the in-world Policies in `Policy.InWorld`;
+-- | handlers choose the context it runs in. The Proposal rules it applies are in `Core.Proposal`.
 module Effects.Round
   ( runRound
   , runGame
@@ -10,18 +10,19 @@ import Prelude
 
 import Core.Engine.Commit (EngineError, resolveRound)
 import Core.Engine.Prepare (observe, prepareRound)
-import Core.Query (isAggregate)
-import Core.Types (Entity, EntityId, Proposal, SignedProposal, proposalId)
+import Core.Proposal (assembleSigned, jointProposalsOf, numberJoint, proposalsOf, signableBy)
+import Core.Query (homeMarket)
+import Core.Types (Entity)
 import Core.World (RoundResult, View, WorldState)
-import Data.Array (concat, concatMap, elem, filter, fromFoldable, mapWithIndex, null)
+import Data.Array (concat, filter, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isNothing)
-import Data.Traversable (for, mapAccumL)
-import Effects.Environment (InWorld, envFor, homeMarket, policyOf)
-import Effects.Signatures (INTERPRET, InterpretF(..), JointProposal, RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
-import Policy.Interpret (Draft, Env)
+import Data.Maybe (Maybe(..), isNothing)
+import Data.Traversable (for)
+import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Policy.InWorld (InWorld, policyOf)
+import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))
@@ -42,22 +43,18 @@ runRound inWorld w0 = do
   let transcripts = filter (\t -> t.text /= "") spoken
   joint <-
     if null transcripts then pure []
-    else lift _interpret (Interpret w.round transcripts identity) >>= case _ of
-      Right js -> pure js
-      Left _ -> pure []
-  let jointNumbered = numbered w joint
-  drafted <- for entities \e -> map (toProposal w e.id) <<< mapWithIndex tuple' <$> proposeFor e (view e)
+    else map jointProposalsOf (lift _interpret (Interpret w.round transcripts identity))
+  let
+    jointNumbered = numberJoint w.round joint
+  drafted <- for entities \e -> proposalsOf w.round e.id <$> proposeFor e (view e)
   let
     proposals = concat drafted <> map _.proposal jointNumbered
-    toSign e = filter (\p -> e.id `elem` p.signers && p.author /= e.id && not (isAggregate e)) proposals
   signatures <- for entities \e -> do
-    ids <- if toSign e == [] then pure [] else signFor e ((view e) { toSign = toSign e })
+    let signable = signableBy e proposals
+    ids <- if signable == [] then pure [] else signFor e ((view e) { toSign = signable })
     pure { entity: e.id, ids }
   let
-    signed :: Array SignedProposal
-    signed = map (\p -> { proposal: p, signatures: map _.entity (filter (\s -> p.id `elem` s.ids) signatures) <> jointSigned p.id }) proposals
-    jointSigned pid = concatMap _.signed (filter (\j -> j.proposal.id == pid) jointNumbered)
-    result = resolveRound w signed
+    result = resolveRound w (assembleSigned proposals signatures jointNumbered)
   for_ result \r -> lift _record (Record r unit)
   pure result
   where
@@ -70,28 +67,6 @@ runRound inWorld w0 = do
 
   env :: Entity -> View -> Env
   env e = envFor { params: inWorld.params, home: homeMarket w0, seed: w0.seed, source: "policy" } e.id
-
--- | The joint Proposals with their index among their author's, as a seat's own Proposals are
--- | numbered, so that replay assigns the same ids.
-numbered :: WorldState -> Array JointProposal -> Array { proposal :: Proposal, signed :: Array EntityId }
-numbered w joint = (mapAccumL step Map.empty joint).value
-  where
-  step seen j =
-    let
-      n = fromMaybe 0 (Map.lookup j.author seen)
-    in
-      { accum: Map.insert j.author (n + 1) seen
-      , value: { proposal: toProposal w j.author { index: n, draft: j.draft }, signed: j.signed }
-      }
-
-type Tuple' = { index :: Int, draft :: Draft }
-
-tuple' :: Int -> Draft -> Tuple'
-tuple' index draft = { index, draft }
-
-toProposal :: WorldState -> EntityId -> Tuple' -> Proposal
-toProposal w author { index, draft } =
-  { id: proposalId w.round author index, author, intents: draft.intents, signers: draft.signers, procedure: draft.procedure }
 
 -- | Run `n` rounds from `w`, stopping at the first engine failure.
 runGame :: forall r. InWorld -> Int -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError WorldState)

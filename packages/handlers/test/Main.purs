@@ -6,13 +6,13 @@ import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Invariants (checkRun)
-import Core.Query (priceOf)
+import Core.Query (homeMarket, priceOf)
 import Board.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (any, concatMap, index, length)
+import Data.Array (all, any, concatMap, index, length)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -22,10 +22,14 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
-import Effects.Environment (InWorld, homeMarket, inWorldOf)
+import Policy.InWorld (InWorld, inWorldOf)
 import Effects.Round (runGame)
 import Foreign.Object as Object
 import Test.Handlers.Run (runTest)
+import Test.Handlers.Live as Live
+import Test.Handlers.Capstone as CapstoneTests
+import Effect.Ref as Ref
+import Handlers.Store (AppendRound, StorePort, metricsVersion, recorder)
 import Policy.Program (Program, decodeProgram)
 import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadPresets)
@@ -68,8 +72,42 @@ seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP"
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
+-- | A store port that keeps the appended rounds in memory; the other operations answer nothing.
+memoryStore :: Ref.Ref (Array AppendRound) -> StorePort
+memoryStore saved =
+  { createRun: \_ -> pure unit
+  , appendRound: \r -> Ref.modify_ (_ <> [ r ]) saved
+  , setStatus: \_ _ -> pure unit
+  , failRun: \_ _ -> pure unit
+  , setSpec: \_ _ -> pure unit
+  , setArchived: \_ _ -> pure unit
+  , deleteRun: \_ -> pure 0
+  , runs: pure []
+  , summaries: pure []
+  , manifest: \_ -> pure Nothing
+  , rounds: \_ -> pure []
+  , metric: \_ _ _ -> pure []
+  }
+
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  Live.spec
+  CapstoneTests.spec
+  describe "Recorder (RECORD over a store port, no database)" do
+    it "hands each round to the port with its transcripts and its metrics" do
+      g <- setup
+      records <- play g 2 Map.empty
+      saved <- liftEffect (Ref.new [])
+      let said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      liftEffect do
+        save <- recorder (memoryStore saved) "run-x" g.world
+        for_ records \r -> save r (if r.record.round == 1 then said else [])
+      rows <- liftEffect (Ref.read saved)
+      map _.round rows `shouldEqual` [ 1, 2 ]
+      map _.run rows `shouldEqual` [ "run-x", "run-x" ]
+      map _.transcripts rows `shouldEqual` [ said, [] ]
+      (all (\r -> length r.metrics > 0 && all (\m -> m.version == metricsVersion) r.metrics) rows) `shouldEqual` true
+
   describe "Round runner and Test handler" do
     it "plays five rounds with every seat Conservative and with every seat Passive" do
       g <- setup

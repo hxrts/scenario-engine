@@ -1,6 +1,6 @@
 -- | The read handlers (docs/06_simulator.md §8–§10): the run list summaries, a stored run decoded
 -- | whole, the per-run views, the comparison, and the agency analysis. Every view is computed in
--- | `Harness.Views`; this module decodes the stored text, picks the view, and replies.
+-- | `Analysis.Views`; this module decodes the stored text, picks the view, and replies.
 module Server.Read
   ( param
   , runSummaries
@@ -13,37 +13,34 @@ module Server.Read
 
 import Prelude
 
-import Adapters.Store (Db, RunInfo, RunSummary, StoredRound, reader)
+import Handlers.Store (RunInfo, RunSummary, StoredManifest, StoredRound, StorePort, reader)
 import Core.Draw (Seed(..))
-import Core.Invariants (Failure)
 import Core.Types (Id(..))
-import Core.World (Manifest)
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Nullable (toMaybe)
 import Data.String (Pattern(..), joinWith, split)
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Harness.Analysis (agency)
-import Harness.Simulate (Context)
-import Harness.Views.Actions as Actions
-import Harness.Views.Balance as Balance
-import Harness.Views.Balances as Balances
-import Harness.Views.Common (StoredRun, defaultMetricSpec)
-import Harness.Views.Compare as Compare
-import Harness.Views.Drivers as Drivers
-import Harness.Views.Entity as Entity
-import Harness.Views.Markets as Markets
-import Harness.Views.Overview as Overview
-import Harness.Views.Representation as Representation
-import Harness.Views.Standings as Standings
+import Analysis.Experiments (agency)
+import Simulator.Simulate (Context)
+import Analysis.Views.Actions as Actions
+import Analysis.Views.Balance as Balance
+import Analysis.Views.Balances as Balances
+import Analysis.Views.Common (StoredRun, defaultMetricSpec)
+import Analysis.Views.Compare as Compare
+import Analysis.Views.Drivers as Drivers
+import Analysis.Views.Entity as Entity
+import Analysis.Views.Markets as Markets
+import Analysis.Views.Overview as Overview
+import Analysis.Views.Representation as Representation
+import Analysis.Views.Standings as Standings
 import Http (Response)
-import Server.Errors (LoadError(..), decodeAs, describe, failWith, ok, viewOr)
+import Server.Errors (LoadError(..), describe, failWith, ok, viewOr)
 import Server.Launch (presetSpec, seats)
 
 -- | A query parameter, or the default when the request does not give it.
@@ -53,9 +50,9 @@ param query k d = fromMaybe d (Object.lookup k query)
 -- | The run list: one summary per stored run, read without records or snapshots. Archived runs
 -- | are left out unless `withArchived`. A run that cannot be decoded is listed as unreadable, with
 -- | the reason; the others stay visible.
-runSummaries :: Boolean -> Db -> Effect (Array (Either Overview.Unreadable Overview.RunSummary))
-runSummaries withArchived db = do
-  rows <- (reader db).summaries
+runSummaries :: Boolean -> StorePort -> Effect (Array (Either Overview.Unreadable Overview.RunSummary))
+runSummaries withArchived store = do
+  rows <- (reader store).summaries
   let ids = map _.id rows
   pure (map (summarize ids) (filter (\r -> withArchived || not r.archived) rows))
   where
@@ -65,14 +62,14 @@ runSummaries withArchived db = do
 
 decodeSummary :: Array String -> RunSummary -> Either String Overview.RunSummary
 decodeSummary ids row = do
-  man <- decodeAs "manifest" row.manifest :: Either String Manifest
-  s <- decodeAs "spec" row.spec :: Either String (Object String)
-  assertions <- traverse (\a -> decodeAs "assertions" a :: Either String (Array (Array Failure))) row.assertions
+  man <- row.manifest
+  s <- row.spec
+  assertions <- sequence row.assertions
   pure
     { id: row.id
     , name: row.name
     , status: row.status
-    , reason: toMaybe row.reason
+    , reason: row.reason
     , gameboard: man.gameboard
     , gameSeed: show man.initial.seed
     , playerSeed: fromMaybe "" (Object.lookup "playerSeed" s)
@@ -89,25 +86,25 @@ sourceDeletedIn ids s = maybe false (\src -> notElem src ids) (Object.lookup "so
 
 -- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
 -- | assertion set. Any stored text that fails to decode makes the whole run unreadable.
-loadRun :: Db -> String -> Effect (Either LoadError StoredRun)
-loadRun db id = do
-  let store = reader db
-  runs <- store.runs
-  m <- store.manifest id
-  rows <- store.rounds id
+loadRun :: StorePort -> String -> Effect (Either LoadError StoredRun)
+loadRun store id = do
+  let reads = reader store
+  runs <- reads.runs
+  m <- reads.manifest id
+  rows <- reads.rounds id
   let ids = map _.id runs
   pure case find (\r -> r.id == id) runs, m of
     Nothing, _ -> Left Missing
     Just _, Nothing -> Left (Unreadable "the run has no manifest")
     Just i, Just stored -> either (Left <<< Unreadable) Right (decodeRun ids i stored rows)
   where
-  decodeRun :: Array String -> RunInfo -> { spec :: String, manifest :: String } -> Array StoredRound -> Either String StoredRun
+  decodeRun :: Array String -> RunInfo -> StoredManifest -> Array StoredRound -> Either String StoredRun
   decodeRun ids i stored rows = do
-    man <- decodeAs "manifest" stored.manifest
-    s <- decodeAs "spec" stored.spec :: Either String (Object String)
-    records <- traverse (\r -> decodeAs ("round " <> show r.round <> " record") r.record) rows
-    snapshots <- traverse (\r -> decodeAs ("round " <> show r.round <> " snapshot") r.snapshot) rows
-    assertions <- traverse (\r -> decodeAs ("round " <> show r.round <> " assertions") r.assertions) rows
+    man <- stored.manifest
+    s <- stored.spec
+    records <- traverse _.record rows
+    snapshots <- traverse _.snapshot rows
+    assertions <- traverse _.assertions rows
     pure
       { id: i.id
       , name: i.name
@@ -123,8 +120,8 @@ loadRun db id = do
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: Context -> Db -> Object String -> String -> String -> Effect Response
-getView ctx db query id view = loadRun db id >>= case _ of
+getView :: Context -> StorePort -> Object String -> String -> String -> Effect Response
+getView ctx store query id view = loadRun store id >>= case _ of
   Right r -> runView r
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
@@ -152,20 +149,20 @@ getView ctx db query id view = loadRun db id >>= case _ of
     "events" -> viewOr (roundParam 1 >>= Balances.events r)
     _ -> failWith 404 view
 
--- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Harness.Views.Entity`).
+-- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Analysis.Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
-entityView :: Db -> String -> String -> Effect Response
-entityView db id entity = loadRun db id >>= case _ of
+entityView :: StorePort -> String -> String -> Effect Response
+entityView store id entity = loadRun store id >>= case _ of
   Right r -> viewOr (Entity.entityHistory r (Id entity))
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: Context -> Db -> Object String -> Effect Response
-compareView ctx db query = do
+compareView :: Context -> StorePort -> Object String -> Effect Response
+compareView ctx store query = do
   let ids = filter (_ /= "") (split (Pattern ",") (param query "runs" ""))
-  loaded <- traverse (loadRun db) ids
+  loaded <- traverse (loadRun store) ids
   let
     good = catMaybes (map (hush) loaded)
     skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))

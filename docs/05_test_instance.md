@@ -480,7 +480,7 @@ Tariffs, shipment bans, withholding, and strikes take effect at the next round b
 
 **Fixture R-alone (golden).** The same sale with no deployment runs in full: 40 Mil at (C(−40) − C(0)) / −40 = 2.80, paying 112 M. US Military is **55** and US Money **372**. The reservation leaves the sale 2 units short.
 
-**Deployer preset (harness test 7c).** The shipped `Deployer` preset ([06 §4.2](06_simulator.md#42-presets)) orders the same pair while the Atlantic price is above 3. In a five-round game with the other seats Passive, the Atlantic price is 2.97 at the start of round 3 and 3.29 at the start of round 4, so the preset acts in rounds 4 and 5. Round 4 matches Fixture R. Round 5 starts with 57 Mil against 100 claimed, so both scale by 0.57: the deployment reserves 34.2 and the sale sells 22.8 Mil at (C(−60.8) − C(−38)) / −22.8 = 2.506, which clears the 2.4 limit. US Military ends at **34.2**.
+**Deployer preset (simulator test 7c).** The shipped `Deployer` preset ([06 §4.2](06_simulator.md#42-presets)) orders the same pair while the Atlantic price is above 3. In a five-round game with the other seats Passive, the Atlantic price is 2.97 at the start of round 3 and 3.29 at the start of round 4, so the preset acts in rounds 4 and 5. Round 4 matches Fixture R. Round 5 starts with 57 Mil against 100 claimed, so both scale by 0.57: the deployment reserves 34.2 and the sale sells 22.8 Mil at (C(−60.8) − C(−38)) / −22.8 = 2.506, which clears the 2.4 limit. US Military ends at **34.2**.
 
 ### 13.4 Soft Power
 
@@ -763,7 +763,7 @@ Verifies signature completeness, lapsing, atomic settlement of bundled Intents, 
 
 Vary one parameter at a time from the baseline before combining changes.
 
-**Baseline simulation results.** The variant experiments ([Simulator §11](06_simulator.md#11-experiments), `packages/harness/test/Test/Harness/Experiments.purs`) leave these parameters unchanged. They pass every invariant in every variant, and bear on [§29](#29-gameplay-questions) as follows:
+**Baseline simulation results.** The variant experiments ([Simulator §11](06_simulator.md#11-experiments), `packages/analysis/test/Test/Analysis/Experiments.purs`) leave these parameters unchanged. They pass every invariant in every variant, and bear on [§29](#29-gameplay-questions) as follows:
 
 - *Seat presets.* `Conservative` only buys below 2.5 M/E while holding under 30 E. Prices pass 2.5 by Round 2, so twelve of the fifteen seats never act under it and are unmeasurable against `Passive`. Against an active baseline (`RandomValid`), every seat has a measurable effect, so agency is analysed against that baseline.
 - *Small players (Q1).* LABOR, SME, and AID move prices and other Actors' holdings measurably. The SME Representation is weak at these values: the shrinkage sweep 0–0.5 moves the final Atlantic price by at most 0.0001 M/E, and game seeds 1–3 give results identical to 4 dp. Reference, shrinkage, and bound are the levers to raise its influence.
@@ -826,19 +826,19 @@ Each section file is one JSON object, merged into the Gameboard. `instantiation.
 The first complete test succeeds when the engine can:
 
 1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* scenarios: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
-2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*. Harness: *12 Resolution consistency*.
-3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden). Harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
-4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Harness: *7 NPC response*.
-5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden). Harness: *7b Reservation*, *7c Deployer*.
-6. Produce, spend, and decay Soft Power. *Proved by:* harness: *Soft Power is produced, spent, and decays*.
-7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden). Harness: *1 Full game*, *8 Scarcity*. INV-05 asserted every round.
-8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* scenarios: *china-strategic-v0 procures after a major US action*. Harness: *7 NPC response*.
-9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden). Harness: *5 Germany and EU*.
-10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test). Harness: *6 SME Representation*.
-11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden). Harness: *10 Signed Proposals*.
-12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*. Harness: *3 Submission order*.
-13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* harness: *2 Replay*. Adapters: *13 Persistence*, *a scripted live session equals replaying…*.
-14. Evaluate every Actor's objective criteria from the records. *Proved by:* harness: *14 Agency*.
+2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*. Simulator: *12 Resolution consistency*.
+3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden). Simulator: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
+4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Analysis: *7 NPC response*.
+5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden). Simulator: *7b Reservation*, *7c Deployer*.
+6. Produce, spend, and decay Soft Power. *Proved by:* simulator: *Soft Power is produced, spent, and decays*.
+7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden). Simulator: *1 Full game*, *8 Scarcity*. INV-05 asserted every round.
+8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* scenarios: *china-strategic-v0 procures after a major US action*. Analysis: *7 NPC response*.
+9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden). Simulator: *5 Germany and EU*.
+10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test). Simulator: *6 SME Representation*.
+11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden). Simulator: *10 Signed Proposals*.
+12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*. Simulator: *3 Submission order*.
+13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* simulator: *2 Replay*. Adapters: *13 Persistence*, *a scripted live session equals replaying…*.
+14. Evaluate every Actor's objective criteria from the records. *Proved by:* analysis: *14 Agency*.
 
 The test does not need realistic macroeconomic forecasting. Its objective is coherent, consequential, explainable interaction.
 

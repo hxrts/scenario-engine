@@ -1,6 +1,6 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
-packages := "core board policy scenarios effects handlers adapters harness cli server dashboard"
+packages := "core board policy scenarios effects handlers adapters simulator analysis cli server dashboard"
 
 _default:
     @just --list
@@ -34,9 +34,10 @@ _fmt-check:
 _deps:
     node scripts/check-deps
 
-# Compile the DSL scenarios to JSON
+# Compile the DSL scenarios to JSON, then generate the capstone recording (no model call)
 _scenarios:
     spago run -p sp-cli --main Compile
+    spago run -p sp-cli --main Transcript
 
 # fmt-check, deps, build, test
 check: _fmt-check _deps build test

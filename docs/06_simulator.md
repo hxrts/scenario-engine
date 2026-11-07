@@ -1,4 +1,4 @@
-# Simulation Harness and Dashboard Specification
+# Simulator and Dashboard Specification
 
 **Version:** 0.3  
 **Scope:** Automated Simulation, Persistence, Read API, Dashboard, Live Play, and Tests  
@@ -11,11 +11,11 @@ Items marked **Planned** are specified but not implemented. Unmarked behaviour i
 
 ## 1. Purpose
 
-The Simulation Harness plays complete games automatically and deterministically. It is used to check implementation correctness and to improve gameplay through repeated experiments.
+The Simulator plays complete games automatically and deterministically. It is used to check implementation correctness and to improve gameplay through repeated experiments.
 
-The harness runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Glossary, and invariants are cited by their IDs in the Type System specification ([§2.5](02_type_system.md#25-glossary) and [§9](02_type_system.md#9-architectural-invariants-and-numerics)).
+The simulator runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Glossary, and invariants are cited by their IDs in the Type System specification ([§2.5](02_type_system.md#25-glossary) and [§9](02_type_system.md#9-architectural-invariants-and-numerics)).
 
-The harness lets a developer:
+The simulator lets a developer:
 
 1. Select a Gameboard and configure an Instantiated Game.
 2. Bind a seat Policy (preset program, AI agent, or recorded human) to every seat.
@@ -25,25 +25,25 @@ The harness lets a developer:
 6. Compare saved runs, including controlled counterfactuals.
 7. Vary parameters to investigate correctness, balance, and player agency.
 
-The harness should also expose architectural defects. Inconsistent accounting, duplicated activity, invalid settlement, or an unexplained outcome must fail the run explicitly. It must never be silently compensated for.
+The simulator should also expose architectural defects. Inconsistent accounting, duplicated activity, invalid settlement, or an unexplained outcome must fail the run explicitly. It must never be silently compensated for.
 
 ## 2. Position and Separation of Concerns
 
-The harness is a development component, not a fourth layer of economic semantics.
+The simulator is a development component, not a fourth layer of economic semantics.
 
 **Gameboard + Instantiation Configuration + Simulation Spec → Simulation Run → Run Store → Dashboard**
 
 | Component | Responsibility |
 |---|---|
-| **Simulation Harness** | Binds seat Policies, drives the round runner and the engine, and checks assertions. |
+| **Simulator** | Binds seat Policies, drives the round runner and the engine, and checks assertions. |
 | **Run Store** | Persists manifests, round records, snapshots, and metrics. |
 | **Read API and Dashboard** | Serves run views and presents them. Read-only except for the run operations in §8.1. |
 
-The harness invokes the same instantiation and resolution operations used in live play. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
+The simulator invokes the same instantiation and resolution operations used in live play. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
 
-The harness is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Sim`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed) and `RECORD` with the Run Store. The replay handler (`Handlers.Replay`) feeds recorded Proposals and signatures instead. The round runner and engine are the same as in live play.
+The simulator is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Sim`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed) and `RECORD` with the Run Store. The replay handler (`Handlers.Replay`) feeds recorded Proposals and signatures instead. The round runner and engine are the same as in live play.
 
-The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The harness only generates inputs, records results, and evaluates them. The Dashboard reads through the read API and never alters authoritative state or run histories. Changing any parameter creates a new run. Resume (§8.1) is the one operation that adds rounds to an existing run.
+The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The simulator only generates inputs, records results, and evaluates them. The Dashboard reads through the read API and never alters authoritative state or run histories. Changing any parameter creates a new run. Resume (§8.1) is the one operation that adds rounds to an existing run.
 
 Narrative reporting is optional in simulation. Analysis reads authoritative engine data, never language-model summaries.
 
@@ -81,7 +81,7 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 ## 4. Seat Policies
 
-The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the scenario. An NPC's Policy is part of the scenario. In simulation the harness binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
+The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the scenario. An NPC's Policy is part of the scenario. In simulation the simulator binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
 Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
 
@@ -124,13 +124,13 @@ The Dashboard's launch form offers the same eleven names (`Dashboard.Presets`).
 
 ### 4.3 Coverage
 
-Every seat has exactly one bound seat Policy. A seat Policy that produces nothing yields an explicit `NoAction`. The harness never invents default decisions. A diagnostic mode may deliberately leave seats inactive.
+Every seat has exactly one bound seat Policy. A seat Policy that produces nothing yields an explicit `NoAction`. The simulator never invents default decisions. A diagnostic mode may deliberately leave seats inactive.
 
 ## 5. Deterministic Randomness
 
 Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
-**The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Adapters.Seed.resolveSeed`. The stored spec records the resolved seed, never an absent value. The harness functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
+**The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Adapters.Seed.resolveSeed`. The stored spec records the resolved seed, never an absent value. The simulator functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
 
 `simulate` takes a concrete seed and reads no entropy. Its signature is in [07 §4](07_architecture.md#4-key-interfaces).
 
@@ -157,23 +157,23 @@ Conversion of random values into quantities uses the Type System's fixed-point r
 
 In the Run Store a run's status is `running`, `completed`, or `failed`. The dashboard's run list adds `unreadable` for a run it cannot decode. A run is `running` from its creation until it finishes. A failed run keeps its last valid state and diagnostics.
 
-Each round follows the canonical sequence (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence)). The harness drives the same round runner and engine as live play, with seat Policies bound:
+Each round follows the canonical sequence (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence)). The simulator drives the same round runner and engine as live play, with seat Policies bound:
 
-| Canonical phase | Harness role |
+| Canonical phase | Simulator role |
 |---|---|
 | 2. Create observations | Passes each seat its authorized view. |
 | 3a. Propose / 3b. Sign | Drives the round runner, which runs the bound seat Policies alongside the NPC and Aggregate Policies on the shared interpreter. |
 | 7. Commit and record | Persists the round record, snapshot, assertion results, and metrics. |
 
-The engine performs phases 1–2 and 4–7. The harness never evaluates NPC or Aggregate Policies itself, computes Representation estimates or procedure support, or repeats Aggregate actions. It delegates to the round runner, which is the same code used in live play.
+The engine performs phases 1–2 and 4–7. The simulator never evaluates NPC or Aggregate Policies itself, computes Representation estimates or procedure support, or repeats Aggregate actions. It delegates to the round runner, which is the same code used in live play.
 
-The harness exposes **run to completion** (`simulate`, or `simulateWith` with a per-round persister) and **extend** (`resume`, which continues from a stored snapshot). **Planned:** a single-round step operation.
+The simulator exposes **run to completion** (`simulate`, or `simulateWith` with a per-round persister) and **extend** (`resume`, which continues from a stored snapshot). **Planned:** a single-round step operation.
 
 ### 6.1 Invalid actions and failures
 
 An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules (Type System [§3.2](02_type_system.md#32-infeasible-actions)). The round record keeps both the proposed and the executed action. A representative's observation comes from the proposal, even when its fill differs.
 
-An invariant violation fails the run. The harness preserves the configuration, last valid state, failing round, Intents, Policy, Representation, and procedure outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
+An invariant violation fails the run. The simulator preserves the configuration, last valid state, failing round, Intents, Policy, Representation, and procedure outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
 
 A failed run is never left `running`. It is marked `failed` with its reason in each of these cases: an engine error or invariant violation (the reason is the error). An exception while simulating or saving a round, such as a store fault (the reason is the exception). A live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures. They become an empty submission or a plain event listing. At server startup, runs still marked `running` (left by a process that stopped) are marked failed with the reason `interrupted`.
 
@@ -216,7 +216,7 @@ Each required assertion checks exactly one invariant from the Type System master
 | Single authoritative state | [INV-15](02_type_system.md#inv-15) | Planned |
 | Information isolation | [INV-16](02_type_system.md#inv-16) | Planned |
 
-Harness invariants [INV-29](02_type_system.md#inv-29) to [INV-31](02_type_system.md#inv-31) are checked by the harness's own test suite rather than by per-round assertions.
+Simulator invariants [INV-29](02_type_system.md#inv-29) to [INV-31](02_type_system.md#inv-31) are checked by the simulator's own test suite rather than by per-round assertions.
 
 Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
 
@@ -248,7 +248,7 @@ The test compares A and B at initialization, where any difference is an accounti
 
 ### 7.4 AI interpretation tests
 
-Text-to-Intent interpretation is tested separately, in the interpretation suite of the adapters package (`Adapters.Llm`). The harness consumes canonical Intents and never calls the language model.
+Text-to-Intent interpretation is tested separately: the handlers suite (`Handlers.Llm`) through a typed stub `ModelPort` or the replayed recording, and the adapter suite (`Test.Adapters.Llm`) for prompts, reply decoding, and the `pi` process boundary, with no model. The simulator consumes canonical Intents and never calls the language model.
 
 The interpretation suite contains:
 
@@ -283,12 +283,14 @@ Live sessions also keep evidence of each language-model call: the effect, model 
 
 The initial record is written before Round 1. After each round, the round record, snapshot, assertions, and metrics are saved in one transaction. If Round 4 fails, Rounds 1–3 remain available.
 
-**Schema.** The store is SQLite, accessed through `Adapters.Store`. Its schema version is `PRAGMA user_version`, and the migrations are ordered and append-only:
+**Schema.** The store is SQLite, accessed through `Adapters.Store` behind the `Handlers.Store` port. Its schema version is `PRAGMA user_version`, and the migrations are ordered and append-only:
 
 1. Tables `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`), `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`. Key `run`, `round`), and `metrics` (`run`, `metric`, `version`, `round`, `value`. Key `run`, `metric`, `version`, `round`).
 2. `runs.reason`.
 3. `runs.archived` (default 0), `runs.source`, and `runs.kind`.
 4. `rounds.transcripts`: the round's seat transcripts as a JSON array, stored in the round's transaction (default `[]`).
+
+**Port.** The `StorePort` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Adapters.Store` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
 
 **Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metrics are read at a stated version (`metric(run, metric, version)`), so a projection computed under one definition is never mixed with another.
 
@@ -306,7 +308,7 @@ The server (`apps/server`, routed by `Server.Routes`) serves JSON. Every other m
 | `GET /api/runs[?archived=true]` | The run list (`Table`). Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat. Body: `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch |
 | `GET /api/runs/:id/:view[?round=n]` | One view. `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
-| `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Harness.Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth (M)`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
+| `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Analysis.Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth (M)`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
 | `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 for a rerun whose source cannot be compared |
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
@@ -317,13 +319,13 @@ The server (`apps/server`, routed by `Server.Routes`) serves JSON. Every other m
 Operation rules:
 
 - **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec and its own columns.
-- **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `Harness.Records.recordsEqual`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
+- **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `Simulator.Records.recordsEqual`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
-The **Store interface** (`RunStoreRead` in `Adapters.Store`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, metric series, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
+The **Store interface** (`RunStoreRead` in `Handlers.Store`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, metric series, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
 
 ---
 
@@ -364,7 +366,7 @@ The page opens with a compact header: run id, name, scenario, status, rounds com
 9. **Final balance sheet.** Every Entity's holdings (Actors, NPCs, and Aggregates, with a `Kind` column) by Resource at the final round: `Initial`, `Current`, and `Change` (`balances`). There is no Reserved column, because a reservation does not outlive its round. Aggregates are residual representations.
 10. **Entity balance sheet.** A selector of the run's Entities, defaulting to the first Actor (which stands for the first seat, because the balances view does not say which Actors are seats). It draws **Holdings by Resource**, one line per held Resource in its own unit, and **Net worth** in M on its own scale, from `/api/runs/:id/entity/:entity` (§8.1).
 
-**Definitions.** *Net worth* is Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource (the regional Energy Markets), its price is their mean, so a holding counts once. Soft Power has no Market and is not counted. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Harness.Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The *spread* is the highest minus the lowest final net worth. The *Gini coefficient* is 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative (`Harness.Views.Balance`).
+**Definitions.** *Net worth* is Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource (the regional Energy Markets), its price is their mean, so a holding counts once. Soft Power has no Market and is not counted. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Analysis.Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The *spread* is the highest minus the lowest final net worth. The *Gini coefficient* is 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative (`Analysis.Views.Balance`).
 
 **Not on the run page** (served by the API for analysis and tooling): the round-by-round action counts. The Market, facility, economy, and pressure views (`markets`, `facilities`, `economy`). The representation and procedure records (`representation`, `procedures`). The raw event log (`events`). And the overview fields (engine, draws, seeds, rejected Proposals, assertion counts, and `Rounds target`). The Dashboard does not show macroeconomic indicators the Gameboard does not define.
 
@@ -402,7 +404,7 @@ The Compare page (`#/compare`) lists every readable run as a tick box, and the t
 - **Key values:** one row per measure or player, one column per run, headed by the run's name and id. Rows are each player's final net worth, change, and rank. Each player's trades, transforms, and transfers. The spread and Gini. Each role's objective criteria met. Proposals rejected by all players. And each Market's final price.
 - **Details:** tabs for final state (differing values highlighted), baseline diff, configuration (differing values highlighted), compatibility, seed variation, and agency (§10.5).
 
-Every statistic is computed in the harness: `Harness.Views.Compare` and `Harness.Views.Markets` (`/api/compare`). A run's colour is its place among the ticked runs, from the theme's chart variables (`--chart-1` to `--chart-5`), so it reads in both themes. Colours repeat beyond five runs. Each legend names every run and marks the baseline. A full-width plot is 360px tall. The page is stale-while-revalidate: ticking a run refetches the comparison, and the last loaded comparison stays on screen until the new one arrives, with each plot in a frame of fixed size. Drivers and procedures are per run and are not compared.
+Every statistic is computed in the analysis package: `Analysis.Views.Compare` and `Analysis.Views.Markets` (`/api/compare`). A run's colour is its place among the ticked runs, from the theme's chart variables (`--chart-1` to `--chart-5`), so it reads in both themes. Colours repeat beyond five runs. Each legend names every run and marks the baseline. A full-width plot is 360px tall. The page is stale-while-revalidate: ticking a run refetches the comparison, and the last loaded comparison stays on screen until the new one arrives, with each plot in a frame of fixed size. Drivers and procedures are per run and are not compared.
 
 ## 10. Comparison
 
@@ -440,7 +442,7 @@ Both seeds and all DrawKeys stay fixed, so the difference measures the intervent
 
 ### 10.5 Agency analysis
 
-For each Actor, the harness replays the game with the alternative preset for that Actor, holding everything else fixed, and measures changes in prices, other Actors' holdings, Aggregate behavior, institutional decisions, and the Actor's own objective criteria ([§9.3](05_test_instance.md#93-objectives)). The unknown-preset check is in §8.1: an unknown name is an error, never a silent baseline.
+For each Actor, the simulator replays the game with the alternative preset for that Actor, holding everything else fixed, and measures changes in prices, other Actors' holdings, Aggregate behavior, institutional decisions, and the Actor's own objective criteria ([§9.3](05_test_instance.md#93-objectives)). The unknown-preset check is in §8.1: an unknown name is an error, never a silent baseline.
 
 The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative, with its price change, others' and Aggregates' holdings, institutional decisions, and own criteria changed. A row whose alternative produces negligible differences on every measure is marked `no: balancing finding`. **Planned:** the criteria results under each alternative, shown as an agency profile per role. Agency matters more than equal starting resources.
 
@@ -454,7 +456,7 @@ The comparison's runs and baseline are carried in the route (`#/compare/:ids`), 
 
 ## 11. Experiments
 
-**Planned as a launcher.** Experiments run today only inside the harness test suite (`Test.Harness.Experiments`, using `Harness.Analysis.playerSeedRuns` and `counterfactual`). No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a comparison set.
+**Planned as a launcher.** Experiments run today only inside the analysis test suite (`Test.Analysis.Experiments`, using `Analysis.Experiments.playerSeedRuns` and `counterfactual`). No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a comparison set.
 
 Target experiment kinds:
 
@@ -501,7 +503,7 @@ Every one of the fifteen seats receives a simple, predictable preset seat Policy
 
 ## 14. Mandatory Tests
 
-Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–12 and 7b–7c are in `packages/harness/test/Main.purs`, test 8b in `packages/harness/test/Test/Harness/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`, and test 14 in `packages/harness/test/Test/Harness/Experiments.purs`.
+Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7c, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Analysis.Experiments`, so they run in the analysis suite (`packages/analysis/test/Test/Analysis/Mandatory.purs`); the simulator suite does not depend on analysis.
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
@@ -529,7 +531,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 ## 15. Summary
 
-The Simulation Harness executes complete games without human participants. Simulated seats are driven by seat Policies (preset programs, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
+The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset programs, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
 
 The development loop is:
 

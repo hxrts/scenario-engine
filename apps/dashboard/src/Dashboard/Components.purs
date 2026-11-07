@@ -1,5 +1,5 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
--- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
+-- | analysis view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
 module Dashboard.Components (stale, tableOf, linkedTable, diffTable, metricChart, stackedBars, overlayChart, groupedBars, plotFrame, placeholderFrame, fetched, status, definition, Render, as, card) where
 
@@ -19,8 +19,8 @@ import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Unsafe.Coerce (unsafeCoerce)
-import Harness.Views.Actions (ActionsChart)
-import Harness.Views.Common (Bars, Chart, Statistic, Table)
+import Analysis.Views.Actions (ActionsChart)
+import Analysis.Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, element, useEffect, useState', (/\))
 import React.Basic.Hooks as React

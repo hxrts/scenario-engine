@@ -7,6 +7,8 @@ package:
     - sp-board
     - sp-policy
     - sp-effects
+    - argonaut-codecs
+    - argonaut-core
     - effect
     - either
     - foreign-object
@@ -17,6 +19,7 @@ package:
     - typelevel-prelude
     - aff
     - arrays
+    - refs
     - strings
   test:
     main: Test.Handlers.Main
@@ -25,6 +28,8 @@ package:
       - sp-scenarios
       - sp-adapters
       - aff
+      - exceptions
+      - partial
       - arrays
       - argonaut-codecs
       - spec

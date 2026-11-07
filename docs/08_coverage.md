@@ -22,7 +22,7 @@ Test references are `file :: test name`, relative to the repository root.
 | DSL `deal` decodes, with transforms | `packages/scenarios/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
 | Scenario loader: duplicate keys, bad sections, bad policy refs | `packages/scenarios/test/Main.purs` :: "Scenario loader: files and policies fail at load time" | covered | n/a |
 | Gameboard validation (each `ValidationError`) | `packages/scenarios/test/Main.purs` :: "Gameboard validation…" | covered | n/a |
-| Board decoding of run file, expectations, rules, fixtures | `packages/harness/src/Harness/Capstone.purs` (`decodeCapstone`). `packages/board/test/Main.purs` | covered | yes |
+| Board decoding of run file, expectations, rules, fixtures | `packages/simulator/src/Simulator/Capstone.purs` (`decodeCapstone`). `packages/board/test/Main.purs` | covered | yes |
 
 ## Policies and programs
 
@@ -41,30 +41,30 @@ Test references are `file :: test name`, relative to the repository root.
 | Sign rule `signIf` (conditional signing) | `packages/policy/test/Main.purs` :: "signIf signs a Proposal only while its conditions hold" | covered | yes (Germany, rounds 4 and 5) |
 | Conditions `restrictionInForce`, `transformedLastRound` | `packages/policy/test/Main.purs` | covered | yes (EU tariff, China's procurement) |
 | Condition `restrictedLastRound` | `packages/policy/test/Main.purs` :: "restrictedLastRound holds only…" | covered | no |
-| Presets (eleven, incl. Deployer) | `packages/harness/test/Main.purs` :: "Every preset plays 8 rounds…". "7c Deployer" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
+| Presets (eleven, incl. Deployer) | `packages/simulator/test/Main.purs` :: "Every preset plays 8 rounds…". "7c Deployer" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
 | Market access rules | `packages/core/test/Main.purs` :: "rejects a Trade by an Entity outside the Market's access" | covered | partial (access is set by the shipped Markets, no rejection in the run) |
 
 ## Engine: markets, facilities, capacity
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Market exchange, limit prices | `packages/harness/test/Main.purs` :: "4 Market exchange: Fixture A and A2" | covered | yes (SME and the US trade each round) |
+| Market exchange, limit prices | `packages/simulator/test/Main.purs` :: "4 Market exchange: Fixture A and A2" | covered | yes (SME and the US trade each round) |
 | Facility `ownerSigns` | none directly. Enforced in `packages/core/src/Core/Engine/Screen.purs` | partial | yes (SHIP signs the shipment) |
-| Facility `effects` (capacity change, holder, rounds) | `packages/harness/test/Main.purs` :: "Soft Power is produced, spent, and decays" | partial | no |
+| Facility `effects` (capacity change, holder, rounds) | `packages/simulator/test/Main.purs` :: "Soft Power is produced, spent, and decays" | partial | no |
 | Capacity escrow and pooled facility ceiling | `packages/core/test/Main.purs` :: "caps an uncapped facility's fills…" | covered | partial |
-| Reservations (Mil escrow, scaling, release at commit) | `packages/core/test/Main.purs`. `packages/harness/test/Main.purs` :: "7b Reservation", "7c Deployer" | covered | yes (US round 4: 60 reserved, 38 of 40 ordered, 85.5 Mil held) |
+| Reservations (Mil escrow, scaling, release at commit) | `packages/core/test/Main.purs`. `packages/simulator/test/Main.purs` :: "7b Reservation", "7c Deployer" | covered | yes (US round 4: 60 reserved, 38 of 40 ordered, 85.5 Mil held) |
 | Fixed flows | fixture and full-game runs only | partial | yes (every shipped flow runs each round) |
 
 ## Collective procedure, tariffs, bans, repeal, withholding
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Collective procedure passes only above threshold | `packages/harness/test/Main.purs` :: "5 Germany and EU" (Fixture B pair) | covered | yes: solidarity lapses in round 4 (support 0.4) and executes in round 5 (support 0.6) |
-| Major shock flips preset behaviour. Disruption offers never below zero | `packages/harness/test/Test/Harness/Shock.purs` :: "Major shock (docs/05 §13.6)" | covered | no |
+| Collective procedure passes only above threshold | `packages/simulator/test/Main.purs` :: "5 Germany and EU" (Fixture B pair) | covered | yes: solidarity lapses in round 4 (support 0.4) and executes in round 5 (support 0.6) |
+| Major shock flips preset behaviour. Disruption offers never below zero | `packages/simulator/test/Test/Simulator/Shock.purs` :: "Major shock (docs/05 §13.6)" | covered | no |
 | Solidarity pool: Germany's transfer in, and the pool drawn first by the EU's procedure | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "B1" and "B2-pool" (Fixture B) | covered | no (pool stays empty in the capstone) |
-| Tariff enactment and in-force condition | `packages/harness/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
+| Tariff enactment and in-force condition | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
 | Access ban enacted by a seat's program | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
-| Access ban blocks a real shipment | `packages/harness/test/Main.purs` :: "11…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
+| Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
 | Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
 | Withholding changes capacity | decode only (`packages/scenarios/test/Main.purs`) | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
 
@@ -72,16 +72,16 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Fully signed Proposal settles atomically. Unsigned lapse (Fixture G) | `packages/harness/test/Main.purs` :: "10 Signed Proposals" | covered | yes (lapse of solidarity in round 4) |
+| Fully signed Proposal settles atomically. Unsigned lapse (Fixture G) | `packages/simulator/test/Main.purs` :: "10 Signed Proposals" | covered | yes (lapse of solidarity in round 4) |
 | Two-party DSL deal executes in a run | capstone only | covered | yes: JP and IN sign a 20-Energy deal in round 3. India signs by its sign-all rule |
 | Deal with transport (transform + transfer) in one Proposal | capstone only | covered | yes: ENCO and SHIP sign a cross-region shipment in round 7 |
-| Submission order independence | `packages/harness/test/Main.purs` :: "3 Submission order…" | covered | n/a |
+| Submission order independence | `packages/simulator/test/Main.purs` :: "3 Submission order…" | covered | n/a |
 
 ## Representation and estimators
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Estimator, shrinkage, one-round lag | `packages/harness/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES factor moves from 0.9358 (round 1) to 0.9406 (round 8) |
+| Estimator, shrinkage, one-round lag | `packages/simulator/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES factor moves from 0.9358 (round 1) to 0.9406 (round 8) |
 | Seeded noise spread | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
 | Representation moves an aggregate's policy in a run | Fixture C only | partial | yes (SME's purchases feed the estimate, which scales GLOBAL_SMES' Atlantic orders) |
 
@@ -96,15 +96,15 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Objective outcomes computed | `packages/harness/test/Main.purs` :: "14 Agency…" (count only) | partial | yes |
-| Explicit met / not met / not evaluated. None met by default | `packages/harness/test/Test/Harness/Views.purs` :: "a run with no rounds…" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
+| Objective outcomes computed | `packages/analysis/test/Test/Analysis/Mandatory.purs` :: "14 Agency…" (count only) | partial | yes |
+| Explicit met / not met / not evaluated. None met by default | `packages/analysis/test/Test/Analysis/Views.purs` :: "a run with no rounds…" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
 | Objective met in one case, missed in another | capstone only | covered | yes: the US objective is met without the deployment and missed with it |
 
 ## Invariants
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied in `packages/harness/test/Main.purs` :: "1 Full game" and `packages/harness/test/Test/Harness/Capstone.purs` | covered | yes ("invariants hold in every round") |
+| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied in `packages/simulator/test/Main.purs` :: "1 Full game" and `packages/simulator/test/Test/Simulator/Capstone.purs` | covered | yes ("invariants hold in every round") |
 | Other INV-xx in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) | no predicate in `Core.Invariants`. The rows above and the tests named there | partial | partial |
 | A tampered result trips INV-05 | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
 
@@ -112,11 +112,12 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Replay from records | `packages/harness/test/Main.purs` :: "2 Replay…" | covered | yes ("replays byte-identically from its records") |
+| Replay from records | `packages/simulator/test/Main.purs` :: "2 Replay…" | covered | yes ("replays byte-identically from its records") |
 | Store round-trip (save, reload, replay) | `packages/adapters/test/Main.purs` :: "13 Persistence…" | covered | yes ("the capstone run round-trips through the store…") |
+| Store port carries typed values; a stored value that does not read back is reported in its own field, and the other runs stay readable | `packages/adapters/test/Main.purs` :: "a stored spec that does not read back…" | covered | no |
 | Store migration, busy timeout, startup failure of running runs | `packages/adapters/test/Main.purs` | covered | n/a |
-| Counterfactual (a deployment removed, measured) | `packages/harness/test/Main.purs` :: "7 NPC response…" | covered | yes ("the counterfactual without the deployment changes US Mil…") |
-| Resume from snapshot matches uninterrupted | `packages/harness/test/Main.purs` :: "a run resumed from its third snapshot…". `apps/server/test` | covered | yes ("a run resumed from round 4's snapshot…") |
+| Counterfactual (a deployment removed, measured) | `packages/analysis/test/Test/Analysis/Mandatory.purs` :: "7 NPC response…" | covered | yes ("the counterfactual without the deployment changes US Mil…") |
+| Resume from snapshot matches uninterrupted | `packages/simulator/test/Main.purs` :: "a run resumed from its third snapshot…". `apps/server/test` | covered | yes ("a run resumed from round 4's snapshot…") |
 | Archive and delete | `apps/server/test/Main.purs` :: "archive hides a run…" | covered | no |
 | Derive kinds (duplicate, rerun, variant, counterfactual) | `apps/server/test/Main.purs` :: "derive: duplicate, rerun, variant…" | covered | no |
 
@@ -124,15 +125,18 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| View models: overview, balances, events, facilities, pressure, economy, representation, procedures, objectives, final state, markets | `packages/harness/test/Test/Harness/Views.purs` (edge cases only) | partial | yes ("every dashboard view model is non-empty for the run") |
-| Trajectories, baseline and config diffs, compatibility, agency table | `packages/harness/test/Test/Harness/Views.purs` | partial | no |
+| View models: overview, balances, events, facilities, pressure, economy, representation, procedures, objectives, final state, markets | `packages/analysis/test/Test/Analysis/Views.purs` (edge cases only) | partial | yes ("every dashboard view model is non-empty for the run") |
+| Trajectories, baseline and config diffs, compatibility, agency table | `packages/analysis/test/Test/Analysis/Views.purs` | partial | no |
 | Dashboard tabs (UI) | `apps/dashboard/test/Main.purs`. Playwright smoke in `apps/dashboard` | partial | no |
 
 ## Live and AI seats
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/adapters/test/Test/Adapters/Live.purs` :: "two transcripts describing one deal…", "a one-sided description…", "an undecodable joint reply…" | covered | yes: a recorded transcript (`packages/scenarios/capstone/transcript.json`) replayed through the stub ("each recorded line maps…") |
+| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/handlers/test/Test/Handlers/Live.purs` :: "two transcripts describing one deal…", "a one-sided description…", "an undecodable joint reply…" | covered | yes: the capstone's recording (`packages/scenarios/capstone/transcript.json`, generated by `just _scenarios`) replayed through the replay port ("each recorded line maps…") |
+| Recorded model calls replay from their typed requests; a request the recording does not hold is an error, never a model call | `packages/adapters/test/Test/Adapters/Llm.purs` :: "Recording" | covered | yes: "a transcript the recording does not hold…" (`Test.Handlers.Capstone`) |
+| Capstone recording is generated: each DSL exchange's Intents are checked against the DSL before the file is written | `apps/cli/src/Transcript.purs` (run by `just _scenarios`) | covered | yes |
+| Prompts, reply decoding, and the `pi` process boundary, with no model (a fake `pi` on the PATH) | `packages/adapters/test/Test/Adapters/Llm.purs` :: "Prompts", "Reply decoding", "pi process boundary (no model)" | covered | no |
 | Round's one-sided deal lapses through the signature rule; a matched deal is signed by both | `Live.purs` :: "a one-sided deal lapses; a deal both sides describe is signed by both" | covered | no |
 | Joint pass against the real model (billed, one-off) | `packages/adapters/test/Test/Adapters/LiveInterpret.purs`, run by `just live-interpret` | manual (not in any suite) | no |
 | Audio submission and transcription | none yet | gap: not implemented | no |
@@ -166,7 +170,7 @@ Test references are `file :: test name`, relative to the repository root.
 5. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
    shipped preset is exercised only by its own test.
 6. **Agency.** The capstone does not compute the agency table. That stays in
-   `Test.Harness.Main` :: "14 Agency…".
+   `Test.Analysis.Mandatory` :: "14 Agency…".
 7. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
    [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
    tests named in their rows.

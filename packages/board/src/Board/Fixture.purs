@@ -1,6 +1,6 @@
 -- | Checks an engine-level fixture: every round's expected balances, reserves, factors,
 -- | deliveries, rejections, lapses, procedure outcomes, scheduled rule changes, and every
--- | invariant. Pure; returns the failures. Shared by the golden tests and the harness.
+-- | invariant. Pure; returns the failures. Shared by the golden tests and the simulator.
 -- |
 -- | Only the expectations a round gives are checked; an absent expectation asserts nothing.
 module Board.Fixture (Fixture, Field(..), FixtureError(..), checkFixture, expectRound) where

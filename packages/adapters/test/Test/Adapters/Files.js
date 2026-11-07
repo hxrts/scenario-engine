@@ -1,4 +1,6 @@
-import { existsSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 export const fileExists = (path) => () => existsSync(path);
@@ -23,3 +25,35 @@ export const createV1StoreImpl = (path) => () => {
    pragma user_version = 1;`);
   db.close();
 };
+
+// Overwrite a run's stored spec with raw text (a test of the typed port's failure reporting).
+export const setRawSpecImpl = (path) => (id) => (text) => () => {
+  const db = new DatabaseSync(path);
+  db.prepare("update runs set spec = ? where id = ?").run(text, id);
+  db.close();
+};
+
+export const tempDir = () => mkdtempSync(join(tmpdir(), "sp-adapters-"));
+
+export const removeTree = (path) => () => rmSync(path, { recursive: true, force: true });
+
+export const readFileText = (path) => () => readFileSync(path, "utf8");
+
+export const writeFileText = (path) => (text) => () => {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text);
+};
+
+// A fake `pi`: an executable shell script named pi in binDir, which runs `body`. The PATH is put
+// in front of the real one, so the adapter's spawn finds this script; the old PATH is returned.
+export const installPi = (binDir) => (body) => () => {
+  mkdirSync(binDir, { recursive: true });
+  const file = join(binDir, "pi");
+  writeFileSync(file, `#!/bin/sh\n${body}\n`);
+  chmodSync(file, 0o755);
+  const old = process.env.PATH ?? "";
+  process.env.PATH = `${binDir}:${old}`;
+  return old;
+};
+
+export const restorePath = (old) => () => { process.env.PATH = old; };

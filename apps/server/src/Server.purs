@@ -1,19 +1,19 @@
 -- | The server's entry point (docs/06_simulator.md §8–§10): parses the flags, opens the Run Store,
 -- | and serves the routes of `Server.Routes` on the port. The handlers live in `Server.Read`,
--- | `Server.Launch`, and `Server.Derive`; the views are computed in `Harness.Views`.
+-- | `Server.Launch`, and `Server.Derive`; the views are computed in `Analysis.Views`.
 module Server (main) where
 
 import Prelude
 
 import Adapters.Scenarios (readScenario)
-import Adapters.Store (failStaleRuns, open)
+import Adapters.Store (failStaleRuns, open, sqlitePort)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
 import Effect (Effect)
 import Effect.Console (log)
-import Harness.Options (flagOr, parseFlags)
+import Simulator.Options (flagOr, parseFlags)
 import Http (serve)
 import Node.Process (argv, exit')
 import Scenarios.Load (loadContext)
@@ -31,7 +31,7 @@ main = do
           -- a run still marked running was left by a process that stopped before finishing it
           stale <- failStaleRuns db "interrupted: the server stopped before the run finished"
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
-          serve port (flagOr "--static" "apps/dashboard/dist" flags) (route ctx db)
+          serve port (flagOr "--static" "apps/dashboard/dist" flags) (route ctx (sqlitePort db))
           log ("serving on :" <> show port)
         Left e -> log e *> exit' 1
       _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)

@@ -12,9 +12,12 @@ const allowed = {
   effects: ["core", "board", "policy"],
   handlers: ["core", "board", "policy", "effects"],
   adapters: ["core", "board", "policy", "effects", "handlers"],
-  harness: ["core", "board", "policy", "effects", "handlers"],
+  simulator: ["core", "board", "policy", "effects", "handlers"],
+  analysis: ["core", "board", "simulator"],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
+// workspace dependencies a package's test suite may not take, beyond its `allowed` set
+const testForbidden = { simulator: ["analysis"] };
 const pure = ["core", "board", "policy"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
@@ -28,8 +31,10 @@ for (const dir of dirs) {
   if (!fs.existsSync(file)) continue;
   const text = fs.readFileSync(file, "utf8");
   const name = text.match(/name:\s*sp-(\S+)/)[1];
-  // package dependencies only: lines before the `test:` section
-  const deps = [...text.split(/\n\s*test:/)[0].matchAll(/^\s+- (\S+)/gm)].map((m) => m[1]);
+  // the `test:` section is checked too: a test suite may not add a workspace edge the table forbids
+  const [srcPart, testPart = ""] = text.split(/\n\s*test:/);
+  const deps = [...srcPart.matchAll(/^\s+- (\S+)/gm)].map((m) => m[1]);
+  const testDeps = [...testPart.matchAll(/^\s+- (\S+)/gm)].map((m) => m[1]);
   if (!(name in allowed)) { errors.push(`${name}: not in the allowed-dependency table`); continue; }
   for (const d of deps) {
     if (d.startsWith("sp-")) {
@@ -38,6 +43,10 @@ for (const dir of dirs) {
     } else if (pure.includes(name) && impure(d)) {
       errors.push(`${name} is pure but depends on ${d}`);
     }
+  }
+  // the simulator's test suite may not reach analysis either (docs/06 §14, docs/07 §3)
+  for (const d of testDeps) {
+    if (name in testForbidden && testForbidden[name].includes(d.replace(/^sp-/, ""))) errors.push(`${name} (test) -> ${d} is not allowed`);
   }
 }
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }

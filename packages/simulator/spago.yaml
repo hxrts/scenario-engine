@@ -1,0 +1,39 @@
+package:
+  name: sp-simulator
+  dependencies:
+    - prelude
+    - run
+    - sp-core
+    - sp-board
+    - sp-policy
+    - sp-effects
+    - sp-handlers
+    - arrays
+    - effect
+    - typelevel-prelude
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - tuples
+    - strings
+    - newtype
+    - argonaut-core
+    - argonaut-codecs
+  test:
+    main: Test.Simulator.Main
+    dependencies:
+      - aff
+      - effect
+      - exceptions
+      - sp-scenarios
+      - sp-adapters
+      - argonaut-core
+      - spec
+      - spec-node
+      - now
+      - datetime
+      - newtype
+      - quickcheck
+      - spec-quickcheck

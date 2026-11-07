@@ -4,7 +4,6 @@ package:
     - prelude
     - run
     - sp-core
-    - sp-board
     - sp-policy
     - argonaut-codecs
     - arrays

@@ -189,7 +189,7 @@ This table is the single source of term definitions. The other specifications us
 | **Round record** | The append-only record of one round's inputs, proposed and executed actions, and events. |
 | **Effect** | A declared impure operation: seat input, interpretation, narration, recording, or session time ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
-| **Player seed** | A second seed, used only by the simulation harness, from which all seat-Policy randomness is derived. |
+| **Player seed** | A second seed, used only by the simulator, from which all seat-Policy randomness is derived. |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
 | **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
 
@@ -567,7 +567,7 @@ World State is the complete economic snapshot at a round boundary ([§2.5](#25-g
 
 ### 8.1 Canonical resolution sequence
 
-This is the single authoritative resolution sequence. The Gameboard, Instantiated Game, and Simulation Harness specifications reference it and do not redefine it.
+This is the single authoritative resolution sequence. The Gameboard, Instantiated Game, and Simulator specifications reference it and do not redefine it.
 
 **1. Prepare round** *(engine)*
 Apply due deliveries and rule changes scheduled at the previous boundary.
@@ -648,7 +648,7 @@ Determinism follows from purity: identical handler inputs (seeds and recorded se
 
 ## 9. Architectural Invariants and Numerics
 
-This is the single numbered invariant table for the whole system. The Gameboard, Instantiated Game, and Simulation Harness specifications cite these IDs and keep no tables of their own. Layer tags: **E** engine, **G** Gameboard, **I** instantiation, **H** harness.
+This is the single numbered invariant table for the whole system. The Gameboard, Instantiated Game, and Simulator specifications cite these IDs and keep no tables of their own. Layer tags: **E** engine, **G** Gameboard, **I** instantiation, **H** harness.
 
 | ID | Layer | Invariant | Requirement |
 |---|---|---|---|
@@ -685,13 +685,13 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 
 IDs 18, 20, and 32–35 are retired.
 
-**Enforcement status.** Predicates in `Core.Invariants` check INV-02, 04, 05, 06 (domain only), and 10 on every round in the test suites and harness. Gameboard validation and instantiation check parts of INV-03, 08, 14, 17, 19, 21, 23–25, 27, and 28. INV-01, 07, 09, 11, 12, 13, 15, 16, 26, 29, 30, 31, and 36 are covered by the types and effects or by named tests. INV-22 has no check yet.
+**Enforcement status.** Predicates in `Core.Invariants` check INV-02, 04, 05, 06 (domain only), and 10 on every round in the test suites and simulator. Gameboard validation and instantiation check parts of INV-03, 08, 14, 17, 19, 21, 23–25, 27, and 28. INV-01, 07, 09, 11, 12, 13, 15, 16, 26, 29, 30, 31, and 36 are covered by the types and effects or by named tests. INV-22 has no check yet.
 
 ### 9.1 Numerics and randomness
 
 Mechanics are deterministic by default. Randomness is introduced only where a Gameboard rule or estimator explicitly calls for it, such as estimator sampling noise.
 
-**Seeds.** Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness. It exists only under the simulation handler, and live play has none. A seed is either injected or drawn once at initialization by the adapter layer, the only place OS entropy enters. The drawn value is recorded. During a run there is no entropy, so the same seed gives the same run. The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
+**Seeds.** Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness) uses it. The simulator adds a **player seed** for all seat-Policy randomness. It exists only under the simulation handler, and live play has none. A seed is either injected or drawn once at initialization by the adapter layer, the only place OS entropy enters. The drawn value is recorded. During a run there is no entropy, so the same seed gives the same run. The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
 
 **Draws.** Every draw is one pure function, so randomness needs no effect:
 
