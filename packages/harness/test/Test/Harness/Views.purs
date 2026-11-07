@@ -9,7 +9,7 @@ import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Id(..))
-import Data.Array (all, filter, index, length, mapWithIndex)
+import Data.Array (all, filter, find, index, length, mapWithIndex)
 import Data.Map as Map
 import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..), isLeft)
@@ -23,7 +23,8 @@ import Harness.Analysis (Outcome(..), evaluateObjectives)
 import Harness.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, resolve, simulate)
 import Harness.Views.Balances (balances, events)
 import Harness.Views.Common (StoredRun, Table, defaultMetricSpec, q)
-import Harness.Views.Compare (compatible)
+import Harness.Views.Balance (measures)
+import Harness.Views.Compare (balanceBars, compatible, keyValues, netWorthCharts, standingsBars)
 import Harness.Views.Entity (entityHistory)
 import Harness.Views.Standings (standings)
 import Harness.Views.Overview (overview, runList)
@@ -83,6 +84,36 @@ spec context = describe "Views and error paths" do
     case resolve ctx base { overrides = [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] } of
       Left e -> e `shouldSatisfy` contains (Pattern "unknown scheme")
       Right _ -> fail "an unknown scheme was applied"
+
+  it "the cross-run key values have one column per run, and their values are the views' own (§10.2)" do
+    ctx <- context
+    a <- play ctx (conservative 3)
+    b <- play ctx (everySeat "Aggressive" 3)
+    let
+      r1 = toStored "run-1" a
+      r2 = toStored "run-2" b
+      runs = [ r1, r2 ]
+      kv = keyValues ctx.gameboard runs
+      rowOf label = fromMaybe [] (find (\row -> cell row 0 == label) kv.rows)
+      valueIn label r = fromMaybe "" (find (\row -> cell row 0 == label) (measures r).rows >>= \row -> index row 1)
+      standingOf p r = fromMaybe "" (find (\row -> cell row 0 == p) (standings r).rows >>= \row -> index row 1)
+    kv.columns `shouldEqual` [ "Measure", "Unit", "run-1", "run-2" ]
+    cell (rowOf "Spread of final net worth") 2 `shouldEqual` valueIn "Spread (M)" r1
+    cell (rowOf "Spread of final net worth") 3 `shouldEqual` valueIn "Spread (M)" r2
+    cell (rowOf "Final net worth, US") 2 `shouldEqual` standingOf "US" r1
+    cell (rowOf "Final net worth, US") 3 `shouldEqual` standingOf "US" r2
+    cell (rowOf "Final net worth, US") 1 `shouldEqual` "M"
+    -- one row of net worth per Player, whatever the number of runs
+    length (filter (\row -> cell row 0 == "Final net worth, US") kv.rows) `shouldEqual` 1
+    -- one net-worth chart per Player, with one line per run
+    let charts = netWorthCharts runs
+    length charts `shouldEqual` length (standings r1).rows
+    for_ charts \c -> map _.name c.chart.series `shouldEqual` [ "run-1", "run-2" ]
+    -- the standings bars: one group per Player, one bar per run
+    let bars = standingsBars runs
+    length bars.categories `shouldEqual` length (standings r1).rows
+    map _.name bars.series `shouldEqual` [ "run-1", "run-2" ]
+    (balanceBars runs).gini.categories `shouldEqual` [ "Gini" ]
 
   it "a round outside the run is rejected, never shown as the initial state (§9.2)" do
     ctx <- context
