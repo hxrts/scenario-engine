@@ -1,4 +1,4 @@
-# Scenario Planning Game: Reference Instance: Meridian
+# Reference Instance: Meridian
 
 **Version:** 0.2  
 **Status:** Experimental configuration. All scenario choices and numerical parameters are provisional  
@@ -420,7 +420,7 @@ Each procedure is a weighted-signature rule on Proposals the EU's Policy publish
 
 **Support = residual weight + the weights of the members who signed.** A procedure Proposal executes in the round it is published if support exceeds the threshold. Otherwise it lapses. Germany supports by signing in the Sign step and declines by not signing. Each round's record lists the Proposal, signers, support, threshold, and outcome.
 
-The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy--eu-coordination-v0)):
+The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy-eu-coordination-v0)):
 
 - **Solidarity Proposal:** sell up to 8 E on `energy-atlantic`, drawing first on the pool and then on its holdings. The pool's transfer is scaled to what it holds, so the pool gives min(8, pool) and the EU sells 8 E. Published in any round whose beginning-of-round Atlantic price exceeds 3.0 M/E, provided the EU's holdings cover its operating requirement of 8 E.
 - **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction affecting the Atlantic region is in force.
@@ -474,7 +474,7 @@ Tariffs, shipment bans, withholding, and strikes take effect at the next round b
 
 ### 13.3 Military deployment
 
-`military-deployment` reserves 1 Mil per unit for the round: the reserved Mil is unavailable to the same Entity's other actions, is not consumed, and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). `major-military-action` (minimum 12 Mil) consumes 1 Mil per unit and returns 0.75 at commit, so a major action loses 25% of its units. A smaller order is rejected (Fixture D-minor). China's NPC rule reads only `major-military-action` ([§11.1](#111-china-npc-policy--china-strategic-v0)), so a reservation alone does not trigger it. All of these values are provisional.
+`military-deployment` reserves 1 Mil per unit for the round: the reserved Mil is unavailable to the same Entity's other actions, is not consumed, and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). `major-military-action` (minimum 12 Mil) consumes 1 Mil per unit and returns 0.75 at commit, so a major action loses 25% of its units. A smaller order is rejected (Fixture D-minor). China's NPC rule reads only `major-military-action` ([§11.1](#111-china-npc-policy-china-strategic-v0)), so a reservation alone does not trigger it. All of these values are provisional.
 
 **Fixture R (golden).** Round 1: the US orders a 60 Mil deployment and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil. Their claims on the US's 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the sale sells 38 Mil. The Market is fresh, so the uniform price is (C(−38) − C(0)) / −38 = 2.81, and the sale pays 38 × 2.81 = **106.78 M**. US Military is 95 − 38 = **57** (the reserved 57 are not consumed) and US Money is 260 + 106.78 = **366.78**. Round 2: the reservation is released, so a 50 Mil Transfer to Japan runs in full, leaving US Military at **7** and Japan at **86**.
 

@@ -132,8 +132,9 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Transcript to canonical Intents, stubbed model | `packages/adapters/test/Test/Adapters/Live.purs` :: "text → expected canonical Intents" (inline stub) | covered | yes: a recorded transcript (`packages/scenarios/capstone/transcript.json`) replayed through the stub ("each recorded line maps…") |
-| Round's transcripts interpreted jointly: matched deals reconcile into one Proposal, one-sided deals lapse | none yet | gap: not implemented | no |
+| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/adapters/test/Test/Adapters/Live.purs` :: "two transcripts describing one deal…", "a one-sided description…", "an undecodable joint reply…" | covered | yes: a recorded transcript (`packages/scenarios/capstone/transcript.json`) replayed through the stub ("each recorded line maps…") |
+| Round's one-sided deal lapses through the signature rule; a matched deal is signed by both | `Live.purs` :: "a one-sided deal lapses; a deal both sides describe is signed by both" | covered | no |
+| Joint pass against the real model (billed, one-off) | `packages/adapters/test/Test/Adapters/LiveInterpret.purs`, run by `just live-interpret` | manual (not in any suite) | no |
 | Audio submission and transcription | none yet | gap: not implemented | no |
 | Backend failure is a run failure | `Live.purs` :: "a backend failure is fatal to the call…". Capstone "a recorded backend failure…" | covered | yes |
 | Scripted live session replays exactly | `Live.purs` :: "a scripted live session equals replaying…" | covered | no |
@@ -152,7 +153,7 @@ Test references are `file :: test name`, relative to the repository root.
 - The capstone adds no economics. It uses the decision-language templates and rules above (access
   ban, withholding, repeal, `signIf`, transforms inside a deal), and each has a policy unit test.
 
-## Gaps not closed
+## Gaps in this repo
 
 1. **Penalty size.** The capstone records shortfalls but does not assert the penalty's effect on
    incoming flows.
@@ -162,15 +163,21 @@ Test references are `file :: test name`, relative to the repository root.
    exercised by the capstone.
 4. **CLI and dashboard tabs.** Not exercised by the capstone. The view models are checked for
    non-emptiness only, not for content.
-5. **Scripted live session.** The stubbed transcript is replayed, but the full scripted session is
-   not extended to the capstone.
-6. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
+5. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
    shipped preset is exercised only by its own test.
-7. **Agency.** The capstone does not compute the agency table. That stays in
+6. **Agency.** The capstone does not compute the agency table. That stays in
    `Test.Harness.Main` :: "14 Agency…".
-8. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
+7. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
    [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
    tests named in their rows.
+
+## Expected inputs
+
+This repo expects the following to exist.
+
+- **Audio front end.** A separate layer turns each player's audio submission into a transcript.
+  The session and the joint interpretation take those transcripts as input, and the scripted live
+  session is exercised once that layer exists.
 
 ## Expected numbers
 

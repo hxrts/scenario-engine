@@ -12,6 +12,7 @@ module Adapters.Llm
   , stub
   , interpreter
   , narrator
+  , listing
   , agents
   ) where
 
@@ -20,20 +21,21 @@ import Prelude
 import Board.Decode.Common (readJson)
 import Control.Monad.Error.Class (catchError, throwError)
 import Core.Types (EntityId, Intent, MarketId)
-import Core.World (View, WorldState)
+import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (elem, filter, fromFoldable, length, mapMaybe, nub, null)
+import Data.Array (elem, filter, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (Error, error, message)
-import Effects.Signatures (InterpretF(..), JointProposal, NarrateF(..), Transcript)
+import Effects.Signatures (InterpretF(..), NarrateF(..))
 
 -- | One model call: the system template and the JSON payload, to the reply text and the
 -- | path of its raw event stream.
@@ -85,6 +87,7 @@ interpreter b log w (Interpret round transcripts k) = k <$> do
   pure (map (\(x :: JointReply) -> mapMaybe joint x.proposals) r)
   where
   speakers = map _.seat transcripts
+
   markets :: Array MarketId
   markets = map _.id (fromFoldable (Map.values w.markets))
   joint p
@@ -96,13 +99,23 @@ interpreter b log w (Interpret round transcripts k) = k <$> do
         , signed: nub ([ p.author ] <> filter (\s -> s `elem` speakers) p.agreed)
         }
 
--- | Resolved events to front-page text; grounded only in the round's record.
-narrator :: Backend -> Log -> NarrateF ~> Aff
-narrator b log (Narrate r k) = k <$> do
-  out <- ask b log "narrate" narrateTemplate (encodeJson { round: r.record.round, events: r.record.events })
-  pure case out of
-    Right ({ text } :: { text :: String }) -> text
-    Left _ -> "Round " <> show r.record.round <> ": " <> show (length r.record.events) <> " events recorded."
+-- | The round's front page. A round whose joint pass did not decode, and a model reply that does
+-- | not decode, get the plain listing of the round's events, and a round whose joint pass did not
+-- | decode makes no model call (docs/06 §6.1). Otherwise the model narrates from the round's record.
+narrator :: Backend -> Log -> Boolean -> NarrateF ~> Aff
+narrator b log jointFailed (Narrate r k) = k <$>
+  if jointFailed then pure (listing r)
+  else do
+    out <- ask b log "narrate" narrateTemplate (encodeJson { round: r.record.round, events: r.record.events })
+    pure case out of
+      Right ({ text } :: { text :: String }) -> text
+      Left _ -> listing r
+
+-- | The round's events, one per line, with no interpretation.
+listing :: RoundResult -> String
+listing r = joinWith "\n" ([ "Round " <> show r.record.round <> ":" ] <> bullets)
+  where
+  bullets = if null r.record.events then [ "- no events" ] else map (\e -> "- " <> show e) r.record.events
 
 -- | AI-agent seats: one short transcript per round, from the role briefing and the authorized View.
 -- | An undecodable reply is an empty transcript, so the seat submits nothing.

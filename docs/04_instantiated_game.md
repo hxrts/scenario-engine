@@ -1,4 +1,4 @@
-# Scenario Planning Game: Instantiated Game Specification
+# Instantiated Game Specification
 
 **Version:** 0.3
 **Scope:** Instantiated Game Layer
@@ -210,7 +210,7 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 
 1. **Prepare (phase 1).** Deliveries due by this round are applied, clamped at zero. Rule changes scheduled at the last boundary take effect, and scheduled repeals are removed. Each change is recorded as an event.
 2. **Observe (phase 2).** Each Entity's View is built from the prepared state.
-3. **Propose (phase 3a).** Each Entity, in Entity-id order, proposes. An NPC or Aggregate Policy proposes from its View. For a seat, the round runner asks the seat source for input. For a human seat, the input comes from text interpreted in the propose window.
+3. **Propose (phase 3a).** Each Entity, in Entity-id order, proposes. An NPC or Aggregate Policy proposes from its View. For a seat, the round runner asks the seat source for input. For a human seat, the input is the transcript typed in the propose window; the round's transcripts are read together in one joint pass.
 4. **Sign (phase 3b).** Each non-Aggregate Entity named as a signer of another Entity's Proposal is asked to sign. Human seats answer within the sign window. Aggregates do not sign.
 5. **Screen (phase 4).** Duplicate Proposal ids are rejected. Authority is checked, and each signature rule is applied: every signer for a deal, or support above the threshold for a procedure. Failures are recorded as `Rejected` or `Lapsed`. Inputs are ordered by author, then submission index, never by arrival time ([INV-11](02_type_system.md#inv-11)).
 6. **Estimate (phase 5).** Each Representation's factor is computed from the validated, proposed quantities, before funding, and stored for the next round.
@@ -263,7 +263,7 @@ Initialization fails if any checked condition fails. A configuration is never re
 
 ## 13. Illustrative Instantiation
 
-Meridian's seat assignments, initial holdings, Market state, round schedule, and phase mapping are specified in [05 Part III](05_test_instance.md#part-iii--instantiated-game-configuration) and [05 §20](05_test_instance.md#20-phase-mapping). The fixtures that exercise individual rounds are in [05 Part IV](05_test_instance.md#part-iv--playtest-fixtures).
+Meridian's seat assignments, initial holdings, Market state, round schedule, and phase mapping are specified in [05 Part III](05_test_instance.md#part-iii-instantiated-game-configuration) and [05 §20](05_test_instance.md#20-phase-mapping). The fixtures that exercise individual rounds are in [05 Part IV](05_test_instance.md#part-iv-playtest-fixtures).
 
 ---
 

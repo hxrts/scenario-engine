@@ -14,6 +14,7 @@ The system is implemented. `docs/` is the specification and the source of truth.
 - `just fmt`: purs-tidy. `just check`: fmt-check, deps, build, test. `just all`: `check` plus the dashboard Playwright smoke test (`just dashboard-test`, which needs `cd apps/dashboard && npx playwright install` once).
 - `just sim meridian --preset Conservative --rounds 5`: play a game from the CLI.
 - `just session meridian --humans US --model anthropic/claude-opus-5-5`: live facilitator console. Non-human seats are AI agents through the `pi` binary and make billed model calls.
+- `just live-interpret`: one billed model call that checks the joint pass against the real model. It needs `ALLOW_BILLED_LIVE=1`, and no suite runs it.
 - `just serve --db runs.db`: build the dashboard and serve it with the JSON API on :8787. Ports are in `apps/dashboard/ports.mjs`.
 - Recipes starting with `_` are internal steps. They are hidden from `just --list` but still runnable. `just _scenarios` compiles the DSL; `test`, `sim`, `session`, `serve`, and `all` run it first.
 

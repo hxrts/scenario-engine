@@ -1,4 +1,4 @@
-# Scenario Planning Game: Simulation Harness and Dashboard Specification
+# Simulation Harness and Dashboard Specification
 
 **Version:** 0.3  
 **Scope:** Automated Simulation, Persistence, Read API, Dashboard, Live Play, and Tests  
@@ -254,7 +254,7 @@ The interpretation suite contains:
 
 - text inputs paired with their expected canonical Intents.
 - cross-player cases, where a deal described by both parties reconciles into one Proposal with both as signers, and a deal described by one party alone lapses.
-- inadmissible cases, such as claimed resources or authority the Actor lacks, where the expected output is a flagged rejection.
+- inadmissible cases, such as claimed resources or authority the Actor lacks, where the engine rejects the Intent as a `Rejected` event with its reason ([04 §11.2](04_instantiated_game.md#112-live-session)).
 
 Accepted canonical Intents are the replay boundary.
 
@@ -288,6 +288,7 @@ The initial record is written before Round 1. After each round, the round record
 1. Tables `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`), `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`. Key `run`, `round`), and `metrics` (`run`, `metric`, `version`, `round`, `value`. Key `run`, `metric`, `version`, `round`).
 2. `runs.reason`.
 3. `runs.archived` (default 0), `runs.source`, and `runs.kind`.
+4. `rounds.transcripts`: the round's seat transcripts as a JSON array, stored in the round's transaction (default `[]`).
 
 **Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metrics are read at a stated version (`metric(run, metric, version)`), so a projection computed under one definition is never mixed with another.
 
@@ -521,6 +522,8 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test). | [INV-14](02_type_system.md#inv-14). |
 | 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run ([INV-31](02_type_system.md#inv-31)). |
 | 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect and its objective criteria are reported. Failures are reported as balancing findings. |
+
+**Live interpretation check (one-off, billed, not in CI).** `just live-interpret` makes one real model call over a fixed set of transcripts (`packages/adapters/test/Test/Adapters/LiveInterpret.purs`). It passes when the reply decodes and the two transcripts that describe one deal reconcile into one Proposal signed by both. It refuses to run unless `ALLOW_BILLED_LIVE=1` is set, and no suite (`spago test -p`, `just test`, `just check`, `just all`, `just dashboard-test`) runs it.
 
 ---
 

@@ -1,4 +1,4 @@
-# Scenario Planning Game: Type System Specification
+# Type System Specification
 
 **Version:** 0.2  
 **Scope:** Type System Layer  

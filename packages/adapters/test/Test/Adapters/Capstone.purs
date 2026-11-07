@@ -10,7 +10,6 @@ import Adapters.Store (createRun, open, persister, reader)
 import Board.Decode.Common (readJson)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
-import Core.Engine.Prepare (observe)
 import Core.Types (Entity, EntityId, Id(..))
 import Core.World (RoundRecord, WorldState)
 import Data.Argonaut.Core (Json, fromString, stringify, toArray, toObject, toString)
@@ -26,12 +25,11 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error, message)
 import Effects.Environment (inWorldOf)
 import Effects.Round (runGame)
-import Effects.Signatures (Interpretation(..), InterpretF(..))
+import Effects.Signatures (InterpretF(..), JointProposal)
 import Foreign.Object as Object
 import Handlers.Replay (runReplay)
 import Harness.Capstone (Capstone, decodeCapstone)
 import Harness.Simulate (SeatPolicy(..), simulate, simulateWith)
-import Partial.Unsafe (unsafeCrashWith)
 import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadPresets, loadRun)
 import Test.Spec (Spec, describe, it)
@@ -39,8 +37,8 @@ import Test.Spec.Assertions (fail, shouldEqual)
 
 -- Recorded transcript ----------------------------------------------------------------------
 
--- | One recorded exchange: the player's line, the model's reply, and what the interpreter must
--- | make of it.
+-- | One recorded exchange: the seat's transcript, the model's joint reply, and the Intents the
+-- | joint pass must make of it.
 type Entry = { text :: String, reply :: Json, expect :: Json }
 
 orThrow :: forall a. Either String a -> Aff a
@@ -63,7 +61,7 @@ transcript = do
   note' :: forall a. String -> Maybe a -> Either String a
   note' what = maybe (Left what) Right
 
--- | A model stub that answers each call with the reply recorded for the line the call names.
+-- | A model stub that answers each joint call with the reply recorded for the transcript it names.
 replayed :: Array Entry -> Backend
 replayed entries =
   { model: "recorded"
@@ -81,36 +79,17 @@ setup = do
     Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
     Left _ -> throwError (error "instantiation")
 
--- | The US seat's view of the initial world, for the interpreter.
-interpretAs :: Game -> String -> Backend -> Aff Interpretation
-interpretAs g text backend =
-  interpreter backend (const (pure unit)) g.lookup
-    (Interpret (Id "US") (observe g.world (fromMaybe' (\_ -> unsafeCrashWith "US") (Map.lookup (Id "US") g.world.entities))) text identity)
+-- | One joint pass over a single transcript from the US seat.
+jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))
+jointAs g text backend =
+  interpreter backend (const (pure unit)) g.world (Interpret 1 [ { seat: Id "US", text } ] identity)
 
--- | Every recorded line gives the interpretation its recording expects.
-check :: Entry -> Interpretation -> Aff Unit
-check e out = case stringOf "kind" e.expect of
-  Just "understood" -> do
-    -- the Intents in the engine's own JSON encoding, compared as JSON
-    let intents = fromMaybe' (\_ -> []) (arrayOf "intents" e.expect)
-    case out of
-      Understood ds _ -> map (\d -> stringify (encodeJson d.intents)) ds `shouldEqual` [ stringify (encodeJson intents) ]
-      other -> fail ("expected an understood action, got " <> show' other)
-  Just "clarify" -> case out of
-    Clarify q -> q `shouldEqual` fromMaybe' (\_ -> "") (stringOf "message" e.expect)
-    other -> fail ("expected a clarification, got " <> show' other)
-  Just "inadmissible" -> case out of
-    Inadmissible r -> r `shouldEqual` fromMaybe' (\_ -> "") (stringOf "message" e.expect)
-    other -> fail ("expected an inadmissible action, got " <> show' other)
-  _ -> fail ("unknown recorded kind for " <> e.text)
-  where
-  show' = case _ of
-    Understood _ _ -> "understood"
-    Clarify q -> "clarify " <> q
-    Inadmissible r -> "inadmissible " <> r
-
-stringOf :: String -> Json -> Maybe String
-stringOf k j = toObject j >>= Object.lookup k >>= toString
+-- | Every recorded line gives the joint pass the Intents its recording expects.
+check :: Entry -> Array JointProposal -> Aff Unit
+check e out = do
+  -- the Intents in the engine's own JSON encoding, compared as JSON
+  let intents = fromMaybe' (\_ -> []) (arrayOf "intents" e.expect)
+  map (\j -> stringify (encodeJson j.draft.intents)) out `shouldEqual` [ stringify (encodeJson intents) ]
 
 arrayOf :: String -> Json -> Maybe (Array Json)
 arrayOf k j = toObject j >>= Object.lookup k >>= toArray
@@ -128,31 +107,40 @@ spec = describe "Capstone: recorded transcript and the Run Store" do
     g <- setup
     entries <- transcript
     for_ entries \e -> do
-      out <- interpretAs g e.text (replayed entries)
-      check e out
+      out <- jointAs g e.text (replayed entries)
+      case out of
+        Right js -> check e js
+        Left why -> fail ("the recorded reply should decode: " <> why)
 
-  it "an ambiguous recorded line is a clarification, never an action" do
+  it "a reply that is not a Proposal list submits nothing (no clarification variant)" do
     g <- setup
     entries <- transcript
-    out <- interpretAs g "buy some energy" (replayed entries)
+    let
+      asking = { model: "recorded", call: \_ _ -> pure { text: "{\"kind\":\"clarify\",\"message\":\"How much energy?\"}", raw: "" } }
+    out <- jointAs g "buy some energy" asking
     case out of
-      Clarify q -> q `shouldEqual` "How much energy, on which market?"
-      _ -> fail "expected a clarification"
+      Left _ -> pure unit
+      Right _ -> fail "a clarification-shaped reply must not decode into Proposals"
+    -- the recorded line still interprets
+    ok <- jointAs g "buy ten energy" (replayed entries)
+    case ok of
+      Right js | length js == 1 -> pure unit
+      _ -> fail "replayed line should interpret"
 
   it "a recorded backend failure is a run failure, naming the model and its cause" do
     g <- setup
     entries <- transcript
     let
       broken = { model: "recorded", call: \_ _ -> throwError (error "language model backend failed (recorded): spawn pi ENOENT") }
-    out <- attempt (interpretAs g "buy ten energy" broken)
+    out <- attempt (jointAs g "buy ten energy" broken)
     case out of
       Left e -> (contains (Pattern "language model backend failed") (message e)) `shouldEqual` true
       Right _ -> fail "a failed backend must fail the call"
     -- the same line, replayed, still interprets: the failure was the backend's, not the transcript's
-    ok <- interpretAs g "buy ten energy" (replayed entries)
+    ok <- jointAs g "buy ten energy" (replayed entries)
     case ok of
-      Understood _ _ -> pure unit
-      _ -> fail "replayed line should interpret"
+      Right _ -> pure unit
+      Left _ -> fail "replayed line should interpret"
 
   it "the capstone run round-trips through the store: saved, reloaded byte-identically, and replayed" do
     loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)

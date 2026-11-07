@@ -1,4 +1,4 @@
-# Scenario Planning Game: Overview
+# Scenario Game Overview
 
 ## 1. Concept
 

@@ -1,4 +1,4 @@
-# Scenario Planning Game: Technical Architecture
+# Technical Architecture
 
 **Version:** 0.3  
 **Scope:** Package layout, dependency direction, and the key interfaces between packages  
@@ -108,7 +108,7 @@ sign    :: Program -> Env -> Array ProposalId     -- chooses among view.toSign
 ```purescript
 type SEAT_INPUT r = (seatInput :: SeatInputF | r)   -- Propose EntityId View | Sign EntityId View
 type RECORD r     = (record :: RecordF | r)         -- Record RoundResult
-type INTERPRET r  = (interpret :: InterpretF | r)   -- live play: transcript → Interpretation
+type INTERPRET r  = (interpret :: InterpretF | r)   -- live play: the round's transcripts → joint Proposals
 type NARRATE r    = (narrate :: NarrateF | r)       -- live play and reports
 type CLOCK r      = (clock :: ClockF | r)           -- live play: propose and sign deadlines
 

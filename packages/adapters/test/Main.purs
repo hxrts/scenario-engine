@@ -7,7 +7,7 @@ import Prelude
 
 import Board.Decode.Common (readJson)
 
-import Adapters.Store (busyTimeout, configuredBusyTimeout, createRun, deleteRun, failRun, failStaleRuns, metricsVersion, open, openReadOnly, persister, reader, schemaVersion, setArchived, setStatus, setSpec)
+import Adapters.Store (busyTimeout, configuredBusyTimeout, createRun, deleteRun, failRun, failStaleRuns, metricsVersion, open, openReadOnly, persister, reader, recorder, schemaVersion, setArchived, setStatus, setSpec)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -102,7 +102,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       manifest <- manifestOf
       db <- liftEffect (open path)
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 3
+      version `shouldEqual` 4
       liftEffect $ createRun db { id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
       liftEffect (failRun db "run-1" "boom")
       runs <- liftEffect (reader db).runs
@@ -149,13 +149,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       readTimeout `shouldEqual` configuredBusyTimeout
       liftEffect (removeFile path)
 
+    it "a round's transcripts are stored with the round; a round saved without them stores none" do
+      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      let
+        ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
+        spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Passive")) [ "US", "DE" ]), playerSeed: Seed 3, overrides: [], rounds: Just 2 }
+        said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      db <- liftEffect (open ":memory:")
+      stored <- liftEffect $ simulateWith ctx spec \manifest -> do
+        createRun db { id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: fromString "x", manifest, source: Nothing, kind: Nothing }
+        save <- recorder db "run-1" manifest.initial
+        pure \r -> save r (if r.record.round == 1 then said else [])
+      _ <- orThrow stored
+      rows <- liftEffect ((reader db).rounds "run-1")
+      map _.transcripts rows `shouldEqual` [ stringify (encodeJson said), "[]" ]
+
     it "a version 1 store upgrades in place: its runs survive, and they gain the archive, source and reason fields" do
       let path = "run-store-v1-test.db"
       liftEffect (removeFile path)
       liftEffect (createV1Store path)
       db <- liftEffect (open path)
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 3
+      version `shouldEqual` 4
       runs <- liftEffect (reader db).runs
       map (\r -> { id: r.id, status: r.status, reason: toMaybe r.reason }) runs `shouldEqual` [ { id: "run-1", status: "completed", reason: Nothing } ]
       sums <- liftEffect (reader db).summaries
@@ -166,7 +182,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.archived sums' `shouldEqual` [ true ]
       reader' <- liftEffect (openReadOnly path)
       version' <- liftEffect (schemaVersion reader')
-      version' `shouldEqual` 3
+      version' `shouldEqual` 4
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do

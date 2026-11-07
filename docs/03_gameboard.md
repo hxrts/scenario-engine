@@ -1,4 +1,4 @@
-# Scenario Planning Game: Gameboard Specification
+# Gameboard Specification
 
 **Version:** 0.3
 **Scope:** Gameboard Layer
@@ -33,7 +33,7 @@ A scenario is a directory of JSON section files. The loader merges every file ex
 | `policies.json` | Policy catalog (§8) | `policies` |
 | `instantiation.json` | Instantiation Configuration | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `presets.json` holds the seat-policy presets shared by all scenarios ([06 §4.2](06_simulator.md#42-presets)). `fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv--playtest-fixtures)).
+Outside the Gameboard: `presets.json` holds the seat-policy presets shared by all scenarios ([06 §4.2](06_simulator.md#42-presets)). `fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)).
 
 In a section, `rounds` is a list of fixture rounds (`proposals`, `expect`), not the round count. A `representations` key in a section is the instantiated shape. Gameboards declare schemes under `schemes`. The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
@@ -329,7 +329,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ## 14. Reference Gameboard
 
-Meridian, a five-year US–China industrial competition, is the reference Gameboard, specified in [05 Part II](05_test_instance.md#part-ii--gameboard-configuration). Its files are listed in [§2](#2-gameboard-structure).
+Meridian, a five-year US–China industrial competition, is the reference Gameboard, specified in [05 Part II](05_test_instance.md#part-ii-gameboard-configuration). Its files are listed in [§2](#2-gameboard-structure).
 
 ---
 

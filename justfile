@@ -117,6 +117,14 @@ serve *args:
     @scripts/free-port "$@"
     spago run -p sp-server -- "$@"
 
+# One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.
+live-interpret:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "${ALLOW_BILLED_LIVE:-}" != "1" ]; then echo "refused: this makes a billed model call; set ALLOW_BILLED_LIVE=1"; exit 2; fi
+    just _scenarios
+    spago test -p sp-adapters -m Test.Adapters.LiveInterpret
+
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
 dashboard-test: _scenarios _dashboard
     cd apps/dashboard && playwright test

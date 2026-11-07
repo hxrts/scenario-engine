@@ -1,6 +1,6 @@
 -- | `session`: the facilitator console for a live game (docs/05_test_instance.md §19). Human
--- | seats type their actions; every other seat is an AI agent. Each round shows the propose
--- | and sign windows, confirmations, the front page, and the balance sheets. The session's run
+-- | seats type one transcript per round; every other seat is an AI agent. Each round reads all
+-- | transcripts in one joint pass, then shows the front page and the balance sheets. The session's run
 -- | is saved to the Run Store; a failure (a language-model backend, input ending early, a store
 -- | fault) marks the run failed with its cause, and the session exits with status 1.
 module Session (Options, session, validId) where
@@ -9,7 +9,7 @@ import Prelude
 
 import Adapters.Llm (agents, interpreter, narrator, pi)
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (createRun, failRun, finish, nowIso, open, persister)
+import Adapters.Store (createRun, failRun, finish, nowIso, open, recorder)
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed)
 import Core.Num as Q
@@ -28,7 +28,7 @@ import Data.Newtype (unwrap)
 import Data.String (Pattern(..), joinWith, split)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Milliseconds(..), attempt, delay, launchAff_)
+import Effect.Aff (Aff, Milliseconds(..), attempt, delay, launchAff_)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
@@ -36,7 +36,7 @@ import Effect.Exception (message)
 import Effect.Ref as Ref
 import Effects.Environment (checkHomes, homeMarket, inWorldOf)
 import Effects.Round (runGame)
-import Effects.Signatures (ClockF(..), NarrateF(..))
+import Effects.Signatures (ClockF(..), InterpretF(..), NarrateF(..), Transcript)
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Seats (programs)
@@ -80,16 +80,16 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
       db <- liftEffect (open o.db)
       created <- liftEffect nowIso
       liftEffect $ createRun db { id: o.id, name: "live session", created, spec: encodeJson (Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ]), manifest: initial.manifest, source: Nothing, kind: Nothing }
-      save <- liftEffect (persister db o.id w0)
+      save <- liftEffect (recorder db o.id w0)
+      -- the last joint pass's transcripts, stored with the round they were read for
+      joints <- liftEffect (Ref.new (Nothing :: Maybe { round :: Int, transcripts :: Array Transcript }))
       liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> log ("Briefing " <> show h <> ": " <> briefing h)
       out <- attempt $ runLive
         { seat: \e -> if e `elem` humans then Human else Agent
-        , ask: \p -> fromEffectFnAff $ promptImpl $
-            if p.question == "" then "[round " <> show p.round <> ", " <> show p.window <> " window] " <> show p.seat <> "> "
-            else "  " <> p.question <> " "
+        , ask: \p -> fromEffectFnAff $ promptImpl ("[round " <> show p.round <> ", " <> show p.window <> " window] " <> show p.seat <> "> ")
         , notify: \_ text -> liftEffect (log ("  " <> text))
-        , interpret: interpreter backend evidence (\e -> Map.lookup e w0.entities)
+        , interpret: remember joints (interpreter backend evidence w0)
         , clock: \(Await r d a) -> do
             seen <- liftEffect (Ref.read closed)
             unless (Tuple r (show d) `elem` seen) do
@@ -98,9 +98,14 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
             pure a
         , agents: agents backend evidence briefing
         , programs: programs { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: seed }
-        , record: \r -> do
-            liftEffect (save r)
-            front <- narrator backend evidence (Narrate r identity)
+        , record: \r failed -> do
+            seen <- liftEffect (Ref.read joints)
+            let
+              transcripts = case seen of
+                Just j | j.round == r.record.round -> j.transcripts
+                _ -> []
+            liftEffect (save r transcripts)
+            front <- narrator backend evidence failed (Narrate r identity)
             liftEffect (report humans r front)
         }
         (runGame inWorld o.rounds w0)
@@ -123,6 +128,11 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
             Right _ -> log ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> dir <> ")")
     Left es, _ -> log (show es) *> exit' 1
     _, Left _ -> log "invalid Policy catalog" *> exit' 1
+
+-- | Remember the transcripts each joint pass reads, so the round's record stores them.
+remember :: Ref.Ref (Maybe { round :: Int, transcripts :: Array Transcript }) -> (InterpretF ~> Aff) -> InterpretF ~> Aff
+remember ref joint = \f -> case f of
+  Interpret round transcripts _ -> liftEffect (Ref.write (Just { round, transcripts }) ref) *> joint f
 
 report :: Array EntityId -> RoundResult -> String -> Effect Unit
 report humans r front = do

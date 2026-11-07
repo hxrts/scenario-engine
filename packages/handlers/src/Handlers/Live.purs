@@ -8,10 +8,13 @@ import Prelude
 
 import Core.Types (EntityId)
 import Core.World (RoundResult, View)
-import Data.Either (Either(..))
+import Data.Either (Either(..), isLeft)
 import Data.Foldable (for_)
 import Effect.Aff (Aff)
-import Effects.Signatures (ClockF(..), Deadline(..), INTERPRET, InterpretF(..), JointProposal, RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effect.Class (liftEffect)
+import Effect.Ref (Ref)
+import Effect.Ref as Ref
+import Effects.Signatures (ClockF(..), Deadline(..), INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Handlers.Seats (SeatSource)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
@@ -30,13 +33,19 @@ type Live =
   , clock :: ClockF ~> Aff
   , agents :: { speak :: EntityId -> View -> Aff String }
   , programs :: SeatSource
-  , record :: RoundResult -> Aff Unit -- persist, then narrate
+  , record :: RoundResult -> Boolean -> Aff Unit -- persist, then narrate; the Boolean is whether the round's joint pass did not decode
   }
 
 runLive :: forall a. Live -> Run (SEAT_INPUT + INTERPRET + RECORD + ()) a -> Aff a
-runLive live = run (case_ # on (Proxy :: _ "seatInput") seat # on (Proxy :: _ "interpret") joint # on (Proxy :: _ "record") record)
+runLive live prog = do
+  -- set by the round's joint pass when its reply does not decode; read and cleared when the round is recorded
+  failed <- liftEffect (Ref.new false)
+  run (case_ # on (Proxy :: _ "seatInput") seat # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") (record failed)) prog
   where
-  record (Record r next) = live.record r *> pure next
+  record :: Ref Boolean -> RecordF ~> Aff
+  record failed (Record r next) = do
+    f <- liftEffect (Ref.read failed <* Ref.write false failed)
+    live.record r f *> pure next
   seat = case _ of
     Speak e v k -> k <$> case live.seat e of
       Human -> do
@@ -54,14 +63,14 @@ runLive live = run (case_ # on (Proxy :: _ "seatInput") seat # on (Proxy :: _ "i
       Program -> pure (live.programs.sign e v)
 
   -- A transcript that does not decode submits nothing for the round, and each human speaker is
-  -- told so. Nothing is asked back.
-  joint :: forall b. InterpretF b -> Aff b
-  joint (Interpret round transcripts k) = k <$> do
+  -- told so. Nothing is asked back. The round is marked, so its front page is a plain listing.
+  joint :: forall b. Ref Boolean -> InterpretF b -> Aff b
+  joint failed (Interpret round transcripts k) = do
     out <- live.interpret (Interpret round transcripts identity)
+    liftEffect (Ref.write (isLeft out) failed)
     case out of
-      Right (js :: Array JointProposal) -> pure js
-      Left why -> do
-        for_ transcripts \t -> case live.seat t.seat of
-          Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")
-          _ -> pure unit
-        pure []
+      Left why -> for_ transcripts \t -> case live.seat t.seat of
+        Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")
+        _ -> pure unit
+      Right _ -> pure unit
+    pure (k out)

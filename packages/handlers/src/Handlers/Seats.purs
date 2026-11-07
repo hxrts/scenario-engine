@@ -57,6 +57,7 @@ handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy ::
     Propose e v k -> pure (k (source.propose e v))
     Sign e v k -> pure (k (source.sign e v))
     Speak _ _ k -> pure (k "")
+
   silent :: InterpretF ~> Run r
   silent (Interpret _ _ k) = pure (k (Right []))
 

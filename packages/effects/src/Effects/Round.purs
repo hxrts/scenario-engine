@@ -40,9 +40,11 @@ runRound inWorld w0 = do
     text <- lift _seatInput (Speak e.id (view e) identity)
     pure { seat: e.id, text }
   let transcripts = filter (\t -> t.text /= "") spoken
-  joint <- if null transcripts then pure [] else lift _interpret (Interpret w.round transcripts identity) >>= case _ of
-    Right js -> pure js
-    Left _ -> pure []
+  joint <-
+    if null transcripts then pure []
+    else lift _interpret (Interpret w.round transcripts identity) >>= case _ of
+      Right js -> pure js
+      Left _ -> pure []
   let jointNumbered = numbered w joint
   drafted <- for entities \e -> map (toProposal w e.id) <<< mapWithIndex tuple' <$> proposeFor e (view e)
   let
@@ -72,7 +74,7 @@ runRound inWorld w0 = do
 -- | The joint Proposals with their index among their author's, as a seat's own Proposals are
 -- | numbered, so that replay assigns the same ids.
 numbered :: WorldState -> Array JointProposal -> Array { proposal :: Proposal, signed :: Array EntityId }
-numbered w joint = snd (mapAccumL step Map.empty joint)
+numbered w joint = (mapAccumL step Map.empty joint).value
   where
   step seen j =
     let
