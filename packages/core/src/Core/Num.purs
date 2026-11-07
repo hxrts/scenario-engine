@@ -69,9 +69,9 @@ instance DecodeJson Q where
 scale :: BigInt
 scale = BI.fromInt 10000
 
--- | One whole unit, 1.0000.
+-- | One whole unit, 1.0000 (the scale, not one 0.0001 step).
 one :: Q
-one = Q P.one
+one = Q scale
 
 -- | The smallest positive quantity, 0.0001: the grid every rounding and bisection step stays on.
 ulp :: Q
