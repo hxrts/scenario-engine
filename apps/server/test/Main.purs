@@ -80,6 +80,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           balance <- api "GET" "/api/runs/run-1/balance" [] ""
           balance.status `shouldEqual` 200
           balance.body `shouldSatisfy` contains (Pattern "Gini coefficient")
+          -- one Entity's balance sheet: 200 for a known Entity, 400 listing the valid ones, 404 for a missing run
+          entity <- api "GET" "/api/runs/run-1/entity/US" [] ""
+          entity.status `shouldEqual` 200
+          entity.body `shouldSatisfy` contains (Pattern "Net worth (M)")
+          entity.body `shouldSatisfy` contains (Pattern "Round 3")
+          unknownEntity <- api "GET" "/api/runs/run-1/entity/NoSuchEntity" [] ""
+          unknownEntity.status `shouldEqual` 400
+          unknownEntity.body `shouldSatisfy` contains (Pattern "the entities are")
+          unknownEntity.body `shouldSatisfy` contains (Pattern "US")
+          missingEntityRun <- api "GET" "/api/runs/run-9/entity/US" [] ""
+          missingEntityRun.status `shouldEqual` 404
           -- a round the run does not have is a client error, not the initial state
           outOfRange <- api "GET" "/api/runs/run-1/balances" [ { k: "round", v: "9" } ] ""
           outOfRange.status `shouldEqual` 400

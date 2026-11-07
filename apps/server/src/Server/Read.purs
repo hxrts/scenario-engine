@@ -6,6 +6,7 @@ module Server.Read
   , runSummaries
   , loadRun
   , getView
+  , entityView
   , compareView
   , agencyView
   ) where
@@ -15,6 +16,7 @@ import Prelude
 import Adapters.Store (Db, RunInfo, RunSummary, StoredRound, reader)
 import Core.Draw (Seed(..))
 import Core.Invariants (Failure)
+import Core.Types (Id(..))
 import Core.World (Manifest)
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
 import Data.Either (Either(..), either, hush)
@@ -35,6 +37,7 @@ import Harness.Views.Balances as Balances
 import Harness.Views.Common (StoredRun, defaultMetricSpec)
 import Harness.Views.Compare as Compare
 import Harness.Views.Drivers as Drivers
+import Harness.Views.Entity as Entity
 import Harness.Views.Markets as Markets
 import Harness.Views.Overview as Overview
 import Harness.Views.Representation as Representation
@@ -148,6 +151,14 @@ getView ctx db query id view = loadRun db id >>= case _ of
     "balance" -> ok { measures: Balance.measures r, completion: Balance.completion ctx.gameboard r }
     "events" -> viewOr (roundParam 1 >>= Balances.events r)
     _ -> failWith 404 view
+
+-- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Harness.Views.Entity`).
+-- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
+entityView :: Db -> String -> String -> Effect Response
+entityView db id entity = loadRun db id >>= case _ of
+  Right r -> viewOr (Entity.entityHistory r (Id entity))
+  Left Missing -> failWith 404 ("no run " <> id)
+  Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.

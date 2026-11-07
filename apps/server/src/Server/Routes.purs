@@ -15,7 +15,7 @@ import Http (Request, Response)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
 import Server.Launch (launch, readLaunch)
-import Server.Read (agencyView, compareView, getView, param, runSummaries)
+import Server.Read (agencyView, compareView, entityView, getView, param, runSummaries)
 
 route :: Context -> Db -> Request -> Effect Response
 route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.path) of
@@ -28,6 +28,7 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
   "POST", [ "api", "runs", id, "archive" ] -> setArchive db id true
   "POST", [ "api", "runs", id, "unarchive" ] -> setArchive db id false
   "DELETE", [ "api", "runs", id ] -> deleteOne db id (param req.query "confirm" "")
+  "GET", [ "api", "runs", id, "entity", entity ] -> entityView db id entity
   "GET", [ "api", "runs", id, view ] -> getView ctx db req.query id view
   "GET", [ "api", "compare" ] -> compareView db req.query
   "GET", [ "api", "agency" ] -> agencyView ctx req.query
