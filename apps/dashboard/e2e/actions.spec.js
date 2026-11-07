@@ -1,7 +1,8 @@
-// Run actions (docs/06_simulator.md §9). Derive actions live on Prepare, and archive, resume and delete under
-// the selected run on the Runs page. Every request these tests depend on is answered by page.route (e2e/mocks.js), so they
-// do not depend on the e2e server's seeded data or on the write endpoints being present: each mock answers
-// the contract (apps/server), and the test asserts the request the page sent.
+// Run actions on a run's page (docs/06_simulator.md §9.2): resume, archive, and delete, under the selected
+// run on the Runs page. Prepare has no derive controls (derivation is API-only). Every request these tests
+// depend on is answered by page.route (e2e/mocks.js), so they do not depend on the e2e server's seeded data
+// or on the write endpoints being present: each mock answers the contract (apps/server), and the test asserts
+// the request the page sent.
 import { test, expect } from "@playwright/test";
 import { mockReads, ARCHIVED, isPath, json } from "./mocks.js";
 
@@ -15,12 +16,14 @@ test("the selected run shows the manage actions, and no resume when the run is a
   await expect(page.getByRole("region", { name: "Resume" })).toHaveCount(0);
 });
 
-test("the Prepare page offers the derive actions for the latest run", async ({ page }) => {
+test("the Prepare page has no derive controls: no duplicate, rerun, variant or counterfactual", async ({ page }) => {
   await mockReads(page);
   await page.goto("/#/prepare");
-  for (const region of ["Duplicate", "Rerun", "Variant", "Counterfactual"])
-    await expect(page.getByRole("region", { name: region, exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Archive", exact: true })).toHaveCount(0);
+  await expect(page.locator("section").filter({ hasText: "Launch a run" }).first()).toBeVisible();
+  for (const name of ["Duplicate", "Rerun", "Variant", "Counterfactual"])
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  await expect(page.getByText("Derive from a run")).toHaveCount(0);
+  await expect(page.getByLabel("Source run")).toHaveCount(0);
 });
 
 test("resume posts the rounds to run to, and is offered only while the run is shorter than its target", async ({ page }) => {
@@ -36,92 +39,6 @@ test("resume posts the rounds to run to, and is offered only while the run is sh
   await region.getByLabel("Length to run to").fill("5");
   await region.getByRole("button", { name: "Resume", exact: true }).click();
   await expect.poll(() => body).toEqual({ rounds: 5 });
-});
-
-test("duplicate posts its name to the derive endpoint and opens the new run", async ({ page }) => {
-  let body = null;
-  await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), async (route) => {
-    body = route.request().postDataJSON();
-    await route.fulfill(json({ id: "run-9", source: "run-1", kind: "duplicate" }, 201));
-  });
-  await page.goto("/#/prepare");
-  const region = page.getByRole("region", { name: "Duplicate", exact: true });
-  await region.getByLabel("Name").fill(" copy ");
-  await region.getByRole("button", { name: "Duplicate", exact: true }).click();
-  await expect(page).toHaveURL(/#\/runs\/run-9$/);
-  expect(body).toEqual({ kind: "duplicate", name: "copy" });
-});
-
-test("variant posts the chosen preset, seed and rounds; blank fields are left out", async ({ page }) => {
-  let body = null;
-  await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), async (route) => {
-    body = route.request().postDataJSON();
-    await route.fulfill(json({ id: "run-10", source: "run-1", kind: "variant" }, 201));
-  });
-  await page.goto("/#/prepare");
-  const region = page.getByRole("region", { name: "Variant", exact: true });
-  await region.getByLabel("Preset").selectOption("Trader");
-  await region.getByLabel("Player seed").fill("7");
-  await region.getByLabel("Length", { exact: true }).fill("2");
-  await region.getByRole("button", { name: "Variant", exact: true }).click();
-  await expect(page).toHaveURL(/#\/runs\/run-10$/);
-  expect(body).toEqual({ kind: "variant", preset: "Trader", playerSeed: 7, rounds: 2 });
-
-  body = null;
-  await page.goto("/#/prepare");
-  await page.getByRole("region", { name: "Counterfactual", exact: true }).getByRole("button", { name: "Counterfactual", exact: true }).click();
-  await expect.poll(() => body).toEqual({ kind: "counterfactual" });
-});
-
-test("a rejected derive shows the server's message and stays on Prepare", async ({ page }) => {
-  await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ error: "Name already in use: copy" }, 400)));
-  await page.goto("/#/prepare");
-  const region = page.getByRole("region", { name: "Duplicate", exact: true });
-  await region.getByLabel("Name").fill("copy");
-  await region.getByRole("button", { name: "Duplicate", exact: true }).click();
-  await expect(page.getByText("Name already in use: copy")).toBeVisible();
-  await expect(page).toHaveURL(/#\/prepare$/);
-});
-
-test("a blank name is refused without a request", async ({ page }) => {
-  let posts = 0;
-  await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), (route) => {
-    posts += 1;
-    return route.fulfill(json({ id: "run-9", source: "run-1", kind: "duplicate" }, 201));
-  });
-  await page.goto("/#/prepare");
-  await page.getByRole("region", { name: "Duplicate", exact: true }).getByRole("button", { name: "Duplicate", exact: true }).click();
-  await expect(page.getByText("Name is required.")).toBeVisible();
-  expect(posts).toBe(0);
-});
-
-for (const [recordsMatch, message] of [
-  [true, "Records match the source."],
-  [false, "Records differ from the source."],
-]) {
-  test(`a rerun reporting recordsMatch ${recordsMatch} says so, and links to the new run`, async ({ page }) => {
-    await mockReads(page);
-    await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ id: "run-8", source: "run-1", kind: "rerun", recordsMatch }, 201)));
-    await page.goto("/#/prepare");
-    await page.getByRole("region", { name: "Rerun", exact: true }).getByRole("button", { name: "Rerun", exact: true }).click();
-    await expect(page.getByText(message)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open run-8" })).toHaveAttribute("href", "#/runs/run-8");
-    await expect(page).toHaveURL(/#\/prepare$/);
-  });
-}
-
-test("a rerun reply without recordsMatch only links to the new run", async ({ page }) => {
-  await mockReads(page);
-  await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ id: "run-8", source: "run-1", kind: "rerun" }, 201)));
-  await page.goto("/#/prepare");
-  await page.getByRole("region", { name: "Rerun", exact: true }).getByRole("button", { name: "Rerun", exact: true }).click();
-  await expect(page.getByText("Rerun created.", { exact: false })).toBeVisible();
-  await expect(page.getByText(/Records (match|differ)/)).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Open run-8" })).toHaveAttribute("href", "#/runs/run-8");
 });
 
 test("delete needs the exact run id, then removes the run and returns to the list", async ({ page }) => {

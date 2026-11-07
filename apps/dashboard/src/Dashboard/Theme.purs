@@ -4,10 +4,9 @@ module Dashboard.Theme (themeToggle) where
 
 import Prelude
 
-import Dashboard.UI as UI
 import Effect (Effect)
 import React.Basic.Events (handler_)
-import React.Basic.Hooks (Component, component, element, useEffectOnce, useState', (/\))
+import React.Basic.Hooks (Component, component, useEffectOnce, useState', (/\))
 import React.Basic.Hooks as React
 import React.Basic.DOM as D
 

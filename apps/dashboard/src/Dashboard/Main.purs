@@ -1,7 +1,7 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results, lineage and actions), Prepare (launch and derive runs), and Compare (runs side by side).
--- | Every view model comes from the read API.
+-- | results, lineage and actions), Prepare (launch a run of the scenario), and Compare (runs side by
+-- | side). Every view model comes from the read API.
 module Dashboard.Main (main) where
 
 import Prelude
@@ -10,7 +10,7 @@ import Control.Alt ((<|>))
 import Dashboard.Api (encode, get, post, runPath, useApi, useFetch)
 import Dashboard.Components (as, diffTable, fetched, metricChart, status, tableOf)
 import Dashboard.DataTable (DataTable, mkDataTable)
-import Dashboard.Launch (LaunchForm, LaunchRequest, emptyForm, validate)
+import Dashboard.Launch (LaunchForm, LaunchRequest, Scenario, emptyForm, nextRunName, roundChoices, roundValue, scenarioOf, summary, validate)
 import Dashboard.Layout as Layout
 import Dashboard.Presets (presetNames)
 import Dashboard.Results (mkRunResults, roundCount, roundTarget)
@@ -135,28 +135,66 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's fields and its Run button, with the line that says what is required. A required
--- | field's label carries an asterisk and the word `required`; an optional one says `optional` and
--- | what it defaults to.
-launchFields :: LaunchForm -> ((LaunchForm -> LaunchForm) -> Effect Unit) -> Maybe String -> Effect Unit -> JSX
-launchFields form setForm failure launch = D.div
+-- | The launch form's view: the form, the scenario it launches, the default name, the failure
+-- | message, and the Run action.
+type LaunchView =
+  { form :: LaunchForm
+  , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
+  , scenario :: Scenario
+  , defaultName :: String
+  , failure :: Maybe String
+  , launch :: Effect Unit
+  }
+
+-- | The launch form's fields, each with its default, then the summary line under them and the Run
+-- | button. A required field's label carries an asterisk and the word `required`; an optional one says
+-- | `optional` and its default. The round choices and the game seed come from the scenario.
+launchFields :: LaunchView -> JSX
+launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ field { label: "Name", required: true, note: "required" } form.name (\v f -> f { name = v })
-      , presetField
-      , field { label: "Player seed", required: false, note: "optional, a seed is drawn by the server when blank" } form.playerSeed (\v f -> f { playerSeed = v })
-      , field { label: "Rounds", required: false, note: "optional, defaults to the scenario's round count when blank" } form.rounds (\v f -> f { rounds = v })
-      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) failure
-      , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
-      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Name and Preset. Player seed and Rounds are optional and take their defaults when blank." ] }
+      [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
+      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset presetNames (\x f -> f { preset = x })
+      , selectField { label: "Scenario", required: true, note: "required, the one scenario the server runs" } scenarioName [ scenarioName ] (\_ f -> f)
+      , selectField
+          { label: "Rounds", required: false, note: "optional, defaults to " <> show v.scenario.rounds.default <> " rounds; allowed " <> show v.scenario.rounds.min <> " to " <> show v.scenario.rounds.max }
+          (show (roundValue v.scenario.rounds v.form.rounds))
+          (map show (roundChoices v.scenario.rounds))
+          (\x f -> f { rounds = x })
+      , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
+      , D.div
+          { className: "flex flex-col gap-1 text-sm"
+          , children:
+              [ fieldHeading { label: "Game seed", required: false, note: "default: the scenario's seed. Read-only, because the server takes no game seed at launch" }
+              , D.span { className: "font-mono", children: [ D.text (show v.scenario.gameSeed) ] }
+              ]
+          }
+      , D.p { className: "text-sm font-medium", children: [ D.text (summary v.scenario.rounds v.form) ] }
+      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) v.failure
+      , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
+      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Preset and Scenario. Every other field has a default, so Run needs no edits." ] }
       ]
   }
   where
-  field f value set = D.label
+  scenarioName = v.scenario.name <> "@" <> v.scenario.version
+  textField f value set = D.label
     { className: "flex flex-col gap-1 text-sm"
     , children:
         [ fieldHeading f
-        , element UI.input { value, "aria-required": f.required, onChange: handler targetValue (\v -> setForm (set (fromMaybe "" v))) }
+        , element UI.input { value, "aria-required": f.required, onChange: handler targetValue (\x -> v.setForm (set (fromMaybe "" x))) }
+        ]
+    }
+  -- a select; `set` receives the chosen value
+  selectField f value options set = D.label
+    { className: "flex flex-col gap-1 text-sm"
+    , children:
+        [ fieldHeading f
+        , D.select
+            { value
+            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            , onChange: handler targetValue (\x -> v.setForm (set (fromMaybe value x)))
+            , children: options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
+            }
         ]
     }
   fieldHeading f = D.span
@@ -166,83 +204,57 @@ launchFields form setForm failure launch = D.div
         , D.span { className: "text-xs text-muted-foreground", children: [ D.text f.note ] }
         ]
     }
-  presetField = D.label
-    { className: "flex flex-col gap-1 text-sm"
-    , children:
-        [ fieldHeading { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " is preselected" }
-        , D.select
-            { value: form.preset
-            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            , onChange: handler targetValue (\v -> setForm (\f -> f { preset = fromMaybe f.preset v }))
-            , children: presetNames <#> \p -> D.option { key: p, value: p, children: [ D.text p ] }
-            }
-        ]
-    }
 
--- | Prepare: launch a run, or derive one from a run (duplicate, rerun, variant or counterfactual).
-mkPrepare :: DataTable -> Component Unit
-mkPrepare _ = do
-  actions <- Actions.mkRunActions
-  component "Prepare" \_ -> React.do
-    form /\ setForm <- useState emptyForm
-    failure /\ setFailure <- useState' (Nothing :: Maybe String)
-    picked /\ setPicked <- useState' (Nothing :: Maybe String)
-    runs <- useFetch unit (listRuns false)
-    let
-      -- A bad form is reported without a request; a launch that the server accepts opens the new run.
-      launch = case validate form of
+-- | Prepare: launch a run of the scenario. The form starts with its defaults (the next run name, the
+-- | preset Conservative, the scenario's round count, a drawn player seed), so Run needs no edits. A
+-- | launch the server accepts opens the new run.
+mkPrepare :: Component Unit
+mkPrepare = component "Prepare" \_ -> React.do
+  form /\ setForm <- useState emptyForm
+  failure /\ setFailure <- useState' (Nothing :: Maybe String)
+  runs <- useFetch unit (listRuns true)
+  scenario <- useFetch unit (map (_ >>= scenarioOf) (get "/api/scenario" :: Aff (Either String Json)))
+  let
+    -- the default name is known once the run list is; until then it is "run"
+    loadedName = case runs of
+      Just (Right t) -> nextRunName (map _.id (runInfos t))
+      _ -> ""
+    defaultName = if loadedName == "" then "run" else loadedName
+
+    -- a bad form is reported without a request; a launch that the server accepts opens the new run
+    launch = case scenario of
+      Just (Right s) -> case validate defaultName s.rounds form of
         Left e -> setFailure (Just e)
-        Right req -> launchAff_ (submit req)
+        Right req -> setFailure Nothing *> launchAff_ (submit req)
+      _ -> setFailure (Just "The scenario has not loaded, so the run cannot be launched.")
 
-      submit :: LaunchRequest -> Aff Unit
-      submit req = do
-        reply <- post "/api/runs" req :: Aff (Either String { id :: String })
-        liftEffect case reply of
-          Left e -> setFailure (Just e)
-          Right r -> setHash (print route (Run r.id))
-    pure $ Layout.page
-      { title: "Prepare a run"
-      , purpose: "Launch a new run from a preset, or derive one from an existing run as a duplicate, a rerun, a variant or a counterfactual."
-      , children:
-          [ Layout.grid
-              [ Layout.panel
-                  { span: 5
-                  , title: "Launch a run"
-                  , purpose: "A new run from a preset. Blank seeds and rounds keep the server's draws and the scenario's default."
-                  , children: [ launchFields form setForm failure launch ]
-                  }
-              , case runs of
-                  Just (Right (t :: Table)) ->
-                    let
-                      source = picked <|> latestReadable t
-                    in
-                      Layout.panel
-                        { span: 7
-                        , title: "Derive from a run"
-                        , purpose: "Choose the source run. The new run copies its spec, with any field you change, and opens when it is created."
-                        , children:
-                            [ sourceSelect t source setPicked
-                            , case source of
-                                Just id -> actions { id, derive: true, archived: false, rounds: Nothing, target: Nothing, onChanged: pure unit }
-                                Nothing -> D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run to derive from yet." ] }
-                            ]
-                        }
-                  Just (Left e) -> Layout.panel { span: 7, title: "Derive from a run", purpose: "Choose the source run.", children: [ status (Just e) ] }
-                  Nothing -> Layout.panel { span: 7, title: "Derive from a run", purpose: "Choose the source run.", children: [ status Nothing ] }
-              ]
-          ]
-      }
-  where
-  sourceSelect t current setPicked = D.label
-    { className: "flex flex-col gap-1 text-sm"
+    submit :: LaunchRequest -> Aff Unit
+    submit req = do
+      reply <- post "/api/runs" req :: Aff (Either String { id :: String })
+      liftEffect case reply of
+        Left e -> setFailure (Just e)
+        Right r -> setHash (print route (Run r.id))
+  -- the name field shows the default once it is known; a name the user has typed is kept
+  useEffect loadedName do
+    if loadedName == "" then pure unit else setForm (\f -> if f.name == "" then f { name = loadedName } else f)
+    pure (pure unit)
+  pure $ Layout.page
+    { title: "Prepare a run"
+    , purpose: "Launch a run of the scenario from a preset. Every field has a default, so Run needs no edits."
     , children:
-        [ D.text "Source run"
-        , D.select
-            { value: fromMaybe "" current
-            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            , onChange: handler targetValue (\v -> setPicked v)
-            , children: runInfos t <#> \r -> D.option { key: r.id, value: r.id, children: [ D.text r.id ] }
-            }
+        [ Layout.grid
+            [ Layout.panel
+                { span: 7
+                , title: "Launch a run"
+                , purpose: "A new run of the scenario. The summary line says what Run will play."
+                , children:
+                    [ case scenario of
+                        Just (Right s) -> launchFields { form, setForm, scenario: s, defaultName, failure, launch }
+                        Just (Left e) -> status (Just e)
+                        Nothing -> status Nothing
+                    ]
+                }
+            ]
         ]
     }
 
@@ -254,7 +266,7 @@ mkManage = do
   component "Manage" \p -> React.do
     overview <- useApi p.id (runPath p.id <> "/overview")
     pure $ case overview of
-      Just (Right (t :: Table)) -> actions { id: p.id, derive: false, archived: p.archived, rounds: roundCount t, target: roundTarget t, onChanged: p.onChanged }
+      Just (Right (t :: Table)) -> actions { id: p.id, archived: p.archived, rounds: roundCount t, target: roundTarget t, onChanged: p.onChanged }
       Just (Left e) -> status (Just e)
       Nothing -> status Nothing
 
@@ -324,7 +336,7 @@ mkRuns grid = do
                             , Layout.panel
                                 { span: 12
                                 , title: "Manage this run"
-                                , purpose: "Archive, resume or delete this run. Derive, duplicate and variant runs from Prepare."
+                                , purpose: "Resume, archive or delete this run."
                                 , children: [ manage { id: current, archived: maybe false _.archived info, onChanged: setVersion (version + 1) } ]
                                 }
                             ]
@@ -506,7 +518,7 @@ mkApp :: Component Unit
 mkApp = do
   grid <- mkDataTable
   runsPage <- mkRuns grid
-  prepare <- mkPrepare grid
+  prepare <- mkPrepare
   compare <- mkCompare grid
   toggle <- themeToggle
   component "App" \_ -> React.do
