@@ -8,6 +8,8 @@ module Board.Tags
   , tag
   , Split
   , splitTag
+  , argOf
+  , isBare
   -- capability kinds
   , tradeKind
   , transferKind
@@ -57,6 +59,18 @@ splitTag :: String -> Split
 splitTag s = case split (Pattern separator) s of
   [ k ] -> { kind: k, arg: Nothing }
   parts -> { kind: fromMaybe "" (head parts), arg: Just (joinWith separator (fromMaybe [] (tail parts))) }
+
+-- | The argument of a tag of the given kind: Nothing for another kind, or for a bare kind.
+argOf :: String -> String -> Maybe String
+argOf kind s = case splitTag s of
+  { kind: k, arg } | k == kind -> arg
+  _ -> Nothing
+
+-- | Whether a tag is the given kind with no argument.
+isBare :: String -> String -> Boolean
+isBare kind s = case splitTag s of
+  { kind: k, arg: Nothing } -> k == kind
+  _ -> false
 
 -- Capabilities: `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, `enact:<rule>`
 tradeKind :: String

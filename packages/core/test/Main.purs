@@ -354,7 +354,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         pure ((displayWithin false x (Q.displayQuantity x) && displayWithin false x (Q.displayPrice x) && displayWithin true x (Q.displayRatio x)) === true)
     it "display rounds every tie half to even" do
       quickCheck do
-        k <- chooseInt 0 5000
+        -- k = 0 is 0.005, which rounds to zero but is not zero, so it shows as "<0.01" by design
+        k <- chooseInt 1 5000
         let
           -- (2k+1) × 0.005 is exactly k + 1/2 hundredths, so the even neighbour is the answer
           x = Q.fromUnits (BI.fromInt (50 * (2 * k + 1)))

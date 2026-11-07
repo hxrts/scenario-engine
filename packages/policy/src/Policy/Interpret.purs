@@ -5,7 +5,7 @@ module Policy.Interpret (Draft, Env, envFor, propose, sign) where
 import Prelude
 
 import Core.Draw (Seed, draw)
-import Core.Engine.Screen (authorized)
+import Core.Authority (authorized)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (lookupQ)

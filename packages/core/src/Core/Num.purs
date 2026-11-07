@@ -5,6 +5,8 @@ module Core.Num
   ( Q
   , fromInt
   , zero
+  , one
+  , ulp
   , add
   , sub
   , neg
@@ -30,7 +32,7 @@ module Core.Num
   , displayTick
   ) where
 
-import Prelude hiding (add, sub, mul, div, zero)
+import Prelude hiding (add, sub, mul, div, zero, one)
 import Prelude as P
 
 import Data.Argonaut.Core (fromString, toString) as J
@@ -66,6 +68,14 @@ instance DecodeJson Q where
 
 scale :: BigInt
 scale = BI.fromInt 10000
+
+-- | One whole unit, 1.0000.
+one :: Q
+one = Q P.one
+
+-- | The smallest positive quantity, 0.0001: the grid every rounding and bisection step stays on.
+ulp :: Q
+ulp = Q P.one
 
 toUnits :: Q -> BigInt
 toUnits (Q u) = u
@@ -124,13 +134,13 @@ truncDiv n d =
 divRound :: BigInt -> BigInt -> BigInt
 divRound n d =
   let
-    sign = if (n < P.zero) /= (d < P.zero) then negate one else one
+    sign = if (n < P.zero) /= (d < P.zero) then negate P.one else P.one
     an = absBig n
     ad = absBig d
     q = P.div an ad
     r = an - q * ad
     twice = r + r
-    q' = if twice > ad || (twice == ad && BI.odd q) then q + one else q
+    q' = if twice > ad || (twice == ad && BI.odd q) then q + P.one else q
   in
     sign * q'
   where
@@ -172,13 +182,9 @@ parse s0 =
 format :: Q -> String
 format (Q u) =
   let
-    negative = u < P.zero
-    a = if negative then negate u else u
-    i = P.div a scale
-    f = BI.toString (a - i * scale)
-    padded = S.take (4 - S.length f) "0000" <> f
+    p = splitScaled scale u
   in
-    (if negative then "-" else "") <> BI.toString i <> "." <> padded
+    p.sign <> BI.toString p.int <> "." <> padTo 4 p.frac
 
 -- | Split `total` in proportion to `weights` in steps of `unit`, largest remainder. The shares
 -- | always sum to `total` rounded toward zero to a multiple of `unit` (exactly `total` when it is
@@ -200,11 +206,11 @@ allocate unit (Q total) weights
       rems = zipWith (\w f -> steps * w - f * wsum) ws floors
       leftover = fromMaybe 0 (BI.toInt (steps - sum floors))
       ranked = map fst $ sortBy (\a b -> compare (snd b) (snd a) <> compare (fst a) (fst b)) (mapWithIndex Tuple rems)
-      bonus i = if maybe false (_ < leftover) (findIndex (_ == i) ranked) then one else P.zero
+      bonus i = if maybe false (_ < leftover) (findIndex (_ == i) ranked) then P.one else P.zero
 
 -- | Pro-rata split in steps of 0.0001.
 proRata :: Q -> Array Q -> Array Q
-proRata = allocate one
+proRata = allocate P.one
 
 -- | Pro-rata split in whole units (largest remainder).
 proRataWhole :: Q -> Array Q -> Array Q
@@ -282,33 +288,38 @@ displayTrimmed q =
   in
     if q /= zero && h == P.zero then (if q < zero then "-<0.01" else "<0.01") else trimmed2 h
 
+-- | The sign, integer part and fraction of `u` counted in units of `unit`: the fraction is the
+-- | part of `u` below one whole unit, so `int * unit + frac` is `u` in magnitude.
+splitScaled :: BigInt -> BigInt -> { sign :: String, int :: BigInt, frac :: BigInt }
+splitScaled unit u =
+  let
+    a = magnitude u
+    i = P.div a unit
+  in
+    { sign: if u < P.zero then "-" else "", int: i, frac: a - i * unit }
+
 -- | Hundredths as text, trailing zeros trimmed.
 trimmed2 :: BigInt -> String
-trimmed2 h = sign <> BI.toString i <> frac
+trimmed2 h = p.sign <> BI.toString p.int <> frac
   where
-  hundred = BI.fromInt 100
   ten = BI.fromInt 10
-  a = magnitude h
-  i = P.div a hundred
-  f = a - i * hundred
-  sign = if h < P.zero then "-" else ""
+  p = splitScaled (BI.fromInt 100) h
   frac
-    | f == P.zero = ""
-    | f - P.div f ten * ten == P.zero = "." <> BI.toString (P.div f ten)
-    | otherwise = "." <> pad2 f
+    | p.frac == P.zero = ""
+    | p.frac - P.div p.frac ten * ten == P.zero = "." <> BI.toString (P.div p.frac ten)
+    | otherwise = "." <> padTo 2 p.frac
 
 -- | Hundredths as text with exactly two decimals.
 fixed2 :: BigInt -> String
-fixed2 h = sign <> BI.toString i <> "." <> pad2 f
+fixed2 h = p.sign <> BI.toString p.int <> "." <> padTo 2 p.frac
   where
-  hundred = BI.fromInt 100
-  a = magnitude h
-  i = P.div a hundred
-  f = a - i * hundred
-  sign = if h < P.zero then "-" else ""
+  p = splitScaled (BI.fromInt 100) h
 
-pad2 :: BigInt -> String
-pad2 n = let s = BI.toString n in if S.length s < 2 then "0" <> s else s
+-- | A non-negative integer as text, left-padded with zeros to `width` digits.
+padTo :: Int -> BigInt -> String
+padTo width n = go (BI.toString n)
+  where
+  go t = if S.length t >= width then t else go ("0" <> t)
 
 magnitude :: BigInt -> BigInt
 magnitude x = if x < P.zero then negate x else x

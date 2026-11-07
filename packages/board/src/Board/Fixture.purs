@@ -9,26 +9,25 @@ import Prelude
 
 import Board.Decode.Rounds (Delivery, Expect, ProcedureExpect, ProposalRef, Round)
 import Core.Engine.Commit (resolveRound)
-import Core.Engine.Prepare (prepareRound)
+import Core.Engine.Run (runRounds)
 import Core.Invariants (check)
 import Core.Num as Q
-import Core.Query (holding)
-import Core.Types (Id(..), proposalId)
+import Core.Query (factorOf, holding, reserveOf)
+import Core.Types (BehaviorDomain, EntityId, MarketId, ProposalId, ResourceId, proposalId)
 import Core.World (Event(..), RoundResult, Target(..), WorldState)
-import Data.Array (concatMap, foldl, sort, sortWith)
-import Data.Either (Either(..))
+import Data.Array (concat, concatMap, sort, sortWith)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
 
 type Fixture = { name :: String, world :: WorldState, rounds :: Array Round }
 
 -- | An expectation that can fail.
 data Field
-  = Balance String String -- entity, resource
-  | Reserve String String -- market, resource
-  | Factor String String -- aggregate, domain
+  = Balance EntityId ResourceId
+  | Reserve MarketId ResourceId
+  | Factor EntityId BehaviorDomain
   | Deliveries
   | Rejections
   | Lapses
@@ -39,9 +38,9 @@ derive instance Eq Field
 
 instance Show Field where
   show = case _ of
-    Balance e r -> "balance of " <> e <> " in " <> r
-    Reserve m r -> "reserve of " <> m <> " in " <> r
-    Factor a d -> "factor of " <> a <> " in " <> d
+    Balance e r -> "balance of " <> show e <> " in " <> show r
+    Reserve m r -> "reserve of " <> show m <> " in " <> show r
+    Factor a d -> "factor of " <> show a <> " in " <> show d
     Deliveries -> "deliveries"
     Rejections -> "rejected Proposals"
     Lapses -> "lapsed Proposals"
@@ -63,22 +62,20 @@ instance Show FixtureError where
     Mismatch r f actual expected -> "round " <> show r <> ", " <> show f <> ": " <> actual <> " /= " <> expected
     Violated r inv detail -> "round " <> show r <> ", " <> inv <> ": " <> detail
 
+-- | Every round of the fixture, in order. A round the engine rejects leaves the world as it was
+-- | prepared, and the run goes on from there.
 checkFixture :: Fixture -> Array FixtureError
-checkFixture f = (foldl step { world: f.world, errors: [] } f.rounds).errors
+checkFixture f = concat (runRounds step f.world f.rounds)
   where
-  step acc rnd =
-    let
-      w = prepareRound acc.world
-    in
-      case resolveRound w rnd.inputs of
-        Left e -> { world: w, errors: acc.errors <> [ EngineRejected w.round (show e) ] }
-        Right r -> { world: r.world, errors: acc.errors <> expectRound w rnd.expect r }
+  step w rnd = case resolveRound w rnd.inputs of
+    Left e -> Tuple w [ EngineRejected w.round (show e) ]
+    Right r -> Tuple r.world (expectRound w rnd.expect r)
 
 expectRound :: WorldState -> Expect -> RoundResult -> Array FixtureError
 expectRound before ex r =
-  maybe [] (\m -> concatMap (\(Tuple e rs) -> concatMap (\(Tuple res q) -> same (Balance e res) (holding w (Id e) (Id res)) q) (Object.toUnfoldable rs)) (Object.toUnfoldable m)) ex.accounts
-    <> maybe [] (\m -> concatMap (\(Tuple mk rs) -> concatMap (\(Tuple res q) -> same (Reserve mk res) (fromMaybe Q.zero (Map.lookup (Id mk) w.markets >>= \x -> Map.lookup (Id res) x.reserves)) q) (Object.toUnfoldable rs)) (Object.toUnfoldable m)) ex.reserves
-    <> maybe [] (\m -> concatMap (\(Tuple a ds) -> concatMap (\(Tuple d q) -> same (Factor a d) (Map.lookup (Id a) w.factors >>= Map.lookup (Id d)) (Just q)) (Object.toUnfoldable ds)) (Object.toUnfoldable m)) ex.factors
+  maybe [] (\m -> concatMap (\(Tuple e rs) -> concatMap (\(Tuple res q) -> same (Balance e res) (holding w e res) q) (Map.toUnfoldable rs :: Array _)) (Map.toUnfoldable m :: Array _)) ex.accounts
+    <> maybe [] (\m -> concatMap (\(Tuple mk rs) -> concatMap (\(Tuple res q) -> same (Reserve mk res) (reserveOf w mk res) q) (Map.toUnfoldable rs :: Array _)) (Map.toUnfoldable m :: Array _)) ex.reserves
+    <> maybe [] (\m -> concatMap (\(Tuple a ds) -> concatMap (\(Tuple d q) -> same (Factor a d) (factorOf w a d) (Just q)) (Map.toUnfoldable ds :: Array _)) (Map.toUnfoldable m :: Array _)) ex.factors
     <> maybe [] (\ds -> same Deliveries (sortWith show deliveries) (sortWith show ds)) ex.deliveries
     <> maybe [] (\rs -> same Rejections rejected (ids rs)) ex.rejected
     <> maybe [] (\rs -> same Lapses lapsed (ids rs)) ex.lapsed
@@ -92,19 +89,19 @@ expectRound before ex r =
   same field actual expected =
     if actual == expected then [] else [ Mismatch before.round field (show actual) (show expected) ]
 
-  proposalOf :: ProposalRef -> String
-  proposalOf ref = show (proposalId before.round (Id ref.author) ref.index)
+  proposalOf :: ProposalRef -> ProposalId
+  proposalOf ref = proposalId before.round ref.author ref.index
 
-  ids :: Array ProposalRef -> Array String
+  ids :: Array ProposalRef -> Array ProposalId
   ids refs = sort (map proposalOf refs)
 
-  outcome :: ProcedureExpect -> { proposal :: String, support :: Q.Q, executed :: Boolean }
+  outcome :: ProcedureExpect -> { proposal :: ProposalId, support :: Q.Q, executed :: Boolean }
   outcome p = { proposal: proposalOf p.proposal, support: p.support, executed: p.executed }
 
   deliveries :: Array Delivery
   deliveries = concatMap
     ( \d -> case d.target of
-        Holding res | d.round > before.round -> [ { entity: show d.entity, resource: show res, quantity: d.quantity } ]
+        Holding res | d.round > before.round -> [ { entity: d.entity, resource: res, quantity: d.quantity } ]
         _ -> []
     )
     w.deliveries
@@ -112,7 +109,7 @@ expectRound before ex r =
   rejected = sort
     ( concatMap
         ( case _ of
-            Rejected x -> [ show x.proposal ]
+            Rejected x -> [ x.proposal ]
             _ -> []
         )
         r.record.events
@@ -121,7 +118,7 @@ expectRound before ex r =
   lapsed = sort
     ( concatMap
         ( case _ of
-            Lapsed x -> [ show x.proposal ]
+            Lapsed x -> [ x.proposal ]
             _ -> []
         )
         r.record.events
@@ -130,7 +127,7 @@ expectRound before ex r =
   procedures =
     concatMap
       ( case _ of
-          ProcedureOutcome x -> [ { proposal: show x.proposal, support: x.support, executed: x.executed } ]
+          ProcedureOutcome x -> [ { proposal: x.proposal, support: x.support, executed: x.executed } ]
           _ -> []
       )
       r.record.events

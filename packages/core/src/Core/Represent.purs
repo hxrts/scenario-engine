@@ -7,7 +7,7 @@ import Prelude
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, EntityId, Intent(..), Proposal, Ratio, Representation)
+import Core.Types (BehaviorDomain, EntityId, Intent(..), Proposal, Ratio, Representation, domainResource)
 import Core.World (Event(..), WorldState)
 import Data.Array (concatMap, foldl, null)
 import Data.Map (Map)
@@ -25,8 +25,8 @@ observation w rep ps =
   let
     orders = concatMap (\p -> if p.author == rep.actor then concatMap trade p.intents else []) ps
     trade = case _ of
-      Trade o | maybe false (\m -> unwrap m.base == unwrap rep.domain) (Map.lookup o.market w.markets) -> [ o.quantity ]
-      Route r | unwrap r.pair.base == unwrap rep.domain -> [ r.quantity ]
+      Trade o | maybe false (\m -> m.base == domainResource rep.domain) (Map.lookup o.market w.markets) -> [ o.quantity ]
+      Route r | r.pair.base == domainResource rep.domain -> [ r.quantity ]
       _ -> []
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))
@@ -55,10 +55,9 @@ estimate w ps =
       )
       w.representations
     sums = foldl (\m t -> Map.insertWith Q.add (Tuple t.rep.aggregate t.rep.domain) t.term m) Map.empty terms
-    factors = foldl (\m (Tuple (Tuple agg dom) s) -> Map.insertWith Map.union agg (Map.singleton dom (Q.add (Q.fromInt 1) s)) m) Map.empty
-      (Map.toUnfoldable sums :: Array _)
-    events = map (\(Tuple (Tuple agg dom) s) -> Estimated { round: w.round, aggregate: agg, domain: dom, factor: Q.add (Q.fromInt 1) s })
-      (Map.toUnfoldable sums)
+    estimates = map (\(Tuple (Tuple agg dom) s) -> { aggregate: agg, domain: dom, factor: Q.add (Q.fromInt 1) s }) (Map.toUnfoldable sums :: Array _)
+    factors = foldl (\m e -> Map.insertWith Map.union e.aggregate (Map.singleton e.domain e.factor) m) Map.empty estimates
+    events = map (\e -> Estimated { round: w.round, aggregate: e.aggregate, domain: e.domain, factor: e.factor }) estimates
   in
     { factors, events }
 

@@ -9,13 +9,13 @@ module Core.Engine.Circulate
 
 import Prelude
 
-import Core.Engine.Settle (Account(..), Settlement, adjust, groupBy, minOwedHeld, net, transfer)
+import Core.Engine.Settle (Account(..), Settlement, adjust, consumedOf, groupBy, minOwedHeld, net, shortfallOf, transfer)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, lookupQ)
 import Core.Types (EntityId, MarketId, ResourceId)
 import Core.World (Event(..), ShareSource(..), Target(..), WorldState)
-import Data.Array (concatMap, foldl, fromFoldable, zipWith)
+import Data.Array (concatMap, filter, foldl, fromFoldable, zipWith)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -35,6 +35,12 @@ sumEvents f st = Q.sumQ (concatMap f st.events)
 marketBase :: WorldState -> MarketId -> Maybe ResourceId
 marketBase w m = _.base <$> Map.lookup m w.markets
 
+-- | The Traded events of one Entity in one Resource's Markets, as the quantity and price of each.
+tradedIn :: WorldState -> EntityId -> ResourceId -> Event -> Array { quantity :: Q, price :: Q }
+tradedIn w e r = case _ of
+  Traded t | t.entity == e && marketBase w t.market == Just r -> [ { quantity: t.quantity, price: t.price } ]
+  _ -> []
+
 -- | Production capacity becomes a delivery in the next round.
 production :: WorldState -> Settlement -> Settlement
 production w st = st { deliveries = st.deliveries <> map scheduled w.circulation.production }
@@ -47,12 +53,7 @@ revenueShares w st0 = foldl payShare st0 w.circulation.shares
   where
   payShare st sh = transfer w sh.from sh.to w.numeraire (Q.mul sh.share (base sh)) st
   base sh = case sh.source of
-    SalesOf r -> max Q.zero $ sumEvents
-      ( case _ of
-          Traded t | t.entity == sh.from && marketBase w t.market == Just r -> [ Q.neg (Q.mul t.price t.quantity) ]
-          _ -> []
-      )
-      st0
+    SalesOf r -> max Q.zero $ sumEvents (\ev -> map (\t -> Q.neg (Q.mul t.price t.quantity)) (tradedIn w sh.from r ev)) st0
     PayeeReceipts -> sumEvents
       ( case _ of
           Transformed t | (Map.lookup t.transformation w.transformations >>= _.payee) == Just sh.from -> [ t.paid ]
@@ -69,12 +70,7 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
   where
   meet acc rq =
     let
-      purchases = sumEvents
-        ( case _ of
-            Traded t | t.entity == rq.entity && marketBase w t.market == Just rq.resource && t.quantity > Q.zero -> [ t.quantity ]
-            _ -> []
-        )
-        st0
+      purchases = sumEvents (\ev -> map _.quantity (filter (\t -> t.quantity > Q.zero) (tradedIn w rq.entity rq.resource ev))) st0
       needed = fromMaybe purchases rq.amount
       consumed = minOwedHeld needed (net w rq.entity rq.resource acc.st)
       short = Q.sub needed consumed
@@ -83,8 +79,8 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
       { st: acc.st
           { ledger = adjust (Ent rq.entity) rq.resource (Q.neg consumed) acc.st.ledger
           , events = acc.st.events
-              <> when' (consumed > Q.zero) (Consumed { round: w.round, entity: rq.entity, resource: rq.resource, quantity: consumed })
-              <> when' (short > Q.zero) (Shortfall { round: w.round, entity: rq.entity, resource: rq.resource, quantity: short })
+              <> when' (consumed > Q.zero) (consumedOf w.round rq.entity rq.resource consumed)
+              <> when' (short > Q.zero) (shortfallOf w.round rq.entity rq.resource short)
           }
       , penalties: if short > Q.zero then Map.insertWith Q.add rq.entity (Q.mul rq.penalty short) acc.penalties else acc.penalties
       }

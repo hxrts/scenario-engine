@@ -24,7 +24,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
-import JS.BigInt as BI
 
 -- | A routed Trade after screening and funding: its signed quantity (+ buys, − sells), its
 -- | limit, and the Markets it may use in MarketId order.
@@ -111,7 +110,7 @@ fillOf m n buy cap left =
         p = averagePrice m.cost m.position (if buy then Q.add n x else Q.sub n x)
       in
         if buy then p <= cap else p >= cap
-    ulp = Q.fromUnits (BI.fromInt 1)
+    ulp = Q.ulp
     -- `lo` fits and `up` does not
     search lo up
       | Q.sub up lo <= ulp = lo

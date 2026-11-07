@@ -6,8 +6,7 @@ module Board.Decode.Entities
 
 import Prelude
 
-import Board.Decode.Common (capability, holdings, toMap)
-import Core.Num as Q
+import Board.Decode.Common (capability, decodeEstimator, holdings, toMap)
 import Core.Types (CollectiveProcedure, Controller(..), Entity, EntityKind(..), Id(..), Representation)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either)
@@ -49,15 +48,5 @@ representation j = do
   aggregate <- o .: "aggregate"
   domain <- o .: "domain"
   weight <- o .: "weight"
-  reference <- o .: "reference"
-  shrinkage <- o .: "shrinkage"
-  bound <- o .:? "bound"
-  noiseSpread <- o .:? "noiseSpread" .!= Q.zero
-  pure
-    { id: Id id
-    , actor: Id actor
-    , aggregate: Id aggregate
-    , domain: Id domain
-    , weight
-    , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
-    }
+  estimator <- decodeEstimator j
+  pure { id: Id id, actor: Id actor, aggregate: Id aggregate, domain: Id domain, weight, estimator }

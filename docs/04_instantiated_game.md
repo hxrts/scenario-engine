@@ -89,7 +89,7 @@ Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
 - its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
-- every Market access list, jurisdiction entry, flow, share, production entry, and requirement that names it is retargeted to the Aggregate. Self-flows and self-shares are dropped, and requirements for the same Entity and Resource are summed.
+- every Market access list, jurisdiction entry, flow, share, production entry, and requirement that names it is retargeted to the Aggregate. Self-flows and self-shares are dropped, and requirements for the same Entity and Resource are summed. An explicit amount and one equal to purchases cannot be summed, so both are kept as separate requirements.
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
 

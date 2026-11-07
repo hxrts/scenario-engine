@@ -10,7 +10,8 @@ import Prelude
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Board.Gameboard.Schema (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..))
-import Core.Types (EntityId, EntityKind(..), Id(..), Rule(..))
+import Core.Query (aggregateOf, isAggregate)
+import Core.Types (EntityId, Rule(..), domainResource)
 import Core.World (ShareSource(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -18,9 +19,9 @@ import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
+import Foreign.Object as Object
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
@@ -37,13 +38,8 @@ validateGameboard gb config =
   entities = fromFoldable (Map.values w.entities)
   markets = fromFoldable (Map.values w.markets)
   facilities = fromFoldable (Map.values w.transformations)
-  aggregates = concatMap
-    ( \e -> case e.kind of
-        Aggregate a -> [ Tuple e.id a ]
-        _ -> []
-    )
-    entities
-  isAggregate e = any (\(Tuple id _) -> id == e) aggregates
+  -- whether the Entity with this id is an Aggregate (an unknown id is not)
+  isAggregateId e = maybe false isAggregate (Map.lookup e w.entities)
   -- capacities an Entity holds, by name
   held = nub (concatMap (\e -> map show (fromFoldable (Map.keys e.capacities))) entities)
   -- capacities a facility, an effect, or the production list refers to
@@ -93,20 +89,11 @@ validateGameboard gb config =
       <> unknownTransformation (map (\(Tuple _ t) -> t) (Map.toUnfoldable w.transport :: Array _))
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
-      <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (Id (unwrap s.domain)) w.resources)) gb.schemes)
+      <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
+      <> unknownEntity (concatMap (\e -> maybe [] _.members (aggregateOf e)) entities)
       <> unknownEntity
         ( concatMap
-            ( \e -> case e.kind of
-                Aggregate a -> a.members
-                _ -> []
-            )
-            entities
-        )
-      <> unknownEntity
-        ( concatMap
-            ( \e -> case e.kind of
-                Aggregate a -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values a.procedures))
-                _ -> []
+            ( \e -> maybe [] (\a -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values a.procedures))) (aggregateOf e)
             )
             entities
         )
@@ -118,12 +105,7 @@ validateGameboard gb config =
     Tariff x -> unknownEntity [ x.jurisdiction, x.origin ]
     AccessBan x -> unknownEntity [ x.jurisdiction, x.target ]
     Withholding x -> unknownCapacity [ x.capacity ]
-  aggregatePolicies = concatMap
-    ( \e -> case e.kind of
-        Aggregate a -> [ a.policy ]
-        _ -> []
-    )
-    entities
+  aggregatePolicies = concatMap (\e -> maybe [] (\a -> [ a.policy ]) (aggregateOf e)) entities
   capacities = concatMap productionHeld w.circulation.production
     <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
     <> concatMap schemeTarget gb.schemes
@@ -134,15 +116,15 @@ validateGameboard gb config =
     Just e | not (Map.member p.capacity e.capacities) -> [ ProductionWithoutCapacity p.entity (show p.capacity) ]
     _ -> []
   coverageAggregate (Tuple e d) = case d.fallback of
-    Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregate agg) -> [ CoverageNotAggregate e agg ]
+    Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
-  schemeTarget s = if Map.member s.target w.entities && not (isAggregate s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
+  schemeTarget s = if Map.member s.target w.entities && not (isAggregateId s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
   payees = map (\t -> FacilityWithoutPayee t.id) (filter (\t -> isJust t.cost && isNothing t.payee) facilities)
   fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   procedures = concatMap
-    ( \e -> case e.kind of
-        Aggregate a | any (\p -> not (all (_ `elem` e.capabilities) p.authorizes)) (fromFoldable (Map.values a.procedures)) -> [ ProcedureExceedsAuthority e.id ]
+    ( \e -> case aggregateOf e of
+        Just a | any (\p -> not (all (_ `elem` e.capabilities) p.authorizes)) (fromFoldable (Map.values a.procedures)) -> [ ProcedureExceedsAuthority e.id ]
         _ -> []
     )
     entities

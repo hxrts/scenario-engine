@@ -4,17 +4,19 @@
 module Board.Gameboard.Instantiate
   ( instantiate
   , checkHomes
+  , mergeRequirements
   ) where
 
 import Prelude
 
 import Board.Gameboard.Schema (Fallback(..), Gameboard, InitialWorld, InstantiationConfig, RefKind(..), ValidationError(..))
 import Core.Draw (drawVersion)
+import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (homeMarket, lookupQ)
+import Core.Query (aggregateOf, homeMarket, lookupQ)
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..))
-import Core.World (WorldState)
-import Data.Array (concatMap, elem, filter, find, foldl, fromFoldable, nub, null)
+import Core.World (Requirement, WorldState)
+import Data.Array (concatMap, elem, filter, find, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isNothing)
@@ -29,7 +31,7 @@ instantiate gb config =
     world = foldl applyFallback (gb.world { entities = map setController gb.world.entities }) (Map.toUnfoldable unselected :: Array _)
     final = world
       { seed = config.seed
-      , representations = map toRepresentation config.representations
+      , representations = mapMaybe toRepresentation config.representations
       }
   in
     if not (null errors) then Left errors
@@ -58,15 +60,15 @@ instantiate gb config =
     ( \r -> case schemeOf r.scheme of
         Just s | r.actor `elem` s.eligibleActors && selected r.actor -> []
         Just _ -> [ IneligibleRepresentative r.actor ]
-        Nothing -> [ UnknownReference SchemeRef r.scheme ]
+        Nothing -> [ UnknownReference SchemeRef (show r.scheme) ]
     )
     config.representations
   schemeOf id = case filter (\s -> s.id == id) gb.schemes of
     [ s ] -> Just s
     _ -> Nothing
-  toRepresentation r = case schemeOf r.scheme of
-    Just s -> { id: Id s.id, actor: r.actor, aggregate: s.target, domain: s.domain, weight: r.weight, estimator: s.estimator }
-    Nothing -> { id: Id r.scheme, actor: r.actor, aggregate: r.actor, domain: Id "", weight: Q.zero, estimator: { reference: Q.fromInt 1, shrinkage: Q.zero, deviationBound: Nothing, noiseSpread: Q.zero } }
+  -- a configured Representation of a scheme the Gameboard defines; an unknown scheme is an error
+  -- (`representationErrors`), so the instantiation never returns it
+  toRepresentation r = (\s -> { id: Id s.id, actor: r.actor, aggregate: s.target, domain: s.domain, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
   setController e = case Map.lookup e.id config.seats, Map.lookup e.id config.npcs of
     Just seat, _ -> e { kind = Actor (Seat (Id seat)) }
     _, Just p -> e { kind = Actor (NPC p) }
@@ -91,7 +93,7 @@ mergeInto agg e w = case Map.lookup e w.entities of
         { flows = filter (\f -> f.from /= f.to) (map (\f -> f { from = retarget f.from, to = retarget f.to }) c.flows)
         , production = nub (map (\p -> p { entity = retarget p.entity }) c.production)
         , shares = filter (\s -> s.from /= s.to) (map (\s -> s { from = retarget s.from, to = retarget s.to }) c.shares)
-        , requirements = foldRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
+        , requirements = mergeRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
         }
     , jurisdiction = map retarget (Map.delete e w.jurisdiction)
     }
@@ -101,19 +103,34 @@ mergeInto agg e w = case Map.lookup e w.entities of
   absorb gone a = a
     { accounts = Map.unionWith Q.add a.accounts gone.accounts
     , capacities = Map.unionWith Q.add a.capacities gone.capacities
-    , kind = foldWeights a.kind
+    , kind = foldWeights a
     }
   -- a member's procedure weight folds into the Aggregate's residual weight
-  foldWeights = case _ of
-    Aggregate x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
-    k -> k
-  -- requirements that now share an Entity and Resource are summed
-  foldRequirements = foldl
-    ( \acc r -> case filter (\x -> x.entity == r.entity && x.resource == r.resource) acc of
-        [ prior ] -> map (\x -> if x.entity == r.entity && x.resource == r.resource then x { amount = Q.add <$> prior.amount <*> r.amount } else x) acc
-        _ -> acc <> [ r ]
-    )
-    []
+  foldWeights a = case aggregateOf a of
+    Just x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
+    Nothing -> a.kind
+
+-- | Requirements of one Entity and Resource, merged as docs/04 §4.2 says: their explicit amounts
+-- | are summed. Two requirements that are both "equal to purchases" (Nothing) stay one. An
+-- | explicit amount and a purchases-based one cannot be summed into one amount, so they stay
+-- | two requirements: each consumes from what the Entity holds and records its own shortfall,
+-- | which totals what the sum would.
+mergeRequirements :: Array Requirement -> Array Requirement
+mergeRequirements = foldl add []
+  where
+  add acc r = case filter (sameKey r) acc of
+    [ prior ] -> case mergedAmount prior.amount r.amount of
+      Just amount -> map (\x -> if sameKey r x then x { amount = amount } else x) acc
+      Nothing -> acc <> [ r ]
+    _ -> acc <> [ r ]
+  sameKey r x = x.entity == r.entity && x.resource == r.resource
+
+  -- Just the merged amount when one exists, Nothing when the two must stay apart
+  mergedAmount :: Maybe Q -> Maybe Q -> Maybe (Maybe Q)
+  mergedAmount a b = case a, b of
+    Just x, Just y -> Just (Just (Q.add x y))
+    Nothing, Nothing -> Just Nothing
+    _, _ -> Nothing
 
 -- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market,
 -- | because `$home` names it. An acting Entity with none is a startup error, named here, before any round.

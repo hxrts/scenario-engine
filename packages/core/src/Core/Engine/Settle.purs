@@ -12,21 +12,23 @@ module Core.Engine.Settle
   , settle
   , adjust
   , net
+  , ledgerByAccount
   , transfer
   , minOwedHeld
   , groupBy
+  , shortfallOf
+  , consumedOf
   ) where
 
 import Prelude
 
-import Core.Engine.Fund (Scaled, capacityOf, facilityPrice, poolCeiling, poolOf)
+import Core.Engine.Fund (Scaled)
 import Core.Engine.Route as Route
-import Core.Engine.Screen (tradesOf)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (holding, lookupQ)
-import Core.Types (CapacityRef, EntityId, Id(..), Intent(..), MarketId, ProposalId, ResourceId, Rule, RuleChange(..), RuleId, TransformationId)
+import Core.Query (capacityOf, facilityPrice, holding, lookupQ, poolCeiling, poolOf, tradesOf)
+import Core.Types (CapacityRef, EntityId, Id(..), Intent(..), MarketId, ProposalId, ResourceId, Rule, RuleChange(..), RuleId, RoundIndex, TransformationId)
 import Core.World (Delivery, Event(..), Target(..), WorldState)
 import Data.Array (all, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))
@@ -43,6 +45,18 @@ derive instance Ord Account
 
 -- | Net changes to every account for the round, applied together at commit.
 type Ledger = Map (Tuple Account ResourceId) Q
+
+-- | The ledger grouped by Account, in one pass: each Account's changes, keyed by Resource.
+ledgerByAccount :: Ledger -> Map Account (Map ResourceId Q)
+ledgerByAccount ledger = Map.fromFoldableWith Map.union (map (\(Tuple (Tuple a r) q) -> Tuple a (Map.singleton r q)) (Map.toUnfoldable ledger :: Array _))
+
+-- | The Shortfall event: an amount owed but not delivered.
+shortfallOf :: RoundIndex -> EntityId -> ResourceId -> Q -> Event
+shortfallOf round entity resource quantity = Shortfall { round, entity, resource, quantity }
+
+-- | The Consumed event: an operating requirement met from what an Entity held.
+consumedOf :: RoundIndex -> EntityId -> ResourceId -> Q -> Event
+consumedOf round entity resource quantity = Consumed { round, entity, resource, quantity }
 
 move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
 move from to r q = adjust to r q <<< adjust from r (Q.neg q)
@@ -287,7 +301,7 @@ pay w from to resource owed st = Tuple paid
   where
   paid = minOwedHeld owed (net w from resource st)
   short = Q.sub owed paid
-  shortEvents = if short > Q.zero then [ Shortfall { round: w.round, entity: from, resource, quantity: short } ] else []
+  shortEvents = if short > Q.zero then [ shortfallOf w.round from resource short ] else []
 
 -- | A transfer between Entities through `pay`: the recorded quantity is what was paid.
 transfer :: WorldState -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement

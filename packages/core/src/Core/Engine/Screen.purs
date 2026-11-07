@@ -1,28 +1,24 @@
 -- | Engine phase 4 (docs/02_type_system.md §8.1): screen and interpret. Each submitted Proposal is
 -- | checked for duplicate ids, signature completeness, shape, authority, and shipping rules. A
--- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. This
--- | module also holds the authority predicates (`authorized`, `authorizedIn`, `executor`) that the
--- | Policy layer and adapters use, the owner of a capacity, and the Intent selectors.
+-- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. The
+-- | authority predicates live in Core.Authority, the capacity owner and the Intent selectors in
+-- | Core.Query.
 module Core.Engine.Screen
   ( Item
   , screen
   , duplicatedIds
-  , authorized
-  , authorizedIn
-  , executor
-  , owner
-  , tradesOf
   , routeCandidates
   ) where
 
 import Prelude
 
+import Core.Authority (authorizedIn, executor, governs)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
-import Core.Types (CapacityRef, Capability(..), CollectiveProcedureId, EntityId, EntityKind(..), Intent(..), MarketId, Order, Pair, Proposal, ProposalId, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), TransferSpec, TransformSpec)
+import Core.Query (aggregateOf, lookupQ, owner, transfersOf, transformsOf)
+import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent(..), MarketId, Pair, Proposal, ProposalId, Rule(..), RuleChange(..), SignedProposal, Transferability(..))
 import Core.World (Event(..), WorldState)
-import Data.Array (all, any, concat, elem, filter, find, fromFoldable, mapMaybe, nub, length, null)
+import Data.Array (all, any, concat, elem, filter, fromFoldable, length, nub, null)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
@@ -30,57 +26,6 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
-
--- Authority -------------------------------------------------------------------
-
--- | The Entity whose resources or authority an Intent uses.
-executor :: Proposal -> Intent -> EntityId
-executor p = case _ of
-  Transfer t -> t.from
-  Transform t -> t.by
-  _ -> p.author
-
--- | Whether `caps` authorize `who` to execute the Intent (§2.4). A Repeal needs only some
--- | enactment capability here; `authorizedIn` also requires the capability for the repealed Rule's kind.
-authorized :: Array Capability -> EntityId -> Intent -> Boolean
-authorized caps who = case _ of
-  Trade o -> MayTrade o.market `elem` caps
-  -- a routed order needs some trade capability here; `routeCandidates` checks the Market it uses
-  Route _ -> any isTrade caps
-  Transfer t -> MayTransfer t.resource `elem` caps && t.from == who
-  Transform t -> MayTransform t.transformation `elem` caps && t.by == who
-  ChangeRule (Enact r) -> MayEnact (kindOf r) `elem` caps
-  ChangeRule (Repeal _) -> any isEnact caps
-  where
-  isEnact (MayEnact _) = true
-  isEnact _ = false
-  isTrade (MayTrade _) = true
-  isTrade _ = false
-
--- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
--- | repeals. An unknown Rule is not authorized to be repealed.
-authorizedIn :: WorldState -> Array Capability -> EntityId -> Intent -> Boolean
-authorizedIn w caps who i = authorized caps who i && case i of
-  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
-  _ -> true
-
-kindOf :: Rule -> RuleKind
-kindOf = case _ of
-  Tariff _ -> TariffRule
-  AccessBan _ -> AccessBanRule
-  Withholding _ -> WithholdingRule
-
--- | Whether an Entity governs a Rule: a Tariff or AccessBan by its jurisdiction, a Withholding by
--- | the owner of its capacity. Enacting and repealing both require it.
-governs :: WorldState -> EntityId -> Rule -> Boolean
-governs w who = case _ of
-  Tariff r -> r.jurisdiction == who
-  AccessBan r -> r.jurisdiction == who
-  Withholding r -> owner w r.capacity == Just who
-
--- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
-owner :: WorldState -> CapacityRef -> Maybe EntityId
-owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
 
 -- Screening -------------------------------------------------------------------
 
@@ -214,8 +159,8 @@ outOfScope = case _ of
 -- | must pass the same per-Intent checks as any Proposal, with authority from the procedure's
 -- | `authorizes`.
 procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProcedureId -> Either (Array Event) Item
-procedureProposal w p signed pid = case Map.lookup p.author w.entities of
-  Just { kind: Aggregate a } | Just proc <- Map.lookup pid a.procedures ->
+procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggregateOf of
+  Just a | Just proc <- Map.lookup pid a.procedures ->
     let
       support = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) signed)))
       passes = support > proc.threshold
@@ -256,31 +201,6 @@ shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
   rate origin dest q = case _ of
     Tariff r | r.jurisdiction == dest && r.origin == origin -> Q.mul r.rate q
     _ -> Q.zero
-
--- | The Intents of one kind, in order: the one place that selects an Intent kind.
-intentsOf :: forall a. (Intent -> Maybe a) -> Array Intent -> Array a
-intentsOf = mapMaybe
-
-tradesOf :: Array Intent -> Array Order
-tradesOf = intentsOf
-  ( case _ of
-      Trade o -> Just o
-      _ -> Nothing
-  )
-
-transfersOf :: Array Intent -> Array TransferSpec
-transfersOf = intentsOf
-  ( case _ of
-      Transfer t -> Just t
-      _ -> Nothing
-  )
-
-transformsOf :: Array Intent -> Array TransformSpec
-transformsOf = intentsOf
-  ( case _ of
-      Transform t -> Just t
-      _ -> Nothing
-  )
 
 jur :: WorldState -> EntityId -> EntityId
 jur w e = fromMaybe e (Map.lookup e w.jurisdiction)

@@ -9,12 +9,16 @@ import Prelude
 import Board.Gameboard.Schema (Difference(..), InitialWorld)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
-import Core.Types (Capability(..), EntityKind(..))
-import Data.Array (concatMap, filter, foldl, fromFoldable, nub, null, sort)
+import Core.Query (aggregateOf, lookupQ)
+import Core.Types (Capability(..), EntityId)
+import Core.World (WorldState)
+import Data.Array (concatMap, filter, foldl, fromFoldable, nub, null)
 import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Set (Set)
+import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | Two instantiations differing only in explicitness must describe the same initial
@@ -29,16 +33,16 @@ reconcile a b =
   in
     if null diffs then Right unit else Left diffs
   where
-  compare' :: forall k. Ord k => Show k => (String -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> Array Difference
+  compare' :: forall k. Ord k => (k -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> Array Difference
   compare' mk x y = concatMap (diff mk x y) (nub (fromFoldable (Map.keys x) <> fromFoldable (Map.keys y)))
 
-  diff :: forall k. Ord k => Show k => (String -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> k -> Array Difference
+  diff :: forall k. Ord k => (k -> Q -> Q -> Difference) -> Map k Q -> Map k Q -> k -> Array Difference
   diff mk x y k =
     let
       l = lookupQ k x
       r = lookupQ k y
     in
-      if l == r then [] else [ mk (show k) l r ]
+      if l == r then [] else [ mk k l r ]
   stocks w = sumMaps (map _.accounts (fromFoldable (Map.values w.entities)) <> map _.reserves (fromFoldable (Map.values w.markets)))
   capacities w = sumMaps (map _.capacities (fromFoldable (Map.values w.entities)))
 
@@ -47,13 +51,16 @@ reconcile a b =
   sumMaps = foldl (Map.unionWith Q.add) Map.empty
   weights w = sumMaps
     ( concatMap
-        ( \e -> case e.kind of
-            Aggregate x -> map (\(Tuple pid p) -> Map.singleton pid (Q.add p.residualWeight (Q.sumQ (fromFoldable (Map.values p.weights))))) (Map.toUnfoldable x.procedures)
-            _ -> []
+        ( \e -> case aggregateOf e of
+            Just x -> map (\(Tuple pid p) -> Map.singleton pid (Q.add p.residualWeight (Q.sumQ (fromFoldable (Map.values p.weights))))) (Map.toUnfoldable x.procedures)
+            Nothing -> []
         )
         (fromFoldable (Map.values w.entities))
     )
-  authority w = sort (concatMap (\e -> map (\c -> show e.id <> " " <> show c) (filter isEnact e.capabilities)) (fromFoldable (Map.values w.entities)))
+
+  -- the enactment capabilities each Entity holds, as a set of (Entity, capability)
+  authority :: WorldState -> Set (Tuple EntityId Capability)
+  authority w = Set.fromFoldable (concatMap (\e -> map (Tuple e.id) (filter isEnact e.capabilities)) (fromFoldable (Map.values w.entities)))
   isEnact = case _ of
     MayEnact _ -> true
     _ -> false

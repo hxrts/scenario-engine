@@ -3,22 +3,36 @@
 -- | checks run after resolution, in the test suites, the simulator, the scenario golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
-module Core.Invariants (Failure, check, checkRun) where
+module Core.Invariants (Failure, Invariant(..), check, checkRun) where
 
 import Prelude
 
-import Core.Engine.Prepare (prepareRound)
-import Core.Engine.Screen (authorizedIn, executor)
-import Core.Query (lookupQ, totalHolding)
+import Core.Authority (authorizedIn, executor)
+import Core.Engine.Run (runRounds)
 import Core.Num as Q
-import Core.Types (EntityKind(..), SignedProposal)
+import Core.Query (aggregateOf, lookupQ, totalHolding)
+import Core.Types (SignedProposal)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (all, concatMap, elem, filter, fromFoldable)
+import Data.Array (all, concat, concatMap, elem, filter, fromFoldable)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 
+-- | A checked invariant (docs/02 §9), named by its number.
+data Invariant = INV02 | INV04 | INV05 | INV06 | INV10
+
+derive instance Eq Invariant
+
+instance Show Invariant where
+  show = case _ of
+    INV02 -> "INV-02"
+    INV04 -> "INV-04"
+    INV05 -> "INV-05"
+    INV06 -> "INV-06"
+    INV10 -> "INV-10"
+
+-- | A failed check: the invariant's name as it prints, and what failed.
 type Failure = { invariant :: String, detail :: String }
 
 check :: WorldState -> RoundResult -> Array Failure
@@ -26,10 +40,10 @@ check before r = concatMap (\f -> f before r) [ inv02, inv04, inv05, inv06, inv1
 
 -- | Every round of a run, each checked against the world it started from.
 checkRun :: WorldState -> Array RoundResult -> Array Failure
-checkRun initial rs = (foldl (\acc r -> { world: r.world, failures: acc.failures <> check (prepareRound acc.world) r }) { world: initial, failures: [] } rs).failures
+checkRun initial rs = concat (runRounds (\before r -> Tuple r.world (check before r)) initial rs)
 
-failure :: String -> String -> Failure
-failure invariant detail = { invariant, detail }
+failure :: Invariant -> String -> Failure
+failure inv detail = { invariant: show inv, detail }
 
 executed :: RoundResult -> Array SignedProposal
 executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
@@ -55,10 +69,10 @@ inv02 w r = concatMap one (executed r)
         Just pid -> procedureAuthority pid p.author
         Nothing -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
     in
-      if authorizedIn w caps who i then [] else [ failure "INV-02" (show p.id <> ": " <> show who <> " not authorized") ]
-  procedureAuthority pid author = case Map.lookup author w.entities of
-    Just { kind: Aggregate a } -> maybe [] _.authorizes (Map.lookup pid a.procedures)
-    _ -> []
+      if authorizedIn w caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
+  procedureAuthority pid author = case Map.lookup author w.entities >>= aggregateOf of
+    Just a -> maybe [] _.authorizes (Map.lookup pid a.procedures)
+    Nothing -> []
 
 -- | INV-04 Resource consistency: no negative holdings or reserves.
 inv04 :: WorldState -> RoundResult -> Array Failure
@@ -66,7 +80,7 @@ inv04 _ r =
   concatMap (\e -> negatives (show e.id) e.accounts) (fromFoldable (Map.values r.world.entities))
     <> concatMap (\m -> negatives (show m.id) m.reserves) (fromFoldable (Map.values r.world.markets))
   where
-  negatives who hs = concatMap (\(Tuple res q) -> if q < Q.zero then [ failure "INV-04" (who <> " holds " <> show q <> " " <> show res) ] else [])
+  negatives who hs = concatMap (\(Tuple res q) -> if q < Q.zero then [ failure INV04 (who <> " holds " <> show q <> " " <> show res) ] else [])
     (Map.toUnfoldable hs :: Array _)
 
 -- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what
@@ -81,7 +95,7 @@ inv05 before r = concatMap one resources
       actual = Q.sub (totalHolding r.world res) (totalHolding before res)
       expected = lookupQ res flows
     in
-      if actual == expected then [] else [ failure "INV-05" (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
+      if actual == expected then [] else [ failure INV05 (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
   flows = foldl addFlow Map.empty r.record.events
   addFlow acc = case _ of
     Transformed t -> case Map.lookup t.transformation before.transformations of
@@ -105,7 +119,7 @@ inv06 :: WorldState -> RoundResult -> Array Failure
 inv06 _ r = concatMap one (fromFoldable (Map.values r.world.markets))
   where
   one m =
-    if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure "INV-06" (show m.id <> " position " <> show m.position <> " outside its domain") ]
+    if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
     else []
 
 -- | INV-10 Signature completeness: a deal executes only if every required signer signed.
@@ -113,5 +127,5 @@ inv10 :: WorldState -> RoundResult -> Array Failure
 inv10 _ r = concatMap one (executed r)
   where
   one { proposal: p, signatures } =
-    if p.procedure == Nothing && not (all (\s -> s == p.author || s `elem` signatures) p.signers) then [ failure "INV-10" (show p.id <> " executed without every signature") ]
+    if p.procedure == Nothing && not (all (\s -> s == p.author || s `elem` signatures) p.signers) then [ failure INV10 (show p.id <> " executed without every signature") ]
     else []

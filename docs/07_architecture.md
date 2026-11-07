@@ -56,8 +56,8 @@ packages/
     Num            fixed-point quantities Q and display kinds
     Types, World   Entity, Resource, Intent, Proposal, Market, …; WorldState, RoundRecord, RoundResult, Manifest
     Draw           keyed PRNG
-    Market, Query (incl. `homeMarket`), Proposal (numbering, signing eligibility, signature assembly), Represent, Invariants
-    Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound)
+    Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly), Represent, Invariants
+    Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Program (decision language), Policy.InWorld (in-world Programs, `acts`), Policy.Interpret (propose, sign, `envFor`)
   scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load)

@@ -14,30 +14,26 @@ import Core.Engine.Circulate (circulate)
 import Core.Engine.Fund (fund)
 import Core.Engine.Prepare (prepareRound)
 import Core.Engine.Screen (duplicatedIds, screen)
-import Core.Engine.Settle (Account(..), Settlement, settle)
+import Core.Engine.Settle (Account(..), Settlement, ledgerByAccount, settle)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Represent as Represent
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, SignedProposal)
+import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, SignedProposal, submissionIndex)
 import Core.World (Event, RoundResult, WorldState)
-import Data.Array (concatMap, find, foldl, last, sortWith)
+import Data.Array (concatMap, find, sortWith)
 import Data.Either (Either(..), either)
-import Data.Int (fromString) as Int
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.String (Pattern(..), split)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 
 data EngineError
-  = UnknownReference String
-  | NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
+  = NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
   | NegativeReserve MarketId ResourceId -- likewise, for Market reserves
 
 derive instance Eq EngineError
 instance Show EngineError where
-  show (UnknownReference r) = "unknown reference: " <> r
   show (NegativeBalance e r) = "negative balance: " <> show e <> " " <> show r
   show (NegativeReserve m r) = "negative reserve: " <> show m <> " " <> show r
 
@@ -59,16 +55,17 @@ resolveRound w0 inputs0 =
     commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
 
 -- | The canonical order of Proposals: by author, then by the numeric index of the author's
--- | submission (the last segment of the id, so index 10 follows index 2), then by id.
+-- | submission (so index 10 follows index 2), then by id.
 submissionOrder :: SignedProposal -> Tuple String (Tuple Int String)
 submissionOrder { proposal: p } = Tuple (show p.author) (Tuple index (show p.id))
   where
-  index = fromMaybe 0 (Int.fromString (fromMaybe "" (last (split (Pattern "/") (show p.id)))))
+  index = fromMaybe 0 (submissionIndex p.id)
 
 commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
 commit w inputs screenEvents factors st = do
-  entities <- traverse (applyEntity st) w.entities
-  marketList <- traverse (applyMarket st) (Map.toUnfoldable w.markets :: Array _)
+  let byAccount = ledgerByAccount st.ledger
+  entities <- traverse (applyEntity byAccount) w.entities
+  marketList <- traverse (applyMarket st byAccount) (Map.toUnfoldable w.markets :: Array _)
   let
     events = screenEvents <> st.events
     world = w
@@ -83,19 +80,19 @@ commit w inputs screenEvents factors st = do
   pure { world, record: { round: w.round, inputs, events } }
 
 -- | An Entity with the Settlement's net change to its holdings applied, if none goes negative.
-applyEntity :: Settlement -> Entity -> Either EngineError Entity
-applyEntity st e = (\accounts -> e { accounts = accounts })
-  <$> checkNonNegative (Ent e.id) (applyHoldings (Ent e.id) st e.accounts)
+applyEntity :: Map Account (Map ResourceId Q) -> Entity -> Either EngineError Entity
+applyEntity byAccount e = (\accounts -> e { accounts = accounts })
+  <$> checkNonNegative (Ent e.id) (applyHoldings byAccount (Ent e.id) e.accounts)
 
 -- | A Market with the Settlement's net change to its reserves and its new position applied, if no
 -- | reserve goes negative.
-applyMarket :: Settlement -> Tuple MarketId Market -> Either EngineError (Tuple MarketId Market)
-applyMarket st (Tuple id m) = (\reserves -> Tuple id m { reserves = reserves, position = fromMaybe m.position (Map.lookup id st.positions) })
-  <$> checkNonNegative (Mkt id) (applyHoldings (Mkt id) st m.reserves)
+applyMarket :: Settlement -> Map Account (Map ResourceId Q) -> Tuple MarketId Market -> Either EngineError (Tuple MarketId Market)
+applyMarket st byAccount (Tuple id m) = (\reserves -> Tuple id m { reserves = reserves, position = fromMaybe m.position (Map.lookup id st.positions) })
+  <$> checkNonNegative (Mkt id) (applyHoldings byAccount (Mkt id) m.reserves)
 
 -- | The holdings of one Account after the Settlement's ledger entries for it.
-applyHoldings :: Account -> Settlement -> Map ResourceId Q -> Map ResourceId Q
-applyHoldings acct st hs = foldl (\h (Tuple (Tuple a r) q) -> if a == acct then Map.insertWith Q.add r q h else h) hs (Map.toUnfoldable st.ledger :: Array _)
+applyHoldings :: Map Account (Map ResourceId Q) -> Account -> Map ResourceId Q -> Map ResourceId Q
+applyHoldings byAccount acct hs = Map.unionWith Q.add hs (fromMaybe Map.empty (Map.lookup acct byAccount))
 
 -- | Settlement caps every payment at what an account holds and escrow funds the rest, so no
 -- | account should go negative: the first negative holding fails the round.

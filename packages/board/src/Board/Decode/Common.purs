@@ -12,15 +12,17 @@ module Board.Decode.Common
   , toMap
   , holdings
   , capability
+  , decodeEstimator
   ) where
 
 import Prelude
 
-import Board.Tags (accessBanKind, enactKind, splitTag, tariffKind, tradeKind, transferKind, transformKind, withholdingKind)
+import Board.Tags (accessBanKind, argOf, enactKind, tariffKind, tradeKind, transferKind, transformKind, withholdingKind)
 import Core.Num (Q)
-import Core.Types (Capability(..), Id(..), RuleKind(..))
+import Core.Num as Q
+import Core.Types (Capability(..), Estimator, Id(..), RuleKind(..))
 import Data.Argonaut.Core (Json, fromString)
-import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, fromJsonString, parseJson, printJsonDecodeError)
+import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, fromJsonString, parseJson, printJsonDecodeError, (.:), (.:?), (.!=))
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -52,21 +54,36 @@ oneKey kind j = do
 toMap :: forall t a. Object a -> Map.Map (Id t) a
 toMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
 
+-- | A quantity object, keyed by typed ids.
 holdings :: forall t. Object Q -> Map.Map (Id t) Q
-holdings = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v) <<< (Object.toUnfoldable :: _ -> Array _)
+holdings = toMap
+
+-- | A Representation estimator read from the object that holds its fields: `reference`, `shrinkage`,
+-- | an optional symmetric `bound`, and `noiseSpread` (default zero). Used by the Entity
+-- | Representations and by the Gameboard's schemes, which carry the same estimator.
+decodeEstimator :: Json -> Either JsonDecodeError Estimator
+decodeEstimator j = do
+  e <- decodeJson j
+  reference <- e .: "reference"
+  shrinkage <- e .: "shrinkage"
+  bound <- e .:? "bound"
+  noiseSpread <- e .:? "noiseSpread" .!= Q.zero
+  pure { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
 
 -- | A capability tag: `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`,
 -- | or `enact:<tariff|accessBan|withholding>`.
 capability :: String -> Either JsonDecodeError Capability
-capability s = case splitTag s of
-  { kind, arg: Just a } | kind == tradeKind -> Right (MayTrade (Id a))
-  { kind, arg: Just a } | kind == transferKind -> Right (MayTransfer (Id a))
-  { kind, arg: Just a } | kind == transformKind -> Right (MayTransform (Id a))
-  { kind, arg: Just a } | kind == enactKind -> enactment a
-  _ -> Left (unknownKind "capability" s)
-  where
-  enactment a
-    | a == tariffKind = Right (MayEnact TariffRule)
-    | a == accessBanKind = Right (MayEnact AccessBanRule)
-    | a == withholdingKind = Right (MayEnact WithholdingRule)
-    | otherwise = Left (unknownKind "capability" s)
+capability s
+  | Just a <- argOf tradeKind s = Right (MayTrade (Id a))
+  | Just a <- argOf transferKind s = Right (MayTransfer (Id a))
+  | Just a <- argOf transformKind s = Right (MayTransform (Id a))
+  | Just a <- argOf enactKind s = enactment s a
+  | otherwise = Left (unknownKind "capability" s)
+
+-- | The enactment capability of `enact:<tariff|accessBan|withholding>`, whose whole tag is `s`.
+enactment :: String -> String -> Either JsonDecodeError Capability
+enactment s a
+  | a == tariffKind = Right (MayEnact TariffRule)
+  | a == accessBanKind = Right (MayEnact AccessBanRule)
+  | a == withholdingKind = Right (MayEnact WithholdingRule)
+  | otherwise = Left (unknownKind "capability" s)

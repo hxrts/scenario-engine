@@ -25,13 +25,13 @@ module Board.Gameboard.Schema
 
 import Prelude
 
-import Board.Decode.Common (toMap)
+import Board.Decode.Common (decodeEstimator, toMap)
 import Board.Decode.World (decodeWorld)
-import Board.Tags (capacityKind, cumulativeKind, coverageKind, everyRoundKind, finalKind, holdingKind, omissionKind, payeeReceiptsKind, policyKind, shortfallKind, shortfallRoundsKind, splitTag, volumeKind)
+import Board.Tags (argOf, capacityKind, cumulativeKind, coverageKind, everyRoundKind, finalKind, holdingKind, isBare, omissionKind, payeeReceiptsKind, policyKind, shortfallKind, shortfallRoundsKind, volumeKind)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, CapacityRef, EntityId, Estimator, Id(..), PolicyId, ResourceId, TransformationId)
+import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Estimator, Id(..), PolicyId, ResourceId, TransformationId)
 import Core.World (Manifest, WorldState)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
@@ -184,18 +184,18 @@ instance Show ValidationError where
 
 -- | A difference between two instantiations of the same economy (§14.2).
 data Difference
-  = StockDiffers String Q Q
-  | CapacityDiffers String Q Q
-  | WeightDiffers String Q Q
+  = StockDiffers ResourceId Q Q
+  | CapacityDiffers CapacityRef Q Q
+  | WeightDiffers CollectiveProcedureId Q Q
   | AuthorityDiffers
 
 derive instance Eq Difference
 
 instance Show Difference where
   show = case _ of
-    StockDiffers k l r -> "stock " <> k <> ": " <> show l <> " vs " <> show r
-    CapacityDiffers k l r -> "capacity " <> k <> ": " <> show l <> " vs " <> show r
-    WeightDiffers k l r -> "procedure weight " <> k <> ": " <> show l <> " vs " <> show r
+    StockDiffers k l r -> "stock " <> show k <> ": " <> show l <> " vs " <> show r
+    CapacityDiffers k l r -> "capacity " <> show k <> ": " <> show l <> " vs " <> show r
+    WeightDiffers k l r -> "procedure weight " <> show k <> ": " <> show l <> " vs " <> show r
     AuthorityDiffers -> "institutional authority differs"
 
 -- Decoding -----------------------------------------------------------------------
@@ -245,17 +245,13 @@ decodeGameboard j = do
     eligible <- s .: "eligibleActors"
     target <- s .: "target"
     domain <- s .: "domain"
-    e <- s .: "estimator"
-    reference <- e .: "reference"
-    shrinkage <- e .: "shrinkage"
-    bound <- e .:? "bound"
-    noiseSpread <- e .:? "noiseSpread" .!= Q.zero
+    estimator <- s .: "estimator" >>= decodeEstimator
     pure
       { id
       , eligibleActors: map Id eligible
       , target: Id target
       , domain: Id domain
-      , estimator: { reference, shrinkage, deviationBound: map (\b -> { lo: Q.neg b, hi: b }) bound, noiseSpread }
+      , estimator
       }
 
 -- | `[min, max]`: the supported round counts, with 1 <= min <= max.
@@ -270,11 +266,11 @@ roundRange j = do
 decodeFallback :: Json -> Either JsonDecodeError Fallback
 decodeFallback j = do
   s <- decodeJson j
-  case splitTag s of
-    { kind, arg: Just a } | kind == coverageKind -> Right (ImplicitCoverage (Id a))
-    { kind, arg: Just a } | kind == policyKind -> Right (InstitutionalPolicy (Id a))
-    { kind, arg: Nothing } | kind == omissionKind -> Right PermittedOmission
-    _ -> Left (Named "fallback" (UnexpectedValue j))
+  if isBare omissionKind s then Right PermittedOmission
+  else case argOf coverageKind s, argOf policyKind s of
+    Just a, _ -> Right (ImplicitCoverage (Id a))
+    _, Just a -> Right (InstitutionalPolicy (Id a))
+    _, _ -> Left (Named "fallback" (UnexpectedValue j))
 
 decodeObjective :: Json -> Either JsonDecodeError Objective
 decodeObjective j = do
@@ -300,15 +296,16 @@ decodeObjective j = do
     entities <- m .: "entities"
     negated <- m .:? "negated" .!= false
     s <- m .: "measure"
-    measure <- case splitTag s of
-      { kind, arg: Just r } | kind == holdingKind -> Right (HoldingOf (Id r))
-      { kind, arg: Just c } | kind == capacityKind -> Right (CapacityAmount (Id c))
-      { kind, arg: Just r } | kind == shortfallKind -> Right (ShortfallOf (Id r))
-      { kind, arg: Just r } | kind == shortfallRoundsKind -> Right (ShortfallRounds (Id r))
-      { kind, arg: Nothing } | kind == payeeReceiptsKind -> Right PayeeReceipts
-      { kind, arg: Just t } | kind == volumeKind -> Right (VolumeOf (Id t))
-      _ -> Left (Named "measure" (UnexpectedValue (fromString s)))
+    measure <- measureOf s
     pure { entities: map Id entities, measure, negated }
+  measureOf s
+    | Just r <- argOf holdingKind s = Right (HoldingOf (Id r))
+    | Just c <- argOf capacityKind s = Right (CapacityAmount (Id c))
+    | Just r <- argOf shortfallKind s = Right (ShortfallOf (Id r))
+    | Just r <- argOf shortfallRoundsKind s = Right (ShortfallRounds (Id r))
+    | isBare payeeReceiptsKind s = Right PayeeReceipts
+    | Just t <- argOf volumeKind s = Right (VolumeOf (Id t))
+    | otherwise = Left (Named "measure" (UnexpectedValue (fromString s)))
 
 decodeConfig :: Json -> Either JsonDecodeError InstantiationConfig
 decodeConfig j = do

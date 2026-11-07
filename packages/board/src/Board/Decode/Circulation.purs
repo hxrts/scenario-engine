@@ -6,7 +6,7 @@ module Board.Decode.Circulation
 import Prelude
 
 import Board.Decode.Common (unknownKind)
-import Board.Tags (payeeKind, salesKind, splitTag)
+import Board.Tags (argOf, isBare, payeeKind, salesKind)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Core.World (Circulation, ShareSource(..))
@@ -38,10 +38,11 @@ decodeCirculation j = do
     to <- f .: "to"
     share <- f .: "share"
     src <- f .: "source"
-    source <- case splitTag src of
-      { kind, arg: Just r } | kind == salesKind -> Right (SalesOf (Id r))
-      { kind, arg: Nothing } | kind == payeeKind -> Right PayeeReceipts
-      _ -> Left (unknownKind "share source" src)
+    source <- case argOf salesKind src of
+      Just r -> Right (SalesOf (Id r))
+      Nothing
+        | isBare payeeKind src -> Right PayeeReceipts
+        | otherwise -> Left (unknownKind "share source" src)
     pure { from: Id from, to: Id to, share, source }
   requirements <- o .:? "requirements" .!= [] >>= traverse \x -> do
     f <- decodeJson x

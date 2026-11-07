@@ -41,7 +41,7 @@ decodeWorld j = do
   resources <- o .: "resources" >>= traverseKeys resource
   markets <- o .: "markets" >>= traverseKeys market
   transformations <- o .: "transformations" >>= traverseKeys transformation
-  transport <- o .:? "transport" .!= Object.empty >>= traverse (pure <<< Id)
+  transport <- o .:? "transport" .!= Object.empty
   jurisdiction <- o .:? "jurisdiction" .!= Object.empty
   entities <- o .: "entities" >>= traverseKeys decodeEntity
   rules <- o .:? "rules" .!= [] >>= traverse rule
@@ -64,8 +64,8 @@ decodeWorld j = do
         , transformations: toMap transformations
         , representations
         , numeraire: Id numeraire
-        , transport: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) v) (Object.toUnfoldable transport :: Array _))
-        , jurisdiction: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) (Id v)) (Object.toUnfoldable jurisdiction :: Array (Tuple String String)))
+        , transport: map Id (toMap transport)
+        , jurisdiction: map Id (toMap jurisdiction)
         , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) rules)
         , scheduled: Map.empty
         , deliveries: []

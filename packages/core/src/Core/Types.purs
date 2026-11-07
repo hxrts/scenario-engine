@@ -11,9 +11,12 @@ import Data.Argonaut.Encode (class EncodeJson)
 import Data.Argonaut.Encode.Generic (genericEncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
+import Data.Array (last)
+import Data.Int (fromString) as Int
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
+import Data.String (Pattern(..), split)
 
 -- Identifiers ----------------------------------------------------------------
 
@@ -77,11 +80,14 @@ type Entity =
 
 data EntityKind
   = Actor Controller
-  | Aggregate
-      { policy :: PolicyId
-      , members :: Array EntityId
-      , procedures :: Map CollectiveProcedureId CollectiveProcedure
-      }
+  | Aggregate Aggregate
+
+-- | An Aggregate's policy, members, and collective procedures (§2.2).
+type Aggregate =
+  { policy :: PolicyId
+  , members :: Array EntityId
+  , procedures :: Map CollectiveProcedureId CollectiveProcedure
+  }
 
 data Controller
   = Seat SeatId
@@ -116,7 +122,11 @@ data Capability
   | MayTransform TransformationId
   | MayEnact RuleKind
 
+derive instance Ord Capability
+
 data RuleKind = TariffRule | AccessBanRule | WithholdingRule
+
+derive instance Ord RuleKind
 
 -- Intents and Proposals (§3) -------------------------------------------------
 
@@ -318,6 +328,16 @@ instance EncodeJson RuleChange where
 instance DecodeJson RuleChange where
   decodeJson = genericDecodeJson
 
--- | Deterministic Proposal id: (round, author, index in the author's submission) (§3.3).
+-- | Deterministic Proposal id: (round, author, index in the author's submission) (§3.3). This is
+-- | the only constructor of a ProposalId; `submissionIndex` reads the index back out of it.
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
 proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
+
+-- | The index a Proposal id was built with: the segment after its last "/". Nothing for an id
+-- | that `proposalId` could not have made.
+submissionIndex :: ProposalId -> Maybe Int
+submissionIndex (Id s) = Int.fromString =<< last (split (Pattern "/") s)
+
+-- | The Resource a Behavior Domain names: a domain is the Resource whose purchases are observed.
+domainResource :: BehaviorDomain -> ResourceId
+domainResource (Id s) = Id s

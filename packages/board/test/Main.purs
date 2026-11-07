@@ -6,6 +6,7 @@ import Board.Decode.Common (capability)
 import Board.Decode.Intents (intent, rule)
 import Board.Decode.Rounds (Expect, decodeRound)
 import Board.Decode.World (decodeFixture)
+import Board.Gameboard.Instantiate (mergeRequirements)
 import Board.Gameboard.Schema (decodeGameboard)
 import Core.Num as Q
 import Core.Types (Capability(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
@@ -97,6 +98,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         e = expectOf """{ "expect": { "rejected": [ "US", { "author": "US", "index": 1 } ] } }"""
       map (map _.index) e.rejected `shouldEqual` Just [ 0, 1 ]
+
+  describe "Requirement merge (docs/04 §4.2)" do
+    -- an operating requirement of the US in money, with the given amount
+    let req amount = { entity: Id "US", resource: Id "M", amount, penalty: Q.zero }
+    it "two explicit amounts for one Entity and Resource are summed" do
+      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req (Just (Q.fromInt 4)) ]) `shouldEqual` [ Just (Q.fromInt 7) ]
+    it "an explicit amount and one equal to purchases both survive the merge, neither replaced by the other" do
+      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req Nothing ]) `shouldEqual` [ Just (Q.fromInt 3), Nothing ]
+    it "two requirements equal to purchases stay one" do
+      map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ Nothing ]
 
   describe "Gameboard and fixture documents" do
     it "decodes a minimal valid Gameboard and its round range" do
