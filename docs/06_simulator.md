@@ -299,7 +299,7 @@ Initial storage is a local database such as SQLite, accessed through a Run Store
 
 The Dashboard has three pages, each on its own hash route, and a top bar that links to them, every item on every page: **Runs** (`#/runs`, the home page, and `#/runs/:id` with that run selected), **Prepare** (`#/prepare`), and **Comparison** (`#/compare/:ids`). It renders from persisted data without running the engine.
 
-The Runs page is the run list beside the selected run. With no run selected, the latest readable run is shown. The selected run's results come first, in the order of the five questions the dashboard answers: **Standings** (§9.2), **Net worth over time**, **Actions**, the **Price** chart beside the **Drivers** timeline, and **Balance of the game**. Each deeper topic is under its own Details section. Its lineage (the source run and the derived runs) and its manage actions (archive, resume, delete) are stacked under the results. Selecting a run in the list changes the route to `#/runs/:id`, so a selected run has its own address. The Runs page has no comparison control. Comparison is chosen on the **Compare** page (`#/compare`), which lists every readable run as a tickable choice; the ticked runs, in the order ticked, form the comparison (`#/compare/:ids`), the first being the baseline, and the top bar shows how many. A single run is fully viewable without any comparison. Layout uses one 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`.
+The Runs page is the run list beside the selected run. With no run selected, the latest readable run is shown. The selected run's page opens with a compact header (run id, name, scenario, status, rounds completed out of target, and game id), then visible sections in the order of the five questions the dashboard answers, each with one purpose line and no disclosure or Details control: **Key figures** (the measures behind the five questions and their formulas), **Marginal prices**, **Standings**, **Net worth over time**, **Actions**, **Drivers**, **Balance measures**, **Objectives**, and the **Final balance sheet** (every account by resource at the final round). Each section is full width, in that order. Its lineage (the source run and the derived runs) and its manage actions (archive, resume, delete) follow the results as visible sections. The raw event log, the world-economy totals, flows and pressure, the facilities, the representation and procedure records, and the per-round action counts are not on the page; the read API still serves them. Selecting a run in the list changes the route to `#/runs/:id`, so a selected run has its own address. The Runs page has no comparison control. Comparison is chosen on the **Compare** page (`#/compare`), which lists every readable run as a tickable choice; the ticked runs, in the order ticked, form the comparison (`#/compare/:ids`), the first being the baseline, and the top bar shows how many. A single run is fully viewable without any comparison. Layout uses one 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`.
 
 ### 9.1 Simulation Runs
 
@@ -323,13 +323,11 @@ The new-simulation form selects the Gameboard, the configuration, seat Policies 
 
 ### 9.2 Run Details
 
-**Run actions and lineage.** The page has a lineage panel (**Derived from** the source run, and **Derived runs** that name this run as their source) and a run-actions panel (§9.1). Resume is offered only while the run has fewer rounds than its target.
+**Run actions and lineage.** The page has a lineage section (**Derived from** the source run, and **Derived runs** that name this run as their source) and a manage section (§9.1). Resume is offered only while the run has fewer rounds than its target.
 
-**Overview.** Shows identity, versions, rounds, seat Policies, both seeds, assertion results, and summary metrics. For the reference game these include the regional Energy prices, total procurement, Soft Power produced, and rejected Intents. These are descriptive measures, not victory conditions.
+**Header.** Run id, name, scenario, status, rounds completed out of the run's target, and game id. The engine, draws, seeds, rejected Proposals and assertion counts are in the overview API only.
 
-**Timeline.** Lets the developer select any round boundary (Initial → Year 1 … Year 5) and play back saved states. Playback is visualization only, not re-execution.
-
-**Balance sheets.** One balance sheet for every explicit Actor and every Aggregate. Aggregates are clearly marked as residual representations.
+**Final balance sheet.** One balance sheet at the run's final round for every explicit Actor and every Aggregate, with the start-of-run holdings for comparison. Aggregates are clearly marked as residual representations.
 
 | Resource | Initial | Current | Change |
 |---|---:|---:|---:|
@@ -344,32 +342,17 @@ Holdings are shown per Resource here. The single net-worth figure of §9.2 **Sta
 
 **Standings and net worth.** *Question: how well are players doing relative to one another?* Each Actor's net worth is Money plus each Market-priced Resource valued at its price after the round; where several Markets trade one Resource (the regional Energy Markets), its price is their mean, so a holding counts once. Aggregates are residual and are not players. The standings table gives each player's net worth after the final round, its change from the start (round 0), and its rank (1 the highest; equal net worths share a rank). The net-worth chart draws one line per player from round 0 to the final round. The definitions live in `Harness.Views.Standings`.
 
-**Actions.** *Question: what actions do players take over time?* Per Actor and round: trades executed, transforms run, transfers the Actor pays, deals signed (multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed), and Proposals rejected. The summary shows each Actor's totals over the run; the round-by-round counts are under Details. Defined in `Harness.Views.Actions`.
+**Actions.** *Question: what actions do players take over time?* Per Actor and round: trades executed, transforms run, transfers the Actor pays, deals signed (multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed), and Proposals rejected. The section shows each Actor's totals over the run; the round-by-round counts are served by the API only. Defined in `Harness.Views.Actions`.
 
 **Drivers.** *Question: what forces are driving gameplay (what moves prices and outcomes)?* A timeline by round of the rules enacted and repealed (tariffs, access bans, withholding), the collective procedure outcomes (executed or lapsed, with support and threshold), and the shortfalls per Resource (the total and the number of Entities short). It sits beside the marginal price chart on the same round axis. Defined in `Harness.Views.Drivers`.
 
-**Balance of the game.** *Question: how well balanced is the game (does one role dominate; does the outcome depend on the seed)?* The **spread** is the highest minus the lowest final net worth among the players. The **Gini coefficient** of final net worth is 0 when every player holds the same and 1 − 1/n when one holds everything (n/a when the total is zero or a value is negative). **Objective completion by role** counts each Actor's criteria met, not met and not evaluated. Defined in `Harness.Views.Balance`.
+**Balance measures.** *Question: how well balanced is the game (does one role dominate; does the outcome depend on the seed)?* The **spread** is the highest minus the lowest final net worth among the players. The **Gini coefficient** of final net worth is 0 when every player holds the same and 1 − 1/n when one holds everything (n/a when the total is zero or a value is negative). Defined in `Harness.Views.Balance`. **Objectives** lists each Actor's criteria as met, not met or not evaluated, with the measured values (`Harness.Views.Overview`).
 
 **Seed-to-seed variation.** On the Compare page, runs with the same specification (every setting but the player seed and the derivation bookkeeping) are grouped; the table gives each run's spread and Gini and the lowest, highest and range of each across the group. With a single run it says that seed-to-seed variation needs more runs, and reports no range. No number is invented for one run.
 
 Every statistic has one definition, as a `Statistic` record (name, question, one-line definition, formula) in the module that computes it. The dashboard renders that record; no view computes an economic statistic in the browser.
 
-**Markets and facilities.**
-
-- Each regional Energy Market view shows: marginal price, executed volume, buy and sell volumes, orders left unfilled or blocked by their limit price, reserves, position, and the tariffs and bans in force.
-- Facilities (Defense Procurement, Public Attention, Energy Shipping) have their own views: orders, capacity and utilization, cost, deliveries, rejected Proposals, and Money paid to each payee.
-- Every view separates explicit activity from Aggregate activity.
-
-**World economy.** This view covers:
-
-- Resource totals across all accounts, with production, consumption, issuance, and decay shown separately.
-- Activity and unfilled demand.
-- Circulation: Money flows between Entity categories, with accounts that only accumulate flagged ([INV-05](02_type_system.md#inv-05)).
-- Concentration.
-- Explicit versus implicit share.
-- Pressure indicators: shortages, price moves, capacity utilization, rejections.
-
-It does not invent macroeconomic indicators the Gameboard does not define.
+**Markets, facilities and the world economy.** The Market, facility, economy and representation views (`/api/runs/:id/markets`, `facilities`, `economy`, `representation`, `procedures`) and the raw event log (`events`) remain in the read API for analysis and tooling, but the run page does not show them: the drivers timeline and the marginal prices carry the market and pressure story on the page. The dashboard does not invent macroeconomic indicators the Gameboard does not define.
 
 **Representation.** One view covers every active Representation. It shows the four-stage record, which spans two rounds:
 
