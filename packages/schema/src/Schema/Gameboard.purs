@@ -24,7 +24,7 @@ import Prelude
 import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Estimator, PolicyId, ResourceId, TransformationId)
+import Core.Types (BehaviorDomain, CapacityRef, EntityId, Estimator, PolicyId, ResourceId, TransformationId)
 import Core.World (Manifest, UnseededWorld, WorldState)
 import Data.Map (Map)
 import Foreign.Object (Object)

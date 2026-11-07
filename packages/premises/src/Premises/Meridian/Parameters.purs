@@ -16,7 +16,8 @@ module Premises.Meridian.Parameters
 
 import Prelude
 
-import Schema.Build.Base (Keyed, Qty, keyed, (:=))
+import Core.Num (Q)
+import Schema.Build.Base (Keyed, keyed, (:=))
 import Data.Tuple (Tuple)
 
 -- | The names of one regional Market's supplier parameters: the offer below the high price, the
@@ -24,7 +25,7 @@ import Data.Tuple (Tuple)
 type SupplierNames = { offer :: String, high :: String, cut :: String }
 
 -- | A regional Market's supplier parameters: their names, and their entries with the values given.
-type Supplier = { names :: SupplierNames, entries :: Array (Tuple String Qty) }
+type Supplier = { names :: SupplierNames, entries :: Array (Tuple String Q) }
 
 -- | The supplier parameters of the Market with this suffix: `supplier-offer-<suffix>`,
 -- | `supplier-offer-<suffix>-high`, and `disruption-cut-<suffix>`.
@@ -60,7 +61,7 @@ disruptionRound :: String
 disruptionRound = "disruption-round"
 
 -- | Every premise parameter with its value.
-parameters :: Keyed Qty
+parameters :: Keyed Q
 parameters = keyed
   ( [ euMatchingTariff := "0.5"
     , majorActionThreshold := 12

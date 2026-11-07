@@ -19,7 +19,7 @@ import Game.Assemble (assemble, withRounds)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game)
 import Premises.Capstone as C
-import Schema.Decode.Rounds (Expect, decodeExpect)
+import Schema.Premise.Fixture (Expect, decodeExpect)
 import Schema.Gameboard (Outcome(..))
 import Simulator.Simulate (SimRun, simulate)
 import Testkit.Meridian (orThrow, premise)

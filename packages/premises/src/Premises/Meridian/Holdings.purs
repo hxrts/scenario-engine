@@ -12,11 +12,12 @@ import Data.Array (filter, find)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..), fst)
-import Schema.Build.Base (Keyed, Qty, keyed, (:=))
+import Core.Num (Q)
+import Schema.Build.Base (Keyed, keyed, (:=))
 import Partial.Unsafe (unsafeCrashWith)
 
 -- | One Entity's holdings: its accounts and its capacities, in declaration order.
-type Holding = { accounts :: Array (Tuple String Qty), capacities :: Array (Tuple String Qty) }
+type Holding = { accounts :: Array (Tuple String Q), capacities :: Array (Tuple String Q) }
 
 -- | Every Entity's holding, in catalog order (`Premises.Meridian.Entities`).
 holdings :: Array (Tuple String Holding)
@@ -54,16 +55,16 @@ holding name = case find (\(Tuple n _) -> n == name) holdings of
   Nothing -> unsafeCrashWith ("no holding for Entity " <> name)
 
 -- | An Entity's accounts, as the Entity declares them.
-accountsOf :: String -> Keyed Qty
+accountsOf :: String -> Keyed Q
 accountsOf name = keyed (holding name).accounts
 
 -- | An Entity's capacities, as the Entity declares them.
-capacitiesOf :: String -> Keyed Qty
+capacitiesOf :: String -> Keyed Q
 capacitiesOf name = keyed (holding name).capacities
 
 -- | Some of an Entity's accounts, in the order given: a fixture's inputs are a subset of the
 -- | Entity's accounts. A name the Entity does not hold is a programming error.
-pickAccounts :: String -> Array String -> Keyed Qty
+pickAccounts :: String -> Array String -> Keyed Q
 pickAccounts name wanted = keyed (map pick wanted)
   where
   pick k = case find (\(Tuple n _) -> n == k) (holding name).accounts of

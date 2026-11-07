@@ -7,19 +7,19 @@ import Prelude
 
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (sortWith)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (Format(..), encodeWith)
-import Schema.Premise.Strategy (policiesShape, presetsShape)
+import Schema.Premise.Strategy (presetsShape)
 import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
 import Premises.Meridian as Meridian
-import Premises.Load (decodeFixture, decodePresets, fromFiles)
+import Premises.Load (decodePresets, fromFiles)
+import Schema.Premise.Fixture (decodeFixture)
 import Game.Premise (checkPremise)
 import Premises.Names (presetsFile)
 import Premises.Presets as Presets

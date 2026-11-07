@@ -1,30 +1,18 @@
--- | Shared building blocks of the premise DSL: exact quantities, keyed maps, the built-JSON
--- | type, and the tagged strings the decoders split on. The World, Decision and Fixture
--- | modules build on these; nothing here depends on them.
+-- | The vocabulary of the premise DSL's world and fixtures: keyed lists (`"M" := 260`), and the
+-- | typed values a premise names — capabilities, Measures, spans, fallbacks, share sources. Each is
+-- | a core value, so a premise is written with the same types the engine reads; nothing here builds
+-- | JSON (the shapes in `Schema.Premise.*` do).
 module Schema.Build.Base
-  ( Qty
-  , class ToQty
-  , q
-  , Keyed
+  ( Keyed
   , keyed
-  , keyNames
   , (:=)
   , entry
-  , Built(..)
-  , builtJson
-  , build
-  , tag
-  , Tagged
-  , Capability
-  , trade
-  , transfer
-  , transform
-  , enactTariff
-  , enactAccessBan
-  , enactWithholding
-  , free
-  , restricted
-  , nonTransferable
+  , mayTrade
+  , mayTransfer
+  , mayTransform
+  , mayEnactTariff
+  , mayEnactAccessBan
+  , mayEnactWithholding
   , coverage
   , institutional
   , omission
@@ -43,156 +31,92 @@ module Schema.Build.Base
 
 import Prelude
 
-import Schema.Tags as T
-import Core.Num as Q
-import Data.Argonaut.Core (Json, fromObject, fromString)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Maybe (Maybe(..))
+import Core.Num (Q)
+import Core.Types (Capability(..), Id(..), RuleKind(..))
+import Core.World (ShareSource)
+import Core.World as W
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
+import Schema.Build.Quantity (class ToQty, q)
+import Schema.Gameboard (Fallback(..), Measure(..), Span(..))
 
--- Quantities and maps ----------------------------------------------------------------
-
--- | An exact decimal quantity, written as the decoders read it (a string).
-newtype Qty = Qty String
-
-instance EncodeJson Qty where
-  encodeJson (Qty s) = fromString s
-
--- | Quantities are written as an `Int` or as a decimal `String` ("0.02"), never a
--- | floating-point `Number`. A string must pass the one decimal parser (`Q.parse`, at most 4
--- | decimals), so a bad literal fails when the premise is authored, not when it is decoded.
-class ToQty a where
-  q :: a -> Qty
-
-instance ToQty Qty where
-  q = identity
-
-instance ToQty Int where
-  q = Qty <<< show
-
-instance ToQty String where
-  q s = case Q.parse s of
-    Just _ -> Qty s
-    Nothing -> unsafeCrashWith ("not a fixed-point quantity (sign, digits, at most 4 decimals): " <> s)
-
--- | A JSON object from key–value pairs: holdings, catalogs, parameters, seats.
-newtype Keyed a = Keyed (Array (Tuple String a))
-
-instance EncodeJson a => EncodeJson (Keyed a) where
-  encodeJson (Keyed kvs) = fromObject (Object.fromFoldable (map (\(Tuple k v) -> Tuple k (encodeJson v)) kvs))
-
-derive newtype instance Semigroup (Keyed a)
+-- | A keyed list, in the order written.
+type Keyed a = Array (Tuple String a)
 
 keyed :: forall a. Array (Tuple String a) -> Keyed a
-keyed = Keyed
-
--- | The keys of a keyed map, in the order they were written.
-keyNames :: forall a. Keyed a -> Array String
-keyNames (Keyed kvs) = map (\(Tuple k _) -> k) kvs
+keyed = identity
 
 -- | A holding: `"M" := 260`, `"E" := "0.5"`.
-entry :: forall a. ToQty a => String -> a -> Tuple String Qty
+entry :: forall a. ToQty a => String -> a -> Tuple String Q
 entry k v = Tuple k (q v)
 
 infix 6 entry as :=
 
--- | A built JSON fragment of one kind (a market, a facility, an entity, …).
-newtype Built (kind :: Symbol) = Built Json
+-- Capabilities -----------------------------------------------------------------------------
 
--- | The JSON a builder emits, for decoding in tests and tooling.
-builtJson :: forall kind. Built kind -> Json
-builtJson (Built j) = j
+mayTrade :: String -> Capability
+mayTrade m = MayTrade (Id m)
 
-instance EncodeJson (Built kind) where
-  encodeJson (Built j) = j
+mayTransfer :: String -> Capability
+mayTransfer r = MayTransfer (Id r)
 
--- | Encode a record whose fields the caller's `Union` constraint has already checked.
-build :: forall kind r. EncodeJson (Record r) => Record r -> Built kind
-build = Built <<< encodeJson
+mayTransform :: String -> Capability
+mayTransform t = MayTransform (Id t)
 
--- | A one-key JSON object: the tagged form the decoders read.
-tag :: String -> Json -> Json
-tag k v = fromObject (Object.singleton k v)
+mayEnactTariff :: Capability
+mayEnactTariff = MayEnact TariffRule
 
--- Tagged strings ---------------------------------------------------------------------
+mayEnactAccessBan :: Capability
+mayEnactAccessBan = MayEnact AccessBanRule
 
--- | A string the decoders split on `:` (capabilities, fallbacks, measures, …).
-newtype Tagged (kind :: Symbol) = Tagged String
+mayEnactWithholding :: Capability
+mayEnactWithholding = MayEnact WithholdingRule
 
-instance EncodeJson (Tagged kind) where
-  encodeJson (Tagged s) = fromString s
-
-type Capability = Tagged "capability"
-
-trade :: String -> Capability
-trade m = Tagged (T.tag T.tradeKind m)
-
-transfer :: String -> Capability
-transfer r = Tagged (T.tag T.transferKind r)
-
-transform :: String -> Capability
-transform t = Tagged (T.tag T.transformKind t)
-
-enactTariff :: Capability
-enactTariff = Tagged (T.tag T.enactKind T.tariffKind)
-
-enactAccessBan :: Capability
-enactAccessBan = Tagged (T.tag T.enactKind T.accessBanKind)
-
-enactWithholding :: Capability
-enactWithholding = Tagged (T.tag T.enactKind T.withholdingKind)
-
-free :: Tagged "transferability"
-free = Tagged "Free"
-
-restricted :: Tagged "transferability"
-restricted = Tagged "Restricted"
-
-nonTransferable :: Tagged "transferability"
-nonTransferable = Tagged "NonTransferable"
+-- Fallbacks --------------------------------------------------------------------------------
 
 -- | The Actor's accounts and activity stay in an Aggregate.
-coverage :: String -> Tagged "fallback"
-coverage a = Tagged (T.tag T.coverageKind a)
+coverage :: String -> Fallback
+coverage a = ImplicitCoverage (Id a)
 
 -- | The same accounts, driven by an in-world Policy.
-institutional :: String -> Tagged "fallback"
-institutional p = Tagged (T.tag T.policyKind p)
+institutional :: String -> Fallback
+institutional p = InstitutionalPolicy (Id p)
 
-omission :: Tagged "fallback"
-omission = Tagged T.omissionKind
+omission :: Fallback
+omission = PermittedOmission
 
-holdingOf :: String -> Tagged "measure"
-holdingOf r = Tagged (T.tag T.holdingKind r)
+-- Measures and spans -----------------------------------------------------------------------
 
-capacityOf :: String -> Tagged "measure"
-capacityOf c = Tagged (T.tag T.capacityKind c)
+holdingOf :: String -> Measure
+holdingOf r = HoldingOf (Id r)
 
-shortfallOf :: String -> Tagged "measure"
-shortfallOf r = Tagged (T.tag T.shortfallKind r)
+capacityOf :: String -> Measure
+capacityOf c = CapacityAmount (Id c)
 
-shortfallRounds :: String -> Tagged "measure"
-shortfallRounds r = Tagged (T.tag T.shortfallRoundsKind r)
+shortfallOf :: String -> Measure
+shortfallOf r = ShortfallOf (Id r)
 
-payeeReceipts :: Tagged "measure"
-payeeReceipts = Tagged T.payeeReceiptsKind
+shortfallRounds :: String -> Measure
+shortfallRounds r = ShortfallRounds (Id r)
 
-volumeOf :: String -> Tagged "measure"
-volumeOf t = Tagged (T.tag T.volumeKind t)
+payeeReceipts :: Measure
+payeeReceipts = PayeeReceipts
 
-final :: Tagged "span"
-final = Tagged T.finalKind
+volumeOf :: String -> Measure
+volumeOf t = VolumeOf (Id t)
 
-everyRound :: Tagged "span"
-everyRound = Tagged T.everyRoundKind
+final :: Span
+final = Final
 
-cumulative :: Tagged "span"
-cumulative = Tagged T.cumulativeKind
+everyRound :: Span
+everyRound = EveryRound
 
-sales :: String -> Tagged "share source"
-sales r = Tagged (T.tag T.salesKind r)
+cumulative :: Span
+cumulative = Cumulative
 
-payee :: Tagged "share source"
-payee = Tagged T.payeeKind
+-- Share sources ----------------------------------------------------------------------------
+
+sales :: String -> ShareSource
+sales r = W.SalesOf (Id r)
+
+payee :: ShareSource
+payee = W.PayeeReceipts

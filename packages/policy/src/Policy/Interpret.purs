@@ -21,7 +21,7 @@ import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Schema.Tags as T
+import Core.Strategy (selfName, homeMarketName)
 
 -- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every
@@ -158,7 +158,7 @@ resolveSelf me = case _ of
   ChangeRule (Enact (Withholding x)) -> ChangeRule (Enact (Withholding x))
   ChangeRule (Repeal r) -> ChangeRule (Repeal r)
   where
-  entity x = if x == Id T.selfEntity then me else x
+  entity x = if x == Id selfName then me else x
 
 -- | Resolves `self` and `$home` in an Intent template. `$home` names the Entity's home Market; the
 -- | Intent is dropped (Nothing) when the Entity has none.
@@ -167,7 +167,7 @@ resolveHome me home t = case resolveSelf me t of
   Trade x -> (\m -> Trade (x { market = m })) <$> market x.market
   other -> Just other
   where
-  market m = if m == Id T.homeMarket then home else Just m
+  market m = if m == Id homeMarketName then home else Just m
 
 -- | A zero quantity: a Trade, Route, Transfer or Transform of nothing.
 zeroQuantity :: Intent -> Boolean
@@ -180,8 +180,8 @@ zeroQuantity = case _ of
 
 -- | `$home` names the Entity's home market; any other market names itself.
 resolveMarket :: Env -> MarketId -> Maybe MarketId
-resolveMarket env m = if m == Id T.homeMarket then env.home else Just m
+resolveMarket env m = if m == Id homeMarketName then env.home else Just m
 
 -- | `self` names the acting Entity; any other name is itself. Every entity position resolves through here.
 entityRef :: Env -> EntityId -> EntityId
-entityRef env x = if x == Id T.selfEntity then env.view.self.id else x
+entityRef env x = if x == Id selfName then env.view.self.id else x

@@ -3,77 +3,54 @@
 -- | a round later (§12.2). Fixtures C1, C2, C3 and C5; C5 checks only the seeded noise.
 module Premises.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
 
+import Prelude (negate, (<>))
 import Premises.Names as N
+
+import Core.Num (Q)
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Schema.Build.Base (Qty, q, Keyed, keyed, (:=), Built, trade)
-import Schema.Build.World (entity)
-import Schema.Build.Fixture (expect, proposal, ref, representation, tradeI)
-import Premises.Meridian.Holdings (pickAccounts)
-import Premises.Fixtures.Common (energy, fixture)
+import Premises.Fixtures.Common (defaultFixture, energy, fixture)
 import Premises.Meridian (smeSample)
+import Premises.Meridian.Holdings (pickAccounts)
 import Premises.Meridian.Entities.Aggregates (globalSmesAggregate)
+import Schema.Build.Base (Keyed, keyed, (:=), mayTrade)
+import Schema.Build.Quantity (q)
+import Schema.Build.World (aggregate, noEntity)
+import Schema.Build.Fixture (noExpect, proposal, ref)
+import Schema.Build.Intent (trade)
+import Schema.Premise.World (EntityDoc, RepresentationDoc)
+import Data.Maybe (Maybe(..))
 
 -- | The SME and its Representation's Aggregate (fixtures C1 to C5).
-smeAndGlobalSmes :: Keyed (Built "entity")
+smeAndGlobalSmes :: Keyed EntityDoc
 smeAndGlobalSmes = keyed
-  [ Tuple N.sme (entity { accounts: pickAccounts N.sme [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ] })
-  , Tuple N.globalSmes (entity { accounts: pickAccounts N.globalSmes [ N.money, N.energy ], capabilities: [ trade N.energyAtlantic ], aggregate: globalSmesAggregate })
+  [ Tuple N.sme ((noEntity { accounts = pickAccounts N.sme [ N.money, N.energy ], capabilities = [ mayTrade N.energyAtlantic ] }))
+  , Tuple N.globalSmes ((noEntity { accounts = pickAccounts N.globalSmes [ N.money, N.energy ], capabilities = [ mayTrade N.energyAtlantic ], aggregate = Just (globalSmesAggregate) }))
   ]
 
 -- | The SME Representation of the reference instance, with the fixture's noise.
-smeRepresentation :: Qty -> Built "representation"
-smeRepresentation noise = representation
+smeRepresentation :: Q -> RepresentationDoc
+smeRepresentation noise =
   { id: smeSample.id
   , actor: smeSample.actor
   , aggregate: smeSample.aggregate
   , domain: smeSample.domain
   , weight: q 1
-  , reference: smeSample.reference
-  , shrinkage: smeSample.shrinkage
-  , bound: smeSample.bound
-  , noiseSpread: noise
+  , estimator: { reference: smeSample.reference, shrinkage: smeSample.shrinkage, bound: Just smeSample.bound, noiseSpread: Just noise }
   }
 
 -- | Fixtures C1 to C5: the SME's Representation of Global SMEs' Energy demand.
 fixtureC1 :: Tuple String Json
-fixtureC1 = fixture "C1"
-  { markets: energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ]
-  , entities: smeAndGlobalSmes
-  , representations: [ smeRepresentation (q 0) ]
-  , proposals:
-      [ proposal { author: N.sme, intents: [ tradeI { market: N.energyAtlantic, quantity: q 4, limit: q "2.1" } ] } ]
-  , expect: expect { accounts: keyed [ Tuple N.sme (keyed [ N.money := "6.84", N.energy := 9 ]) ], factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.95" ]) ] }
-  }
+fixtureC1 = fixture "C1" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q 0) ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q "2.1") } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.sme (keyed [ N.money := "6.84", N.energy := 9 ]) ]), factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.95" ]) ]) })) })
 
 fixtureC2 :: Tuple String Json
-fixtureC2 = fixture "C2"
-  { markets: energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ]
-  , entities: smeAndGlobalSmes
-  , representations: [ smeRepresentation (q 0) ]
-  , proposals:
-      [ proposal { author: N.sme, intents: [ tradeI { market: N.energyAtlantic, quantity: q 0, limit: q "2.1" } ] } ]
-  , expect: expect { accounts: keyed [ Tuple N.sme (keyed [ N.money := 15, N.energy := 5 ]) ], factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.875" ]) ] }
-  }
+fixtureC2 = fixture "C2" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q 0) ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 0, limit: Just (q "2.1") } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.sme (keyed [ N.money := 15, N.energy := 5 ]) ]), factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.875" ]) ]) })) })
 
 fixtureC3 :: Tuple String Json
-fixtureC3 = fixture "C3"
-  { markets: energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ]
-  , entities: smeAndGlobalSmes
-  , representations: [ smeRepresentation (q 0) ]
-  , proposals:
-      [ proposal { author: N.sme, intents: [ tradeI { market: N.energyAtlantic, quantity: q 4, limit: q 1 } ] } ]
-  , expect: expect { accounts: keyed [ Tuple N.sme (keyed [ N.money := 15, N.energy := 5 ]) ], factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.95" ]) ], rejected: [ ref N.sme ] }
-  }
+fixtureC3 = fixture "C3" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q 0) ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q 1) } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.sme (keyed [ N.money := 15, N.energy := 5 ]) ]), factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.95" ]) ]), rejected = Just ([ ref N.sme ]) })) })
 
 -- | C5 checks only the seeded noise and the invariants: the golden test's C5 case compares
 -- | the sampled factor against the closed form and reruns it under another seed.
 fixtureC5 :: Tuple String Json
-fixtureC5 = fixture "C5"
-  { markets: energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ]
-  , entities: smeAndGlobalSmes
-  , representations: [ smeRepresentation (q "0.1") ]
-  , proposals:
-      [ proposal { author: N.sme, intents: [ tradeI { market: N.energyAtlantic, quantity: q 4, limit: q "2.1" } ] } ]
-  }
+fixtureC5 = fixture "C5" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q "0.1") ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q "2.1") } ] } ]) })
 

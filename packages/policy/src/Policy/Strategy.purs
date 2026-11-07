@@ -14,7 +14,7 @@ import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
 import Data.Array (concat, concatMap, find, mapMaybe)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Schema.Tags as T
+import Core.Strategy (selfName)
 
 -- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` and
 -- | `$home` are not listed: the interpreter resolves them at every position they can appear.
@@ -49,7 +49,7 @@ strategyRefs p =
 
   -- `self` is never a name to check: every entity position resolves it to the acting Entity
   entityName = case _ of
-    EntityName s | s /= T.selfEntity -> Just s
+    EntityName s | s /= selfName -> Just s
     _ -> Nothing
 
   marketName = case _ of

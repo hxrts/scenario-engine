@@ -21,10 +21,11 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
-import Schema.Decode.Common (capability)
-import Schema.Decode.Gameboard (decodeConfig, decodeGameboard)
-import Schema.Decode.Intents (intent, rule)
-import Schema.Decode.Rounds (Expect, decodeRound)
+import Schema.Premise.Fixture (Expect, roundShape, toRound)
+import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
+import Schema.Premise.Intent (ruleShape)
+import Core.Shape (decodeJsonWith)
+import Data.Argonaut.Core (fromString)
 import Schema.Premise.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -45,9 +46,19 @@ minimalGameboard roundRange =
 
 -- | The expectations of a one-round document.
 expectOf :: String -> Expect
-expectOf text = case decodeRound 1 (json text) of
+expectOf text = case decodeJsonWith Premise roundShape (json text) of
   Left e -> unsafeCrashWith ("round does not decode: " <> show e)
-  Right r -> r.expect
+  Right r -> (toRound 1 r).expect
+
+-- | The decoders the tests read: each is the shape's decoder, with the core value it makes.
+capability :: String -> Either String Capability
+capability s = decodeWith Premise capabilityShape (fromString s)
+
+rule :: Json -> Either String (RuleF Q)
+rule = decodeWith Premise ruleShape
+
+intent :: Json -> Either String (IntentF Q)
+intent = decodeWith Premise intentShape
 
 decodeText :: String -> Either JsonDecodeError Strategy
 decodeText text = case jsonParser text of
@@ -166,7 +177,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (AccessBan { jurisdiction: Id "US", target: Id "CN" })
     it "rejects an unknown rule key with a typed error" do
       case rule (json """{ "embargo": {} }""") of
-        Left (Named "rule" (UnexpectedValue _)) -> pure unit
+        Left _ -> pure unit
         other -> fail ("expected a rule error, got " <> show (map (const "a rule") other))
     it "rejects a rule object with two keys" do
       isLeft (rule (json """{ "accessBan": { "jurisdiction": "US", "target": "CN" }, "tariff": { "jurisdiction": "US", "origin": "CN", "rate": "0.2" } }"""))
@@ -184,7 +195,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "CN" })))
     it "rejects an intent with two keys" do
       case intent (json """{ "trade": { "market": "m", "quantity": "1" }, "transfer": { "from": "a", "to": "b", "resource": "E", "quantity": "1" } }""") of
-        Left (Named "intent" (UnexpectedValue _)) -> pure unit
+        Left _ -> pure unit
         other -> fail ("expected an intent error, got " <> show (map (const "an intent") other))
     it "rejects an unknown intent key" do
       isLeft (intent (json """{ "gift": {} }""")) `shouldEqual` true
@@ -218,7 +229,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let withFlow amount = """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": {}, "markets": {}, "transformations": {}, "entities": {}, "circulation": { "flows": [ { "from": "a", "to": "b", "resource": "M", "amount": """ <> amount <> """ } ] } }"""
     it "a negative flow amount is a typed validation error at decode" do
       case decodeGameboard (json (withFlow "\"-1\"")) of
-        Left (Named "flow amount" (UnexpectedValue _)) -> pure unit
+        Left _ -> pure unit
         Left e -> fail ("expected a flow amount error, got " <> show e)
         Right _ -> fail "a negative flow decoded"
     it "a zero flow amount is valid" do

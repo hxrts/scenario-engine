@@ -3,7 +3,9 @@ module Test.Premises.Main where
 import Prelude
 
 import Schema.Decode.Common as BD
-import Schema.Decode.Intents as BDI
+import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
+import Schema.Premise.Actor (boundShape, metricShape)
+import Core.Shape (Format(..), decodeWith, encodeWith)
 import Board.Fixture (Field(..), FixtureError(..), checkFixture)
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
@@ -37,17 +39,23 @@ import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape, presetsShape)
 import Core.Shape (Format(..), encodeWith)
 import Schema.Build.Intent as I
-import Schema.Build.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, holdingOf)
-import Schema.Build.World (atLeast, own)
+import Schema.Build.Quantity (q)
+import Schema.Build.Base (keyed, mayTrade, mayTransfer, mayTransform, mayEnactTariff, mayEnactAccessBan, mayEnactWithholding, holdingOf)
+import Schema.Build.World (atLeast, matching, own)
 import Schema.Build.Decision (asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
-import Schema.Build.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
+import Schema.Build.Fixture (tariffRule, withholdingRule)
+import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
-import Premises.Load (decodeFixture)
+import Schema.Premise.Fixture (decodeFixture)
 import Premises.Tree (readPremise)
 import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
-import Premises.Meridian (files)
+import Premises.Meridian (files, gameboard)
+import Premises.Fixtures (fixtures)
+import Schema.Premise.Gameboard (gameboardShape)
+import Schema.Premise.Fixture (fixtureShape)
+import Core.Shape (decodeJsonWith)
 import Premises.Meridian.Policies (policies)
 import Premises.Presets as Presets
 import Test.Premises.Golden (failWith, fixture, golden)
@@ -184,29 +192,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case BDI.intent (intentJson (enactAccessBanI { jurisdiction: "US", target: "CN" })) of
+      case decodeWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (AccessBan a))) -> do
           a.jurisdiction `shouldEqual` Id "US"
           a.target `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case BDI.rule (builtJson (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (Tariff t) -> do
           t.jurisdiction `shouldEqual` Id "US"
           t.origin `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      BDI.rule (builtJson (withholdingRule { capacity: "semiconductors", units: q 3 }))
+      decodeWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      BDI.intent (intentJson (enactWithholdingI { capacity: "semiconductors", units: q 3 }))
+      decodeWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
-      for_ [ trade "energy-atlantic", transfer "M", transform "energy-shipping", enactTariff, enactAccessBan, enactWithholding ] \c ->
-        case toString (encodeJson c) of
+      for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
+        case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
-          Just s -> isRight (BD.capability s) `shouldEqual` true
+          Just s -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
         p = strategy
@@ -219,7 +227,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           refs.resources `shouldEqual` [ "E" ]
           refs.entities `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
-      stringify (builtJson (atLeast (own "CN" (holdingOf "Mil")))) `shouldEqual` stringify (builtJson (own "CN" (holdingOf "Mil")))
+      let m = own "CN" (holdingOf "Mil")
+      stringify (encodeWith Premise boundShape (matching m)) `shouldEqual` stringify (encodeWith Premise metricShape m)
+
+  describe "Premise round trips" do
+    it "every compiled fixture decodes and encodes back to the same JSON, key for key" do
+      for_ fixtures \(Tuple name j) -> case decodeJsonWith Premise fixtureShape j of
+        Left e -> fail (name <> ": " <> show e)
+        Right d -> stringify (encodeWith Premise fixtureShape d) `shouldEqual` stringify j
+    it "the Meridian Gameboard decodes and encodes back to the same JSON" do
+      let j = encodeWith Premise gameboardShape gameboard
+      case decodeJsonWith Premise gameboardShape j of
+        Left e -> fail (show e)
+        Right d -> stringify (encodeWith Premise gameboardShape d) `shouldEqual` stringify j
 
   describe "Meridian" do
     let

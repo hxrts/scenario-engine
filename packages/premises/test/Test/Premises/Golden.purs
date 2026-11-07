@@ -5,7 +5,7 @@ module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Prelude
 
-import Premises.Load (decodeFixture)
+import Schema.Premise.Fixture (decodeFixture)
 import Board.Fixture (Fixture, checkFixture)
 import Core.Draw (Seed(..), draw)
 import Core.Engine.Commit (resolveRound)

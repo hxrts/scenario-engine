@@ -41,10 +41,14 @@ module Core.Shape
   , premiseSum
   , RecF
   , fieldOf
+  , contramapRec
+  , recJson
   , object
   , pairOf
   , eitherOf
   , keyedOf
+  , listOf
+  , keyedAlways
   , recursive
   , iso
   , refined
@@ -508,6 +512,15 @@ fieldOf key desc s get = RecF
       Nothing -> note ("missing key " <> key) s.missing
   }
 
+-- | The same fields over a wider value: `f` reads the record out of it. A section of a larger record
+-- | is a field set over the whole record, so one description serves both the section and the whole.
+contramapRec :: forall a a' b. (a' -> a) -> RecF a b -> RecF a' b
+contramapRec f (RecF r) = RecF { fields: r.fields, enc: \x -> r.enc (f x), dec: \o -> r.dec o }
+
+-- | The premise JSON object of a field set's values (written keys only, as `object` writes them).
+recJson :: forall a b. RecF a b -> a -> Json
+recJson (RecF r) x = objectOf Premise (r.enc x)
+
 -- | A premise object built from its fields.
 object :: forall a. String -> RecF a a -> Shape a
 object name (RecF r) =
@@ -561,6 +574,14 @@ keyedOf s =
   , absent: Array.null
   , missing: Just []
   }
+
+-- | A required list: always written (even when empty), and a missing key is an error.
+listOf :: forall a. Shape a -> Shape (Array a)
+listOf s = (arrayOf s) { absent = const false, missing = Nothing }
+
+-- | A required keyed list: always written (even when empty), and a missing key is an error.
+keyedAlways :: forall a. Shape a -> Shape (Array (Tuple String a))
+keyedAlways s = (keyedOf s) { absent = const false, missing = Nothing }
 
 -- | A recursive description. `f` receives the description it defines; its codec reaches back into
 -- | it only when a value is read or written, so a recursive form is finite.

@@ -12,7 +12,7 @@ import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
-import Schema.Decode.Gameboard (decodeConfig, decodeGameboard)
+import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)

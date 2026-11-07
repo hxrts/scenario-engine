@@ -34,12 +34,15 @@ import Foreign.Object as Object
 import Core.Strategy (Strategy)
 import Core.Types (Id(..))
 import Data.Maybe (Maybe(..))
-import Schema.Build.Base (Built, (:=), keyed, q)
+import Schema.Build.Base (keyed, (:=))
+import Schema.Build.Quantity (q)
 import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
 import Schema.Build.Intent (enactAccessBan, enactWithholding, repeal, trade, transfer, transform)
 import Schema.Premise.Strategy (presetsShape)
-import Core.Shape (Format(..), encodeWith)
-import Schema.Build.Fixture (expect, procedureOutcome, refAt)
+import Core.Shape (encodeWith)
+import Schema.Build.Fixture (noExpect, refAt)
+import Schema.Premise.Fixture (ExpectDoc, expectShape)
+import Core.Shape (Format(..))
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int
@@ -169,30 +172,30 @@ seats usStrategy =
 -- | explained by its mechanism in the comment, and the simulator fails if any drifts.
 expectations :: Array Json
 expectations =
-  [ roundExp 2 (expect { scheduled: 1 }) -- the US ban is enacted, in force from round 3
-  , roundExp 3 (expect { procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
+  [ roundExp 2 (noExpect { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
+  , roundExp 3 (noExpect { procedures = Just [ { author: N.eu, index: Just 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
   , roundExp 4
-      ( expect
-          { rejected: [ refAt N.enco 0 ] -- the shipment into India is banned
-          , lapsed: [ refAt N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
-          , procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.4", executed: false } ]
-          , accounts: keyed [ Tuple N.us (keyed [ N.mil := "85.5" ]) ] -- 60 reserved, 38 scaled action
-          , factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9437" ]) ]
+      ( noExpect
+          { rejected = Just [ refAt N.enco 0 ] -- the shipment into India is banned
+          , lapsed = Just [ refAt N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
+          , procedures = Just [ { author: N.eu, index: Just 1, support: q "0.4", executed: false } ]
+          , accounts = Just (keyed [ Tuple N.us (keyed [ N.mil := "85.5" ]) ]) -- 60 reserved, 38 scaled action
+          , factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9437" ]) ])
           }
       )
   , roundExp 5
-      ( expect
-          { procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
-          , accounts: keyed [ Tuple N.us (keyed [ N.mil := "76.95" ]) ]
+      ( noExpect
+          { procedures = Just [ { author: N.eu, index: Just 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
+          , accounts = Just (keyed [ Tuple N.us (keyed [ N.mil := "76.95" ]) ])
           }
       )
-  , roundExp 6 (expect { scheduled: 2 }) -- both repeals are scheduled
-  , roundExp 7 (expect { rejected: [] }) -- the round-7 shipment clears after the ban's repeal
-  , roundExp 8 (expect { factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9406" ]) ] })
+  , roundExp 6 (noExpect { scheduled = Just 2 }) -- both repeals are scheduled
+  , roundExp 7 (noExpect { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
+  , roundExp 8 (noExpect { factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9406" ]) ]) })
   ]
   where
-  roundExp :: Int -> Built "expect" -> Json
-  roundExp r e = encodeJson { round: r, expect: e }
+  roundExp :: Int -> ExpectDoc -> Json
+  roundExp r e = encodeJson { round: r, expect: encodeWith Premise expectShape e }
 
 -- | An objective's expected outcome, by its Entity: "met", "notMet" or "notEvaluated" (the premise spelling).
 type ObjectiveExpect = { entity :: String, outcome :: String }

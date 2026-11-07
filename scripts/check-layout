@@ -8,8 +8,17 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 
 // The rules are checked on PureScript source (src/ trees; tests are not held to them).
-// Tag kinds of the premise format (Schema.Tags, docs/03 §3): a kind with its separator is written only there.
-const tagKinds = [...fs.readFileSync(path.join(root, "packages/schema/src/Schema/Tags.purs"), "utf8").matchAll(/^\w+Kind = "(\w+)"/gm)].map((m) => m[1]);
+// Tag kinds of the premise format: each Shape module keeps its tags as private constants (`tradeTag = "trade"`),
+// so a kind with its separator is written only in packages/schema/src (docs/03 §3).
+const schemaSrc = path.join(root, "packages/schema/src");
+const tagKinds = [];
+(function collect(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) collect(p);
+    else if (e.name.endsWith(".purs")) for (const m of fs.readFileSync(p, "utf8").matchAll(/^\w+Tag = "(\w+)"/gm)) tagKinds.push(m[1]);
+  }
+})(schemaSrc);
 
 const rules = [
   {
@@ -24,7 +33,7 @@ const rules = [
     bad: (line) => /"\/api/.test(line),
   },
   {
-    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in Schema.Tags only (work/4.md §13 Phase 3)",
+    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only (work/4.md §13 Phase 3)",
     files: (f) => f.includes("/src/") && !f.startsWith("packages/schema/src/"),
     bad: (line) => tagKinds.some((k) => line.includes(`"${k}:`)),
   },

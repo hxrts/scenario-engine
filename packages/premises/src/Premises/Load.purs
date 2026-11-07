@@ -10,22 +10,19 @@ module Premises.Load
   , loadPresets
   , decodePresets
   , loadFixture
-  , decodeFixture
   ) where
 
 import Prelude
 
-import Core.Draw (Seed(..))
-import Core.Shape (Format(..), decodeJsonWith)
+import Core.Shape (decodeJsonWith)
 import Core.Strategy (Strategy)
-import Core.World (WorldState, seeded)
+import Core.World (WorldState)
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError, (.:))
+import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, (.:))
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, find, foldl)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
-import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -33,11 +30,12 @@ import Game.Premise (GameboardParts, checkPremise)
 import Premises.Names (instantiationFile, presetsFile)
 import Premises.Tree as Tree
 import Schema.Decode.Common (readJsonWith)
-import Schema.Decode.Gameboard (decodeConfig, decodeGameboard)
-import Schema.Decode.Rounds (Round)
-import Schema.Decode.World (decodeWorld)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
+import Schema.Premise.Fixture (Round, decodeFixture)
+import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Premise.Strategy (presetsShape)
+import Core.Shape (Format(..))
+import Data.Maybe (Maybe(..))
 
 -- | Why a premise, its presets, or a fixture does not decode.
 data LoadError
@@ -82,15 +80,6 @@ loadFixture :: String -> String -> Either String { name :: String, world :: Worl
 loadFixture name text = readJsonWith decodeFixtureDoc text
   where
   decodeFixtureDoc j = map (\d -> { name, world: d.world, rounds: d.rounds }) (decodeFixture j)
-
--- | A fixture: an engine-level document whose World State carries its own seed, since it is
--- | checked as written and never instantiated.
-decodeFixture :: Json -> Either JsonDecodeError { name :: String, world :: WorldState, rounds :: Array Round }
-decodeFixture j = do
-  o <- decodeJson j
-  seed <- o .: "seed"
-  doc <- decodeWorld j
-  pure { name: doc.name, world: seeded (Seed seed) doc.world, rounds: doc.rounds }
 
 -- | Decode a premise's sections, each a JSON object, merged into one Gameboard; `instantiation.json` is
 -- | the configuration. Undecoded, unvalidated: `checkPremise` does that.

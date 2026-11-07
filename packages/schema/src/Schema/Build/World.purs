@@ -1,260 +1,150 @@
--- | The Gameboard's world pieces (docs/03_gameboard.md): markets and their costs, facilities
--- | and their effects, resources, Actor entities and definitions, criteria, Representation
--- | schemes, and circulation (production, flows, shares, requirements, assignments). Each
--- | builder checks its fields against the decoder's allowed set through a row `Union`.
+-- | Builders for the world's premise records (docs/03_gameboard.md). A builder names the keys it
+-- | writes: a key it is given is `Just`, so the encoder writes it, and a key it leaves out is
+-- | `Nothing`, so the encoder omits it. The compiled files therefore hold exactly the keys the
+-- | premise names, and no others, including the defaulted ones an author wrote out in full.
+-- | Records that are used with a few keys in every case are built by record update on a default:
+-- | `noFacility { inputs = Just (keyed [ N.energy := 3 ]) }`.
 module Schema.Build.World
-  ( resource
-  , cost
-  , market
-  , facility
-  , effect
-  , entity
-  , aggregate
-  , collective
-  , definition
-  , objective
-  , criterion
-  , metric
+  ( noFacility
+  , noResource
+  , noDefinition
+  , noEntity
   , class ToBound
   , bound
   , atLeast
+  , matching
   , own
   , finishes
   , neverShort
   , totalAtLeast
-  , production
-  , flow
-  , share
-  , requirement
-  , scheme
-  , estimator
-  , assignment
+  , objective
+  , criterion
+  , metric
+  , definition
+  , aggregate
+  , aggregateWith
+  , collective
   ) where
 
 import Prelude
 
-import Schema.Build.Base (Built(..), Capability, Keyed, Qty, Tagged, build, cumulative, everyRound, final, q, shortfallOf)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Prim.Row (class Union)
+import Core.Num (Q)
+import Core.Types (Capability, Transferability(..))
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
+import Schema.Build.Base (Keyed)
+import Schema.Build.Quantity (q)
+import Schema.Gameboard (Fallback, Measure, Span(..))
+import Schema.Build.Base (cumulative, everyRound, final, shortfallOf)
+import Schema.Premise.Actor (DefinitionDoc, CriterionDoc, MetricDoc, BoundDoc, ObjectiveDoc)
+import Schema.Premise.World (AggregateDoc, EntityDoc, FacilityDoc, ProcedureDoc, ResourceDoc)
 
--- World (docs/03_gameboard.md) ------------------------------------------------------
+-- | A Resource: tradable, not reservable, no decay. Override `transferability` (required).
+noResource :: ResourceDoc
+noResource = { transferability: Free, reservable: Nothing, decay: Nothing }
 
-resource
-  :: forall r rest
-   . Union r rest (transferability :: Tagged "transferability", reservable :: Boolean, decay :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "resource"
-resource = build
+-- | A facility with no inputs, outputs, cost or payee.
+noFacility :: FacilityDoc
+noFacility =
+  { inputs: Nothing
+  , outputs: Nothing
+  , reserves: Nothing
+  , cost: Nothing
+  , capacity: Nothing
+  , payee: Nothing
+  , delay: Nothing
+  , minimum: Nothing
+  , maximum: Nothing
+  , capacityUse: Nothing
+  , ownerSigns: Nothing
+  , effects: Nothing
+  }
 
-cost
-  :: forall r rest
-   . Union r rest (base :: Qty, slope :: Qty, lo :: Qty, hi :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "cost"
-cost = build
+-- | An Entity with no holdings or capabilities, and neither a definition nor an Aggregate.
+noEntity :: EntityDoc
+noEntity = { accounts: [], capabilities: [], capacities: Nothing, definition: Nothing, aggregate: Nothing }
 
-market
-  :: forall r rest
-   . Union r rest (base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty, access :: Array String, position :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "market"
-market = build
+-- | An Actor definition with none of its keys written.
+noDefinition :: DefinitionDoc
+noDefinition = { required: Nothing, seat: Nothing, npc: Nothing, fallback: Nothing, objective: Nothing, description: Nothing, dependency: Nothing }
 
-facility
-  :: forall r rest
-   . Union r rest
-       ( inputs :: Keyed Qty
-       , outputs :: Keyed Qty
-       , reserves :: Keyed Qty
-       , cost :: Built "cost"
-       , capacity :: String
-       , payee :: String
-       , delay :: Int
-       , minimum :: Qty
-       , maximum :: Qty
-       , capacityUse :: Qty
-       , ownerSigns :: Boolean
-       , effects :: Array (Built "effect")
-       )
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "facility"
-facility = build
-
--- | A facility's change to a capacity per unit ordered.
-effect
-  :: forall r rest
-   . Union r rest (capacity :: String, holder :: String, perUnit :: Qty, rounds :: Int)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "effect"
-effect = build
-
-entity
-  :: forall r rest
-   . Union r rest
-       ( accounts :: Keyed Qty
-       , capabilities :: Array Capability
-       , capacities :: Keyed Qty
-       , definition :: Built "definition"
-       , aggregate :: Built "aggregate"
-       )
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "entity"
-entity = build
-
-aggregate
-  :: forall r rest
-   . Union r rest (policy :: String, members :: Array String, procedures :: Keyed (Built "procedure"))
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "aggregate"
-aggregate = build
-
--- | A collective procedure on an Aggregate's own Proposals.
-collective
-  :: forall r rest
-   . Union r rest (weights :: Keyed Qty, residualWeight :: Qty, threshold :: Qty, authorizes :: Array Capability)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "procedure"
-collective = build
-
--- | An Actor definition: seat eligibility, fallback, and objective.
-definition
-  :: forall r rest
-   . Union r rest
-       ( required :: Boolean
-       , seat :: Boolean
-       , npc :: Array String
-       , fallback :: Tagged "fallback"
-       , objective :: Built "objective"
-       , description :: String
-       , dependency :: String
-       )
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "definition"
-definition = build
-
-objective
-  :: forall r rest
-   . Union r rest (description :: String, criteria :: Array (Built "criterion"))
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "objective"
-objective = build
-
-criterion
-  :: forall r rest
-   . Union r rest (metric :: Built "metric", over :: Tagged "span", atLeast :: Built "bound")
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "criterion"
-criterion = build
-
-metric
-  :: forall r rest
-   . Union r rest (entities :: Array String, measure :: Tagged "measure", negated :: Boolean)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "metric"
-metric = build
-
--- | A criterion's bound: a fixed quantity, or a metric the Entity must match.
+-- | A criterion's bound: a fixed quantity (`atLeast 200`), or a metric the Entity must match.
 class ToBound a where
-  bound :: a -> Built "bound"
+  bound :: a -> BoundDoc
 
 instance ToBound Int where
-  bound = Built <<< encodeJson <<< q
+  bound n = Left (q n)
 
 instance ToBound String where
-  bound = Built <<< encodeJson <<< q
+  bound s = Left (q s)
 
-instance ToBound Qty where
-  bound = Built <<< encodeJson <<< q
+instance ToBound Q where
+  bound x = Left x
 
-instance ToBound (Built "metric") where
-  bound = Built <<< encodeJson
-
--- | `atLeast 200` is a fixed bound; `atLeast (own "CN" (holdingOf "Mil"))` matches another measure.
-atLeast :: forall a. ToBound a => a -> Built "bound"
+atLeast :: forall a. ToBound a => a -> BoundDoc
 atLeast = bound
 
+-- | The Entity matches a metric: another Entity's measure, or the same measure of another party.
+matching :: MetricDoc -> BoundDoc
+matching = Right
+
 -- | One Entity's own measure.
-own :: String -> Tagged "measure" -> Built "metric"
+own :: String -> Measure -> MetricDoc
 own e m = metric { entities: [ e ], measure: m, negated: false }
 
 -- | The Entity finishes the game with at least the bound of a measure.
-finishes :: String -> Tagged "measure" -> Built "bound" -> Built "criterion"
+finishes :: String -> Measure -> BoundDoc -> CriterionDoc
 finishes e m b = criterion { metric: own e m, over: final, atLeast: b }
 
 -- | The Entities' total of a measure over the whole game is at least the bound.
-totalAtLeast :: Array String -> Tagged "measure" -> Built "bound" -> Built "criterion"
+totalAtLeast :: Array String -> Measure -> BoundDoc -> CriterionDoc
 totalAtLeast es m b = criterion { metric: metric { entities: es, measure: m, negated: false }, over: cumulative, atLeast: b }
 
 -- | The Entity is never short of a Resource in any round.
-neverShort :: String -> String -> Built "criterion"
+neverShort :: String -> String -> CriterionDoc
 neverShort e r = criterion { metric: metric { entities: [ e ], measure: shortfallOf r, negated: true }, over: everyRound, atLeast: atLeast 0 }
 
-production
-  :: forall r rest
-   . Union r rest (entity :: String, resource :: String, capacity :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "production"
-production = build
+-- | An objective: a description and its criteria.
+objective :: { description :: String, criteria :: Array CriterionDoc } -> ObjectiveDoc
+objective o = o
 
-flow
-  :: forall r rest
-   . Union r rest (from :: String, to :: String, resource :: String, amount :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "flow"
-flow = build
+-- | A criterion, with its `over` written.
+criterion :: { metric :: MetricDoc, over :: Span, atLeast :: BoundDoc } -> CriterionDoc
+criterion c = { metric: c.metric, over: Just c.over, atLeast: c.atLeast }
 
-share
-  :: forall r rest
-   . Union r rest (from :: String, to :: String, share :: Qty, source :: Tagged "share source")
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "share"
-share = build
+-- | A metric, with its `negated` written.
+metric :: { entities :: Array String, measure :: Measure, negated :: Boolean } -> MetricDoc
+metric m = { entities: m.entities, measure: m.measure, negated: Just m.negated }
 
-requirement
-  :: forall r rest
-   . Union r rest (entity :: String, resource :: String, amount :: Qty, penalty :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "requirement"
-requirement = build
+-- | An Actor definition, with every key written.
+definition
+  :: { required :: Boolean
+     , seat :: Boolean
+     , npc :: Array String
+     , fallback :: Maybe Fallback
+     , objective :: ObjectiveDoc
+     , description :: String
+     , dependency :: String
+     }
+  -> DefinitionDoc
+definition d =
+  { required: Just d.required
+  , seat: Just d.seat
+  , npc: Just d.npc
+  , fallback: d.fallback
+  , objective: Just d.objective
+  , description: Just d.description
+  , dependency: Just d.dependency
+  }
 
--- | A Representation scheme on an Aggregate.
-scheme
-  :: forall r rest
-   . Union r rest (id :: String, eligibleActors :: Array String, target :: String, domain :: String, estimator :: Built "estimator")
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "scheme"
-scheme = build
+-- | An Aggregate with its members written and no procedures.
+aggregate :: { policy :: String, members :: Array String } -> AggregateDoc
+aggregate a = { policy: a.policy, members: Just a.members, procedures: Nothing }
 
-estimator
-  :: forall r rest
-   . Union r rest (reference :: Qty, shrinkage :: Qty, bound :: Qty, noiseSpread :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "estimator"
-estimator = build
+-- | An Aggregate with its members and its collective procedures written.
+aggregateWith :: { policy :: String, members :: Array String, procedures :: Keyed ProcedureDoc } -> AggregateDoc
+aggregateWith a = { policy: a.policy, members: Just a.members, procedures: Just a.procedures }
 
--- | An instantiation's assignment of an Actor to a Representation scheme.
-assignment
-  :: forall r rest
-   . Union r rest (scheme :: String, actor :: String, weight :: Qty)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "assignment"
-assignment = build
+-- | A collective procedure on an Aggregate's own Proposals.
+collective :: { weights :: Keyed Q, residualWeight :: Q, threshold :: Q, authorizes :: Array Capability } -> ProcedureDoc
+collective p = p

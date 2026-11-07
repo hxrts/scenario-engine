@@ -22,7 +22,7 @@ import Foreign.Object as Object
 import Game.Error (GameError(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
-import Schema.Tags as T
+import Core.Strategy (homeMarketName)
 
 -- | A Gameboard premise's parts: the Gameboard, its instantiation configuration, and the shared seat presets.
 type GameboardParts = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
@@ -54,7 +54,7 @@ checkRefs what gb s =
   w = gb.world
   missing = foldl (\acc xs -> acc <> xs) []
     [ tag EntityRef (filter (\e -> not (Map.member (Id e) w.entities)) r.entities)
-    , tag MarketRef (filter (\m -> m /= T.homeMarket && not (Map.member (Id m) w.markets)) r.markets)
+    , tag MarketRef (filter (\m -> m /= homeMarketName && not (Map.member (Id m) w.markets)) r.markets)
     , tag ResourceRef (filter (\x -> not (Map.member (Id x) w.resources)) r.resources)
     , tag TransformationRef (filter (\t -> not (Map.member (Id t) w.transformations)) r.transformations)
     , tag ParameterRef (filter (\x -> not (Object.member x gb.parameters)) r.parameters)

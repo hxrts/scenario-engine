@@ -7,12 +7,13 @@ module Premises.Meridian.Entities (entities) where
 
 import Premises.Names as N
 import Data.Tuple (Tuple(..))
-import Schema.Build.Base (Built, Keyed, keyed)
+import Schema.Build.Base (Keyed, keyed)
+import Schema.Premise.World (EntityDoc)
 import Premises.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
 import Premises.Meridian.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
 
 -- | Every Entity, in catalog order.
-entities :: Keyed (Built "entity")
+entities :: Keyed EntityDoc
 entities = keyed
   [ Tuple N.us us
   , Tuple N.de de

@@ -6,15 +6,17 @@ module Premises.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco
 
 import Prelude (negate, pure, (<>))
 
-import Data.Argonaut.Core (fromObject, toObject)
-import Data.Argonaut.Encode (encodeJson)
+import Core.Num (Q)
+import Core.Types (Capability)
 import Data.Maybe (Maybe(..), maybe)
-import Foreign.Object as Object
-import Schema.Build.Base (Built(..), Capability, Keyed, Qty, Tagged, trade, transfer, transform, enactWithholding, coverage, institutional, holdingOf, capacityOf, shortfallOf, shortfallRounds, payeeReceipts, volumeOf, final, cumulative)
-import Schema.Build.World (atLeast, criterion, definition, entity, finishes, metric, neverShort, objective, own, totalAtLeast)
 import Premises.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Premises.Meridian.Holdings (accountsOf, capacitiesOf)
 import Premises.Names as N
+import Schema.Build.Base (Keyed, capacityOf, cumulative, coverage, final, holdingOf, institutional, mayEnactWithholding, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
+import Schema.Build.World (atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)
+import Schema.Gameboard (Fallback)
+import Schema.Premise.Actor (DefinitionDoc, ObjectiveDoc)
+import Schema.Premise.World (EntityDoc)
 
 -- | How a seat is driven when it has no player, and what covers it.
 data Cover
@@ -26,40 +28,37 @@ data Cover
 -- | One seat: its accounts, capabilities and capacities, its objective, its description and
 -- | dependency, and how it is covered.
 type SeatSpec =
-  { accounts :: Keyed Qty
+  { accounts :: Keyed Q
   , capabilities :: Array Capability
-  , capacities :: Keyed Qty
+  , capacities :: Keyed Q
   , required :: Boolean
   , cover :: Cover
-  , objective :: Built "objective"
+  , objective :: ObjectiveDoc
   , description :: String
   , dependency :: String
   }
 
 -- | A seat Actor: an Entity whose definition is a seat, built from its spec.
-seat :: SeatSpec -> Built "entity"
-seat s = entity
+seat :: SeatSpec -> EntityDoc
+seat s =
   { accounts: s.accounts
   , capabilities: s.capabilities
-  , capacities: s.capacities
-  , definition: definitionOf s
+  , capacities: Just s.capacities
+  , definition: Just (definitionOf s)
+  , aggregate: Nothing
   }
 
 -- | The seat's definition. Its fallback is written only when the seat has one.
-definitionOf :: SeatSpec -> Built "definition"
-definitionOf s = Built (withFallback (encodeJson base))
-  where
-  base = definition
-    { required: s.required
-    , seat: true
-    , npc: maybe [] pure (npcOf s.cover)
-    , objective: s.objective
-    , description: s.description
-    , dependency: s.dependency
-    }
-  withFallback json = case fallbackOf s.cover, toObject json of
-    Just f, Just o -> fromObject (Object.insert "fallback" (encodeJson f) o)
-    _, _ -> json
+definitionOf :: SeatSpec -> DefinitionDoc
+definitionOf s = definition
+  { required: s.required
+  , seat: true
+  , npc: maybe [] pure (npcOf s.cover)
+  , fallback: fallbackOf s.cover
+  , objective: s.objective
+  , description: s.description
+  , dependency: s.dependency
+  }
 
 npcOf :: Cover -> Maybe String
 npcOf = case _ of
@@ -67,7 +66,7 @@ npcOf = case _ of
   Governed p -> Just p
   _ -> Nothing
 
-fallbackOf :: Cover -> Maybe (Tagged "fallback")
+fallbackOf :: Cover -> Maybe Fallback
 fallbackOf = case _ of
   Governed p -> Just (institutional p)
   Covered a -> Just (coverage a)
@@ -82,9 +81,9 @@ asia = N.energyAsia
 
 -- | The capacity-investment capability every energy-production government and firm holds.
 investment :: Array Capability
-investment = [ transform N.energyCapacityInvestment ]
+investment = [ mayTransform N.energyCapacityInvestment ]
 
-us :: Built "entity"
+us :: EntityDoc
 us = seat
   { accounts: accountsOf N.us
   , capabilities: government atlantic N.defenseProcurement <> allied
@@ -94,7 +93,7 @@ us = seat
   , objective: objective
       { description: "Military leadership, solvent"
       , criteria:
-          [ finishes N.us (holdingOf N.mil) (atLeast (own N.cn (holdingOf N.mil)))
+          [ finishes N.us (holdingOf N.mil) (matching (own N.cn (holdingOf N.mil)))
           , finishes N.us (holdingOf N.money) (atLeast 200)
           ]
       }
@@ -102,10 +101,10 @@ us = seat
   , dependency: "Energy above its holdings; procurement capacity"
   }
 
-de :: Built "entity"
+de :: EntityDoc
 de = seat
   { accounts: accountsOf N.de
-  , capabilities: dealer atlantic <> allied <> [ transform N.publicAttention, transform N.humanitarianAid, transform N.militaryDeployment, transfer N.mil, transfer N.energy ] <> shipping
+  , capabilities: dealer atlantic <> allied <> [ mayTransform N.publicAttention, mayTransform N.humanitarianAid, mayTransform N.militaryDeployment, mayTransfer N.mil, mayTransfer N.energy ] <> shipping
   , capacities: capacitiesOf N.de
   , required: false
   , cover: Covered N.eu
@@ -120,7 +119,7 @@ de = seat
   , dependency: "Atlantic Energy; tax revenue from the EU residual"
   }
 
-india :: Built "entity"
+india :: EntityDoc
 india = seat
   { accounts: accountsOf N.india
   , capabilities: government asia N.defenseProcurement <> investment
@@ -138,7 +137,7 @@ india = seat
   , dependency: "Asia Energy prices"
   }
 
-jp :: Built "entity"
+jp :: EntityDoc
 jp = seat
   { accounts: accountsOf N.jp
   , capabilities: government asia N.defenseProcurement <> allied
@@ -156,7 +155,7 @@ jp = seat
   , dependency: "Imports and transport; no production"
   }
 
-uk :: Built "entity"
+uk :: EntityDoc
 uk = seat
   { accounts: accountsOf N.uk
   , capabilities: government atlantic N.defenseProcurement <> allied
@@ -174,7 +173,7 @@ uk = seat
   , dependency: "Atlantic Energy"
   }
 
-br :: Built "entity"
+br :: EntityDoc
 br = seat
   { accounts: accountsOf N.br
   , capabilities: government atlantic N.defenseProcurement <> investment
@@ -189,7 +188,7 @@ br = seat
   , dependency: "Semiconductor units for investment"
   }
 
-sa :: Built "entity"
+sa :: EntityDoc
 sa = seat
   { accounts: accountsOf N.sa
   , capabilities: government asia N.defenseProcurement <> investment
@@ -207,7 +206,7 @@ sa = seat
   , dependency: "Transport for Atlantic sales"
   }
 
-ng :: Built "entity"
+ng :: EntityDoc
 ng = seat
   { accounts: accountsOf N.ng
   , capabilities: government atlantic N.defenseProcurement <> investment
@@ -225,10 +224,10 @@ ng = seat
   , dependency: "Semiconductor units; investment"
   }
 
-enco :: Built "entity"
+enco :: EntityDoc
 enco = seat
   { accounts: accountsOf N.enco
-  , capabilities: dealer atlantic <> investment <> [ transform N.publicAttention ] <> shipping
+  , capabilities: dealer atlantic <> investment <> [ mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.enco
   , required: false
   , cover: Governed N.policyFirmDefault
@@ -243,10 +242,10 @@ enco = seat
   , dependency: "Semiconductor units; strikes"
   }
 
-chip :: Built "entity"
+chip :: EntityDoc
 chip = seat
   { accounts: accountsOf N.chip
-  , capabilities: dealer asia <> [ enactWithholding, transform N.publicAttention ] <> shipping
+  , capabilities: dealer asia <> [ mayEnactWithholding, mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.chip
   , required: false
   , cover: Governed N.policyFirmDefault
@@ -261,10 +260,10 @@ chip = seat
   , dependency: "6 E/round operating Energy"
   }
 
-ship :: Built "entity"
+ship :: EntityDoc
 ship = seat
   { accounts: accountsOf N.ship
-  , capabilities: [ trade atlantic, trade asia, transfer N.money, transfer N.energy, transform N.logisticsInvestment, transform N.publicAttention ] <> shipping
+  , capabilities: [ mayTrade atlantic, mayTrade asia, mayTransfer N.money, mayTransfer N.energy, mayTransform N.logisticsInvestment, mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.ship
   , required: false
   , cover: Governed N.policyFirmDefault
@@ -279,10 +278,10 @@ ship = seat
   , dependency: "4 E/round fuel; shipment bans"
   }
 
-def :: Built "entity"
+def :: EntityDoc
 def = seat
   { accounts: accountsOf N.def
-  , capabilities: dealer atlantic <> [ transform N.publicAttention ] <> shipping
+  , capabilities: dealer atlantic <> [ mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.def
   , required: false
   , cover: Governed N.policyFirmDefault
@@ -294,10 +293,10 @@ def = seat
   , dependency: "CHIP's semiconductor capacity; strikes"
   }
 
-labor :: Built "entity"
+labor :: EntityDoc
 labor = seat
   { accounts: accountsOf N.labor
-  , capabilities: dealer atlantic <> [ transform N.strike, transform N.publicAttention ] <> shipping
+  , capabilities: dealer atlantic <> [ mayTransform N.strike, mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.labor
   , required: false
   , cover: Covered N.usWorkers
@@ -312,7 +311,7 @@ labor = seat
   , dependency: "Dues; Soft Power"
   }
 
-sme :: Built "entity"
+sme :: EntityDoc
 sme = seat
   { accounts: accountsOf N.sme
   , capabilities: dealer atlantic <> shipping
@@ -330,10 +329,10 @@ sme = seat
   , dependency: "Atlantic prices; small cash"
   }
 
-aid :: Built "entity"
+aid :: EntityDoc
 aid = seat
   { accounts: accountsOf N.aid
-  , capabilities: dealer atlantic <> [ transform N.humanitarianAid, transform N.publicAttention ] <> shipping
+  , capabilities: dealer atlantic <> [ mayTransform N.humanitarianAid, mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.aid
   , required: false
   , cover: Covered N.worldHouseholds
@@ -348,7 +347,7 @@ aid = seat
   , dependency: "EU donations; Energy purchases"
   }
 
-cn :: Built "entity"
+cn :: EntityDoc
 cn = seat
   { accounts: accountsOf N.cn
   , capabilities: government asia N.defenseProcurementCn
@@ -358,7 +357,7 @@ cn = seat
   , objective: objective
       { description: "Military parity, solvent"
       , criteria:
-          [ finishes N.cn (holdingOf N.mil) (atLeast (own N.us (holdingOf N.mil)))
+          [ finishes N.cn (holdingOf N.mil) (matching (own N.us (holdingOf N.mil)))
           , finishes N.cn (holdingOf N.money) (atLeast 200)
           ]
       }
