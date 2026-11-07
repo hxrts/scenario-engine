@@ -20,6 +20,8 @@ module Core.Query
   , tradesOf
   , transfersOf
   , transformsOf
+  , transformedLastRound
+  , restrictedAtBoundary
   ) where
 
 import Prelude
@@ -27,9 +29,9 @@ import Prelude
 import Core.Market (averagePrice, marginal)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent(..), MarketId, Order, Price, Ratio, ResourceId, Rule(..), TransferSpec, Transformation, TransformationId, TransformSpec)
-import Core.World (WorldState)
-import Data.Array (elem, filter, find, fromFoldable, mapMaybe)
+import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent(..), MarketId, Order, Price, Quantity, Ratio, ResourceId, RoundIndex, Rule(..), TransferSpec, Transformation, TransformationId, TransformSpec)
+import Core.World (Event(..), WorldState)
+import Data.Array (any, concatMap, elem, filter, find, fromFoldable, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
@@ -147,4 +149,24 @@ transformsOf = mapMaybe
   ( case _ of
       Transform t -> Just t
       _ -> Nothing
+  )
+
+-- | Whether `by` ran `transformation` in the round before `round` for at least `atLeast` units.
+transformedLastRound :: RoundIndex -> EntityId -> TransformationId -> Quantity -> Array Event -> Boolean
+transformedLastRound round by transformation atLeast = any
+  ( case _ of
+      Transformed t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast
+      _ -> false
+  )
+
+-- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
+-- | were proposed in the round before: an AccessBan on `target`, or a Tariff on its origin.
+restrictedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
+restrictedAtBoundary round by target = concatMap
+  ( case _ of
+      Enacted e | e.round == round -> case e.rule of
+        r@(AccessBan x) | x.jurisdiction == by && x.target == target -> [ r ]
+        r@(Tariff x) | x.jurisdiction == by && x.origin == target -> [ r ]
+        _ -> []
+      _ -> []
   )

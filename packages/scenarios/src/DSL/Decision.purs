@@ -48,11 +48,14 @@ module DSL.Decision
 import Prelude
 
 import DSL.Base (Built, class ToQty, Qty, build, q, tag)
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, toObject)
+import Data.Argonaut.Core (Json, fromArray, fromString, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Maybe (Maybe(..))
-import Foreign.Object as Object
+import Policy.Tags as T
 import Prim.Row (class Union)
+
+-- | A Transfer's fields: the agent `from` gives `quantity` of `resource` to `to`.
+type TransferRow = (from :: String, to :: String, resource :: String, quantity :: Expr)
 
 newtype Expr = Expr Json
 
@@ -64,19 +67,19 @@ lit :: forall a. ToQty a => a -> Expr
 lit = Expr <<< encodeJson <<< q
 
 param :: String -> Expr
-param = Expr <<< tag "param" <<< fromString
+param = Expr <<< tag T.paramTag <<< fromString
 
 round :: Expr
-round = Expr (tag "round" jsonNull)
+round = Expr (tag T.roundTag jsonNull)
 
 price :: String -> Expr
-price = Expr <<< tag "price" <<< fromString
+price = Expr <<< tag T.priceTag <<< fromString
 
 holding :: String -> Expr
-holding = Expr <<< tag "holding" <<< fromString
+holding = Expr <<< tag T.holdingTag <<< fromString
 
 factor :: String -> Expr
-factor = Expr <<< tag "factor" <<< fromString
+factor = Expr <<< tag T.factorTag <<< fromString
 
 binary :: String -> Expr -> Expr -> Json
 binary k (Expr a) (Expr b) = tag k (fromArray [ a, b ])
@@ -108,15 +111,16 @@ eq :: Expr -> Expr -> Cond
 eq a b = Cond (binary "eq" a b)
 
 not' :: Cond -> Cond
-not' (Cond c) = Cond (tag "not" c)
+not' (Cond c) = Cond (tag T.notTag c)
 
+-- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
 transformedLastRound
   :: forall r rest
-   . Union r rest (by :: String, transformation :: String, atLeast :: Qty)
+   . Union r rest (by :: String, transformation :: String, atLeast :: Expr)
   => EncodeJson (Record r)
   => Record r
   -> Cond
-transformedLastRound = Cond <<< tag "transformedLastRound" <<< encodeJson
+transformedLastRound = Cond <<< tag T.transformedLastRoundTag <<< encodeJson
 
 restrictedLastRound
   :: forall r rest
@@ -124,7 +128,7 @@ restrictedLastRound
   => EncodeJson (Record r)
   => Record r
   -> Cond
-restrictedLastRound = Cond <<< tag "restrictedLastRound" <<< encodeJson
+restrictedLastRound = Cond <<< tag T.restrictedLastRoundTag <<< encodeJson
 
 restrictionInForce
   :: forall r rest
@@ -132,7 +136,7 @@ restrictionInForce
   => EncodeJson (Record r)
   => Record r
   -> Cond
-restrictionInForce = Cond <<< tag "restrictionInForce" <<< encodeJson
+restrictionInForce = Cond <<< tag T.restrictionInForceTag <<< encodeJson
 
 newtype Template = Template Json
 
@@ -146,21 +150,17 @@ tradeT
   => EncodeJson (Record r)
   => Record r
   -> Template
-tradeT = Template <<< tag "trade" <<< encodeJson
+tradeT = Template <<< tag T.tradeTag <<< encodeJson
 
--- | A routed order (docs/02 §5.2): no Market is named (`market` is null), so `base` and `quote`
--- | give the pair and the engine routes the order across the Markets for it. `limit` is required.
+-- | A routed order (docs/02 §5.2): no Market is named, so `base` and `quote` give the pair and
+-- | the engine routes the order across the Markets for it. `limit` is required.
 routeT
   :: forall r rest
    . Union r rest (base :: String, quote :: String, quantity :: Expr, limit :: Expr)
   => EncodeJson (Record r)
   => Record r
   -> Template
-routeT = Template <<< tag "trade" <<< withoutMarket <<< encodeJson
-  where
-  withoutMarket j = case toObject j of
-    Just o -> fromObject (Object.insert "market" jsonNull o)
-    Nothing -> j
+routeT = Template <<< tag T.routeTag <<< encodeJson
 
 transformT
   :: forall r rest
@@ -168,16 +168,16 @@ transformT
   => EncodeJson (Record r)
   => Record r
   -> Template
-transformT = Template <<< tag "transform" <<< encodeJson
+transformT = Template <<< tag T.transformTag <<< encodeJson
 
 -- | A Transfer, for a procedure to carry (docs/05 §12.1): the agent `from` gives `quantity` to `to`.
 transferT
   :: forall r rest
-   . Union r rest (from :: String, to :: String, resource :: String, quantity :: Expr)
+   . Union r rest TransferRow
   => EncodeJson (Record r)
   => Record r
   -> Template
-transferT = Template <<< tag "transfer" <<< encodeJson
+transferT = Template <<< tag T.transferTag <<< encodeJson
 
 -- | An Aggregate's own procedure Proposal, for its members to sign.
 procedureT
@@ -186,7 +186,7 @@ procedureT
   => EncodeJson (Record r)
   => Record r
   -> Template
-procedureT = Template <<< tag "procedure" <<< encodeJson
+procedureT = Template <<< tag T.procedureTag <<< encodeJson
 
 enactTariffT
   :: forall r rest
@@ -194,15 +194,15 @@ enactTariffT
   => EncodeJson (Record r)
   => Record r
   -> Template
-enactTariffT = Template <<< tag "enactTariff" <<< encodeJson
+enactTariffT = Template <<< tag T.enactTariffTag <<< encodeJson
 
 deal
   :: forall r rest
-   . Union r rest (signers :: Array String, transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr }, transforms :: Array { transformation :: String, quantity :: Expr })
+   . Union r rest (signers :: Array String, transfers :: Array (Record TransferRow), transforms :: Array { transformation :: String, quantity :: Expr })
   => EncodeJson (Record r)
   => Record r
   -> Template
-deal = Template <<< tag "deal" <<< encodeJson
+deal = Template <<< tag T.dealTag <<< encodeJson
 
 reciprocate
   :: forall r rest
@@ -210,7 +210,7 @@ reciprocate
   => EncodeJson (Record r)
   => Record r
   -> Template
-reciprocate = Template <<< tag "reciprocate" <<< encodeJson
+reciprocate = Template <<< tag T.reciprocateTag <<< encodeJson
 
 -- | Ban shipments from the author's jurisdiction into `target` (docs/02 §3, AccessBan).
 enactAccessBanT
@@ -219,7 +219,7 @@ enactAccessBanT
   => EncodeJson (Record r)
   => Record r
   -> Template
-enactAccessBanT = Template <<< tag "enactAccessBan" <<< encodeJson
+enactAccessBanT = Template <<< tag T.enactAccessBanTag <<< encodeJson
 
 -- | Withhold `units` of a capacity the author owns, per round (docs/02 §3, Withholding).
 enactWithholdingT
@@ -228,7 +228,7 @@ enactWithholdingT
   => EncodeJson (Record r)
   => Record r
   -> Template
-enactWithholdingT = Template <<< tag "enactWithholding" <<< encodeJson
+enactWithholdingT = Template <<< tag T.enactWithholdingTag <<< encodeJson
 
 -- | Repeal a Rule the author governs, by the id the engine gave it: `<proposal id>/rule-<index>`.
 repealT
@@ -237,14 +237,14 @@ repealT
   => EncodeJson (Record r)
   => Record r
   -> Template
-repealT = Template <<< tag "repeal" <<< encodeJson
+repealT = Template <<< tag T.repealTag <<< encodeJson
 
 choose :: Array Template -> Template
-choose = Template <<< tag "choose" <<< encodeJson
+choose = Template <<< tag T.chooseTag <<< encodeJson
 
 -- | Propose nothing: an option for `choose`, or a clause's whole proposal.
 noAction :: Template
-noAction = Template (tag "noAction" jsonNull)
+noAction = Template (tag T.noActionTag jsonNull)
 
 newtype SignRule = SignRule Json
 
@@ -252,17 +252,17 @@ instance EncodeJson SignRule where
   encodeJson (SignRule j) = j
 
 signProcedures :: Array String -> SignRule
-signProcedures = SignRule <<< tag "procedures" <<< encodeJson
+signProcedures = SignRule <<< tag T.proceduresTag <<< encodeJson
 
 signFacility :: String -> SignRule
-signFacility = SignRule <<< tag "facility" <<< fromString
+signFacility = SignRule <<< tag T.facilityTag <<< fromString
 
 signAll :: SignRule
-signAll = SignRule (tag "all" jsonNull)
+signAll = SignRule (tag T.allTag jsonNull)
 
 -- | The inner sign rule, while every condition holds.
 signIf :: Array Cond -> SignRule -> SignRule
-signIf when inner = SignRule (tag "signIf" (encodeJson { when, rule: inner }))
+signIf when inner = SignRule (tag T.signIfTag (encodeJson { when, rule: inner }))
 
 -- | One clause of a Program: when every condition holds, propose the templates.
 newtype Clause = Clause Json

@@ -372,7 +372,7 @@ Policies are declarative programs ([Type System §4](02_type_system.md#4-policie
 
 ### 11.1 China NPC Policy: `china-strategic-v0`
 
-1. If the US ran `major-military-action` of at least 12 Mil in the previous round, order 4 Mil from the procurement facility.
+1. If the US ran `major-military-action` of at least `major-action-threshold` (12 Mil in the reference game) in the previous round, order 4 Mil from the procurement facility.
 2. If the beginning-of-round `energy-asia` price exceeds 3.2 M/E, offer up to 12 E on that node.
 3. If a US restriction targeting China was enacted in the previous round, enact the reciprocal restriction, effective at the next round boundary.
 4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant exceeds it, the engine scales China's actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)). A priority order would be a scenario-level addition.

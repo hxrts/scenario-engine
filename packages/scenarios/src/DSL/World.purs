@@ -21,6 +21,7 @@ module DSL.World
   , own
   , finishes
   , neverShort
+  , totalAtLeast
   , production
   , flow
   , share
@@ -32,7 +33,7 @@ module DSL.World
 
 import Prelude
 
-import DSL.Base (Built(..), Capability, Keyed, Qty, Tagged, build, everyRound, final, q, shortfallOf)
+import DSL.Base (Built(..), Capability, Keyed, Qty, Tagged, build, cumulative, everyRound, final, q, shortfallOf)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Prim.Row (class Union)
 
@@ -191,6 +192,10 @@ own e m = metric { entities: [ e ], measure: m, negated: false }
 -- | The Entity finishes the game with at least the bound of a measure.
 finishes :: String -> Tagged "measure" -> Built "bound" -> Built "criterion"
 finishes e m b = criterion { metric: own e m, over: final, atLeast: b }
+
+-- | The Entities' total of a measure over the whole game is at least the bound.
+totalAtLeast :: Array String -> Tagged "measure" -> Built "bound" -> Built "criterion"
+totalAtLeast es m b = criterion { metric: metric { entities: es, measure: m, negated: false }, over: cumulative, atLeast: b }
 
 -- | The Entity is never short of a Resource in any round.
 neverShort :: String -> String -> Built "criterion"

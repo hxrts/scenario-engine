@@ -3,6 +3,7 @@
 -- | rounds of nothing but circulation. Fixture `circulation`.
 module Scenarios.Fixtures.Circulation (fixtureCirculation) where
 
+import Scenarios.Names as N
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
 import DSL.Base (keyed, (:=))
@@ -16,95 +17,95 @@ import Scenarios.Meridian (coreResources, flows, productionCapacity, requirement
 fixtureCirculation :: Tuple String Json
 fixtureCirculation = fixture "circulation"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "US"
+      [ Tuple N.us
           ( entity
-              { accounts: keyed [ "M" := 260, "E" := 70 ], capabilities: [] }
+              { accounts: keyed [ N.money := 260, N.energy := 70 ], capabilities: [] }
           )
-      , Tuple "DE"
+      , Tuple N.de
           ( entity
-              { accounts: keyed [ "M" := 125, "E" := 38 ], capabilities: [] }
+              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [] }
           )
-      , Tuple "IN"
+      , Tuple N.india
           ( entity
-              { accounts: keyed [ "M" := 180, "E" := 65 ], capabilities: [], capacities: keyed [ "energy-production" := 5 ] }
+              { accounts: keyed [ N.money := 180, N.energy := 65 ], capabilities: [], capacities: keyed [ N.energyProduction := 5 ] }
           )
-      , Tuple "JP"
+      , Tuple N.jp
           ( entity
-              { accounts: keyed [ "M" := 150, "E" := 40 ], capabilities: [] }
+              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [] }
           )
-      , Tuple "UK"
+      , Tuple N.uk
           ( entity
-              { accounts: keyed [ "M" := 130, "E" := 30 ], capabilities: [] }
+              { accounts: keyed [ N.money := 130, N.energy := 30 ], capabilities: [] }
           )
-      , Tuple "BR"
+      , Tuple N.br
           ( entity
-              { accounts: keyed [ "M" := 105, "E" := 85 ], capabilities: [], capacities: keyed [ "energy-production" := 13 ] }
+              { accounts: keyed [ N.money := 105, N.energy := 85 ], capabilities: [], capacities: keyed [ N.energyProduction := 13 ] }
           )
-      , Tuple "SA"
+      , Tuple N.sa
           ( entity
-              { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [], capacities: keyed [ "energy-production" := 25 ] }
+              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
           )
-      , Tuple "NG"
+      , Tuple N.ng
           ( entity
-              { accounts: keyed [ "M" := 85, "E" := 60 ], capabilities: [], capacities: keyed [ "energy-production" := 12 ] }
+              { accounts: keyed [ N.money := 85, N.energy := 60 ], capabilities: [], capacities: keyed [ N.energyProduction := 12 ] }
           )
-      , Tuple "ENCO"
+      , Tuple N.enco
           ( entity
-              { accounts: keyed [ "M" := 140, "E" := 140 ], capabilities: [], capacities: keyed [ "energy-production" := 25 ] }
+              { accounts: keyed [ N.money := 140, N.energy := 140 ], capabilities: [], capacities: keyed [ N.energyProduction := 25 ] }
           )
-      , Tuple "CHIP"
+      , Tuple N.chip
           ( entity
-              { accounts: keyed [ "M" := 135, "E" := 55 ], capabilities: [] }
+              { accounts: keyed [ N.money := 135, N.energy := 55 ], capabilities: [] }
           )
-      , Tuple "SHIP"
+      , Tuple N.ship
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 65 ], capabilities: [] }
+              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [] }
           )
-      , Tuple "DEF"
+      , Tuple N.def
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 30 ], capabilities: [] }
+              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [] }
           )
-      , Tuple "LABOR"
+      , Tuple N.labor
           ( entity
-              { accounts: keyed [ "M" := 30, "E" := 4 ], capabilities: [] }
+              { accounts: keyed [ N.money := 30, N.energy := 4 ], capabilities: [] }
           )
-      , Tuple "SME"
+      , Tuple N.sme
           ( entity
-              { accounts: keyed [ "M" := 15, "E" := 5 ], capabilities: [] }
+              { accounts: keyed [ N.money := 15, N.energy := 5 ], capabilities: [] }
           )
-      , Tuple "AID"
+      , Tuple N.aid
           ( entity
-              { accounts: keyed [ "M" := 45, "E" := 12 ], capabilities: [] }
+              { accounts: keyed [ N.money := 45, N.energy := 12 ], capabilities: [] }
           )
-      , Tuple "CN"
+      , Tuple N.cn
           ( entity
-              { accounts: keyed [ "M" := 255, "E" := 95 ], capabilities: [] }
+              { accounts: keyed [ N.money := 255, N.energy := 95 ], capabilities: [] }
           )
-      , Tuple "EU"
+      , Tuple N.eu
           ( entity
-              { accounts: keyed [ "M" := 320, "E" := 125 ], capabilities: [] }
+              { accounts: keyed [ N.money := 320, N.energy := 125 ], capabilities: [] }
           )
-      , Tuple "CN_PRIVATE"
+      , Tuple N.cnPrivate
           ( entity
-              { accounts: keyed [ "M" := 210, "E" := 85 ], capabilities: [] }
+              { accounts: keyed [ N.money := 210, N.energy := 85 ], capabilities: [] }
           )
-      , Tuple "US_WORKERS"
+      , Tuple N.usWorkers
           ( entity
-              { accounts: keyed [ "M" := 260, "E" := 60 ], capabilities: [] }
+              { accounts: keyed [ N.money := 260, N.energy := 60 ], capabilities: [] }
           )
-      , Tuple "GLOBAL_SMES"
+      , Tuple N.globalSmes
           ( entity
-              { accounts: keyed [ "M" := 300, "E" := 80 ], capabilities: [] }
+              { accounts: keyed [ N.money := 300, N.energy := 80 ], capabilities: [] }
           )
-      , Tuple "ENERGY_SUPPLIERS"
+      , Tuple N.energySuppliers
           ( entity
-              { accounts: keyed [ "M" := 200, "E" := 240 ], capabilities: [], capacities: keyed [ "energy-production" := 60 ] }
+              { accounts: keyed [ N.money := 200, N.energy := 240 ], capabilities: [], capacities: keyed [ N.energyProduction := 60 ] }
           )
-      , Tuple "WORLD_HOUSEHOLDS"
+      , Tuple N.worldHouseholds
           ( entity
-              { accounts: keyed [ "M" := 360, "E" := 90 ], capabilities: [] }
+              { accounts: keyed [ N.money := 360, N.energy := 90 ], capabilities: [] }
           )
       ]
   , circulation: { production: productionCapacity, flows, requirements }
@@ -113,6 +114,6 @@ fixtureCirculation = fixture "circulation"
       , roundOf {}
       , roundOf {}
       , roundOf {}
-      , roundOf { expect: expect { accounts: keyed [ Tuple "US" (keyed [ "M" := 300 ]), Tuple "DE" (keyed [ "M" := 131, "E" := 0 ]) ] } }
+      , roundOf { expect: expect { accounts: keyed [ Tuple N.us (keyed [ N.money := 300 ]), Tuple N.de (keyed [ N.money := 131, N.energy := 0 ]) ] } }
       ]
   }

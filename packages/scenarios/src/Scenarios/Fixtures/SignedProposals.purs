@@ -4,6 +4,7 @@
 -- | Fixtures G1, G2, G3-ban, G3, G4, G5-unsigned and G5.
 module Scenarios.Fixtures.SignedProposals (fixtureG1, fixtureG2, fixtureG3Ban, fixtureG3, fixtureG4, fixtureG5Unsigned, fixtureG5) where
 
+import Scenarios.Names as N
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
 import DSL.Base (q, Keyed, keyed, (:=), Built, transfer, transform)
@@ -15,143 +16,143 @@ import Scenarios.Meridian (coreResources)
 -- | Fixtures G1 to G5: transfers between Saudi Arabia and Japan, with and without signatures.
 saAndJp :: Keyed (Built "entity")
 saAndJp = keyed
-  [ Tuple "SA" (entity { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] })
-  , Tuple "JP" (entity { accounts: keyed [ "M" := 150, "E" := 40 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] })
+  [ Tuple N.sa (entity { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
+  , Tuple N.jp (entity { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] })
   ]
 
 fixtureG1 :: Tuple String Json
 fixtureG1 = fixture "G1"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: saAndJp
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "JP", resource: "E", quantity: q 20 }, transferI { from: "JP", to: "SA", resource: "M", quantity: q 48 } ], signers: [ "JP" ], signatures: [ "JP" ] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 203, "E" := 90 ]), Tuple "JP" (keyed [ "M" := 102, "E" := 60 ]) ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.jp, resource: N.energy, quantity: q 20 }, transferI { from: N.jp, to: N.sa, resource: N.money, quantity: q 48 } ], signers: [ N.jp ], signatures: [ N.jp ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 203, N.energy := 90 ]), Tuple N.jp (keyed [ N.money := 102, N.energy := 60 ]) ] }
   }
 
 fixtureG2 :: Tuple String Json
 fixtureG2 = fixture "G2"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: saAndJp
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "JP", resource: "E", quantity: q 20 }, transferI { from: "JP", to: "SA", resource: "M", quantity: q 48 } ], signers: [ "JP" ], signatures: [] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 155, "E" := 110 ]), Tuple "JP" (keyed [ "M" := 150, "E" := 40 ]) ], lapsed: [ ref "SA" ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.jp, resource: N.energy, quantity: q 20 }, transferI { from: N.jp, to: N.sa, resource: N.money, quantity: q 48 } ], signers: [ N.jp ], signatures: [] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 155, N.energy := 110 ]), Tuple N.jp (keyed [ N.money := 150, N.energy := 40 ]) ], lapsed: [ ref N.sa ] }
   }
 
 fixtureG3Ban :: Tuple String Json
 fixtureG3Ban = fixture "G3-ban"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
-  , rules: [ accessBanRule { jurisdiction: "SA", target: "DE" } ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+  , rules: [ accessBanRule { jurisdiction: N.sa, target: N.de } ]
   , entities: keyed
-      [ Tuple "SA"
+      [ Tuple N.sa
           ( entity
-              { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [ transfer "M", transfer "E", transform "energy-shipping" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
           )
-      , Tuple "DE"
+      , Tuple N.de
           ( entity
-              { accounts: keyed [ "M" := 125, "E" := 38 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "SHIP"
+      , Tuple N.ship
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 65 ], capabilities: [], capacities: keyed [ "transport" := 60 ] }
+              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
           )
       ]
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "DE", resource: "E", quantity: q 20 }, transferI { from: "DE", to: "SA", resource: "M", quantity: q 48 }, transformI { by: "SA", transformation: "energy-shipping", quantity: q 20 } ], signers: [ "DE", "SHIP" ], signatures: [ "DE", "SHIP" ] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 155, "E" := 110 ]), Tuple "DE" (keyed [ "M" := 125, "E" := 38 ]), Tuple "SHIP" (keyed [ "M" := 110, "E" := 65 ]) ], rejected: [ ref "SA" ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.de, resource: N.energy, quantity: q 20 }, transferI { from: N.de, to: N.sa, resource: N.money, quantity: q 48 }, transformI { by: N.sa, transformation: N.energyShipping, quantity: q 20 } ], signers: [ N.de, N.ship ], signatures: [ N.de, N.ship ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 155, N.energy := 110 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]), Tuple N.ship (keyed [ N.money := 110, N.energy := 65 ]) ], rejected: [ ref N.sa ] }
   }
 
 fixtureG3 :: Tuple String Json
 fixtureG3 = fixture "G3"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "SA"
+      [ Tuple N.sa
           ( entity
-              { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [ transfer "M", transfer "E", transform "energy-shipping" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy, transform N.energyShipping ], capacities: keyed [] }
           )
-      , Tuple "DE"
+      , Tuple N.de
           ( entity
-              { accounts: keyed [ "M" := 125, "E" := 38 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 125, N.energy := 38 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "SHIP"
+      , Tuple N.ship
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 65 ], capabilities: [], capacities: keyed [ "transport" := 60 ] }
+              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [], capacities: keyed [ N.transport := 60 ] }
           )
       ]
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "DE", resource: "E", quantity: q 20 }, transferI { from: "DE", to: "SA", resource: "M", quantity: q 48 }, transformI { by: "SA", transformation: "energy-shipping", quantity: q 20 } ], signers: [ "DE", "SHIP" ], signatures: [ "DE", "SHIP" ] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 197, "E" := 90 ]), Tuple "DE" (keyed [ "M" := 77, "E" := 58 ]), Tuple "SHIP" (keyed [ "M" := 116, "E" := 65 ]) ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.de, resource: N.energy, quantity: q 20 }, transferI { from: N.de, to: N.sa, resource: N.money, quantity: q 48 }, transformI { by: N.sa, transformation: N.energyShipping, quantity: q 20 } ], signers: [ N.de, N.ship ], signatures: [ N.de, N.ship ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 197, N.energy := 90 ]), Tuple N.de (keyed [ N.money := 77, N.energy := 58 ]), Tuple N.ship (keyed [ N.money := 116, N.energy := 65 ]) ] }
   }
 
 fixtureG4 :: Tuple String Json
 fixtureG4 = fixture "G4"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "LABOR"
+      [ Tuple N.labor
           ( entity
-              { accounts: keyed [ "M" := 30, "E" := 4 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 30, N.energy := 4 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "ENCO"
+      , Tuple N.enco
           ( entity
-              { accounts: keyed [ "M" := 140, "E" := 140 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 140, N.energy := 140 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "DEF"
+      , Tuple N.def
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 30 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:
-      [ proposal { author: "ENCO", intents: [ transferI { from: "ENCO", to: "LABOR", resource: "M", quantity: q 10 } ] }, proposal { author: "DEF", intents: [ transferI { from: "DEF", to: "LABOR", resource: "M", quantity: q 10 } ] } ]
-  , expect: expect { accounts: keyed [ Tuple "LABOR" (keyed [ "M" := 50, "E" := 4 ]), Tuple "ENCO" (keyed [ "M" := 130, "E" := 140 ]), Tuple "DEF" (keyed [ "M" := 100, "E" := 30 ]) ] }
+      [ proposal { author: N.enco, intents: [ transferI { from: N.enco, to: N.labor, resource: N.money, quantity: q 10 } ] }, proposal { author: N.def, intents: [ transferI { from: N.def, to: N.labor, resource: N.money, quantity: q 10 } ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.labor (keyed [ N.money := 50, N.energy := 4 ]), Tuple N.enco (keyed [ N.money := 130, N.energy := 140 ]), Tuple N.def (keyed [ N.money := 100, N.energy := 30 ]) ] }
   }
 
 fixtureG5Unsigned :: Tuple String Json
 fixtureG5Unsigned = fixture "G5-unsigned"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "SA"
+      [ Tuple N.sa
           ( entity
-              { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "JP"
+      , Tuple N.jp
           ( entity
-              { accounts: keyed [ "M" := 150, "E" := 40 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "SHIP"
+      , Tuple N.ship
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 65 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "JP", resource: "E", quantity: q 20 }, transferI { from: "JP", to: "SA", resource: "M", quantity: q 48 }, transferI { from: "JP", to: "SHIP", resource: "M", quantity: q 10 } ], signers: [ "JP", "SHIP" ], signatures: [ "JP" ] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 155, "E" := 110 ]), Tuple "JP" (keyed [ "M" := 150, "E" := 40 ]), Tuple "SHIP" (keyed [ "M" := 110, "E" := 65 ]) ], lapsed: [ ref "SA" ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.jp, resource: N.energy, quantity: q 20 }, transferI { from: N.jp, to: N.sa, resource: N.money, quantity: q 48 }, transferI { from: N.jp, to: N.ship, resource: N.money, quantity: q 10 } ], signers: [ N.jp, N.ship ], signatures: [ N.jp ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 155, N.energy := 110 ]), Tuple N.jp (keyed [ N.money := 150, N.energy := 40 ]), Tuple N.ship (keyed [ N.money := 110, N.energy := 65 ]) ], lapsed: [ ref N.sa ] }
   }
 
 fixtureG5 :: Tuple String Json
 fixtureG5 = fixture "G5"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "SA"
+      [ Tuple N.sa
           ( entity
-              { accounts: keyed [ "M" := 155, "E" := 110 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 155, N.energy := 110 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "JP"
+      , Tuple N.jp
           ( entity
-              { accounts: keyed [ "M" := 150, "E" := 40 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
-      , Tuple "SHIP"
+      , Tuple N.ship
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 65 ], capabilities: [ transfer "M", transfer "E" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 110, N.energy := 65 ], capabilities: [ transfer N.money, transfer N.energy ], capacities: keyed [] }
           )
       ]
   , proposals:
-      [ proposal { author: "SA", intents: [ transferI { from: "SA", to: "JP", resource: "E", quantity: q 20 }, transferI { from: "JP", to: "SA", resource: "M", quantity: q 48 }, transferI { from: "JP", to: "SHIP", resource: "M", quantity: q 10 } ], signers: [ "JP", "SHIP" ], signatures: [ "JP", "SHIP" ] } ]
-  , expect: expect { accounts: keyed [ Tuple "SA" (keyed [ "M" := 203, "E" := 90 ]), Tuple "JP" (keyed [ "M" := 92, "E" := 60 ]), Tuple "SHIP" (keyed [ "M" := 120, "E" := 65 ]) ] }
+      [ proposal { author: N.sa, intents: [ transferI { from: N.sa, to: N.jp, resource: N.energy, quantity: q 20 }, transferI { from: N.jp, to: N.sa, resource: N.money, quantity: q 48 }, transferI { from: N.jp, to: N.ship, resource: N.money, quantity: q 10 } ], signers: [ N.jp, N.ship ], signatures: [ N.jp, N.ship ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.sa (keyed [ N.money := 203, N.energy := 90 ]), Tuple N.jp (keyed [ N.money := 92, N.energy := 60 ]), Tuple N.ship (keyed [ N.money := 120, N.energy := 65 ]) ] }
   }
 

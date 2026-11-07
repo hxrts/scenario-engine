@@ -188,7 +188,7 @@ The schema has no relationship list. Mechanical links are the fields above (depe
 
 ## 8. Policy Catalog
 
-`policies.json` maps each Policy id to a Program, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Programs are declarative and fixed for a game. The loader checks that every name a Program uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Scenarios.Load`).
+`policies.json` maps each Policy id to a Program, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Programs are declarative and fixed for a game. The loader checks that every name a Program uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Policy.Interpret`): `self` is the acting Entity at every entity position, so the loader does not check it.
 
 Policies are referenced by an Actor's `npc` list (chosen in the configuration's `npcs`) and by `aggregate.policy`. Seat presets are bound by the simulator or session ([06 §4](06_simulator.md#4-seat-policies)).
 

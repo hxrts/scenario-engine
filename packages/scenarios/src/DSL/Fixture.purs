@@ -26,6 +26,7 @@ module DSL.Fixture
 
 import Prelude
 
+import Board.Tags as BT
 import DSL.Base (Built(..), Keyed, Qty, build, tag)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
@@ -70,7 +71,7 @@ enactTariffI
   => EncodeJson (Record r)
   => Record r
   -> Intent
-enactTariffI r = Intent (tag "enact" (tag "tariff" (encodeJson r)))
+enactTariffI r = Intent (tag BT.enactKind (tag BT.tariffKind (encodeJson r)))
 
 enactAccessBanI
   :: forall r rest
@@ -78,7 +79,7 @@ enactAccessBanI
   => EncodeJson (Record r)
   => Record r
   -> Intent
-enactAccessBanI r = Intent (tag "enact" (tag "accessBan" (encodeJson r)))
+enactAccessBanI r = Intent (tag BT.enactKind (tag BT.accessBanKind (encodeJson r)))
 
 enactWithholdingI
   :: forall r rest
@@ -86,7 +87,7 @@ enactWithholdingI
   => EncodeJson (Record r)
   => Record r
   -> Intent
-enactWithholdingI r = Intent (tag "enact" (tag "withholding" (encodeJson r)))
+enactWithholdingI r = Intent (tag BT.enactKind (tag BT.withholdingKind (encodeJson r)))
 
 -- | A Proposal and the signatures it gathered. Ids follow from the author and order.
 proposal

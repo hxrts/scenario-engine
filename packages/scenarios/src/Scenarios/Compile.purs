@@ -20,6 +20,7 @@ import Scenarios.Capstone as Capstone
 import Scenarios.Fixtures as Fixtures
 import Scenarios.Meridian as Meridian
 import Scenarios.Load (checkPresets, decodePresets, fromFiles)
+import Scenarios.Names (presetsFile)
 import Scenarios.Presets as Presets
 
 -- | A compiled file: its path under the scenario root, and its text.
@@ -35,7 +36,7 @@ compile = do
 outputs :: Array (Tuple String Json)
 outputs =
   map (\(Tuple name j) -> Tuple ("meridian/v0/" <> name) j) Meridian.files
-    <> [ Tuple "presets.json" (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
+    <> [ Tuple presetsFile (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
 

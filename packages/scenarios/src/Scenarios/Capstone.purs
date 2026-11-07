@@ -6,6 +6,7 @@
 module Scenarios.Capstone (file, rounds, playerSeed, JointLine, jointLines) where
 
 import Prelude ((==), map, ($), (<<<))
+import Scenarios.Names as N
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
@@ -30,11 +31,11 @@ playerSeed = 7
 us :: Built "program"
 us = program
   { rules:
-      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: "IN" } ]
+      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
-      , rule [ gt (price "energy-atlantic") (lit 3) ]
-          [ transformT { transformation: "military-deployment", quantity: lit 60 }
-          , transformT { transformation: "major-military-action", quantity: lit 40 }
+      , rule [ gt (price N.energyAtlantic) (lit 3) ]
+          [ transformT { transformation: N.militaryDeployment, quantity: lit 60 }
+          , transformT { transformation: N.majorMilitaryAction, quantity: lit 40 }
           ]
       ]
   }
@@ -43,7 +44,7 @@ us = program
 usWithoutDeployment :: Built "program"
 usWithoutDeployment = program
   { rules:
-      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: "IN" } ]
+      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
       ]
   }
@@ -61,7 +62,7 @@ jp :: Built "program"
 jp = program
   { rules:
       [ rule [ eq round (lit 3) ]
-          [ deal { signers: [ "JP", "IN" ], transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 20 } ] } ]
+          [ deal { signers: [ N.jp, N.india ], transfers: [ { from: "self", to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
       ]
   }
 
@@ -78,9 +79,9 @@ enco = program
   where
   shipment =
     [ deal
-        { signers: [ "ENCO", "IN", "SHIP" ]
-        , transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 5 } ]
-        , transforms: [ { transformation: "energy-shipping", quantity: lit 5 } ]
+        { signers: [ N.enco, N.india, N.ship ]
+        , transfers: [ { from: "self", to: N.india, resource: N.energy, quantity: lit 5 } ]
+        , transforms: [ { transformation: N.energyShipping, quantity: lit 5 } ]
         }
     ]
 
@@ -88,11 +89,11 @@ enco = program
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
 sme :: Built "program"
-sme = program { rules: [ rule [] [ tradeT { market: "energy-atlantic", quantity: lit 4 } ] ] }
+sme = program { rules: [ rule [] [ tradeT { market: N.energyAtlantic, quantity: lit 4 } ] ] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
 shipping :: Built "program"
-shipping = program { sign: [ signFacility "energy-shipping" ] }
+shipping = program { sign: [ signFacility N.energyShipping ] }
 
 -- | India signs every Proposal addressed to it.
 india :: Built "program"
@@ -103,7 +104,7 @@ india = program { sign: [ signAll ] }
 chip :: Built "program"
 chip = program
   { rules:
-      [ rule [ eq round (lit 4) ] [ enactWithholdingT { capacity: "semiconductors", units: lit 5 } ]
+      [ rule [ eq round (lit 4) ] [ enactWithholdingT { capacity: N.semiconductors, units: lit 5 } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r4/CHIP/0/rule-0" } ]
       ]
   }
@@ -114,21 +115,21 @@ passive = program {}
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
 seats :: Built "program" -> Keyed (Built "program")
 seats usProgram = keyed
-  [ Tuple "US" usProgram
-  , Tuple "DE" de
-  , Tuple "IN" india
-  , Tuple "JP" jp
-  , Tuple "UK" passive
-  , Tuple "BR" passive
-  , Tuple "SA" passive
-  , Tuple "NG" passive
-  , Tuple "ENCO" enco
-  , Tuple "CHIP" chip
-  , Tuple "SHIP" shipping
-  , Tuple "DEF" passive
-  , Tuple "LABOR" passive
-  , Tuple "SME" sme
-  , Tuple "AID" passive
+  [ Tuple N.us usProgram
+  , Tuple N.de de
+  , Tuple N.india india
+  , Tuple N.jp jp
+  , Tuple N.uk passive
+  , Tuple N.br passive
+  , Tuple N.sa passive
+  , Tuple N.ng passive
+  , Tuple N.enco enco
+  , Tuple N.chip chip
+  , Tuple N.ship shipping
+  , Tuple N.def passive
+  , Tuple N.labor passive
+  , Tuple N.sme sme
+  , Tuple N.aid passive
   ]
 
 -- | Round expectations, checked by the simulator with the fixture checker. The values are the
@@ -137,25 +138,25 @@ seats usProgram = keyed
 expectations :: Array Json
 expectations =
   [ roundExp 2 (expect { scheduled: 1 }) -- the US ban is enacted, in force from round 3
-  , roundExp 3 (expect { procedures: [ procedureOutcome { author: "EU", index: 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
+  , roundExp 3 (expect { procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
   , roundExp 4
       ( expect
-          { rejected: [ refAt "ENCO" 0 ] -- the shipment into India is banned
-          , lapsed: [ refAt "EU" 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
-          , procedures: [ procedureOutcome { author: "EU", index: 1, support: q "0.4", executed: false } ]
-          , accounts: keyed [ Tuple "US" (keyed [ "Mil" := "85.5" ]) ] -- 60 reserved, 38 scaled action
-          , factors: keyed [ Tuple "GLOBAL_SMES" (keyed [ "E" := "0.9437" ]) ]
+          { rejected: [ refAt N.enco 0 ] -- the shipment into India is banned
+          , lapsed: [ refAt N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
+          , procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.4", executed: false } ]
+          , accounts: keyed [ Tuple N.us (keyed [ N.mil := "85.5" ]) ] -- 60 reserved, 38 scaled action
+          , factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9437" ]) ]
           }
       )
   , roundExp 5
       ( expect
-          { procedures: [ procedureOutcome { author: "EU", index: 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
-          , accounts: keyed [ Tuple "US" (keyed [ "Mil" := "76.95" ]) ]
+          { procedures: [ procedureOutcome { author: N.eu, index: 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
+          , accounts: keyed [ Tuple N.us (keyed [ N.mil := "76.95" ]) ]
           }
       )
   , roundExp 6 (expect { scheduled: 2 }) -- both repeals are scheduled
   , roundExp 7 (expect { rejected: [] }) -- the round-7 shipment clears after the ban's repeal
-  , roundExp 8 (expect { factors: keyed [ Tuple "GLOBAL_SMES" (keyed [ "E" := "0.9406" ]) ] })
+  , roundExp 8 (expect { factors: keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9406" ]) ] })
   ]
   where
   roundExp :: Int -> Built "expect" -> Json
@@ -167,7 +168,7 @@ outcome entity o = encodeJson { entity, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
 allActors :: Array String
-allActors = [ "AID", "BR", "CHIP", "CN", "DE", "DEF", "ENCO", "IN", "JP", "LABOR", "NG", "SA", "SHIP", "SME", "UK", "US" ]
+allActors = [ N.aid, N.br, N.chip, N.cn, N.de, N.def, N.enco, N.india, N.jp, N.labor, N.ng, N.sa, N.ship, N.sme, N.uk, N.us ]
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
@@ -177,7 +178,7 @@ baseObjectives = map (\e -> outcome e "notMet") allActors
 -- | Without the deployment the US keeps its 95 Mil and meets its objective; nothing else changes
 -- | the outcomes.
 counterfactualObjectives :: Array Json
-counterfactualObjectives = map (\e -> outcome e (if e == "US" then "met" else "notMet")) allActors
+counterfactualObjectives = map (\e -> outcome e (if e == N.us then "met" else "notMet")) allActors
 
 -- | The run file: the seat programs, the counterfactual's replacement seats, the expectations,
 -- | and every objective's expected outcome in each case.
@@ -187,7 +188,7 @@ file = encodeJson
   , rounds
   , playerSeed
   , seats: seats us
-  , counterfactual: keyed [ Tuple "US" usWithoutDeployment ]
+  , counterfactual: keyed [ Tuple N.us usWithoutDeployment ]
   , expectations
   , objectives: baseObjectives
   , counterfactualObjectives
@@ -225,16 +226,16 @@ proposalReply author i = obj
 -- | access ban on IN.
 banIntent :: Json
 banIntent = intent "ChangeRule"
-  [ intent "Enact" [ intent "AccessBan" [ obj [ Tuple "target" (fromString "IN"), Tuple "jurisdiction" (fromString "US") ] ] ] ]
+  [ intent "Enact" [ intent "AccessBan" [ obj [ Tuple "target" (fromString N.india), Tuple "jurisdiction" (fromString N.us) ] ] ] ]
 
 -- | The US buying ten Energy in the Atlantic market at no limit price.
 tradeIntent :: Json
 tradeIntent = intent "Trade"
-  [ obj [ Tuple "quantity" (fromString "10.0000"), Tuple "market" (fromString "energy-atlantic"), Tuple "limitPrice" jsonNull ] ]
+  [ obj [ Tuple "quantity" (fromString "10.0000"), Tuple "market" (fromString N.energyAtlantic), Tuple "limitPrice" jsonNull ] ]
 
 -- | The capstone's joint-pass exchanges, in the order the recording holds them.
 jointLines :: Array JointLine
 jointLines =
-  [ { text: "ban shipments into India", reply: proposalReply "US" banIntent, expect: [ banIntent ] }
-  , { text: "buy ten energy", reply: proposalReply "US" tradeIntent, expect: [ tradeIntent ] }
+  [ { text: "ban shipments into India", reply: proposalReply N.us banIntent, expect: [ banIntent ] }
+  , { text: "buy ten energy", reply: proposalReply N.us tradeIntent, expect: [ tradeIntent ] }
   ]

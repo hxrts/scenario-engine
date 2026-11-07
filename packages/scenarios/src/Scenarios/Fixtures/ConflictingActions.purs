@@ -3,6 +3,7 @@
 -- | and the semiconductor capacity allocate what they can. Fixture F.
 module Scenarios.Fixtures.ConflictingActions (fixtureF) where
 
+import Scenarios.Names as N
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
 import DSL.Base (q, keyed, (:=), transform)
@@ -14,31 +15,31 @@ import Scenarios.Meridian (coreResources)
 fixtureF :: Tuple String Json
 fixtureF = fixture "F"
   { resources: coreResources
-  , markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , entities: keyed
-      [ Tuple "US"
+      [ Tuple N.us
           ( entity
-              { accounts: keyed [ "M" := 260, "E" := 70 ], capabilities: [ transform "defense-procurement" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 260, N.energy := 70 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
-      , Tuple "UK"
+      , Tuple N.uk
           ( entity
-              { accounts: keyed [ "M" := 130, "E" := 30 ], capabilities: [ transform "defense-procurement" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 130, N.energy := 30 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
-      , Tuple "JP"
+      , Tuple N.jp
           ( entity
-              { accounts: keyed [ "M" := 150, "E" := 40 ], capabilities: [ transform "defense-procurement" ], capacities: keyed [] }
+              { accounts: keyed [ N.money := 150, N.energy := 40 ], capabilities: [ transform N.defenseProcurement ], capacities: keyed [] }
           )
-      , Tuple "DEF"
+      , Tuple N.def
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 30 ], capabilities: [], capacities: keyed [] }
+              { accounts: keyed [ N.money := 110, N.energy := 30 ], capabilities: [], capacities: keyed [] }
           )
-      , Tuple "CHIP"
+      , Tuple N.chip
           ( entity
-              { accounts: keyed [], capabilities: [], capacities: keyed [ "semiconductors" := 15 ] }
+              { accounts: keyed [], capabilities: [], capacities: keyed [ N.semiconductors := 15 ] }
           )
       ]
   , proposals:
-      [ proposal { author: "US", intents: [ transformI { by: "US", transformation: "defense-procurement", quantity: q 15 } ] }, proposal { author: "UK", intents: [ transformI { by: "UK", transformation: "defense-procurement", quantity: q 8 } ] }, proposal { author: "JP", intents: [ transformI { by: "JP", transformation: "defense-procurement", quantity: q 9 } ] } ]
-  , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "M" := 43, "E" := 42 ]), Tuple "UK" (keyed [ "M" := 6, "E" := 14 ]), Tuple "JP" (keyed [ "M" := 26, "E" := 24 ]), Tuple "DEF" (keyed [ "M" := 575, "E" := 30 ]) ], deliveries: [ delivery { entity: "JP", resource: "Mil", quantity: q 8 }, delivery { entity: "UK", resource: "Mil", quantity: q 8 }, delivery { entity: "US", resource: "Mil", quantity: q 14 } ] }
+      [ proposal { author: N.us, intents: [ transformI { by: N.us, transformation: N.defenseProcurement, quantity: q 15 } ] }, proposal { author: N.uk, intents: [ transformI { by: N.uk, transformation: N.defenseProcurement, quantity: q 8 } ] }, proposal { author: N.jp, intents: [ transformI { by: N.jp, transformation: N.defenseProcurement, quantity: q 9 } ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.us (keyed [ N.money := 43, N.energy := 42 ]), Tuple N.uk (keyed [ N.money := 6, N.energy := 14 ]), Tuple N.jp (keyed [ N.money := 26, N.energy := 24 ]), Tuple N.def (keyed [ N.money := 575, N.energy := 30 ]) ], deliveries: [ delivery { entity: N.jp, resource: N.mil, quantity: q 8 }, delivery { entity: N.uk, resource: N.mil, quantity: q 8 }, delivery { entity: N.us, resource: N.mil, quantity: q 14 } ] }
   }
 

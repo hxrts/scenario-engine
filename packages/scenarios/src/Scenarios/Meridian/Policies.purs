@@ -6,120 +6,105 @@ module Scenarios.Meridian.Policies (policies) where
 import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
-import DSL.Base (q, Keyed, keyed, Built)
+import DSL.Base (Built, Keyed, keyed)
 import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transferT, transformT, transformedLastRound)
+import Policy.Tags as T
+import Scenarios.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
+import Scenarios.Names as N
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
 policies :: Keyed (Built "program")
 policies = keyed
-  [ Tuple "china-strategic-v0" chinaStrategic
-  , Tuple "eu-coordination-v0" euCoordination
-  , Tuple "global-smes-v0" globalSmes
-  , Tuple "cn-private-v0" cnPrivate
-  , Tuple "us-workers-v0" usWorkers
-  , Tuple "world-households-v0" worldHouseholds
-  , Tuple "energy-suppliers-v0" energySuppliers
-  , Tuple "government-default-v0" governmentDefault
-  , Tuple "firm-default-v0" firmDefault
-  , Tuple "solidarity-pool-v0" solidarityPool
+  [ Tuple N.policyChinaStrategic chinaStrategic
+  , Tuple N.policyEuCoordination euCoordination
+  , Tuple N.policyGlobalSmes globalSmes
+  , Tuple N.policyCnPrivate cnPrivate
+  , Tuple N.policyUsWorkers usWorkers
+  , Tuple N.policyWorldHouseholds worldHouseholds
+  , Tuple N.policyEnergySuppliers energySuppliers
+  , Tuple N.policyGovernmentDefault governmentDefault
+  , Tuple N.policyFirmDefault firmDefault
+  , Tuple N.policySolidarityPool solidarityPool
   ]
 
 chinaStrategic :: Built "program"
 chinaStrategic = program
   { rules:
-      [ rule [ transformedLastRound { by: "US", transformation: "major-military-action", atLeast: q 12 } ]
-          [ transformT { transformation: "defense-procurement-cn", quantity: (lit 4) } ]
-      , rule [ gt (price "energy-asia") (lit "3.2") ]
-          [ tradeT { market: "energy-asia", quantity: (lit (-12)) } ]
-      , rule [ restrictedLastRound { by: "US", target: "CN" } ]
-          [ reciprocate { target: "US" } ]
+      [ rule [ transformedLastRound { by: N.us, transformation: N.majorMilitaryAction, atLeast: param majorActionThreshold } ]
+          [ transformT { transformation: N.defenseProcurementCn, quantity: (lit 4) } ]
+      , rule [ gt (price N.energyAsia) (lit "3.2") ]
+          [ tradeT { market: N.energyAsia, quantity: (lit (-12)) } ]
+      , rule [ restrictedLastRound { by: N.us, target: N.cn } ]
+          [ reciprocate { target: N.us } ]
       ]
   }
 
 euCoordination :: Built "program"
 euCoordination = program
   { rules:
-      [ rule [ le (price "energy-atlantic") (lit 3) ]
-          [ tradeT { market: "energy-atlantic", quantity: (lit 8) } ]
-      , rule [ gt (price "energy-atlantic") (lit 3) ]
-          [ tradeT { market: "energy-atlantic", quantity: (lit 4) } ]
-      , rule [ gt (price "energy-atlantic") (lit 3), ge (holding "E") (lit 8) ]
-          [ procedureT { id: "eu-solidarity", signers: [ "DE" ], intents: [ transferT { from: "EU_POOL", to: "EU", resource: "E", quantity: (lit 8) }, tradeT { market: "energy-atlantic", quantity: (lit (-8)) } ] } ]
-      , tariffMatch "US"
-      , tariffMatch "CN"
-      ]
+      banded N.energyAtlantic 3 8 4
+        <>
+          [ rule [ gt (price N.energyAtlantic) (lit 3), ge (holding N.energy) (lit 8) ]
+              [ procedureT { id: "eu-solidarity", signers: [ N.de ], intents: [ transferT { from: N.euPool, to: N.eu, resource: N.energy, quantity: (lit 8) }, tradeT { market: N.energyAtlantic, quantity: (lit (-8)) } ] } ]
+          , tariffMatch N.us
+          , tariffMatch N.cn
+          ]
   }
 
 -- | The EU matches a rival's restriction with a tariff of its own, unless it already has one in force.
 tariffMatch :: String -> Clause
-tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: "EU" }) ]
-  [ procedureT { id: "eu-trade", signers: [ "DE" ], intents: [ enactTariffT { origin: origin, rate: (param "eu-matching-tariff") } ] } ]
+tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: N.eu }) ]
+  [ procedureT { id: "eu-trade", signers: [ N.de ], intents: [ enactTariffT { origin: origin, rate: (param euMatchingTariff) } ] } ]
+
+-- | A price band: trade `below` while the Market's price is at or below `threshold`, and `above`
+-- | while it is above. Every band in the catalog is this shape.
+banded :: String -> Int -> Int -> Int -> Array Clause
+banded m threshold below above =
+  [ rule [ le (price m) (lit threshold) ] [ tradeT { market: m, quantity: lit below } ]
+  , rule [ gt (price m) (lit threshold) ] [ tradeT { market: m, quantity: lit above } ]
+  ]
 
 globalSmes :: Built "program"
 globalSmes = program
   { rules:
-      [ rule [ le (price "energy-atlantic") (lit "3.5") ]
-          [ tradeT { market: "energy-atlantic", quantity: (mul (lit 40) (factor "E")) } ]
-      , rule [ gt (price "energy-atlantic") (lit "3.5") ]
-          [ tradeT { market: "energy-atlantic", quantity: (mul (lit 32) (factor "E")) } ]
+      [ rule [ le (price N.energyAtlantic) (lit "3.5") ]
+          [ tradeT { market: N.energyAtlantic, quantity: (mul (lit 40) (factor N.energy)) } ]
+      , rule [ gt (price N.energyAtlantic) (lit "3.5") ]
+          [ tradeT { market: N.energyAtlantic, quantity: (mul (lit 32) (factor N.energy)) } ]
       ]
   }
 
 cnPrivate :: Built "program"
-cnPrivate = program
-  { rules:
-      [ rule [ le (price "energy-asia") (lit 3) ]
-          [ tradeT { market: "energy-asia", quantity: (lit 12) } ]
-      , rule [ gt (price "energy-asia") (lit 3) ]
-          [ tradeT { market: "energy-asia", quantity: (lit 9) } ]
-      ]
-  }
+cnPrivate = program { rules: banded N.energyAsia 3 12 9 }
 
 usWorkers :: Built "program"
-usWorkers = program
-  { rules:
-      [ rule [ le (price "energy-atlantic") (lit 3) ]
-          [ tradeT { market: "energy-atlantic", quantity: (lit 8) } ]
-      , rule [ gt (price "energy-atlantic") (lit 3) ]
-          [ tradeT { market: "energy-atlantic", quantity: (lit 6) } ]
-      ]
-  }
+usWorkers = program { rules: banded N.energyAtlantic 3 8 6 }
 
 worldHouseholds :: Built "program"
-worldHouseholds = program
-  { rules:
-      [ rule [ le (price "energy-asia") (lit 3) ]
-          [ tradeT { market: "energy-asia", quantity: (lit 12) } ]
-      , rule [ gt (price "energy-asia") (lit 3) ]
-          [ tradeT { market: "energy-asia", quantity: (lit 9) } ]
-      ]
-  }
+worldHouseholds = program { rules: banded N.energyAsia 3 12 9 }
 
--- | The Energy suppliers' offers in one Market, parameterized by the market and the
--- | suffix its scenario parameters carry (`supplier-offer-<suffix>`, `disruption-cut-<suffix>`).
--- | Below the high price they offer the base volume; at or above it, the high volume. In the
--- | disruption round the offer is cut by the disruption amount, and never below zero: a cut
--- | larger than the offer removes it, and never turns it into a purchase.
-supplierOffers :: String -> String -> Array Clause
-supplierOffers m suffix =
-  [ rule [ notDisruption, low ] [ offer (sub (lit 0) (param base)) ]
-  , rule [ notDisruption, high ] [ offer (sub (lit 0) (param baseHigh)) ]
-  , rule [ disruption, low ] [ offer (sub (lit 0) (max' (lit 0) (sub (param base) (param cut)))) ]
-  , rule [ disruption, high ] [ offer (sub (lit 0) (max' (lit 0) (sub (param baseHigh) (param cut)))) ]
+-- | The Energy suppliers' offers in one Market, from the Market and the supplier parameters that
+-- | the Market's suffix names (`Parameters.supplierAtlantic` and `supplierAsia`). Below the high
+-- | price they offer the base volume; at or above it, the high volume. In the disruption round the
+-- | offer is cut by the disruption amount, and never below zero: a cut larger than the offer
+-- | removes it, and never turns it into a purchase.
+supplierOffers :: String -> { offer :: String, high :: String, cut :: String } -> Array Clause
+supplierOffers m names =
+  [ rule [ notDisruption, low ] [ offer (sub (lit 0) (param names.offer)) ]
+  , rule [ notDisruption, high ] [ offer (sub (lit 0) (param names.high)) ]
+  , rule [ disruption, low ] [ offer (sub (lit 0) (max' (lit 0) (sub (param names.offer) (param names.cut)))) ]
+  , rule [ disruption, high ] [ offer (sub (lit 0) (max' (lit 0) (sub (param names.high) (param names.cut)))) ]
   ]
   where
-  base = "supplier-offer-" <> suffix
-  baseHigh = base <> "-high"
-  cut = "disruption-cut-" <> suffix
-  disruption = eq round (param "disruption-round")
+  disruption = eq round (param disruptionRound)
   notDisruption = not' disruption
-  low = not' (ge (price m) (param "supplier-high-price"))
-  high = ge (price m) (param "supplier-high-price")
+  low = not' (ge (price m) (param supplierHighPrice))
+  high = ge (price m) (param supplierHighPrice)
   offer quantity = tradeT { market: m, quantity: quantity }
 
 energySuppliers :: Built "program"
 energySuppliers = program
-  { rules: supplierOffers "energy-atlantic" "atlantic" <> supplierOffers "energy-asia" "asia" }
+  { rules: supplierOffers N.energyAtlantic supplierAtlantic.names <> supplierOffers N.energyAsia supplierAsia.names }
 
 governmentDefault :: Built "program"
 governmentDefault = program {}
@@ -131,8 +116,8 @@ solidarityPool = program {}
 firmDefault :: Built "program"
 firmDefault = program
   { rules:
-      [ rule [ gt (holding "E") (lit 30) ]
-          [ tradeT { market: "$home", quantity: (sub (lit 30) (holding "E")) } ]
+      [ rule [ gt (holding N.energy) (lit 30) ]
+          [ tradeT { market: T.homeMarket, quantity: (sub (lit 30) (holding N.energy)) } ]
       ]
-  , sign: [ signFacility "energy-shipping" ]
+  , sign: [ signFacility N.energyShipping ]
   }

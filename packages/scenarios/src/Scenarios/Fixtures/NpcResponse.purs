@@ -4,6 +4,7 @@
 module Scenarios.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
 import Prelude ((<>))
+import Scenarios.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
@@ -15,57 +16,57 @@ import Scenarios.Meridian (majorMilitaryAction, procurement)
 
 fixtureDMinor :: Tuple String Json
 fixtureDMinor = fixture "D-minor"
-  { markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
-  , transformations: facilities <> keyed [ Tuple "major-military-action" majorMilitaryAction ]
+  { markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+  , transformations: facilities <> keyed [ Tuple N.majorMilitaryAction majorMilitaryAction ]
   , entities: keyed
-      [ Tuple "US"
+      [ Tuple N.us
           ( entity
-              { accounts: keyed [ "M" := 260, "E" := 70, "Mil" := 95 ], capabilities: [ transform "major-military-action" ] }
+              { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95 ], capabilities: [ transform N.majorMilitaryAction ] }
           )
       ]
   , proposals:
-      [ proposal { author: "US", intents: [ transformI { by: "US", transformation: "major-military-action", quantity: q 8 } ] } ]
-  , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "Mil" := 95 ]) ], rejected: [ ref "US" ] }
+      [ proposal { author: N.us, intents: [ transformI { by: N.us, transformation: N.majorMilitaryAction, quantity: q 8 } ] } ]
+  , expect: expect { accounts: keyed [ Tuple N.us (keyed [ N.mil := 95 ]) ], rejected: [ ref N.us ] }
   }
 
 fixtureD :: Tuple String Json
 fixtureD = fixture "D"
-  { markets: energy [ "US", "DE", "UK" ] [ "SA", "JP" ]
-  , transformations: facilities <> keyed [ Tuple "defense-procurement-cn" (procurement "CN_PRIVATE"), Tuple "major-military-action" majorMilitaryAction ]
+  { markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+  , transformations: facilities <> keyed [ Tuple N.defenseProcurementCn (procurement N.cnPrivate), Tuple N.majorMilitaryAction majorMilitaryAction ]
   , entities: keyed
-      [ Tuple "US"
+      [ Tuple N.us
           ( entity
-              { accounts: keyed [ "M" := 260, "E" := 70, "Mil" := 95 ], capabilities: [ transform "major-military-action" ] }
+              { accounts: keyed [ N.money := 260, N.energy := 70, N.mil := 95 ], capabilities: [ transform N.majorMilitaryAction ] }
           )
-      , Tuple "CN"
+      , Tuple N.cn
           ( entity
-              { accounts: keyed [ "M" := 255, "E" := 95, "Mil" := 88 ], capabilities: [ transform "defense-procurement-cn" ] }
+              { accounts: keyed [ N.money := 255, N.energy := 95, N.mil := 88 ], capabilities: [ transform N.defenseProcurementCn ] }
           )
-      , Tuple "CN_PRIVATE"
+      , Tuple N.cnPrivate
           ( entity
-              { accounts: keyed [ "M" := 210, "E" := 85 ], capabilities: [] }
+              { accounts: keyed [ N.money := 210, N.energy := 85 ], capabilities: [] }
           )
-      , Tuple "DEF"
+      , Tuple N.def
           ( entity
-              { accounts: keyed [ "M" := 110, "E" := 30, "Mil" := 5 ], capabilities: [], capacities: keyed [] }
+              { accounts: keyed [ N.money := 110, N.energy := 30, N.mil := 5 ], capabilities: [], capacities: keyed [] }
           )
-      , Tuple "CHIP"
+      , Tuple N.chip
           ( entity
-              { accounts: keyed [], capabilities: [], capacities: keyed [ "semiconductors" := 15 ] }
+              { accounts: keyed [], capabilities: [], capacities: keyed [ N.semiconductors := 15 ] }
           )
       ]
   , rounds:
       [ roundOf
           { proposals:
-              [ proposal { author: "US", intents: [ transformI { by: "US", transformation: "major-military-action", quantity: q 12 } ] } ]
-          , expect: expect { accounts: keyed [ Tuple "US" (keyed [ "Mil" := 92, "M" := 260 ]) ] }
+              [ proposal { author: N.us, intents: [ transformI { by: N.us, transformation: N.majorMilitaryAction, quantity: q 12 } ] } ]
+          , expect: expect { accounts: keyed [ Tuple N.us (keyed [ N.mil := 92, N.money := 260 ]) ] }
           }
       , roundOf
           { proposals:
-              [ proposal { author: "CN", intents: [ transformI { by: "CN", transformation: "defense-procurement-cn", quantity: q 4 } ] } ]
-          , expect: expect { accounts: keyed [ Tuple "CN" (keyed [ "M" := 219, "E" := 87, "Mil" := 88 ]), Tuple "CN_PRIVATE" (keyed [ "M" := 246 ]) ], deliveries: [ delivery { entity: "CN", resource: "Mil", quantity: q 4 } ] }
+              [ proposal { author: N.cn, intents: [ transformI { by: N.cn, transformation: N.defenseProcurementCn, quantity: q 4 } ] } ]
+          , expect: expect { accounts: keyed [ Tuple N.cn (keyed [ N.money := 219, N.energy := 87, N.mil := 88 ]), Tuple N.cnPrivate (keyed [ N.money := 246 ]) ], deliveries: [ delivery { entity: N.cn, resource: N.mil, quantity: q 4 } ] }
           }
-      , roundOf { expect: expect { accounts: keyed [ Tuple "CN" (keyed [ "Mil" := 92 ]) ] } }
+      , roundOf { expect: expect { accounts: keyed [ Tuple N.cn (keyed [ N.mil := 92 ]) ] } }
       ]
   }
 

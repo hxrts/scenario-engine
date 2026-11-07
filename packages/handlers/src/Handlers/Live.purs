@@ -10,6 +10,7 @@ import Core.Types (EntityId)
 import Core.World (RoundResult, View)
 import Data.Either (Either(..), isLeft)
 import Data.Foldable (for_)
+import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
@@ -36,6 +37,11 @@ type Live =
   , record :: RoundResult -> Boolean -> Aff Unit -- persist, then narrate; the Boolean is whether the round's joint pass did not decode
   }
 
+-- | A seat's words as the round reads them: an empty transcript is silence (Nothing).
+spokenText :: String -> Maybe String
+spokenText "" = Nothing
+spokenText s = Just s
+
 runLive :: forall a. Live -> Run (SEAT_INPUT + INTERPRET + RECORD + ()) a -> Aff a
 runLive live prog = do
   -- set by the round's joint pass when its reply does not decode; read and cleared when the round is recorded
@@ -47,7 +53,7 @@ runLive live prog = do
     f <- liftEffect (Ref.read failed <* Ref.write false failed)
     live.record r f *> pure next
   seat = case _ of
-    Speak e v k -> k <$> case live.seat e of
+    Speak e v k -> k <<< spokenText <$> case live.seat e of
       Human -> do
         text <- live.ask { seat: e, round: v.round, window: ProposeDeadline }
         live.clock (Await v.round ProposeDeadline unit)

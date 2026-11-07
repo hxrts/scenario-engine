@@ -395,6 +395,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.intents (propose p (envWith chinaView Q.zero))
         `shouldEqual` [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
       map _.intents (propose p (envWith (chinaView { self = chinaView.self { capabilities = [] } }) Q.zero)) `shouldEqual` []
+    it "china-strategic-v0's major-action threshold is a parameter: a sweep changes whether China responds" do
+      { gameboard } <- loaded
+      p <- policyNamed gameboard "china-strategic-v0"
+      let
+        -- a major action of 10 units: below the shipped threshold of 12, above a sweep's 6
+        major = chinaView { events = [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] }
+        responds threshold = map _.intents (propose p ((envWith major Q.zero) { params = Object.singleton "major-action-threshold" (Q.fromInt threshold) }))
+        procures = [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
+      responds 6 `shouldEqual` procures
+      responds 24 `shouldEqual` []
     it "RandomValid's choose picks an option by its own seeded draw" do
       case decodePresets (encodeJson Presets.presets) of
         Left e -> fail e

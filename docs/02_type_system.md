@@ -386,7 +386,7 @@ type Market =
 
 The base Resource is the good being exchanged. The quote Resource is the denomination. The same cost function prices purchases and sales (positive and negative quantities), subject to domain and reserve constraints. Markets cannot supply resources they do not hold. A regional Market is expressed through `access`.
 
-**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair. The regional Markets remain the physical structure. In scenario JSON a routed trade is a `trade` whose `market` is `null` and which names its pair. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
+**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair. The regional Markets remain the physical structure. In scenario JSON a routed trade is a `route` (`base`, `quote`, `quantity`, `limit`), so it has no `market` field. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
 
 - **Candidates.** The Markets whose base and quote match, to which the Entity has access and for which it holds the trade capability. A routed order with no candidate is rejected at screening. An explicit order on an inaccessible Market is also rejected.
 - **Limit.** A routed order must carry a limit price, for both sides. Screening rejects one without it. Its escrow ceiling is therefore its limit (for a buy, limit × quantity, for a sell, its quantity).

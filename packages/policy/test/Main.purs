@@ -15,7 +15,7 @@ import Effect (Effect)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.Interpret (Draft, Env, propose, sign)
-import Policy.Program (Program, SignRule(..), decodeProgram, programParams)
+import Policy.Program (Program, SignRule(..), decodeProgram, programParams, programRefs)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -116,11 +116,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeText (nested """{ "procedure": { "id": "q", "signers": [], "intents": [] } }""")) `shouldEqual` true
     it "noAction proposes nothing" do
       drafts """{ "rules": [ { "propose": [ { "noAction": null } ] } ] }""" env `shouldEqual` []
+    it "a standalone transfer from self resolves to the acting Entity, as a Deal's does" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } } ] } ] }""" env { view = seat { self = seat.self { capabilities = [ MayTransfer (Id "E") ] } } })
+        `shouldEqual` [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ] ]
+    it "every entity position resolves self, including a condition's jurisdiction" do
+      let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ] } }
+      intentsOf (drafts """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "self" } } ], "propose": [ { "reciprocate": { "target": "CN" } } ] } ] }""" e)
+        `shouldEqual` [ [ ChangeRule (Enact (AccessBan { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "$home resolves to the Entity's home market" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""" env)
         `shouldEqual` [ [ trade "energy-atlantic" "3" ] ]
-    it "a routed trade (null market) drafts a routed Trade with its pair and limit" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": null, "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
+    it "a route drafts a routed Trade with its pair and limit" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
     it "a zero quantity yields no Trade or Transform; a negative Transform is passed on for the engine to reject" do
       let
@@ -160,6 +167,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       at [ Tariff { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero } ] `shouldEqual` []
 
   describe "Parameters and factors" do
+    it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
+      let
+        text = """{ "rules": [ { "when": [ { "transformedLastRound": { "by": "US", "transformation": "major-military-action", "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
+        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ Transformed { round: 2, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] } }
+      intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+      intentsOf (fires "24") `shouldEqual` []
+      programParams (program text) `shouldEqual` [ "threshold" ]
     it "a Factor with no stored factor is 1" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" env)
         `shouldEqual` [ [ trade "energy-atlantic" "5" ] ]
@@ -212,6 +226,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       signedIn 4 `shouldEqual` [ procP.id ]
 
   describe "Decoding" do
+    it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
+      programRefs (program """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
+        { entities: [ "bogus" ], markets: [], resources: [ "E" ], transformations: [], parameters: [] }
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
         Left (Named "template" (UnexpectedValue _)) -> pure unit

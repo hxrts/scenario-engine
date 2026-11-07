@@ -42,6 +42,8 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Program (Program, decodeProgram, programRefs)
+import Policy.Tags as T
+import Scenarios.Names (instantiationFile, presetsFile)
 
 type Loaded = { gameboard :: Gameboard, config :: InstantiationConfig }
 
@@ -71,12 +73,6 @@ instance Show LoadError where
     Invalid es -> "invalid scenario: " <> joinWith "; " (map show es)
     Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref
 
-instantiationFile :: String
-instantiationFile = "instantiation.json"
-
-presetsFile :: String
-presetsFile = "presets.json"
-
 -- | A scenario with the seat presets: everything a simulation context needs.
 loadContext :: Scenario -> Either String { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program }
 loadContext s = do
@@ -102,7 +98,7 @@ presetsOf :: Section -> Either LoadError (Object Program)
 presetsOf p = lmap (Unreadable p.path) (jsonParser p.text) >>= presetsFrom
 
 -- | Every preset's markets, resources, transformations, entities and parameters resolve in
--- | the Gameboard (`$home` and `self` excepted).
+-- | the Gameboard (`$home` and `self` excepted, as the interpreter resolves them).
 checkPresets :: Gameboard -> Object Program -> Either LoadError Unit
 checkPresets gb presets = traverse_ (\(Tuple name p) -> checkRefs ("preset " <> name) gb p) (Object.toUnfoldable presets :: Array _)
 
@@ -176,7 +172,7 @@ checkRefs what gb p =
   w = gb.world
   missing = concat'
     [ tag EntityRef (filter (\e -> not (Map.member (Id e) w.entities)) r.entities)
-    , tag MarketRef (filter (\m -> m /= "$home" && not (Map.member (Id m) w.markets)) r.markets)
+    , tag MarketRef (filter (\m -> m /= T.homeMarket && not (Map.member (Id m) w.markets)) r.markets)
     , tag ResourceRef (filter (\x -> not (Map.member (Id x) w.resources)) r.resources)
     , tag TransformationRef (filter (\t -> not (Map.member (Id t) w.transformations)) r.transformations)
     , tag ParameterRef (filter (\x -> not (Object.member x gb.parameters)) r.parameters)

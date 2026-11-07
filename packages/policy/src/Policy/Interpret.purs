@@ -8,16 +8,17 @@ import Core.Draw (Seed, draw)
 import Core.Authority (authorized)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
+import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), Intent(..), MarketId, ProposalId, Rule(..), RuleChange(..))
-import Core.World (Event(..), View)
+import Core.World (View)
 import Data.Newtype (unwrap)
 import Data.Array (all, any, concatMap, filter, foldl, index, length, mapMaybe, null)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Program (Cond(..), Expr(..), Program, SignRule(..), Template(..))
+import Policy.Program (Cond(..), Expr(..), Program, SignRule(..), Template(..), TransferTemplate)
+import Policy.Tags as T
 
 -- | A Proposal before the round runner assigns its id and author.
 type Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
@@ -83,27 +84,9 @@ holds env = case _ of
   Le a b -> eval env a <= eval env b
   Eq a b -> eval env a == eval env b
   Not c -> not (holds env c)
-  TransformedLastRound c -> any
-    ( case _ of
-        Transformed t -> t.round == env.view.round - 1 && t.by == c.by && t.transformation == c.transformation && t.quantity >= c.atLeast
-        _ -> false
-    )
-    env.view.events
-  RestrictedLastRound c -> not (null (restrictedThisBoundary env c.by c.target))
-  RestrictionInForce c -> any (\r -> jurisdictionOf r == Just c.by) env.view.rules
-
--- | Restrictions `by` enacted against `target` that took effect at this round's boundary,
--- | i.e. that were proposed last round.
-restrictedThisBoundary :: Env -> EntityId -> EntityId -> Array Rule
-restrictedThisBoundary env by target = concatMap
-  ( case _ of
-      Enacted e | e.round == env.view.round -> case e.rule of
-        r@(AccessBan x) | x.jurisdiction == by && x.target == target -> [ r ]
-        r@(Tariff x) | x.jurisdiction == by && x.origin == target -> [ r ]
-        _ -> []
-      _ -> []
-  )
-  env.view.events
+  TransformedLastRound c -> transformedLastRound env.view.round (entityRef env c.by) c.transformation (eval env c.atLeast) env.view.events
+  RestrictedLastRound c -> not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events))
+  RestrictionInForce c -> any (\r -> jurisdictionOf r == Just (entityRef env c.by)) env.view.rules
 
 jurisdictionOf :: Rule -> Maybe EntityId
 jurisdictionOf = case _ of
@@ -127,16 +110,15 @@ draft env n t = case t of
   pick count = Q.floorInt (Q.mul (env.random n) (Q.fromInt count))
   single i = { intents: [ i ], signers: [], procedure: Nothing }
   procedure = case t of
-    Procedure p -> [ { intents: concatMap (intents env) p.intents, signers: p.signers, procedure: Just p.procedure } ]
+    Procedure p -> [ { intents: concatMap (intents env) p.intents, signers: map (entityRef env) p.signers, procedure: Just p.procedure } ]
     Deal d ->
-      [ { intents: map (\x -> Transfer { from: self x.from, to: self x.to, resource: x.resource, quantity: eval env x.quantity }) d.transfers
+      [ { intents: map (\x -> transfer env x) d.transfers
             <> map (\x -> Transform { by: env.view.self.id, transformation: x.transformation, quantity: eval env x.quantity }) d.transforms
-        , signers: d.signers
+        , signers: map (entityRef env) d.signers
         , procedure: Nothing
         }
       ]
     _ -> []
-  self x = if x == Id "self" then env.view.self.id else x
 
 -- | The Intents one template yields. A zero quantity yields nothing; any other quantity is
 -- | passed on, and the engine rejects what it cannot settle (a negative transform, for one).
@@ -164,12 +146,12 @@ intents env = case _ of
     let
       q = eval env x.quantity
     in
-      if q == Q.zero then [] else [ Transfer { from: x.from, to: x.to, resource: x.resource, quantity: q } ]
-  EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: x.origin, rate: eval env x.rate })) ]
-  EnactAccessBan x -> [ ChangeRule (Enact (AccessBan { jurisdiction: env.view.self.id, target: x.target })) ]
+      if q == Q.zero then [] else [ transfer env x ]
+  EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: entityRef env x.origin, rate: eval env x.rate })) ]
+  EnactAccessBan x -> [ ChangeRule (Enact (AccessBan { jurisdiction: env.view.self.id, target: entityRef env x.target })) ]
   EnactWithholding x -> [ ChangeRule (Enact (Withholding { capacity: x.capacity, units: eval env x.units })) ]
   RepealRule x -> [ ChangeRule (Repeal x.rule) ]
-  ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedThisBoundary env x.target env.view.self.id))
+  ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedAtBoundary env.view.round (entityRef env x.target) env.view.self.id env.view.events))
   Procedure _ -> []
   Deal _ -> []
   Choose _ -> []
@@ -183,4 +165,12 @@ intents env = case _ of
 
 -- | `$home` names the Entity's home market; any other market names itself.
 resolveMarket :: Env -> MarketId -> Maybe MarketId
-resolveMarket env m = if m == Id "$home" then env.home else Just m
+resolveMarket env m = if m == Id T.homeMarket then env.home else Just m
+
+-- | `self` names the acting Entity; any other name is itself. Every entity position resolves through here.
+entityRef :: Env -> EntityId -> EntityId
+entityRef env x = if x == Id T.selfEntity then env.view.self.id else x
+
+-- | The Transfer a template carries, with its entities resolved.
+transfer :: Env -> TransferTemplate -> Intent
+transfer env x = Transfer { from: entityRef env x.from, to: entityRef env x.to, resource: x.resource, quantity: eval env x.quantity }

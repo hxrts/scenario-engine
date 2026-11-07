@@ -20,15 +20,16 @@ import Prelude
 
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
+import Data.Maybe (Maybe)
 import Core.World (RoundResult, View)
 import Policy.Interpret (Draft)
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
--- | Speak (the seat's words, read by the round's joint pass; "" when it says nothing).
+-- | Speak (the seat's words, read by the round's joint pass; Nothing when it says nothing).
 data SeatInputF a
   = Propose EntityId View (Array Draft -> a)
   | Sign EntityId View (Array ProposalId -> a)
-  | Speak EntityId View (String -> a)
+  | Speak EntityId View (Maybe String -> a)
 
 derive instance Functor SeatInputF
 

@@ -10,6 +10,9 @@ module Scenarios.Meridian
   , asiaTerms
   , transport
   , productionCapacity
+  , atlanticMarket
+  , asiaMarket
+  , defenseProcurementFacility
   , flows
   , requirements
   , procurement
@@ -22,7 +25,8 @@ module Scenarios.Meridian
   , majorShock
   ) where
 
-import Prelude (negate, (<>))
+import Prelude (map, negate, (<>))
+import Scenarios.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
@@ -31,6 +35,7 @@ import Record (union)
 import DSL.Base (Qty, q, Keyed, keyed, (:=), Built, free, restricted, nonTransferable, sales, payee)
 import DSL.World (assignment, cost, effect, estimator, facility, flow, market, production, requirement, resource, scheme, share)
 import Scenarios.Meridian.Entities (entities)
+import Scenarios.Meridian.Parameters (disruptionRound, parameters, supplierAsia, supplierAtlantic)
 import Scenarios.Meridian.Policies (policies)
 
 -- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
@@ -50,41 +55,49 @@ testLabel = "meridian-test-01"
 -- | One JSON file per section, as the loader reads them.
 files :: Array (Tuple String Json)
 files =
-  [ Tuple "scenario.json" (encodeJson { id: "meridian", version: "v0", numeraire: "M", horizon: years, roundRange: [ 4, 8 ], label: testLabel })
-  , Tuple "resources.json" (encodeJson { resources })
-  , Tuple "markets.json" (encodeJson { markets, transport, jurisdiction })
-  , Tuple "transformations.json" (encodeJson { transformations })
-  , Tuple "circulation.json" (encodeJson { circulation: { production: productionCapacity, flows, shares, requirements } })
-  , Tuple "entities.json" (encodeJson { entities })
-  , Tuple "representations.json" (encodeJson { schemes })
-  , Tuple "game-rules.json" (encodeJson { parameters, rules: ([] :: Array Json) })
-  , Tuple "policies.json" (encodeJson { policies })
-  , Tuple "instantiation.json" (encodeJson instantiation)
+  [ Tuple N.scenarioFile (encodeJson { id: "meridian", version: "v0", numeraire: N.money, horizon: years, roundRange: [ 4, 8 ], label: testLabel })
+  , Tuple N.resourcesFile (encodeJson { resources })
+  , Tuple N.marketsFile (encodeJson { markets, transport, jurisdiction })
+  , Tuple N.transformationsFile (encodeJson { transformations })
+  , Tuple N.circulationFile (encodeJson { circulation: { production: productionCapacity, flows, shares, requirements } })
+  , Tuple N.entitiesFile (encodeJson { entities })
+  , Tuple N.representationsFile (encodeJson { schemes })
+  , Tuple N.gameRulesFile (encodeJson { parameters, rules: ([] :: Array Json) })
+  , Tuple N.policiesFile (encodeJson { policies })
+  , Tuple N.instantiationFile (encodeJson instantiation)
   ]
 
 resources :: Keyed (Built "resource")
-resources = coreResources <> keyed [ Tuple "S" (resource { transferability: nonTransferable, decay: q "0.1" }) ]
+resources = coreResources <> keyed [ Tuple N.softPower (resource { transferability: nonTransferable, decay: q "0.1" }) ]
 
 -- | Money, Energy, and Military: the Resources every fixture uses.
 coreResources :: Keyed (Built "resource")
 coreResources = keyed
-  [ Tuple "M" (resource { transferability: free })
-  , Tuple "E" (resource { transferability: free })
-  , Tuple "Mil" (resource { transferability: restricted, reservable: true })
+  [ Tuple N.money (resource { transferability: free })
+  , Tuple N.energy (resource { transferability: free })
+  , Tuple N.mil (resource { transferability: restricted, reservable: true })
   ]
 
 markets :: Keyed (Built "market")
 markets = keyed
-  [ Tuple "energy-atlantic" (market (union atlanticTerms { access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "EU_POOL", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] }))
-  , Tuple "energy-asia" (market (union asiaTerms { access: [ "CN", "IN", "JP", "SA", "CHIP", "CN_PRIVATE", "WORLD_HOUSEHOLDS", "SHIP", "ENERGY_SUPPLIERS" ] }))
-  , Tuple "defence-goods" (market (union defenceTerms { access: defenceAccess }))
+  [ Tuple N.energyAtlantic (atlanticMarket [ N.us, N.de, N.uk, N.br, N.ng, N.enco, N.def, N.labor, N.sme, N.aid, N.eu, N.euPool, N.usWorkers, N.globalSmes, N.ship, N.energySuppliers ])
+  , Tuple N.energyAsia (asiaMarket [ N.cn, N.india, N.jp, N.sa, N.chip, N.cnPrivate, N.worldHouseholds, N.ship, N.energySuppliers ])
+  , Tuple N.defenceGoods (market (union defenceTerms { access: defenceAccess }))
   ]
+
+-- | The Atlantic Energy Market with these access holders.
+atlanticMarket :: Array String -> Built "market"
+atlanticMarket access = market (union atlanticTerms { access })
+
+-- | The Asian Energy Market with these access holders.
+asiaMarket :: Array String -> Built "market"
+asiaMarket access = market (union asiaTerms { access })
 
 -- | The Entities that may trade Military: the US and its allies, Germany, the UK, and Japan.
 -- | Each holds the `trade "defence-goods"` capability (Entities/Capabilities.purs), so the Market's access
 -- | list and the capabilities agree.
 defenceAccess :: Array String
-defenceAccess = [ "US", "DE", "UK", "JP" ]
+defenceAccess = [ N.us, N.de, N.uk, N.jp ]
 
 -- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
@@ -92,133 +105,132 @@ defenceAccess = [ "US", "DE", "UK", "JP" ]
 -- | below that reserve (the Energy Markets sit 50 below theirs); the lower bound is the Energy
 -- | Markets' −80, and the Money reserve of 300 pays sellers. Access is `defenceAccess`.
 defenceTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
-defenceTerms = { base: "Mil", quote: "M", cost: cost { base: q 3, slope: q "0.01", lo: q (-80), hi: q 20 }, reserves: keyed [ "M" := 300, "Mil" := 60 ] }
+defenceTerms = { base: N.mil, quote: N.money, cost: cost { base: q 3, slope: q "0.01", lo: q (-80), hi: q 20 }, reserves: keyed [ N.money := 300, N.mil := 60 ] }
 
 -- | Each regional Energy Market's curve and reserves; access is set per use.
 atlanticTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
-atlanticTerms = { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 300 }, reserves: keyed [ "M" := 700, "E" := 350 ] }
+atlanticTerms = { base: N.energy, quote: N.money, cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 300 }, reserves: keyed [ N.money := 700, N.energy := 350 ] }
 
 asiaTerms :: { base :: String, quote :: String, cost :: Built "cost", reserves :: Keyed Qty }
-asiaTerms = { base: "E", quote: "M", cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 200 }, reserves: keyed [ "M" := 500, "E" := 250 ] }
+asiaTerms = { base: N.energy, quote: N.money, cost: cost { base: q 2, slope: q "0.02", lo: q (-80), hi: q 200 }, reserves: keyed [ N.money := 500, N.energy := 250 ] }
 
 -- | The facility that carries each Resource between regions.
 transport :: Keyed String
-transport = keyed [ Tuple "E" "energy-shipping" ]
+transport = keyed [ Tuple N.energy N.energyShipping ]
 
 -- | Each Entity's governing jurisdiction, where it is not its own.
 jurisdiction :: Keyed String
 jurisdiction = keyed
-  [ Tuple "ENCO" "US"
-  , Tuple "DEF" "US"
-  , Tuple "LABOR" "US"
-  , Tuple "SME" "US"
-  , Tuple "US_WORKERS" "US"
-  , Tuple "CN_PRIVATE" "CN"
-  , Tuple "DE" "EU"
+  [ Tuple N.enco N.us
+  , Tuple N.def N.us
+  , Tuple N.labor N.us
+  , Tuple N.sme N.us
+  , Tuple N.usWorkers N.us
+  , Tuple N.cnPrivate N.cn
+  , Tuple N.de N.eu
   ]
 
 transformations :: Keyed (Built "facility")
 transformations = keyed
-  [ Tuple "defense-procurement" (procurement "DEF")
-  , Tuple "defense-procurement-cn" (procurement "CN_PRIVATE")
-  , Tuple "public-attention"
-      (facility { outputs: keyed [ "S" := 1 ], cost: cost { base: q 3, slope: q "0.2", lo: q 0, hi: q 50 }, capacity: "attention", payee: "WORLD_HOUSEHOLDS", maximum: q 10 })
-  , Tuple "energy-shipping" energyShipping
-  , Tuple "humanitarian-aid"
-      (facility { inputs: keyed [ "E" := 5 ], outputs: keyed [ "S" := 4 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "WORLD_HOUSEHOLDS", maximum: q 2 })
-  , Tuple "military-deployment" deployment
-  , Tuple "major-military-action" majorMilitaryAction
-  , Tuple "logistics-investment"
-      (facility { inputs: keyed [ "E" := 3 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: "GLOBAL_SMES", delay: 1, effects: [ effect { capacity: "transport", perUnit: q 10 } ] })
-  , Tuple "energy-capacity-investment"
-      (facility { inputs: keyed [ "E" := 3 ], cost: cost { base: q 12, slope: q 0, lo: q 0, hi: q 1000 }, payee: "GLOBAL_SMES", delay: 1, capacity: "semiconductors", capacityUse: q 1, ownerSigns: true, effects: [ effect { capacity: "energy-production", perUnit: q 2 } ] })
-  , Tuple "strike"
-      (facility { inputs: keyed [ "S" := 8 ], cost: cost { base: q 5, slope: q 0, lo: q 0, hi: q 1 }, payee: "US_WORKERS", delay: 1, maximum: q 1, effects: [ effect { capacity: "energy-production", holder: "ENCO", perUnit: q "-6.25", rounds: 1 }, effect { capacity: "semiconductors", holder: "CHIP", perUnit: q "-3.75", rounds: 1 } ] })
+  [ Tuple N.defenseProcurement defenseProcurementFacility
+  , Tuple N.defenseProcurementCn (procurement N.cnPrivate)
+  , Tuple N.publicAttention
+      (facility { outputs: keyed [ N.softPower := 1 ], cost: cost { base: q 3, slope: q "0.2", lo: q 0, hi: q 50 }, capacity: N.attention, payee: N.worldHouseholds, maximum: q 10 })
+  , Tuple N.energyShipping energyShipping
+  , Tuple N.humanitarianAid
+      (facility { inputs: keyed [ N.energy := 5 ], outputs: keyed [ N.softPower := 4 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: N.worldHouseholds, maximum: q 2 })
+  , Tuple N.militaryDeployment deployment
+  , Tuple N.majorMilitaryAction majorMilitaryAction
+  , Tuple N.logisticsInvestment
+      (facility { inputs: keyed [ N.energy := 3 ], cost: cost { base: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee: N.globalSmes, delay: 1, effects: [ effect { capacity: N.transport, perUnit: q 10 } ] })
+  , Tuple N.energyCapacityInvestment
+      (facility { inputs: keyed [ N.energy := 3 ], cost: cost { base: q 12, slope: q 0, lo: q 0, hi: q 1000 }, payee: N.globalSmes, delay: 1, capacity: N.semiconductors, capacityUse: q 1, ownerSigns: true, effects: [ effect { capacity: N.energyProduction, perUnit: q 2 } ] })
+  , Tuple N.strike
+      (facility { inputs: keyed [ N.softPower := 8 ], cost: cost { base: q 5, slope: q 0, lo: q 0, hi: q 1 }, payee: N.usWorkers, delay: 1, maximum: q 1, effects: [ effect { capacity: N.energyProduction, holder: N.enco, perUnit: q "-6.25", rounds: 1 }, effect { capacity: N.semiconductors, holder: N.chip, perUnit: q "-3.75", rounds: 1 } ] })
   ]
+
+-- | The US defence procurement facility, which DEF operates.
+defenseProcurementFacility :: Built "facility"
+defenseProcurementFacility = procurement N.def
 
 -- | Military procurement: Energy and semiconductor capacity into Military, paid to `payeeEntity`.
 -- | Procurement by the US and its rivals differ only in the payee.
 procurement :: String -> Built "facility"
-procurement payeeEntity = facility { inputs: keyed [ "E" := 2 ], outputs: keyed [ "Mil" := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: "semiconductors", capacityUse: q "0.5", delay: 1, payee: payeeEntity }
+procurement payeeEntity = facility { inputs: keyed [ N.energy := 2 ], outputs: keyed [ N.mil := 1 ], cost: cost { base: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity: N.semiconductors, capacityUse: q "0.5", delay: 1, payee: payeeEntity }
 
 energyShipping :: Built "facility"
-energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: "transport", payee: "SHIP", ownerSigns: true }
+energyShipping = facility { cost: cost { base: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity: N.transport, payee: N.ship, ownerSigns: true }
 
 -- | A deployment reserves 1 Mil per unit for the round and consumes and produces nothing: the
 -- | reserved Mil is released at commit (docs/05_test_instance.md §13.3).
 deployment :: Built "facility"
-deployment = facility { reserves: keyed [ "Mil" := 1 ] }
+deployment = facility { reserves: keyed [ N.mil := 1 ] }
 
 majorMilitaryAction :: Built "facility"
-majorMilitaryAction = facility { inputs: keyed [ "Mil" := 1 ], outputs: keyed [ "Mil" := "0.75" ], minimum: q 12 }
+majorMilitaryAction = facility { inputs: keyed [ N.mil := 1 ], outputs: keyed [ N.mil := "0.75" ], minimum: q 12 }
 
--- | The Entities that produce Energy (their capacities are on the Entities; this list must
--- | agree with them, which validation checks).
+-- | The Entities that produce Energy. Each holds an energy-production capacity on its Entity (the
+-- | capacities are on the Entities; validation checks that this list agrees with them).
 productionCapacity :: Array (Built "production")
-productionCapacity =
-  [ production { entity: "ENERGY_SUPPLIERS", resource: "E", capacity: "energy-production" }
-  , production { entity: "SA", resource: "E", capacity: "energy-production" }
-  , production { entity: "ENCO", resource: "E", capacity: "energy-production" }
-  , production { entity: "BR", resource: "E", capacity: "energy-production" }
-  , production { entity: "NG", resource: "E", capacity: "energy-production" }
-  , production { entity: "IN", resource: "E", capacity: "energy-production" }
-  ]
+productionCapacity = map (\entity -> production { entity, resource: N.energy, capacity: N.energyProduction }) producers
+  where
+  producers = [ N.energySuppliers, N.sa, N.enco, N.br, N.ng, N.india ]
 
 flows :: Array (Built "flow")
 flows =
-  [ flow { from: "US_WORKERS", to: "US", resource: "M", amount: q 15 }
-  , flow { from: "GLOBAL_SMES", to: "US", resource: "M", amount: q 5 }
-  , flow { from: "CN_PRIVATE", to: "CN", resource: "M", amount: q 20 }
-  , flow { from: "EU", to: "DE", resource: "M", amount: q 10 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "IN", resource: "M", amount: q 10 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "JP", resource: "M", amount: q 10 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "UK", resource: "M", amount: q 8 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "BR", resource: "M", amount: q 6 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "NG", resource: "M", amount: q 4 }
-  , flow { from: "US", to: "US_WORKERS", resource: "M", amount: q 12 }
-  , flow { from: "CN", to: "CN_PRIVATE", resource: "M", amount: q 18 }
-  , flow { from: "DE", to: "EU", resource: "M", amount: q 8 }
-  , flow { from: "IN", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 8 }
-  , flow { from: "JP", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 8 }
-  , flow { from: "UK", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 6 }
-  , flow { from: "BR", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 5 }
-  , flow { from: "NG", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 3 }
-  , flow { from: "ENCO", to: "US_WORKERS", resource: "M", amount: q 6 }
-  , flow { from: "DEF", to: "US_WORKERS", resource: "M", amount: q 6 }
-  , flow { from: "CHIP", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 6 }
-  , flow { from: "SHIP", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 5 }
-  , flow { from: "GLOBAL_SMES", to: "WORLD_HOUSEHOLDS", resource: "M", amount: q 10 }
-  , flow { from: "GLOBAL_SMES", to: "US_WORKERS", resource: "M", amount: q 6 }
-  , flow { from: "US_WORKERS", to: "GLOBAL_SMES", resource: "M", amount: q 12 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "GLOBAL_SMES", resource: "M", amount: q 12 }
-  , flow { from: "US_WORKERS", to: "SME", resource: "M", amount: q 3 }
-  , flow { from: "WORLD_HOUSEHOLDS", to: "SHIP", resource: "M", amount: q 4 }
-  , flow { from: "US_WORKERS", to: "LABOR", resource: "M", amount: q 3 }
-  , flow { from: "EU", to: "AID", resource: "M", amount: q 3 }
-  , flow { from: "DEF", to: "CHIP", resource: "M", amount: q 6 }
+  [ flow { from: N.usWorkers, to: N.us, resource: N.money, amount: q 15 }
+  , flow { from: N.globalSmes, to: N.us, resource: N.money, amount: q 5 }
+  , flow { from: N.cnPrivate, to: N.cn, resource: N.money, amount: q 20 }
+  , flow { from: N.eu, to: N.de, resource: N.money, amount: q 10 }
+  , flow { from: N.worldHouseholds, to: N.india, resource: N.money, amount: q 10 }
+  , flow { from: N.worldHouseholds, to: N.jp, resource: N.money, amount: q 10 }
+  , flow { from: N.worldHouseholds, to: N.uk, resource: N.money, amount: q 8 }
+  , flow { from: N.worldHouseholds, to: N.br, resource: N.money, amount: q 6 }
+  , flow { from: N.worldHouseholds, to: N.ng, resource: N.money, amount: q 4 }
+  , flow { from: N.us, to: N.usWorkers, resource: N.money, amount: q 12 }
+  , flow { from: N.cn, to: N.cnPrivate, resource: N.money, amount: q 18 }
+  , flow { from: N.de, to: N.eu, resource: N.money, amount: q 8 }
+  , flow { from: N.india, to: N.worldHouseholds, resource: N.money, amount: q 8 }
+  , flow { from: N.jp, to: N.worldHouseholds, resource: N.money, amount: q 8 }
+  , flow { from: N.uk, to: N.worldHouseholds, resource: N.money, amount: q 6 }
+  , flow { from: N.br, to: N.worldHouseholds, resource: N.money, amount: q 5 }
+  , flow { from: N.ng, to: N.worldHouseholds, resource: N.money, amount: q 3 }
+  , flow { from: N.enco, to: N.usWorkers, resource: N.money, amount: q 6 }
+  , flow { from: N.def, to: N.usWorkers, resource: N.money, amount: q 6 }
+  , flow { from: N.chip, to: N.worldHouseholds, resource: N.money, amount: q 6 }
+  , flow { from: N.ship, to: N.worldHouseholds, resource: N.money, amount: q 5 }
+  , flow { from: N.globalSmes, to: N.worldHouseholds, resource: N.money, amount: q 10 }
+  , flow { from: N.globalSmes, to: N.usWorkers, resource: N.money, amount: q 6 }
+  , flow { from: N.usWorkers, to: N.globalSmes, resource: N.money, amount: q 12 }
+  , flow { from: N.worldHouseholds, to: N.globalSmes, resource: N.money, amount: q 12 }
+  , flow { from: N.usWorkers, to: N.sme, resource: N.money, amount: q 3 }
+  , flow { from: N.worldHouseholds, to: N.ship, resource: N.money, amount: q 4 }
+  , flow { from: N.usWorkers, to: N.labor, resource: N.money, amount: q 3 }
+  , flow { from: N.eu, to: N.aid, resource: N.money, amount: q 3 }
+  , flow { from: N.def, to: N.chip, resource: N.money, amount: q 6 }
   ]
 
 shares :: Array (Built "share")
 shares =
-  [ share { from: "ENERGY_SUPPLIERS", to: "WORLD_HOUSEHOLDS", share: q "0.5", source: sales "E" }
-  , share { from: "DEF", to: "US_WORKERS", share: q "0.25", source: payee }
+  [ share { from: N.energySuppliers, to: N.worldHouseholds, share: q "0.5", source: sales N.energy }
+  , share { from: N.def, to: N.usWorkers, share: q "0.25", source: payee }
   ]
 
 requirements :: Array (Built "requirement")
 requirements =
-  [ requirement { entity: "US", resource: "E", amount: q 10, penalty: q 2 }
-  , requirement { entity: "CN", resource: "E", amount: q 10, penalty: q 2 }
-  , requirement { entity: "DE", resource: "E", amount: q 8, penalty: q 2 }
-  , requirement { entity: "IN", resource: "E", amount: q 8, penalty: q 2 }
-  , requirement { entity: "JP", resource: "E", amount: q 8, penalty: q 2 }
-  , requirement { entity: "EU", resource: "E", amount: q 8, penalty: q 2 }
-  , requirement { entity: "UK", resource: "E", amount: q 6, penalty: q 2 }
-  , requirement { entity: "CHIP", resource: "E", amount: q 6, penalty: q 2 }
-  , requirement { entity: "SHIP", resource: "E", amount: q 4, penalty: q 2 }
-  , requirement { entity: "CN_PRIVATE", resource: "E", penalty: q 2 }
-  , requirement { entity: "US_WORKERS", resource: "E", penalty: q 2 }
-  , requirement { entity: "WORLD_HOUSEHOLDS", resource: "E", penalty: q 2 }
-  , requirement { entity: "GLOBAL_SMES", resource: "E", penalty: q 2 }
+  [ requirement { entity: N.us, resource: N.energy, amount: q 10, penalty: q 2 }
+  , requirement { entity: N.cn, resource: N.energy, amount: q 10, penalty: q 2 }
+  , requirement { entity: N.de, resource: N.energy, amount: q 8, penalty: q 2 }
+  , requirement { entity: N.india, resource: N.energy, amount: q 8, penalty: q 2 }
+  , requirement { entity: N.jp, resource: N.energy, amount: q 8, penalty: q 2 }
+  , requirement { entity: N.eu, resource: N.energy, amount: q 8, penalty: q 2 }
+  , requirement { entity: N.uk, resource: N.energy, amount: q 6, penalty: q 2 }
+  , requirement { entity: N.chip, resource: N.energy, amount: q 6, penalty: q 2 }
+  , requirement { entity: N.ship, resource: N.energy, amount: q 4, penalty: q 2 }
+  , requirement { entity: N.cnPrivate, resource: N.energy, penalty: q 2 }
+  , requirement { entity: N.usWorkers, resource: N.energy, penalty: q 2 }
+  , requirement { entity: N.worldHouseholds, resource: N.energy, penalty: q 2 }
+  , requirement { entity: N.globalSmes, resource: N.energy, penalty: q 2 }
   ]
 
 -- | The SME Representation (docs/05 §12): Global SMEs' Energy demand, estimated from SME's
@@ -234,9 +246,9 @@ smeSample
      }
 smeSample =
   { id: "sme-energy-sample"
-  , actor: "SME"
-  , aggregate: "GLOBAL_SMES"
-  , domain: "E"
+  , actor: N.sme
+  , aggregate: N.globalSmes
+  , domain: N.energy
   , reference: q 5
   , shrinkage: q "0.25"
   , bound: q "0.5"
@@ -255,24 +267,9 @@ schemes =
 -- | reference game; the simulator test "Major shock" pins what it flips.
 majorShock :: Array (Tuple String String)
 majorShock =
-  [ Tuple "disruption-round" "1"
-  , Tuple "disruption-cut-atlantic" "60"
-  , Tuple "disruption-cut-asia" "40"
-  ]
-
-parameters :: Keyed Qty
-parameters = keyed
-  [ "eu-matching-tariff" := "0.5"
-  , "major-action-threshold" := 12
-  , "supplier-offer-atlantic" := 24
-  , "supplier-offer-asia" := 16
-  , "supplier-offer-atlantic-high" := 30
-  , "supplier-offer-asia-high" := 20
-  , "supplier-high-price" := "2.6"
-  , "disruption-round" := 3
-  , "disruption-cut-atlantic" := 12
-  , "disruption-cut-asia" := 8
-  , "maximum-import-tariff" := 1
+  [ Tuple disruptionRound "1"
+  , Tuple supplierAtlantic.names.cut "60"
+  , Tuple supplierAsia.names.cut "40"
   ]
 
 instantiation :: { seed :: Int, rounds :: Int, seats :: Keyed String, npcs :: Keyed String, representations :: Array (Built "assignment") }
@@ -280,22 +277,22 @@ instantiation =
   { seed: gameSeed
   , rounds: years
   , seats: keyed
-      [ Tuple "US" "seat-1"
-      , Tuple "DE" "seat-2"
-      , Tuple "IN" "seat-3"
-      , Tuple "JP" "seat-4"
-      , Tuple "UK" "seat-5"
-      , Tuple "BR" "seat-6"
-      , Tuple "SA" "seat-7"
-      , Tuple "NG" "seat-8"
-      , Tuple "ENCO" "seat-9"
-      , Tuple "CHIP" "seat-10"
-      , Tuple "SHIP" "seat-11"
-      , Tuple "DEF" "seat-12"
-      , Tuple "LABOR" "seat-13"
-      , Tuple "SME" "seat-14"
-      , Tuple "AID" "seat-15"
+      [ Tuple N.us "seat-1"
+      , Tuple N.de "seat-2"
+      , Tuple N.india "seat-3"
+      , Tuple N.jp "seat-4"
+      , Tuple N.uk "seat-5"
+      , Tuple N.br "seat-6"
+      , Tuple N.sa "seat-7"
+      , Tuple N.ng "seat-8"
+      , Tuple N.enco "seat-9"
+      , Tuple N.chip "seat-10"
+      , Tuple N.ship "seat-11"
+      , Tuple N.def "seat-12"
+      , Tuple N.labor "seat-13"
+      , Tuple N.sme "seat-14"
+      , Tuple N.aid "seat-15"
       ]
-  , npcs: keyed [ Tuple "CN" "china-strategic-v0" ]
+  , npcs: keyed [ Tuple N.cn N.policyChinaStrategic ]
   , representations: [ assignment { scheme: smeSample.id, actor: smeSample.actor, weight: q 1 } ]
   }

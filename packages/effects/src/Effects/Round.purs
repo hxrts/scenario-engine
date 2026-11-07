@@ -14,7 +14,7 @@ import Core.Proposal (assembleSigned, jointProposalsOf, numberJoint, proposalsOf
 import Core.Query (homeMarket)
 import Core.Types (Entity)
 import Core.World (RoundResult, View, WorldState)
-import Data.Array (concat, filter, fromFoldable, null)
+import Data.Array (concat, filter, fromFoldable, mapMaybe, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
@@ -38,9 +38,9 @@ runRound inWorld w0 = do
     entities = fromFoldable (Map.values w.entities)
     view e = observe w e
   spoken <- for (filter (\e -> isNothing (policyOf inWorld e)) entities) \e -> do
-    text <- lift _seatInput (Speak e.id (view e) identity)
-    pure { seat: e.id, text }
-  let transcripts = filter (\t -> t.text /= "") spoken
+    said <- lift _seatInput (Speak e.id (view e) identity)
+    pure (map (\text -> { seat: e.id, text }) said)
+  let transcripts = mapMaybe identity spoken
   joint <-
     if null transcripts then pure []
     else map jointProposalsOf (lift _interpret (Interpret w.round transcripts identity))

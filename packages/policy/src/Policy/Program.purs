@@ -1,12 +1,13 @@
 -- | The shared decision language (docs/02_type_system.md §4.4). One interpreter runs NPC
 -- | Policies, Aggregate baselines, and seat-policy presets. The language holds only what the
--- | reference Policies and presets use.
+-- | reference Policies and presets use. The JSON vocabulary is `Policy.Tags`.
 module Policy.Program
   ( Program
   , Clause
   , Cond(..)
   , Expr(..)
   , Template(..)
+  , TransferTemplate
   , SignRule(..)
   , Refs
   , decodeProgram
@@ -18,14 +19,15 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, Pair, ResourceId, RuleId, TransformationId)
-import Data.Argonaut.Core (Json, fromString, isNull, toArray, toObject, toString)
+import Data.Argonaut.Core (Json, fromString, toArray, toObject, toString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
-import Data.Array (concatMap, filter, mapMaybe)
+import Data.Array (concatMap, find, mapMaybe)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
+import Policy.Tags as T
 
 -- | Clauses propose; sign rules choose which addressed Proposals to sign.
 type Program = { rules :: Array Clause, sign :: Array SignRule }
@@ -50,19 +52,22 @@ data Cond
   | Le Expr Expr
   | Eq Expr Expr
   | Not Cond
-  | TransformedLastRound { by :: EntityId, transformation :: TransformationId, atLeast :: Q }
+  | TransformedLastRound { by :: EntityId, transformation :: TransformationId, atLeast :: Expr }
   | RestrictedLastRound { by :: EntityId, target :: EntityId } -- a restriction enacted last round
   | RestrictionInForce { by :: EntityId } -- an AccessBan or Tariff by that jurisdiction is in force
+
+-- | A Transfer a template carries: the agent `from` gives `quantity` to `to`.
+type TransferTemplate = { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }
 
 data Template
   = TradeT { market :: MarketId, quantity :: Expr, limit :: Maybe Expr }
   | RouteT { pair :: Pair, quantity :: Expr, limit :: Maybe Expr } -- best execution: no Market named (docs/02 §5.2)
   | TransformT { transformation :: TransformationId, quantity :: Expr }
-  | TransferT { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr } -- an Intent a procedure may carry (docs/05 §12.1)
+  | TransferT TransferTemplate -- an Intent a procedure may carry (docs/05 §12.1)
   | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, transfers, tariffs, reciprocations only
   | EnactTariff { origin :: EntityId, rate :: Expr }
   | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
-  | Deal { signers :: Array EntityId, transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }, transforms :: Array { transformation :: TransformationId, quantity :: Expr } } -- `self` names the author; a deal bundles Transfers and Transforms (docs/02 §3)
+  | Deal { signers :: Array EntityId, transfers :: Array TransferTemplate, transforms :: Array { transformation :: TransformationId, quantity :: Expr } } -- `self` names the author; a deal bundles Transfers and Transforms (docs/02 §3)
   | Choose (Array Template) -- one option, picked by a seeded draw
   | EnactAccessBan { target :: EntityId } -- a ban on shipments from the Entity's jurisdiction into `target`
   | EnactWithholding { capacity :: CapacityRef, units :: Expr } -- withhold units of a capacity the Entity owns
@@ -92,7 +97,7 @@ clause j = do
   pure { when, propose }
 
 -- | Every name a Program refers to, for the load-time check against a Gameboard. `self` and
--- | `$home` are not listed: they are resolved by the interpreter.
+-- | `$home` are not listed: the interpreter resolves them at every position they can appear.
 type Refs =
   { entities :: Array String
   , markets :: Array String
@@ -122,8 +127,9 @@ programRefs p =
   where
   refs = concatMap clauseRefs p.rules <> concatMap signRefs p.sign
 
+  -- `self` is never a name to check: every entity position resolves it to the acting Entity
   entityName = case _ of
-    EntityName s -> Just s
+    EntityName s | s /= T.selfEntity -> Just s
     _ -> Nothing
 
   marketName = case _ of
@@ -150,7 +156,7 @@ programRefs p =
     Le a b -> exprRefs a <> exprRefs b
     Eq a b -> exprRefs a <> exprRefs b
     Not c -> condRefs c
-    TransformedLastRound x -> [ EntityName (unwrapId x.by), TransformationName (unwrapId x.transformation) ]
+    TransformedLastRound x -> [ EntityName (unwrapId x.by), TransformationName (unwrapId x.transformation) ] <> exprRefs x.atLeast
     RestrictedLastRound x -> [ EntityName (unwrapId x.by), EntityName (unwrapId x.target) ]
     RestrictionInForce x -> [ EntityName (unwrapId x.by) ]
 
@@ -170,8 +176,7 @@ programRefs p =
     NoAction -> []
 
   transferRefs t =
-    [ ResourceName (unwrapId t.resource) ]
-      <> filter (\r -> r /= EntityName "self") [ EntityName (unwrapId t.from), EntityName (unwrapId t.to) ]
+    [ ResourceName (unwrapId t.resource), EntityName (unwrapId t.from), EntityName (unwrapId t.to) ]
       <> exprRefs t.quantity
 
   transformRefs t = [ TransformationName (unwrapId t.transformation) ] <> exprRefs t.quantity
@@ -208,61 +213,128 @@ tagged kind j = do
     [ t ] -> Right t
     _ -> Left (Named kind (UnexpectedValue j))
 
--- | An unknown tag: a `Named` error carrying the tag.
-unknownTag :: String -> String -> JsonDecodeError
-unknownTag kind tag = Named kind (UnexpectedValue (fromString tag))
+-- | The decoder a tag names, applied to its body. An unknown tag is a `Named` error carrying it.
+dispatch :: forall a. String -> Array (Tuple String (Json -> Either JsonDecodeError a)) -> Tuple String Json -> Either JsonDecodeError a
+dispatch kind table (Tuple tag body) = case find (\(Tuple k _) -> k == tag) table of
+  Just (Tuple _ decode) -> decode body
+  Nothing -> Left (Named kind (UnexpectedValue (fromString tag)))
 
+-- | A binary operator's two operands, each an expression.
+operands :: forall a. String -> (Expr -> Expr -> a) -> Json -> Either JsonDecodeError a
+operands kind f body = case toArray body of
+  Just [ a, b ] -> f <$> expr a <*> expr b
+  _ -> Left (Named kind (UnexpectedValue body))
+
+-- | A quantity: a literal, or a tagged expression.
 expr :: Json -> Either JsonDecodeError Expr
 expr j = case toString j of
   Just _ -> Lit <$> decodeJson j
-  Nothing -> tagged "expression" j >>= \(Tuple tag body) -> case tag of
-    "param" -> Param <$> decodeJson body
-    "round" -> pure Round
-    "price" -> Price <<< Id <$> decodeJson body
-    "holding" -> Holding <<< Id <$> decodeJson body
-    "factor" -> Factor <<< Id <$> decodeJson body
-    "mul" -> pair Mul body
-    "sub" -> pair Sub body
-    "max" -> pair Max body
-    _ -> Left (unknownTag "expression" tag)
-  where
-  pair f body = case toArray body of
-    Just [ a, b ] -> f <$> expr a <*> expr b
-    _ -> Left (Named "expression operands" (UnexpectedValue body))
+  Nothing -> tagged "expression" j >>= dispatch "expression"
+    [ Tuple T.paramTag (\b -> Param <$> decodeJson b)
+    , Tuple T.roundTag (\_ -> pure Round)
+    , Tuple T.priceTag (\b -> Price <<< Id <$> decodeJson b)
+    , Tuple T.holdingTag (\b -> Holding <<< Id <$> decodeJson b)
+    , Tuple T.factorTag (\b -> Factor <<< Id <$> decodeJson b)
+    , Tuple T.mulTag (operands "expression operands" Mul)
+    , Tuple T.subTag (operands "expression operands" Sub)
+    , Tuple T.maxTag (operands "expression operands" Max)
+    ]
 
 cond :: Json -> Either JsonDecodeError Cond
-cond j = tagged "condition" j >>= \(Tuple tag body) -> case tag of
-  "gt" -> pair Gt body
-  "ge" -> pair Ge body
-  "le" -> pair Le body
-  "eq" -> pair Eq body
-  "not" -> Not <$> cond body
-  "transformedLastRound" -> do
-    o <- decodeJson body
+cond j = tagged "condition" j >>= dispatch "condition"
+  [ Tuple T.gtTag (operands "condition operands" Gt)
+  , Tuple T.geTag (operands "condition operands" Ge)
+  , Tuple T.leTag (operands "condition operands" Le)
+  , Tuple T.eqTag (operands "condition operands" Eq)
+  , Tuple T.notTag (\b -> Not <$> cond b)
+  , Tuple T.transformedLastRoundTag transformedLastRound
+  , Tuple T.restrictedLastRoundTag restrictedLastRound
+  , Tuple T.restrictionInForceTag restrictionInForce
+  ]
+  where
+  transformedLastRound b = do
+    o <- decodeJson b
     by <- o .: "by"
     t <- o .: "transformation"
-    atLeast <- o .: "atLeast"
+    atLeast <- o .: "atLeast" >>= expr
     pure (TransformedLastRound { by: Id by, transformation: Id t, atLeast })
-  "restrictedLastRound" -> do
-    o <- decodeJson body
+  restrictedLastRound b = do
+    o <- decodeJson b
     by <- o .: "by"
     target <- o .: "target"
     pure (RestrictedLastRound { by: Id by, target: Id target })
-  "restrictionInForce" -> do
-    o <- decodeJson body
+  restrictionInForce b = do
+    o <- decodeJson b
     by <- o .: "by"
     pure (RestrictionInForce { by: Id by })
-  _ -> Left (unknownTag "condition" tag)
-  where
-  pair f body = case toArray body of
-    Just [ a, b ] -> f <$> expr a <*> expr b
-    _ -> Left (Named "condition operands" (UnexpectedValue body))
 
 template :: Json -> Either JsonDecodeError Template
-template j = tagged "template" j >>= \(Tuple tag body) -> case tag of
-  "choose" -> Choose <$> (decodeJson body >>= traverse template)
-  "noAction" -> pure NoAction
-  _ -> object tag body
+template j = tagged "template" j >>= dispatch "template"
+  [ Tuple T.chooseTag (\b -> Choose <$> (decodeJson b >>= traverse template))
+  , Tuple T.noActionTag (\_ -> pure NoAction)
+  , Tuple T.tradeTag trade
+  , Tuple T.routeTag route
+  , Tuple T.transformTag transform
+  , Tuple T.transferTag (\b -> TransferT <$> transferSpec b)
+  , Tuple T.procedureTag procedure
+  , Tuple T.enactTariffTag enactTariff
+  , Tuple T.dealTag deal
+  , Tuple T.reciprocateTag reciprocate
+  , Tuple T.enactAccessBanTag enactAccessBan
+  , Tuple T.enactWithholdingTag enactWithholding
+  , Tuple T.repealTag repeal
+  ]
+  where
+  trade b = do
+    o <- decodeJson b
+    m <- o .: "market"
+    quantity <- o .: "quantity" >>= expr
+    limit <- o .:? "limit" >>= traverse expr
+    market <- decodeJson m
+    pure (TradeT { market: Id market, quantity, limit })
+  transform b = do
+    o <- decodeJson b
+    t <- o .: "transformation"
+    quantity <- o .: "quantity" >>= expr
+    pure (TransformT { transformation: Id t, quantity })
+  procedure b = do
+    o <- decodeJson b
+    p <- o .: "id"
+    signers <- o .: "signers"
+    intents <- o .: "intents" >>= traverse procedureIntent
+    pure (Procedure { procedure: Id p, signers: map Id signers, intents })
+  enactTariff b = do
+    o <- decodeJson b
+    origin <- o .: "origin"
+    rate <- o .: "rate" >>= expr
+    pure (EnactTariff { origin: Id origin, rate })
+  deal b = do
+    o <- decodeJson b
+    signers <- o .: "signers"
+    transfers <- o .: "transfers" >>= traverse transferSpec
+    transforms <- (o .:? "transforms" .!= []) >>= traverse \t -> do
+      x <- decodeJson t
+      transformation <- x .: "transformation"
+      quantity <- x .: "quantity" >>= expr
+      pure { transformation: Id transformation, quantity }
+    pure (Deal { signers: map Id signers, transfers, transforms })
+  reciprocate b = do
+    o <- decodeJson b
+    target <- o .: "target"
+    pure (ReciprocateLastRound { target: Id target })
+  enactAccessBan b = do
+    o <- decodeJson b
+    target <- o .: "target"
+    pure (EnactAccessBan { target: Id target })
+  enactWithholding b = do
+    o <- decodeJson b
+    capacity <- o .: "capacity"
+    units <- o .: "units" >>= expr
+    pure (EnactWithholding { capacity: Id capacity, units })
+  repeal b = do
+    o <- decodeJson b
+    rule <- o .: "rule"
+    pure (RepealRule { rule: Id rule })
 
 -- | A template inside a Procedure: only Intents may be proposed there. Nested Procedures,
 -- | Deals and Choose are rejected, since a Procedure's Proposal carries only Intents.
@@ -275,78 +347,37 @@ procedureIntent j = do
     Choose _ -> Left (Named "procedure intent" (UnexpectedValue j))
     _ -> pure t
 
-object :: String -> Json -> Either JsonDecodeError Template
-object tag body = do
-  o <- decodeJson body
-  case tag of
-    "trade" -> do
-      m <- o .: "market"
-      quantity <- o .: "quantity" >>= expr
-      limit <- o .:? "limit" >>= traverse expr
-      if isNull m then do
-        base <- o .: "base"
-        quote <- o .: "quote"
-        pure (RouteT { pair: { base: Id base, quote: Id quote }, quantity, limit })
-      else do
-        market <- decodeJson m
-        pure (TradeT { market: Id market, quantity, limit })
-    "transform" -> do
-      t <- o .: "transformation"
-      quantity <- o .: "quantity" >>= expr
-      pure (TransformT { transformation: Id t, quantity })
-    "transfer" -> do
-      from <- o .: "from"
-      to <- o .: "to"
-      resource <- o .: "resource"
-      quantity <- o .: "quantity" >>= expr
-      pure (TransferT { from: Id from, to: Id to, resource: Id resource, quantity })
-    "procedure" -> do
-      p <- o .: "id"
-      signers <- o .: "signers"
-      intents <- o .: "intents" >>= traverse procedureIntent
-      pure (Procedure { procedure: Id p, signers: map Id signers, intents })
-    "enactTariff" -> do
-      origin <- o .: "origin"
-      rate <- o .: "rate" >>= expr
-      pure (EnactTariff { origin: Id origin, rate })
-    "deal" -> do
-      signers <- o .: "signers"
-      transfers <- o .: "transfers" >>= traverse \t -> do
-        x <- decodeJson t
-        from <- x .: "from"
-        to <- x .: "to"
-        resource <- x .: "resource"
-        quantity <- x .: "quantity" >>= expr
-        pure { from: Id from, to: Id to, resource: Id resource, quantity }
-      transforms <- (o .:? "transforms" .!= []) >>= traverse \t -> do
-        x <- decodeJson t
-        transformation <- x .: "transformation"
-        quantity <- x .: "quantity" >>= expr
-        pure { transformation: Id transformation, quantity }
-      pure (Deal { signers: map Id signers, transfers, transforms })
-    "reciprocate" -> do
-      target <- o .: "target"
-      pure (ReciprocateLastRound { target: Id target })
-    "enactAccessBan" -> do
-      target <- o .: "target"
-      pure (EnactAccessBan { target: Id target })
-    "enactWithholding" -> do
-      capacity <- o .: "capacity"
-      units <- o .: "units" >>= expr
-      pure (EnactWithholding { capacity: Id capacity, units })
-    "repeal" -> do
-      rule <- o .: "rule"
-      pure (RepealRule { rule: Id rule })
-    _ -> Left (unknownTag "template" tag)
+-- | One transfer: `from` gives `quantity` of `resource` to `to`. A Deal's transfers and a
+-- | standalone transfer decode alike.
+transferSpec :: Json -> Either JsonDecodeError TransferTemplate
+transferSpec j = do
+  o <- decodeJson j
+  from <- o .: "from"
+  to <- o .: "to"
+  resource <- o .: "resource"
+  quantity <- o .: "quantity" >>= expr
+  pure { from: Id from, to: Id to, resource: Id resource, quantity }
+
+-- | A routed order: the pair, the quantity and the optional limit (no Market is named).
+route :: Json -> Either JsonDecodeError Template
+route b = do
+  o <- decodeJson b
+  base <- o .: "base"
+  quote <- o .: "quote"
+  quantity <- o .: "quantity" >>= expr
+  limit <- o .:? "limit" >>= traverse expr
+  pure (RouteT { pair: { base: Id base, quote: Id quote }, quantity, limit })
 
 signRule :: Json -> Either JsonDecodeError SignRule
-signRule j = tagged "sign rule" j >>= \(Tuple tag body) -> case tag of
-  "procedures" -> SignProcedures <<< map Id <$> decodeJson body
-  "facility" -> SignFacility <<< Id <$> decodeJson body
-  "all" -> pure SignAll
-  "signIf" -> do
-    o <- decodeJson body
+signRule j = tagged "sign rule" j >>= dispatch "sign rule"
+  [ Tuple T.proceduresTag (\b -> SignProcedures <<< map Id <$> decodeJson b)
+  , Tuple T.facilityTag (\b -> SignFacility <<< Id <$> decodeJson b)
+  , Tuple T.allTag (\_ -> pure SignAll)
+  , Tuple T.signIfTag signIf
+  ]
+  where
+  signIf b = do
+    o <- decodeJson b
     when <- o .: "when" >>= traverse cond
     rule <- o .: "rule" >>= signRule
     pure (SignIf { when, rule })
-  _ -> Left (unknownTag "sign rule" tag)

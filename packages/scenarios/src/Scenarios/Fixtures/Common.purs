@@ -4,6 +4,7 @@
 module Scenarios.Fixtures.Common (FixtureFields, fixture, energy, energyAt, facilities) where
 
 import Prelude ((<<<))
+import Scenarios.Names as N
 
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
@@ -14,7 +15,7 @@ import Prim.Row (class Union)
 import Record (union)
 import DSL.Base (Qty, Keyed, keyed, Built)
 import DSL.World (market)
-import Scenarios.Meridian (asiaTerms, atlanticTerms, energyShipping, gameSeed, procurement, resources, transport)
+import Scenarios.Meridian (asiaMarket, atlanticMarket, atlanticTerms, defenseProcurementFacility, energyShipping, gameSeed, resources, transport)
 
 -- | What every fixture shares; each fixture gives the rest and may override these.
 type FixtureFields =
@@ -44,17 +45,17 @@ fixture
   -> Tuple String Json
 fixture name r = Tuple name (fromObject (Object.union (fields (encodeJson r)) (fields defaults)))
   where
-  defaults = encodeJson { name, seed: gameSeed, round: 1, numeraire: "M", resources, transformations: facilities, transport, rules: ([] :: Array (Built "rule")) }
+  defaults = encodeJson { name, seed: gameSeed, round: 1, numeraire: N.money, resources, transformations: facilities, transport, rules: ([] :: Array (Built "rule")) }
   fields = fromMaybe Object.empty <<< toObject
 
 -- | Both regional Energy Markets with the given access lists.
 energy :: Array String -> Array String -> Keyed (Built "market")
-energy atlantic asia = keyed [ Tuple "energy-atlantic" (market (union atlanticTerms { access: atlantic })), Tuple "energy-asia" (market (union asiaTerms { access: asia })) ]
+energy atlantic asia = keyed [ Tuple N.energyAtlantic (atlanticMarket atlantic), Tuple N.energyAsia (asiaMarket asia) ]
 
 -- | As `energy`, with the Atlantic Market starting at a position.
 energyAt :: Qty -> Array String -> Array String -> Keyed (Built "market")
-energyAt position atlantic asia = keyed [ Tuple "energy-atlantic" (market (union atlanticTerms { access: atlantic, position })), Tuple "energy-asia" (market (union asiaTerms { access: asia })) ]
+energyAt position atlantic asia = keyed [ Tuple N.energyAtlantic (market (union atlanticTerms { access: atlantic, position })), Tuple N.energyAsia (asiaMarket asia) ]
 
 -- | Procurement and shipping, as the scenario defines them; fixtures add others as needed.
 facilities :: Keyed (Built "facility")
-facilities = keyed [ Tuple "defense-procurement" (procurement "DEF"), Tuple "energy-shipping" energyShipping ]
+facilities = keyed [ Tuple N.defenseProcurement defenseProcurementFacility, Tuple N.energyShipping energyShipping ]
