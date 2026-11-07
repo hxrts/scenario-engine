@@ -1,12 +1,12 @@
--- | The Fractured World's seat Actors (docs/05_test_instance.md §9 Actor Catalog): each seat's
+-- | Meridian's seat Actors (docs/05_test_instance.md §9 Actor Catalog): each seat's
 -- | accounts, capabilities, capacities, objective and fallback. `Entities` lists them.
-module Scenarios.FracturedWorld.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid, cn) where
+module Scenarios.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid, cn) where
 
 import Prelude (negate, (<>))
 
 import DSL.Base (keyed, (:=), Built, trade, transfer, transform, enactWithholding, coverage, institutional, holdingOf, capacityOf, shortfallOf, shortfallRounds, payeeReceipts, volumeOf, final, cumulative)
 import DSL.World (atLeast, criterion, definition, entity, finishes, metric, neverShort, objective, own)
-import Scenarios.FracturedWorld.Entities.Capabilities (allied, dealer, legislate, military, shipping)
+import Scenarios.Meridian.Entities.Capabilities (allied, dealer, legislate, military, shipping)
 
 us :: Built "entity"
 us = entity

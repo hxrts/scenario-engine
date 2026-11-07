@@ -11,7 +11,7 @@ import DSL.Base (q, Keyed, keyed, (:=), Built, trade)
 import DSL.World (entity)
 import DSL.Fixture (expect, proposal, ref, tradeI)
 import Scenarios.Fixtures.Common (energy, fixture)
-import Scenarios.FracturedWorld (coreResources)
+import Scenarios.Meridian (coreResources)
 
 -- | Two Energy traders in the Atlantic market: the US and Germany (fixtures A and A2).
 atlanticTraders :: Keyed (Built "entity")

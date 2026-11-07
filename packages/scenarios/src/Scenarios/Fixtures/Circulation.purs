@@ -9,7 +9,7 @@ import DSL.Base (keyed, (:=))
 import DSL.World (entity)
 import DSL.Fixture (expect, roundOf)
 import Scenarios.Fixtures.Common (energy, fixture)
-import Scenarios.FracturedWorld (coreResources, flows, productionCapacity, requirements)
+import Scenarios.Meridian (coreResources, flows, productionCapacity, requirements)
 
 -- | The circulation fixture: every Entity of the reference instance, with its production and
 -- | flows, over five rounds of nothing but circulation.

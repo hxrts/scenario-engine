@@ -41,10 +41,10 @@ main = do
       Just { head: scenario, tail: flags } -> case parseFlags [ "--preset", "--rounds", "--seed" ] flags >>= runOptions of
         Left e -> usage e
         Right o -> runScenario scenario o.preset o.rounds o.seed
-      Nothing -> usage "run needs a scenario, e.g. run fractured-world"
+      Nothing -> usage "run needs a scenario, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: scenario, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions scenario)
-      Nothing -> usage "session needs a scenario, e.g. session fractured-world"
+      Nothing -> usage "session needs a scenario, e.g. session meridian"
     _ -> usage "expected a command: run or session"
 
 runOptions :: Object String -> Either String { preset :: String, rounds :: Int, seed :: Maybe Seed }
@@ -88,7 +88,7 @@ usage :: String -> Effect Unit
 usage why = do
   log ("error: " <> why)
   log "usage: run <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]"
-  log "  e.g. run fractured-world --preset Conservative --rounds 5"
+  log "  e.g. run meridian --preset Conservative --rounds 5"
   log "       session <scenario> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
   exit' 1
 

@@ -1,14 +1,14 @@
--- | The Fractured World's Entities: Actors with their objectives, and Aggregates with their
--- | procedures. `just scenarios` compiles them to `packages/scenarios/fractured-world/v0/entities.json`.
+-- | Meridian's Entities: Actors with their objectives, and Aggregates with their
+-- | procedures. `just scenarios` compiles them to `packages/scenarios/meridian/v0/entities.json`.
 -- |
 -- | This module is the catalog. The seats are in `Entities.Seats`, the Aggregates in
 -- | `Entities.Aggregates`, and the capability sets they are built from in `Entities.Capabilities`.
-module Scenarios.FracturedWorld.Entities (entities) where
+module Scenarios.Meridian.Entities (entities) where
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (Built, Keyed, keyed)
-import Scenarios.FracturedWorld.Entities.Aggregates (cnPrivate, energySuppliers, eu, globalSmes, usWorkers, worldHouseholds)
-import Scenarios.FracturedWorld.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
+import Scenarios.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, globalSmes, usWorkers, worldHouseholds)
+import Scenarios.Meridian.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
 
 -- | Every Entity, in catalog order.
 entities :: Keyed (Built "entity")

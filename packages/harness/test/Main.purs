@@ -48,7 +48,7 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 context :: Aff Context
 context = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
+  loaded <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
   presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
   case loaded, presets of
     Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }

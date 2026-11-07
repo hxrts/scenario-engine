@@ -9,8 +9,8 @@ import DSL.Base (Qty, q, Keyed, keyed, (:=), Built, trade)
 import DSL.World (entity)
 import DSL.Fixture (expect, proposal, ref, representation, tradeI)
 import Scenarios.Fixtures.Common (energy, fixture)
-import Scenarios.FracturedWorld (smeSample)
-import Scenarios.FracturedWorld.Entities.Aggregates (globalSmesAggregate)
+import Scenarios.Meridian (smeSample)
+import Scenarios.Meridian.Entities.Aggregates (globalSmesAggregate)
 
 -- | The SME and its Representation's Aggregate (fixtures C1 to C5).
 smeAndGlobalSmes :: Keyed (Built "entity")

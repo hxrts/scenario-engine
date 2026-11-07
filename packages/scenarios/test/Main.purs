@@ -36,8 +36,8 @@ import DSL.Decision (deal, lit, max', param, program, rule, signProcedures, trad
 import DSL.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
 import Adapters.Scenarios (readScenario)
 import Scenarios.Load (LoadError(..), checkPresets, decodePresets, fromFiles, load)
-import Scenarios.FracturedWorld (files)
-import Scenarios.FracturedWorld.Policies (policies)
+import Scenarios.Meridian (files)
+import Scenarios.Meridian.Policies (policies)
 import Scenarios.Presets as Presets
 import Test.Scenarios.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
@@ -75,12 +75,12 @@ holdings =
 -- | The reference instance's Gameboard and configuration, as the loader reads them.
 loaded :: Aff { gameboard :: Gameboard, config :: InstantiationConfig }
 loaded = do
-  r <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
+  r <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
   case r of
     Left e -> failWith e
     Right x -> pure x
 
--- | The reference instance's Fractured World files, as name-and-JSON sections.
+-- | The reference instance's Meridian files, as name-and-JSON sections.
 sections :: Array { name :: String, json :: Json }
 sections = map (\(Tuple name json) -> { name, json }) files
 
@@ -204,7 +204,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a bound given as a metric is the metric object itself" do
       stringify (builtJson (atLeast (own "CN" (holdingOf "Mil")))) `shouldEqual` stringify (builtJson (own "CN" (holdingOf "Mil")))
 
-  describe "The Fractured World" do
+  describe "Meridian" do
     let
       instantiated = do
         { gameboard, config } <- loaded

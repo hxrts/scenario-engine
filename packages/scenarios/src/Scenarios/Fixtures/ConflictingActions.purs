@@ -9,7 +9,7 @@ import DSL.Base (q, keyed, (:=), transform)
 import DSL.World (entity)
 import DSL.Fixture (delivery, expect, proposal, transformI)
 import Scenarios.Fixtures.Common (energy, fixture)
-import Scenarios.FracturedWorld (coreResources)
+import Scenarios.Meridian (coreResources)
 
 fixtureF :: Tuple String Json
 fixtureF = fixture "F"

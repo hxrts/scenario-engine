@@ -13,7 +13,7 @@ import DSL.Base (q, Keyed, keyed, (:=), Built, trade, transfer, transform)
 import DSL.World (entity, market)
 import DSL.Fixture (expect, proposal, roundOf, tradeI, transferI, transformI)
 import Scenarios.Fixtures.Common (energy, facilities, fixture)
-import Scenarios.FracturedWorld (defenceAccess, defenceTerms, deployment)
+import Scenarios.Meridian (defenceAccess, defenceTerms, deployment)
 
 -- | Fixture R (docs/05_test_instance.md §13.3): the US reserves 60 Mil for a deployment and sells
 -- | 40 Mil on the defence-goods Market (limit 2.4) in the same round, as the Deployer preset does.

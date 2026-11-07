@@ -10,7 +10,7 @@ import DSL.Base (q, Keyed, keyed, (:=), Built, transfer, transform)
 import DSL.World (entity)
 import DSL.Fixture (accessBanRule, expect, proposal, ref, transferI, transformI)
 import Scenarios.Fixtures.Common (energy, fixture)
-import Scenarios.FracturedWorld (coreResources)
+import Scenarios.Meridian (coreResources)
 
 -- | Fixtures G1 to G5: transfers between Saudi Arabia and Japan, with and without signatures.
 saAndJp :: Keyed (Built "entity")

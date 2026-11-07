@@ -22,6 +22,6 @@ main = case compile of
   Left e -> log ("invalid scenario: " <> e) *> exit' 1
   Right files -> do
     root <- scenariosRoot
-    for_ [ "fractured-world/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
+    for_ [ "meridian/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
     log ("compiled " <> show (length files) <> " files")

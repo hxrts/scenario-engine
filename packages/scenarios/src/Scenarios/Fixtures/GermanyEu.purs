@@ -11,7 +11,7 @@ import DSL.Base (q, Keyed, keyed, (:=), Built, transfer, trade, enactTariff)
 import DSL.World (entity)
 import DSL.Fixture (enactTariffI, expect, procedureOutcome, proposal, ref, transferI, tradeI)
 import Scenarios.Fixtures.Common (energyAt, fixture)
-import Scenarios.FracturedWorld.Entities.Aggregates (euAggregate)
+import Scenarios.Meridian.Entities.Aggregates (euAggregate)
 
 -- | Germany and the EU's aggregate (fixtures B1 to B4): Germany transfers Energy to the EU.
 germanyAndEu :: Keyed (Built "entity")

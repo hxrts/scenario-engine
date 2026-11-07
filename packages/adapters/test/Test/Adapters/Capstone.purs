@@ -76,7 +76,7 @@ type Game = { world :: WorldState, lookup :: EntityId -> Maybe Entity }
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
     Left _ -> throwError (error "instantiation")
@@ -155,7 +155,7 @@ spec = describe "Capstone: recorded transcript and the Run Store" do
       _ -> fail "replayed line should interpret"
 
   it "the capstone run round-trips through the store: saved, reloaded byte-identically, and replayed" do
-    loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+    loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
     presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
     cap <- capstone
     let

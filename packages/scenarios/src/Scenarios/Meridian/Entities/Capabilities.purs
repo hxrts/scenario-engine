@@ -1,8 +1,8 @@
--- | The Fractured World's shared capability sets: the named lists each Entity's capabilities are
+-- | Meridian's shared capability sets: the named lists each Entity's capabilities are
 -- | built from. A market to trade in, the military powers of a government, the legislative
 -- | powers, and the shipping facility. Each Actor's list is the concatenation of the sets it
 -- | holds, in the order the JSON has always carried.
-module Scenarios.FracturedWorld.Entities.Capabilities (dealer, allied, military, legislate, shipping) where
+module Scenarios.Meridian.Entities.Capabilities (dealer, allied, military, legislate, shipping) where
 
 import DSL.Base (Capability, trade, transfer, transform, enactTariff, enactAccessBan)
 
@@ -11,7 +11,7 @@ dealer :: String -> Array Capability
 dealer m = [ trade m, transfer "M", transfer "E" ]
 
 -- | Trading in the defence-goods Market: the US and its allies (DE, UK, JP), who are listed in
--- | its access rule (FracturedWorld.purs `defenceAccess`).
+-- | its access rule (Meridian.purs `defenceAccess`).
 allied :: Array Capability
 allied = [ trade "defence-goods" ]
 

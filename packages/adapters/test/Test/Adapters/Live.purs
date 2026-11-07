@@ -39,7 +39,7 @@ import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 type Game = { world :: WorldState, inWorld :: InWorld }
 
 setup :: Aff Game
-setup = liftEffect (readScenario "fractured-world/v0") >>= case _ of
+setup = liftEffect (readScenario "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
   Right s -> case load s of
     Left e -> throwError (error e)

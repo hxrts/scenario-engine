@@ -1,13 +1,13 @@
--- | The Fractured World's Aggregates (docs/05_test_instance.md §10 Aggregate Catalog): the
+-- | Meridian's Aggregates (docs/05_test_instance.md §10 Aggregate Catalog): the
 -- | collective Actors and the Representation Aggregates, with the EU's collective procedures.
-module Scenarios.FracturedWorld.Entities.Aggregates (eu, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, globalSmesAggregate) where
+module Scenarios.Meridian.Entities.Aggregates (eu, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, globalSmesAggregate) where
 
 import Prelude ((<>))
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (q, keyed, (:=), Built, trade, transfer, enactTariff)
 import DSL.World (aggregate, collective, entity)
-import Scenarios.FracturedWorld.Entities.Capabilities (dealer, shipping)
+import Scenarios.Meridian.Entities.Capabilities (dealer, shipping)
 
 eu :: Built "entity"
 eu = entity
