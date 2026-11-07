@@ -297,9 +297,9 @@ Initial storage is a local database such as SQLite, accessed through a Run Store
 
 ## 9. Pages
 
-The Dashboard has four pages, each on its own hash route, and a top bar that links to them: **Simulation Runs** (`#/runs`, the home page), **Prepare** (`#/prepare`), **View** (`#/runs/:id`), and **Comparison** (`#/compare/:ids`). It renders from persisted data without running the engine.
+The Dashboard has three pages, each on its own hash route, and a top bar that links to them, every item on every page: **Runs** (`#/runs`, the home page, and `#/runs/:id` with that run selected), **Prepare** (`#/prepare`), and **Comparison** (`#/compare/:ids`). It renders from persisted data without running the engine.
 
-The home page is the run list beside the latest readable run's summary (its key figures, its price chart, its balances after the final round, its objectives, and its rejections and shortfalls). Selecting a run in the list updates that summary in place. Comparison is optional: **Add to comparison** on any run adds it to a comparison set that the top bar shows, and the comparison page opens from there. A single run is fully viewable without any comparison. Layout uses one 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`.
+The Runs page is the run list beside the selected run. With no run selected, the latest readable run is shown. The selected run's results come first (its key figures, its price chart, its balances after the final round, its objectives, and its rejections and shortfalls, with each deeper topic under its Details). Its lineage (the source run and the derived runs) and its manage actions (archive, resume, delete) are stacked under the results. Selecting a run in the list changes the route to `#/runs/:id`, so a selected run has its own address. Comparison is optional: **Add to comparison** on any run adds it to a comparison set that the top bar shows, and the comparison page opens from there. A single run is fully viewable without any comparison. Layout uses one 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`.
 
 ### 9.1 Simulation Runs
 
