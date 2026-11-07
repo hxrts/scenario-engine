@@ -18,11 +18,9 @@ test.beforeAll(async ({ request }) => {
 // The row of the visible table whose cells include every given text exactly.
 const rowWith = (scope, cells) => cells.reduce((rows, text) => rows.filter({ has: scope.getByRole("cell", { name: text, exact: true }) }), scope.getByRole("row"));
 
-// The row of a scoped table (a Details disclosure) whose accessible name is its cells' text in order.
+// The row of a scoped table whose accessible name is its cells' text in order.
 const rowNamed = (scope, cells) => scope.getByRole("row", { name: cells.join(" "), exact: true });
 
-// A Details disclosure by its topic. Its content is inside it, so tests open it first.
-const details = (page, topic) => page.locator("details").filter({ hasText: `Details: ${topic}` });
 
 test("the run list shows each seeded run's id, name, rounds and status; empty fields say why", async ({ page }) => {
   await page.goto("/#/runs");
@@ -38,28 +36,63 @@ test("the home page shows the latest run's results without any extra click", asy
   await page.goto("/#/runs");
   // the latest readable run is run-1 in the mocked list; its summary is visible at once
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
-  await expect(page.getByText("Price", { exact: true })).toBeVisible();
-  await expect(page.getByText("Balance of the game", { exact: true })).toBeVisible();
-  await expect(page.getByText("Drivers", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Marginal prices", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Balance measures", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Drivers", exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Driver", exact: true })).toBeVisible();
 });
 
-test("the standings come before any Details, and the net-worth chart and drivers timeline are present", async ({ page }) => {
+test("the run page shows standings, net worth, actions, drivers, balance measures and objectives without any click", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  // the standings table is the first view in the results: its heading precedes every Details disclosure
+  for (const title of ["Key figures", "Marginal prices", "Standings", "Net worth over time", "Actions", "Drivers", "Balance measures", "Objectives", "Final balance sheet"])
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  // the standings table comes before the net-worth chart
   const standings = page.getByRole("heading", { name: "Standings", exact: true });
-  await expect(standings).toBeVisible();
+  const netWorth = page.getByRole("heading", { name: "Net worth over time", exact: true });
+  expect((await standings.boundingBox()).y).toBeLessThan((await netWorth.boundingBox()).y);
   await expect(page.getByRole("columnheader", { name: "Change from start (M)", exact: true })).toBeVisible();
-  const firstDetails = page.locator("details").first();
-  expect((await standings.boundingBox()).y).toBeLessThan((await firstDetails.boundingBox()).y);
-  // the net-worth chart has one line per player, and the drivers timeline sits beside the price chart
+  // the net-worth chart has one line per player, and the drivers timeline is shown
   await expect(page.getByText("Net worth by player (M)", { exact: true })).toBeVisible();
-  await expect(page.locator(".recharts-line").first()).toBeVisible();
+  await expect(page.locator(".recharts-line").first()).toBeAttached();
   await expect(page.getByRole("columnheader", { name: "Driver", exact: true })).toBeVisible();
-  // and no Details section is open
-  await expect(page.locator("details[open]")).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Criterion", exact: true })).toBeVisible();
 });
 
+test("the run page has no disclosure: no details or summary element, and no Details control", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
+  await expect(page.locator("details, summary")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Details/ })).toHaveCount(0);
+  await expect(page.getByText(/^Details/)).toHaveCount(0);
+});
+
+test("the Compare page has no disclosure either", async ({ page }) => {
+  await page.goto("/#/compare/run-1/run-2");
+  await expect(page.getByRole("tab", { name: "Final state" })).toBeVisible();
+  await expect(page.locator("details, summary")).toHaveCount(0);
+});
+
+test("the header names the run, its scenario, status, rounds completed out of target and game ID", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
+  await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("fractured-world@v0", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("completed", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Game ID", { exact: true })).toBeVisible();
+});
+
+test("the removed sections and the overview fields that left the page are absent", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("heading", { name: "Key figures", exact: true })).toBeVisible();
+  for (const title of ["Overview", "Actions by round", "Markets", "Facilities", "World economy", "Balance sheets by round", "Representation", "Procedures", "Events"])
+    await expect(page.getByRole("heading", { name: title, exact: true }), `no ${title} section`).toHaveCount(0);
+  // Game seed and Assertions failing remain columns of the run list beside the results; the overview rows are what left the page
+  for (const field of ["Engine", "Draws", "Rejected Proposals"])
+    await expect(page.getByText(field, { exact: true }), `no ${field} row`).toHaveCount(0);
+  await expect(page.getByLabel("Round", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Event round", { exact: true })).toHaveCount(0);
+});
 test("clicking a run row selects it and shows its results on the same page, with the list still beside them", async ({ page }) => {
   await page.goto("/#/runs");
   await page.getByRole("button", { name: "run-4", exact: true }).click();
@@ -99,37 +132,23 @@ test("every top-bar link navigates, from every page", async ({ page }) => {
     }
 });
 
-test("a run's Details sections are closed until opened, and each shows its purpose", async ({ page }) => {
+test("the lineage and the manage actions are visible sections, not disclosures", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  await expect(details(page, "Representation")).toBeVisible();
-  await expect(details(page, "Representation").locator("table")).toBeHidden();
-  await details(page, "Representation").locator("summary").click();
-  await expect(details(page, "Representation").getByText("The four-stage record of each Representation")).toBeVisible();
-  for (const stage of ["Observation (proposed)", "Stored factor", "Aggregate purchase (r+1)", "Influence ratio"])
-    await expect(details(page, "Representation").getByRole("columnheader", { name: stage })).toBeVisible();
-  await details(page, "Procedures").locator("summary").click();
-  for (const col of ["Members who signed", "Support", "Threshold", "Outcome"])
-    await expect(details(page, "Procedures").getByRole("columnheader", { name: col, exact: true })).toBeVisible();
+  await expect(page.getByText("Lineage", { exact: true })).toBeVisible();
+  await expect(page.getByText("Manage this run", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
 });
-
-test("balance sheets by round default to the run's last round and show the seeded balances", async ({ page }) => {
+test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  await details(page, "Balance sheets by round").locator("summary").click();
-  await expect(page.getByLabel("Round", { exact: true })).toHaveValue("3");
   // [entity, kind, resource, initial, current, change] at round 3 of run-1
-  await expect(rowNamed(details(page, "Balance sheets by round"), ["CN_PRIVATE", "Aggregate (residual)", "M", "210.0000", "122.4000", "-87.6000"])).toHaveCount(1);
+  await expect(rowNamed(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210.0000", "122.4000", "-87.6000"])).toHaveCount(1);
 });
-
-test("a round past the run's last round is clamped, and the balances shown are that round", async ({ page }) => {
+test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/#/runs/run-4");
-  await details(page, "Balance sheets by round").locator("summary").click();
-  await expect(page.getByLabel("Round", { exact: true })).toHaveValue("2");
-  await page.getByLabel("Round", { exact: true }).fill("9");
-  await expect(page.getByLabel("Round", { exact: true })).toHaveValue("2");
-  // the round shown is the one read: round 2 of run-4, not its initial state
-  await expect(rowNamed(details(page, "Balance sheets by round"), ["BR", "Actor", "E", "85.0000", "98.0000", "13.0000"])).toHaveCount(1);
+  // the balances shown are run-4's last round (2), not its initial state
+  await expect(rowNamed(page, ["BR", "Actor", "E", "85.0000", "98.0000", "13.0000"])).toHaveCount(1);
 });
-
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   await expect(page.getByRole("button", { name: /comparison/i })).toHaveCount(0);
@@ -185,8 +204,6 @@ test("incompatible runs are flagged", async ({ page }) => {
 
 test("every visible table column has a definition on hover", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  await details(page, "Representation").locator("summary").click();
-  await details(page, "Procedures").locator("summary").click();
   await page.goto("/#/runs");
   await expect(page.getByRole("columnheader", { name: "Run", exact: true })).toBeVisible();
   const headers = page.locator("th:visible");
