@@ -69,6 +69,12 @@ listRuns archived = do
     more <- get "/api/runs?archived=true"
     pure (mergeRuns <$> shown <*> more)
 
+-- | The run list without its archived runs (the Archived column says "yes" for them).
+withoutArchived :: Table -> Table
+withoutArchived t = case findIndex (_ == "Archived") t.columns of
+  Just ai -> t { rows = filter (\r -> index r ai /= Just "yes") t.rows }
+  Nothing -> t
+
 -- | The most recent run (the list is in creation order) that can be read: a run the server could not
 -- | decode has the status `unreadable`, and has no results to show.
 latestReadable :: Table -> Maybe String
@@ -265,17 +271,18 @@ mkRuns grid = do
   component "Runs" \p -> React.do
     archived /\ setArchived <- useState' false
     version /\ setVersion <- useState' 0
-    shown <- useFetch (Tuple archived version) (listRuns archived)
+    -- one fetch of every run per change; the archived box filters the rows already here, so
+    -- toggling it does not reload the page
     everyRun <- useFetch version (listRuns true)
     pure $ Layout.page
       { title: "Runs"
       , purpose: "Every stored run, with the selected run's results, lineage and actions beside the list. With no run selected, the latest readable run is shown."
       , children:
-          [ case shown, everyRun of
-              Just (Left e), _ -> status (Just e)
-              _, Just (Left e) -> status (Just e)
-              Just (Right (t :: Table)), Just (Right (all :: Table)) ->
+          [ case everyRun of
+              Just (Left e) -> status (Just e)
+              Just (Right (all :: Table)) ->
                 let
+                  t = if archived then all else withoutArchived all
                   current = fromMaybe "" (p.selected <|> latestReadable t)
                   info = runInfo all current
                 in
@@ -319,7 +326,7 @@ mkRuns grid = do
                             ]
                         }
                     ]
-              _, _ -> status Nothing
+              Nothing -> status Nothing
           ]
       }
 

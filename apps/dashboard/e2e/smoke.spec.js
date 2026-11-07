@@ -306,3 +306,13 @@ test("the run list has a column set the page uses (no Created column is shown un
   await page.goto("/#/runs");
   for (const column of COLUMNS) await expect(page.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
 });
+
+test("toggling show archived runs does not move the page", async ({ page }) => {
+  await page.goto("/#/runs");
+  const heading = page.getByRole("heading", { name: "Runs", exact: true });
+  const before = await heading.boundingBox();
+  await page.getByLabel("Show archived runs").click();
+  const after = await heading.boundingBox();
+  expect(after.x).toBe(before.x);
+  expect(after.y).toBe(before.y);
+});
