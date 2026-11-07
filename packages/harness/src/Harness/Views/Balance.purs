@@ -23,7 +23,7 @@ import Data.Foldable (maximum, minimum)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (snd)
 import Harness.Analysis (Outcome(..), evaluateObjectives)
-import Harness.Views.Common (Statistic, StoredRun, Table, final, q, roundResults)
+import Harness.Views.Common (Statistic, StoredRun, Table, final, quantity, ratio, roundResults)
 import Harness.Views.Standings (netWorths)
 
 spreadStat :: Statistic
@@ -86,13 +86,14 @@ measures r =
   { title: "Balance after round " <> show (length r.records)
   , columns: [ "Measure", "Value" ]
   , rows:
-      [ [ "Spread (M)", cell (spread values) ]
-      , [ "Gini coefficient", cell (gini values) ]
+      [ [ "Spread (M)", spreadCell (spread values) ]
+      , [ "Gini coefficient", giniCell (gini values) ]
       ]
   }
   where
   values = map snd (netWorths (final r))
-  cell = maybe "n/a" q
+  spreadCell = maybe "n/a" quantity
+  giniCell = maybe "n/a" ratio
 
 -- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
 completion :: Gameboard -> StoredRun -> Table
@@ -119,12 +120,13 @@ seedVariation runs =
   }
   where
   measured = map (\r -> { run: r, spread: spread (map snd (netWorths (final r))), gini: gini (map snd (netWorths (final r))) }) runs
-  perRun = map (\m -> [ m.run.id, show m.run.manifest.initial.seed, m.run.playerSeed, cell m.spread, cell m.gini ]) measured
+  perRun = map (\m -> [ m.run.id, show m.run.manifest.initial.seed, m.run.playerSeed, spreadCell m.spread, giniCell m.gini ]) measured
   spreads = catMaybes (map _.spread measured)
   ginis = catMaybes (map _.gini measured)
   summary =
-    [ [ "lowest", "", "", cell (minimum spreads), cell (minimum ginis) ]
-    , [ "highest", "", "", cell (maximum spreads), cell (maximum ginis) ]
-    , [ "range", "", "", cell (spread spreads), cell (spread ginis) ]
+    [ [ "lowest", "", "", spreadCell (minimum spreads), giniCell (minimum ginis) ]
+    , [ "highest", "", "", spreadCell (maximum spreads), giniCell (maximum ginis) ]
+    , [ "range", "", "", spreadCell (spread spreads), giniCell (spread ginis) ]
     ]
-  cell = maybe "n/a" q
+  spreadCell = maybe "n/a" quantity
+  giniCell = maybe "n/a" ratio

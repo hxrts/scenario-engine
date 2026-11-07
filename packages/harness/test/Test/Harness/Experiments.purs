@@ -60,10 +60,10 @@ indicators ctx r = { row, failures }
     _ -> false
   proposals = length (concatMap _.record.inputs r.records)
   final = fromMaybe r.manifest.initial (map _.world (last r.records))
-  price w m = maybe "—" Q.format (priceOf w (Id m))
+  price w m = maybe "—" Q.displayPrice (priceOf w (Id m))
   money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (fromFoldable (Map.values w.entities))
   -- circulation health: the largest holder's share of Money, at the start and the end
-  share w = let ms = money w in maybe "—" Q.format (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
+  share w = let ms = money w in maybe "—" Q.displayRatio (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
   met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.gameboard r.records))
   failures = length (checkRun r.manifest.initial r.records)
   row = joinWith " | "

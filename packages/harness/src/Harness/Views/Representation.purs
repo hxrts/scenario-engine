@@ -15,7 +15,7 @@ import Core.World (Event(..), RoundRecord)
 import Data.Array (concatMap, filter, index, mapWithIndex)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Harness.Views.Common (StoredRun, Table, joinComma, q)
+import Harness.Views.Common (StoredRun, Table, joinComma, quantity, ratio)
 
 -- | The four-stage record: observation and estimate in round r, the Aggregate's adjusted
 -- | purchase and its execution in round r+1, and the influence ratio. The last round has no
@@ -39,11 +39,11 @@ representation r =
       own = bought rep.actor rec
       next = bought rep.aggregate <$> index r.records (i + 1)
       induced nx = if factor == Q.zero then Q.zero else Q.sub nx (Q.div nx factor)
-      ratio = case next of
-        Just nx | own /= Q.zero -> q (Q.div (induced nx) own)
+      influence = case next of
+        Just nx | own /= Q.zero -> ratio (Q.div (induced nx) own)
         _ -> "n/a"
     in
-      [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, q observed, q own, q rep.weight, q rep.estimator.reference, q rep.estimator.shrinkage, q rep.estimator.noiseSpread, q factor, maybe "n/a" q next, ratio ]
+      [ show rec.round, show rep.actor, show rep.aggregate, show rep.domain, quantity observed, quantity own, ratio rep.weight, ratio rep.estimator.reference, ratio rep.estimator.shrinkage, ratio rep.estimator.noiseSpread, ratio factor, maybe "n/a" quantity next, influence ]
 
 -- | Quantities an Entity offered to buy in a round's Proposals.
 proposedPurchases :: EntityId -> RoundRecord -> Q
@@ -73,7 +73,7 @@ procedures r =
   , rows: concatMap
       ( \rec -> concatMap
           ( case _ of
-              ProcedureOutcome o -> [ [ show rec.round, show o.proposal, signedBy rec o.proposal, q o.support, q o.threshold, if o.executed then "executed" else "lapsed" ] ]
+              ProcedureOutcome o -> [ [ show rec.round, show o.proposal, signedBy rec o.proposal, ratio o.support, ratio o.threshold, if o.executed then "executed" else "lapsed" ] ]
               _ -> []
           )
           rec.events

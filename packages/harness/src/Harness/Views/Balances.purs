@@ -15,7 +15,7 @@ import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
-import Harness.Views.Common (StoredRun, Table, at, kindOf, outOfRange, q)
+import Harness.Views.Common (StoredRun, Table, at, kindOf, outOfRange, quantity)
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
 balances :: StoredRun -> Int -> Either String Table
@@ -28,7 +28,7 @@ balances r n = case at r n of
     }
   where
   w0 = r.manifest.initial
-  sheet w e = map (\res -> [ show e, kindOf w e, show res, q (holding w0 e res), q (holding w e res), q (Q.sub (holding w e res) (holding w0 e res)) ])
+  sheet w e = map (\res -> [ show e, kindOf w e, show res, quantity (holding w0 e res), quantity (holding w e res), quantity (Q.sub (holding w e res) (holding w0 e res)) ])
     (resources w e)
 
   resources :: WorldState -> EntityId -> Array ResourceId

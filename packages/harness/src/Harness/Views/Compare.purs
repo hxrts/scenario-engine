@@ -22,7 +22,7 @@ import Core.Num as Q
 import Core.Query (holding)
 import Foreign.Object as Object
 import Harness.Analysis (AgencyProfile)
-import Harness.Views.Common (StoredRun, Table, final, joinComma, q)
+import Harness.Views.Common (StoredRun, Table, final, joinComma, price, quantity)
 
 -- | Runs are directly comparable only when they agree on everything the manifest fixes: the
 -- | Gameboard version, the engine, the round count, the units, the Market definitions, and the
@@ -64,7 +64,7 @@ finalState :: Array StoredRun -> Table
 finalState runs =
   { title: "Final state"
   , columns: [ "Entity", "Resource" ] <> map _.id runs
-  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> q (holding (final r) e res)) runs) keys
+  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> quantity (holding (final r) e res)) runs) keys
   }
   where
   keys = case index runs 0 of
@@ -83,7 +83,7 @@ baselineDiff base others =
                   let
                     d = Q.sub v (holding (final base) e res)
                   in
-                    if d == Q.zero then [] else [ [ r.id, show e, show res, q d ] ]
+                    if d == Q.zero then [] else [ [ r.id, show e, show res, quantity d ] ]
               )
               (Map.toUnfoldable x.accounts)
           )
@@ -121,5 +121,5 @@ agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =
   { title: "Agency"
   , columns: [ "Actor", "Alternative", "Price change", "Others' holdings", "Aggregate holdings", "Institutional decisions", "Own criteria changed", "Measurable" ]
-  , rows: map (\p -> [ show p.actor, p.alternative, q p.prices, q p.others, q p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
+  , rows: map (\p -> [ show p.actor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
   }

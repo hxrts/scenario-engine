@@ -15,7 +15,7 @@ module Harness.Views.Markets
 import Prelude
 
 import Core.Market (marginal)
-import Core.Num (Q)
+import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (lookupQ, priceOf, totalHolding)
 import Core.Types (Id, MarketTag, ResourceId)
@@ -28,20 +28,20 @@ import Data.Maybe (fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
 import Harness.Views.Actions (rejectionCount)
-import Harness.Views.Common (Chart, StoredRun, Table, kindOf, q, series)
+import Harness.Views.Common (Chart, StoredRun, Table, exact, kindOf, price, quantity, series)
 import Harness.Views.Drivers (shortfallTotal)
 
 -- | A Market's price after a World State, as the views show it.
 type MarketPrice = { market :: String, price :: String }
 
 marketPrices :: WorldState -> Array MarketPrice
-marketPrices w = map (\(Tuple id m) -> { market: show id, price: q (marginal m.cost m.position) }) (Map.toUnfoldable w.markets)
+marketPrices w = map (\(Tuple id m) -> { market: show id, price: price (marginal m.cost m.position) }) (Map.toUnfoldable w.markets)
 
 markets :: StoredRun -> Array Chart
 markets r =
-  [ { title: "Marginal price", unit: "M/E", series: series r "price" (\w -> map (\(Tuple id m) -> Tuple (show id) (marginal m.cost m.position)) (Map.toUnfoldable w.markets)) q }
-  , { title: "Energy reserves", unit: "E", series: series r "reserves" (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) q }
-  , { title: "Traded volume", unit: "E", series: volume }
+  [ { title: "Marginal price", unit: "M/E", kind: Price, series: series r "price" (\w -> map (\(Tuple id m) -> Tuple (show id) (marginal m.cost m.position)) (Map.toUnfoldable w.markets)) exact }
+  , { title: "Energy reserves", unit: "E", kind: Quantity, series: series r "reserves" (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) exact }
+  , { title: "Traded volume", unit: "E", kind: Quantity, series: volume }
   ]
   where
   volume = map
@@ -50,7 +50,7 @@ markets r =
         , points: mapWithIndex
             ( \i rec ->
                 { round: i + 1
-                , value: q
+                , value: exact
                     ( Q.sumQ
                         ( concatMap
                             ( case _ of
@@ -74,7 +74,7 @@ facilities r =
   , rows: concatMap
       ( \rec -> concatMap
           ( case _ of
-              Transformed t -> [ [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, q t.quantity, q t.paid ] ]
+              Transformed t -> [ [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ] ]
               _ -> []
           )
           rec.events
@@ -89,7 +89,8 @@ resourceTotals :: StoredRun -> Chart
 resourceTotals r =
   { title: "Resource totals across all accounts"
   , unit: ""
-  , series: series r "totals" (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources))) q
+  , kind: Quantity
+  , series: series r "totals" (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources))) exact
   }
 
 -- | Money moved between categories of Entity (Actor or Aggregate) over the run.
@@ -97,7 +98,7 @@ moneyFlows :: StoredRun -> Table
 moneyFlows r =
   { title: "Money circulation (from → to category)"
   , columns: [ "From", "To", "Money" ]
-  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, q m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events r.records)))
+  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events r.records)))
   }
   where
   w0 = r.manifest.initial
@@ -134,7 +135,7 @@ pressure :: StoredRun -> Table
 pressure r =
   { title: "Pressure"
   , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
-  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, q p.shortfall, show p.rejected, show p.lapsed, q p.consumed, q p.decayed ]) r.records
+  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) r.records
   }
 
 -- | One market's price across runs, aligned by round. The unit is the Market's quote per base unit,
@@ -146,13 +147,14 @@ trajectories runs market = do
   pure
     { title: "Price, " <> market
     , unit
-    , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: q (price w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
+    , kind: Price
+    , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: exact (priceAt w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
     }
   where
   mid :: Id MarketTag
   mid = wrap market
 
-  price w = fromMaybe Q.zero (priceOf w mid)
+  priceAt w = fromMaybe Q.zero (priceOf w mid)
 
   marketUnit r = do
     m <- maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)

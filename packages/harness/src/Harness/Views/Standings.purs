@@ -13,7 +13,7 @@ module Harness.Views.Standings
 import Prelude
 
 import Core.Market (marginal)
-import Core.Num (Q)
+import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (EntityId)
@@ -22,7 +22,7 @@ import Data.Array (filter, find, fromFoldable, length, nub, sortBy)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..), snd)
-import Harness.Views.Common (Chart, Statistic, StoredRun, Table, final, players, q, series)
+import Harness.Views.Common (Chart, Statistic, StoredRun, Table, exact, final, players, quantity, series)
 
 netWorthStat :: Statistic
 netWorthStat =
@@ -72,12 +72,13 @@ standings r =
   ranked = sortBy (\(Tuple _ a) (Tuple _ b) -> compare b a) (netWorths (final r))
   rankOf v = 1 + length (filter (\(Tuple _ u) -> u > v) ranked)
   startOf e = fromMaybe Q.zero (map snd (find (\(Tuple x _) -> x == e) start))
-  row (Tuple e v) = [ show e, q v, q (Q.sub v (startOf e)), show (rankOf v) ]
+  row (Tuple e v) = [ show e, quantity v, quantity (Q.sub v (startOf e)), show (rankOf v) ]
 
 -- | Every Actor's net worth over the run, one line per Actor, from round 0 (the start) to the final round.
 netWorthChart :: StoredRun -> Chart
 netWorthChart r =
   { title: "Net worth by player"
   , unit: "M"
-  , series: series r "net worth" (\w -> map (\(Tuple e v) -> Tuple (show e) v) (netWorths w)) q
+  , kind: Quantity
+  , series: series r "net worth" (\w -> map (\(Tuple e v) -> Tuple (show e) v) (netWorths w)) exact
   }
