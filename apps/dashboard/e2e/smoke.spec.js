@@ -186,19 +186,17 @@ test("choosing runs on the Compare page builds the comparison from the ticked ru
   await page.getByRole("checkbox", { name: "run-1", exact: true }).click();
   await expect(page).toHaveURL(/#\/compare\/run-3\/run-1$/);
   await expect(page.getByRole("link", { name: "Compare (2)" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Runs compared" })).toBeVisible();
-  // unticking a run takes it out of the comparison
-  await page.getByRole("checkbox", { name: "run-3", exact: true }).click();
+  await expect(page.getByRole("figure", { name: /^Price, / }).first()).toBeVisible();
+  // unticking a run takes it out of the comparison (run-3 is the baseline now, so its name ends "baseline")
+  await page.getByRole("checkbox", { name: /^run-3\b/ }).click();
   await expect(page).toHaveURL(/#\/compare\/run-1$/);
 });
 
-test("three-run comparison shows trajectories for the chosen market and the configuration diff", async ({ page }) => {
+test("three-run comparison shows a price plot per Market, each with a line per run, and the configuration diff", async ({ page }) => {
   await page.goto("/#/compare/run-1/run-2/run-3");
-  await expect(page.locator(".recharts-line")).toHaveCount(3);
-  await expect(page.getByLabel("Market")).toHaveValue("energy-atlantic");
-  await page.getByLabel("Market").selectOption("energy-asia");
-  await expect(page.getByText("Price, energy-asia")).toBeVisible();
-  await expect(page.locator(".recharts-line")).toHaveCount(3);
+  await expect(page.getByRole("figure", { name: "Price, energy-atlantic", exact: true })).toBeVisible();
+  await expect(page.getByRole("figure", { name: "Price, energy-atlantic", exact: true }).locator(".recharts-line")).toHaveCount(3);
+  await expect(page.getByRole("figure", { name: "Price, energy-asia", exact: true }).locator(".recharts-line")).toHaveCount(3);
   await page.getByRole("tab", { name: "Configuration" }).click();
   await expect(rowWith(page, ["preset", "Conservative", "Conservative", "Aggressive"])).toHaveCount(1);
   await expect(rowWith(page, ["player seed", "1", "2", "1"])).toHaveCount(1);

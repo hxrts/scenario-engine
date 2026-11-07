@@ -9,5 +9,7 @@ export { LineChart as lineChart, Line as line, BarChart as barChart, Bar as bar,
 export { Sheet as sheet, SheetTrigger as sheetTrigger, SheetContent as sheetContent, SheetHeader as sheetHeader, SheetTitle as sheetTitle } from "@/ui/sheet.tsx";
 export { SidebarProvider as sidebarProvider, Sidebar as sidebar, SidebarHeader as sidebarHeader, SidebarContent as sidebarContent, SidebarGroup as sidebarGroup, SidebarMenu as sidebarMenu, SidebarMenuItem as sidebarMenuItem, SidebarMenuButton as sidebarMenuButton, SidebarInset as sidebarInset, SidebarTrigger as sidebarTrigger } from "@/ui/sidebar.tsx";
 export { Separator as separator } from "@/ui/separator.tsx";
+// Grouped bars (the Compare page): the Recharts bar chart and its bar series.
+export { BarChart as groupedBarChart, Bar as groupedBar } from "recharts";
 // A plain element, not a shadcn component: a labelled region for the run actions.
 export const region = "section";

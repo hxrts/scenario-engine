@@ -162,8 +162,8 @@ entityView db id entity = loadRun db id >>= case _ of
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: Db -> Object String -> Effect Response
-compareView db query = do
+compareView :: Context -> Db -> Object String -> Effect Response
+compareView ctx db query = do
   let ids = filter (_ /= "") (split (Pattern ",") (param query "runs" ""))
   loaded <- traverse (loadRun db) ids
   let
@@ -176,6 +176,11 @@ compareView db query = do
       Right trajectory -> ok
         { compatibility: Compare.compatible good
         , trajectory
+        , markets: Markets.marketCharts good
+        , netWorth: Compare.netWorthCharts good
+        , standings: Compare.standingsBars good
+        , balance: Compare.balanceBars good
+        , keyValues: Compare.keyValues ctx.gameboard good
         , final: Compare.finalState good
         , diff: Compare.baselineDiff base others
         , config: Compare.configDiff base others

@@ -4,6 +4,7 @@
 module Harness.Views.Common
   ( Table
   , Chart
+  , Bars
   , Statistic
   , StoredRun
   , MetricSpec
@@ -38,6 +39,10 @@ type Table = { title :: String, columns :: Array String, rows :: Array (Array St
 
 -- | A metric per round; values are decimal strings in their own units.
 type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
+
+-- | Grouped bars: one group per category, one bar per series (a run). Each series' values line up with
+-- | `categories`; a missing value is the empty string.
+type Bars = { title :: String, unit :: String, categories :: Array String, series :: Array { name :: String, values :: Array String } }
 
 -- | A statistic the views show: its name, the question it answers, its one-line definition, and its
 -- | formula. Each statistic is defined once, in the module that computes it; the dashboard renders it.

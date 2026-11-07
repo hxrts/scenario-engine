@@ -10,6 +10,8 @@ module Harness.Views.Markets
   , facilities
   , economy
   , trajectories
+  , marketCharts
+  , marketUnit
   ) where
 
 import Prelude
@@ -20,11 +22,11 @@ import Core.Num as Q
 import Core.Query (lookupQ, priceOf, totalHolding)
 import Core.Types (Id, MarketTag, ResourceId)
 import Core.World (Event(..), RoundRecord, WorldState)
-import Data.Array (concatMap, filter, foldl, fromFoldable, index, length, mapWithIndex)
-import Data.Either (Either(..))
+import Data.Array (concatMap, filter, foldl, fromFoldable, index, length, mapMaybe, mapWithIndex)
+import Data.Either (Either(..), hush)
 import Data.Foldable (for_)
 import Data.Map as Map
-import Data.Maybe (fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
 import Harness.Views.Actions (rejectionCount)
@@ -142,7 +144,7 @@ pressure r =
 trajectories :: Array StoredRun -> String -> Either String Chart
 trajectories runs market = do
   for_ runs \r -> maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)
-  unit <- maybe (Right "") marketUnit (index runs 0)
+  unit <- maybe (Right "") (marketUnit market) (index runs 0)
   pure
     { title: "Price, " <> market
     , unit
@@ -154,11 +156,25 @@ trajectories runs market = do
 
   price w = fromMaybe Q.zero (priceOf w mid)
 
-  marketUnit r = do
-    m <- maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)
-    base <- resourceUnit r m.base
-    quoteUnit <- resourceUnit r m.quote
-    pure (quoteUnit <> "/" <> base)
+-- | Every Market the first run has, as one price chart per Market over the runs that have it, so the
+-- | runs are compared on the same axes. A Market a run lacks leaves that run out of its chart.
+marketCharts :: Array StoredRun -> Array Chart
+marketCharts runs = case index runs 0 of
+  Nothing -> []
+  Just base -> mapMaybe (\m -> hush (trajectories (filter (hasMarket m) runs) m)) (map show (fromFoldable (Map.keys base.manifest.initial.markets) :: Array (Id MarketTag)))
+  where
+  hasMarket m r = Map.member (wrap m) r.manifest.initial.markets
 
-  resourceUnit :: StoredRun -> ResourceId -> Either String String
-  resourceUnit r res = maybe (Left ("resource " <> show res <> " is not in run " <> r.id)) (Right <<< _.unit) (Map.lookup res r.manifest.initial.resources)
+-- | A Market's unit, the quote per base unit, from the run's Resources.
+marketUnit :: String -> StoredRun -> Either String String
+marketUnit market r = do
+  m <- maybe (Left ("market " <> market <> " is not in run " <> r.id)) Right (Map.lookup mid r.manifest.initial.markets)
+  base <- resourceUnit m.base
+  quoteUnit <- resourceUnit m.quote
+  pure (quoteUnit <> "/" <> base)
+  where
+  mid :: Id MarketTag
+  mid = wrap market
+
+  resourceUnit :: ResourceId -> Either String String
+  resourceUnit res = maybe (Left ("resource " <> show res <> " is not in run " <> r.id)) (Right <<< _.unit) (Map.lookup res r.manifest.initial.resources)

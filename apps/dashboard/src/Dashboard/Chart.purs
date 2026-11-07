@@ -1,15 +1,17 @@
--- | Pure helpers behind the metric charts, kept free of React so they can be tested directly.
-module Dashboard.Chart (Series, plotValue, chartRows) where
+-- | Pure helpers behind the charts, kept free of React so they can be tested directly.
+module Dashboard.Chart (Series, plotValue, chartRows, barRows, colourOf) where
 
 import Prelude
 
-import Data.Array (concatMap, cons, filter, nub, sort)
-import Data.Maybe (Maybe, maybe)
+import Data.Argonaut.Core (Json, fromNumber, fromString)
+import Data.Array (concatMap, cons, elemIndex, filter, index, mapWithIndex, nub, sort)
 import Data.Int (toNumber)
-import Core.Num as Q
+import Data.Maybe (Maybe, fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
+import Core.Num as Q
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Harness.Views.Common (Bars)
 
 type Series = { name :: String, points :: Array { round :: Int, value :: String } }
 
@@ -27,3 +29,17 @@ chartRows series = map row rounds
   rounds = sort (nub (concatMap (map _.round <<< _.points) series))
   row r = Object.fromFoldable (cons (Tuple "round" (toNumber r)) (concatMap (plotted r) series))
   plotted r s = concatMap (\p -> maybe [] (\v -> [ Tuple s.name v ]) (plotValue p.value)) (filter (\p -> p.round == r) s.points)
+
+-- | One row per category, keyed by series name, with the category as its `category` label. A value
+-- | that does not parse has no key in its row, so its bar is a gap.
+barRows :: Bars -> Array (Object Json)
+barRows b = mapWithIndex row b.categories
+  where
+  row i cat = Object.fromFoldable (cons (Tuple "category" (fromString cat)) (concatMap (bar i) b.series))
+  bar i s = maybe [] (\v -> [ Tuple s.name (fromNumber v) ]) (index s.values i >>= plotValue)
+
+-- | The colour of a run: its position among the compared runs (the route's ids), so a run keeps its
+-- | colour in every plot and in the choice list. The theme has five chart colours, which repeat after
+-- | the fifth run. Every colour is a theme variable, so both themes use the same plots.
+colourOf :: Array String -> String -> String
+colourOf ids id = "var(--chart-" <> show ((fromMaybe 0 (elemIndex id ids) `mod` 5) + 1) <> ")"
