@@ -11,7 +11,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), Intent(..), ResourceId)
 import Core.World (Event(..), RoundRecord, WorldState)
-import Data.Array (find, index, length)
+import Data.Array (find, index, length, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
 import Data.Map as Map
@@ -153,9 +153,16 @@ spec context = describe "Dashboard statistics on hand-built runs" do
               ]
           }
         run = base { records = [ round ], snapshots = [ base.manifest.initial ] }
-        totals = (actions run).totals
-      rowOf totals "US" `shouldEqual` Just [ "US", "2", "1", "1", "1", "1" ]
-      rowOf totals "DE" `shouldEqual` Just [ "DE", "0", "0", "0", "1", "0" ]
+        view = actions run
+        totals = view.totals
+      rowOf totals "US" `shouldEqual` Just [ "US", "2", "1", "1", "1", "1", "6" ]
+      rowOf totals "DE" `shouldEqual` Just [ "DE", "0", "0", "0", "1", "0", "1" ]
+      map _.label view.chart.kinds `shouldEqual`
+        [ "Market trades (buys and sells)", "Production and procurement", "Payments to other players", "Deals signed", "Proposals rejected" ]
+      -- one bar per player, highest total first; the players with no actions follow in seat order
+      length view.chart.bars `shouldEqual` length view.totals.rows
+      map (\b -> Tuple b.player b.total) (take 2 view.chart.bars) `shouldEqual` [ Tuple "US" 6, Tuple "DE" 1 ]
+      map (\b -> map _.count b.counts) (take 2 view.chart.bars) `shouldEqual` [ [ 2, 1, 1, 1, 1 ], [ 0, 0, 0, 1, 0 ] ]
   describe "Seed variation and specification groups" do
     it "one run reports that more runs are needed, and no range" do
       ctx <- context
