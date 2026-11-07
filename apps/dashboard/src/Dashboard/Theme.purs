@@ -25,12 +25,9 @@ themeToggle = component "ThemeToggle" \_ -> React.do
     flip = do
       storeTheme (if dark then "light" else "dark")
       setDark (not dark)
-  pure $ element UI.button
-    { className: "text-sm"
-    , variant: "ghost"
-    , size: "sm"
-    -- a text glyph: it takes the button's text colour, so it follows the theme
-    , "aria-label": if dark then "Switch to light mode" else "Switch to dark mode"
+  -- a bare glyph: no button component, border or background, only the character
+  pure $ D.button
+    { className: "text-lg leading-none text-foreground hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
     , title: if dark then "Switch to light mode" else "Switch to dark mode"
     , onClick: handler_ flip
     , children: [ D.text "◑" ]
