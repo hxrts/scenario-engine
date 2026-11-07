@@ -143,8 +143,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       decodeText "{\"id\":\"run-8\",\"source\":\"run-1\",\"kind\":\"duplicate\"}" `shouldEqual` Right { id: "run-8", recordsMatch: Nothing }
   describe "Run list reads" do
     it "a run's archived flag and source come from its columns" do
-      runInfo runList "run-3" `shouldEqual` Just { id: "run-3", archived: true, source: "run-1" }
-      runInfo runList "run-1" `shouldEqual` Just { id: "run-1", archived: false, source: "" }
+      runInfo runList "run-3" `shouldEqual` Just { id: "run-3", status: "", archived: true, source: "run-1" }
+      runInfo runList "run-1" `shouldEqual` Just { id: "run-1", status: "", archived: false, source: "" }
       runInfo runList "nope" `shouldEqual` Nothing
     it "the runs derived from a run are those whose source it is" do
       derivedFrom runList "run-1" `shouldEqual` [ "run-2", "run-3" ]

@@ -9,14 +9,14 @@ import Data.Array (elem, filter, findIndex, find, index)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Harness.Views.Common (Table)
 
-type RunInfo = { id :: String, archived :: Boolean, source :: String }
+type RunInfo = { id :: String, status :: String, archived :: Boolean, source :: String }
 
 -- | The value of a named column in a row, or "" when the table has no such column.
 cell :: Table -> String -> Array String -> String
 cell t name row = fromMaybe "" (findIndex (_ == name) t.columns >>= \i -> index row i)
 
 infoOf :: Table -> Array String -> RunInfo
-infoOf t row = { id: cell t "Run" row, archived: cell t "Archived" row == "yes", source: cell t "Source" row }
+infoOf t row = { id: cell t "Run" row, status: cell t "Status" row, archived: cell t "Archived" row == "yes", source: cell t "Source" row }
 
 runInfos :: Table -> Array RunInfo
 runInfos t = map (infoOf t) t.rows

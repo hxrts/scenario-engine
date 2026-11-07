@@ -4,27 +4,13 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (page, section, grid, panel, details) where
+module Dashboard.Layout (page, section, grid, panel) where
 
 import Prelude
 
 import Dashboard.UI as UI
 import React.Basic.DOM as D
 import React.Basic.Hooks (JSX, element)
-
--- | One topic's deep views, behind a single Details disclosure that is closed until opened.
-details :: { title :: String, purpose :: String, children :: Array JSX } -> JSX
-details d = D.details
-  { className: "group min-w-0 rounded-md border"
-  , children:
-      [ D.summary
-          { className: "cursor-pointer px-4 py-3 font-medium", children: [ D.text ("Details: " <> d.title) ] }
-      , D.div
-          { className: "flex min-w-0 flex-col gap-stack px-4 pb-4"
-          , children: [ D.p { className: "text-sm text-muted-foreground", children: [ D.text d.purpose ] } ] <> d.children
-          }
-      ]
-  }
 
 -- | A page: its title, a one-sentence purpose, and its sections.
 page :: { title :: String, purpose :: String, children :: Array JSX } -> JSX

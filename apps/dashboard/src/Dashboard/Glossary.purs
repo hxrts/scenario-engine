@@ -1,7 +1,7 @@
 -- | Plain-language definitions for every table column, overview field and term the dashboard shows,
 -- | and what an empty value means. Text only: no value is computed here. Terms follow
 -- | docs/02_type_system.md §2.5 and docs/06_simulator.md §9.
-module Dashboard.Glossary (columnDefinition, fieldDefinition, emptyCell, EmptyCell) where
+module Dashboard.Glossary (columnDefinition, emptyCell, EmptyCell) where
 
 import Prelude
 
@@ -101,14 +101,6 @@ columnDefinition name = case Object.lookup name definitions of
   Nothing -> case stripPrefix (Pattern "Final price ") name of
     Just market -> "The market " <> market <> " marginal price after the last round, in quote units per base unit."
     Nothing -> "The value of " <> name <> " for this row. This column is a compared run's id."
-
--- | The definition of an overview field. Its labels reuse column names with other meanings: a run's
--- | Kind is how it was created, and its Source is whether the source run is still stored.
-fieldDefinition :: String -> String
-fieldDefinition name = case name of
-  "Kind" -> "How the run was created: launch, duplicate, rerun, variant or counterfactual."
-  "Source" -> "present if the source run is still in the Run Store, deleted if it was removed. none for an original run."
-  _ -> columnDefinition name
 
 -- | What an empty value means for a column or field. The reason is shown on hover, so no empty
 -- | cell is blank without an explanation.

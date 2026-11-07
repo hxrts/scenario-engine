@@ -303,13 +303,7 @@ mkRuns grid = do
                         { key: current <> "#" <> show version
                         , className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
                         , children:
-                            [ Layout.panel
-                                { span: 12
-                                , title: "Results"
-                                , purpose: "The run's results in the order of the five questions: standings, net worth, actions, drivers beside prices, and the balance of the game. Each deeper topic is under its Details."
-                                , children:
-                                    [ results { id: current } ]
-                                }
+                            [ results { id: current, status: maybe "" _.status info }
                             , Layout.panel
                                 { span: 12
                                 , title: "Lineage"

@@ -1,14 +1,13 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
 -- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
-module Dashboard.Components (tableOf, linkedTable, diffTable, fieldList, metricChart, fetched, status, definition, Render, as, card) where
+module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, fetched, status, definition, Render, as, card) where
 
 import Prelude
 
 import Dashboard.Api (useApi)
 import Dashboard.Chart (chartRows)
 import Dashboard.DataTable (DataTable)
-import Dashboard.Glossary (emptyCell, fieldDefinition)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
@@ -65,26 +64,6 @@ diffTable grid b t = D.div
   }
   where
   mark row i = i > b.baseline && index row i /= index row b.baseline
-
--- | An overview's fields as a definition list: each field with its definition on hover, and a value
--- | or, when the value is empty, "not recorded" with the reason. Field and Value rows only.
-fieldList :: Table -> JSX
-fieldList t = D.dl
-  { className: "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm"
-  , children: t.rows >>= \row ->
-      let
-        field = fromFieldsOr row 0
-        value = fromFieldsOr row 1
-        empty = emptyCell field
-      in
-        [ D.dt { key: field <> "-term", title: fieldDefinition field, className: "text-muted-foreground", children: [ D.text field ] }
-        , D.dd { key: field <> "-value", className: "min-w-0 break-words", children: [ if value == "" then D.span { className: "italic text-muted-foreground", title: empty.reason, children: [ D.text empty.label ] } else D.text value ] }
-        ]
-  }
-  where
-  fromFieldsOr row i = case index row i of
-    Just s -> s
-    Nothing -> ""
 
 -- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
 metricChart :: Chart -> JSX
