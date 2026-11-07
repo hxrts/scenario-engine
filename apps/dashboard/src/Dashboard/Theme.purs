@@ -29,7 +29,9 @@ themeToggle = component "ThemeToggle" \_ -> React.do
     { className: "text-sm"
     , variant: "outline"
     , size: "sm"
-    , "aria-label": "Switch theme"
+    -- an emoji keeps its own colours, so the icon looks the same in light and dark mode
+    , "aria-label": if dark then "Switch to light mode" else "Switch to dark mode"
+    , title: if dark then "Switch to light mode" else "Switch to dark mode"
     , onClick: handler_ flip
-    , children: [ D.text (if dark then "Light mode" else "Dark mode") ]
+    , children: [ D.text "🌗" ]
     }
