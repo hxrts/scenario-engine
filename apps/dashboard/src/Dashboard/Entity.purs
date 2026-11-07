@@ -80,13 +80,13 @@ mkEntity = do
     }
   plots h = Layout.grid
     [ Layout.panel
-        { span: 7
+        { span: 12
         , title: "Holdings by Resource"
         , purpose: "The holding of each Resource the Entity holds, by round."
         , children: [ metricChart h.chart ]
         }
     , Layout.panel
-        { span: 5
+        { span: 12
         , title: "Net worth"
         , purpose: "The Entity's net worth in M by round, on its own scale."
         , children: [ metricChart h.netWorth ]

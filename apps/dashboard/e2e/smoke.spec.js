@@ -99,14 +99,11 @@ test("clicking a run row selects it and shows its results on the same page, with
   await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
   await expect(page).toHaveURL(/#\/runs\/run-4$/);
   await expect(page.getByRole("button", { name: "run-1", exact: true })).toBeVisible();
-  await expect(page.getByText("Lineage", { exact: true })).toBeVisible();
 });
 
-test("#/runs/:id opens the Runs page with that run selected, its lineage and its actions beneath", async ({ page }) => {
+test("#/runs/:id opens the Runs page with that run selected and its actions beneath", async ({ page }) => {
   await page.goto("/#/runs/run-2");
   await expect(page.getByRole("heading", { name: "Run run-2" })).toBeVisible();
-  // run-2 is an original run, so its lineage says so
-  await expect(page.getByText("Not derived from another run (an original run).")).toBeVisible();
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
 });
 
@@ -132,9 +129,8 @@ test("every top-bar link navigates, from every page", async ({ page }) => {
     }
 });
 
-test("the lineage and the manage actions are visible sections, not disclosures", async ({ page }) => {
+test("the manage actions are visible sections, not disclosures", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  await expect(page.getByText("Lineage", { exact: true })).toBeVisible();
   await expect(page.getByText("Manage this run", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
@@ -239,7 +235,8 @@ test("sorting by a column does not move the header: its width is the same before
 });
 
 // The launch form's section on Prepare.
-const launchForm = (page) => page.locator("section").filter({ hasText: "Launch a run" }).first();
+// the launch fields, the summary and the Run button sit in two panels, so checks look across the page
+const launchForm = (page) => page;
 
 test("the launch form on Prepare offers the known presets and the scenario's rounds, and rejects a bad player seed without a request", async ({ page }) => {
   let posts = 0;
@@ -320,7 +317,7 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
       ? route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Unknown preset: Nope" }) })
       : route.continue());
   await page.goto("/#/prepare");
-  const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
+  const launch = page.locator("section").filter({ has: page.getByRole("button", { name: "Run", exact: true }) }).first();
   await launch.getByRole("button", { name: "Run", exact: true }).click();
   await expect(launch.getByText("Unknown preset: Nope")).toBeVisible();
   await expect(page).toHaveURL(/#\/prepare$/);

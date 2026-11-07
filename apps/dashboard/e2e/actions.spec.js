@@ -19,7 +19,7 @@ test("the selected run shows the manage actions, and no resume when the run is a
 test("the Prepare page has no derive controls: no duplicate, rerun, variant or counterfactual", async ({ page }) => {
   await mockReads(page);
   await page.goto("/#/prepare");
-  await expect(page.locator("section").filter({ hasText: "Launch a run" }).first()).toBeVisible();
+  await expect(page.locator("section").filter({ hasText: "Options" }).first()).toBeVisible();
   for (const name of ["Duplicate", "Rerun", "Variant", "Counterfactual"])
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
   await expect(page.getByText("Derive from a run")).toHaveCount(0);

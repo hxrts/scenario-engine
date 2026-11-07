@@ -16,7 +16,7 @@ import Dashboard.Presets (presetNames)
 import Dashboard.Results (mkRunResults, roundCount, roundTarget)
 import Dashboard.Route (Route(..), href, route)
 import Dashboard.RunActions as Actions
-import Dashboard.Runs (RunInfo, derivedFrom, mergeRuns, readableIds, runInfo, runInfos, sourceRow)
+import Dashboard.Runs (mergeRuns, readableIds, runInfo, runInfos, sourceRow)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
@@ -149,6 +149,18 @@ type LaunchView =
 -- | The launch form's fields, each with its default, then the summary line under them and the Run
 -- | button. A required field's label carries an asterisk and the word `required`; an optional one says
 -- | `optional` and its default. The round choices and the game seed come from the scenario.
+-- | The launch action: what Run will play, any error, and the Run button. It sits in its own column.
+launchAction :: LaunchView -> JSX
+launchAction v = D.div
+  { className: "flex flex-col gap-stack"
+  , children:
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.scenario.rounds v.form) ] }
+      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) v.failure
+      , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
+      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Preset and Scenario. Every other field has a default, so Run needs no edits." ] }
+      ]
+  }
+
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
@@ -169,10 +181,6 @@ launchFields v = D.div
               , D.span { className: "font-mono", children: [ D.text (show v.scenario.gameSeed) ] }
               ]
           }
-      , D.p { className: "text-sm font-medium", children: [ D.text (summary v.scenario.rounds v.form) ] }
-      , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) v.failure
-      , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Preset and Scenario. Every other field has a default, so Run needs no edits." ] }
       ]
   }
   where
@@ -244,12 +252,23 @@ mkPrepare = component "Prepare" \_ -> React.do
     , children:
         [ Layout.grid
             [ Layout.panel
-                { span: 7
-                , title: "Launch a run"
-                , purpose: "A new run of the scenario. The summary line says what Run will play."
+                { span: 6
+                , title: "Options"
+                , purpose: "Each option's default is shown beside it. Only Preset and Scenario are required."
                 , children:
                     [ case scenario of
                         Just (Right s) -> launchFields { form, setForm, scenario: s, defaultName, failure, launch }
+                        Just (Left e) -> status (Just e)
+                        Nothing -> status Nothing
+                    ]
+                }
+            , Layout.panel
+                { span: 6
+                , title: "Launch"
+                , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
+                , children:
+                    [ case scenario of
+                        Just (Right s) -> launchAction { form, setForm, scenario: s, defaultName, failure, launch }
                         Just (Left e) -> status (Just e)
                         Nothing -> status Nothing
                     ]
@@ -292,7 +311,7 @@ mkRuns grid = do
       pure (launchAff_ (killFiber (error "superseded") fiber))
     pure $ Layout.page
       { title: "Runs"
-      , purpose: "Every stored run, with the selected run's results, lineage and actions beside the list. With no run selected, the latest readable run is shown."
+      , purpose: "Every stored run, with the selected run's results and actions beside the list. With no run selected, the latest readable run is shown."
       , children:
           [ case everyRun of
               Just (Left e) -> status (Just e)
@@ -313,7 +332,6 @@ mkRuns grid = do
                                 , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
                                 }
                             , runTable grid t { selected: current, select: \id -> setHash (print route (Run id)) }
-                            , D.a { href: href Prepare, className: "text-sm underline", children: [ D.text "Prepare a run" ] }
                             ]
                         }
                     , if current == "" then Layout.panel
@@ -329,12 +347,6 @@ mkRuns grid = do
                             [ results { id: current, status: maybe "" _.status info }
                             , Layout.panel
                                 { span: 12
-                                , title: "Lineage"
-                                , purpose: "The run this one was derived from, and the runs derived from it."
-                                , children: [ lineage all current info ]
-                                }
-                            , Layout.panel
-                                { span: 12
                                 , title: "Manage this run"
                                 , purpose: "Resume, archive or delete this run."
                                 , children: [ manage { id: current, archived: maybe false _.archived info, onChanged: setVersion (version + 1) } ]
@@ -345,20 +357,6 @@ mkRuns grid = do
               Nothing -> status Nothing
           ]
       }
-
--- | Lineage: the source run this one was derived from, and the runs derived from it.
-lineage :: Table -> String -> Maybe RunInfo -> JSX
-lineage all id info = D.div
-  { className: "flex flex-col gap-2 text-sm"
-  , children:
-      [ case info of
-          Just i | i.source /= "" -> D.p_ [ D.text "Derived from ", runLink i.source ]
-          _ -> D.p_ [ D.text "Not derived from another run (an original run)." ]
-      , case derivedFrom all id of
-          [] -> D.p_ [ D.text "No runs are derived from this run." ]
-          ids -> D.div_ [ D.p_ [ D.text "Derived runs" ], D.ul { className: "list-disc pl-5", children: ids <#> \r -> D.li { key: r, children: [ runLink r ] } } ]
-      ]
-  }
 
 -- | Compare: the runs chosen for comparison, a market selector for the trajectory, and the parts as
 -- | tabs. Removing a run changes the route's id list.
