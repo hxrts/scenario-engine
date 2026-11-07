@@ -8,7 +8,7 @@ module Dashboard.Results (mkRunResults, Props, roundCount, roundTarget) where
 import Prelude
 
 import Dashboard.Api (runPath, useApi)
-import Dashboard.Components (as, fetched, metricChart, stackedBars, status, tableOf)
+import Dashboard.Components (as, fetched, metricChart, stackedBars, stale, status, tableOf)
 import Dashboard.Glossary (emptyCell)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
@@ -16,7 +16,7 @@ import Dashboard.Layout as Layout
 import Data.Array (find, index)
 import Data.Either (Either(..))
 import Data.Int as Int
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Tuple (Tuple(..))
 import Harness.Views.Actions (ActionsChart, actionsStat)
 import Harness.Views.Balance (giniStat, spreadStat)
@@ -24,7 +24,7 @@ import Harness.Views.Common (Chart, Statistic, Table)
 import Harness.Views.Drivers (driversStat)
 import Harness.Views.Standings (netWorthStat)
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, JSX, component)
+import React.Basic.Hooks (Component, JSX, component, useEffect, useState', (/\))
 import React.Basic.Hooks as React
 
 -- | The run whose results are shown, and its status from the run list. Comparison is chosen on the
@@ -110,7 +110,15 @@ mkRunResults grid = do
   body <- mkBody grid
   component "RunResults" \p -> React.do
     overview <- useApi p.id (runPath p.id <> "/overview")
-    pure $ case overview of
+    -- the previous run's header stays, dimmed, until the selected run's overview arrives
+    shown /\ setShown <- useState' (Nothing :: Maybe (Either String Table))
+    useEffect overview do
+      case overview of
+        Just r -> setShown (Just r)
+        Nothing -> pure unit
+      pure (pure unit)
+    let busy = isNothing overview
+    pure $ stale busy case (if busy then shown else overview) of
       Nothing -> status Nothing
       Just (Left e) -> status (Just e)
       Just (Right (t :: Table)) -> D.div

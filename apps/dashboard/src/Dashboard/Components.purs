@@ -1,7 +1,7 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
 -- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
-module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, stackedBars, fetched, status, definition, Render, as, card) where
+module Dashboard.Components (stale, tableOf, linkedTable, diffTable, metricChart, stackedBars, fetched, status, definition, Render, as, card) where
 
 import Prelude
 
@@ -14,13 +14,13 @@ import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
 import Data.Array (cons, index, mapWithIndex)
 import Data.Int (toNumber)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Harness.Views.Actions (ActionsChart)
 import Harness.Views.Common (Chart, Statistic, Table)
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, JSX, component, element)
+import React.Basic.Hooks (Component, JSX, component, element, useEffect, useState', (/\))
 import React.Basic.Hooks as React
 
 type Render = Json -> JSX
@@ -131,7 +131,19 @@ as f j = case decodeJson j of
 fetched :: Component { path :: String, render :: Render }
 fetched = component "Fetched" \p -> React.do
   res <- useApi unit p.path
-  pure case res of
+  -- the last loaded value stays on screen, dimmed, while a new one loads: nothing collapses or jumps
+  shown /\ setShown <- useState' (Nothing :: Maybe (Either String Json))
+  useEffect res do
+    case res of
+      Just r -> setShown (Just r)
+      Nothing -> pure unit
+    pure (pure unit)
+  let busy = isNothing res
+  pure $ stale busy case (if busy then shown else res) of
     Just (Right j) -> p.render j
     Just (Left e) -> status (Just e)
     Nothing -> status Nothing
+
+-- | Dims content that is the previous selection while its replacement loads.
+stale :: Boolean -> JSX -> JSX
+stale busy child = if busy then D.div { className: "opacity-60 transition-opacity", children: [ child ] } else child

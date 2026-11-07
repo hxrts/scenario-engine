@@ -341,7 +341,7 @@ mkRuns grid = do
                         , children: [ D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run yet. Prepare a run to see its results here." ] } ]
                         }
                       else D.div
-                        { key: current <> "#" <> show version
+                        { key: show version
                         , className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
                         , children:
                             [ results { id: current, status: maybe "" _.status info }

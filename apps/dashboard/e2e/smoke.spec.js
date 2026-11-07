@@ -396,3 +396,16 @@ test("toggling show archived runs does not move the page", async ({ page }) => {
   expect(after.x).toBe(before.x);
   expect(after.y).toBe(before.y);
 });
+
+test("clicking another run does not move the results", async ({ page }) => {
+  await page.goto("/#/runs");
+  await page.getByRole("button", { name: "run-1", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
+  const keyFigures = page.getByRole("heading", { name: "Key figures", exact: true });
+  const before = await keyFigures.boundingBox();
+  await page.getByRole("button", { name: "run-4", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
+  await expect(page.getByText("Loading", { exact: true })).toHaveCount(0);
+  const after = await keyFigures.boundingBox();
+  expect(after.y).toBe(before.y);
+});
