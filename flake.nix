@@ -1,5 +1,5 @@
 {
-  description = "Scenario Planning Game (PureScript)";
+  description = "Scenario Engine (PureScript)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

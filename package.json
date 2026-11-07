@@ -1,5 +1,5 @@
 {
-  "name": "scenario-plan",
+  "name": "scenario-engine",
   "private": true,
   "devDependencies": {
     "@playwright/test": "^1.65.0",

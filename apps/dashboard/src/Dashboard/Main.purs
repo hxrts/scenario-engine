@@ -539,7 +539,7 @@ shell current compareSet themeButton page = D.div
               [ D.div
                   { className: "mx-auto flex w-full max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-gutter py-3"
                   , children:
-                      [ D.a { href: href Runs, className: "font-semibold", children: [ D.text "Scenario Plan" ] }
+                      [ D.a { href: href Runs, className: "font-semibold", children: [ D.text "Scenario Engine" ] }
                       , D.nav
                           { className: "flex flex-wrap items-center gap-4 text-sm"
                           , children:
