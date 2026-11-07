@@ -29,7 +29,9 @@ import Routing.Hash (setHash)
 -- | The run's id, whether it is archived, its completed rounds and its target rounds (when the
 -- | overview reports one: Resume is offered only while the run is shorter than the target), and a
 -- | callback that refreshes the page after an archive or a resume.
-type Props = { id :: String, archived :: Boolean, rounds :: Maybe Int, target :: Maybe Int, onChanged :: Effect Unit }
+-- | `derive` selects the Prepare page's half (duplicate, rerun, variant, counterfactual); otherwise
+-- | the View page's half (archive, resume, delete) is shown.
+type Props = { id :: String, derive :: Boolean, archived :: Boolean, rounds :: Maybe Int, target :: Maybe Int, onChanged :: Effect Unit }
 
 -- | A rerun's outcome, shown in the panel with a link to the new run.
 type Notice = { text :: String, run :: String }
@@ -112,70 +114,79 @@ mkRunActions = component "RunActions" \p -> React.do
             ]
         }
 
-  pure $ card "Run actions"
-    [ D.div
-        { className: "flex flex-col gap-6"
-        , children:
-            [ element UI.region
-                { "aria-label": "Duplicate"
-                , className: "flex flex-col gap-2"
-                , children:
-                    [ D.div { className: "font-medium", children: [ D.text "Duplicate" ] }
-                    , field "Name" name setName
-                    , element UI.button { onClick: handler_ duplicate, children: [ D.text "Duplicate" ] }
-                    ]
-                }
-            , element UI.region
-                { "aria-label": "Rerun"
-                , className: "flex flex-col gap-2"
-                , children:
-                    [ D.div { className: "font-medium", children: [ D.text "Rerun" ] }
-                    , D.p { className: "text-sm text-muted-foreground", children: [ D.text "The same spec as a new run. The server reports whether its records match this run." ] }
-                    , element UI.button { onClick: handler_ (setNotice Nothing *> deriveRun "rerun" (Right { kind: "rerun", name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing })), children: [ D.text "Rerun" ] }
-                    , noticeLine
-                    ]
-                }
-            , variantForm "variant" "Variant" vPreset setVPreset vSeed setVSeed vRounds setVRounds
-            , variantForm "counterfactual" "Counterfactual" cPreset setCPreset cSeed setCSeed cRounds setCRounds
-            , D.p { className: "text-sm text-muted-foreground", children: [ D.text "A counterfactual is a variant recorded as a link to this run. Blank fields keep the server's defaults." ] }
-            , if canResume then element UI.region
-                { "aria-label": "Resume"
-                , className: "flex flex-col gap-2"
-                , children:
-                    [ D.div { className: "font-medium", children: [ D.text "Resume" ] }
-                    , field "Length to run to" resumeRounds setResumeRounds
-                    , element UI.button { onClick: handler_ resume, children: [ D.text "Resume" ] }
-                    ]
-                }
-              else D.span_ []
-            , D.div
-                { className: "flex flex-wrap gap-2"
-                , children:
-                    [ element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
-                    , element UI.sheet
-                        { children:
-                            [ element UI.sheetTrigger { asChild: true, children: [ element UI.button { children: [ D.text "Delete run" ] } ] }
-                            , element UI.sheetContent
-                                { children:
-                                    [ element UI.sheetHeader { children: [ element UI.sheetTitle { children: [ D.text "Delete run" ] } ] }
-                                    , D.div
-                                        { className: "flex flex-col gap-4 p-4"
-                                        , children:
-                                            [ D.p { className: "text-sm", children: [ D.text "This removes the run and its records. Type its id to confirm." ] }
-                                            , field "Run id" typed setTyped
-                                            , element UI.button { disabled: not (deleteConfirmed p.id typed), onClick: handler_ delete, children: [ D.text "Delete" ] }
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            , failureText
-            ]
-        }
-    ]
+  pure $
+    if p.derive then card "Derive a run"
+      [ D.div
+          { className: "flex flex-col gap-6"
+          , children:
+              [ element UI.region
+                  { "aria-label": "Duplicate"
+                  , className: "flex flex-col gap-2"
+                  , children:
+                      [ D.div { className: "font-medium", children: [ D.text "Duplicate" ] }
+                      , field "Name" name setName
+                      , element UI.button { onClick: handler_ duplicate, children: [ D.text "Duplicate" ] }
+                      ]
+                  }
+              , element UI.region
+                  { "aria-label": "Rerun"
+                  , className: "flex flex-col gap-2"
+                  , children:
+                      [ D.div { className: "font-medium", children: [ D.text "Rerun" ] }
+                      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "The same spec as a new run. The server reports whether its records match this run." ] }
+                      , element UI.button { onClick: handler_ (setNotice Nothing *> deriveRun "rerun" (Right { kind: "rerun", name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing })), children: [ D.text "Rerun" ] }
+                      , noticeLine
+                      ]
+                  }
+              , variantForm "variant" "Variant" vPreset setVPreset vSeed setVSeed vRounds setVRounds
+              , variantForm "counterfactual" "Counterfactual" cPreset setCPreset cSeed setCSeed cRounds setCRounds
+              , D.p { className: "text-sm text-muted-foreground", children: [ D.text "A counterfactual is a variant recorded as a link to this run. Blank fields keep the server's defaults." ] }
+              , failureText
+              ]
+          }
+      ]
+    else card "Manage this run"
+      [ D.div
+          { className: "flex flex-col gap-6"
+          , children:
+              [ if canResume then element UI.region
+                  { "aria-label": "Resume"
+                  , className: "flex flex-col gap-2"
+                  , children:
+                      [ D.div { className: "font-medium", children: [ D.text "Resume" ] }
+                      , field "Length to run to" resumeRounds setResumeRounds
+                      , element UI.button { onClick: handler_ resume, children: [ D.text "Resume" ] }
+                      ]
+                  }
+                else D.span_ []
+              , D.div
+                  { className: "flex flex-wrap gap-2"
+                  , children:
+                      [ element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
+                      , element UI.sheet
+                          { children:
+                              [ element UI.sheetTrigger { asChild: true, children: [ element UI.button { children: [ D.text "Delete run" ] } ] }
+                              , element UI.sheetContent
+                                  { children:
+                                      [ element UI.sheetHeader { children: [ element UI.sheetTitle { children: [ D.text "Delete run" ] } ] }
+                                      , D.div
+                                          { className: "flex flex-col gap-4 p-4"
+                                          , children:
+                                              [ D.p { className: "text-sm", children: [ D.text "This removes the run and its records. Type its id to confirm." ] }
+                                              , field "Run id" typed setTyped
+                                              , element UI.button { disabled: not (deleteConfirmed p.id typed), onClick: handler_ delete, children: [ D.text "Delete" ] }
+                                              ]
+                                          }
+                                      ]
+                                  }
+                              ]
+                          }
+                      ]
+                  }
+              , failureText
+              ]
+          }
+      ]
 
 -- | A labelled text input, for the form fields.
 field :: String -> String -> (String -> Effect Unit) -> JSX

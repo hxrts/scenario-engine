@@ -35,9 +35,21 @@ presetsPath = "packages/scenarios/presets.json"
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Dashboard routes" do
-    it "round-trip /runs, /runs/:id, /compare/:ids" do
-      for_ [ Runs, Run "run-1", Compare [ "run-1", "run-2" ], Compare [ "run-1" ] ] \r ->
+    it "round-trip /runs, /prepare, /runs/:id, /compare/:ids" do
+      for_ [ Runs, Prepare, Run "run-1", Compare [ "run-1", "run-2" ], Compare [ "run-1" ], Compare [] ] \r ->
         parse route (print route r) `shouldEqual` Right r
+    it "the home page is /runs, and the run list's page is that same route" do
+      print route Runs `shouldEqual` "/runs"
+      parse route "/runs" `shouldEqual` Right Runs
+    it "Prepare round-trips as /prepare" do
+      print route Prepare `shouldEqual` "/prepare"
+      parse route "/prepare" `shouldEqual` Right Prepare
+    it "View round-trips as /runs/:id" do
+      print route (Run "run-1") `shouldEqual` "/runs/run-1"
+      parse route "/runs/run-1" `shouldEqual` Right (Run "run-1")
+    it "Compare round-trips as /compare/:ids" do
+      print route (Compare [ "run-1", "run-2" ]) `shouldEqual` "/compare/run-1/run-2"
+      parse route "/compare/run-1/run-2" `shouldEqual` Right (Compare [ "run-1", "run-2" ])
     it "a run id with reserved characters is one segment, encoded and decoded intact" do
       parse route (print route (Run "a/b c")) `shouldEqual` Right (Run "a/b c")
       parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])

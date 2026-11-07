@@ -297,7 +297,9 @@ Initial storage is a local database such as SQLite, accessed through a Run Store
 
 ## 9. Pages
 
-The Dashboard has three pages: **Simulation Runs**, **Run Details**, and **Comparison**. It renders from persisted data without running the engine.
+The Dashboard has four pages, each on its own hash route, and a top bar that links to them: **Simulation Runs** (`#/runs`, the home page), **Prepare** (`#/prepare`), **View** (`#/runs/:id`), and **Comparison** (`#/compare/:ids`). It renders from persisted data without running the engine.
+
+The home page is the run list beside the latest readable run's summary (its key figures, its price chart, its balances after the final round, its objectives, and its rejections and shortfalls). Selecting a run in the list updates that summary in place. Comparison is optional: **Add to comparison** on any run adds it to a comparison set that the top bar shows, and the comparison page opens from there. A single run is fully viewable without any comparison. Layout uses one 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`.
 
 ### 9.1 Simulation Runs
 
