@@ -27,7 +27,7 @@ themeToggle = component "ThemeToggle" \_ -> React.do
       setDark (not dark)
   pure $ element UI.button
     { className: "text-sm"
-    , variant: "outline"
+    , variant: "ghost"
     , size: "sm"
     -- a text glyph: it takes the button's text colour, so it follows the theme
     , "aria-label": if dark then "Switch to light mode" else "Switch to dark mode"

@@ -485,9 +485,12 @@ shell current compareSet themeButton page = D.div
   isCompare = case _ of
     Compare _ -> true
     _ -> false
+  -- the current page is marked by a dot beneath it, not by weight or an underline
   navLink label r active = D.a
     { href: href r
-    , className: if active then "font-medium underline underline-offset-4" else "text-muted-foreground hover:text-foreground"
+    , className:
+        if active then "relative text-foreground after:absolute after:-bottom-2 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground"
+        else "text-muted-foreground hover:text-foreground"
     , children: [ D.text label ]
     }
 
