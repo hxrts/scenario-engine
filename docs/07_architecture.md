@@ -61,7 +61,7 @@ packages/
     Num            fixed-point quantities Q and display kinds
     Types, World   Entity, Resource, Intent, Proposal, Market, …; WorldState, RoundRecord, RoundResult, Manifest
     Draw           keyed PRNG
-    Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript` and `JointProposal`), Represent, Invariants
+    Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript`, `JointProposal`, and the reconciliation rule `jointProposals`), Represent, Invariants
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
@@ -69,9 +69,9 @@ packages/
   effects/     Effects.Signatures (the operations and their request and reply records, STORE's read-model records included), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
-               deadline windows, the joint pass, narration, the record write); Handlers.Llm (the model handler: prompts,
-               decoding, the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (prompt text and
-               reply decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD
+               deadline windows, the joint pass, narration, the record write); Handlers.Llm (the model handler: requests,
+               the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (the prompt text, the payloads and
+               reply decoding: the one place prompts live), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD
                over a StoreBackend; `validRunId`, the run identity rule); test/Test/Handlers/Stub holds the stub backend and
                the recording replay
   adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.SQLite (SQLite statements and the JSON
@@ -80,7 +80,7 @@ packages/
                Adapters.Console (the terminal: `readLine`, `writeLine`, `closeInput`; Console.js is the readline interface)
   simulator/   Simulator.Simulate (`startOf`, `presetSpec`, `seats`, simulation orchestration), Overrides, Recipe (a run's
                stored spec, and the derive rules), Records, Options, Capstone
-  analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models)
+  analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models, including `Views.Metrics`, the versioned metric definitions)
 apps/
   cli/         Main (run, session), Session, Compile, Transcript (the capstone recording)
   server/      Server, Server.Routes, Read, Launch, Derive, Errors; Http
@@ -151,7 +151,7 @@ simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult ->
 evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
 ```
 
-**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, metric definitions, the run lifecycle) is in the handler, so a backend carries only primitives: a model call that takes text and returns text, or one store statement that takes typed values. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
+**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle) is in the handler, so a backend carries only primitives. Prompt text is part of the model handler's contract and lives only in `Handlers.Llm.Wire`; adapters never hold prompts. Economic values such as metrics are computed in `analysis`, and the composition root passes them to the handler, which stores them: a model call that takes text and returns text, or one store statement that takes typed values. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
 
 ```purescript
 type Call = String -> String -> Aff { text :: String, raw :: String }  -- Handlers.Llm: system prompt and payload in, reply text out

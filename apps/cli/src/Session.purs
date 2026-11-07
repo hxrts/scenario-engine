@@ -41,6 +41,7 @@ import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Llm (agents, interpreter, narrator)
 import Handlers.Seats (strategies)
+import Analysis.Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore)
 import Node.Process (exit')
 import Scenarios.Load (loadContext)
@@ -72,7 +73,7 @@ session o = map (_ >>= loadContext) (readScenario fileOps (o.scenario <> "/v0"))
       let store = sqliteBackend db
       created <- liftEffect nowIso
       liftEffect $ runStore store (createRun { id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: initial.manifest, source: Nothing, kind: Nothing })
-      save <- liftEffect (recorder store o.id w0)
+      save <- liftEffect (recorder store roundMetrics o.id w0)
       liftEffect $ writeLine (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
       out <- attempt $ runLive

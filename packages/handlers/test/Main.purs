@@ -34,7 +34,7 @@ import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
-import Handlers.Store (AppendRound, StoreBackend, metricsVersion, recorder)
+import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Policy.Strategy (Strategy, decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile, readScenario)
@@ -78,6 +78,10 @@ seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP"
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
+-- | Stand-in metric rows: the handler stores whatever `metricsOf` returns, so the test needs no definitions.
+stubMetrics :: forall r. r -> Array { metric :: String, version :: String, value :: String }
+stubMetrics _ = [ { metric: "price:stub", version: "v1", value: "1.0000" } ]
+
 -- | A store backend that keeps the appended rounds in memory; the other operations answer nothing.
 memoryStore :: Ref.Ref (Array AppendRound) -> StoreBackend
 memoryStore saved =
@@ -108,13 +112,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       saved <- liftEffect (Ref.new [])
       let said = [ { seat: Id "US", text: "I will buy ten energy" } ]
       liftEffect do
-        save <- recorder (memoryStore saved) "run-x" g.world
+        save <- recorder (memoryStore saved) stubMetrics "run-x" g.world
         for_ records \r -> save r (if r.record.round == 1 then said else [])
       rows <- liftEffect (Ref.read saved)
       map _.round rows `shouldEqual` [ 1, 2 ]
       map _.run rows `shouldEqual` [ "run-x", "run-x" ]
       map _.transcripts rows `shouldEqual` [ said, [] ]
-      (all (\r -> length r.metrics > 0 && all (\m -> m.version == metricsVersion) r.metrics) rows) `shouldEqual` true
+      (all (\r -> length r.metrics > 0 && all (\m -> m.version == "v1") r.metrics) rows) `shouldEqual` true
 
   describe "Replay (Handlers.Replay over recorded rounds)" do
     it "a round with eleven proposals by one author replays into the same ids and order as recorded" do

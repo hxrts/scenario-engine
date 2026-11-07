@@ -9,6 +9,7 @@ module Core.Proposal
   , proposalsOf
   , numberJoint
   , jointProposalsOf
+  , jointProposals
   , signableBy
   , assembleSigned
   , submissionOrder
@@ -18,10 +19,10 @@ import Prelude
 
 import Core.Query (isAggregate)
 import Core.Types (CollectiveProcedureId, Entity, EntityId, Intent, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
-import Data.Array (concatMap, elem, filter, mapWithIndex)
+import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null)
 import Data.Either (Either, either)
 import Data.Map as Map
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (Tuple(..))
 
@@ -61,6 +62,24 @@ numberJoint r joint = (mapAccumL step Map.empty joint).value
 -- | A failed joint reply yields no Proposals: the round proceeds with the seats' own Proposals.
 jointProposalsOf :: forall a. Either String (Array a) -> Array a
 jointProposalsOf = either (const []) identity
+
+-- | The joint pass's rule (docs/04 §11): a Proposal whose author did not speak, and a Proposal with no
+-- | Intents, are dropped. Signers are kept only when `known` says they are Entities of the World, and
+-- | the author is never its own signer. Only speakers can be recorded as signing: `signed` is the
+-- | author and those of the agreed Entities who spoke.
+jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId } -> Array JointProposal
+jointProposals known transcripts = mapMaybe joint
+  where
+  speakers = map _.seat transcripts
+
+  joint p
+    | not (p.author `elem` speakers) = Nothing
+    | null p.intents = Nothing
+    | otherwise = Just
+        { author: p.author
+        , draft: { intents: p.intents, signers: filter (\s -> s /= p.author && known s) p.signers, procedure: Nothing }
+        , signed: nub ([ p.author ] <> filter (\s -> s `elem` speakers) p.agreed)
+        }
 
 -- | The Proposals an Entity is asked to sign: those that name it as a signer, that it did not
 -- | author, and only when it is not an Aggregate.

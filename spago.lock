@@ -41,6 +41,7 @@
             "partial",
             "quickcheck",
             "refs",
+            "sp-analysis",
             "sp-scenarios",
             "sp-simulator",
             "spec",

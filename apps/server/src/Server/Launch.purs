@@ -28,6 +28,7 @@ import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
 import Effects.Store (createRun, failRun, failRunning, finish, listSummaries)
+import Analysis.Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, persister, runStore)
 import Simulator.Recipe (Derivation, encodeSpec)
 import Simulator.Simulate (Context, Override, presetSpec, simulateWith)
@@ -77,7 +78,7 @@ start ctx store l = do
   created <- nowIso
   attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed l.overrides l.rounds) \manifest -> do
     runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
-    persister store id manifest.initial
+    persister store roundMetrics id manifest.initial
   case attempt of
     Left ex -> do
       runStore store (failRun id ("exception: " <> message ex))

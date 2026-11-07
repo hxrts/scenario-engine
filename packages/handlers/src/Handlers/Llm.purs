@@ -19,12 +19,12 @@ module Handlers.Llm
 
 import Prelude
 
-import Core.Proposal (JointProposal, Transcript)
+import Core.Proposal (JointProposal, Transcript, jointProposals)
 import Core.Types (EntityId, MarketId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (elem, filter, fromFoldable, mapMaybe, nub, null)
+import Data.Array (fromFoldable, null)
 import Data.Either (Either, either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -33,7 +33,7 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, ProposedDeal, SpeakRequest, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (Exchange, encodeReply)
 
 foreign import sha256 :: String -> String
@@ -64,34 +64,17 @@ ask b effect template payload decode = do
 
 -- | The round's transcripts to Proposals, one joint call. A reply that does not decode is a
 -- | `Left` (the caller tells the speakers and submits nothing). Entries the engine could not use
--- | are dropped by `jointProposals`.
+-- | are dropped by the joint pass rule (`Core.Proposal.jointProposals`).
 interpreter :: Backend -> WorldState -> InterpretF ~> Aff
 interpreter b w (Interpret round transcripts k) = k <$> do
   let
     request :: JointRequest
     request = { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets w }
   r <- ask b "interpret" interpretPrompt (encodeJson request) decodeJoint
-  pure (map (jointProposals w transcripts) r)
+  pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
 
 markets :: WorldState -> Array MarketId
 markets w = map _.id (fromFoldable (Map.values w.markets))
-
--- | The Proposals the model reconciled, as the engine uses them. An author who did not speak, an
--- | empty Intent list, and an unknown signer are dropped. Only speakers can be recorded as agreeing.
-jointProposals :: WorldState -> Array Transcript -> Array ProposedDeal -> Array JointProposal
-jointProposals w transcripts = mapMaybe joint
-  where
-  speakers = map _.seat transcripts
-
-  joint :: ProposedDeal -> Maybe JointProposal
-  joint p
-    | not (p.author `elem` speakers) = Nothing
-    | null p.intents = Nothing
-    | otherwise = Just
-        { author: p.author
-        , draft: { intents: p.intents, signers: filter (\s -> s /= p.author && Map.member s w.entities) p.signers, procedure: Nothing }
-        , signed: nub ([ p.author ] <> filter (\s -> s `elem` speakers) p.agreed)
-        }
 
 -- | The round's front page. A round whose joint pass did not decode, and a model reply that does
 -- | not decode, get the plain listing of the round's events, and a round whose joint pass did not

@@ -27,6 +27,7 @@ import Effects.Signatures (Spec, Stored, StoredRound)
 import Effects.Store (deleteRun, failRun, finish, listRuns, readManifest, readRounds, setArchived, setSpec, setStatus)
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Analysis.Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, persister, runStore)
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)
@@ -125,7 +126,7 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
                       attempt <- try $ resumeWith ctx (presetSpec ctx p.base.preset p.seed p.base.overrides (Just rounds)) (Just { world: p.snapshot, done: p.done }) \_ -> do
                         runStore store (setStatus id "running")
                         runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
-                        persister store id p.snapshot
+                        persister store roundMetrics id p.snapshot
                       case attempt of
                         Left ex -> do
                           runStore store (failRun id ("exception: " <> message ex))

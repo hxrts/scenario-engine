@@ -11,6 +11,7 @@ import Core.Invariants (check)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, holding)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState)
@@ -605,6 +606,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           check w res `shouldEqual` []
           holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.fromInt 10
           holding res.world (Id "US") (Id "E") `shouldEqual` Q.fromInt 2
+
+  describe "Joint pass rule (docs/04 §11)" do
+    let
+      known e = e == Id "US" || e == Id "EU"
+      said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      deal = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
+    it "drops a Proposal whose author did not speak, and one with no Intents" do
+      map _.author (jointProposals known said [ deal { author = Id "EU" }, deal { intents = [] } ]) `shouldEqual` []
+    it "keeps a speaker's Proposal, and signs for speakers only" do
+      map _.signed (jointProposals known said [ deal ]) `shouldEqual` [ [ Id "US" ] ]
+    it "keeps as signers only known Entities other than the author" do
+      map _.draft.signers (jointProposals known said [ deal { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)

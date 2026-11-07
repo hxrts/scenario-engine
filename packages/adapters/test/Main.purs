@@ -29,7 +29,8 @@ import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, listRuns, listSummaries, readManifest, readMetric, readRounds, setArchived, setSpec, setStatus)
-import Handlers.Store (metricsVersion, persister, recorder, runStore)
+import Analysis.Views.Metrics (metricsVersion, roundMetrics)
+import Handlers.Store (persister, recorder, runStore)
 import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile, readScenario)
@@ -72,7 +73,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith ctx spec \manifest -> do
         runStore port (createRun { id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "RandomValid", manifest, source: Nothing, kind: Nothing })
-        persister port "run-1" manifest.initial
+        persister port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
       liftEffect (runStore port (setStatus "run-1" "completed"))
       runs <- liftEffect (runStore port listRuns)
@@ -165,7 +166,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith ctx spec \manifest -> do
         runStore port (createRun { id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
-        save <- recorder port "run-1" manifest.initial
+        save <- recorder port roundMetrics "run-1" manifest.initial
         pure \r -> save r (if r.record.round == 1 then said else [])
       _ <- orThrow stored
       rows <- liftEffect (runStore port (readRounds "run-1"))
@@ -202,7 +203,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith ctx spec \manifest -> do
         runStore port (createRun { id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
-        persister port "run-1" manifest.initial
+        persister port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
       manifest <- manifestOf
       liftEffect $ runStore port (createRun { id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Just "run-1", kind: Just "duplicate" })
