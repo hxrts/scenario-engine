@@ -8,16 +8,13 @@ module Server.Errors
   , ok
   , failWith
   , viewOr
-  , decodeAs
   ) where
 
 import Prelude
 
-import Schema.Decode.Common (readJson)
-import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Core (stringify)
-import Data.Either (Either(..), either)
+import Data.Either (Either, either)
 import Effect (Effect)
 import Http (Response)
 
@@ -42,6 +39,3 @@ failWith status error = json status { error }
 viewOr :: forall a. EncodeJson a => Either String a -> Effect Response
 viewOr = either (failWith 400) ok
 
--- | Decode a stored text, naming what it was when it fails.
-decodeAs :: forall a. DecodeJson a => String -> String -> Either String a
-decodeAs what text = either (\e -> Left (what <> ": " <> e)) Right (readJson text)

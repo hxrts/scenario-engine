@@ -3,9 +3,7 @@
 -- | function from its Market's suffix, which returns both the names and the entries, so a name is
 -- | spelled once. `Premises.Meridian` lists them in `game-rules.json`.
 module Premises.Meridian.Parameters
-  ( SupplierNames
-  , Supplier
-  , supplierAtlantic
+  ( supplierAtlantic
   , supplierAsia
   , majorActionThreshold
   , euMatchingTariff

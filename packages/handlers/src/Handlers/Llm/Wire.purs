@@ -16,7 +16,6 @@ module Handlers.Llm.Wire
   , speakRequestShape
   , jointReplyShape
   , textReplyShape
-  , decodeReply
   , decodeJoint
   , decodeText
   ) where

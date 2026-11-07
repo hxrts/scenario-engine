@@ -14,34 +14,38 @@ module Premises.Capstone
   , expectations
   , baseObjectives
   , counterfactualObjectives
+  , RoundExpect
   , ObjectiveExpect
   , JointLine
   , jointLines
   , jointLineFor
   ) where
 
-import Prelude (map, ($), (<<<), (==))
+import Prelude (map, otherwise, ($), (<<<), (==))
 import Premises.Names as N
 import Game.Types (Bindings, SeatBinding(..))
 import Data.Map as Map
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (find)
-import Data.String (Pattern(..), contains)
+import Data.Array (find, index, mapMaybe)
+import Data.String (Pattern(..), contains, split)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
+import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (Id(..))
-import Data.Maybe (Maybe(..))
-import Schema.Build.Base (keyed, (:=))
+import Core.Types (EntityId, Id(..), ProposalId, proposalId, submissionIndex)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), fromMaybe)
+import Schema.Build.Base (Keyed)
+import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
 import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
 import Schema.Build.Intent (enactAccessBan, enactWithholding, repeal, trade, transfer, transform)
 import Schema.Premise.Strategy (presetsShape)
+import Schema.Round (Delivery, Expect)
 import Core.Shape (encodeWith, Format(..))
-import Schema.Build.Fixture (noExpect, refAt)
-import Schema.Premise.Fixture (ExpectDoc, expectShape)
+import Schema.Premise.Fixture (DeliveryDoc, ExpectDoc, ProcedureDoc, ProposalRefDoc, expectShape)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int
@@ -166,41 +170,56 @@ seats usStrategy =
   , Tuple N.aid passive
   ]
 
--- | Round expectations, checked by the simulator with the fixture checker. The values are the
--- | capstone run's own (the seat strategies above on the shipped economics): each one is
--- | explained by its mechanism in the comment, and the simulator fails if any drifts.
-expectations :: Array Json
+-- | One round's expectation: the round, and the checks it makes.
+type RoundExpect = { round :: Int, expect :: Expect }
+
+-- | Round expectations, checked by the simulator: the capstone run's own values (the seat strategies
+-- | above on the shipped economics). Each one is explained by its mechanism in the comment, and the
+-- | simulator fails if any drifts.
+expectations :: Array RoundExpect
 expectations =
-  [ roundExp 2 (noExpect { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
-  , roundExp 3 (noExpect { procedures = Just [ { author: N.eu, index: Just 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
+  [ roundExp 2 (none { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
+  , roundExp 3 (none { procedures = Just [ { proposal: at 3 N.eu 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
   , roundExp 4
-      ( noExpect
-          { rejected = Just [ refAt N.enco 0 ] -- the shipment into India is banned
-          , lapsed = Just [ refAt N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
-          , procedures = Just [ { author: N.eu, index: Just 1, support: q "0.4", executed: false } ]
-          , accounts = Just (keyed [ Tuple N.us (keyed [ N.mil := "85.5" ]) ]) -- 60 reserved, 38 scaled action
-          , factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9437" ]) ])
+      ( none
+          { rejected = Just [ at 4 N.enco 0 ] -- the shipment into India is banned
+          , lapsed = Just [ at 4 N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
+          , procedures = Just [ { proposal: at 4 N.eu 1, support: q "0.4", executed: false } ]
+          , accounts = single N.us N.mil "85.5" -- 60 reserved, 38 scaled action
+          , factors = single N.globalSmes N.energy "0.9437"
           }
       )
   , roundExp 5
-      ( noExpect
-          { procedures = Just [ { author: N.eu, index: Just 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
-          , accounts = Just (keyed [ Tuple N.us (keyed [ N.mil := "76.95" ]) ])
+      ( none
+          { procedures = Just [ { proposal: at 5 N.eu 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
+          , accounts = single N.us N.mil "76.95"
           }
       )
-  , roundExp 6 (noExpect { scheduled = Just 2 }) -- both repeals are scheduled
-  , roundExp 7 (noExpect { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
-  , roundExp 8 (noExpect { factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9406" ]) ]) })
+  , roundExp 6 (none { scheduled = Just 2 }) -- both repeals are scheduled
+  , roundExp 7 (none { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
+  , roundExp 8 (none { factors = single N.globalSmes N.energy "0.9406" })
   ]
   where
-  roundExp :: Int -> ExpectDoc -> Json
-  roundExp r e = encodeJson { round: r, expect: encodeWith Premise expectShape e }
+  roundExp :: Int -> Expect -> RoundExpect
+  roundExp r e = { round: r, expect: e }
 
--- | An objective's expected outcome, by its Entity: "met", "notMet" or "notEvaluated" (the premise spelling).
-type ObjectiveExpect = { entity :: String, outcome :: String }
+-- | The expectation that checks nothing: every field is absent.
+none :: Expect
+none = { accounts: Map.empty, reserves: Map.empty, factors: Map.empty, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, procedures: Nothing, scheduled: Nothing }
 
-outcome :: String -> String -> ObjectiveExpect
-outcome entity o = { entity, outcome: o }
+-- | A Proposal by its author and its position among the author's Proposals in `round`.
+at :: Int -> String -> Int -> ProposalId
+at r author i = proposalId r (Id author) i
+
+-- | One balance (or factor) of one Entity: the leaf the expectation checks.
+single :: forall a b. String -> String -> String -> Map.Map (Id a) (Map.Map (Id b) (Maybe Q))
+single e k v = Map.singleton (Id e) (Map.singleton (Id k) (Just (q v)))
+
+-- | An objective's expected outcome, by its Entity.
+type ObjectiveExpect = { entity :: EntityId, outcome :: Outcome }
+
+objective :: String -> Outcome -> ObjectiveExpect
+objective e o = { entity: Id e, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
 allActors :: Array String
@@ -209,12 +228,12 @@ allActors = [ N.aid, N.br, N.chip, N.cn, N.de, N.def, N.enco, N.india, N.jp, N.l
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
 baseObjectives :: Array ObjectiveExpect
-baseObjectives = map (\e -> outcome e "notMet") allActors
+baseObjectives = map (\e -> objective e NotMet) allActors
 
 -- | Without the deployment the US keeps its 95 Mil and meets its objective; nothing else changes
 -- | the outcomes.
 counterfactualObjectives :: Array ObjectiveExpect
-counterfactualObjectives = map (\e -> outcome e (if e == N.us then "met" else "notMet")) allActors
+counterfactualObjectives = map (\e -> objective e (if e == N.us then Met else NotMet)) allActors
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
@@ -228,7 +247,7 @@ strategyBindings :: Array (Tuple String Strategy) -> Bindings
 strategyBindings xs = Map.fromFoldable (map (\(Tuple e s) -> Tuple (Id e) (Strategy s)) xs)
 
 -- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
--- | and every objective's expected outcome in each case.
+-- | and every objective's expected outcome in each case, in the premise's spelling.
 file :: Json
 file = encodeJson
   { label: "capstone"
@@ -236,10 +255,58 @@ file = encodeJson
   , playerSeed
   , seats: encodeWith Premise presetsShape (seats us)
   , counterfactual: encodeWith Premise presetsShape [ Tuple N.us usWithoutDeployment ]
-  , expectations
-  , objectives: baseObjectives
-  , counterfactualObjectives
+  , expectations: map roundJson expectations
+  , objectives: map objectiveJson baseObjectives
+  , counterfactualObjectives: map objectiveJson counterfactualObjectives
   }
+  where
+  roundJson r = encodeJson { round: r.round, expect: encodeWith Premise expectShape (expectDoc r.expect) }
+  objectiveJson o = { entity: unId o.entity, outcome: word o.outcome }
+  word = case _ of
+    Met -> "met"
+    NotMet -> "notMet"
+    NotEvaluated -> "notEvaluated"
+
+-- | An expectation in the premise's spelling: the inverse of the builders above (`proposalId` is
+-- | read back as its author and position), so `capstone/run.json` keeps its written form.
+expectDoc :: Expect -> ExpectDoc
+expectDoc e =
+  { accounts: keyedOf e.accounts
+  , reserves: keyedOf e.reserves
+  , deliveries: map (map deliveryDoc) e.deliveries
+  , rejected: map (map refOf) e.rejected
+  , lapsed: map (map refOf) e.lapsed
+  , factors: keyedOf e.factors
+  , scheduled: e.scheduled
+  , procedures: map (map procedureDoc) e.procedures
+  }
+
+-- | A two-level map written as keyed objects; an empty map is an absent key.
+keyedOf :: forall a b. Map.Map (Id a) (Map.Map (Id b) (Maybe Q)) -> Maybe (Keyed (Keyed Q))
+keyedOf m
+  | Map.isEmpty m = Nothing
+  | otherwise = Just (map (\(Tuple (Id k) inner) -> Tuple k (mapMaybe leaf (Map.toUnfoldable inner))) (Map.toUnfoldable m))
+      where
+      leaf (Tuple (Id k) v) = map (Tuple k) v
+
+refOf :: ProposalId -> ProposalRefDoc
+refOf p = Right { author: authorOf p, index: Just (positionOf p) }
+
+procedureDoc :: { proposal :: ProposalId, support :: Q, executed :: Boolean } -> ProcedureDoc
+procedureDoc p = { author: authorOf p.proposal, index: Just (positionOf p.proposal), support: p.support, executed: p.executed }
+
+deliveryDoc :: Delivery -> DeliveryDoc
+deliveryDoc d = { entity: unId d.entity, resource: unId d.resource, quantity: d.quantity }
+
+unId :: forall a. Id a -> String
+unId (Id s) = s
+
+-- | The author of a Proposal id: the segment after the round, before the position.
+authorOf :: ProposalId -> String
+authorOf p = fromMaybe "" (index (split (Pattern "/") (unId p)) 1)
+
+positionOf :: ProposalId -> Int
+positionOf p = fromMaybe 0 (submissionIndex p)
 
 -- Joint pass ------------------------------------------------------------------------------
 

@@ -10,11 +10,9 @@ module Schema.Premise.World
   , CostDoc
   , MarketDoc
   , FacilityDoc
-  , EffectDoc
   , EntityDoc
   , AggregateDoc
   , ProcedureDoc
-  , EstimatorDoc
   , RepresentationDoc
   , SchemeDoc
   , AssignmentDoc
@@ -25,26 +23,12 @@ module Schema.Premise.World
   , RequirementDoc
   , WorldDoc
   , worldRec
-  , nameF
-  , roundF
-  , numeraireF
-  , resourcesF
-  , marketsF
-  , transformationsF
-  , transportF
-  , jurisdictionF
-  , entitiesF
-  , rulesF
-  , representationsF
-  , circulationF
   , schemeShape
   , assignmentShape
-  , estimatorShape
-  , estimatorRec
-  , estimatorToCore
   , schemeToCore
   , worldToCore
-  , holdingsOf
+  , EffectDoc
+  , EstimatorDoc
   ) where
 
 import Prelude

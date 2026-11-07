@@ -1,6 +1,7 @@
--- | The premise format of a literal premise's rounds (docs/05_test_instance.md §21–§27): the
--- | Proposals a round receives (signed Intents), and the `expect` checks that round makes. A
--- | fixture file is a World with its rounds: a `rounds` list, or one round written at the top level.
+-- | The premise format of a literal premise (docs/05_test_instance.md §21–§27), as three parts: the
+-- | `premise` (its seed and World), the `bindings` (each round's Proposals, the answers a seat plays
+-- | as a Script binding, in order from the World's round), and the `expectations` (the checks a round
+-- | makes, each naming its round). A round with no expectation checks nothing.
 -- | `toLiteral` produces the engine-level value (`Literal`, whose `Round`s carry the typed `Expect`
 -- | of `Schema.Round`) with every default filled in.
 module Schema.Premise.Fixture
@@ -17,12 +18,11 @@ module Schema.Premise.Fixture
   , proposalShape
   , expectShape
   , roundShape
-  , roundRec
-  , proposalRefShape
-  , toLiteral
   , toRound
   , decodeLiteral
-  , decodeExpect
+  , PremiseDoc
+  , BindingDoc
+  , ExpectationDoc
   ) where
 
 import Prelude
@@ -32,9 +32,10 @@ import Core.Num (Q)
 import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape, Format(..), decodeJsonWith)
 import Core.Types (Id(..), IntentF, ProposalId, RoundIndex, SignedProposal, proposalId)
 import Core.World (WorldState, seeded)
-import Data.Array (concat, groupBy, mapWithIndex, sortWith)
+import Data.Array (concat, elem, find, groupBy, length, mapWithIndex, nub, range, sortWith)
 import Data.Array.NonEmpty (toArray)
 import Data.Either (Either(..), either)
+import Data.Foldable (all)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
@@ -43,7 +44,7 @@ import Schema.Premise.World (Keyed, WorldDoc, worldRec, worldToCore)
 import Schema.Round (Delivery, Expect, ProcedureOutcome)
 import Data.Map as Map
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError)
+import Data.Argonaut.Decode (JsonDecodeError(..))
 
 -- | A round as the engine plays it: its round index, its signed Proposals, and its checks.
 type Round = { round :: RoundIndex, inputs :: Array SignedProposal, expect :: Expect }
@@ -84,11 +85,19 @@ type ExpectDoc =
 type RoundDoc = { proposals :: Maybe (Array ProposalDoc), expect :: Maybe ExpectDoc }
 
 -- | A fixture as written: its World, and its rounds (a list, or the one round written at the top level).
+type PremiseDoc = { seed :: Int, world :: WorldDoc }
+
+-- | One round's Proposals, as the seat answers it (a Script binding's `propose` and `sign`, derived at load).
+type BindingDoc = { proposals :: Array ProposalDoc }
+
+-- | The checks a round makes, named by its round.
+type ExpectationDoc = { round :: Int, expect :: ExpectDoc }
+
+-- | A fixture as written: its premise, its bindings (one per round, in order), and its expectations.
 type FixtureDoc =
-  { seed :: Int
-  , world :: WorldDoc
-  , rounds :: Maybe (Array RoundDoc)
-  , inline :: RoundDoc
+  { premise :: PremiseDoc
+  , bindings :: Array BindingDoc
+  , expectations :: Array ExpectationDoc
   }
 
 -- Shapes --------------------------------------------------------------------------------------
@@ -160,15 +169,36 @@ roundRec = mk <$> fieldOf "proposals" "the Proposals the round receives" (option
   where
   mk p e = { proposals: p, expect: e }
 
-fixtureShape :: Shape FixtureDoc
-fixtureShape = object "Fixture"
-  ( mk <$> fieldOf "seed" "the game seed of the fixture's World" intShape _.seed
-      <*> contramapRec _.world worldRec
-      <*> fieldOf "rounds" "the rounds, in order" (optionalOf (listOf roundShape)) _.rounds
-      <*> contramapRec _.inline roundRec
+bindingShape :: Shape BindingDoc
+bindingShape = object "Binding"
+  (mk <$> fieldOf "proposals" "the Proposals the round receives, in order" (listOf proposalShape) _.proposals)
+  where
+  mk p = { proposals: p }
+
+expectationShape :: Shape ExpectationDoc
+expectationShape = object "Expectation"
+  ( mk <$> fieldOf "round" "the round it checks" intShape _.round
+      <*> fieldOf "expect" "the checks the round makes" expectShape _.expect
   )
   where
-  mk s w r i = { seed: s, world: w, rounds: r, inline: i }
+  mk r e = { round: r, expect: e }
+
+premiseShape :: Shape PremiseDoc
+premiseShape = object "Premise"
+  ( mk <$> fieldOf "seed" "the game seed of the fixture's World" intShape _.seed
+      <*> contramapRec _.world worldRec
+  )
+  where
+  mk s w = { seed: s, world: w }
+
+fixtureShape :: Shape FixtureDoc
+fixtureShape = object "Fixture"
+  ( mk <$> fieldOf "premise" "the seed and the World" premiseShape _.premise
+      <*> fieldOf "bindings" "the rounds' Proposals, one binding per round, in order" (listOf bindingShape) _.bindings
+      <*> fieldOf "expectations" "the checks, each naming its round" (listOf expectationShape) _.expectations
+  )
+  where
+  mk p b e = { premise: p, bindings: b, expectations: e }
 
 -- Conversions ---------------------------------------------------------------------------------
 
@@ -176,14 +206,13 @@ fixtureShape = object "Fixture"
 -- | Proposals numbered. A fixture with no `rounds` list is one round, written at the top level.
 toLiteral :: FixtureDoc -> Literal
 toLiteral f =
-  { name: fromMaybe "" f.world.name
-  , world: seeded (Seed f.seed) (worldToCore f.world)
-  , rounds: case f.rounds of
-      Just rs -> mapWithIndex (\k r -> toRound (round + k) r) rs
-      Nothing -> [ toRound round f.inline ]
+  { name: fromMaybe "" f.premise.world.name
+  , world: seeded (Seed f.premise.seed) (worldToCore f.premise.world)
+  , rounds: mapWithIndex (\k b -> toRound (round + k) (roundOf (round + k) b)) f.bindings
   }
   where
-  round = fromMaybe 1 f.world.round
+  round = fromMaybe 1 f.premise.world.round
+  roundOf r b = { proposals: Just b.proposals, expect: map _.expect (find (\x -> x.round == r) f.expectations) }
 
 -- | One round: its Proposals in author order, each numbered within its author's group, and its expectation.
 toRound :: RoundIndex -> RoundDoc -> Round
@@ -232,7 +261,14 @@ procedureToCore round p = { proposal: proposalId round (Id p.author) (fromMaybe 
 
 -- | A literal premise, decoded from its JSON (the fixture file's document).
 decodeLiteral :: Json -> Either JsonDecodeError Literal
-decodeLiteral j = map toLiteral (decodeJsonWith Premise fixtureShape j)
+decodeLiteral j = do
+  f <- decodeJsonWith Premise fixtureShape j
+  let
+    round = fromMaybe 1 f.premise.world.round
+    named = map _.round f.expectations
+    bound = map (\k -> round + k) (range 0 (length f.bindings - 1))
+  if all (\r -> elem r bound) named && length (nub named) == length named then pure (toLiteral f)
+  else Left (TypeMismatch "an expectation names a round with no binding, or names one round twice")
 
 -- | The checks of one round, decoded from their JSON (an `expect` object) for the round it checks.
 decodeExpect :: RoundIndex -> Json -> Either JsonDecodeError Expect

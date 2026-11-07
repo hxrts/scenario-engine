@@ -6,10 +6,9 @@
 -- | one definition. Pure.
 module Views.Entity
   ( entityHistory
-  , entityIds
-  , EntityChoice
   , EntityList
   , entityList
+  , EntityChoice
   ) where
 
 import Prelude

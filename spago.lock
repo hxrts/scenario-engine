@@ -129,6 +129,7 @@
             "sp-game",
             "sp-handlers",
             "sp-premises",
+            "sp-schema",
             "sp-simulator",
             "sp-views",
             "strings",

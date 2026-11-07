@@ -9,7 +9,14 @@
 -- |     A Just target makes that cell a link. The view model has no key field, so the caller decides
 -- |   * `mark row i` is called with a row's values and a column index i, and highlights that cell
 -- |     when true. Both are positional: indices are positions in `columns`, not names.
-module Dashboard.DataTable (Props, DataTable, Sort, mkDataTable, sortRows, compareCells, nextSort) where
+module Dashboard.DataTable
+  ( Props
+  , DataTable
+  , mkDataTable
+  , sortRows
+  , compareCells
+  , nextSort
+  ) where
 
 import Prelude
 

@@ -1,5 +1,7 @@
 -- | The Replay handler: seats answered from recorded Proposals and signatures.
-module Handlers.Replay (runReplay, missingRounds) where
+module Handlers.Replay
+  ( runReplay
+  ) where
 
 import Prelude
 

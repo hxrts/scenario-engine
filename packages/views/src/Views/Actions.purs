@@ -4,14 +4,12 @@
 -- | read it. Pure.
 module Views.Actions
   ( actionsStat
-  , actionKinds
   , rejectionCount
   , Counts
   , PlayerCounts
   , actionTotals
   , actions
   , ActionsChart
-  , ActionsView
   ) where
 
 import Prelude

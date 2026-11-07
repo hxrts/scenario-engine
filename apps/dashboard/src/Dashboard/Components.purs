@@ -9,17 +9,16 @@ module Dashboard.Components
   , stackedBars
   , overlayChart
   , groupedBars
-  , plotFrame
   , placeholderFrame
   , fetched
   , status
   , errorBlock
   , labelled
   , textInput
-  , StatVariant(..)
   , statistic
   , Render
   , as
+  , StatVariant(..)
   ) where
 
 import Prelude

@@ -1,14 +1,24 @@
 -- | The world pieces every golden fixture family shares: the fixture spec and its builder, and the
 -- | Energy Markets and Facilities that the families build on. Every expected value stays in the
 -- | family modules, as a literal from docs/05_test_instance.md; nothing here computes one.
-module Premises.Fixtures.Common (FixtureSpec, defaultFixture, fixture, holder, energy, energyAt, facilities) where
+module Premises.Fixtures.Common
+  ( defaultFixture
+  , fixture
+  , holder
+  , energy
+  , energyAt
+  , facilities
+  ) where
 
+import Prelude (map, (+))
 import Premises.Names as N
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
 import Core.Types (Capability, RuleF)
-import Data.Maybe (Maybe(..))
+import Data.Array (mapWithIndex)
+import Data.Array as Array
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (Keyed, keyed)
 import Schema.Build.World (noEntity)
@@ -53,30 +63,36 @@ defaultFixture =
   , rounds: Nothing
   }
 
--- | The fixture's JSON, named `name`. Its World has the fixture seed, and its rounds are the list
--- | given, or the one round written at the top level.
+-- | The fixture's JSON, named `name`: its premise (the fixture seed and its World), its bindings (one
+-- | per round, in order from the World's round), and its expectations (each round's checks, named by
+-- | its round). The rounds are the list given, or the one round written at the top level.
 fixture :: String -> FixtureSpec -> Tuple String Json
 fixture name s = Tuple name (encodeWith Premise fixtureShape doc)
   where
+  rounds' :: Array RoundDoc
+  rounds' = fromMaybe [ { proposals: s.proposals, expect: s.expect } ] s.rounds
+
   doc :: FixtureDoc
   doc =
-    { seed: gameSeed
-    , world:
-        { name: Just name
-        , round: Just s.round
-        , numeraire: s.numeraire
-        , resources: s.resources
-        , markets: s.markets
-        , transformations: s.transformations
-        , transport: Just s.transport
-        , jurisdiction: Nothing
-        , entities: s.entities
-        , rules: Just s.rules
-        , representations: s.representations
-        , circulation: s.circulation
+    { premise:
+        { seed: gameSeed
+        , world:
+            { name: Just name
+            , round: Just s.round
+            , numeraire: s.numeraire
+            , resources: s.resources
+            , markets: s.markets
+            , transformations: s.transformations
+            , transport: Just s.transport
+            , jurisdiction: Nothing
+            , entities: s.entities
+            , rules: Just s.rules
+            , representations: s.representations
+            , circulation: s.circulation
+            }
         }
-    , rounds: s.rounds
-    , inline: { proposals: s.proposals, expect: s.expect }
+    , bindings: map (\r -> { proposals: fromMaybe [] r.proposals }) rounds'
+    , expectations: Array.catMaybes (mapWithIndex (\k r -> map (\e -> { round: s.round + k, expect: e }) r.expect) rounds')
     }
 
 -- | An Entity that holds these accounts and capabilities, and nothing else.

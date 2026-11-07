@@ -1,4 +1,4 @@
--- | `just _premises`: compiles the premise DSL (`Premises.Compile`) and writes the JSON files
+-- | `just _premises`: compiles the premise DSL (`Compile.Render`) and writes the JSON files
 -- | under the premise root (`PREMISES_DIR`, default `packages/premises`). An invalid premise
 -- | exits 1 and writes nothing.
 module Compile (main) where
@@ -16,7 +16,7 @@ import Node.Encoding (Encoding(..))
 import Node.FS.Perms (permsAll)
 import Node.FS.Sync (mkdir', writeTextFile)
 import Node.Process (exit')
-import Premises.Compile (compile)
+import Compile.Render (compile)
 
 main :: Effect Unit
 main = case compile of

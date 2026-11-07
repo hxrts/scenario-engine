@@ -7,7 +7,6 @@
 module Schema.Build.World
   ( noFacility
   , noResource
-  , noDefinition
   , noEntity
   , class ToBound
   , bound

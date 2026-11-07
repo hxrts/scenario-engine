@@ -5,17 +5,17 @@
 -- | orphan instances), so this module imports no domain type.
 module Core.Shape
   ( Format(..)
-  , TagForm(..)
-  , Codec
   , codec
   , encodeJsonWith
   , decodeJsonWith
+  , Shape
   , Desc(..)
+  , Codec
   , DField
   , DCtor
-  , Shape
-  , Field
+  , TagForm(..)
   , Ctor
+  , Field
   , prim
   , qShape
   , unitShape
@@ -30,7 +30,6 @@ module Core.Shape
   , rec3
   , rec4
   , rec5
-  , rec6
   , rec7
   , mapOf
   , requiredOf
@@ -46,10 +45,8 @@ module Core.Shape
   , RecF
   , fieldOf
   , contramapRec
-  , recJson
   , object
   , pairOf
-  , eitherOf
   , keyedOf
   , listOf
   , keyedAlways
@@ -57,7 +54,6 @@ module Core.Shape
   , iso
   , refined
   , omittedWhen
-  , orDefault
   , encodeWith
   , decodeWith
   , jsonSchema
@@ -292,11 +288,6 @@ rec4 :: forall a b1 b2 b3 b4. String -> Field a b1 -> Field a b2 -> Field a b3 -
 rec4 name f1 f2 f3 f4 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4 ]
   (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x)
   (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o)
-
-rec6 :: forall a b1 b2 b3 b4 b5 b6. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> a) -> Shape a
-rec6 name f1 f2 f3 f4 f5 f6 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6 ]
-  (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x <> encField fmt f5 x <> encField fmt f6 x)
-  (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o <*> decField fmt f5 o <*> decField fmt f6 o)
 
 rec7 :: forall a b1 b2 b3 b4 b5 b6 b7. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> Field a b7 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> b7 -> a) -> Shape a
 rec7 name f1 f2 f3 f4 f5 f6 f7 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6, dField f7 ]
@@ -536,10 +527,6 @@ fieldOf key desc s get = RecF
 contramapRec :: forall a a' b. (a' -> a) -> RecF a b -> RecF a' b
 contramapRec f (RecF r) = RecF { fields: r.fields, enc: \x -> r.enc (f x), dec: \o -> r.dec o }
 
--- | The premise JSON object of a field set's values (written keys only, as `object` writes them).
-recJson :: forall a b. RecF a b -> a -> Json
-recJson (RecF r) x = objectOf Premise (r.enc x)
-
 -- | A premise object built from its fields.
 object :: forall a. String -> RecF a a -> Shape a
 object name (RecF r) =
@@ -574,20 +561,6 @@ requiredOf s = s { missing = Nothing }
 -- | A Map: the snapshot writes it as its key and value pairs, in key order (the stored runs' form).
 mapOf :: forall k v. Ord k => Shape k -> Shape v -> Shape (Map k v)
 mapOf ks vs = iso Map.fromFoldable (Map.toUnfoldable :: Map k v -> Array (Tuple k v)) (arrayOf (pairOf ks vs))
-
--- | One of two forms. The first that reads wins; a Left value is written in the first form.
-eitherOf :: forall a b. Shape a -> Shape b -> Shape (Either a b)
-eitherOf sa sb =
-  { desc: DOr sa.desc sb.desc
-  , codec: \_ ->
-      { enc: either (pay sa).enc (pay sb).enc
-      , dec: \j -> case (pay sa).dec j of
-          Right a -> Right (Left a)
-          Left _ -> map Right ((pay sb).dec j)
-      }
-  , absent: const false
-  , missing: Nothing
-  }
 
 -- | An object whose keys name its entries, as the ordered list of its pairs.
 keyedOf :: forall a. Shape a -> Shape (Array (Tuple String a))
@@ -644,10 +617,6 @@ refined msg p s = s { codec = \fmt -> let c = s.codec fmt in c { dec = \j -> c.d
 -- | Omit the value from the premise format when `p` holds (an empty list, a default).
 omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a
 omittedWhen p s = s { absent = p }
-
--- | The value a missing key reads as.
-orDefault :: forall a. a -> Shape a -> Shape a
-orDefault d s = s { missing = Just d }
 
 -- Interpretation ------------------------------------------------------------------------------
 

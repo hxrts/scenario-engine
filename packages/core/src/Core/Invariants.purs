@@ -3,7 +3,11 @@
 -- | checks run after resolution, in the test suites, the simulator, the premise golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
-module Core.Invariants (Failure, Invariant(..), check) where
+module Core.Invariants
+  ( Failure
+  , check
+  , Invariant(..)
+  ) where
 
 import Prelude
 

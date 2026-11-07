@@ -2,7 +2,9 @@
 -- | and each seat that proposes or signs in its rounds given those answers as a Script binding. A
 -- | literal premise plays through `simulate` like any other game, so its expectations are checked
 -- | against the records the engine writes (`Checks`), not against the premise.
-module Premises.Literal (literalGame, literalBindings) where
+module Premises.Literal
+  ( literalGame
+  ) where
 
 import Prelude
 

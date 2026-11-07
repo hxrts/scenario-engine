@@ -3,8 +3,6 @@ module Core.Market
   ( marginal
   , cost
   , averagePrice
-  , BatchOrder
-  , ClearResult
   , clear
   ) where
 

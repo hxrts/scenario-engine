@@ -1,7 +1,13 @@
 -- | Pure helpers behind the charts, kept free of React so they can be tested directly. Each point
 -- | is plotted at full precision (`Q.toDisplayNumber`); its axis ticks and tooltips show the value
 -- | under its display kind (docs/02 §9.1), which the row carries beside the plotted number.
-module Dashboard.Chart (Series, pair, chartRows, barRows, shownKey, tooltipFormatter) where
+module Dashboard.Chart
+  ( pair
+  , chartRows
+  , barRows
+  , shownKey
+  , tooltipFormatter
+  ) where
 
 import Prelude
 

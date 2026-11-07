@@ -8,7 +8,6 @@ module Server.Launch
   , failInterrupted
   , Scenario
   , scenarioInfo
-  , nextRunId
   ) where
 
 import Prelude

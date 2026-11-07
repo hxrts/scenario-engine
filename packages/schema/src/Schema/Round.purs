@@ -4,11 +4,11 @@
 -- | maps (an absent key or a `Nothing` leaf asserts nothing) and a `Nothing` field asserting nothing.
 -- | Both sides are values of this one type, so the checker compares them field by field.
 module Schema.Round
-  ( RoundF
-  , Observed
+  ( Observed
   , Expect
   , Delivery
   , ProcedureOutcome
+  , RoundF
   ) where
 
 import Core.Num (Q)

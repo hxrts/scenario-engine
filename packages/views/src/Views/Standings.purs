@@ -3,7 +3,6 @@
 -- | the one definition of net worth; the balance measures and the seed variation read it. Pure.
 module Views.Standings
   ( netWorthStat
-  , rankStat
   , netWorth
   , netWorths
   , Standing
@@ -33,14 +32,6 @@ netWorthStat =
   , question: "How well are players doing relative to one another?"
   , definition: "Money plus each held base Resource valued at its Market's marginal price, in M."
   , formula: "NW(e, r) = holding(e, M) + sum over Resources b traded in a Market quoted in M of holding(e, b) × P(b, r), where P(b, r) is the mean of the marginal prices, marginal(cost, position) after round r, of the M-quoted Markets whose base is b. Military is valued at the defence Market; Soft Power and Resources with no Market are not counted. Actors only."
-  }
-
-rankStat :: Statistic
-rankStat =
-  { name: "Rank"
-  , question: "How well are players doing relative to one another?"
-  , definition: "Position by final net worth, 1 the highest; players with equal net worth share a rank."
-  , formula: "rank(e) = 1 + the number of Actors whose final net worth is strictly higher than NW(e)."
   }
 
 -- | An Actor's net worth in a World State, in M: its Money, and each Resource that a Market quotes in

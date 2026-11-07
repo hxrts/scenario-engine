@@ -7,7 +7,6 @@
 -- | produces them; Circulate and Commit import them.
 module Core.Engine.Settle
   ( Account(..)
-  , Ledger
   , Settlement
   , settle
   , adjust
@@ -18,6 +17,7 @@ module Core.Engine.Settle
   , groupBy
   , shortfallOf
   , consumedOf
+  , Ledger
   ) where
 
 import Prelude

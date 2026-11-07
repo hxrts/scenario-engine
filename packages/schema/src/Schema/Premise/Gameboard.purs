@@ -6,19 +6,8 @@
 module Schema.Premise.Gameboard
   ( GameboardDoc
   , ConfigDoc
-  , gameboardRec
-  , idF
-  , versionF
-  , horizonF
-  , roundRangeF
-  , labelF
-  , parametersF
-  , schemesF
-  , policiesF
   , gameboardShape
   , configShape
-  , toGameboard
-  , toConfig
   , decodeGameboard
   , decodeConfig
   ) where

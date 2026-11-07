@@ -4,14 +4,11 @@
 module Views.Balance
   ( spreadStat
   , giniStat
-  , completionStat
-  , seedStat
   , spread
   , gini
   , Measures
   , measuresOf
   , measures
-  , Completion
   , completionOf
   , completion
   , seedVariation
@@ -19,8 +16,8 @@ module Views.Balance
 
 import Prelude
 
-import Schema.Gameboard (Gameboard)
-import Checks.Objectives (Outcome(..), evaluateObjectives)
+import Schema.Gameboard (Gameboard, Outcome(..))
+import Checks.Objectives (evaluateObjectives)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId)
@@ -45,22 +42,6 @@ giniStat =
   , question: "How well balanced is the game: does one role dominate?"
   , definition: "Inequality of final net worth: 0 when every player holds the same, 1 − 1/n when one player holds everything."
   , formula: "With the final net worths sorted ascending x1..xn and total S: G = 2 × sum(i × xi) / (n × S) − (n + 1) / n. Not defined (n/a) when S is zero or a value is negative."
-  }
-
-completionStat :: Statistic
-completionStat =
-  { name: "Objective completion by role"
-  , question: "How well balanced is the game: does one role dominate?"
-  , definition: "For each role (Actor), how many of its objective criteria were met over the run."
-  , formula: "met = criteria with outcome met; not met and not evaluated are counted separately, so a criterion is never reported as met unless it was measured as met."
-  }
-
-seedStat :: Statistic
-seedStat =
-  { name: "Seed-to-seed variation"
-  , question: "Does the outcome depend on the seed?"
-  , definition: "The spread and Gini of the same specification across its runs, with the lowest, highest and range of each."
-  , formula: "For runs of one specification: range = highest − lowest of each measure over those runs. With fewer than two runs no range is reported."
   }
 
 -- | The spread of a set of values: highest minus lowest. Nothing for no values.

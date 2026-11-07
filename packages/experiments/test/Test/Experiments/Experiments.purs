@@ -6,7 +6,8 @@ module Test.Experiments.Experiments (spec) where
 import Prelude
 
 import Testkit.Meridian (orThrow, seats)
-import Checks.Objectives (evaluateObjectives, Outcome(..))
+import Checks.Objectives (evaluateObjectives)
+import Schema.Gameboard (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)

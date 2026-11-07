@@ -506,10 +506,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do
-      isLeft (decodeLiteral (fixtureJson """{ "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
-      case decodeLiteral (fixtureJson """{ "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""") of
+      isLeft (decodeLiteral (fixtureJson """{ "premise": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
+      case decodeLiteral (fixtureJson """{ "premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
         Left e -> fail (show e)
         Right d -> show d.world.seed `shouldEqual` "7"
+    it "an expectation must name a round that has a binding" do
+      let world = """"premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
+      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true
+      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} }, { "round": 1, "expect": {} } ] }"""))) `shouldEqual` true
+      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} } ] }"""))) `shouldEqual` false
 
   describe "Fixture expectations" do
     it "an asserted empty list of deliveries fails when a delivery happened" do

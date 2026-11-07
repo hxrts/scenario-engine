@@ -7,7 +7,6 @@ module Schema.Build.Fixture
   ( noExpect
   , proposal
   , ref
-  , refAt
   , noRound
   , accessBanRule
   , tariffRule

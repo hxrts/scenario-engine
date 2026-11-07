@@ -10,12 +10,10 @@ module Schema.Build.Decision
   , factor
   , mul
   , sub
-  , max'
   , gt
   , ge
   , le
   , eq
-  , not'
   , transformedLastRound
   , restrictedLastRound
   , restrictionInForce
@@ -33,6 +31,8 @@ module Schema.Build.Decision
   , strategy
   , selfEntity
   , homeMarket
+  , max'
+  , not'
   ) where
 
 import Prelude

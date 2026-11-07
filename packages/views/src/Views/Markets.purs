@@ -2,9 +2,7 @@
 -- | volume, facility orders, the world economy's totals and Money circulation, the per-round
 -- | pressure indicators, and a Market's price trajectory across runs. Pure.
 module Views.Markets
-  ( MarketPrice
-  , Pressure
-  , marketPrices
+  ( marketPrices
   , roundPressure
   , markets
   , facilities

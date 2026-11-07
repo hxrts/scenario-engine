@@ -2,9 +2,7 @@
 -- | A draw depends only on (seed, key), never on evaluation order.
 module Core.Draw
   ( Seed(..)
-  , DrawKey
   , drawVersion
-  , serializeKey
   , draw
   ) where
 

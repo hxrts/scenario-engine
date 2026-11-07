@@ -5,7 +5,8 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
-import Checks.Objectives (evaluateObjectives, Outcome(..))
+import Checks.Objectives (evaluateObjectives)
+import Schema.Gameboard (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q

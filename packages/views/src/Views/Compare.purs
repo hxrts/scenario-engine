@@ -9,7 +9,6 @@ module Views.Compare
   , configDiff
   , agencyTable
   , sameSpecification
-  , runHeader
   , keyValues
   , netWorthCharts
   , standingsBars

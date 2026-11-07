@@ -8,7 +8,6 @@ module Core.Proposal
   , JointProposal
   , ProposedDeal
   , transcriptShape
-  , jointProposalShape
   , proposedDealShape
   , proposalsOf
   , proposalAt

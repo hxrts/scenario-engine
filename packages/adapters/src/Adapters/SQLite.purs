@@ -5,13 +5,13 @@
 -- | `SQLite.js`. Runs are append-only; the schema is versioned with PRAGMA user_version and migrated in
 -- | order when the store is opened read-write.
 module Adapters.SQLite
-  ( Db
-  , open
+  ( open
   , openReadOnly
   , schemaVersion
   , busyTimeout
   , configuredBusyTimeout
   , sqliteBackend
+  , Db
   ) where
 
 import Prelude

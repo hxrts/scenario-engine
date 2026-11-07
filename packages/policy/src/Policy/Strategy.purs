@@ -2,8 +2,7 @@
 -- | load-time check against a Gameboard, and the parameters it reads. Pure; they read the Strategy
 -- | AST (`Core.Strategy`), not JSON.
 module Policy.Strategy
-  ( Refs
-  , strategyRefs
+  ( strategyRefs
   , strategyParams
   ) where
 

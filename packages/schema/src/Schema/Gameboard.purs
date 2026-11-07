@@ -6,6 +6,7 @@ module Schema.Gameboard
   ( Gameboard
   , ActorDefinition
   , Fallback(..)
+  , Outcome(..)
   , Objective
   , Criterion
   , MetricRef
@@ -106,3 +107,17 @@ type InstantiationConfig =
   }
 
 type InitialWorld = { world :: WorldState, manifest :: Manifest }
+
+-- | The outcome of an objective or a criterion. A run with no rounds, or a criterion with no series,
+-- | is not evaluated: it is neither a pass nor a failure. The premise spells the outcomes "met",
+-- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Capstone`).
+data Outcome = Met | NotMet | NotEvaluated
+
+derive instance Eq Outcome
+
+-- | The words the views show.
+instance Show Outcome where
+  show = case _ of
+    Met -> "met"
+    NotMet -> "not met"
+    NotEvaluated -> "not evaluated"

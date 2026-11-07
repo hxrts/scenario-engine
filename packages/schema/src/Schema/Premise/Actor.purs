@@ -9,13 +9,9 @@ module Schema.Premise.Actor
   , MetricDoc
   , BoundDoc
   , definitionShape
-  , objectiveShape
-  , criterionShape
   , metricShape
   , boundShape
   , fallbackShape
-  , measureShape
-  , spanShape
   , definitionToCore
   ) where
 

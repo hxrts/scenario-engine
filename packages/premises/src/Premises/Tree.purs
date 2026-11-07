@@ -6,7 +6,6 @@
 module Premises.Tree
   ( Section
   , Premise
-  , FileOps
   , readPremise
   , readRootFile
   , premiseRoot

@@ -11,7 +11,6 @@ module Core.Query
   , priceOf
   , totalHolding
   , reserveOf
-  , factorOf
   , aggregateOf
   , isAggregate
   , homeMarket

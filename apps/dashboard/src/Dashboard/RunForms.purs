@@ -2,8 +2,7 @@
 -- | rule (`rounds`) serves the launch form and the resume form. What a resume or a delete means is decided
 -- | by the server (`POST /api/runs/:id/resume`, `DELETE /api/runs/:id`).
 module Dashboard.RunForms
-  ( RoundBounds
-  , rounds
+  ( rounds
   , requiredRounds
   ) where
 

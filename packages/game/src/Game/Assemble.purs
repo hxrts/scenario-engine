@@ -3,7 +3,6 @@
 -- | play, the server's derive and launch) assembles through `assemble`.
 module Game.Assemble
   ( assemble
-  , startOf
   , checkHomes
   , configuredSeats
   , presetBindings

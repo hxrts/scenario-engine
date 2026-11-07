@@ -2,7 +2,13 @@
 -- | built from. A market to mayTrade in, the military powers of a government, the legislative
 -- | powers, and the shipping facility. Each Actor's list is the concatenation of the sets it
 -- | holds.
-module Premises.Meridian.Entities.Capabilities (dealer, allied, military, legislate, shipping, government) where
+module Premises.Meridian.Entities.Capabilities
+  ( dealer
+  , allied
+  , military
+  , shipping
+  , government
+  ) where
 
 import Prelude ((<>))
 

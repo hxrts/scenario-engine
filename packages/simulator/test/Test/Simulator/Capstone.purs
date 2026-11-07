@@ -17,7 +17,7 @@ import Handlers.Seats (seatEnv)
 import Simulator.Simulate (Snapshot, resumeFrom)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-import Testkit.Capstone (RoundExpect, load, runOf)
+import Testkit.Capstone (load, runOf)
 
 spec :: Spec Unit
 spec = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
@@ -29,7 +29,7 @@ spec = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
   it "every round's DSL expectations hold" do
     cap <- load
     r <- runOf cap.playerSeed cap.game
-    for_ cap.expectations \(e :: RoundExpect) ->
+    for_ cap.expectations \e ->
       case index r.records (e.round - 1) of
         Just rr -> checkRound e.expect rr `shouldEqual` []
         Nothing -> fail ("no round " <> show e.round)

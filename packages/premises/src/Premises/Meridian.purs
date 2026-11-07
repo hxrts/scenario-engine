@@ -12,7 +12,6 @@ module Premises.Meridian
   , resources
   , coreResources
   , atlanticTerms
-  , asiaTerms
   , transport
   , productionCapacity
   , atlanticMarket
@@ -29,7 +28,6 @@ module Premises.Meridian
   , smeSample
   , majorShock
   , gameboard
-  , MarketTerms
   , market
   ) where
 

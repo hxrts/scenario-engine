@@ -2,15 +2,12 @@
 -- | objective criteria measured over a run's round records, each met, not met, or not evaluated.
 -- | Pure, and never affects the economy.
 module Checks.Objectives
-  ( CriterionResult
-  , ObjectiveResult
-  , Outcome(..)
-  , evaluateObjectives
+  ( evaluateObjectives
   ) where
 
 import Prelude
 
-import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Span(..))
+import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, eventsOf, holding)
@@ -20,19 +17,6 @@ import Data.Array (all, any, concatMap, last, null, zipWith)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-
--- | A criterion or objective is met, not met, or not evaluated. A run with no rounds, or a
--- | criterion with no series, is not evaluated: it is neither a pass nor a failure.
-data Outcome = Met | NotMet | NotEvaluated
-
-derive instance Eq Outcome
-
--- | The words the views show; the stored DSL spells the same outcomes in its own form (the capstone's expectations, Premises.Capstone).
-instance Show Outcome where
-  show = case _ of
-    Met -> "met"
-    NotMet -> "not met"
-    NotEvaluated -> "not evaluated"
 
 type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q }
 

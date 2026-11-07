@@ -7,9 +7,9 @@
 -- | text here and each consumer decodes it.
 module Effects.Api
   ( ApiRequest(..)
+  , ApiF(..)
   , Launch
   , Reply
-  , ApiF(..)
   , API
   , call
   ) where
