@@ -19,6 +19,7 @@ module Handlers.Llm
 
 import Prelude
 
+import Core.Proposal (JointProposal, Transcript)
 import Core.Types (EntityId, MarketId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
@@ -31,7 +32,7 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effects.Signatures (InterpretF(..), JointProposal, NarrateF(..), Transcript)
+import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, ProposedDeal, SpeakRequest, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (Exchange, encodeReply)
 

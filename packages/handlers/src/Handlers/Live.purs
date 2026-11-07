@@ -8,6 +8,7 @@ module Handlers.Live (Live, Seat(..), runLive) where
 
 import Prelude
 
+import Core.Proposal (Transcript)
 import Core.Types (EntityId, RoundIndex)
 import Core.World (RoundResult, View)
 import Data.Array (elem)
@@ -20,7 +21,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Signatures (Deadline(..), INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), Transcript)
+import Effects.Signatures (Deadline(..), INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Handlers.Seats (SeatSource)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))

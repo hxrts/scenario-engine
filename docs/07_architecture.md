@@ -61,12 +61,12 @@ packages/
     Num            fixed-point quantities Q and display kinds
     Types, World   Entity, Resource, Intent, Proposal, Market, …; WorldState, RoundRecord, RoundResult, Manifest
     Draw           keyed PRNG
-    Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly), Represent, Invariants
+    Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript` and `JointProposal`), Represent, Invariants
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
   scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
-  effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors and
+  effects/     Effects.Signatures (the operations and their request and reply records, STORE's read-model records included), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
                deadline windows, the joint pass, narration, the record write); Handlers.Llm (the model handler: prompts,
@@ -131,7 +131,7 @@ type STORE r      = (store :: StoreF | r)           -- the Run Store: run writes
 runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
-The request and reply types of each operation are declared beside it in `effects`: a joint pass answers `Either String (Array JointProposal)`, a narration answers `String`, and a seat's transcript is `Maybe String`. The operations are the whole model interface, so no port record duplicates them.
+The request and reply types of each operation are declared beside it in `effects`: a joint pass answers `Either String (Array JointProposal)` (`Core.Proposal`), a narration answers `String`, and a seat's transcript is `Maybe String`. The operations are the whole model interface, so no port record duplicates them.
 
 The live handler's devices are a line of input, one window's wait, a line of output, the model's calls, and the record write. `Handlers.Live.runLive` takes them as a record, and the composition root (`apps/cli`, `Session`) supplies `Adapters.Console`, `Adapters.Clock`, and the model backend. A human's propose and sign windows are the live handler's own clock, not an effect.
 

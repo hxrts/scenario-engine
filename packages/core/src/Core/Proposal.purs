@@ -1,8 +1,11 @@
 -- | Proposal assembly rules (docs/02_type_system.md §3.3, §8.3): how a round's Proposals are
 -- | numbered and identified, which Proposals an Entity is asked to sign, and how the signatures
--- | attach to them. Pure; the round runner (`Effects.Round`) calls these and runs the effects.
+-- | attach to them. Also the joint pass's domain values (`Transcript`, `JointProposal`). Pure; the
+-- | round runner (`Effects.Round`) calls these and runs the effects.
 module Core.Proposal
   ( ProposalBody
+  , Transcript
+  , JointProposal
   , proposalsOf
   , numberJoint
   , jointProposalsOf
@@ -24,6 +27,14 @@ import Data.Tuple (Tuple(..))
 
 -- | What a Proposal says before its id and author are assigned (a policy's Draft has this shape).
 type ProposalBody = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
+
+-- | One seat's transcript of a round: its id and what it said.
+type Transcript = { seat :: EntityId, text :: String }
+
+-- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the deal
+-- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for
+-- | `signed` (and the author) and lapses the Proposal when a signer is missing.
+type JointProposal = { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId }
 
 -- | The Proposals of one author in a round. Each takes the id of its index in the author's
 -- | submission, so the same drafts always get the same ids (replay depends on this).

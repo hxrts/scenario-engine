@@ -20,6 +20,7 @@ import Prelude
 import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (Failure, check)
 import Core.Market (marginal)
+import Core.Proposal (Transcript)
 import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Array (all, length, uncons)
 import Data.Map as Map
@@ -28,7 +29,7 @@ import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Ref as Ref
-import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, Transcript)
+import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))

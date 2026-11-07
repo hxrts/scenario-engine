@@ -628,7 +628,7 @@ runRound :: InWorld -> WorldState
 
 The engine has no effects: `resolveRound` is a pure function of World State and signed Proposals. In-world randomness uses the pure keyed `draw` function ([§9.1](#91-numerics-and-randomness)) with the game seed held in World State, so it needs no effect.
 
-Everything else impure is an algebraic effect. Signatures are declared in `Effects.Signatures` with no implementation, and the round runner `Effects.Round` is written against them:
+Everything else impure is an algebraic effect. Signatures are declared in `Effects.Signatures` with no implementation (the joint pass's `Transcript` and `JointProposal` are domain values in `Core.Proposal`), and the round runner `Effects.Round` is written against them:
 
 | Effect row | Operation | Meaning |
 |---|---|---|

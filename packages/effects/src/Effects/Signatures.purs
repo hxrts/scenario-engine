@@ -1,6 +1,8 @@
 -- | The impure vocabulary (docs/02_type_system.md §8.4): the effect rows, their functor types, and the
 -- | typed records that travel with them. Signatures only; nothing here implements an effect. Handlers
--- | in `handlers` interpret them over a typed backend, and adapters supply the raw primitives.
+-- | in `handlers` interpret them over a typed backend, and adapters supply the raw primitives. The
+-- | STORE records stay here, not in `handlers/Store`, because every STORE constructor and reply names
+-- | them and `effects` may not import `handlers`.
 module Effects.Signatures
   ( SEAT_INPUT
   , SeatInputF(..)
@@ -8,8 +10,6 @@ module Effects.Signatures
   , RecordF(..)
   , INTERPRET
   , InterpretF(..)
-  , Transcript
-  , JointProposal
   , NARRATE
   , NarrateF(..)
   , Deadline(..)
@@ -28,6 +28,7 @@ module Effects.Signatures
 import Prelude
 
 import Core.Invariants (Failure)
+import Core.Proposal (JointProposal, Transcript)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
@@ -53,14 +54,6 @@ data RecordF a = Record RoundResult (Array Transcript) a
 derive instance Functor RecordF
 
 type RECORD r = (record :: RecordF | r)
-
--- | One seat's transcript of the round: its id and what it said.
-type Transcript = { seat :: EntityId, text :: String }
-
--- | A Proposal reconciled by the joint pass: its author, its Draft (Intents, and the signers
--- | the deal asks for besides the author), and the seats whose transcripts describe it. The
--- | engine signs for `signed` (and the author) and lapses the Proposal when a signer is missing.
-type JointProposal = { author :: EntityId, draft :: Draft, signed :: Array EntityId }
 
 -- | One joint pass over a round's transcripts (live play): the Proposals they reconcile into. A
 -- | reply that does not decode is a `Left`, with the reason.

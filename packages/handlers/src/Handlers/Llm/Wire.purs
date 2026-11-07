@@ -17,6 +17,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Board.Decode.Common (readJson)
+import Core.Proposal (Transcript)
 import Core.Types (EntityId, Intent, MarketId, RoundIndex)
 import Core.World (Event, View)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -24,7 +25,6 @@ import Data.Either (Either)
 import Data.String (Pattern(..))
 import Data.String.CodeUnits (indexOf, lastIndexOf, slice)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (Transcript)
 
 -- | The joint pass's payload: the round, its seat transcripts, and the Entities and Markets a
 -- | Proposal may name.
