@@ -9,14 +9,13 @@ module Premises.Load
   , loadPremise
   , loadPresets
   , decodePresets
-  , loadFixture
+  , loadLiteral
   ) where
 
 import Prelude
 
 import Core.Shape (decodeJsonWith)
 import Core.Strategy (Strategy)
-import Core.World (WorldState)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, (.:))
 import Data.Argonaut.Parser (jsonParser)
@@ -31,7 +30,7 @@ import Premises.Names (instantiationFile, presetsFile)
 import Premises.Tree as Tree
 import Schema.Decode.Common (readJsonWith)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
-import Schema.Premise.Fixture (Round, decodeFixture)
+import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Premise.Strategy (presetsShape)
 import Core.Shape (Format(..))
@@ -75,11 +74,11 @@ loadPremise s = do
   where
   presetsOf p = lmap (Unreadable p.path) (jsonParser p.text) >>= presetsFrom
 
--- | A fixture's file text, decoded as an engine-level fixture named `name`.
-loadFixture :: String -> String -> Either String { name :: String, world :: WorldState, rounds :: Array Round }
-loadFixture name text = readJsonWith decodeFixtureDoc text
+-- | A literal premise's file text, decoded and named `name`.
+loadLiteral :: String -> String -> Either String Literal
+loadLiteral name text = readJsonWith decodeNamed text
   where
-  decodeFixtureDoc j = map (\d -> { name, world: d.world, rounds: d.rounds }) (decodeFixture j)
+  decodeNamed j = map (_ { name = name }) (decodeLiteral j)
 
 -- | Decode a premise's sections, each a JSON object, merged into one Gameboard; `instantiation.json` is
 -- | the configuration. Undecoded, unvalidated: `checkPremise` does that.

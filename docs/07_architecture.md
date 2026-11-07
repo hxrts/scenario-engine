@@ -65,11 +65,12 @@ packages/
     Draw           keyed PRNG
     Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript`, `JointProposal`, and the reconciliation rule `jointProposals`), Represent, Invariants
     Strategy       the Strategy language's types (`Strategy`, `Clause`, `Cond`, `Expr`, `Template`, `SignRule`), decoded by `Policy.Strategy`
-    Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
+    Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound)
   schema/      Schema.Gameboard (the Gameboard and Instantiation Configuration types), Schema.Tags (the premise format's tag grammar and the decision language's tags), Schema.Decode.* (World composes the section decoders; Common holds the shared readers; Strategy decodes Policies), Schema.Build.* (the authoring builders, JSON-emitting until their typed rewrite)
-  board/       Board.Gameboard.* (Validate, Instantiate, Reconcile), Board.Error (ValidationError, RefKind, Difference), Fixture
+  checks/      Checks.Round (`observe`: a round's `Observed`; `check`, `checkRound`: an `Expect` against it, field by field), Checks.Run (`checkRun`: every round's invariants), Checks.Objectives (`evaluateObjectives`, `Outcome`); pure, over core and schema
+  board/       Board.Gameboard.* (Validate, Instantiate, Reconcile), Board.Error (ValidationError, RefKind, Difference)
   policy/      Policy.Strategy (Strategy queries: the names a Strategy uses), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
-  premises/    Premises.* (Meridian and its submodules, Names, Presets, Fixtures, Capstone, Compile, Load, Tree: the premise file tree, pure); a premise is authored, a scenario is one run
+  premises/    Premises.* (Meridian and its submodules, Names, Presets, Fixtures, Literal (a literal premise as a Game, its bindings from the rounds), Capstone, Compile, Load, Tree: the premise file tree, pure); a premise is authored, a scenario is one run
   effects/     Effects.Signatures (the operations and their request and reply records, STORE's read-model records included), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
@@ -84,7 +85,7 @@ packages/
                Adapters.Console (the terminal: `readLine`, `writeLine`, `closeInput`; Console.js is the readline interface)
   simulator/   Simulator.Simulate (`startOf`, `presetSpec`, `seats`, simulation orchestration), Overrides, Recipe (a run's
                stored spec, and the derive rules), Records, Options, Capstone
-  analysis/    Analysis.Objectives (objective evaluation); Analysis.Agency (differences, counterfactuals, agency); Analysis.Views.* (view models, including `Views.Metrics`, the versioned metric definitions)
+  analysis/    Analysis.Agency (differences, counterfactuals, agency); Analysis.Views.* (view models, including `Views.Metrics`, the versioned metric definitions)
 apps/
   cli/         Main (run, session), Session, Compile, Transcript (the capstone recording)
   server/      Server, Server.Routes, Read, Launch, Derive, Errors; Http

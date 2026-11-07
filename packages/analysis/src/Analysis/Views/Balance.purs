@@ -19,7 +19,8 @@ module Analysis.Views.Balance
 
 import Prelude
 
-import Schema.Gameboard (Gameboard, Outcome(..))
+import Schema.Gameboard (Gameboard)
+import Checks.Objectives (Outcome(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId)
@@ -27,7 +28,7 @@ import Data.Array (any, catMaybes, filter, fromFoldable, length, mapWithIndex, n
 import Data.Foldable (maximum, minimum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Analysis.Objectives (evaluateObjectives)
+import Checks.Objectives (evaluateObjectives)
 import Analysis.Views.Common (Statistic, StoredRun, Table, final, quantity, ratio, roundResults)
 import Analysis.Views.Standings (netWorths)
 

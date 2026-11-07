@@ -9,6 +9,8 @@ const path = require("path");
 const allowed = {
   core: [],
   schema: ["core"],
+  // the round checker and the run checker: pure, over the engine's values and the premise's expectations
+  checks: ["core", "schema"],
   board: ["core", "schema"],
   policy: ["core", "schema"],
   // the one domain package where board and policy meet: assembly (work/4.md §8)
@@ -19,14 +21,14 @@ const allowed = {
   adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
   // the fold over a Game: no board or policy (work/4.md §12.2)
   simulator: ["core", "game", "effects", "handlers"],
-  analysis: ["core", "schema", "board", "game", "simulator"],
+  analysis: ["core", "schema", "board", "game", "simulator", "checks"],
   // test support only (the shared fixtures of the analysis and simulator suites); no suite's source imports it
-  testkit: ["core", "schema", "premises", "game", "adapters", "simulator"],
+  testkit: ["core", "schema", "premises", "game", "adapters", "simulator", "checks"],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
 // workspace dependencies a package's test suite may not take, beyond its `allowed` set
 const testForbidden = { simulator: ["analysis"] };
-const pure = ["core", "schema", "board", "policy", "game"];
+const pure = ["core", "schema", "board", "policy", "game", "checks"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
 // Import rules for source modules, checked on the `import` lines of each src/ file.

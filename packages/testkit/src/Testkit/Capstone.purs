@@ -19,8 +19,9 @@ import Game.Assemble (assemble, withRounds)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game)
 import Premises.Capstone as C
-import Schema.Premise.Fixture (Expect, decodeExpect)
-import Schema.Gameboard (Outcome(..))
+import Checks.Objectives (Outcome(..))
+import Schema.Round (Expect)
+import Schema.Premise.Fixture (decodeExpect)
 import Simulator.Simulate (SimRun, simulate)
 import Testkit.Meridian (orThrow, premise)
 
@@ -62,7 +63,7 @@ load = do
   roundExpect :: Json -> Either JsonDecodeError RoundExpect
   roundExpect j = do
     o <- decodeJson j :: Either JsonDecodeError { round :: Int, expect :: Json }
-    e <- decodeExpect o.expect
+    e <- decodeExpect o.round o.expect
     pure { round: o.round, expect: e }
 
   objective o = { entity: Id o.entity, outcome: outcomeOf o.outcome }

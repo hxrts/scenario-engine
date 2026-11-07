@@ -3,17 +3,16 @@
 -- | checks run after resolution, in the test suites, the simulator, the premise golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
-module Core.Invariants (Failure, Invariant(..), check, checkRun) where
+module Core.Invariants (Failure, Invariant(..), check) where
 
 import Prelude
 
 import Core.Authority (authorizedIn, executor)
-import Core.Engine.Run (runRounds)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ, totalHolding)
 import Core.Types (SignedProposal)
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (all, concat, concatMap, elem, filter, fromFoldable)
+import Data.Array (all, concatMap, elem, filter, fromFoldable)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -37,10 +36,6 @@ type Failure = { invariant :: String, detail :: String }
 
 check :: WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) [ inv02, inv04, inv05, inv06, inv10 ]
-
--- | Every round of a run, each checked against the world it started from.
-checkRun :: WorldState -> Array RoundResult -> Array Failure
-checkRun initial rs = concat (runRounds (\before r -> Tuple r.world (check before r)) initial rs)
 
 failure :: Invariant -> String -> Failure
 failure inv detail = { invariant: show inv, detail }

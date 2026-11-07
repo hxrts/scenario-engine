@@ -16,5 +16,6 @@ package:
     - sp-schema
     - sp-game
     - sp-simulator
+    - sp-checks
     - sp-premises
     - sp-adapters

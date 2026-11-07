@@ -1,14 +1,11 @@
--- | The premise format of a golden fixture's rounds (docs/05_test_instance.md §21–§27): the
+-- | The premise format of a literal premise's rounds (docs/05_test_instance.md §21–§27): the
 -- | Proposals a round receives (signed Intents), and the `expect` checks that round makes. A
--- | fixture is a World with its rounds: a `rounds` list, or one round written at the top level.
--- | The engine-level types here (`Round`, `Expect`, and the references they name) are what the
--- | fixture checker reads; `toFixture` produces them with every default filled in.
+-- | fixture file is a World with its rounds: a `rounds` list, or one round written at the top level.
+-- | `toLiteral` produces the engine-level value (`Literal`, whose `Round`s carry the typed `Expect`
+-- | of `Schema.Round`) with every default filled in.
 module Schema.Premise.Fixture
-  ( Round
-  , Expect
-  , Delivery
-  , ProposalRef
-  , ProcedureExpect
+  ( Literal
+  , Round
   , FixtureDoc
   , ProposalDoc
   , ExpectDoc
@@ -22,9 +19,9 @@ module Schema.Premise.Fixture
   , roundShape
   , roundRec
   , proposalRefShape
-  , toFixture
+  , toLiteral
   , toRound
-  , decodeFixture
+  , decodeLiteral
   , decodeExpect
   ) where
 
@@ -33,44 +30,27 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
-import Core.Types (BehaviorDomain, EntityId, Id(..), IntentF, MarketId, ResourceId, SignedProposal, proposalId)
+import Core.Types (BehaviorDomain, EntityId, Id(..), IntentF, MarketId, ProposalId, ResourceId, RoundIndex, SignedProposal, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, groupBy, mapWithIndex, sortWith)
 import Data.Array.NonEmpty (toArray)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
-import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Premise.Intent (intentShape)
 import Schema.Premise.World (Keyed, WorldDoc, worldRec, worldToCore)
+import Schema.Round (Delivery, Expect, ProcedureOutcome)
 import Data.Map as Map
 import Core.Shape (Format(..), decodeJsonWith)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 
--- | A proposal named in an expectation: its author and its position among that author's
--- | Proposals in the round (0 for the first).
-type ProposalRef = { author :: EntityId, index :: Int }
+-- | A round as the engine plays it: its round index, its signed Proposals, and its checks.
+type Round = { round :: RoundIndex, inputs :: Array SignedProposal, expect :: Expect }
 
-type Delivery = { entity :: EntityId, resource :: ResourceId, quantity :: Q }
-
-type ProcedureExpect = { proposal :: ProposalRef, support :: Q, executed :: Boolean }
-
--- | The checks a round makes. Every field is optional: only the fields given are checked, so
--- | `deliveries: []` asserts that nothing was delivered, and an absent field asserts nothing.
-type Expect =
-  { accounts :: Maybe (Map EntityId (Map ResourceId Q))
-  , reserves :: Maybe (Map MarketId (Map ResourceId Q))
-  , deliveries :: Maybe (Array Delivery)
-  , rejected :: Maybe (Array ProposalRef)
-  , lapsed :: Maybe (Array ProposalRef)
-  , factors :: Maybe (Map EntityId (Map BehaviorDomain Q))
-  , scheduled :: Maybe Int
-  , procedures :: Maybe (Array ProcedureExpect)
-  }
-
-type Round = { inputs :: Array SignedProposal, expect :: Expect }
+-- | A literal premise, decoded: its name, its seeded World, and its rounds.
+type Literal = { name :: String, world :: WorldState, rounds :: Array Round }
 
 -- | A Proposal as written: its author, its intents, and what signed it.
 type ProposalDoc =
@@ -193,10 +173,10 @@ fixtureShape = object "Fixture"
 
 -- Conversions ---------------------------------------------------------------------------------
 
--- | A fixture as the engine checks it: its name, its seeded World, and its rounds with their
+-- | A literal premise as the engine plays it: its name, its seeded World, and its rounds with their
 -- | Proposals numbered. A fixture with no `rounds` list is one round, written at the top level.
-toFixture :: FixtureDoc -> { name :: String, world :: WorldState, rounds :: Array Round }
-toFixture f =
+toLiteral :: FixtureDoc -> Literal
+toLiteral f =
   { name: fromMaybe "" f.world.name
   , world: seeded (Seed f.seed) (worldToCore f.world)
   , rounds: case f.rounds of
@@ -207,15 +187,15 @@ toFixture f =
   round = fromMaybe 1 f.world.round
 
 -- | One round: its Proposals in author order, each numbered within its author's group, and its expectation.
-toRound :: Int -> RoundDoc -> Round
-toRound round r = { inputs: concat (map signed groups), expect: fromMaybe noExpect (map expectToCore r.expect) }
+toRound :: RoundIndex -> RoundDoc -> Round
+toRound round r = { round, inputs: concat (map signed groups), expect: fromMaybe noExpect (map (expectToCore round) r.expect) }
   where
   proposals = fromMaybe [] r.proposals
   groups = map toArray (groupBy (\a b -> a.author == b.author) (sortWith _.author proposals))
   signed group = mapWithIndex (\i p -> signedProposal round i p) group
-  noExpect = { accounts: Nothing, reserves: Nothing, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, factors: Nothing, scheduled: Nothing, procedures: Nothing }
+  noExpect = { accounts: Map.empty, reserves: Map.empty, factors: Map.empty, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, procedures: Nothing, scheduled: Nothing }
 
-signedProposal :: Int -> Int -> ProposalDoc -> SignedProposal
+signedProposal :: RoundIndex -> Int -> ProposalDoc -> SignedProposal
 signedProposal round i p =
   { proposal: { id: proposalId round author i, author, intents: p.intents, signers: map Id (fromMaybe [] p.signers), procedure: map Id p.procedure }
   , signatures: map Id (fromMaybe [] p.signatures)
@@ -223,36 +203,38 @@ signedProposal round i p =
   where
   author = Id p.author
 
-expectToCore :: ExpectDoc -> Expect
-expectToCore e =
-  { accounts: map nested e.accounts
-  , reserves: map nested e.reserves
+-- | An expectation as the checker reads it. A Proposal named in it takes its id in `round`. Every
+-- | written value is a `Just` leaf: an absent key or field is not checked.
+expectToCore :: RoundIndex -> ExpectDoc -> Expect
+expectToCore round e =
+  { accounts: maybe Map.empty nested e.accounts
+  , reserves: maybe Map.empty nested e.reserves
+  , factors: maybe Map.empty nested e.factors
   , deliveries: map (map deliveryToCore) e.deliveries
-  , rejected: map (map refToCore) e.rejected
-  , lapsed: map (map refToCore) e.lapsed
-  , factors: map nested e.factors
+  , rejected: map (map (refToId round)) e.rejected
+  , lapsed: map (map (refToId round)) e.lapsed
+  , procedures: map (map (procedureToCore round)) e.procedures
   , scheduled: e.scheduled
-  , procedures: map (map procedureToCore) e.procedures
   }
   where
-  nested :: forall a b. Keyed (Keyed Q) -> Map (Id a) (Map (Id b) Q)
-  nested kvs = Map.fromFoldable (map (\(Tuple k inner) -> Tuple (Id k) (Map.fromFoldable (map (\(Tuple k' v) -> Tuple (Id k') v) inner))) kvs)
+  nested :: forall a b. Keyed (Keyed Q) -> Map (Id a) (Map (Id b) (Maybe Q))
+  nested kvs = Map.fromFoldable (map (\(Tuple k inner) -> Tuple (Id k) (Map.fromFoldable (map (\(Tuple k' v) -> Tuple (Id k') (Just v)) inner))) kvs)
 
-refToCore :: ProposalRefDoc -> ProposalRef
-refToCore = case _ of
-  Left a -> { author: Id a, index: 0 }
-  Right r -> { author: Id r.author, index: fromMaybe 0 r.index }
+refToId :: RoundIndex -> ProposalRefDoc -> ProposalId
+refToId round = case _ of
+  Left a -> proposalId round (Id a) 0
+  Right r -> proposalId round (Id r.author) (fromMaybe 0 r.index)
 
 deliveryToCore :: DeliveryDoc -> Delivery
 deliveryToCore d = { entity: Id d.entity, resource: Id d.resource, quantity: d.quantity }
 
-procedureToCore :: ProcedureDoc -> ProcedureExpect
-procedureToCore p = { proposal: { author: Id p.author, index: fromMaybe 0 p.index }, support: p.support, executed: p.executed }
+procedureToCore :: RoundIndex -> ProcedureDoc -> ProcedureOutcome
+procedureToCore round p = { proposal: proposalId round (Id p.author) (fromMaybe 0 p.index), support: p.support, executed: p.executed }
 
--- | A fixture, decoded: its name, its seeded World, and its rounds.
-decodeFixture :: Json -> Either JsonDecodeError { name :: String, world :: WorldState, rounds :: Array Round }
-decodeFixture j = map toFixture (decodeJsonWith Premise fixtureShape j)
+-- | A literal premise, decoded from its JSON (the fixture file's document).
+decodeLiteral :: Json -> Either JsonDecodeError Literal
+decodeLiteral j = map toLiteral (decodeJsonWith Premise fixtureShape j)
 
--- | The checks of one round, decoded from their JSON (an `expect` object).
-decodeExpect :: Json -> Either JsonDecodeError Expect
-decodeExpect j = map expectToCore (decodeJsonWith Premise expectShape j)
+-- | The checks of one round, decoded from their JSON (an `expect` object) for the round it checks.
+decodeExpect :: RoundIndex -> Json -> Either JsonDecodeError Expect
+decodeExpect round j = map (expectToCore round) (decodeJsonWith Premise expectShape j)

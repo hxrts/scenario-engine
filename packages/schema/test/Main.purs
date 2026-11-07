@@ -2,6 +2,10 @@ module Test.Schema.Main where
 
 import Prelude
 
+import Data.Map as Map
+
+import Core.Types (proposalId)
+
 import Core.Num as Q
 import Core.Strategy (Strategy)
 import Core.Shape (Format(..), decodeWith, encodeWith)
@@ -21,7 +25,8 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
-import Schema.Premise.Fixture (Expect, roundShape, toRound)
+import Schema.Premise.Fixture (roundShape, toRound)
+import Schema.Round (Expect)
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Premise.Intent (ruleShape)
 import Core.Shape (decodeJsonWith)
@@ -205,12 +210,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         e = expectOf """{ "expect": { "deliveries": [] } }"""
       e.deliveries `shouldEqual` Just []
-      e.accounts `shouldEqual` Nothing
+      e.accounts `shouldEqual` Map.empty
       e.rejected `shouldEqual` Nothing
     it "a proposal is named by its author, or by author and index" do
       let
         e = expectOf """{ "expect": { "rejected": [ "US", { "author": "US", "index": 1 } ] } }"""
-      map (map _.index) e.rejected `shouldEqual` Just [ 0, 1 ]
+      e.rejected `shouldEqual` Just [ proposalId 1 (Id "US") 0, proposalId 1 (Id "US") 1 ]
 
   describe "Gameboard documents" do
     it "decodes a minimal valid Gameboard and its round range" do

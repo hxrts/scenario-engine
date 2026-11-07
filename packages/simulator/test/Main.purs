@@ -4,13 +4,13 @@ module Test.Simulator.Main where
 
 import Prelude
 
-import Board.Fixture (checkFixture)
+import Testkit.Fixture (checkLiteral)
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
-import Core.Invariants (checkRun)
+import Checks.Run (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
@@ -37,7 +37,7 @@ import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
-import Premises.Load (loadFixture)
+import Premises.Load (loadLiteral)
 import Game.Assemble (presetBindings, withRounds)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
@@ -84,9 +84,9 @@ initialOf :: SimRun -> WorldState
 initialOf r = r.manifest.initial
 
 fixture :: String -> Aff Unit
-fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail (show e)
-  Right f -> checkFixture f `shouldEqual` []
+  Right f -> checkLiteral f `shouldEqual` []
 
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> marginal x.cost x.position)
@@ -150,7 +150,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
-      liftEffect (map (_ >>= loadFixture "C1") (readRootFile fileOps "fixtures/C1.json")) >>= case _ of
+      liftEffect (map (_ >>= loadLiteral "C1") (readRootFile fileOps "fixtures/C1.json")) >>= case _ of
         Left e -> fail (show e)
         Right f -> do
           let

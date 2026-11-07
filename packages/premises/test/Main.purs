@@ -6,7 +6,7 @@ import Schema.Decode.Common as BD
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.Actor (boundShape, metricShape)
 import Core.Shape (Format(..), decodeWith, encodeWith)
-import Board.Fixture (Field(..), FixtureError(..), checkFixture)
+import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (Fallback(..), Gameboard, InstantiationConfig)
@@ -46,7 +46,8 @@ import Schema.Build.Decision (asTemplate, deal, lit, max', param, strategy, rule
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
-import Schema.Premise.Fixture (decodeFixture)
+import Schema.Premise.Fixture (decodeLiteral)
+import Testkit.Fixture (checkLiteral)
 import Premises.Tree (readPremise)
 import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
 import Game.Premise (GameboardParts, checkPremise)
@@ -509,8 +510,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do
-      isLeft (decodeFixture (fixtureJson """{ "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
-      case decodeFixture (fixtureJson """{ "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""") of
+      isLeft (decodeLiteral (fixtureJson """{ "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
+      case decodeLiteral (fixtureJson """{ "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""") of
         Left e -> fail (show e)
         Right d -> show d.world.seed `shouldEqual` "7"
 
@@ -518,14 +519,21 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "an asserted empty list of deliveries fails when a delivery happened" do
       f <- fixture "F"
       let asserted = f { rounds = map (\r -> r { expect = r.expect { deliveries = Just [] } }) f.rounds }
-      any isDeliveryMismatch (checkFixture asserted) `shouldEqual` true
+      any isDeliveryMismatch (checkLiteral asserted) `shouldEqual` true
     it "an asserted empty list of deliveries passes when nothing was delivered" do
       f <- fixture "A"
       let asserted = f { rounds = map (\r -> r { expect = r.expect { deliveries = Just [] } }) f.rounds }
-      checkFixture asserted `shouldEqual` []
+      checkLiteral asserted `shouldEqual` []
+    it "an asserted balance the engine does not produce fails" do
+      f <- fixture "A"
+      let asserted = f { rounds = map (\r -> r { expect = r.expect { accounts = Map.singleton (Id "US") (Map.singleton (Id "M") (Just (Q.fromInt 12345))) } }) f.rounds }
+      any isBalanceMismatch (checkLiteral asserted) `shouldEqual` true
   where
   isDeliveryMismatch = case _ of
     Mismatch _ Deliveries _ _ -> true
+    _ -> false
+  isBalanceMismatch = case _ of
+    Mismatch _ (Balance _ _) _ _ -> true
     _ -> false
 
 -- | Parse a fixture document, crashing the test on a syntax error.

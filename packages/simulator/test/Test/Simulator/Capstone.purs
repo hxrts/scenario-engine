@@ -5,10 +5,9 @@ module Test.Simulator.Capstone (spec) where
 
 import Prelude
 
-import Board.Fixture (expectRound)
+import Checks.Round (checkRound)
 import Core.Draw (Seed(..))
-import Core.Engine.Prepare (prepareRound)
-import Core.Invariants (checkRun)
+import Checks.Run (checkRun)
 import Core.World (WorldState)
 import Data.Array (drop, index, (!!))
 import Data.Either (Either(..))
@@ -23,12 +22,6 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Capstone (RoundExpect, load, runOf)
 
--- | The world before round `i` (1-based): the initial state for round 1, else the last round's result.
-worldBefore :: SimRun -> Int -> Maybe WorldState
-worldBefore r i
-  | i <= 1 = Just r.manifest.initial
-  | otherwise = map _.world (r.records !! (i - 2))
-
 spec :: Spec Unit
 spec = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
   it "the checked invariants hold in every round (INV-02, 04, 05, 06, 10; see docs/02 §9)" do
@@ -40,9 +33,9 @@ spec = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     cap <- load
     r <- runOf cap.playerSeed cap.game
     for_ cap.expectations \(e :: RoundExpect) ->
-      case index r.records (e.round - 1), worldBefore r e.round of
-        Just rr, Just before -> expectRound (prepareRound before) e.expect rr `shouldEqual` []
-        _, _ -> fail ("no round " <> show e.round)
+      case index r.records (e.round - 1) of
+        Just rr -> checkRound e.expect rr `shouldEqual` []
+        Nothing -> fail ("no round " <> show e.round)
 
   it "replays byte-identically from its records" do
     cap <- load

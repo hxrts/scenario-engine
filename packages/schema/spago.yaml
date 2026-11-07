@@ -3,6 +3,7 @@ package:
   dependencies:
     - prelude
     - sp-core
+    - identity
     - argonaut-codecs
     - argonaut-core
     - arrays

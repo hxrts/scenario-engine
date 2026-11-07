@@ -1,12 +1,10 @@
--- | Engine-level fixtures (docs/05_test_instance.md Part IV) through the shared checker. The
--- | fixtures are decoded from the DSL's own JSON, so these tests need no compiled output, and
--- | the golden names are the fixture list itself.
+-- | Literal premises (docs/05_test_instance.md Part IV) through the shared checker. The fixtures are
+-- | decoded from the DSL's own JSON, so these tests need no compiled output, and the golden names are
+-- | the fixture list itself. Every fixture plays through `simulate` (`Testkit.Fixture.checkLiteral`).
 module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Prelude
 
-import Schema.Premise.Fixture (decodeFixture)
-import Board.Fixture (Fixture, checkFixture)
 import Core.Draw (Seed(..), draw)
 import Core.Engine.Commit (resolveRound)
 import Core.Invariants (check)
@@ -25,30 +23,33 @@ import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
 import Premises.Fixtures as Fixtures
 import Premises.Meridian (gameSeed)
+import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
+import Testkit.Fixture (checkLiteral)
 
 -- | A named fixture, decoded from the DSL output. An unknown name fails the test.
-fixture :: String -> Aff Fixture
+fixture :: String -> Aff Literal
 fixture name = case Object.lookup name (Object.fromFoldable Fixtures.fixtures) of
   Nothing -> failWith ("no fixture named " <> name)
-  Just j -> case decodeFixture j of
+  Just j -> case decodeLiteral j of
     Left e -> failWith (printJsonDecodeError e)
-    Right d -> pure { name, world: d.world, rounds: d.rounds }
+    Right d -> pure d { name = name }
 
 -- | Fails the test with the message. `fail` throws, so the recursion is never reached; it lets
 -- | an Aff of any type fail without constructing an Error value here.
 failWith :: forall a. String -> Aff a
 failWith msg = fail msg *> failWith msg
 
-firstInputs :: Fixture -> Array SignedProposal
+firstInputs :: Literal -> Array SignedProposal
 firstInputs f = fromMaybe [] (_.inputs <$> head f.rounds)
 
 golden :: Spec Unit
 golden = describe "Golden fixtures" do
-  -- every fixture in the DSL's list, C5 included: its invariants hold, and its noise is tested below
+  -- every fixture in the DSL's list, C5 included: it plays through the simulator, every Proposal and signature
+  -- reaches the records as written, and its noise is tested below
   for_ (map fst Fixtures.fixtures) \name ->
-    it name (fixture name >>= \f -> checkFixture f `shouldEqual` [])
+    it name (fixture name >>= \f -> checkLiteral f `shouldEqual` [])
   for_ [ "A", "A2", "F", "G4" ] \name -> it ("order independence: " <> name) do
     f <- fixture name
     for_ (permutations (firstInputs f)) \inputs ->

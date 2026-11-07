@@ -68,6 +68,7 @@
             "ordered-collections",
             "prelude",
             "sp-board",
+            "sp-checks",
             "sp-core",
             "sp-game",
             "sp-schema",
@@ -88,6 +89,7 @@
             "now",
             "quickcheck",
             "sp-adapters",
+            "sp-checks",
             "sp-premises",
             "sp-testkit",
             "spec",
@@ -123,6 +125,25 @@
             "spec-quickcheck",
             "unsafe-coerce"
           ]
+        }
+      },
+      "sp-checks": {
+        "path": "packages/checks",
+        "core": {
+          "dependencies": [
+            "arrays",
+            "foldable-traversable",
+            "identity",
+            "maybe",
+            "ordered-collections",
+            "prelude",
+            "sp-core",
+            "sp-schema",
+            "tuples"
+          ]
+        },
+        "test": {
+          "dependencies": []
         }
       },
       "sp-cli": {
@@ -354,6 +375,7 @@
             "partial",
             "quickcheck",
             "sp-adapters",
+            "sp-checks",
             "sp-premises",
             "spec",
             "spec-node",
@@ -427,6 +449,7 @@
             "sp-adapters",
             "sp-board",
             "sp-policy",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -443,6 +466,7 @@
             "either",
             "foldable-traversable",
             "foreign-object",
+            "identity",
             "maybe",
             "ordered-collections",
             "partial",
@@ -545,6 +569,7 @@
             "now",
             "quickcheck",
             "sp-adapters",
+            "sp-checks",
             "sp-premises",
             "sp-testkit",
             "spec",
@@ -568,6 +593,7 @@
             "ordered-collections",
             "prelude",
             "sp-adapters",
+            "sp-checks",
             "sp-core",
             "sp-game",
             "sp-premises",

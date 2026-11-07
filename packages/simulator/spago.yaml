@@ -28,6 +28,7 @@ package:
       - exceptions
       - sp-premises
       - sp-testkit
+      - sp-checks
       - sp-adapters
       - argonaut-core
       - spec

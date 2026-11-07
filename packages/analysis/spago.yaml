@@ -7,6 +7,7 @@ package:
     - sp-board
     - sp-game
     - sp-simulator
+    - sp-checks
     - arrays
     - effect
     - typelevel-prelude
@@ -29,6 +30,7 @@ package:
       - sp-premises
       - sp-adapters
       - sp-testkit
+      - sp-checks
       - argonaut-core
       - spec
       - spec-node

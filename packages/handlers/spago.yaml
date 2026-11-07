@@ -28,6 +28,7 @@ package:
     dependencies:
       - effect
       - sp-premises
+      - sp-checks
       - sp-adapters
       - aff
       - exceptions

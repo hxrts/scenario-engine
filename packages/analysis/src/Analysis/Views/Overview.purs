@@ -24,7 +24,7 @@ import Data.Foldable (any, sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
-import Analysis.Objectives (evaluateObjectives)
+import Checks.Objectives (evaluateObjectives)
 import Analysis.Views.Actions (rejectionCount)
 import Analysis.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, ofCount, price, quantity, roundResults, specValue)
 import Analysis.Views.Markets (marketPrices)

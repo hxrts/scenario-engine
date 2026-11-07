@@ -4,7 +4,7 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Invariants (checkRun)
+import Checks.Run (checkRun)
 import Core.Query (homeMarket, priceOf)
 import Schema.Decode.Common (readJsonWith)
 import Core.Num as Q

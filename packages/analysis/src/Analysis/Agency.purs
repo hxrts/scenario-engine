@@ -24,7 +24,7 @@ import Data.Either (Either(..), hush)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Traversable (traverse)
-import Analysis.Objectives (evaluateObjectives)
+import Checks.Objectives (evaluateObjectives)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Core.Strategy (Strategy)

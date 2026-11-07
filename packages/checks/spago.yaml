@@ -1,0 +1,12 @@
+package:
+  name: sp-checks
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-schema
+    - arrays
+    - foldable-traversable
+    - identity
+    - maybe
+    - ordered-collections
+    - tuples

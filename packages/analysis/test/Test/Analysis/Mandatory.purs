@@ -5,10 +5,10 @@ module Test.Analysis.Mandatory (spec) where
 
 import Prelude
 
-import Board.Fixture (checkFixture)
+import Testkit.Fixture (checkLiteral)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..), draw)
-import Core.Invariants (checkRun)
+import Checks.Run (checkRun)
 import Core.Types (Id(..))
 import Core.World (Event(..), WorldState)
 import Data.Argonaut.Parser (jsonParser)
@@ -25,9 +25,9 @@ import Schema.Premise.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Analysis.Agency (agency, counterfactual, playerSeedRuns)
-import Analysis.Objectives (evaluateObjectives)
+import Checks.Objectives (evaluateObjectives)
 import Testkit.Meridian (seats)
-import Premises.Load (loadFixture)
+import Premises.Load (loadLiteral)
 import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)
 import Game.Types (Game, SeatBinding(..))
@@ -57,9 +57,9 @@ initialOf :: SimRun -> WorldState
 initialOf r = r.manifest.initial
 
 fixture :: String -> Aff Unit
-fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail e
-  Right f -> checkFixture f `shouldEqual` []
+  Right f -> checkLiteral f `shouldEqual` []
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
