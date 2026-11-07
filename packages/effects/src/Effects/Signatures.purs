@@ -13,6 +13,8 @@ module Effects.Signatures
   , NARRATE
   , NarrateF(..)
   , Deadline(..)
+  , OBSERVE
+  , ObserveF(..)
   , STORE
   , StoreF(..)
   , Spec
@@ -132,9 +134,8 @@ type StoredRound =
 -- | One point of a versioned metric series: the round's value, as text.
 type MetricRow = { round :: Int, value :: String }
 
--- | The Run Store (docs/06_simulator.md §8): the run lifecycle writes the server and the CLI make,
--- | and the reads the server answers from. Each round's own write is `RECORD`. Writes are one
--- | transaction each; reads return stored values as typed records, with unreadable fields as `Left`.
+-- | The Run Store's writes (docs/06_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
+-- | make. Each round's own write is `RECORD`. Each write is one transaction.
 data StoreF a
   = CreateRun NewRun (Unit -> a)
   | SetStatus String String (Unit -> a)
@@ -143,12 +144,21 @@ data StoreF a
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)
-  | ListRuns (Array RunInfo -> a)
+
+derive instance Functor StoreF
+
+type STORE r = (store :: StoreF | r)
+
+-- | The Run Store's reads (`OBSERVE`): what the server's read operations and the run list need. Reads
+-- | return stored values as typed records, with unreadable fields as `Left`. A read program has this row
+-- | only, so it cannot write.
+data ObserveF a
+  = ListRuns (Array RunInfo -> a)
   | ListSummaries (Array RunSummary -> a)
   | ReadManifest String (Maybe StoredManifest -> a)
   | ReadRounds String (Array StoredRound -> a)
   | ReadMetric String String String (Array MetricRow -> a)
 
-derive instance Functor StoreF
+derive instance Functor ObserveF
 
-type STORE r = (store :: StoreF | r)
+type OBSERVE r = (observe :: ObserveF | r)

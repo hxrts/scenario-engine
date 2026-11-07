@@ -28,8 +28,8 @@ const rules = [
     bad: (line) => /^(interpret|on|handler|handlers)\s*(::|=)/.test(line) || /^type\s+\w*Handler\w*\s*=/.test(line),
   },
   {
-    name: "no \"/api\" path string outside the route table (interim home: apps/dashboard/src/Dashboard/Client.purs; Handlers.Api.Route from Phase 8)",
-    files: (f) => f.includes("/src/") && f !== "apps/dashboard/src/Dashboard/Client.purs",
+    name: "no \"/api\" path string outside the route table: the paths are Handlers.Api.Route's alone (work/4.md §13 Phase 8)",
+    files: (f) => f.includes("/src/") && f !== "packages/handlers/src/Handlers/Api/Route.purs",
     bad: (line) => /"\/api/.test(line),
   },
   {
@@ -56,6 +56,16 @@ const rules = [
     name: "the model handler holds no hand-written action list or reply decoder: prompts render from the shapes and replies decode through them (work/4.md §13 Phase 5)",
     files: (f) => f.startsWith("packages/handlers/src/Handlers/Llm"),
     bad: (line) => /"(Trade|Route|Transfer|Transform|ChangeRule|Tariff|AccessBan|Withholding)"/.test(line) || /\b(decodeJson|readJson|jsonParser|toObject|toArray|toString)\b/.test(line),
+  },
+  {
+    name: "a read program requests OBSERVE, not STORE: the server's read operations name no write row (work/4.md §13 Phase 8)",
+    files: (f) => f === "apps/server/src/Server/Read.purs",
+    bad: (line) => /\bEffects\.Store\b/.test(line) || /\brunStore\b/.test(line),
+  },
+  {
+    name: "the adapters hold no route or view type: a device knows no API operation or view model (work/4.md §13 Phase 8)",
+    files: (f) => f.startsWith("packages/adapters/src/"),
+    bad: (line) => /^import\s+(Views|Effects\.Api|Handlers\.Api)(\.|\s|$)/.test(line),
   },
   {
     name: "handlers hold no economic arithmetic: no Number, parseFloat, or toFixed (economic values go through Core.Num)",

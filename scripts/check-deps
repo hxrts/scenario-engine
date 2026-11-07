@@ -63,6 +63,9 @@ const rules = [
     forbid: (m) => /^(Board|Policy|Simulator|Handlers)(\.|$)/.test(m) },
   { name: "the composition roots instantiate and bind no seat: no board, policy, or seat-handler import (work/4.md §13 Phase 4)", packages: ["cli", "server"],
     forbid: (m) => /^(Board|Policy|Handlers\.Seats)(\.|$)/.test(m) },
+  // the API client answers operations in a browser: its closure (the route table and the client) has no Node, device, or domain module (work/4.md §7.4)
+  { name: "the API client's closure is browser-safe: no node-* or Node module, no adapter, and no views, simulator, or experiments", packages: ["handlers"], under: "Handlers/Api/",
+    forbid: (m) => /^(Node(\.|$)|Adapters(\.|$)|Views(\.|$)|Simulator(\.|$)|Experiments(\.|$)|Handlers\.(Store|Seats|Live|Sim|Llm|Replay|Recording)(\.|$))/.test(m) },
   { name: "effects are declarations: no handler or adapter import", packages: ["effects"],
     forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
 ];

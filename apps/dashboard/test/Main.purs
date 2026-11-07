@@ -8,8 +8,10 @@ import Dashboard.Chart (chartRows, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (RoundRange, Scenario, emptyForm, roundChoices, roundValue, summary, validate)
 import Dashboard.Route (Route(..), route)
-import Dashboard.RunForms (requiredRounds, resumeBody, rounds)
+import Dashboard.RunForms (requiredRounds, rounds)
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
+import Effects.Api as Api
+import Handlers.Api.Route (wire)
 import Data.Argonaut.Core (stringify, toNumber, toString)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
@@ -127,7 +129,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       requiredRounds " 5 " `shouldEqual` Right 5
   describe "Run actions: request bodies" do
     it "a resume body is the rounds" do
-      stringify (resumeBody 4) `shouldEqual` "{\"rounds\":4}"
+      (wire (Api.Resume { id: "run-1", rounds: 4 })).body `shouldEqual` "{\"rounds\":4}"
   describe "Run list reads" do
     it "a run's archived and readable flags are typed, and the list keeps the run order" do
       flagsOf runList "run-3" `shouldEqual` Just (flag "run-3" true true)

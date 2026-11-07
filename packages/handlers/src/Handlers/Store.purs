@@ -1,6 +1,7 @@
--- | The Run Store handler (docs/06_simulator.md §8): interprets the `STORE` operations (`Effects.Store`)
--- | and the `RECORD` operation, which saves each round as it completes with its transcripts and its
--- | metrics. The handler does the logic: the round's assertions, and the run
+-- | The Run Store handler (docs/06_simulator.md §8): interprets the `OBSERVE` reads (`Effects.Observe`),
+-- | the `STORE` writes (`Effects.Store`), and the `RECORD` operation, which saves each round as it
+-- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder` (and `persister`),
+-- | the callback form the seat runners take. The handler does the logic: the round's assertions, and the run
 -- | identity rule (`validRunId`). The backend is the set of raw store primitives an adapter implements
 -- | (`Adapters.SQLite.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
 -- | append-only, and the metric version is recorded with each value.
@@ -10,6 +11,7 @@ module Handlers.Store
   , Metric
   , validRunId
   , runStore
+  , runObserve
   , recorder
   , persister
   ) where
@@ -25,7 +27,7 @@ import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (toCharArray)
 import Effect (Effect)
 import Effect.Ref as Ref
-import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
+import Effects.Signatures (MetricRow, NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -71,15 +73,22 @@ interpretStore b = case _ of
   SetSpec id spec k -> k <$> b.setSpec id spec
   SetArchived id archived k -> k <$> b.setArchived id archived
   DeleteRun id k -> k <$> b.deleteRun id
+
+interpretObserve :: StoreBackend -> ObserveF ~> Effect
+interpretObserve b = case _ of
   ListRuns k -> k <$> b.listRuns
   ListSummaries k -> k <$> b.listSummaries
   ReadManifest id k -> k <$> b.readManifest id
   ReadRounds id k -> k <$> b.readRounds id
   ReadMetric id metric version k -> k <$> b.readMetric id metric version
 
--- | Run a store program over a backend.
+-- | Run a write program over a backend.
 runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a
 runStore b = run (case_ # on (Proxy :: _ "store") (interpretStore b))
+
+-- | Run a read program over a backend. A read program has the `OBSERVE` row only, so it writes nothing.
+runObserve :: forall a. StoreBackend -> Run (OBSERVE + ()) a -> Effect a
+runObserve b = run (case_ # on (Proxy :: _ "observe") (interpretObserve b))
 
 -- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
 -- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.

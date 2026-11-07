@@ -5,7 +5,6 @@ module Dashboard.RunForms
   ( RoundBounds
   , rounds
   , requiredRounds
-  , resumeBody
   ) where
 
 import Prelude

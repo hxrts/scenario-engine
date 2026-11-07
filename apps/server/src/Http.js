@@ -1,4 +1,4 @@
-// Minimal Node HTTP server: JSON API routes go to the PureScript handler; other paths serve the
+// Minimal Node HTTP server: JSON API routes (paths under the API prefix) go to the PureScript handler; other paths serve the
 // built dashboard, falling back to index.html. Requests are bounded and static paths are
 // confined to the static directory.
 import http from "node:http";
@@ -28,12 +28,12 @@ const resolveStatic = (root, urlPath) => {
   return fs.existsSync(index) ? index : null;
 };
 
-export const serveImpl = (port, staticDir, handler) => () => {
+export const serveImpl = (port, staticDir, apiPrefix, handler) => () => {
   const root = path.resolve(staticDir);
   const server = http.createServer((req, res) => {
     req.on("error", () => send(res, 400, "text/plain", "bad request"));
     const url = new URL(req.url, "http://localhost");
-    if (url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith(apiPrefix)) {
       let body = "";
       let tooLarge = false;
       req.on("data", (c) => {

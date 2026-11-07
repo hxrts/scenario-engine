@@ -89,7 +89,7 @@ type BodyProps = { id :: String, rounds :: Int }
 mkBody :: DataTable -> Component BodyProps
 mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResultsBody" \b -> React.do
   let
-    view name render = fetch { key: b.id <> "/" <> name, load: runView b.id name, render }
+    view name render = fetch { key: b.id <> "/" <> name, load: runView b.id name Nothing, render }
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-section"
     , children:
@@ -136,7 +136,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
         , Layout.section
             { title: "Final balance sheet"
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
-            , children: [ view ("balances?round=" <> show b.rounds) (as \(t :: Table) -> titled grid t) ]
+            , children: [ fetch { key: b.id <> "/balances?round=" <> show b.rounds, load: runView b.id "balances" (Just b.rounds), render: as \(t :: Table) -> titled grid t } ]
             }
         , entity { id: b.id }
         ]

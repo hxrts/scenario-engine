@@ -29,6 +29,8 @@ package:
     - sp-schema
     - sp-views
     - sp-board
+    - sp-effects
+    - sp-handlers
   test:
     main: Test.Dashboard.Main
     dependencies:

@@ -2,9 +2,7 @@
 -- | the seed handling (a player seed is drawn once, before the run starts), the run's stored spec,
 -- | and the play-to-completion that persists every round. Derived runs start through `start` too.
 module Server.Launch
-  ( Launch
-  , Launched
-  , readLaunch
+  ( Launched
   , launch
   , start
   , failInterrupted
@@ -17,7 +15,6 @@ import Prelude
 
 import Adapters.Clock (nowIso)
 import Adapters.Random (resolveSeed)
-import Schema.Decode.Common (readJson)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
 import Data.Array (concatMap, filter, foldl, mapMaybe)
@@ -28,20 +25,18 @@ import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
-import Effects.Store (createRun, failRun, failRunning, finish, listSummaries)
+import Effects.Api (Launch)
+import Effects.Observe (listSummaries)
+import Effects.Store (createRun, failRun, failRunning, finish)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Premises.Presets (presetNames)
-import Handlers.Store (StoreBackend, persister, runStore)
+import Handlers.Store (StoreBackend, persister, runObserve, runStore)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
 import Game.Recipe (Derivation, encodeSpec)
 import Simulator.Simulate (simulateWith)
-
--- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
--- | at launch; the reply carries the seed used either way.
-type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
@@ -55,10 +50,6 @@ type Start =
   , overrides :: Array Override
   , derivation :: Maybe Derivation
   }
-
--- | Decode a launch body.
-readLaunch :: String -> Either String Launch
-readLaunch = readJson
 
 -- | The startup policy (docs/06_simulator.md §9.1): a run still marked running was left by a process
 -- | that stopped before it finished, so it is failed with that reason. Returns how many were failed.
@@ -99,7 +90,7 @@ start p store l = do
 -- | link cannot come to resolve to a different run.
 nextRunId :: StoreBackend -> Effect String
 nextRunId store = do
-  rows <- runStore store listSummaries
+  rows <- runObserve store listSummaries
   let
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)

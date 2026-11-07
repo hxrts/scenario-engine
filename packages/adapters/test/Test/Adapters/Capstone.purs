@@ -21,12 +21,13 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effects.Round (runGame)
-import Effects.Store (createRun, readMetric, readRounds)
+import Effects.Store (createRun)
+import Effects.Observe (readMetric, readRounds)
 import Foreign.Object as Object
 import Game.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Handlers.Store (persister, runStore)
+import Handlers.Store (persister, runStore, runObserve)
 import Premises.Capstone as C
 import Simulator.Simulate (simulate, simulateWith)
 import Testkit.Capstone (load)
@@ -49,7 +50,7 @@ spec = describe "Capstone: the Run Store" do
       runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
       persister port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
-    rows <- liftEffect (runStore port (readRounds "capstone"))
+    rows <- liftEffect (runObserve port (readRounds "capstone"))
     length rows `shouldEqual` C.rounds
     records <- orThrow (traverse _.record rows)
     snapshots <- orThrow (traverse _.snapshot rows)
@@ -70,10 +71,10 @@ spec = describe "Capstone: the Run Store" do
       runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
       persister port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
-    rows <- liftEffect (runStore port (readRounds "capstone"))
+    rows <- liftEffect (runObserve port (readRounds "capstone"))
     snapshots <- orThrow (traverse _.snapshot rows)
     let marketIds = maybe [] (\w -> map show (Set.toUnfoldable (Map.keys w.markets) :: Array _)) (last snapshots)
-    prices <- for marketIds \m -> liftEffect (runStore port (readMetric "capstone" ("price:" <> m) metricsVersion))
+    prices <- for marketIds \m -> liftEffect (runObserve port (readMetric "capstone" ("price:" <> m) metricsVersion))
     (map (map _.value) prices) `shouldEqual`
       [ [ "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000" ]
       , [ "2.1600", "2.3200", "2.6400", "2.7200", "2.8000", "2.8800", "2.9600", "2.9733" ]

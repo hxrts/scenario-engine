@@ -23,6 +23,7 @@ package:
     - arrays
     - refs
     - strings
+    - js-uri
   test:
     main: Test.Handlers.Main
     dependencies:
