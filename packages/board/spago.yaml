@@ -19,6 +19,7 @@ package:
     dependencies:
       - effect
       - partial
+      - unsafe-coerce
       - spec
       - spec-node
       - quickcheck

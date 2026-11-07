@@ -24,7 +24,8 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Strategy (Strategy, decodeStrategy)
+import Core.Strategy (Strategy)
+import Policy.Strategy (decodeStrategy)
 
 type RoundExpect = { round :: Int, expect :: Expect }
 

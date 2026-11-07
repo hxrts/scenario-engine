@@ -13,7 +13,7 @@ import Data.Maybe (Maybe)
 import Effects.Signatures (INTERPRET, NARRATE, RECORD, SEAT_INPUT)
 import Foreign.Object (Object)
 import Handlers.Seats (collectRecords, handleSeats, strategies)
-import Policy.Strategy (Strategy)
+import Core.Strategy (Strategy)
 import Run (Run)
 import Type.Row (type (+))
 

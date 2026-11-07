@@ -14,7 +14,7 @@ import Core.Num as Q
 import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, holding)
 import Core.Represent as Represent
-import Core.World (Event(..), RoundResult, Target(..), WorldState)
+import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
 import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -166,7 +166,7 @@ rejections = case _ of
   Left e -> [ show e ]
   where
   reason = case _ of
-    Rejected x -> [ x.reason ]
+    Rejected x -> [ renderReason x.reason ]
     _ -> []
 
 eventsOf :: Either EngineError RoundResult -> Array Event

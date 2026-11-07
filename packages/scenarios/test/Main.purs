@@ -12,9 +12,8 @@ import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
-import Core.World (Event(..), ShareSource(..), View, WorldState)
+import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
-import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (any, elem, filter, fromFoldable, length)
 import Data.Either (Either(..), isRight)
@@ -29,7 +28,8 @@ import Effect.Class (liftEffect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
-import Policy.Strategy (Strategy, SignRule(..), decodeStrategy, strategyRefs)
+import Core.Strategy (Strategy, SignRule(..))
+import Policy.Strategy (decodeStrategy, strategyRefs)
 import DSL.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, holdingOf)
 import DSL.World (atLeast, own)
 import DSL.Decision (deal, lit, max', param, strategy, rule, signProcedures, tradeT, transformT)
@@ -111,11 +111,9 @@ envWith v u = { view: v, params: Object.empty, home: Just (Id "energy-asia"), ra
 
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Strategy
-policyNamed gb name = case Object.lookup name gb.policies of
+policyNamed gb name = case Map.lookup (Id name) gb.policies of
   Nothing -> failWith ("no policy named " <> name)
-  Just j -> case decodeStrategy j of
-    Left e -> failWith (printJsonDecodeError e)
-    Right p -> pure p
+  Just p -> pure p
 
 -- | A load outcome without its (non-comparable) scenario, for equality checks.
 outcome :: forall a. Either LoadError a -> Either LoadError Unit
@@ -125,14 +123,14 @@ outcome = map (const unit)
 
 type Edit = Gameboard -> InstantiationConfig -> Tuple Gameboard InstantiationConfig
 
-editWorld :: (WorldState -> WorldState) -> Edit
+editWorld :: (UnseededWorld -> UnseededWorld) -> Edit
 editWorld f g c = Tuple g { world = f g.world } c
 
 editConfig :: (InstantiationConfig -> InstantiationConfig) -> Edit
 editConfig f g c = Tuple g (f c)
 
 -- | One Entity of the world, edited.
-onEntity :: String -> (Entity -> Entity) -> WorldState -> WorldState
+onEntity :: String -> (Entity -> Entity) -> UnseededWorld -> UnseededWorld
 onEntity i f w = w { entities = Map.update (Just <<< f) (Id i) w.entities }
 
 -- | An Aggregate whose every procedure weighs an extra, unknown Entity.

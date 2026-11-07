@@ -16,7 +16,7 @@ import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Id(..), Rule(..))
-import Core.World (Event(..), RoundResult, WorldState)
+import Core.World (Event(..), RejectReason(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, reverse)
 import Data.Either (Either(..), either)
 import Data.Map as Map
@@ -29,7 +29,8 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Handlers.Replay (runReplay)
 import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, resume, simulate)
-import Policy.Strategy (Strategy, decodeStrategy)
+import Core.Strategy (Strategy)
+import Policy.Strategy (decodeStrategy)
 import Data.Argonaut.Parser (jsonParser)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
@@ -126,14 +127,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "2 Replay: same seeds reproduce, and the replay handler reproduces from records" do
       ctx <- context
       a <- run ctx (everySeat "RandomValid")
-      case instantiate ctx.gameboard ctx.config, inWorldOf ctx.gameboard of
-        Right initial, Right inWorld -> do
-          case runReplay 5 (map _.record a.records) (runGame inWorld 5 initial.world) of
-            Left e -> fail e
-            Right out -> do
-              map _.world out.records `shouldEqual` map _.world a.records
-              map _.record out.records `shouldEqual` map _.record a.records
-        _, _ -> fail "instantiation"
+      case instantiate ctx.gameboard ctx.config of
+        Right initial ->
+          let
+            inWorld = inWorldOf ctx.gameboard
+          in
+            do
+              case runReplay 5 (map _.record a.records) (runGame inWorld 5 initial.world) of
+                Left e -> fail e
+                Right out -> do
+                  map _.world out.records `shouldEqual` map _.world a.records
+                  map _.record out.records `shouldEqual` map _.record a.records
+        Left _ -> fail "instantiation"
 
     it "3 Submission order: permuting a recorded round's inputs changes nothing" do
       ctx <- context
@@ -184,7 +189,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           events
         unsigned = any
           ( case _ of
-              Rejected x -> contains (Pattern "must sign") x.reason
+              Rejected x -> contains (Pattern "must sign") (renderReason x.reason)
               _ -> false
           )
           events
@@ -278,7 +283,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           events
         banned = any
           ( case _ of
-              Rejected x -> x.reason == "shipment banned"
+              Rejected x -> x.reason == ShipmentBanned
               _ -> false
           )
           events

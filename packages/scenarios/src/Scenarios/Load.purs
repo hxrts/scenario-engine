@@ -21,9 +21,9 @@ import Prelude
 import Board.Decode.Common (readJsonWith)
 import Board.Decode.World (decodeFixture)
 import Board.Fixture (Fixture)
-import Board.Gameboard.Schema (Gameboard, InstantiationConfig, RefKind(..), ValidationError, decodeConfig, decodeGameboard)
+import Board.Gameboard.Schema (Gameboard, InstantiationConfig, RefKind(..), ValidationError, decodeConfig, decodeGameboard, withCatalog)
 import Board.Gameboard.Validate (validateGameboard)
-import Core.Types (Id(..))
+import Core.Types (Id(..), PolicyId)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
@@ -39,7 +39,8 @@ import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Strategy (Strategy, decodeStrategy, strategyRefs)
+import Core.Strategy (Strategy)
+import Policy.Strategy (decodeStrategy, strategyRefs)
 import Policy.Tags as T
 import Scenarios.Names (instantiationFile, presetsFile)
 import Scenarios.Tree (Scenario, Section)
@@ -127,7 +128,8 @@ fromFiles files = do
   config <- lmap (Undecodable instantiationFile) (decodeConfig configJson)
   merged <- merge (filter (\f -> f.name /= instantiationFile) files)
   decoded <- lmap (Undecodable "the Gameboard") (decodeGameboard merged)
-  gameboard <- lmap Invalid (validateGameboard decoded config)
+  catalog <- policyCatalog decoded.policies
+  gameboard <- lmap Invalid (validateGameboard (withCatalog catalog decoded) config)
   checkPolicies gameboard
   pure { gameboard, config }
   where
@@ -147,13 +149,17 @@ merge files = map fromObject (foldl step (Right Object.empty) files)
       Just k -> Left (DuplicateKey f.name k)
       Nothing -> Right (Object.union o x)
 
--- | Every Policy in the catalog decodes, and every name it uses resolves in the Gameboard.
-checkPolicies :: Gameboard -> Either LoadError Unit
-checkPolicies gb = traverse_ check (Object.toUnfoldable gb.policies :: Array _)
+-- | Every Policy in the catalog decodes. A Policy that does not is named in the error.
+policyCatalog :: Object Json -> Either LoadError (Map.Map PolicyId Strategy)
+policyCatalog raw = Map.fromFoldable <$> traverse decodeOne (Object.toUnfoldable raw :: Array _)
   where
-  check (Tuple name j) = do
-    p <- lmap (Undecodable ("policy " <> name)) (decodeStrategy j)
-    checkRefs ("policy " <> name) gb p
+  decodeOne (Tuple name j) = Tuple (Id name) <$> lmap (Undecodable ("policy " <> name)) (decodeStrategy j)
+
+-- | Every name a Policy uses resolves in the Gameboard.
+checkPolicies :: Gameboard -> Either LoadError Unit
+checkPolicies gb = traverse_ check (Map.toUnfoldable gb.policies :: Array _)
+  where
+  check (Tuple (Id name) p) = checkRefs ("policy " <> name) gb p
 
 -- | The first name a Strategy uses that the Gameboard lacks. `$home` is the Entity's own
 -- | home market, resolved by the interpreter, so it is not checked here.

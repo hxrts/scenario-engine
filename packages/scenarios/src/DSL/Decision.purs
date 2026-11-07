@@ -47,10 +47,9 @@ module DSL.Decision
 
 import Prelude
 
-import DSL.Base (Built, class ToQty, Qty, build, q, tag)
+import DSL.Base (Built, class ToQty, build, q, tag)
 import Data.Argonaut.Core (Json, fromArray, fromString, jsonNull)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Maybe (Maybe(..))
 import Policy.Tags as T
 import Prim.Row (class Union)
 

@@ -77,14 +77,17 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     ctx <- context
     cap <- load
     r <- runOf ctx (specOf cap)
-    case instantiate ctx.gameboard ctx.config, inWorldOf ctx.gameboard of
-      Right initial, Right inWorld ->
-        case runReplay cap.rounds (map _.record r.records) (runGame inWorld cap.rounds initial.world) of
-          Left e -> fail e
-          Right out -> do
-            map _.world out.records `shouldEqual` map _.world r.records
-            map _.record out.records `shouldEqual` map _.record r.records
-      _, _ -> fail "instantiation"
+    case instantiate ctx.gameboard ctx.config of
+      Right initial ->
+        let
+          inWorld = inWorldOf ctx.gameboard
+        in
+          case runReplay cap.rounds (map _.record r.records) (runGame inWorld cap.rounds initial.world) of
+            Left e -> fail e
+            Right out -> do
+              map _.world out.records `shouldEqual` map _.world r.records
+              map _.record out.records `shouldEqual` map _.record r.records
+      Left _ -> fail "instantiation"
 
   it "a run resumed from round 4's snapshot matches the uninterrupted run" do
     ctx <- context

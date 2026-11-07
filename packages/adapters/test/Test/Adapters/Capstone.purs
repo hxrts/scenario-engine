@@ -65,11 +65,15 @@ spec = describe "Capstone: the Run Store" do
     map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
     map (stringify <<< encodeJson) snapshots `shouldEqual` map (stringify <<< encodeJson <<< _.world) pure'.records
     snapshots `shouldEqual` map _.world pure'.records
-    case instantiate ctx.gameboard ctx.config, inWorldOf ctx.gameboard of
-      Right initial, Right inWorld -> case runReplay cap.rounds records (runGame inWorld cap.rounds initial.world) of
-        Left e -> fail e
-        Right out -> map _.world out.records `shouldEqual` snapshots
-      _, _ -> fail "instantiation"
+    case instantiate ctx.gameboard ctx.config of
+      Right initial ->
+        let
+          inWorld = inWorldOf ctx.gameboard
+        in
+          case runReplay cap.rounds records (runGame inWorld cap.rounds initial.world) of
+            Left e -> fail e
+            Right out -> map _.world out.records `shouldEqual` snapshots
+      Left _ -> fail "instantiation"
 
   it "the capstone's stored price metric rows are the pinned values" do
     cap <- capstone

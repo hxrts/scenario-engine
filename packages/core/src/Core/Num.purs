@@ -100,7 +100,8 @@ mul :: Q -> Q -> Q
 mul (Q a) (Q b) = Q (divRound (a * b) scale)
 
 -- | Quotient, rounded half-to-even. Division by zero is a programming error and fails loudly; a
--- | caller whose divisor can be zero must use `divMaybe` (or `divFloor`) instead.
+-- | caller whose divisor can be zero must use `divMaybe` (or `divFloor`) instead. Kept because every
+-- | caller divides by a literal 2 (Market), a non-empty count (Standings), or a checked nonzero (Representation).
 div :: Q -> Q -> Q
 div a b = case divMaybe a b of
   Just q -> q
@@ -192,6 +193,8 @@ format (Q u) =
 -- | steps; leftover steps go to the largest remainders, and ties go to the earlier index, so
 -- | callers must order their inputs canonically. Weights must be non-negative (a negative weight
 -- | fails loudly). If the weights sum to zero, nothing is allocated and every share is zero.
+-- | Kept: Market's weights are sign-filtered, Settle's are a Transform's use times its quantity (at
+-- | least its minimum, which is zero by default), and Circulate's flow amounts are not validated.
 allocate :: BigInt -> Q -> Array Q -> Array Q
 allocate unit (Q total) weights
   | any (_ < P.zero) (map toUnits weights) = unsafeCrashWith "Q.allocate: negative weight"

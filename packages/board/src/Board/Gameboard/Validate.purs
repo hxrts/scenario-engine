@@ -19,8 +19,6 @@ import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
-import Foreign.Object as Object
-import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
@@ -97,7 +95,7 @@ validateGameboard gb config =
             )
             entities
         )
-      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Object.member (unwrap p) gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
+      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)

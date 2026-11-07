@@ -5,8 +5,11 @@ module Core.World where
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleId, SignedProposal, Transformation, TransformationId, CapacityRef)
-import Data.Argonaut.Decode (class DecodeJson)
+import Record as Record
+import Type.Proxy (Proxy(..))
+import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef)
+import Data.Argonaut.Core (fromString)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Decode.Generic (genericDecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Argonaut.Encode.Generic (genericEncodeJson)
@@ -15,9 +18,10 @@ import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Show.Generic (genericShow)
 
-type WorldState =
-  { round :: RoundIndex
-  , seed :: Seed -- the game seed
+-- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
+-- | is instantiated (`seeded`); a decoded Gameboard's world is `UnseededWorld`.
+type WorldFields r =
+  ( round :: RoundIndex
   , entities :: Map EntityId Entity
   , resources :: Map ResourceId ResourceDefinition
   , markets :: Map MarketId Market
@@ -32,7 +36,17 @@ type WorldState =
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
   , circulation :: Circulation
   , events :: Array Event -- public history
-  }
+  | r
+  )
+
+type WorldState = Record (WorldFields (seed :: Seed)) -- seed: the game seed
+
+-- | A World State before instantiation: every field but the seed.
+type UnseededWorld = Record (WorldFields ())
+
+-- | The World State with its game seed. Instantiation and fixtures are the only callers.
+seeded :: Seed -> UnseededWorld -> WorldState
+seeded seed w = Record.insert (Proxy :: Proxy "seed") seed w
 
 -- | The recurring economic cycle (docs/02_type_system.md §6), as data.
 type Circulation =
@@ -71,10 +85,99 @@ type View =
   , toSign :: Array Proposal
   }
 
+-- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
+-- | matches on the specific failure. `renderReason` gives the text the record stores and the
+-- | dashboard shows; it is the only place that text is written.
+data RejectReason
+  = FacilityCapacityExceeded
+  | LimitPriceNotMet
+  | MarketCannotPaySellers
+  | InputsNotHeld TransformationId
+  | PartyCannotFund
+  | DealBundlesOnlyTransfers
+  | DuplicateProposalId
+  | OutsideProcedureAuthority
+  | UnknownProcedure
+  | UnknownEntity EntityId
+  | MustSign EntityId
+  | NotAuthorized EntityId
+  | UnknownMarket MarketId
+  | UnknownResource ResourceId
+  | UnknownTransformation TransformationId
+  | UnknownRule RuleId
+  | RouteNeedsLimit
+  | NoMarketAccess EntityId MarketId
+  | NoRouteAccess EntityId ResourceId ResourceId
+  | NotTransferable ResourceId
+  | OutOfScope Rule
+  | OnlyGoverningRepeal
+  | BelowMinimum TransformationId
+  | AboveMaximum TransformationId
+  | OwnerMustSign TransformationId
+  | NoTransportFacility
+  | CrossRegionNeedsTransport
+  | ShipmentBanned
+  | Recorded String -- a reason read back from the store: the text is all the record keeps
+
+-- | Two reasons are equal when their texts are: a reason read back from the store is its text, so
+-- | a stored event compares equal to the event that was recorded.
+instance Eq RejectReason where
+  eq a b = renderReason a == renderReason b
+
+instance Show RejectReason where
+  show = renderReason
+
+-- | The text of a rejection reason.
+renderReason :: RejectReason -> String
+renderReason = case _ of
+  FacilityCapacityExceeded -> "facility capacity exceeded"
+  LimitPriceNotMet -> "limit price not met"
+  MarketCannotPaySellers -> "the market cannot pay its sellers"
+  InputsNotHeld t -> show t <> ": inputs are not held"
+  PartyCannotFund -> "a party cannot fund the deal"
+  DealBundlesOnlyTransfers -> "deals bundle only Transfers and Transforms"
+  DuplicateProposalId -> "duplicate proposal id"
+  OutsideProcedureAuthority -> "outside the procedure's authority"
+  UnknownProcedure -> "unknown procedure"
+  UnknownEntity e -> "unknown entity " <> show e
+  MustSign e -> show e <> " must sign"
+  NotAuthorized e -> show e <> " is not authorized"
+  UnknownMarket m -> "unknown market " <> show m
+  UnknownResource r -> "unknown resource " <> show r
+  UnknownTransformation t -> "unknown transformation " <> show t
+  UnknownRule r -> "unknown rule " <> show r
+  RouteNeedsLimit -> "a routed order needs a limit price"
+  NoMarketAccess e m -> show e <> " has no access to " <> show m
+  NoRouteAccess e base quote -> show e <> " has no accessible market for " <> show base <> "/" <> show quote
+  NotTransferable r -> show r <> " is not transferable"
+  OutOfScope rule -> case rule of
+    Tariff _ -> "a Tariff applies only to the enacting jurisdiction"
+    AccessBan _ -> "an AccessBan applies only to the enacting jurisdiction"
+    Withholding _ -> "withholding needs the capacity's owner"
+  OnlyGoverningRepeal -> "only the governing authority may repeal a Rule"
+  BelowMinimum t -> show t <> " order below its minimum"
+  AboveMaximum t -> show t <> " order above its maximum"
+  OwnerMustSign t -> "the owner of " <> show t <> "'s capacity must sign"
+  NoTransportFacility -> "no transport facility"
+  CrossRegionNeedsTransport -> "a cross-region Transfer needs a matching transport order by the sender"
+  ShipmentBanned -> "shipment banned"
+  Recorded text -> text
+
+-- | The only place a rejection reason is stored: its rendered text, so the record is unchanged.
+instance EncodeJson RejectReason where
+  encodeJson = fromString <<< renderReason
+
+instance DecodeJson RejectReason where
+  decodeJson j = map Recorded (decodeJson j)
+
+-- | A Rejected event for a Proposal the engine turned down in `round`.
+rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
+rejection round proposal reason = Rejected { round, proposal, reason }
+
 -- | Everything the engine records. The round record is the list of a round's events.
 data Event
   = Lapsed { round :: RoundIndex, proposal :: ProposalId }
-  | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: String }
+  | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
   | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
   | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }

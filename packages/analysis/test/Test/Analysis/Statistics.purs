@@ -10,7 +10,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), Intent(..), ResourceId)
-import Core.World (Event(..), RoundRecord, WorldState)
+import Core.World (Event(..), RejectReason(..), RoundRecord, WorldState, rejection)
 import Data.Array (find, index, length, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
@@ -149,7 +149,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
               , Traded { round: 1, market: Id "energy-atlantic", entity: us, quantity: Q.fromInt 1, price: Q.fromInt 2 }
               , Transformed { round: 1, by: us, transformation: Id "defense-procurement", quantity: Q.fromInt 1, paid: Q.fromInt 1 }
               , Transferred { round: 1, from: us, to: de, resource: money, quantity: Q.fromInt 5 }
-              , Rejected { round: 1, proposal: p1, reason: "no" }
+              , rejection 1 p1 PartyCannotFund
               ]
           }
         run = base { records = [ round ], snapshots = [ base.manifest.initial ] }

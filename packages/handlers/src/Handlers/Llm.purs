@@ -19,7 +19,7 @@ module Handlers.Llm
 
 import Prelude
 
-import Core.Proposal (JointProposal, Transcript, jointProposals)
+import Core.Proposal (jointProposals)
 import Core.Types (EntityId, MarketId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
@@ -27,7 +27,6 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (fromFoldable, null)
 import Data.Either (Either, either)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff)

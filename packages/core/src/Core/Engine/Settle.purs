@@ -29,7 +29,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityOf, facilityPrice, holding, lookupQ, poolCeiling, poolOf, tradesOf)
 import Core.Types (CapacityRef, EntityId, Id(..), Intent(..), MarketId, ProposalId, ResourceId, Rule, RuleChange(..), RuleId, RoundIndex, TransformationId)
-import Core.World (Delivery, Event(..), Target(..), WorldState)
+import Core.World (Delivery, Event(..), RejectReason(..), Target(..), WorldState, rejection)
 import Data.Array (all, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -129,7 +129,7 @@ allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
   , totals: foldl (\m (Tuple tid q) -> Map.insertWith Q.add tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
   , rejected: acc.rejected <> rejectedDeals
-  , events: acc.events <> map (\pid -> Rejected { round: w.round, proposal: pid, reason: "facility capacity exceeded" }) rejectedDeals
+  , events: acc.events <> map (\pid -> rejection w.round pid FacilityCapacityExceeded) rejectedDeals
   }
   where
   cap = case group of
@@ -206,8 +206,8 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
           filled
             { positions = Map.insert id (Q.add m.position r.net) acc.positions
             , events = filled.events
-                <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "limit price not met" }) r.rejected
-                <> map (\o -> Rejected { round: w.round, proposal: o.pid, reason: "the market cannot pay its sellers" }) unpaid
+                <> map (\o -> rejection w.round o.pid LimitPriceNotMet) r.rejected
+                <> map (\o -> rejection w.round o.pid MarketCannotPaySellers) unpaid
             }
 
 -- | Settle one Proposal's filled Transforms: pay the facility's payee, consume inputs, produce
@@ -254,7 +254,7 @@ settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.pro
             l
             now
         in
-          if not inputsHeld then a { events = a.events <> [ Rejected { round: w.round, proposal: pid, reason: show t.transformation <> ": inputs are not held" } ] }
+          if not inputsHeld then a { events = a.events <> [ rejection w.round pid (InputsNotHeld t.transformation) ] }
           else case pay w t.by tr.payee w.numeraire owed a of
             Tuple paid afterPay ->
               afterPay

@@ -118,7 +118,8 @@
             "quickcheck",
             "spec",
             "spec-node",
-            "spec-quickcheck"
+            "spec-quickcheck",
+            "unsafe-coerce"
           ]
         }
       },
@@ -185,6 +186,7 @@
             "ordered-collections",
             "partial",
             "prelude",
+            "record",
             "strings",
             "tuples"
           ]

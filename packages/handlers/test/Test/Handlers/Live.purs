@@ -13,7 +13,7 @@ import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), Intent(..), ProposalId)
-import Core.World (Event(..), RoundResult, WorldState)
+import Core.World (Event(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -46,9 +46,9 @@ setup = liftEffect (readScenario fileOps "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
   Right s -> case load s of
     Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
-      Right initial, Right inWorld -> pure { world: initial.world, inWorld, params: gameboard.parameters }
-      _, _ -> throwError (error "instantiation")
+    Right { gameboard, config } -> case instantiate gameboard config of
+      Right initial -> let inWorld = inWorldOf gameboard in pure { world: initial.world, inWorld, params: gameboard.parameters }
+      Left _ -> throwError (error "instantiation")
 
 -- | The stub model for live play: the joint pass proposes a trade when a transcript names one, the
 -- | narrator writes a fixed front page, and each AI seat says one line.
@@ -169,7 +169,7 @@ spec = do
           )
           events
       map _.proposal rejections' `shouldEqual` [ Id "r1/US/1" ]
-      map (contains (Pattern "no-such-market") <<< _.reason) rejections' `shouldEqual` [ true ]
+      map (contains (Pattern "no-such-market") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]
       length executed `shouldEqual` 1
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
 

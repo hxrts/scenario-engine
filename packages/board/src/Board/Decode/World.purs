@@ -13,9 +13,10 @@ import Board.Decode.Entities (decodeEntity, representation)
 import Board.Decode.Intents (rule)
 import Board.Decode.Markets (market, resource, transformation)
 import Board.Decode.Rounds (Round, decodeRound)
+import Board.Fixture (Fixture)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
-import Core.World (Circulation, WorldState)
+import Core.World (Circulation, UnseededWorld, seeded)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (mapWithIndex)
@@ -28,10 +29,11 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 
--- | The World State a document describes, its name, and its rounds.
-type Document = { name :: String, world :: WorldState, rounds :: Array Round }
+-- | The World State a document describes, its name, and its rounds. The world has no seed: only
+-- | instantiation (`Board.Gameboard.Instantiate`) gives a world one.
+type Document = { name :: String, world :: UnseededWorld, rounds :: Array Round }
 
--- | A Gameboard document: its World State (the seed is set by the instantiation) and rounds.
+-- | A Gameboard document: its World State (unseeded) and rounds.
 decodeWorld :: Json -> Either JsonDecodeError Document
 decodeWorld j = do
   o <- decodeJson j
@@ -56,8 +58,6 @@ decodeWorld j = do
     , rounds
     , world:
         { round
-        -- a Gameboard has no seed: the instantiation sets it (`decodeFixture` reads it)
-        , seed: Seed 0
         , entities: toMap entities
         , resources: toMap resources
         , markets: toMap markets
@@ -81,10 +81,11 @@ decodeWorld j = do
   emptyCirculation :: Circulation
   emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
 
--- | A fixture: a Gameboard document whose World State carries its own seed.
-decodeFixture :: Json -> Either JsonDecodeError Document
+-- | A fixture: an engine-level document whose World State carries its own seed, since it is
+-- | checked as written and never instantiated.
+decodeFixture :: Json -> Either JsonDecodeError Fixture
 decodeFixture j = do
   o <- decodeJson j
   seed <- o .: "seed"
   doc <- decodeWorld j
-  pure doc { world = doc.world { seed = Seed seed } }
+  pure { name: doc.name, world: seeded (Seed seed) doc.world, rounds: doc.rounds }

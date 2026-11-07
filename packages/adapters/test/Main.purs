@@ -87,11 +87,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure' <- orThrow (simulate ctx spec)
       snapshots `shouldEqual` map _.world pure'.records
       map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
-      case instantiate ctx.gameboard ctx.config, inWorldOf ctx.gameboard of
-        Right initial, Right inWorld -> case runReplay 5 records (runGame inWorld 5 initial.world) of
-          Left e -> fail e
-          Right out -> map _.world out.records `shouldEqual` snapshots
-        _, _ -> fail "instantiation"
+      case instantiate ctx.gameboard ctx.config of
+        Right initial ->
+          let
+            inWorld = inWorldOf ctx.gameboard
+          in
+            case runReplay 5 records (runGame inWorld 5 initial.world) of
+              Left e -> fail e
+              Right out -> map _.world out.records `shouldEqual` snapshots
+        Left _ -> fail "instantiation"
       prices <- liftEffect (runStore port (readMetric "run-1" "price:energy-atlantic" metricsVersion))
       length prices `shouldEqual` 5
       -- a metric is read only at the version it was computed under

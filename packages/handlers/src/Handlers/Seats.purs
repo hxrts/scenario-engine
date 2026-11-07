@@ -18,7 +18,7 @@ import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), REC
 import Foreign.Object (Object)
 import Policy.Interpret (Draft, envFor)
 import Policy.Interpret as Policy
-import Policy.Strategy (Strategy)
+import Core.Strategy (Strategy)
 import Run (Run, case_, interpret, on, peel, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))

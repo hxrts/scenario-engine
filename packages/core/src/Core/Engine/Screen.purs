@@ -17,7 +17,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ, owner, transfersOf, transformsOf)
 import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent(..), MarketId, Pair, Proposal, ProposalId, Rule(..), RuleChange(..), SignedProposal, Transferability(..))
-import Core.World (Event(..), WorldState)
+import Core.World (Event(..), RejectReason(..), WorldState, rejection)
 import Data.Array (all, any, concat, elem, filter, fromFoldable, length, nub, null)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -73,7 +73,7 @@ screen w duplicated { proposal: p, signatures } =
     signed = nub ([ p.author ] <> signatures)
     signers = nub ([ p.author ] <> p.signers)
     deal = isNothing p.procedure && any (_ /= p.author) p.signers
-    reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+    reject reason = Left [ rejection w.round p.id reason ]
     ownCaps = fromMaybe [] (_.capabilities <$> Map.lookup p.author w.entities)
     tradeOrRule = case _ of
       Trade _ -> true
@@ -82,76 +82,70 @@ screen w duplicated { proposal: p, signatures } =
       _ -> false
     ordinary
       | not (all (_ `elem` signed) signers) = Left [ Lapsed { round: w.round, proposal: p.id } ]
-      | deal && any tradeOrRule p.intents = reject "deals bundle only Transfers and Transforms"
+      | deal && any tradeOrRule p.intents = reject DealBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
           Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [], routes: routesOf w p.author ownCaps p.intents }
   in
-    if p.id `elem` duplicated then reject "duplicate proposal id"
+    if p.id `elem` duplicated then reject DuplicateProposalId
     else case p.procedure of
       Just pid -> procedureProposal w p signed pid
       Nothing -> ordinary
 
 -- | Every Intent of a Proposal, then its shipments. Returns the tariffs the shipments owe.
-validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
+validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array { from :: EntityId, to :: EntityId, amount :: Q })
 validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
 
 -- | One Intent: its executor must sign and be authorized, and the Intent must name known
 -- | references and respect market access, transferability, rule scope, the facility's bounds,
 -- | and owner signing. `signers` are the Entities whose signatures count for this Proposal.
-checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either String Unit
+checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either RejectReason Unit
 checkIntent w p signers standing i = case Map.lookup who w.entities of
-  Nothing -> Left ("unknown entity " <> show who)
+  Nothing -> Left (UnknownEntity who)
   Just e
-    | not (who `elem` signers) -> Left (show who <> " must sign")
+    | not (who `elem` signers) -> Left (MustSign who)
     | otherwise -> known *> limited *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
   where
   who = executor p i
   caps = case standing of
     OwnAuthority -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
     ProcedureAuthority cs -> cs
-  authority = if authorizedIn w caps who i then Right unit else Left (show who <> " is not authorized")
+  authority = if authorizedIn w caps who i then Right unit else Left (NotAuthorized who)
   transformation t = Map.lookup t.transformation w.transformations
   known = case i of
-    Trade o | not (Map.member o.market w.markets) -> Left ("unknown market " <> show o.market)
-    Route r | not (Map.member r.pair.base w.resources) -> Left ("unknown resource " <> show r.pair.base)
-    Route r | not (Map.member r.pair.quote w.resources) -> Left ("unknown resource " <> show r.pair.quote)
-    Transform t | not (Map.member t.transformation w.transformations) -> Left ("unknown transformation " <> show t.transformation)
+    Trade o | not (Map.member o.market w.markets) -> Left (UnknownMarket o.market)
+    Route r | not (Map.member r.pair.base w.resources) -> Left (UnknownResource r.pair.base)
+    Route r | not (Map.member r.pair.quote w.resources) -> Left (UnknownResource r.pair.quote)
+    Transform t | not (Map.member t.transformation w.transformations) -> Left (UnknownTransformation t.transformation)
     Transfer t
-      | not (Map.member t.resource w.resources) -> Left ("unknown resource " <> show t.resource)
-      | not (Map.member t.to w.entities) -> Left ("unknown entity " <> show t.to)
-    ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left ("unknown rule " <> show id)
+      | not (Map.member t.resource w.resources) -> Left (UnknownResource t.resource)
+      | not (Map.member t.to w.entities) -> Left (UnknownEntity t.to)
+    ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left (UnknownRule id)
     _ -> Right unit
   -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)
   limited = case i of
-    Route r | Nothing <- r.limitPrice -> Left "a routed order needs a limit price"
+    Route r | Nothing <- r.limitPrice -> Left RouteNeedsLimit
     _ -> Right unit
   access = case i of
-    Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (show who <> " has no access to " <> show o.market)
-    Route r | null (routeCandidates w who caps r.pair) -> Left (show who <> " has no accessible market for " <> show r.pair.base <> "/" <> show r.pair.quote)
+    Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (NoMarketAccess who o.market)
+    Route r | null (routeCandidates w who caps r.pair) -> Left (NoRouteAccess who r.pair.base r.pair.quote)
     _ -> Right unit
   transferable = case i of
-    Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (show t.resource <> " is not transferable")
+    Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (NotTransferable t.resource)
     _ -> Right unit
   scope e = case i of
-    ChangeRule (Enact r) | not (governs w e.id r) -> Left (outOfScope r)
-    ChangeRule (Repeal id) | Just r <- Map.lookup id w.rules, not (governs w e.id r) -> Left "only the governing authority may repeal a Rule"
+    ChangeRule (Enact r) | not (governs w e.id r) -> Left (OutOfScope r)
+    ChangeRule (Repeal id) | Just r <- Map.lookup id w.rules, not (governs w e.id r) -> Left OnlyGoverningRepeal
     _ -> Right unit
   withinBounds = case i of
-    Transform t | Just tr <- transformation t, t.quantity < tr.minimum -> Left (show t.transformation <> " order below its minimum")
-    Transform t | Just tr <- transformation t, maybe false (t.quantity > _) tr.maximum -> Left (show t.transformation <> " order above its maximum")
+    Transform t | Just tr <- transformation t, t.quantity < tr.minimum -> Left (BelowMinimum t.transformation)
+    Transform t | Just tr <- transformation t, maybe false (t.quantity > _) tr.maximum -> Left (AboveMaximum t.transformation)
     _ -> Right unit
   ownerSigned = case i of
     Transform t | Just tr <- transformation t, tr.ownerSigns -> case tr.capacity >>= owner w of
       Just o | o `elem` signers -> Right unit
-      _ -> Left ("the owner of " <> show t.transformation <> "'s capacity must sign")
+      _ -> Left (OwnerMustSign t.transformation)
     _ -> Right unit
-
-outOfScope :: Rule -> String
-outOfScope = case _ of
-  Tariff _ -> "a Tariff applies only to the enacting jurisdiction"
-  AccessBan _ -> "an AccessBan applies only to the enacting jurisdiction"
-  Withholding _ -> "withholding needs the capacity's owner"
 
 -- | A procedure Proposal (§2.2, §3.3): authored by the Aggregate that holds the procedure, it
 -- | executes this round if the residual weight plus the weights of the members who signed
@@ -169,31 +163,31 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
       agents = filter (\m -> not (Map.member m proc.weights)) a.members
       executedBy i = executor p i == p.author || executor p i `elem` agents
     in
-      if not (all executedBy p.intents) then reject "outside the procedure's authority"
+      if not (all executedBy p.intents) then reject OutsideProcedureAuthority
       else case validate w p (signed <> agents) (ProcedureAuthority proc.authorizes) of
         Left reason -> reject reason
         Right tariffs
           | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
           | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
-  _ -> reject "unknown procedure"
+  _ -> reject UnknownProcedure
   where
-  reject reason = Left [ Rejected { round: w.round, proposal: p.id, reason } ]
+  reject reason = Left [ rejection w.round p.id reason ]
 
 -- | Cross-region Transfers must be bundled with a matching transport order signed by the
 -- | transport capacity's owner, and are subject to access bans and tariffs.
-shipping :: WorldState -> Proposal -> Either String (Array { from :: EntityId, to :: EntityId, amount :: Q })
+shipping :: WorldState -> Proposal -> Either RejectReason (Array { from :: EntityId, to :: EntityId, amount :: Q })
 shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
   where
   crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
   sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
   ship t = do
-    tid <- note "no transport facility" (Map.lookup t.resource w.transport)
+    tid <- note NoTransportFacility (Map.lookup t.resource w.transport)
     let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
-    when (carried /= t.quantity) (Left "a cross-region Transfer needs a matching transport order by the sender")
+    when (carried /= t.quantity) (Left CrossRegionNeedsTransport)
     let
       jf = jur w t.from
       jt = jur w t.to
-    when (any (banned jf jt) (fromFoldable (Map.values w.rules) :: Array _)) (Left "shipment banned")
+    when (any (banned jf jt) (fromFoldable (Map.values w.rules) :: Array _)) (Left ShipmentBanned)
     pure { from: t.from, to: jt, amount: Q.sumQ (map (rate jf jt t.quantity) (fromFoldable (Map.values w.rules))) }
   banned a b = case _ of
     AccessBan r -> (r.jurisdiction == a && r.target == b) || (r.jurisdiction == b && r.target == a)

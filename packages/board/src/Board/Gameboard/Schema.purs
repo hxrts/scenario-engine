@@ -4,6 +4,9 @@
 -- | Reconcile all import this module; it imports none of them.
 module Board.Gameboard.Schema
   ( Gameboard
+  , GameboardFields
+  , RawGameboard
+  , withCatalog
   , ActorDefinition
   , Fallback(..)
   , Objective
@@ -31,8 +34,9 @@ import Board.Tags (argOf, capacityKind, cumulativeKind, coverageKind, everyRound
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Strategy (Strategy)
 import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, Estimator, Id(..), PolicyId, ResourceId, TransformationId)
-import Core.World (Manifest, WorldState)
+import Core.World (Manifest, UnseededWorld, WorldState)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Either (Either(..))
@@ -44,18 +48,31 @@ import Data.TraversableWithIndex (traverseWithIndex)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 
-type Gameboard =
-  { id :: String
+-- | The Gameboard's fields, with the Policy catalog's type as the row `r`.
+type GameboardFields r =
+  ( id :: String
   , version :: String
-  , world :: WorldState -- resources, Markets, facilities, circulation, rules, and every Entity
+  , world :: UnseededWorld -- resources, Markets, facilities, circulation, rules, and every Entity; seeded by instantiation
   , actors :: Map EntityId ActorDefinition
   , schemes :: Array Scheme
-  , policies :: Object Json -- the Policy catalog (declarative strategies), decoded and checked by the scenario loader
   , parameters :: Object Q -- named scenario parameters read by Policies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_gameboard.md §4)
   , label :: Maybe String -- the test-instance label, which names the game (docs/05_test_instance.md §14)
-  }
+  | r
+  )
+
+-- | A Gameboard: its Policy catalog is typed, the Strategies the in-world Policies run.
+type Gameboard = Record (GameboardFields (policies :: Map PolicyId Strategy))
+
+-- | A Gameboard document as decoded: the Policy catalog is still raw JSON. The scenario loader
+-- | decodes each Strategy (`Policy.Strategy`), checks it, and completes the Gameboard with
+-- | `withCatalog`, so no domain value holds raw JSON.
+type RawGameboard = Record (GameboardFields (policies :: Object Json))
+
+-- | The Gameboard with its decoded Policy catalog.
+withCatalog :: Map PolicyId Strategy -> RawGameboard -> Gameboard
+withCatalog catalog gb = gb { policies = catalog }
 
 -- | The game id a run records: the Gameboard's id and its test-instance label, `<id>/<label>`.
 -- | Nothing when the Gameboard names no label.
@@ -200,7 +217,7 @@ instance Show Difference where
 
 -- Decoding -----------------------------------------------------------------------
 
-decodeGameboard :: Json -> Either JsonDecodeError Gameboard
+decodeGameboard :: Json -> Either JsonDecodeError RawGameboard
 decodeGameboard j = do
   o <- decodeJson j
   id <- o .: "id"

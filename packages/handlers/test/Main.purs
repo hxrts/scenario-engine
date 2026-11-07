@@ -11,7 +11,6 @@ import Board.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
-import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -35,7 +34,8 @@ import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
-import Policy.Strategy (Strategy, decodeStrategy)
+import Core.Strategy (Strategy)
+import Policy.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile, readScenario)
 import Scenarios.Load (load, loadPresets)
@@ -51,10 +51,9 @@ setup = do
   loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
   case loaded of
     Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
-      Right initial, Right inWorld -> pure { world: initial.world, inWorld, params: gameboard.parameters }
-      Left es, _ -> throwError (error (show es))
-      _, Left e -> throwError (error (printJsonDecodeError e))
+    Right { gameboard, config } -> case instantiate gameboard config of
+      Right initial -> pure { world: initial.world, inWorld: inWorldOf gameboard, params: gameboard.parameters }
+      Left es -> throwError (error (show es))
 
 strategy :: String -> Strategy
 strategy text = case readJsonWith decodeStrategy text of

@@ -6,16 +6,19 @@ import Board.Decode.Common (capability)
 import Board.Decode.Intents (intent, rule)
 import Board.Decode.Rounds (Expect, decodeRound)
 import Board.Decode.World (decodeFixture)
-import Board.Gameboard.Instantiate (mergeRequirements)
-import Board.Gameboard.Schema (decodeGameboard)
+import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
+import Board.Gameboard.Schema (decodeConfig, decodeGameboard, withCatalog)
 import Core.Num as Q
 import Core.Types (Capability(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Foreign.Object as Object
 import Effect (Effect)
+import Unsafe.Coerce (unsafeCoerce)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -120,6 +123,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeGameboard (json (minimalGameboard "[4]"))) `shouldEqual` true
     it "has no default round range" do
       isLeft (decodeGameboard (json """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
+    it "a decoded Gameboard's world carries no seed; instantiation sets it" do
+      case decodeGameboard (json (minimalGameboard "[4, 8]")), decodeConfig (json """{ "seed": 9, "rounds": 4 }""") of
+        Left e, _ -> fail (show e)
+        _, Left e -> fail (show e)
+        Right raw, Right config -> do
+          -- the decoded world is a record with no seed field, not a seed placeholder
+          Object.member "seed" (unsafeCoerce raw.world :: Object.Object Json) `shouldEqual` false
+          case instantiate (withCatalog Map.empty raw) config of
+            Left es -> fail (show es)
+            Right initial -> show initial.world.seed `shouldEqual` "9"
     it "a fixture requires its seed" do
       isLeft (decodeFixture (json """{ "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
       case decodeFixture (json """{ "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""") of

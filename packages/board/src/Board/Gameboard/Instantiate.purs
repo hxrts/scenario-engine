@@ -15,7 +15,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, homeMarket, lookupQ)
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..))
-import Core.World (Requirement, WorldState)
+import Core.World (Requirement, UnseededWorld, WorldState, seeded)
 import Data.Array (concatMap, elem, filter, find, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -29,10 +29,8 @@ instantiate gb config =
   let
     errors = controllerErrors <> representationErrors
     world = foldl applyFallback (gb.world { entities = map setController gb.world.entities }) (Map.toUnfoldable unselected :: Array _)
-    final = world
-      { seed = config.seed
-      , representations = mapMaybe toRepresentation config.representations
-      }
+    final = (seeded config.seed world)
+      { representations = mapMaybe toRepresentation config.representations }
   in
     if not (null errors) then Left errors
     else Right
@@ -75,7 +73,7 @@ instantiate gb config =
     _, _ -> e
 
 -- | Resolve one unselected Actor by its fallback.
-applyFallback :: WorldState -> Tuple EntityId Fallback -> WorldState
+applyFallback :: UnseededWorld -> Tuple EntityId Fallback -> UnseededWorld
 applyFallback w (Tuple e fb) = case fb of
   InstitutionalPolicy p -> w { entities = Map.update (\x -> Just x { kind = Actor (NPC p) }) e w.entities }
   PermittedOmission -> w
@@ -83,7 +81,7 @@ applyFallback w (Tuple e fb) = case fb of
 
 -- | Implicit coverage: the Actor's accounts, capacities, procedure weight, market access,
 -- | circulation, and jurisdiction pass to the Aggregate that covers it.
-mergeInto :: EntityId -> EntityId -> WorldState -> WorldState
+mergeInto :: EntityId -> EntityId -> UnseededWorld -> UnseededWorld
 mergeInto agg e w = case Map.lookup e w.entities of
   Nothing -> w
   Just gone -> w

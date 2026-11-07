@@ -15,7 +15,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (facilityPrice, holding, lookupQ, poolCeiling)
 import Core.Types (EntityId, Intent(..), ResourceId, Transformation)
-import Core.World (Event(..), WorldState)
+import Core.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (any, concatMap, elem, fromFoldable, partition)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -51,7 +51,7 @@ fund w items =
     scaleOf item = fromMaybe (Q.fromInt 1) (Map.lookup item.proposal.author entityScale)
   in
     { items: map (scaled (Q.fromInt 1)) kept <> map (\i -> scaled (scaleOf i) i) singles
-    , events: map (\d -> Rejected { round: w.round, proposal: d.proposal.id, reason: "a party cannot fund the deal" }) dropped
+    , events: map (\d -> rejection w.round d.proposal.id PartyCannotFund) dropped
     }
 
 -- | What an Item escrows from opening holdings at its full requested size.

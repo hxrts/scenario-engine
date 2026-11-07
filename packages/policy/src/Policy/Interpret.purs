@@ -17,7 +17,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Strategy (Cond(..), Expr(..), Strategy, SignRule(..), Template(..), TransferTemplate)
+import Core.Strategy (Cond(..), Expr(..), Strategy, SignRule(..), Template(..), TransferTemplate)
 import Policy.Tags as T
 
 -- | A Proposal before the round runner assigns its id and author.

@@ -45,7 +45,7 @@ import Handlers.Seats (SeatSource, collectRecords, handleSeats, strategies)
 import Handlers.Sim (runSim)
 import Run as R
 import Type.Row (type (+))
-import Policy.Strategy (Strategy)
+import Core.Strategy (Strategy)
 
 -- | What a run is resolved against: the Gameboard, its default configuration, the presets.
 type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
@@ -96,13 +96,12 @@ type Prepared =
   }
 
 -- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
--- | world does not instantiate, when the Policy catalog does not decode, or when a seat that acts has
--- | no home market (checked before any round).
+-- | world does not instantiate, or when a seat that acts has no home market (checked before any round).
 startOf :: Gameboard -> InstantiationConfig -> Either String { initial :: InitialWorld, inWorld :: InWorld }
-startOf gameboard config = case instantiate gameboard config, inWorldOf gameboard of
-  Left es, _ -> Left (show es)
-  _, Left e -> Left (show e)
-  Right initial, Right inWorld -> do
+startOf gameboard config = case instantiate gameboard config of
+  Left es -> Left (show es)
+  Right initial -> do
+    let inWorld = inWorldOf gameboard
     checkHomes (acts inWorld) initial.world
     pure { initial, inWorld }
 

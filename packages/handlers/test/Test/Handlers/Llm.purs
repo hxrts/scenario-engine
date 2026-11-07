@@ -47,9 +47,9 @@ setup = liftEffect (readScenario fileOps "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
   Right s -> case load s of
     Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
-      Right initial, Right inWorld -> pure { world: initial.world, inWorld, params: gameboard.parameters }
-      _, _ -> throwError (error "instantiation")
+    Right { gameboard, config } -> case instantiate gameboard config of
+      Right initial -> let inWorld = inWorldOf gameboard in pure { world: initial.world, inWorld, params: gameboard.parameters }
+      Left _ -> throwError (error "instantiation")
 
 tr :: String -> String -> Transcript
 tr seat text = { seat: Id seat, text }
