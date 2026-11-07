@@ -32,9 +32,10 @@ import Core.Query (holding)
 import Core.World (WorldState)
 import Foreign.Object as Object
 import Harness.Analysis (AgencyProfile)
+import Core.Num (Kind(..))
 import Harness.Views.Actions as Actions
 import Harness.Views.Balance (completion, measures)
-import Harness.Views.Common (Bars, Chart, StoredRun, Table, final, joinComma, players, q)
+import Harness.Views.Common (Bars, Chart, StoredRun, Table, exact, final, joinComma, players, price, quantity)
 import Harness.Views.Markets (marketPrices, marketUnit)
 import Harness.Views.Standings (netWorths, standings)
 
@@ -78,7 +79,7 @@ finalState :: Array StoredRun -> Table
 finalState runs =
   { title: "Final state"
   , columns: [ "Entity", "Resource" ] <> map _.id runs
-  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> q (holding (final r) e res)) runs) keys
+  , rows: map (\(Tuple e res) -> [ show e, show res ] <> map (\r -> quantity (holding (final r) e res)) runs) keys
   }
   where
   keys = case index runs 0 of
@@ -97,7 +98,7 @@ baselineDiff base others =
                   let
                     d = Q.sub v (holding (final base) e res)
                   in
-                    if d == Q.zero then [] else [ [ r.id, show e, show res, q d ] ]
+                    if d == Q.zero then [] else [ [ r.id, show e, show res, quantity d ] ]
               )
               (Map.toUnfoldable x.accounts)
           )
@@ -135,7 +136,7 @@ agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =
   { title: "Agency"
   , columns: [ "Actor", "Alternative", "Price change", "Others' holdings", "Aggregate holdings", "Institutional decisions", "Own criteria changed", "Measurable" ]
-  , rows: map (\p -> [ show p.actor, p.alternative, q p.prices, q p.others, q p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
+  , rows: map (\p -> [ show p.actor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
   }
 
 -- | A run's column header: its name and id, or the id alone when the run has no other name.
@@ -212,11 +213,11 @@ netWorthCharts runs = map chartOf (playerNames runs)
   where
   chartOf p =
     { player: p
-    , chart: { title: "Net worth, " <> p, unit: "M", series: map (seriesOf p) runs }
+    , chart: { title: "Net worth, " <> p, unit: "M", kind: Quantity, series: map (seriesOf p) runs }
     }
   seriesOf p r =
     { name: r.id
-    , points: mapWithIndex (\i w -> { round: i, value: maybe "" q (valueOf p w) }) ([ r.manifest.initial ] <> r.snapshots)
+    , points: mapWithIndex (\i w -> { round: i, value: maybe "" exact (valueOf p w) }) ([ r.manifest.initial ] <> r.snapshots)
     }
 
   valueOf :: String -> WorldState -> Maybe Q.Q
@@ -225,7 +226,7 @@ netWorthCharts runs = map chartOf (playerNames runs)
 -- | Final net worth by Player: one group per Player, one bar per run.
 standingsBars :: Array StoredRun -> Bars
 standingsBars runs =
-  { title: "Final net worth by player", unit: "M", categories: ps, series: map (\r -> { name: r.id, values: map (\p -> cellOf (standings r) p 1) ps }) runs }
+  { title: "Final net worth by player", unit: "M", kind: Quantity, categories: ps, series: map (\r -> { name: r.id, values: map (\p -> cellOf (standings r) p 1) ps }) runs }
   where
   ps = playerNames runs
 
@@ -233,7 +234,7 @@ standingsBars runs =
 balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars }
 balanceBars runs =
   { spread:
-      { title: "Spread of final net worth", unit: "M", categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ cellOf (measures r) "Spread (M)" 1 ] }) runs }
+      { title: "Spread of final net worth", unit: "M", kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ cellOf (measures r) "Spread (M)" 1 ] }) runs }
   , gini:
-      { title: "Gini of final net worth", unit: "index, 0 to 1", categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ cellOf (measures r) "Gini coefficient" 1 ] }) runs }
+      { title: "Gini of final net worth", unit: "index, 0 to 1", kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ cellOf (measures r) "Gini coefficient" 1 ] }) runs }
   }

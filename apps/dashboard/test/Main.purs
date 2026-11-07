@@ -2,14 +2,15 @@ module Test.Dashboard.Main where
 
 import Prelude
 
-import Dashboard.Chart (chartRows, plotValue)
+import Core.Num (Kind(..))
+import Dashboard.Chart (chartRows, plotValue, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (RoundRange, Scenario, emptyForm, nextRunName, roundChoices, roundValue, summary, validate)
 import Dashboard.Presets (presetNames)
 import Dashboard.Route (Route(..), route)
 import Dashboard.RunForms (deleteConfirmed, requiredRounds, resumeBody)
 import Dashboard.Runs (derivedFrom, mergeRuns, readableIds, runInfo, sourceRow)
-import Data.Argonaut.Core (stringify, toObject)
+import Data.Argonaut.Core (stringify, toNumber, toObject, toString)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (sort)
@@ -81,11 +82,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       plotValue "NaN" `shouldEqual` Nothing
     it "an unparseable point is a gap in its series, not a zero" do
       let series = [ { name: "a", points: [ { round: 0, value: "1" }, { round: 1, value: "oops" }, { round: 2, value: "3" } ] } ]
-      map (Object.lookup "a") (chartRows series) `shouldEqual` [ Just 1.0, Nothing, Just 3.0 ]
+      map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Quantity series) `shouldEqual` [ Just 1.0, Nothing, Just 3.0 ]
     it "rows are keyed by round, with each series' values in its own key" do
       let series = [ { name: "a", points: [ { round: 0, value: "1" } ] }, { name: "b", points: [ { round: 0, value: "2" } ] } ]
-      map (Object.lookup "round") (chartRows series) `shouldEqual` [ Just 0.0 ]
-      map (Object.lookup "b") (chartRows series) `shouldEqual` [ Just 2.0 ]
+      map (\row -> Object.lookup "round" row >>= toNumber) (chartRows Quantity series) `shouldEqual` [ Just 0.0 ]
+      map (\row -> Object.lookup "b" row >>= toNumber) (chartRows Quantity series) `shouldEqual` [ Just 2.0 ]
+    it "each point carries its value under the chart's display kind, beside the plotted number" do
+      let series = [ { name: "a", points: [ { round: 0, value: "12.125" }, { round: 1, value: "0.0001" } ] } ]
+      map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Quantity series) `shouldEqual` [ Just "12.12", Just "<0.01" ]
+      map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Ratio series) `shouldEqual` [ Just "12.12", Just "0.00" ]
+      map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Launch form: defaults" do
     it "the empty form is a valid request: the default name, Conservative, a drawn seed, the scenario's rounds" do
       validate "run-3" scenarioRounds emptyForm `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }

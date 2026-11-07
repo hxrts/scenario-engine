@@ -126,10 +126,10 @@ spec context = describe "Dashboard statistics on hand-built runs" do
         start = setHolding (blank base.manifest.initial) us money Q.zero
         final = setHolding (setHolding start us money (Q.fromInt 120)) de money (Q.fromInt 50)
         t = (standings (runWith base start final))
-      rowOf t "US" `shouldEqual` Just [ "US", "120.0000", "120.0000", "1" ]
-      rowOf t "DE" `shouldEqual` Just [ "DE", "50.0000", "50.0000", "2" ]
+      rowOf t "US" `shouldEqual` Just [ "US", "120", "120", "1" ]
+      rowOf t "DE" `shouldEqual` Just [ "DE", "50", "50", "2" ]
       let tied = setHolding final de money (Q.fromInt 120)
-      rowOf (standings (runWith base start tied)) "DE" `shouldEqual` Just [ "DE", "120.0000", "120.0000", "1" ]
+      rowOf (standings (runWith base start tied)) "DE" `shouldEqual` Just [ "DE", "120", "120", "1" ]
   describe "Actions" do
     it "counts trades, transforms, transfers paid, deals signed and rejections per player" do
       ctx <- context
@@ -180,7 +180,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
         a = runWith base start (setHolding start us money (Q.fromInt 120))
         b = runWith (base { playerSeed = "2" }) start (setHolding start us money (Q.fromInt 50))
         t = seedVariation [ a, b ]
-      rowOf t "range" `shouldEqual` Just [ "range", "", "", "70.0000", "0.0000" ]
+      rowOf t "range" `shouldEqual` Just [ "range", "", "", "70", "0.00" ]
     it "runs group by specification, ignoring the player seed, and not with another preset" do
       ctx <- context
       base <- baseRun ctx

@@ -6,7 +6,8 @@ module Dashboard.Components (stale, tableOf, linkedTable, diffTable, metricChart
 import Prelude
 
 import Dashboard.Api (useApi)
-import Dashboard.Chart (barRows, chartRows, colourOf)
+import Core.Num (displayTick)
+import Dashboard.Chart (barRows, chartRows, colourOf, tooltipFormatter)
 import Dashboard.DataTable (DataTable)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json, fromNumber, fromString)
@@ -17,6 +18,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
+import Unsafe.Coerce (unsafeCoerce)
 import Harness.Views.Actions (ActionsChart)
 import Harness.Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
@@ -78,12 +80,12 @@ metricChart c = D.div
           , className: "h-96 w-full"
           , children:
               [ element UI.lineChart
-                  { data: chartRows c.series
+                  { data: chartRows c.kind c.series
                   , children:
                       [ element UI.cartesianGrid { vertical: false }
                       , element UI.xAxis { dataKey: "round" }
-                      , element UI.yAxis { domain: [ "auto", "auto" ] }
-                      , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+                      , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind) }
+                      , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
                       , element UI.chartLegend { content: element UI.chartLegendContent {} }
                       ] <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
                   }
@@ -152,12 +154,12 @@ overlayChart ids c = plotFrame c.title $ element UI.chartContainer
   , className: "h-full w-full"
   , children:
       [ element UI.lineChart
-          { data: chartRows c.series
+          { data: chartRows c.kind c.series
           , children:
               [ element UI.cartesianGrid { vertical: false }
               , element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
-              , element UI.yAxis { domain: [ "auto", "auto" ], label: { value: c.unit, angle: -90, position: "insideLeft" } }
-              , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+              , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind), label: { value: c.unit, angle: -90, position: "insideLeft" } }
+              , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
               , element UI.chartLegend { content: element UI.chartLegendContent {} }
               ]
                 <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: if index ids 0 == Just s.name then 3 else 2, dot: false, isAnimationActive: false }) c.series
@@ -177,8 +179,8 @@ groupedBars ids xLabel b = plotFrame b.title $ element UI.chartContainer
           , children:
               [ element UI.cartesianGrid { vertical: false }
               , element UI.xAxis { dataKey: "category", label: { value: xLabel, position: "insideBottom", offset: -4 } }
-              , element UI.yAxis { label: { value: b.unit, angle: -90, position: "insideLeft" } }
-              , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+              , element UI.yAxis { tickFormatter: unsafeCoerce (displayTick b.kind), label: { value: b.unit, angle: -90, position: "insideLeft" } }
+              , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
               , element UI.chartLegend { content: element UI.chartLegendContent {} }
               ]
                 <> map (\s -> element UI.groupedBar { key: s.name, dataKey: s.name, fill: "var(--color-" <> s.name <> ")", isAnimationActive: false }) b.series

@@ -11,6 +11,7 @@ module Harness.Views.Entity
 
 import Prelude
 
+import Core.Num (Kind(..))
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (EntityId, ResourceId)
@@ -20,7 +21,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..))
-import Harness.Views.Common (Chart, StoredRun, Table, joinComma, q, series)
+import Harness.Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series)
 import Harness.Views.Standings (netWorth)
 
 -- | Every Entity in the run's initial World State, in Entity order: the names `entityHistory` accepts.
@@ -38,17 +39,19 @@ entityHistory r e
         { table:
             { title: "Balance sheet of " <> show e <> " by round"
             , columns: [ "Resource" ] <> map (\i -> "Round " <> show i) rounds
-            , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> q (netWorth w e)) worlds ]
+            , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> quantity (netWorth w e)) worlds ]
             }
         , chart:
             { title: "Holdings of " <> show e
             , unit: "each Resource in its own unit"
-            , series: series r "holdings" (\w -> map (\res -> Tuple (show res) (holding w e res)) held) q
+            , kind: Quantity
+            , series: series r "holdings" (\w -> map (\res -> Tuple (show res) (holding w e res)) held) exact
             }
         , netWorth:
             { title: "Net worth of " <> show e
             , unit: "M"
-            , series: series r "net worth" (\w -> [ Tuple "Net worth" (netWorth w e) ]) q
+            , kind: Quantity
+            , series: series r "net worth" (\w -> [ Tuple "Net worth" (netWorth w e) ]) exact
             }
         }
       where
@@ -69,4 +72,4 @@ entityHistory r e
 
       accountsOf :: WorldState -> Array ResourceId
       accountsOf w = maybe [] (\en -> fromFoldable (Map.keys en.accounts)) (Map.lookup e w.entities)
-      resourceRow res = cons (show res) (map (\w -> q (holding w e res)) worlds)
+      resourceRow res = cons (show res) (map (\w -> quantity (holding w e res)) worlds)

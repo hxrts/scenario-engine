@@ -22,7 +22,7 @@ import Effect.Exception (error)
 import Harness.Analysis (Outcome(..), evaluateObjectives)
 import Harness.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, resolve, simulate)
 import Harness.Views.Balances (balances, events)
-import Harness.Views.Common (StoredRun, Table, defaultMetricSpec, q)
+import Harness.Views.Common (StoredRun, Table, defaultMetricSpec, quantity)
 import Harness.Views.Balance (measures)
 import Harness.Views.Compare (balanceBars, compatible, keyValues, netWorthCharts, standingsBars)
 import Harness.Views.Entity (entityHistory)
@@ -187,8 +187,8 @@ spec context = describe "Views and error paths" do
       Right h -> do
         h.table.columns `shouldEqual` [ "Resource", "Round 0", "Round 1", "Round 2", "Round 3" ]
         for_ (moneyRow h) \row -> do
-          cell row 3 `shouldEqual` q (Q.fromInt 777)
-          cell row 1 `shouldEqual` q (holding s.manifest.initial e money)
+          cell row 3 `shouldEqual` "777"
+          cell row 1 `shouldEqual` quantity (holding s.manifest.initial e money)
         h.chart.series `shouldSatisfy` \ss -> length (filter (\x -> x.name == show money) ss) == 1
     case entityHistory s e of
       Left err -> fail err

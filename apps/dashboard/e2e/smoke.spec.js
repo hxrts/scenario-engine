@@ -163,12 +163,12 @@ test("the manage actions are visible sections, not disclosures", async ({ page }
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   // [entity, kind, resource, initial, current, change] at round 3 of run-1
-  await expect(rowNamed(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210.0000", "122.4000", "-87.6000"])).toHaveCount(1);
+  await expect(rowNamed(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "122.4", "-87.6"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/#/runs/run-4");
   // the balances shown are run-4's last round (2), not its initial state
-  await expect(rowNamed(page, ["BR", "Actor", "E", "85.0000", "98.0000", "13.0000"])).toHaveCount(1);
+  await expect(rowNamed(page, ["BR", "Actor", "E", "85", "98", "13"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/#/runs/run-1");

@@ -9,7 +9,10 @@ module Harness.Views.Common
   , StoredRun
   , MetricSpec
   , defaultMetricSpec
-  , q
+  , quantity
+  , price
+  , ratio
+  , exact
   , at
   , final
   , outOfRange
@@ -24,7 +27,7 @@ module Harness.Views.Common
 import Prelude
 
 import Core.Invariants (Failure)
-import Core.Num (Q)
+import Core.Num (Kind, Q)
 import Core.Num as Q
 import Core.Query (isAggregate)
 import Core.Types (EntityId, EntityKind(..))
@@ -37,12 +40,13 @@ import Data.Tuple (Tuple(..), fst)
 
 type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
 
--- | A metric per round; values are decimal strings in their own units.
-type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
+-- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
+-- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.
+type Chart = { title :: String, unit :: String, kind :: Kind, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
 
 -- | Grouped bars: one group per category, one bar per series (a run). Each series' values line up with
--- | `categories`; a missing value is the empty string.
-type Bars = { title :: String, unit :: String, categories :: Array String, series :: Array { name :: String, values :: Array String } }
+-- | `categories`; a missing value is the empty string. The bars' values are shown under their display `kind`.
+type Bars = { title :: String, unit :: String, kind :: Kind, categories :: Array String, series :: Array { name :: String, values :: Array String } }
 
 -- | A statistic the views show: its name, the question it answers, its one-line definition, and its
 -- | formula. Each statistic is defined once, in the module that computes it; the dashboard renders it.
@@ -77,9 +81,21 @@ defaultMetricSpec =
   , market: "energy-atlantic"
   }
 
--- | A quantity as a cell.
-q :: Q -> String
-q = Q.format
+-- | Display (docs/02 §9.1): a count of units (Money, Resource holdings and flows) as a cell.
+quantity :: Q -> String
+quantity = Q.displayQuantity
+
+-- | A price (quote per base unit) as a cell.
+price :: Q -> String
+price = Q.displayPrice
+
+-- | A ratio or share (Gini, influence, shrinkage, factors, support) as a cell.
+ratio :: Q -> String
+ratio = Q.displayRatio
+
+-- | The exact value, at four decimals, for chart points: the plot keeps full precision.
+exact :: Q -> String
+exact = Q.format
 
 -- | The World State after round `n` (0 = initial); Nothing for a round the run does not have.
 at :: StoredRun -> Int -> Maybe WorldState

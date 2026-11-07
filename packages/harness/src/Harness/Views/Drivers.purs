@@ -14,7 +14,7 @@ import Core.Num as Q
 import Core.Types (EntityId, ResourceId, Rule(..))
 import Core.World (Event(..), RoundRecord)
 import Data.Array (concatMap, filter, length, nub)
-import Harness.Views.Common (Statistic, StoredRun, Table, q)
+import Harness.Views.Common (Statistic, StoredRun, Table, quantity, ratio)
 
 driversStat :: Statistic
 driversStat =
@@ -51,9 +51,9 @@ shortfallsOf rec = map perResource resources
 
 ruleText :: Rule -> String
 ruleText = case _ of
-  Tariff t -> "tariff on " <> show t.origin <> " goods into " <> show t.jurisdiction <> ", rate " <> q t.rate
+  Tariff t -> "tariff on " <> show t.origin <> " goods into " <> show t.jurisdiction <> ", rate " <> ratio t.rate
   AccessBan b -> "access ban: " <> show b.jurisdiction <> " bars " <> show b.target
-  Withholding w -> "withholding of " <> q w.units <> " from " <> show w.capacity
+  Withholding w -> "withholding of " <> quantity w.units <> " from " <> show w.capacity
 
 -- | The drivers table: each round's enacted and repealed rules and procedure outcomes in the order the
 -- | engine recorded them, then that round's shortfalls per Resource.
@@ -74,9 +74,9 @@ drivers r =
         , "Collective procedure"
         , show o.proposal
         , ""
-        , (if o.executed then "executed" else "lapsed") <> ": support " <> q o.support <> ", threshold " <> q o.threshold
+        , (if o.executed then "executed" else "lapsed") <> ": support " <> ratio o.support <> ", threshold " <> ratio o.threshold
         ]
       ]
     _ -> []
-  shortRow rec s = [ show rec.round, "Shortfall", show s.resource, q s.quantity, show s.entities <> " entities short" ]
+  shortRow rec s = [ show rec.round, "Shortfall", show s.resource, quantity s.quantity, show s.entities <> " entities short" ]
 

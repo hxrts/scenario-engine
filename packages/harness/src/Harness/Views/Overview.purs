@@ -21,7 +21,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Harness.Analysis (evaluateObjectives)
 import Harness.Views.Actions (rejectionCount)
-import Harness.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, q, roundResults, specValue)
+import Harness.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, quantity, roundResults, specValue)
 import Harness.Views.Markets (marketPrices)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
@@ -85,7 +85,7 @@ overview spec r =
       , [ "Rounds target", show (fromMaybe (length r.records) (specValue r.spec "rounds" >>= Int.fromString)) ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (sum (map rejectionCount r.records)) ]
-      , [ spec.procurementLabel <> " procured", q (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
+      , [ spec.procurementLabel <> " procured", quantity (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
       ] <> map (\p -> [ "Final price " <> p.market, p.price ]) (marketPrices (final r))
   }
   where
@@ -103,6 +103,6 @@ objectives :: Gameboard -> StoredRun -> Table
 objectives gb r =
   { title: "Objectives"
   , columns: [ "Actor", "Objective", "Criterion", "Outcome", "Values", "Bound" ]
-  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map q c.values), joinComma (map q c.bound) ]) o.criteria)
+  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map quantity c.values), joinComma (map quantity c.bound) ]) o.criteria)
       (evaluateObjectives gb (roundResults r))
   }
