@@ -368,7 +368,7 @@ mkCompare grid = do
           , if null ids then Layout.section
               { title: "No runs selected"
               , purpose: "Tick runs in the list above to compare them."
-              , children: [ D.a { href: href Runs, className: "underline", children: [ D.text "Go to the run list" ] } ]
+              , children: []
               }
             else Layout.section
               { title: "Runs compared"
