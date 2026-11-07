@@ -396,6 +396,26 @@ Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of t
 
 A summary line under the fields says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run; a refused one shows the server's message. The round range, the default and the game seed come from `GET /api/scenario`. Prepare has no derive controls: duplicate, rerun, variant and counterfactual are API-only (§9.1).
 
+### 9.4 Compare
+
+The Compare page (`#/compare`, and `#/compare/:ids` with the comparison's runs) puts runs side by side. Each section answers one question and has one purpose line:
+
+- **Choose runs** lists every readable run as a checkbox, populated from the run list. Ticking a run adds it to the comparison in the order ticked; unticking removes it. The first run ticked is the baseline. The page has no other control that removes a run: a run leaves the comparison only by unticking it. Each ticked run shows its colour dot.
+- **Prices by market** (*how does each Market's price move?*): one plot per Market, with one line per run on the same axes. The unit is the Market's quote per base unit.
+- **Net worth over time** (*how does a player's net worth move in each run?*): a player selector; one line per run for the chosen player, from round 0 to the final round.
+- **Final standings** (*who ends ahead in each run?*): one group per player, one bar per run, the final net worth in M.
+- **Spread and Gini** (*how even is the outcome in each run?*): the spread (M) and the Gini coefficient of final net worth, one bar per run.
+- **Key values** (*how do the runs differ on the key measures?*): one row per measure or player, one column per run, each column headed by the run's name and id. Each row has a plain-language label and a unit. The rows are each player's final net worth, its change from the start and its rank; each player's actions taken (trades, transforms and transfers); the spread and Gini; each role's objective criteria met; the proposals rejected by all players; and each Market's final price.
+- **Details** holds the full tables in tabs, one purpose line each: final state, baseline diff, configuration, compatibility, seed variation, and the agency analysis (§10.5).
+
+Every statistic is computed in the harness: `Harness.Views.Compare` (the key values, the net-worth charts and the bars) and `Harness.Views.Markets` (one price chart per Market). `/api/compare` carries them in the fields `markets`, `netWorth`, `standings`, `balance` and `keyValues`, beside the fields it had before. The dashboard maps them onto charts and tables and computes nothing.
+
+Plots overlay the runs. A run's colour is its place among the ticked runs, taken from the theme's chart variables (`--chart-1` to `--chart-5`), so it reads in both themes. Beyond five runs the colours repeat. Each legend names every run and marks the baseline, and each axis names its unit. A full-width plot is 360px tall.
+
+The page is stale-while-revalidate: ticking or unticking a run refetches the comparison, and the last loaded comparison stays on screen until the new one arrives. Each plot sits in a frame of fixed height and width, with the same frame shown while nothing is loaded, so the heading and the first plot do not move when a run is ticked.
+
+Drivers and procedures are not compared across runs: they are per run, on the run's page (§9.2).
+
 ## 10. Comparison
 
 Comparison is a core feature. It supports both correctness testing and balancing.
