@@ -107,6 +107,7 @@ _dashboard: _ui
 serve *args:
     @scripts/validate serve "$@"
     @just _scenarios _dashboard
+    @scripts/free-port "$@"
     spago run -p sp-server -- "$@"
 
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Frees the port a `just serve` is about to use. The port is the value of `--port` in the arguments
+# (default 8787, the server's default). A listener that is this repository's server is stopped; any
+# other process on the port is reported and nothing is killed.
+set -euo pipefail
+
+port=8787
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--port" ]; then port="$arg"; fi
+  prev="$arg"
+done
+
+pids=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+[ -z "$pids" ] && exit 0
+
+root=$(pwd -P)
+for pid in $pids; do
+  cmd=$(ps -o command= -p "$pid" 2>/dev/null || true)
+  case "$cmd" in
+    *"$root"*)
+      echo "stopping the existing server on :$port (pid $pid)"
+      kill "$pid" 2>/dev/null || true
+      ;;
+    *)
+      echo "port $port is used by another process (pid $pid): $cmd" >&2
+      echo "stop it, or serve on another port with --port" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# wait for the port to be released
+for _ in $(seq 1 50); do
+  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || exit 0
+  sleep 0.1
+done
+echo "port $port did not free up after stopping the old server" >&2
+exit 1
