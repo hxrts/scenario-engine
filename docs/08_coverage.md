@@ -2,8 +2,9 @@
 
 This audit maps each feature of the game to the tests that exercise it, and records whether the
 capstone run exercises it. The capstone is a test-only, eight-round game on the shipped Meridian
-scenario, authored in the scenario DSL (`packages/scenarios/src/Scenarios/Capstone.purs`), compiled to
-`packages/scenarios/capstone/run.json`, and decoded through the Policy and Board decoders.
+scenario. It is authored in the scenario DSL (`packages/scenarios/src/Scenarios/Capstone.purs`),
+compiled to `packages/scenarios/capstone/run.json`, and decoded through the Policy and Board
+decoders.
 
 Status values: **covered** (a named test checks it end to end or at unit level), **partial**
 (unit level only, hand-built data, or no direct assertion), **gap** (no test). The capstone column:
@@ -18,7 +19,7 @@ Test references are `file :: test name`, relative to the repository root.
 | DSL record builders, `:=`, `q` quantities | `packages/scenarios/test/Main.purs` :: "Scenario DSL builders" | covered | yes (every seat program and expectation) |
 | DSL withholding and access-ban enactments decode | `packages/scenarios/test/Main.purs` :: "a withholding rule and an enactment of one decode…" | covered | yes |
 | DSL capability tags match the decoder | `packages/scenarios/test/Main.purs` :: "every capability the DSL writes is a tag the Gameboard decoder reads" | covered | yes |
-| DSL `deal` decodes (now with transforms) | `packages/scenarios/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
+| DSL `deal` decodes, with transforms | `packages/scenarios/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
 | Scenario loader: duplicate keys, bad sections, bad policy refs | `packages/scenarios/test/Main.purs` :: "Scenario loader: files and policies fail at load time" | covered | n/a |
 | Gameboard validation (each `ValidationError`) | `packages/scenarios/test/Main.purs` :: "Gameboard validation…" | covered | n/a |
 | Board decoding of run file, expectations, rules, fixtures | `packages/harness/src/Harness/Capstone.purs` (`decodeCapstone`); `packages/board/test/Main.purs` | covered | yes |
@@ -32,12 +33,12 @@ Test references are `file :: test name`, relative to the repository root.
 | Template `reciprocate` | `packages/policy/test/Main.purs` :: "reciprocate enacts the mirror…" | covered | no (no restriction against CN in the run) |
 | Template `procedure` | `packages/policy/test/Main.purs` :: "a Procedure drafts its intents…" | covered | yes (EU solidarity and trade) |
 | Template `deal` (transfers and transforms) | `packages/policy/test/Main.purs` :: "a Deal drafts its transfers…", "a Deal bundles its transforms with its transfers…" | covered | yes |
-| Template `enactAccessBan` | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" (new) | covered | yes (US, round 2) |
-| Template `enactWithholding` | `packages/policy/test/Main.purs` :: "enactWithholding drafts a withholding…" (new) | covered | yes (CHIP, round 4) |
-| Template `repeal` | `packages/policy/test/Main.purs` :: "repeal drafts a repeal of the named rule…" (new) | covered | yes (US round 6, CHIP round 6) |
+| Template `enactAccessBan` | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes (US, round 2) |
+| Template `enactWithholding` | `packages/policy/test/Main.purs` :: "enactWithholding drafts a withholding…" | covered | yes (CHIP, round 4) |
+| Template `repeal` | `packages/policy/test/Main.purs` :: "repeal drafts a repeal of the named rule…" | covered | yes (US round 6, CHIP round 6) |
 | Nested procedure, deal, or choose rejected | `packages/policy/test/Main.purs` :: "a Procedure may not contain a nested…" | covered | n/a |
 | Sign rules `procedures`, `facility`, `all` | `packages/policy/test/Main.purs` :: "signs by rule…" | covered | yes |
-| Sign rule `signIf` (conditional signing, new) | `packages/policy/test/Main.purs` :: "signIf signs a Proposal only while its conditions hold" | covered | yes (Germany, rounds 4 and 5) |
+| Sign rule `signIf` (conditional signing) | `packages/policy/test/Main.purs` :: "signIf signs a Proposal only while its conditions hold" | covered | yes (Germany, rounds 4 and 5) |
 | Conditions `restrictionInForce`, `transformedLastRound` | `packages/policy/test/Main.purs` | covered | yes (EU tariff; China's procurement) |
 | Condition `restrictedLastRound` | `packages/policy/test/Main.purs` :: "restrictedLastRound holds only…" | covered | no |
 | Presets (eleven, incl. Deployer) | `packages/harness/test/Main.purs` :: "Every preset plays 8 rounds…"; "7c Deployer" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
@@ -48,7 +49,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Market exchange, limit prices | `packages/harness/test/Main.purs` :: "4 Market exchange: Fixture A and A2" | covered | yes (SME and the US trade each round) |
-| Facility `ownerSigns` | `packages/core/test` :: "a Transform… owner must sign" (engine) | covered | yes (SHIP signs the shipment) |
+| Facility `ownerSigns` | none directly; enforced in `packages/core/src/Core/Engine/Screen.purs` | partial | yes (SHIP signs the shipment) |
 | Facility `effects` (capacity change, holder, rounds) | `packages/harness/test/Main.purs` :: "Soft Power is produced, spent, and decays" | partial | no |
 | Capacity escrow and pooled facility ceiling | `packages/core/test/Main.purs` :: "caps an uncapped facility's fills…" | covered | partial |
 | Reservations (Mil escrow, scaling, release at commit) | `packages/core/test/Main.purs`; `packages/harness/test/Main.purs` :: "7b Reservation", "7c Deployer" | covered | yes (US round 4: 60 reserved, 38 of 40 ordered; 85.5 Mil held) |
@@ -59,19 +60,19 @@ Test references are `file :: test name`, relative to the repository root.
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Collective procedure passes only above threshold | `packages/harness/test/Main.purs` :: "5 Germany and EU" (Fixture B pair) | covered | yes: solidarity lapses in round 4 (support 0.4) and executes in round 5 (support 0.6) |
-| Tariff enactment and in-force condition | `packages/harness/test/Main.purs` :: "11 Trade restriction…" (now DSL-driven) | covered | yes (EU tariff on the US, in force from round 4) |
-| Access ban enacted by a seat's program | not expressible before this change; test 11 used a Haskell-built Proposal | covered now | yes: US bans shipments into India in round 2, in force from round 3 |
+| Tariff enactment and in-force condition | `packages/harness/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
+| Access ban enacted by a seat's program | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
 | Access ban blocks a real shipment | `packages/harness/test/Main.purs` :: "11…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned"; round 7 clears |
-| Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" only | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
-| Withholding changes capacity | decode only before this change | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
+| Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
+| Withholding changes capacity | decode only (`packages/scenarios/test/Main.purs`) | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
 
 ## Deals and signed Proposals
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Fully signed Proposal settles atomically; unsigned lapse (Fixture G) | `packages/harness/test/Main.purs` :: "10 Signed Proposals" | covered | yes (lapse of solidarity in round 4) |
-| Two-party DSL deal executes in a run | none before this change | covered now | yes: JP and IN sign a 20-Energy deal in round 3; India signs by its sign-all rule |
-| Deal with transport (transform + transfer) in one Proposal | none before this change | covered now | yes: ENCO and SHIP sign a cross-region shipment in round 7 |
+| Two-party DSL deal executes in a run | capstone only | covered | yes: JP and IN sign a 20-Energy deal in round 3; India signs by its sign-all rule |
+| Deal with transport (transform + transfer) in one Proposal | capstone only | covered | yes: ENCO and SHIP sign a cross-region shipment in round 7 |
 | Submission order independence | `packages/harness/test/Main.purs` :: "3 Submission order…" | covered | n/a |
 
 ## Representation and estimators
@@ -79,7 +80,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Estimator, shrinkage, one-round lag | `packages/harness/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES factor moves from 0.9358 (round 1) to 0.9406 (round 8) |
-| Seeded noise spread | `packages/scenarios/test/Main.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
+| Seeded noise spread | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
 | Representation moves an aggregate's policy in a run | Fixture C only | partial | yes (SME's purchases feed the estimate, which scales GLOBAL_SMES' Atlantic orders) |
 
 ## Shortfalls and penalties
@@ -95,14 +96,15 @@ Test references are `file :: test name`, relative to the repository root.
 |---|---|---|---|
 | Objective outcomes computed | `packages/harness/test/Main.purs` :: "14 Agency…" (count only) | partial | yes |
 | Explicit met / not met / not evaluated; none met by default | `packages/harness/test/Test/Harness/Views.purs` :: "a run with no rounds…" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
-| Objective met in one case, missed in another | none before this change | covered now | yes: the US objective is met without the deployment and missed with it |
+| Objective met in one case, missed in another | capstone only | covered | yes: the US objective is met without the deployment and missed with it |
 
 ## Invariants
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| INV-01..16 each round | `packages/core/src/Core/Invariants.purs`, applied in `packages/harness/test/Main.purs` :: "1 Full game" | covered | yes ("invariants hold in every round") |
-| A tampered result trips INV-05 | `packages/scenarios/test/Main.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
+| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied in `packages/harness/test/Main.purs` :: "1 Full game" and `packages/harness/test/Test/Harness/Capstone.purs` | covered | yes ("invariants hold in every round") |
+| Other INV-xx in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) | no predicate in `Core.Invariants`; the rows above and the tests named there | partial | partial |
+| A tampered result trips INV-05 | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
 
 ## Simulation: replay, store, counterfactual, resume, archive
 
@@ -142,12 +144,10 @@ Test references are `file :: test name`, relative to the repository root.
 
 ## Summary
 
-- The table lists each feature once, with where it is tested today and whether the capstone
-  exercises it. The rows marked "no" or "partial" in the capstone column are the honest remaining
+- Each feature appears once. Rows marked "no" or "partial" in the capstone column are the remaining
   gaps, listed below.
-- The capstone adds no economics. It adds two decision-language templates (access ban, withholding),
-  one repeal template, one conditional sign rule (`signIf`), and transforms inside a deal. Each has
-  a policy unit test. The engine already supported all of them.
+- The capstone adds no economics. It uses the decision-language templates and rules above (access
+  ban, withholding, repeal, `signIf`, transforms inside a deal), and each has a policy unit test.
 
 ## Gaps not closed
 
@@ -155,8 +155,8 @@ Test references are `file :: test name`, relative to the repository root.
    incoming flows.
 2. **Entity effects.** Facility `effects` (capacity changes by holder and round) are used only by
    the shipped Soft Power test, not by the capstone.
-3. **Archive, delete and derive kinds.** These are server behaviours (`apps/server`). They are out
-   of this change's scope, since another agent is changing that code.
+3. **Archive, delete and derive kinds.** These are server behaviours (`apps/server`) and are not
+   exercised by the capstone.
 4. **CLI and dashboard tabs.** Not exercised by the capstone. The view models are checked for
    non-emptiness only, not for content.
 5. **Scripted live session.** The stubbed transcript is replayed, but the full scripted session is
@@ -165,10 +165,12 @@ Test references are `file :: test name`, relative to the repository root.
    shipped preset is exercised only by its own test.
 7. **Agency.** The capstone does not compute the agency table; that stays in
    `Test.Harness.Main` :: "14 Agency…".
+8. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
+   [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
+   tests named in their rows.
 
 ## Expected numbers
 
-The capstone's expectations are regenerated from the post-economics world (Mil market, DSL split).
-Each value is explained by its mechanism in `packages/scenarios/src/Scenarios/Capstone.purs`. The
-values are a snapshot of this run, not an independent derivation; a change to the shipped economics
-or to the engine will need them regenerated.
+The capstone's expectations are a snapshot of the current run. Each value is explained by its
+mechanism in `packages/scenarios/src/Scenarios/Capstone.purs`. A change to the shipped economics or
+to the engine requires regenerating them.

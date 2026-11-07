@@ -15,11 +15,11 @@ runs.db
 apps/dashboard/ui/
 apps/dashboard/theme.css
 
-# compiled from the scenario DSL (`just scenarios`)
+# compiled from the scenario DSL (`just _scenarios`)
 packages/scenarios/meridian/
 packages/scenarios/presets.json
 packages/scenarios/fixtures/
 .claude/worktrees/
 
-# compiled from the capstone DSL (`just scenarios`); transcript.json is a committed recording
+# compiled from the capstone DSL (`just _scenarios`); transcript.json is a committed recording
 packages/scenarios/capstone/run.json

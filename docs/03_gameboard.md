@@ -1,6 +1,6 @@
 # Scenario Planning Game — Gameboard Specification
 
-**Version:** 0.2
+**Version:** 0.3
 **Scope:** Gameboard Layer
 **Implementation language:** PureScript
 
@@ -8,392 +8,331 @@
 
 ## 1. Purpose
 
-The Gameboard defines a reusable economic and strategic scenario. It configures the primitives of the Type System into a coherent world: resources, Markets, Transformations, institutions, populations, and structural relationships.
+The Gameboard defines a reusable economic and strategic scenario: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It defines the **persistent conditions and tensions** of a scenario, not the outcomes of any playthrough. One Gameboard supports many games.
 
-A Gameboard defines the **persistent conditions and tensions of a scenario**, not the decisions or outcomes of any playthrough. For example, it might establish US–China competition, semiconductor dependencies, and capital–labor tension. These stay the same across playthroughs; participants' actions and the resulting history differ.
+Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type System [§2.5](02_type_system.md#25-glossary)) and must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)). Terms, invariants, and numerics are defined in the Type System ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). The Gameboard is declarative: it holds no player assignments, Intents, or evolving state, and its checks run before any game starts ([§12](#12-validation-and-compilation)).
 
-The Gameboard defines the available economic world; instantiation chooses its **resolution** (Type System [§2.5](02_type_system.md#25-glossary)). Changing that resolution must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)).
+**Gameboard files → Validated Gameboard** (for one Instantiation Configuration)
 
-Layer responsibilities, the glossary, invariants, numerics, and the canonical round sequence are defined in the Type System specification ([§1](02_type_system.md#1-purpose), [§2.5](02_type_system.md#25-glossary), [§9](02_type_system.md#9-architectural-invariants-and-numerics), [§9.1](02_type_system.md#91-numerics-and-randomness), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). This document uses those terms and IDs and does not restate them.
-
-The Gameboard is declarative: it configures existing types, implements no simulation machinery, sustains circulation across the horizon ([INV-05](02_type_system.md#inv-05)), and is versioned and research-grounded ([INV-22](02_type_system.md#inv-22)).
-
-Conceptually:
-
-**Type System + Gameboard Definition → Validated Gameboard**
-
-**Validated Gameboard + Instantiation Configuration → Initial World State**
-
-The Gameboard holds no player assignments, submitted Intents, transactions, or evolving state. It configures the phase schedule within the canonical sequence but does not redefine it.
+**Validated Gameboard + Instantiation Configuration → Initial World State** ([04 §10](04_instantiated_game.md#10-initialization-pipeline))
 
 ## 2. Gameboard Structure
 
-| Domain | Responsibility |
-|---|---|
-| **Scenario** | Setting, time horizon, central tensions, strategic questions. |
-| **Verticals** | Research-based models of economic sectors and their dependencies. |
-| **Economy** | Resource definitions, exchange Markets, Transformations, the recurring cycle, geography, constraints. |
-| **Entities** | Actor definitions, Aggregates, member lists, account ownership, collective procedures, capabilities. |
-| **Relationships** | Persistent geopolitical, economic, and social relationships. |
-| **Policies** | NPC and Aggregate decision programs. |
-| **Representations** | Which Actors may represent which Aggregates, with estimator parameters. |
-| **Game Rules** | Phase schedule, visibility, available actions, evaluation, initialization constraints. |
+A scenario is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian scenario uses these files under `packages/scenarios/meridian/v0/`:
 
-These are configuration domains, not additional primitives.
+| File | Sections | Keys |
+|---|---|---|
+| `scenario.json` | Scenario (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
+| `resources.json` | Resources (§5.1) | `resources` |
+| `markets.json` | Markets, transport, jurisdiction (§5.2, §5.5) | `markets`, `transport`, `jurisdiction` |
+| `transformations.json` | Facilities (§5.3) | `transformations` |
+| `circulation.json` | Recurring cycle (§5.4) | `circulation` |
+| `entities.json` | Entity catalog (§6) | `entities` |
+| `representations.json` | Representation schemes (§9) | `schemes` |
+| `game-rules.json` | Named parameters (§11) and Rules in force at the start (§5.5) | `parameters`, `rules` |
+| `policies.json` | Policy catalog (§8) | `policies` |
+| `instantiation.json` | Instantiation Configuration | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-```purescript
-type Gameboard =
-  { id :: GameboardId
-  , version :: Version
-  , scenario :: Scenario
-  , verticals :: Array Vertical
-  , economy :: EconomicStructure
-  , entities :: EntityCatalog
-  , relationships :: Array StructuralRelation
-  , policies :: PolicyCatalog
-  , representations :: Array RepresentationScheme
-  , rules :: GameRules
-  }
-```
+Outside the Gameboard: `presets.json` holds the seat-policy presets shared by all scenarios ([06 §4.2](06_simulator.md#42-presets)); `fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv--playtest-fixtures)).
+
+In a section, `rounds` is a list of fixture rounds (`proposals`, `expect`), not the round count. A `representations` key in a section is the instantiated shape; Gameboards declare schemes under `schemes`. The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
 ## 3. Scenario
 
-The Scenario defines:
+`scenario.json` defines:
 
-- **Context:** the circumstances in which the game begins.
-- **Time horizon:** ordinarily five simulated years.
-- **Central tensions:** the competing interests that give the game its structure.
-- **Strategic questions:** the uncertainties the game explores.
-- **Evaluation dimensions:** outcomes measured at the end ([§10.5](#105-evaluation)).
+- `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
+- `numeraire`: the Resource in which Facility costs are paid (Meridian: `M`).
+- `horizon`: simulated years (Meridian: 5).
+- `roundRange`: `[min, max]`, the supported round counts, with `1 <= min <= max`.
+- `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
 
-The Scenario says which forces are relevant, not how they resolve.
+The Scenario says which forces are relevant, not how they resolve. Its narrative is not a schema field; Meridian's is in [05 §6](05_test_instance.md#6-scenario-meridian).
 
 ### 3.1 Strategic tensions
 
-A strategic tension is a persistent relationship among economic or political interests: great-power competition, labor versus capital, incumbents versus new technologies, economic security versus trade, competition for scarce inputs.
-
-Every tension must be **mechanically consequential**: connected to resources, capabilities, Transformations, income rules, or market access that participants can act on. Geopolitical competition can appear as industrial dependencies, scoped market access, and competing demand. Class conflict can appear as wage and income rules, a labor capability to reduce production throughput, and the division of production revenue between capital and workers.
-
-A tension never requires Actors to behave antagonistically. Cooperation and unexpected alliances must remain possible.
+A strategic tension is a persistent relationship among economic or political interests. The Gameboard expresses one only through mechanically consequential data: Resources, capacities, Facilities, flows, Market access, or Rules. Each tension must connect to data that participants can act on; validation does not check this ([§12.3](#123-not-yet-checked-planned)). A tension never requires Actors to act antagonistically; cooperation and alliances must remain possible.
 
 ## 4. Verticals
 
-A Vertical is a researched sector of the economy, derived from a **vertical report** prepared before initialization.
+A vertical is a researched sector, documented in a **vertical report**. Verticals are an authoring concept: no schema field or file records them. Meridian's sectors appear only as the Resources, Markets, Facilities, and Entities they produce ([05 §7](05_test_instance.md#7-economic-verticals)).
 
-### 4.1 Vertical definition
-
-| Component | Description |
-|---|---|
-| **Scope** | Activities and boundaries of the sector. |
-| **Resources** | Inputs, outputs, and assets, with declared Resource properties. |
-| **Capacities** | Productive, transport, or market-access capacity held as economic state. |
-| **Markets and Transformations** | How the sector exchanges and produces. |
-| **Circulation** | How the sector earns, pays, and reinvests. |
-| **Participants** | Important institutions, businesses, and populations. |
-| **Dependencies** | Relationships with other Verticals. |
-| **Behavioral assumptions** | Inputs to Policy configuration. |
-| **Constraints** | Scarcity, capacity limits, regulation. |
-
-Not every meaningful quantity is a Resource. Production capacity, market access, transport capacity, and supply-chain efficiency are usually economic state or rules. A semiconductor producer can hold valuable capacity without a Semiconductor Resource.
-
-### 4.2 Vertical compilation
-
-**Vertical Report → Validated Economic Definitions → Gameboard**
-
-Reports are research documents, not executable models. Compilation translates findings into explicit configuration and preserves provenance: sources, units, uncertainty, simplifications. Facts unsuitable for mechanical execution stay as context.
-
-Verticals share common Resources, Markets, and Entities rather than duplicating them. One Vertical may consume another's outputs, compete for inputs, or pay revenue into it, so changes propagate through shared mechanisms without a prescribed narrative.
+A report compiles into explicit configuration in [§5](#5-economic-structure)–[§9](#9-representation-schemes). Sources, uncertainty, simplifications, and findings that cannot run mechanically stay in the report. Verticals share Resources, Markets, and Entities rather than duplicating them.
 
 ## 5. Economic Structure
 
-```purescript
-type EconomicStructure =
-  { resources :: Array ResourceDefinition
-  , markets :: Array MarketDefinition
-  , transformations :: Array TransformationDefinition
-  , cycle :: EconomicCycle
-  , geography :: Geography
-  , constraints :: Array EconomicConstraint
-  }
-```
-
 ### 5.1 Resources
 
-Each Resource definition declares its identity, unit, and the properties defined in Type System [§2.3](02_type_system.md#23-resource): transferability, decay rule, and whether it can be reserved. The engine accounts for a Resource from these properties and from the Transformations that produce or consume it; a Resource no Transformation touches is conserved. No behavior is attached to particular Resource names. Definitions must be consistent across Verticals and Entities.
+`resources.json` maps each Resource id to:
+
+- `transferability`: `Free`, `Restricted`, or `NonTransferable` (required).
+- `reservable` (default `false`): whether a Facility may reserve it.
+- `decay` (optional): `{ "rate": q }`, a per-round decay rate.
+
+The engine attaches no behavior to a Resource's name. Its effects come from the Facilities, Markets, and cycle entries that reference it.
 
 ### 5.2 Exchange Markets
 
-An exchange Market trades existing reserves along a CostFunction. Each definition declares:
+`markets.json` maps each Market id to:
 
-- Base and quote Resources.
-- Linear CostFunction parameters: base, slope, and domain.
-- Liquidity and reserve behavior.
-- Limit-price orders under the Type System's deterministic allocation rules.
-- Participation, access, and tariff rules ([§5.5](#55-geography-and-market-access)).
+- `base`, `quote`: the traded Resources.
+- `cost`: a linear CostFunction `{ base, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
+- `reserves`: the initial reserves by Resource. Reserves are the only liquidity; there is no separate liquidity parameter.
+- `access`: the Entity ids allowed to trade.
+- `position` (default `0`): the initial position on the cost curve.
 
-The Gameboard defines behavior; the Instantiated Game supplies the initial reserves and position.
+Limit-price orders and allocation are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
 
 ### 5.3 Facilities
 
-A facility consumes declared inputs and issues declared outputs under a production rule, priced by the same CostFunction primitive. Each definition declares:
+`transformations.json` maps each Facility (Transformation) id to:
 
-- Inputs, outputs, and ratios.
-- The capacity limiting throughput, and its owner.
-- An optional CostFunction for congestion or rising marginal cost.
-- The **payee**.
-- Delivery timing.
-- Required capabilities.
+- `inputs`, `outputs`: Resource to quantity per unit.
+- `reserves`: reservable Resources the Facility locks per unit (Meridian's deployment reserves `Mil`). A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
+- `cost` (optional): a CostFunction giving the price per unit. A costed Facility requires `payee`.
+- `payee` (optional): the Entity paid for the Facility's output.
+- `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
+- `delay` (default `0`): rounds before output is delivered; the effective delay is at least one round ([§10.2](#102-temporal-structure)).
+- `minimum` (default `0`) and `maximum` (optional): bounds on one Entity's order per round.
+- `ownerSigns` (default `false`): the capacity's owner must sign every order.
+- `effects` (optional): `[{ capacity, perUnit, holder?, rounds? }]`, changes to capacities per unit ordered, applied after `delay`.
 
-Defense procurement, public campaigns, and cross-region shipping are typical facilities. Facilities hold no reserves; they pay a payee ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)).
+Defense procurement, public campaigns, energy shipping, and military deployment are all Facilities. Facilities are not a separate type.
 
-### 5.4 The recurring economic cycle
+### 5.4 Recurring cycle
 
-The Gameboard configures the cycle defined in Type System [§6](02_type_system.md#6-economic-circulation). Its components are computed together from the snapshot within the single round update:
+`circulation.json` holds the cycle that the engine evaluates each round on the batch result (Type System [§6](02_type_system.md#6-economic-circulation)):
 
-- **Production** from capacity and inputs.
-- **Exchange**, with Money flowing to suppliers.
-- **Income and expenditure**: earnings, wages, taxes, public spending, investment.
-- **Capacity renewal**: investment, depreciation, damage.
+- `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
+- `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round.
+- `shares`: `[{ from, to, share, source }]`. A share of sales revenue (`sales:<resource>`) or of payee receipts (`payee`).
+- `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. A shortfall accrues `penalty` against that Entity's incoming flows.
 
-```purescript
-type EconomicCycle =
-  { production :: Array ProductionRule
-  , income :: Array IncomeRule
-  , renewal :: Array CapacityRule
-  , period :: SimulatedDuration
-  }
-```
+Decay follows each Resource's `decay`. Capacity changes come from Facility `effects` and Rules; no renewal or depreciation rule exists. Rates are per round ([§10.2](#102-temporal-structure)).
 
-Income rules connect the explicit and implicit economy. A government Actor holds only government-controlled resources and receives declared tax or revenue from private economies held by other Entities or Aggregates. Workforces receive wages from production; small businesses earn revenue from household demand. Rates are per simulated period, scaled to each round.
+### 5.5 Geography, access, and Rules
 
-Prefer a simple, complete cycle to sophisticated pricing on an economy that cannot sustain itself.
+- **Regions** are separate Markets (Meridian has Atlantic and Asian Energy Markets). There is no node hierarchy.
+- **`transport`** maps a Resource to the Facility that carries it between regions. A cross-region movement bundles a Transfer with that Facility's order, which the owning Policy signs (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)).
+- **`jurisdiction`** maps an Entity to the Entity that governs it, when different from itself.
+- **`rules`** are institutional conditions: `tariff` `{ jurisdiction, origin, rate }`, `accessBan` `{ jurisdiction, target }`, and `withholding` `{ capacity, units }`. A Rule in force at the start is listed in `game-rules.json`. Rules enacted during play need the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
-### 5.5 Geography and market access
+### 5.6 Limits
 
-One Resource per commodity, scoped by:
-
-- **Regional Market nodes** for the same Resource.
-- **Access rules** on who may trade.
-- **Tariffs** on specified buyers, sellers, or origins.
-- **Transport** between nodes, modeled as an ordinary facility ([§5.3](#53-facilities)) whose capacity an owning Entity holds. A cross-region movement bundles its Transfer with a shipping order in one Proposal that the transport owner signs (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)).
-
-A trade restriction is a `Rule` enacted through `ChangeRule` (Type System [§3](02_type_system.md#3-intents-and-economic-actions)): a `Tariff` adds a surcharge to shipping orders into a jurisdiction, and an `AccessBan` makes them infeasible. Restrictions therefore have identifiable effects without new Resources.
-
-### 5.6 Constraints
-
-Persistent limits on capacity, availability, regulation, financial obligations, authority, and geography, enforced by Type System validation.
+The schema has no separate constraints section. Limits are expressed through reserves, capacities, Market access, and Rules. Settlement enforces non-negativity at commit: a negative holding or reserve fails the round ([04 §11](04_instantiated_game.md#11-round-execution)). That is a runtime invariant, not a validation check.
 
 ## 6. Entity Catalog
 
-The catalog defines possible participants: institutions that may be explicit and populations that may stay aggregate.
+`entities.json` maps each Entity id to:
+
+- `accounts`: Resource to holding (required).
+- `capabilities`: a list of capability tags (required; [§6.2](#62-actor-definitions)).
+- `capacities` (optional): capacity name to quantity.
+- `definition` (an Actor, [§6.2](#62-actor-definitions)) or `aggregate` (an Aggregate, [§6.3](#63-aggregates)). Every Meridian Entity has one of the two.
 
 ### 6.1 Projections
 
-The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately: **members** (a descriptive list; lists may overlap), **account ownership** (one owner per account and responsibility, [INV-08](02_type_system.md#inv-08)), and **collective procedures and capabilities**. Membership does not imply ownership; ownership does not imply authority; influence over a collective procedure does not grant its capabilities ([INV-03](02_type_system.md#inv-03)).
+The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately:
+
+- **Members**: `aggregate.members`. Descriptive; lists may overlap; membership confers nothing.
+- **Accounts and capacities**: each account is held by its Entity, and each capacity has exactly one owner ([§12.2](#122-checks-implemented)).
+- **Capabilities and procedures**: `capabilities`, and `authorizes` in each procedure ([§6.3](#63-aggregates)).
+
+Membership does not imply ownership, and ownership does not imply authority ([INV-03](02_type_system.md#inv-03)).
 
 ### 6.2 Actor definitions
 
-An Actor definition declares:
+An Actor is an Entity with a `definition`:
 
-- Identity and scope, including exactly which accounts and responsibilities it owns when explicit.
-- Memberships and capabilities, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
-- Whether it may be a seat, an NPC, or either, and its applicable NPC Policies.
-- Initial-state constraints.
-- A **fallback** ([§6.5](#65-fallbacks)).
+- `required` (default `false`): the configuration must select this Actor.
+- `seat` (default `true`): the Actor may be controlled by a seat.
+- `npc` (default `[]`): the NPC Policy ids that may drive it.
+- `fallback` (optional): used when the Actor is unselected ([§6.5](#65-fallbacks)). Required for every Actor that is not `required`.
+- `objective` (required): `{ description, criteria }` ([§10.5](#105-evaluation)).
+- `description`, `dependency` (default `""`): prose. `dependency` is not checked.
+- `capabilities`: tags `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<tariff|accessBan|withholding>`, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
 
-It also declares three scenario properties ([INV-19](02_type_system.md#inv-19)):
+[INV-19](02_type_system.md#inv-19) requires a capability, a dependency, and a measurable objective for every Actor. Validation checks the objective only ([§12.3](#123-not-yet-checked-planned)).
 
-- **Meaningful capability:** an intervention beyond simple trading, such as controlling transport capacity, organizing a strike, or supplying production capacity.
-- **Economic dependency:** something others can provide or withhold.
-- **Strategic objective:** an outcome others can help or obstruct, declared as measurable data ([§10.5](#105-evaluation)).
+### 6.3 Aggregates
 
-These use existing capabilities, Transformations, capacity state, and rule changes, so every role has consequential choices beyond its starting holdings. A government Actor holds government-controlled resources only.
+An Aggregate is an Entity with an `aggregate` block:
 
-### 6.3 Aggregate definitions
+- `policy`: the baseline Policy id (required; must exist in `policies`).
+- `members`: Entity ids.
+- `procedures`: named collective procedures, each `{ weights: { member: weight }, residualWeight, threshold, authorizes: [capability tags] }`.
 
-An Aggregate definition declares:
+The Aggregate's accounts are its **residual**: the holdings that remain when its coverage Actors are explicit. An unselected coverage Actor's holdings are added to them at instantiation ([04 §4.2](04_instantiated_game.md#42-partitioning)).
 
-- A member list.
-- The accounts and responsibilities it owns as residual.
-- A baseline Policy.
-- Any collective procedures. Each declares member weights, a residual weight, a threshold, and the capabilities it authorizes (Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity)).
-- Constraints on estimated behavior and eligibility for Representation.
-
-Examples: households, small businesses, industrial producers, a regional bloc.
-
-A collective procedure is a weighted-signature rule on the Aggregate's own Proposals. The Aggregate's Policy publishes a procedure Proposal, members support it by signing, and it executes in the same round if the residual weight plus the signing members' weights exceeds the threshold; otherwise it lapses. Signing moves no resources. A Gameboard may separately allow contributions that fund a collective action, but contributing is independent of signing.
-
-When a member is made explicit, only the accounts and responsibilities it owns leave the residual; it stays in the member list (Type System [§7.1](02_type_system.md#71-aggregate-semantics)).
+A collective procedure is a weighted-signature rule on the Aggregate's own Proposals. Its Policy publishes a procedure Proposal, members sign it, and it executes in the same round if `residualWeight` plus the signing members' weights exceeds `threshold`; otherwise it lapses. Signing moves no resources. A procedure is not a Representation ([§9](#9-representation-schemes)).
 
 ### 6.4 Overlap
 
-Memberships may overlap (a manufacturer may be a small business, a manufacturer, and part of a regional economy). Duplicate ownership or duplicate execution may not. The Gameboard assigns every account class and responsibility one canonical owner, independent of classification.
+Memberships may overlap. Capacities have one owner ([§12.2](#122-checks-implemented)). Accounts move between Entities only through instantiation's coverage merge ([04 §4.2](04_instantiated_game.md#42-partitioning)), which gives each account one owner in every resolution ([INV-08](02_type_system.md#inv-08)).
 
 ### 6.5 Fallbacks
 
-Every eligible Actor definition declares a fallback ([INV-25](02_type_system.md#inv-25)):
+A fallback is a tag, in an Actor's `fallback` or in the configuration's `fallbacks` ([04 §3.2](04_instantiated_game.md#32-fallback-resolution)):
 
-| Fallback | Meaning |
+| Tag | Effect when the Actor is unselected |
 |---|---|
-| **Implicit economic coverage** | A named Aggregate owns its accounts and activity. |
-| **Institutional Policy** | An implicit Policy or rule mechanism retains its decisions and capabilities. |
-| **Permitted omission** | It may be absent without leaving required responsibilities unowned. |
+| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, and jurisdiction move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
+| `policy:<policy>` | The Entity stays and is driven by that in-world Policy as an NPC. Its capabilities stay with it. |
+| `omission` | No change. Its holdings and capabilities remain in World State with no controller, so it submits nothing. |
 
-These are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)).
+The three are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)). Required Actors cannot be unselected, so they need no fallback.
 
 ## 7. Structural Relationships
 
-| Category | Example |
-|---|---|
-| **Economic dependency** | A manufacturer depends on imported inputs. |
-| **Competition** | Two institutions compete for investment or access. |
-| **Institutional authority** | A government regulates particular Markets. |
-| **Membership** | A state belongs to a bloc whose procedure Proposals it can sign. |
-| **Alignment** | Shared objectives or agreements. |
-| **Distributional conflict** | Costs and benefits fall unequally. |
-| **Exposure** | Vulnerability to a market condition. |
-
-These are configuration, not execution primitives. The Gameboard fixes persistent structure; World State records evolving rules, reservations, and positions.
-
-Every relationship must have a mechanical interpretation: constraining actions; configuring Policies, access, or income rules; defining dependencies and exposures; or contributing to evaluation. A purely descriptive relationship stays context and never alters outcomes. The engine infers no mechanical effects from narrative at runtime.
+The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`; competition: `access`; authority: `jurisdiction`, Rules, `enact`; membership: `members`, `procedures`). Descriptive relationships are context in the scenario report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
 
 ## 8. Policy Catalog
 
-The catalog holds in-world Policies: declarative, versioned programs in the shared decision language, run by the interpreter of Type System [§4](02_type_system.md#4-policies) ([INV-12](02_type_system.md#inv-12), [INV-29](02_type_system.md#inv-29)). Seat Policies (human, AI agent, or preset program) are supplied outside the scenario and are not catalogued here. The catalog holds parameterized definitions, not runtime assignments.
+`policies.json` maps each Policy id to a Program, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Programs are declarative and fixed for a game. The loader checks that every name a Program uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Scenarios.Load`).
 
-- **NPC Policies** express objectives, conditional responses to indicators and to other Actors, and time-dependent behavior, including which Proposals to publish to other Actors and which Proposals addressed to them to sign.
-- **Aggregate Policies** produce baseline population behavior (demand, production, investment, consumption, employment) and declare the behavioral domains they control, so a stored Representation estimate adjusts each output exactly once ([INV-09](02_type_system.md#inv-09)). An Aggregate Policy reads the previous round's stored estimates from its View and proposes accordingly; the engine never authors or rewrites its Proposals. An Aggregate with collective procedures publishes its procedure Proposals through its Policy, under the Policy's own conditions.
+Policies are referenced by an Actor's `npc` list (chosen in the configuration's `npcs`) and by `aggregate.policy`. Seat presets are bound by the simulator or session ([06 §4](06_simulator.md#4-seat-policies)).
 
-The Gameboard declares each Policy's `View` permissions (Type System [§4](02_type_system.md#4-policies)), parameter ranges, and defaults; the Instantiated Game selects values. Policy memory lives in World State. Programs never change during play; decisions change because World State changes.
-
-Observation permissions are declared per Policy category, so NPCs do not see the whole simulation ([INV-16](02_type_system.md#inv-16)).
+A Policy reads last round's recorded events (for example `TransformedLastRound`), the stored Representation factor (`Factor`), and Gameboard parameters ([§11](#11-initialization-constraints)). Planned, not in the schema: per-category View permissions ([INV-16](02_type_system.md#inv-16)), parameter ranges and defaults, and declared behavioral domains for Aggregates.
 
 ## 9. Representation Schemes
 
-A scheme declares **which Aggregates may be represented, by whom, and how sampled behavior is interpreted**. Actual representatives and their weights are assigned at instantiation.
+`representations.json` lists schemes. Each has:
 
-```purescript
-type RepresentationScheme =
-  { id :: SchemeId
-  , eligibleActors :: Array EntityDefinitionId
-  , target :: AggregateDefinitionId
-  , domain :: BehaviorDomain
-  , estimator :: Estimator
-  }
-```
+- `id`: the scheme's identifier.
+- `eligibleActors`: Actor ids that may represent the Aggregate (must exist).
+- `target`: the Aggregate represented (must be an Aggregate).
+- `domain`: the Resource whose behavior is adjusted (must exist).
+- `estimator`: `reference` and `shrinkage` are required. `bound` (optional) clamps each deviation to `±bound`. `noiseSpread` (default `0`) sets the amplitude of sampling noise.
 
-`Estimator` (reference, shrinkage, deviation bound, noise spread) is defined in Type System [§7](02_type_system.md#7-aggregates-and-representation). The scheme gives defaults and permitted ranges for those parameters.
+A scheme is a template. Which representatives are active, and their weights, are set at instantiation ([04 §5](04_instantiated_game.md#5-representation-assignment)). Schemes declare no permitted ranges for those values; range checks are planned. The estimator formula and adjustment pipeline are in Type System [§7.2](02_type_system.md#72-representation-and-estimators)–[§7.4](02_type_system.md#74-estimation-semantics).
 
-Representatives know their choices move the Aggregate, so observations are not independent samples. The Gameboard accepts this as design and keeps the influence explicit and bounded; estimator strength is a balancing parameter, not a claim of unbiased inference.
-
-Representation is distinct from a collective procedure ([§6.3](#63-aggregate-definitions)): a procedure counts members' signatures by declared weights and involves no estimator.
-
-Every scheme separates the representative's direct actions, the Aggregate's baseline, and the adjustment. The engine stores the adjustment factor computed from one round's observations, and the Aggregate's Policy applies it to the matching baseline once, in the following round ([INV-09](02_type_system.md#inv-09)). Multiple representatives are combined by their weights. Representation never transfers holdings or capabilities ([INV-03](02_type_system.md#inv-03)); the Aggregate's resulting Proposals pass ordinary validation.
+Representatives' choices move the Aggregate, so their observations are not independent samples; the Gameboard keeps that influence explicit and bounded. Estimator strength is a balancing parameter, not a claim of unbiased inference.
 
 ## 10. Game Rules
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine only as Proposals that need more than one signer (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [INV-10](02_type_system.md#inv-10)). The Gameboard declares which Resources may move through multi-signer Proposals, and between which Entity categories. NPC Policies may publish and sign Proposals like any other Policy. Aggregates sign only their own Proposals unless the Gameboard explicitly allows an Aggregate to sign multi-signer Proposals (Type System [§4.2](02_type_system.md#42-aggregate-policies)). A procedure Proposal is authored by the Aggregate holding the procedure, names the procedure's members as signers, and executes when its support exceeds the threshold ([§6.3](#63-aggregate-definitions)).
+Agreements reach the engine as Proposals that name more than one signer, such as deals and procedure Proposals ([INV-10](02_type_system.md#inv-10), Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). Two Gameboard rules govern what they can move: Resource transferability ([§5.1](#51-resources)) and each Entity's capabilities ([§6.2](#62-actor-definitions)). A switch restricting multi-signer Proposals by Resource or Entity category is planned.
 
-### 10.2 Temporal structure and phase schedule
+Aggregates do not sign Proposals in the round runner; procedure Proposals are signed by their members ([04 §11](04_instantiated_game.md#11-round-execution)).
 
-The Gameboard declares the horizon, supported round counts, round-to-time mapping, facility delivery delays, and scheduled shocks. Rule changes always take effect at the next round boundary, and stored Representation estimates are acted on in the following round. A procedure Proposal is published, signed, and executed within one round. Deliveries, shocks, and newly effective rules apply in the Prepare Round phase. A typical Gameboard covers five years in four to eight rounds; the Instantiated Game picks the schedule.
+### 10.2 Temporal structure
 
-Mechanics are deterministic; randomness appears only where a declared shock or estimator calls for it, such as Representation sampling noise. The Gameboard declares each estimator's permitted noise range; every in-world draw comes from the single game seed (Type System [§9.1](02_type_system.md#91-numerics-and-randomness)).
+The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). Rule changes take effect at the next round boundary. Facility output and effects become visible after `max(1, delay)` rounds. A procedure Proposal is published, signed, and executed within one round. Rates are per round.
+
+The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration; scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Meridian's energy disruption is a set of named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)), not a shock declaration.
 
 ### 10.3 Information visibility
 
-The Gameboard declares what is public, private, or capability-gated: prices, holdings, indicators, and Proposals. A Proposal is visible to its signers by default; these rules may make more of it public. The same rules constrain every Policy, whether NPC or seat ([INV-16](02_type_system.md#inv-16)). Visibility never changes economic facts.
+Planned, not implemented. The Gameboard does not declare public, private, or capability-gated information. Every Policy's View currently contains the same prices, Rules, and events (`Core.Engine.Prepare.observe`), so [INV-16](02_type_system.md#inv-16) is not enforced yet.
 
 ### 10.4 Available actions
 
-The Gameboard selects which Intent categories and Transformations are meaningful (for example trade, production, and the `Rule` kinds Actors may enact) and which Resources may move in multi-signer Proposals. All use the Type System's Intent language and deterministic rejection and partial-fill rules. No unrestricted state mutations.
+An Actor acts through its capabilities ([§6.2](#62-actor-definitions)), the Markets it can access, and the Facilities and capacities it holds. Intents and their rules are in Type System [§3](02_type_system.md#3-intents-and-economic-actions).
 
 ### 10.5 Evaluation
 
-- **Actor objectives.** Each Actor definition's strategic objective is data: a description plus measurable criteria over the recorded game.
-- **System metrics** such as resource security, distributional outcomes, market functioning, and institutional resilience.
+Each Actor's objective is data, evaluated from the recorded game. It never affects the economy:
 
-```purescript
-type Objective = { description :: String, criteria :: Array Criterion }
-
-type Criterion =
-  { metric :: MetricRef              -- an Entity plus a standard measurement
-  , over :: Span                     -- Final | EveryRound | Cumulative
-  , atLeast :: Target }              -- Fixed Quantity | Of MetricRef
+```
+Objective = { description, criteria: [Criterion] }
+Criterion = { metric: MetricRef, over: final | everyRound | cumulative, atLeast: number | MetricRef }
+MetricRef = { entities: [EntityId], measure, negated? }
 ```
 
-A `MetricRef` names an Entity and a standard measurement: a holding, a capacity, a shortfall count, or a cumulative flow. "At most" is expressed with a negated metric or by comparing against another metric.
+`measure` is one of `holding:<resource>`, `capacity:<capacity>`, `shortfall:<resource>`, `shortfallRounds:<resource>`, `payeeReceipts`, or `volume:<transformation>`, summed over the listed entities. `negated: true` expresses "at most", with a negative `atLeast`.
 
-Objectives never affect the economy. A pure function over the manifest and round records evaluates them, and each Actor's criteria are reported as met or not met, with their values. They give non-Money Resources such as military capacity and influence a measurable value. There is no single winner, and outcomes are not reduced to Money.
+Each criterion is reported as met, not met, or not evaluated (when the run has no rounds or series; [06 §9.2](06_simulator.md#92-run-details)), with its values. There is no single winner, and outcomes are not reduced to Money. System-level measures are planned.
 
 ## 11. Initialization Constraints
 
-The Gameboard defines defaults, ranges, and consistency constraints, not all initial values. Parameters may cover initial distributions, reserves and liquidity, capacities, production and income rates, Policy parameters, collective-procedure weights and thresholds, representative participation, and estimator strength.
+The Gameboard fixes every economic value: holdings, capacities, Market cost curves and reserves, Facility parameters, cycle entries, Rules in force, Policy programs, named parameters, and scheme estimators. The configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) may choose only:
 
-Persistent strategic structures do not change between instantiations; only these parameters vary.
+- seats, NPC Policies, and fallbacks, within each Actor's `seat`, `npc`, and `fallback` declarations;
+- each Representation's weight (default `1`);
+- the game seed; and
+- the round count, within `roundRange`.
 
-Actors may be mandatory or optional, with compatibility conditions. A scenario might require explicit US and China while letting the EU be human, NPC, or covered by its fallback.
-
-When a population is partially made explicit, initialization must:
-
-- Allocate the explicit Actor's owned accounts to it and leave the rest residual.
-- Exclude directly modeled activity from the residual baseline.
-- Preserve memberships.
-- Give capabilities and collective procedures valid owners.
-- Redirect income rules that referenced moved accounts.
-
-The output is a complete World State, with no unresolved choices about controllers, ownership, or coverage.
+Gameboard `parameters` are fixed for a Gameboard; a simulation may override them for one run ([06 §3.1](06_simulator.md#31-configuration-inheritance)). Initial distributions, reserve and liquidity ranges, and per-instance Policy parameters are planned. Partial explicitness is resolved by instantiation ([04 §4](04_instantiated_game.md#4-aggregate-initialization)), with the consistency rule in [§12.4](#124-resolution-consistency).
 
 ## 12. Validation and Compilation
 
-Validation establishes that the scenario conforms to the Type System ([INV-17](02_type_system.md#inv-17)) and admits at least one consistent initialization ([INV-21](02_type_system.md#inv-21)).
+### 12.1 Load pipeline
 
-**Structural checks.** References exist and identifiers are unique. Units are compatible and every Resource declares its properties. Facilities declare inputs, outputs, capacity owners, and payees. Policy outputs use supported Intents. Scopes are well-defined. Every Actor declares capability, dependency, a measurable objective whose metrics exist, and fallback. Schemes reference valid Actors, Aggregates, domains, and estimators. Collective procedures declare valid member weights, a residual weight, and a threshold, and authorize only capabilities their Aggregate holds.
+`Scenarios.Load` runs these steps for every scenario, in order:
 
-**Economic checks.** CostFunctions suit their mechanisms. Accounting matches each Resource's declared properties and Transformations. The cycle reconciles and leaves no inert accumulation. Reserves and capacities are feasible. Financial claims have issuance and liability semantics. Required activity has an owner.
+1. Decode `instantiation.json` as the configuration.
+2. Merge the other sections (a duplicate key fails).
+3. Decode the Gameboard.
+4. `validateGameboard gameboard config` (checks in [§12.2](#122-checks-implemented)–[§12.4](#124-resolution-consistency)).
+5. Decode and check every Policy.
+6. Check every seat preset against the Gameboard.
 
-**Representation checks.** Eligibility matches Aggregate and domain. Estimators declare a reference, shrinkage, noise spread, and bound. Accounting partitions consistently. No duplicate adjustments. No authority granted by Representation or by signing a procedure Proposal ([INV-03](02_type_system.md#inv-03)).
-
-**Resolution consistency.** For every supported pair of explicitness configurations, total stocks, liabilities, capabilities and owners, and authorized recurring activity reconcile ([INV-14](02_type_system.md#inv-14)). Later differences must come from decisions, not from duplicated resources, deleted liabilities, or altered rules.
-
-**Feasibility.** Compatibility rules may restrict optional configurations; for example, reject removing an institution while also removing every mechanism for a liability it carries.
+Load failures are `LoadError` values: `Unreadable`, `NotAnObject`, `DuplicateKey`, `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`), `Invalid` (validation errors), and `Unresolved` (a Policy or preset names something the Gameboard lacks).
 
 ```purescript
-validateGameboard
-  :: Gameboard
-  -> Either (Array ValidationError) ValidGameboard
-
-instantiate
-  :: ValidGameboard
-  -> InstantiationConfig
-  -> Either (Array InitializationError) InitialWorld
+validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 ```
 
-A validated Gameboard is reusable; each instantiation is still checked against its constraints.
+Validation is always against one configuration. The Gameboard has no separate "validated" type, so [INV-21](02_type_system.md#inv-21) is checked for the configuration supplied.
+
+### 12.2 Checks implemented
+
+`ValidationError` (`Board.Gameboard.Schema`) enumerates each check:
+
+| Constructor | Fails when |
+|---|---|
+| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, Rule, scheme, Aggregate member, procedure weight, or `npc` list does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
+| `DuplicateCapacityOwner` | A capacity, other than a producer's production capacity, has more than one owner. |
+| `ProductionWithoutCapacity` | A `production` entry's Entity does not hold that capacity. |
+| `FacilityWithoutPayee` | A costed Facility has no `payee`. |
+| `ReservesNonReservable` | A Facility reserves a Resource not marked `reservable`. |
+| `MissingFallback` | A non-required Actor has no fallback. |
+| `MissingObjective` | An Actor has no objective. |
+| `ProcedureExceedsAuthority` | A procedure authorizes a capability its Aggregate does not hold. |
+| `CoverageNotAggregate`, `SchemeTargetNotAggregate` | A coverage fallback or scheme target is not an Aggregate. |
+| `RoundsOutOfRange` | `rounds` is outside `roundRange`. |
+| `RequiredNotSelected` | A required Actor is not selected. |
+| `ControllerNotAllowed` | A seat is given to an Actor whose `seat` is false, or an NPC Policy not in its `npc` list. |
+| `IneligibleRepresentative` | A representing Actor is not in `eligibleActors`, or is not selected. |
+| `ResolutionInconsistent` | Making a coverage Actor implicit changes stocks, capacities, procedure weights, or authority ([§12.4](#124-resolution-consistency)). |
+
+Instantiation errors ([04 §10](04_instantiated_game.md#10-initialization-pipeline)) are reported as the same `ValidationError` list.
+
+### 12.3 Not yet checked (planned)
+
+These documented requirements are not validated:
+
+- Units, Resource properties beyond `transferability`, CostFunction suitability, and Facility input and output accounting against Resource properties.
+- Reconciliation of the recurring cycle and absence of inert accumulation ([INV-05](02_type_system.md#inv-05)); starting reserve and capacity feasibility ([INV-27](02_type_system.md#inv-27)).
+- Liabilities and issuance semantics for financial claims.
+- That every required responsibility has an owner ([INV-25](02_type_system.md#inv-25)), beyond [§12.4](#124-resolution-consistency).
+- Estimator and Representation weight ranges, and duplicate Representation adjustments ([INV-24](02_type_system.md#inv-24)).
+- That objective metrics exist, that capability lists are non-empty, and that dependencies are declared ([INV-19](02_type_system.md#inv-19)).
+- Scope definitions and information visibility ([§10.3](#103-information-visibility)).
+
+### 12.4 Resolution consistency
+
+For each Actor whose definition declares a coverage fallback, validation compares two configurations: the given one, and the same one with that Actor unselected. The two must agree on stocks (Entity accounts and Market reserves), capacities, procedure weights, and enacting authority (`Board.Gameboard.Reconcile`). A difference is `ResolutionInconsistent`.
+
+Liabilities and recurring flows are not yet compared, and only these pairs are checked, not every pair of explicitness configurations. The check runs only when the other checks pass.
+
+### 12.5 Compilation
+
+`just _scenarios` compiles the DSL in `packages/scenarios/src` through `Scenarios.Compile` into the Meridian files, presets, fixtures, and capstone run file. Before anything is written, each is decoded and checked. The outputs are gitignored and generated: edit the DSL, not the JSON.
 
 ## 13. Provenance and Versioning
 
-Each Vertical references its research, and important parameters keep provenance. The Gameboard distinguishes researched facts, modeling simplifications, hypothetical conditions, and balancing choices (including estimator strengths). This matters when the game is used for serious scenario planning.
+- A run's manifest records `<id>@<version>` and the full initial World State ([04 §9](04_instantiated_game.md#9-runtime-state-and-lifecycle)), so Instantiated Games reference the exact version.
+- Changes to Markets, Facilities, the cycle, Policies, Entities, or relationships are a new version. Version immutability ([INV-22](02_type_system.md#inv-22)) is a convention; nothing hashes or compares Gameboard contents.
+- The schema has no provenance fields; `description` and `dependency` are prose. Per-parameter provenance, linked to vertical reports, is planned.
 
-Every Gameboard has a stable identifier and immutable version ([INV-22](02_type_system.md#inv-22)). Any change to Markets, Transformations, the cycle, Policies, populations, or relationships is a new version. Instantiated Games reference the exact version.
+## 14. Reference Gameboard
 
-## 14. Illustrative Gameboard
-
-A five-year scenario of US–China industrial competition, with geopolitical rivalry and capital–labor conflict as persistent tensions.
-
-- **Verticals:** semiconductors, energy, finance, manufacturing, sharing Resources, Markets, and income flows.
-- **Economy:** Energy trades in regional Market nodes linked by a shipping facility, with tariffs available to governments. Defense procurement is a single global facility paying defense manufacturers. Each year producers generate Energy, workers receive wages, and governments collect revenue.
-- **Entities:** US and Chinese governments, EU Commission, selected corporations, a labor federation, representative small-business owners. A shipping operator owns the shipping facility's capacity and signs the shipments it carries; a labor federation can strike to reduce throughput. Aggregates include households, workforces, small businesses, producers, and a European bloc with a collective procedure.
-- **Policies:** NPC Policies for eligible institutions; Aggregate Policies for consumption, investment, production, and publishing the bloc's procedure Proposals.
-- **Representation and procedures:** a small-business owner represents small-business Energy demand through an estimator; a member state signs the bloc's procedure Proposals.
-- **Instantiation options:** the EU may be human or NPC; small-business representatives may be present or absent. Both games reconcile to the same initial accounts and then diverge through decisions.
+Meridian, a five-year US–China industrial competition, is the reference Gameboard, specified in [05 Part II](05_test_instance.md#part-ii--gameboard-configuration). Its files are listed in [§2](#2-gameboard-structure).
 
 ---
 
 ## 15. Summary
 
-The Gameboard is a declarative specification of a playable economic world: Resources, Markets, facilities, a recurring cycle, populations, institutions, relationships, Policies, collective procedures, Proposal rules, and Representation schemes. Vertical reports ground it; mechanically consequential tensions make it worth playing.
-
-It does not decide who is human-controlled, what anyone does, or how events unfold. Its responsibility is to define **a coherent, self-sustaining world that is economically identical at the outset across every supported resolution**.
+The Gameboard is a declarative, versioned set of files, checked against an Instantiation Configuration before play. It does not decide who is controlled by a human, what anyone does, or how events unfold.

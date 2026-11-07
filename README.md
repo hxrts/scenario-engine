@@ -4,19 +4,19 @@ A multiplayer economic strategy game where players act as governments, corporati
 
 ## Status
 
-Implemented against the specification in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md). The reference scenario is *Meridian*.
+Implemented against the specification in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md). The reference scenario is *Meridian*. Agent guidance and command details are in [`AGENTS.md`](AGENTS.md).
 
 ## Development
 
 Requires Nix with direnv (`use flake`). The dev shell installs the pinned PureScript toolchain.
 
 ```sh
-just build                                                  # compile
-just check                                                  # format, dependency direction, build, tests
-just all                                                    # check + dashboard smoke test
-just sim meridian --preset Conservative              # simulate a game
-just session meridian --humans US                    # live session (AI seats via pi)
-just serve                                                  # dashboard and JSON API on :8787
+just build                                    # compile
+just check                                    # format, dependency direction, build, tests
+just all                                      # check + dashboard smoke test
+just sim meridian --preset Conservative       # simulate a game
+just session meridian --humans US             # live session (AI seats via pi)
+just serve                                    # dashboard and JSON API on :8787
 ```
 
 The dashboard smoke test (`just dashboard-test`) also needs the Playwright browsers, installed once: `cd apps/dashboard && npx playwright install`.
