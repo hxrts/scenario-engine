@@ -7,9 +7,10 @@ module Session (Options, session, validId) where
 
 import Prelude
 
-import Adapters.Llm (pi)
+import Adapters.Clock (nowIso)
+import Adapters.Pi (pi)
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (nowIso, open, sqlitePort)
+import Adapters.Store (open, sqliteBackend)
 import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed)
 import Core.Num as Q
@@ -40,8 +41,9 @@ import Effects.Round (runGame)
 import Effects.Signatures (ClockF(..), InterpretF(..), NarrateF(..), Transcript)
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
+import Effects.Store (createRun, failRun)
 import Handlers.Llm (agents, interpreter, narrator)
-import Handlers.Store (createRun, finish, recorder)
+import Handlers.Store (finish, recorder, runStore)
 import Handlers.Seats (programs)
 import Node.Process (exit')
 import Adapters.Scenarios (readScenario)
@@ -74,16 +76,21 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
         w0 = initial.world
         humans = map Id (filter (_ /= "") (split (Pattern ",") o.humans)) :: Array EntityId
         dir = "runs/" <> o.id
-        backend = pi { model: o.model, rawDir: dir <> "/raw", evidence: \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev)) }
+        backend =
+          { model: o.model
+          , call: pi { model: o.model, rawDir: dir <> "/raw" }
+          , evidence: \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
+          , exchange: const (pure unit)
+          }
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e gameboard.actors)
       -- the player seed is resolved once, here, and recorded in the session's spec
       seed <- liftEffect (resolveSeed o.seed)
       closed <- liftEffect (Ref.new [])
       db <- liftEffect (open o.db)
-      let port = sqlitePort db
+      let store = sqliteBackend db
       created <- liftEffect nowIso
-      liftEffect $ createRun port { id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: initial.manifest, source: Nothing, kind: Nothing }
-      save <- liftEffect (recorder port o.id w0)
+      liftEffect $ runStore store (createRun { id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: initial.manifest, source: Nothing, kind: Nothing })
+      save <- liftEffect (recorder store o.id w0)
       -- the last joint pass's transcripts, stored with the round they were read for
       joints <- liftEffect (Ref.new (Nothing :: Maybe { round :: Int, transcripts :: Array Transcript }))
       liftEffect $ log (gameboard.id <> "@" <> gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
@@ -115,13 +122,13 @@ session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
       liftEffect $ case out of
         -- an exception (a backend that could not be started, input ended, a store fault) fails the run
         Left ex -> do
-          port.failRun o.id (message ex)
+          runStore store (failRun o.id (message ex))
           closePrompt
           log ("Session failed: " <> message ex)
           log ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
           exit' 1
         Right result -> do
-          finish port o.id result
+          runStore store (finish o.id result)
           closePrompt
           case result of
             Left e -> do

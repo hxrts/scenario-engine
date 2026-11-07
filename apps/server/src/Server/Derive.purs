@@ -11,7 +11,9 @@ module Server.Derive
 
 import Prelude
 
-import Handlers.Store (Spec, Stored, StorePort, StoredRound, finish, persister, reader)
+import Effects.Signatures (Spec, Stored, StoredRound)
+import Effects.Store (deleteRun, failRun, listRuns, readManifest, readRounds, setArchived, setSpec, setStatus)
+import Handlers.Store (StoreBackend, finish, persister, runStore)
 import Board.Decode.Common (readJson)
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
@@ -53,12 +55,12 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Context -> StorePort -> String -> String -> Effect Response
+deriveRun :: Context -> StoreBackend -> String -> String -> Effect Response
 deriveRun ctx store sourceId body = case readJson body :: Either String (Object Json) of
   Left e -> failWith 400 e
   Right o -> case Object.lookup "kind" o >>= toString of
     Just kind | kind `elem` kinds -> do
-      runs <- (reader store).runs
+      runs <- runStore store listRuns
       case find (\r -> r.id == sourceId) runs of
         Nothing -> failWith 404 ("no run " <> sourceId)
         Just info -> do
@@ -71,7 +73,7 @@ deriveRun ctx store sourceId body = case readJson body :: Either String (Object 
               | info.status /= "completed" -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> info.status <> ", not completed")
               | null src.records -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
             _ -> do
-              stored <- (reader store).manifest sourceId
+              stored <- runStore store (readManifest sourceId)
               case stored <#> \m -> m.spec >>= storedRecipe of
                 Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
                 Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
@@ -157,18 +159,18 @@ storedRecipe s = do
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: Context -> StorePort -> String -> String -> Effect Response
+resumeRun :: Context -> StoreBackend -> String -> String -> Effect Response
 resumeRun ctx store id body = case readJson body :: Either String Resume of
   Left e -> failWith 400 e
   Right { rounds } -> do
-    runs <- (reader store).runs
+    runs <- runStore store listRuns
     case find (\r -> r.id == id) runs of
       Nothing -> failWith 404 ("no run " <> id)
       Just info
         | info.status /= "completed" -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> info.status)
         | otherwise -> do
-            stored <- (reader store).manifest id
-            rows <- (reader store).rounds id
+            stored <- runStore store (readManifest id)
+            rows <- runStore store (readRounds id)
             case stored, last rows of
               Just m, Just latest -> case prepare m.spec latest (length rows) of
                 Left e -> failWith 500 ("run " <> id <> " is unreadable: " <> e)
@@ -176,16 +178,16 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
                   | rounds <= p.done -> failWith 400 ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
                   | otherwise -> do
                       attempt <- try $ resumeWith ctx (presetSpec ctx p.base.preset p.seed p.base.overrides (Just rounds)) (Just { world: p.snapshot, done: p.done }) \_ -> do
-                        store.setStatus id "running"
-                        store.setSpec id (Object.insert "rounds" (show rounds) p.spec)
+                        runStore store (setStatus id "running")
+                        runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
                         persister store id p.snapshot
                       case attempt of
                         Left ex -> do
-                          store.failRun id ("exception: " <> message ex)
+                          runStore store (failRun id ("exception: " <> message ex))
                           throwException ex
                         Right (Left e) -> failWith 400 e
                         Right (Right r) -> do
-                          finish store id r
+                          runStore store (finish id r)
                           either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r
               _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
@@ -199,22 +201,22 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
     pure { spec, base, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
-setArchive :: StorePort -> String -> Boolean -> Effect Response
+setArchive :: StoreBackend -> String -> Boolean -> Effect Response
 setArchive store id archived = do
   present <- hasRun store id
   if not present then failWith 404 ("no run " <> id)
   else do
-    store.setArchived id archived
+    runStore store (setArchived id archived)
     ok { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
-deleteOne :: StorePort -> String -> String -> Effect Response
+deleteOne :: StoreBackend -> String -> String -> Effect Response
 deleteOne store id confirm
   | confirm /= id = failWith 400 ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
-      n <- store.deleteRun id
+      n <- runStore store (deleteRun id)
       if n == 0 then failWith 404 ("no run " <> id) else ok { deleted: id }
 
-hasRun :: StorePort -> String -> Effect Boolean
-hasRun store id = (\runs -> length (filter (\r -> r.id == id) runs) > 0) <$> (reader store).runs
+hasRun :: StoreBackend -> String -> Effect Boolean
+hasRun store id = (\runs -> length (filter (\r -> r.id == id) runs) > 0) <$> runStore store listRuns

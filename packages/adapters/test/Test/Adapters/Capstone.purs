@@ -6,7 +6,7 @@ module Test.Adapters.Capstone (spec) where
 import Prelude
 
 import Adapters.Scenarios (readScenario, readText)
-import Adapters.Store (open, sqlitePort)
+import Adapters.Store (open, sqliteBackend)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (stringify)
@@ -21,7 +21,8 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
-import Handlers.Store (createRun, persister, reader)
+import Effects.Store (createRun, readRounds)
+import Handlers.Store (persister, runStore)
 import Policy.InWorld (inWorldOf)
 import Scenarios.Load (load, loadPresets, loadRun)
 import Simulator.Capstone (Capstone, decodeCapstone)
@@ -47,13 +48,12 @@ spec = describe "Capstone: the Run Store" do
       ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
       spec' = { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just cap.rounds }
     db <- liftEffect (open ":memory:")
-    let port = sqlitePort db
+    let port = sqliteBackend db
     stored <- liftEffect $ simulateWith ctx spec' \manifest -> do
-      createRun port { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing }
+      runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
       persister port "capstone" manifest.initial
     _ <- orThrow stored
-    let store = reader port
-    rows <- liftEffect (store.rounds "capstone")
+    rows <- liftEffect (runStore port (readRounds "capstone"))
     length rows `shouldEqual` cap.rounds
     records <- orThrow (traverse _.record rows)
     snapshots <- orThrow (traverse _.snapshot rows)

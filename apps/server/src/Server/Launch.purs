@@ -7,6 +7,7 @@ module Server.Launch
   , readLaunch
   , launch
   , start
+  , failInterrupted
   , presetSpec
   , seats
   , Scenario
@@ -16,8 +17,9 @@ module Server.Launch
 import Prelude
 
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (nowIso)
-import Handlers.Store (StorePort, createRun, finish, persister, reader)
+import Adapters.Clock (nowIso)
+import Effects.Store (createRun, failRun, failRunning, listSummaries)
+import Handlers.Store (StoreBackend, finish, persister, runStore)
 import Board.Decode.Common (readJson)
 import Board.Gameboard.Schema (gameIdOf)
 import Core.Draw (Seed(..))
@@ -58,15 +60,20 @@ type Start =
 readLaunch :: String -> Either String Launch
 readLaunch = readJson
 
+-- | The startup policy (docs/06_simulator.md §9.1): a run still marked running was left by a process
+-- | that stopped before it finished, so it is failed with that reason. Returns how many were failed.
+failInterrupted :: StoreBackend -> Effect Int
+failInterrupted store = runStore store (failRunning "interrupted: the server stopped before the run finished")
+
 -- | Launch a run from a preset on every seat.
-launch :: Context -> StorePort -> Launch -> Effect (Either String Launched)
+launch :: Context -> StoreBackend -> Launch -> Effect (Either String Launched)
 launch ctx store l = start ctx store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
 -- | seed it used. The seed is resolved here, before the run starts, and the stored spec records that
 -- | value. Nothing is stored unless the spec instantiates. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
-start :: Context -> StorePort -> Start -> Effect (Either String Launched)
+start :: Context -> StoreBackend -> Start -> Effect (Either String Launched)
 start ctx store l = do
   id <- nextRunId store
   seed <- resolveSeed (Seed <$> l.playerSeed)
@@ -82,20 +89,20 @@ start ctx store l = do
     kind = _.kind <$> l.derivation
   created <- nowIso
   attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed l.overrides l.rounds) \manifest -> do
-    createRun store { id, name: l.name, created, spec, manifest, source, kind }
+    runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
     persister store id manifest.initial
   case attempt of
     Left ex -> do
-      store.failRun id ("exception: " <> message ex)
+      runStore store (failRun id ("exception: " <> message ex))
       throwException ex
     Right (Left e) -> pure (Left e)
-    Right (Right r) -> finish store id r $> Right { id, playerSeed: unwrap seed }
+    Right (Right r) -> runStore store (finish id r) $> Right { id, playerSeed: unwrap seed }
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
 -- | link cannot come to resolve to a different run.
-nextRunId :: StorePort -> Effect String
+nextRunId :: StoreBackend -> Effect String
 nextRunId store = do
-  rows <- (reader store).summaries
+  rows <- runStore store listSummaries
   let
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)

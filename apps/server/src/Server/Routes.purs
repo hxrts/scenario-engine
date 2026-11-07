@@ -4,7 +4,7 @@ module Server.Routes (route) where
 
 import Prelude
 
-import Handlers.Store (StorePort)
+import Handlers.Store (StoreBackend)
 import Data.Array (filter)
 import Data.Either (Either(..), either)
 import Data.String (Pattern(..), split)
@@ -17,7 +17,7 @@ import Server.Errors (failWith, ok)
 import Server.Launch (launch, readLaunch, scenarioInfo)
 import Server.Read (agencyView, compareView, entityView, getView, param, runSummaries)
 
-route :: Context -> StorePort -> Request -> Effect Response
+route :: Context -> StoreBackend -> Request -> Effect Response
 route ctx store req = case req.method, filter (_ /= "") (split (Pattern "/") req.path) of
   "GET", [ "api", "runs" ] -> runSummaries (param req.query "archived" "" == "true") store >>= ok <<< Overview.runList
   "GET", [ "api", "scenario" ] -> ok (scenarioInfo ctx)

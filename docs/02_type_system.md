@@ -631,11 +631,14 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 
 | Effect row | Operation | Meaning |
 |---|---|---|
-| `SEAT_INPUT` | `Propose`, `Sign` | A seat's Proposals in Propose and its signatures in Sign |
+| `SEAT_INPUT` | `Propose`, `Sign`, `Speak` | A seat's Proposals in Propose, its signatures in Sign, and its transcript in Speak |
 | `INTERPRET` | `Interpret` | The round's transcripts to Intents, read together across players. No confirmation (live play) |
 | `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text. Adds no facts |
 | `RECORD` | `Record` | Append a round result to the run's records |
 | `CLOCK` | `Await` | Wait for a propose or sign deadline (live play only) |
+| `STORE` | `CreateRun`, `FailRunning`, `ReadRounds`, … | The Run Store: run writes and reads, for the server and the CLI ([07 §4](07_architecture.md#4-key-interfaces)) |
+
+Handlers interpret these operations over typed backends; the adapters supply the raw I/O primitives ([07 §4](07_architecture.md#4-key-interfaces)).
 
 Handlers choose the context. The round runner is the same code under all of them:
 

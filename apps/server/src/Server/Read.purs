@@ -13,7 +13,9 @@ module Server.Read
 
 import Prelude
 
-import Handlers.Store (RunInfo, RunSummary, StoredManifest, StoredRound, StorePort, reader)
+import Effects.Signatures (RunInfo, RunSummary, StoredManifest, StoredRound)
+import Effects.Store (listRuns, listSummaries, readManifest, readRounds)
+import Handlers.Store (StoreBackend, runStore)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
@@ -50,9 +52,9 @@ param query k d = fromMaybe d (Object.lookup k query)
 -- | The run list: one summary per stored run, read without records or snapshots. Archived runs
 -- | are left out unless `withArchived`. A run that cannot be decoded is listed as unreadable, with
 -- | the reason; the others stay visible.
-runSummaries :: Boolean -> StorePort -> Effect (Array (Either Overview.Unreadable Overview.RunSummary))
+runSummaries :: Boolean -> StoreBackend -> Effect (Array (Either Overview.Unreadable Overview.RunSummary))
 runSummaries withArchived store = do
-  rows <- (reader store).summaries
+  rows <- runStore store listSummaries
   let ids = map _.id rows
   pure (map (summarize ids) (filter (\r -> withArchived || not r.archived) rows))
   where
@@ -86,12 +88,11 @@ sourceDeletedIn ids s = maybe false (\src -> notElem src ids) (Object.lookup "so
 
 -- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
 -- | assertion set. Any stored text that fails to decode makes the whole run unreadable.
-loadRun :: StorePort -> String -> Effect (Either LoadError StoredRun)
+loadRun :: StoreBackend -> String -> Effect (Either LoadError StoredRun)
 loadRun store id = do
-  let reads = reader store
-  runs <- reads.runs
-  m <- reads.manifest id
-  rows <- reads.rounds id
+  runs <- runStore store listRuns
+  m <- runStore store (readManifest id)
+  rows <- runStore store (readRounds id)
   let ids = map _.id runs
   pure case find (\r -> r.id == id) runs, m of
     Nothing, _ -> Left Missing
@@ -120,7 +121,7 @@ loadRun store id = do
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: Context -> StorePort -> Object String -> String -> String -> Effect Response
+getView :: Context -> StoreBackend -> Object String -> String -> String -> Effect Response
 getView ctx store query id view = loadRun store id >>= case _ of
   Right r -> runView r
   Left Missing -> failWith 404 ("no run " <> id)
@@ -151,7 +152,7 @@ getView ctx store query id view = loadRun store id >>= case _ of
 
 -- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Analysis.Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
-entityView :: StorePort -> String -> String -> Effect Response
+entityView :: StoreBackend -> String -> String -> Effect Response
 entityView store id entity = loadRun store id >>= case _ of
   Right r -> viewOr (Entity.entityHistory r (Id entity))
   Left Missing -> failWith 404 ("no run " <> id)
@@ -159,7 +160,7 @@ entityView store id entity = loadRun store id >>= case _ of
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: Context -> StorePort -> Object String -> Effect Response
+compareView :: Context -> StoreBackend -> Object String -> Effect Response
 compareView ctx store query = do
   let ids = filter (_ /= "") (split (Pattern ",") (param query "runs" ""))
   loaded <- traverse (loadRun store) ids

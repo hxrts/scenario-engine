@@ -6,7 +6,7 @@ module Server (main) where
 import Prelude
 
 import Adapters.Scenarios (readScenario)
-import Adapters.Store (failStaleRuns, open, sqlitePort)
+import Adapters.Store (open, sqliteBackend)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -17,6 +17,7 @@ import Simulator.Options (flagOr, parseFlags)
 import Http (serve)
 import Node.Process (argv, exit')
 import Scenarios.Load (loadContext)
+import Server.Launch (failInterrupted)
 import Server.Routes (route)
 
 main :: Effect Unit
@@ -27,11 +28,10 @@ main = do
     Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
       Just port | port > 0 && port < 65536 -> map (_ >>= loadContext) (readScenario "meridian/v0") >>= case _ of
         Right ctx -> do
-          db <- open (flagOr "--db" "runs.db" flags)
-          -- a run still marked running was left by a process that stopped before finishing it
-          stale <- failStaleRuns db "interrupted: the server stopped before the run finished"
+          store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
+          stale <- failInterrupted store
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
-          serve port (flagOr "--static" "apps/dashboard/dist" flags) (route ctx (sqlitePort db))
+          serve port (flagOr "--static" "apps/dashboard/dist" flags) (route ctx store)
           log ("serving on :" <> show port)
         Left e -> log e *> exit' 1
       _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)

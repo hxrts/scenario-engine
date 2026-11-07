@@ -1,15 +1,13 @@
 -- | `just _scenarios` (after `Compile`): writes the capstone's joint-pass recording,
 -- | `capstone/transcript.json` under the scenario root. Each exchange the DSL defines
--- | (`Scenarios.Capstone.jointLines`) runs through the real adapter (prompt, decode, evidence) over a
--- | stub model that answers with the DSL's reply text, through the recording port. Each Intent set is
+-- | (`Scenarios.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
+-- | stub model that answers with the DSL's reply text; the handler reports each exchange, which is kept. Each Intent set is
 -- | checked against the DSL's expectation before anything is written; a mismatch exits 1 and writes
 -- | nothing. No model is called: the file is generated, never hand-maintained.
 module Transcript (main) where
 
 import Prelude
 
-import Adapters.Llm (fromCall)
-import Adapters.Recording (encodeRecording, recordingPort)
 import Adapters.Scenarios (readScenario, scenariosRoot)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
@@ -30,6 +28,7 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (interpreter)
+import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
 import Node.Process (exit')
@@ -54,9 +53,9 @@ main :: Effect Unit
 main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
   w <- worldOf
   ref <- liftEffect (Ref.new [])
-  let port = recordingPort (fromCall { model: "capstone-stub", call: answer, evidence: const (pure unit) }) ref
+  let backend = { model: "capstone-stub", call: answer, evidence: const (pure unit), exchange: \x -> Ref.modify_ (_ <> [ x ]) ref }
   for_ jointLines \l -> do
-    out <- interpreter port w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
+    out <- interpreter backend w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
     case out of
       Left why -> throwError (error ("the capstone exchange \"" <> l.text <> "\" did not decode: " <> why))
       Right js

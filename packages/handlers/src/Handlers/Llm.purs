@@ -1,82 +1,86 @@
 -- | The language-model handler (docs/04_instantiated_game.md §11, docs/01_overview.md §10): the joint
--- | pass, the narrator, and the AI-agent seats, interpreted over a typed `ModelPort`. The port takes
--- | domain requests and answers domain replies: no prompt text, no JSON, and no digests cross it.
--- | Prompts, the JSON wire format, and the `pi` process belong to the adapter (`Adapters.Llm`), which
--- | builds each reply from the model's text. A reply that does not decode is a `Left`: an empty
--- | submission (the joint pass, or a seat's transcript) or a plain event listing (Narrate). A failed
--- | call is an Aff error, which the run treats as fatal. Model output is only a candidate: the engine
--- | checks authority, signatures, and balances when it resolves the round.
+-- | pass, the narrator, and the AI-agent seats, interpreted over a typed `Backend`. A backend is the
+-- | raw call (one prompt and one JSON payload in, the reply text out) plus the sinks for evidence and
+-- | for the typed exchange. The handler owns the rest: the request payloads, the prompt for each
+-- | request (`Handlers.Llm.Wire`), decoding, the fallbacks, the joint pass's reconciliation, and the
+-- | evidence digests. A reply that does not decode is a `Left` (the joint pass and the narrator
+-- | fall back as documented below). A failed call is an Aff error, which the run treats as fatal.
+-- | Model output is only a candidate: the engine checks authority, signatures, and balances when it
+-- | resolves the round.
 module Handlers.Llm
-  ( ModelPort
-  , JointRequest
-  , ProposedDeal
-  , JointReply
-  , NarrateRequest
-  , NarrateReply
-  , SpeakRequest
-  , SpeakReply
+  ( Call
+  , Evidence
+  , Backend
   , interpreter
   , narrator
-  , listing
   , agents
+  , listing
   ) where
 
 import Prelude
 
-import Core.Types (EntityId, Intent, MarketId, RoundIndex)
-import Core.World (Event, RoundResult, View, WorldState)
+import Core.Types (EntityId, MarketId)
+import Core.World (RoundResult, View, WorldState)
+import Data.Argonaut.Core (Json, stringify)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (elem, filter, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
+import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), JointProposal, NarrateF(..), Transcript)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, ProposedDeal, SpeakRequest, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
+import Handlers.Recording (Exchange, encodeReply)
 
--- | The joint pass's request: the round, its seat transcripts, and the Entities and Markets a
--- | Proposal may name.
-type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, entities :: Array EntityId, markets :: Array MarketId }
+foreign import sha256 :: String -> String
 
--- | One Proposal as the model states it, before the engine's checks: its author, Intents, the
--- | other signers the deal asks for, and the seats whose transcripts describe it.
-type ProposedDeal = { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId }
+-- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
+-- | its raw event stream out. A failed call is an Aff error.
+type Call = String -> String -> Aff { text :: String, raw :: String }
 
--- | The joint pass's reply: the Proposals the model reconciled, or why its reply did not decode.
-type JointReply = Either String (Array ProposedDeal)
+-- | Evidence by pointer, appended for every call: the effect, the model, digests of the prompt
+-- | template and the JSON payload, the path of the raw event stream, and whether the reply decoded.
+type Evidence = { effect :: String, model :: String, template :: String, input :: String, raw :: String, decoded :: String }
 
-type NarrateRequest = { round :: RoundIndex, events :: Array Event }
+-- | The model backend a handler interprets over: the raw call, the model name for evidence, and the
+-- | sinks for each call's evidence and its typed exchange (the recording, when one is kept).
+type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
 
--- | The front page text, or why the reply did not decode.
-type NarrateReply = Either String String
-
--- | One AI-agent seat's turn of speech: the seat, its briefing, and what it can see.
-type SpeakRequest = { actor :: EntityId, briefing :: String, view :: View }
-
--- | The seat's transcript for the round, or why the reply did not decode.
-type SpeakReply = Either String String
-
--- | The language-model port, implemented by an adapter. A failed call is an Aff error; a reply the
--- | model gave that does not decode is a `Left` in the reply.
-type ModelPort =
-  { model :: String
-  , interpret :: JointRequest -> Aff JointReply
-  , narrate :: NarrateRequest -> Aff NarrateReply
-  , speak :: SpeakRequest -> Aff SpeakReply
-  }
+-- | One call: the payload is encoded, the prompt and the payload go to the backend, the reply
+-- | decodes, and the call's evidence and typed exchange are kept. A failed call is not kept.
+ask :: forall a. EncodeJson a => Backend -> String -> String -> Json -> (String -> Either String a) -> Aff (Either String a)
+ask b effect template payload decode = do
+  let input = stringify payload
+  out <- b.call template input
+  let decoded = decode out.text
+  liftEffect do
+    b.evidence { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
+    b.exchange { effect, request: payload, reply: encodeReply decoded }
+  pure decoded
 
 -- | The round's transcripts to Proposals, one joint call. A reply that does not decode is a
--- | `Left` (the caller tells the speakers and submits nothing). Entries the engine could not
--- | use are dropped here: an author who did not speak, an empty Intent list, and unknown
--- | signers. Only speakers can be recorded as agreeing.
-interpreter :: ModelPort -> WorldState -> InterpretF ~> Aff
+-- | `Left` (the caller tells the speakers and submits nothing). Entries the engine could not use
+-- | are dropped by `jointProposals`.
+interpreter :: Backend -> WorldState -> InterpretF ~> Aff
 interpreter b w (Interpret round transcripts k) = k <$> do
-  r <- b.interpret { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets }
-  pure (map (mapMaybe joint) r)
+  let
+    request :: JointRequest
+    request = { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets w }
+  r <- ask b "interpret" interpretPrompt (encodeJson request) decodeJoint
+  pure (map (jointProposals w transcripts) r)
+
+markets :: WorldState -> Array MarketId
+markets w = map _.id (fromFoldable (Map.values w.markets))
+
+-- | The Proposals the model reconciled, as the engine uses them. An author who did not speak, an
+-- | empty Intent list, and an unknown signer are dropped. Only speakers can be recorded as agreeing.
+jointProposals :: WorldState -> Array Transcript -> Array ProposedDeal -> Array JointProposal
+jointProposals w transcripts = mapMaybe joint
   where
   speakers = map _.seat transcripts
-
-  markets :: Array MarketId
-  markets = map _.id (fromFoldable (Map.values w.markets))
 
   joint :: ProposedDeal -> Maybe JointProposal
   joint p
@@ -91,10 +95,14 @@ interpreter b w (Interpret round transcripts k) = k <$> do
 -- | The round's front page. A round whose joint pass did not decode, and a model reply that does
 -- | not decode, get the plain listing of the round's events, and a round whose joint pass did not
 -- | decode makes no model call (docs/06 §6.1). Otherwise the model narrates from the round's record.
-narrator :: ModelPort -> Boolean -> NarrateF ~> Aff
+narrator :: Backend -> Boolean -> NarrateF ~> Aff
 narrator b jointFailed (Narrate r k) = k <$>
   if jointFailed then pure (listing r)
-  else either (const (listing r)) identity <$> b.narrate { round: r.record.round, events: r.record.events }
+  else do
+    let
+      request :: NarrateRequest
+      request = { round: r.record.round, events: r.record.events }
+    either (const (listing r)) identity <$> ask b "narrate" narratePrompt (encodeJson request) decodeText
 
 -- | The round's events, one per line, with no interpretation.
 listing :: RoundResult -> String
@@ -104,7 +112,11 @@ listing r = joinWith "\n" ([ "Round " <> show r.record.round <> ":" ] <> bullets
 
 -- | AI-agent seats: one short transcript per round, from the role briefing and the authorized View.
 -- | An undecodable reply is an empty transcript, so the seat submits nothing.
-agents :: ModelPort -> (EntityId -> String) -> { speak :: EntityId -> View -> Aff String }
+agents :: Backend -> (EntityId -> String) -> { speak :: EntityId -> View -> Aff String }
 agents b briefing =
-  { speak: \e v -> either (const "") identity <$> b.speak { actor: e, briefing: briefing e, view: v }
+  { speak: \e v -> do
+      let
+        request :: SpeakRequest
+        request = { actor: e, briefing: briefing e, view: v }
+      either (const "") identity <$> ask b "seat:speak" speakPrompt (encodeJson request) decodeText
   }

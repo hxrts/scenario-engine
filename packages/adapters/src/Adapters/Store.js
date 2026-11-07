@@ -126,9 +126,8 @@ export const failRunImpl = (db, id, reason) => () => {
   db.prepare("update runs set status = 'failed', reason = ? where id = ?").run(reason, id);
 };
 
-// Runs still marked running (their process ended before they finished) become failed.
-// Returns how many were reconciled.
-export const failStaleRunsImpl = (db, reason) => () =>
+// Every run still marked running becomes failed with the reason. Returns how many.
+export const failRunningImpl = (db, reason) => () =>
   Number(db.prepare("update runs set status = 'failed', reason = ? where status = 'running'").run(reason).changes);
 
 export const listRunsImpl = (db) => () =>
@@ -157,5 +156,3 @@ export const roundsImpl = (db, id) => () =>
 export const metricImpl = (db, id, metric, version) => () =>
   db.prepare("select round, value from metrics where run = ? and metric = ? and version = ? order by round").all(id, metric, version).map((r) => ({ ...r }));
 
-// The wall-clock time a run was created, in ISO 8601 (UTC).
-export const nowIsoImpl = () => new Date().toISOString();

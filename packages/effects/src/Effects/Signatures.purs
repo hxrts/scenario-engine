@@ -1,5 +1,6 @@
--- | The impure vocabulary (docs/02_type_system.md §8.4): the effect rows and their functor types.
--- | Signatures only; nothing here implements an effect. Handlers in `handlers` interpret them.
+-- | The impure vocabulary (docs/02_type_system.md §8.4): the effect rows, their functor types, and the
+-- | typed records that travel with them. Signatures only; nothing here implements an effect. Handlers
+-- | in `handlers` interpret them over a typed backend, and adapters supply the raw primitives.
 module Effects.Signatures
   ( SEAT_INPUT
   , SeatInputF(..)
@@ -14,14 +15,26 @@ module Effects.Signatures
   , CLOCK
   , ClockF(..)
   , Deadline(..)
+  , STORE
+  , StoreF(..)
+  , Spec
+  , Stored
+  , NewRun
+  , RunInfo
+  , RunSummary
+  , StoredManifest
+  , StoredRound
+  , MetricRow
   ) where
 
 import Prelude
 
+import Core.Invariants (Failure)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
-import Core.World (RoundResult, View)
+import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
+import Foreign.Object (Object)
 import Policy.Interpret (Draft)
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
@@ -50,7 +63,8 @@ type Transcript = { seat :: EntityId, text :: String }
 -- | engine signs for `signed` (and the author) and lapses the Proposal when a signer is missing.
 type JointProposal = { author :: EntityId, draft :: Draft, signed :: Array EntityId }
 
--- | One joint pass over a round's transcripts (live play): the Proposals they reconcile into.
+-- | One joint pass over a round's transcripts (live play): the Proposals they reconcile into. A
+-- | reply that does not decode is a `Left`, with the reason.
 data InterpretF a = Interpret RoundIndex (Array Transcript) (Either String (Array JointProposal) -> a)
 
 derive instance Functor InterpretF
@@ -78,3 +92,75 @@ data ClockF a = Await RoundIndex Deadline a
 derive instance Functor ClockF
 
 type CLOCK r = (clock :: ClockF | r)
+
+-- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
+-- | the overrides, and the source it was derived from). Each producer writes its own fields.
+type Spec = Object String
+
+-- | A stored value: the value, or why the stored text does not read back.
+type Stored a = Either String a
+
+-- | A run registered before Round 1. `source` and `kind` are set for a run derived from another.
+type NewRun =
+  { id :: String
+  , name :: String
+  , created :: String
+  , spec :: Spec
+  , manifest :: Manifest
+  , source :: Maybe String
+  , kind :: Maybe String
+  }
+
+-- | A run's row for the run list: its status, and why it failed if it did.
+type RunInfo = { id :: String, name :: String, status :: String, created :: String, reason :: Maybe String }
+
+-- | A run's list row: its stored manifest and specification, and the assertion sets of its rounds.
+-- | No records or snapshots. `source` is the run it was derived from, if any.
+type RunSummary =
+  { id :: String
+  , name :: String
+  , status :: String
+  , created :: String
+  , reason :: Maybe String
+  , spec :: Stored Spec
+  , manifest :: Stored Manifest
+  , archived :: Boolean
+  , source :: Maybe String
+  , assertions :: Array (Stored (Array Failure))
+  }
+
+-- | A run's stored manifest and specification, as read back.
+type StoredManifest = { spec :: Stored Spec, manifest :: Stored Manifest }
+
+-- | One stored round: its record, snapshot, assertions, and the seat transcripts read for it.
+type StoredRound =
+  { round :: Int
+  , record :: Stored RoundRecord
+  , snapshot :: Stored WorldState
+  , assertions :: Stored (Array Failure)
+  , transcripts :: Stored (Array Transcript)
+  }
+
+-- | One point of a versioned metric series: the round's value, as text.
+type MetricRow = { round :: Int, value :: String }
+
+-- | The Run Store (docs/06_simulator.md §8): the run lifecycle writes the server and the CLI make,
+-- | and the reads the server answers from. Each round's own write is `RECORD`. Writes are one
+-- | transaction each; reads return stored values as typed records, with unreadable fields as `Left`.
+data StoreF a
+  = CreateRun NewRun (Unit -> a)
+  | SetStatus String String (Unit -> a)
+  | FailRun String String (Unit -> a)
+  | FailRunning String (Int -> a)
+  | SetSpec String Spec (Unit -> a)
+  | SetArchived String Boolean (Unit -> a)
+  | DeleteRun String (Int -> a)
+  | ListRuns (Array RunInfo -> a)
+  | ListSummaries (Array RunSummary -> a)
+  | ReadManifest String (Maybe StoredManifest -> a)
+  | ReadRounds String (Array StoredRound -> a)
+  | ReadMetric String String String (Array MetricRow -> a)
+
+derive instance Functor StoreF
+
+type STORE r = (store :: StoreF | r)

@@ -61,12 +61,15 @@ packages/
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Program (decision language), Policy.InWorld (in-world Programs, `acts`), Policy.Interpret (propose, sign, `envFor`)
   scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load)
-  effects/     Effects.Signatures (effect rows), Effects.Round (runRound, runGame): the algebra and the round program only
-  handlers/    Handlers.Seats, Sim, Replay, Live; Handlers.Llm (ModelPort: typed joint pass, narrator, AI seats);
-               Handlers.Store (StorePort: typed RECORD writer, RunStoreRead reader); the in-memory test handler is in test/
-  adapters/    concrete I/O only, implementing the ports: Adapters.Llm (prompts, JSON replies, `pi`, evidence; `stub`),
-               Adapters.Recording (recordingPort, replayPort, the recording file), Adapters.Store (SQLite: `sqlitePort`, JSON and SQL),
-               Scenarios (reads SCENARIOS_DIR), Seed (the only place a player seed is drawn from the OS)
+  effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors),
+               Effects.Round (runRound, runGame): the algebra and the round program only
+  handlers/    Handlers.Seats, Sim, Replay, Live (the round's handlers); Handlers.Llm (the model handler: prompts, decoding,
+               the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (prompt text and reply
+               decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD over a
+               StoreBackend); test/Test/Handlers/Stub holds the stub backend and the recording replay
+  adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.Store (SQLite statements and the JSON
+               text of stored values; `sqliteBackend`), Adapters.Clock (wall clock), Adapters.Seed (the only OS seed),
+               Adapters.Scenarios (scenario file reads, SCENARIOS_DIR)
   simulator/   Simulator.Simulate, Overrides, Records, Options, Capstone (simulation orchestration)
   analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models)
 apps/
@@ -110,14 +113,17 @@ sign    :: Program -> Env -> Array ProposalId     -- chooses among view.toSign
 **Effects** (`effects`). The only impure vocabulary in the system:
 
 ```purescript
-type SEAT_INPUT r = (seatInput :: SeatInputF | r)   -- Propose EntityId View | Sign EntityId View
+type SEAT_INPUT r = (seatInput :: SeatInputF | r)   -- Propose EntityId View | Sign EntityId View | Speak EntityId View
 type RECORD r     = (record :: RecordF | r)         -- Record RoundResult
-type INTERPRET r  = (interpret :: InterpretF | r)   -- live play: the round's transcripts → joint Proposals
-type NARRATE r    = (narrate :: NarrateF | r)       -- live play and reports
-type CLOCK r      = (clock :: ClockF | r)           -- live play: propose and sign deadlines
+type INTERPRET r  = (interpret :: InterpretF | r)   -- Interpret RoundIndex (Array Transcript): the joint pass (live play)
+type NARRATE r    = (narrate :: NarrateF | r)       -- Narrate RoundResult: the front page (live play and reports)
+type CLOCK r      = (clock :: ClockF | r)           -- Await RoundIndex Deadline: propose and sign deadlines (live play)
+type STORE r      = (store :: StoreF | r)           -- the Run Store: run writes and reads (§4 Run Store)
 
-runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
+runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError RoundResult)
 ```
+
+The request and reply types of each operation are declared beside it in `effects`: a joint pass answers `Either String (Array JointProposal)`, a narration answers `String`, and a seat's transcript is `Maybe String`. The operations are the whole model interface, so no port record duplicates them.
 
 Randomness needs no effect. Every draw is the pure `Core.Draw.draw` on the game seed or the player seed, and the handler supplies the player seed.
 
@@ -135,30 +141,23 @@ simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult ->
 evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
 ```
 
-**Ports.** A handler interprets an effect over a port: a record of effectful functions declared in `handlers`. The adapter package implements the port, and the composition root (`apps/cli`, `apps/server`) passes it in. Handlers never import adapters, and their ports carry domain values only: no prompt text, JSON, or digest crosses them.
+**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, metric definitions, the run lifecycle) is in the handler, so a backend carries only primitives: a model call that takes text and returns text, or one store statement that takes typed values. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
 
 ```purescript
-type ModelPort =                                   -- Handlers.Llm
-  { model     :: String
-  , interpret :: JointRequest -> Aff JointReply    -- JointReply = Either String (Array ProposedDeal)
-  , narrate   :: NarrateRequest -> Aff NarrateReply
-  , speak     :: SpeakRequest -> Aff SpeakReply }
+type Call = String -> String -> Aff { text :: String, raw :: String }  -- Handlers.Llm: system prompt and payload in, reply text out
+type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
+type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendRound -> Effect Unit, readRounds :: String -> Effect (Array StoredRound), ... }  -- Handlers.Store: one primitive per STORE operation, and the round write
 ```
 
-`Adapters.Llm.pi` implements it in production (prompts, the JSON wire format, the `pi` process, and evidence); `Adapters.Llm.stub` answers canned typed replies in tests. `Adapters.Recording.recordingPort` wraps any model port and keeps each typed call with its reply; `replayPort` answers from that recording and never calls a model. `Handlers.Store` takes a `StorePort` of typed values (`Adapters.Store.sqlitePort`).
+`Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Store.sqliteBackend` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `capstone/transcript.json`; neither is production code.
 
-**Run Store** (`handlers/Store`, over `adapters/Store`). Writes go through `createRun`, the per-round persister (a `RECORD` target), `finish`, and the port's `failRun`, `setSpec`, `setArchived`, and `deleteRun`; `failStaleRuns` is an adapter call at startup. Round records and snapshots are insert-only. Reads go through `reader :: StorePort -> RunStoreRead`:
+**Run Store** (`effects/Signatures` `STORE`, `handlers/Store`, `adapters/Store`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
 
 ```purescript
-type RunStoreRead =
-  { runs      :: Effect (Array RunInfo)
-  , summaries :: Effect (Array RunSummary)  -- run list: no records or snapshots
-  , manifest  :: String -> Effect (Maybe { spec :: Stored Spec, manifest :: Stored Manifest })
-  , rounds    :: String -> Effect (Array StoredRound)  -- record, snapshot, assertions, transcripts: typed
-  , metric    :: String -> String -> String -> Effect (Array { round :: Int, value :: String }) }  -- run, metric, version
+data StoreF a = CreateRun NewRun (Unit -> a) | FailRunning String (Int -> a) | ... | ListRuns (Array RunInfo -> a) | ReadRounds String (Array StoredRound -> a) | ...
 ```
 
-The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+The startup policy (a run still `running` when the server starts is failed with reason `interrupted`) is `Server.Launch.failInterrupted`; the adapter supplies only the SQL. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`analysis/Views/*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 
@@ -182,9 +181,9 @@ Each format's codec lives in the package that owns its type.
 
 - `core` imports no effect library and no IO. Its JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type, because PureScript forbids orphan instances. The engine never calls them.
 - Policies never touch World State. They receive a `View` and return Proposals and signatures.
-- Handlers translate effects only, through ports. Economic rules live only in `core`. I/O lives only in `adapters`.
+- Handlers interpret operations over typed backends. Economic rules live only in `core`. Raw I/O primitives live only in `adapters`.
 - Views are computed in `analysis/Views/*`. The dashboard holds no business logic.
-- Replacing an adapter (the SQLite store, the LLM provider) changes nothing in `core`, `board`, `policy`, `effects`, or `handlers`: the new adapter implements the same port.
+- Replacing an adapter (the SQLite store, the LLM provider) changes nothing in `core`, `board`, `policy`, `effects`, or `handlers`: the new adapter implements the same primitives.
 - Scenarios change by editing data. Needing new engine code for a scenario is a design finding to resolve in `core` ([05 §1](05_test_instance.md#1-purpose)).
 - Per-round assertions are pure predicates in `core/Invariants` (`check`), shared by the tests, the simulator, and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 

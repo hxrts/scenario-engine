@@ -28,8 +28,9 @@ import Foreign.Object as Object
 import Test.Handlers.Run (runTest)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
+import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
-import Handlers.Store (AppendRound, StorePort, metricsVersion, recorder)
+import Handlers.Store (AppendRound, StoreBackend, metricsVersion, recorder)
 import Policy.Program (Program, decodeProgram)
 import Adapters.Scenarios (readScenario, readText)
 import Scenarios.Load (load, loadPresets)
@@ -72,29 +73,31 @@ seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP"
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
--- | A store port that keeps the appended rounds in memory; the other operations answer nothing.
-memoryStore :: Ref.Ref (Array AppendRound) -> StorePort
+-- | A store backend that keeps the appended rounds in memory; the other operations answer nothing.
+memoryStore :: Ref.Ref (Array AppendRound) -> StoreBackend
 memoryStore saved =
   { createRun: \_ -> pure unit
   , appendRound: \r -> Ref.modify_ (_ <> [ r ]) saved
   , setStatus: \_ _ -> pure unit
   , failRun: \_ _ -> pure unit
+  , failRunning: \_ -> pure 0
   , setSpec: \_ _ -> pure unit
   , setArchived: \_ _ -> pure unit
   , deleteRun: \_ -> pure 0
-  , runs: pure []
-  , summaries: pure []
-  , manifest: \_ -> pure Nothing
-  , rounds: \_ -> pure []
-  , metric: \_ _ _ -> pure []
+  , listRuns: pure []
+  , listSummaries: pure []
+  , readManifest: \_ -> pure Nothing
+  , readRounds: \_ -> pure []
+  , readMetric: \_ _ _ -> pure []
   }
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  LlmTests.spec
   Live.spec
   CapstoneTests.spec
-  describe "Recorder (RECORD over a store port, no database)" do
-    it "hands each round to the port with its transcripts and its metrics" do
+  describe "Recorder (RECORD over a store backend, no database)" do
+    it "hands each round to the backend with its transcripts and its metrics" do
       g <- setup
       records <- play g 2 Map.empty
       saved <- liftEffect (Ref.new [])

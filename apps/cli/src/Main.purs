@@ -7,7 +7,7 @@ module Main (main) where
 
 import Prelude
 
-import Adapters.Llm (defaultModel)
+import Adapters.Pi (defaultModel)
 import Adapters.Seed (resolveSeed)
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed(..))

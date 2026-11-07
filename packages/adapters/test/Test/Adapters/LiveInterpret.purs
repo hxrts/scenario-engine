@@ -8,7 +8,7 @@ module Test.Adapters.LiveInterpret (main) where
 
 import Prelude
 
-import Adapters.Llm (defaultModel, pi)
+import Adapters.Pi (defaultModel, pi)
 import Adapters.Scenarios (readScenario)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
@@ -51,7 +51,7 @@ world = do
 check :: Aff Unit
 check = do
   w <- world
-  let backend = pi { model: defaultModel, rawDir: "work/live-interpret", evidence: const (pure unit) }
+  let backend = { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, evidence: const (pure unit), exchange: const (pure unit) }
   out <- interpreter backend w (Interpret 1 transcripts identity)
   js <- case out of
     Right js -> pure js

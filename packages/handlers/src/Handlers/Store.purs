@@ -1,29 +1,18 @@
--- | The Run Store handler (docs/06_simulator.md §8): the RECORD target that saves each round as it
--- | completes, the reader the server and dashboard read through, and the run writes the server and
--- | the CLI make. Everything reaches the database through a `StorePort`, a record of effectful store
--- | operations that the adapter implements over SQLite (`Adapters.Store.sqlitePort`). The port
--- | carries typed values only: the adapter does the JSON encoding and decoding. A stored value that
--- | does not read back is a `Left` in its field, with the reason, so one bad row never hides others.
--- | The round's metrics are decided here. Runs are append-only; the schema is versioned by the adapter.
+-- | The Run Store handler (docs/06_simulator.md §8): interprets the `STORE` operations (`Effects.Store`)
+-- | and the `RECORD` operation, which saves each round as it completes with its transcripts and its
+-- | metrics. The handler does the logic: the metric definitions, the round's assertions, and the run
+-- | lifecycle (`finish`). The backend is the set of raw store primitives an adapter implements
+-- | (`Adapters.Store.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
+-- | append-only, and the metric version is recorded with each value.
 module Handlers.Store
-  ( StorePort
-  , Stored
-  , Spec
-  , NewRun
+  ( StoreBackend
   , AppendRound
   , Metric
-  , RunInfo
-  , RunSummary
-  , StoredRound
-  , StoredManifest
-  , MetricRow
-  , RunStoreRead
   , metricsVersion
-  , reader
-  , persister
-  , recorder
-  , createRun
+  , runStore
   , finish
+  , recorder
+  , persister
   ) where
 
 import Prelude
@@ -31,60 +20,21 @@ import Prelude
 import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (Failure, check)
 import Core.Market (marginal)
-import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
+import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Either (Either, either)
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Ref as Ref
-import Effects.Signatures (Transcript)
-import Foreign.Object (Object)
-
--- | A value as stored: the value, or why the stored text does not read back.
-type Stored a = Either String a
-
--- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
--- | the overrides, and the source it was derived from). Each producer writes its own fields.
-type Spec = Object String
-
--- | A run's row for the run list: its status, and why it failed if it did.
-type RunInfo = { id :: String, name :: String, status :: String, created :: String, reason :: Maybe String }
-
--- | A run's list row: its stored manifest and specification, and the assertion sets of its rounds.
--- | No records or snapshots. `source` is the run it was derived from, if any.
-type RunSummary =
-  { id :: String
-  , name :: String
-  , status :: String
-  , created :: String
-  , reason :: Maybe String
-  , spec :: Stored Spec
-  , manifest :: Stored Manifest
-  , archived :: Boolean
-  , source :: Maybe String
-  , assertions :: Array (Stored (Array Failure))
-  }
-
--- | One stored round: its record, snapshot, assertions, and the seat transcripts read for it.
-type StoredRound =
-  { round :: Int
-  , record :: Stored RoundRecord
-  , snapshot :: Stored WorldState
-  , assertions :: Stored (Array Failure)
-  , transcripts :: Stored (Array Transcript)
-  }
-
-type StoredManifest = { spec :: Stored Spec, manifest :: Stored Manifest }
-
--- | One point of a versioned metric series: the round's value, as text.
-type MetricRow = { round :: Int, value :: String }
+import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, Transcript)
+import Effects.Store (failRun, setStatus)
+import Run (Run, case_, on, run)
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 -- | A versioned metric of a round: its name, the version of its definition, and its value.
 type Metric = { metric :: String, version :: String, value :: String }
-
--- | A run registered before Round 1. `source` and `kind` are set for a run derived from another.
-type NewRun = { id :: String, name :: String, created :: String, spec :: Spec, manifest :: Manifest, source :: Maybe String, kind :: Maybe String }
 
 -- | One round's save: its record, snapshot, assertions, transcripts, and metrics.
 type AppendRound =
@@ -97,62 +47,64 @@ type AppendRound =
   , metrics :: Array Metric
   }
 
--- | The run-store operations, implemented by an adapter. Writes are one transaction each.
-type StorePort =
+-- | The raw store primitives, one per operation, implemented by an adapter over SQLite. Writes are
+-- | one transaction each. Reads return what the store holds, decoded field by field.
+type StoreBackend =
   { createRun :: NewRun -> Effect Unit
   , appendRound :: AppendRound -> Effect Unit
   , setStatus :: String -> String -> Effect Unit
   , failRun :: String -> String -> Effect Unit
+  , failRunning :: String -> Effect Int
   , setSpec :: String -> Spec -> Effect Unit
   , setArchived :: String -> Boolean -> Effect Unit
   , deleteRun :: String -> Effect Int
-  , runs :: Effect (Array RunInfo)
-  , summaries :: Effect (Array RunSummary)
-  , manifest :: String -> Effect (Maybe StoredManifest)
-  , rounds :: String -> Effect (Array StoredRound)
-  , metric :: String -> String -> String -> Effect (Array MetricRow)
-  }
-
--- | The read side of the port: what the server and dashboard read.
-type RunStoreRead =
-  { runs :: Effect (Array RunInfo)
-  , summaries :: Effect (Array RunSummary)
-  , manifest :: String -> Effect (Maybe StoredManifest)
-  , rounds :: String -> Effect (Array StoredRound)
-  , metric :: String -> String -> String -> Effect (Array MetricRow)
+  , listRuns :: Effect (Array RunInfo)
+  , listSummaries :: Effect (Array RunSummary)
+  , readManifest :: String -> Effect (Maybe StoredManifest)
+  , readRounds :: String -> Effect (Array StoredRound)
+  , readMetric :: String -> String -> String -> Effect (Array MetricRow)
   }
 
 -- | The version of the metric definitions; recomputing a projection never edits records.
 metricsVersion :: String
 metricsVersion = "v1"
 
-reader :: StorePort -> RunStoreRead
-reader p =
-  { runs: p.runs
-  , summaries: p.summaries
-  , manifest: p.manifest
-  , rounds: p.rounds
-  , metric: p.metric
-  }
+interpretStore :: StoreBackend -> StoreF ~> Effect
+interpretStore b = case _ of
+  CreateRun n k -> k <$> b.createRun n
+  SetStatus id s k -> k <$> b.setStatus id s
+  FailRun id reason k -> k <$> b.failRun id reason
+  FailRunning reason k -> k <$> b.failRunning reason
+  SetSpec id spec k -> k <$> b.setSpec id spec
+  SetArchived id archived k -> k <$> b.setArchived id archived
+  DeleteRun id k -> k <$> b.deleteRun id
+  ListRuns k -> k <$> b.listRuns
+  ListSummaries k -> k <$> b.listSummaries
+  ReadManifest id k -> k <$> b.readManifest id
+  ReadRounds id k -> k <$> b.readRounds id
+  ReadMetric id metric version k -> k <$> b.readMetric id metric version
 
--- | Register a run and its manifest before Round 1. `source` and `kind` are set for a run derived
--- | from another (docs/06_simulator.md §10.4); both are Nothing for a run launched directly.
-createRun :: StorePort -> { id :: String, name :: String, created :: String, spec :: Spec, manifest :: Manifest, source :: Maybe String, kind :: Maybe String } -> Effect Unit
-createRun p r = p.createRun { id: r.id, name: r.name, created: r.created, spec: r.spec, manifest: r.manifest, source: r.source, kind: r.kind }
+-- | Run a store program over a backend.
+runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a
+runStore b = run (case_ # on (Proxy :: _ "store") (interpretStore b))
+
+-- | Mark a finished run completed, or failed with the error as its reason.
+finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
+finish id = either (failRun id <<< show) (const (setStatus id "completed"))
 
 -- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
-persister :: StorePort -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
-persister p id initial = do
-  save <- recorder p id initial
+persister :: StoreBackend -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
+persister b id initial = do
+  save <- recorder b id initial
   pure \r -> save r []
 
 -- | A RECORD target that also stores the round's transcripts, in the same write as the round.
-recorder :: StorePort -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
-recorder p id initial = do
+recorder :: StoreBackend -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
+recorder b id initial = do
   previous <- Ref.new initial
   pure \r transcripts -> do
     before <- Ref.read previous
-    p.appendRound
+    b.appendRound
       { run: id
       , round: r.record.round
       , record: r.record
@@ -167,7 +119,3 @@ recorder p id initial = do
 metrics :: RoundResult -> Array Metric
 metrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: show (marginal m.cost m.position) })
   (Map.toUnfoldable r.world.markets)
-
--- | Mark a finished run completed, or failed with the error as its reason.
-finish :: forall e a. Show e => StorePort -> String -> Either e a -> Effect Unit
-finish p id out = either (p.failRun id <<< show) (const (p.setStatus id "completed")) out

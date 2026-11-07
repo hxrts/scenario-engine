@@ -1,10 +1,6 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-// A short digest of a prompt template or payload: evidence (Adapters.Llm) and the raw file names.
-export const sha256 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 // A file name unique per call: clock, process and a counter. Raw logs are evidence, not randomness.
 let callNo = 0;
@@ -27,7 +23,7 @@ export const piImpl = (model) => (rawDir) => (system) => (input) => (onError, on
     let path;
     try {
       mkdirSync(rawDir, { recursive: true });
-      path = join(rawDir, `${sha256(system + input)}-${Date.now()}-${process.pid}-${++callNo}.jsonl`);
+      path = join(rawDir, `${Date.now()}-${process.pid}-${++callNo}.jsonl`);
       writeFileSync(path, raw);
     } catch (err) {
       return fail(err);
