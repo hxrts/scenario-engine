@@ -238,24 +238,80 @@ test("sorting by a column does not move the header: its width is the same before
   expect((await header.boundingBox()).width).toBeCloseTo(before.width, 0);
 });
 
-test("the launch form on Prepare offers the known presets, and rejects a bad player seed without a request", async ({ page }) => {
+// The launch form's section on Prepare.
+const launchForm = (page) => page.locator("section").filter({ hasText: "Launch a run" }).first();
+
+test("the launch form on Prepare offers the known presets and the scenario's rounds, and rejects a bad player seed without a request", async ({ page }) => {
   let posts = 0;
   await page.route("**/api/runs", (route) => {
     if (route.request().method() === "POST") posts += 1;
     return route.continue();
   });
   await page.goto("/#/prepare");
-  const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
+  const launch = launchForm(page);
   await expect(launch.getByLabel("Preset")).toHaveValue("Conservative");
   await expect(launch.getByLabel("Preset").locator("option")).toHaveText(PRESETS);
+  await expect(launch.getByLabel("Rounds")).toHaveValue("5");
+  await expect(launch.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
+  await expect(launch.getByLabel("Scenario").locator("option")).toHaveText(["fractured-world@v0"]);
+  await expect(launch.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
   await launch.getByLabel("Player seed").fill("x");
   await launch.getByRole("button", { name: "Run", exact: true }).click();
   await expect(launch.getByText("Player seed must be a whole number.")).toBeVisible();
-  await launch.getByLabel("Player seed").fill("1");
-  await launch.getByLabel("Rounds").fill("0");
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(launch.getByText("Rounds must be a whole number of at least 1")).toBeVisible();
   expect(posts).toBe(0);
+});
+
+test("Run with no edits launches the default run: Conservative, the scenario's rounds and a drawn seed", async ({ page, request }) => {
+  let body = null;
+  await page.route("**/api/runs", (route) => {
+    if (route.request().method() === "POST") body = route.request().postDataJSON();
+    return route.continue();
+  });
+  await page.goto("/#/prepare");
+  const launch = launchForm(page);
+  // the name shows the next run id as its default, and the summary says what Run will play
+  await expect(launch.getByLabel("Name")).toHaveValue(/^run-\d+$/);
+  const name = await launch.getByLabel("Name").inputValue();
+  await expect(launch.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
+  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
+  const id = new URL(page.url()).hash.split("/").pop();
+  // the request leaves the seed and the rounds to the server, and the name is the default
+  expect(body).toEqual({ name, preset: "Conservative", playerSeed: null, rounds: null });
+  // the run is in the list with the scenario's rounds and a seed, and its overview names the preset
+  const row = rowWith(page, [id]);
+  await expect(row.getByRole("cell").nth(5)).toHaveText("5");
+  await expect(row.getByRole("cell").nth(4)).toHaveText(/^\d+$/);
+  const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
+  expect(overview.rows).toContainEqual(["Preset", "Conservative"]);
+});
+
+test("a non-default preset and round count are sent, and the run plays them", async ({ page, request }) => {
+  let body = null;
+  await page.route("**/api/runs", (route) => {
+    if (route.request().method() === "POST") body = route.request().postDataJSON();
+    return route.continue();
+  });
+  await page.goto("/#/prepare");
+  const launch = launchForm(page);
+  await launch.getByLabel("Preset").selectOption("Trader");
+  await launch.getByLabel("Rounds").selectOption("6");
+  await expect(launch.getByText("This run: Trader, 6 rounds, seed drawn at launch.")).toBeVisible();
+  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
+  const id = new URL(page.url()).hash.split("/").pop();
+  expect(body).toMatchObject({ preset: "Trader", playerSeed: null, rounds: 6 });
+  await expect(rowWith(page, [id]).getByRole("cell").nth(5)).toHaveText("6");
+  const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
+  expect(overview.rows).toContainEqual(["Preset", "Trader"]);
+});
+
+test("the Scenario and Game seed are shown read-only, with the scenario's seed as the default", async ({ page }) => {
+  await page.goto("/#/prepare");
+  const launch = launchForm(page);
+  await expect(launch.getByText("Game seed", { exact: true })).toBeVisible();
+  await expect(launch.getByText("26021", { exact: true })).toBeVisible();
+  await expect(launch.getByLabel("Game seed")).toHaveCount(0);
 });
 
 test("a rejected launch shows the server's message on Prepare and stays there", async ({ page }) => {
@@ -270,25 +326,24 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
   await expect(page).toHaveURL(/#\/prepare$/);
 });
 
-test("the launch form marks its required fields, says what is optional, and names a blank required field", async ({ page }) => {
+test("the launch form marks its required fields, and states the default of each optional one", async ({ page }) => {
   await page.goto("/#/prepare");
-  const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
-  await expect(launch.locator("label", { hasText: "Name" })).toContainText("required");
+  const launch = launchForm(page);
   await expect(launch.locator("label", { hasText: "Preset" })).toContainText("required");
+  await expect(launch.locator("label", { hasText: "Scenario" })).toContainText("required");
+  await expect(launch.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
   await expect(launch.locator("label", { hasText: "Player seed" })).toContainText("optional");
-  await expect(launch.locator("label", { hasText: "Rounds" })).toContainText("optional");
-  await expect(launch.getByText("Required: Name and Preset.")).toBeVisible();
-  await launch.getByLabel("Name").fill("");
-  await launch.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(launch.getByText("Name is required.")).toBeVisible();
+  await expect(launch.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
+  await expect(launch.locator("label", { hasText: "Game seed" })).toHaveCount(0);
+  await expect(launch.getByText("Required: Preset and Scenario.")).toBeVisible();
 });
 
 test("a launch opens the new run's page", async ({ page }) => {
   await page.goto("/#/prepare");
-  const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
+  const launch = launchForm(page);
   await launch.getByLabel("Preset").selectOption("Trader");
   await launch.getByLabel("Player seed").fill("9");
-  await launch.getByLabel("Rounds").fill("2");
+  await launch.getByLabel("Rounds").selectOption("6");
   await launch.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   await expect(page.getByRole("heading", { name: /^Run run-\d+$/ })).toBeVisible();
@@ -298,7 +353,10 @@ test("the run list is sortable by a column", async ({ page }) => {
   await page.goto("/#/runs");
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
-  await expect(page.getByRole("row").nth(1)).toContainText("9");
+  // the seeds of the runs in this shared store vary (launches draw seeds), so the check is the order, not a value
+  const seeds = (await page.locator("tbody tr td:nth-child(5)").allTextContents()).map(Number);
+  expect(seeds.length).toBeGreaterThan(1);
+  expect(seeds).toEqual([...seeds].sort((a, b) => b - a));
 });
 
 test("the run list has a column set the page uses (no Created column is shown until the server sends one)", async ({ page }) => {

@@ -9,6 +9,8 @@ module Server.Launch
   , start
   , presetSpec
   , seats
+  , Scenario
+  , scenarioInfo
   ) where
 
 import Prelude
@@ -99,6 +101,18 @@ nextRunId db = do
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure (toMaybe r.source)) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
+
+-- | `GET /api/scenario`: the scenario the launch form runs. Its supported round counts (`min`, `max`)
+-- | and the round count a launch without `rounds` plays (`default`); the game seed the scenario fixes.
+type Scenario = { name :: String, version :: String, rounds :: { min :: Int, max :: Int, default :: Int }, gameSeed :: Int }
+
+scenarioInfo :: Context -> Scenario
+scenarioInfo ctx =
+  { name: ctx.gameboard.id
+  , version: ctx.gameboard.version
+  , rounds: { min: ctx.gameboard.rounds.min, max: ctx.gameboard.rounds.max, default: ctx.config.rounds }
+  , gameSeed: unwrap ctx.config.seed
+  }
 
 -- | The scenario's seats, as configured.
 seats :: Context -> Array EntityId

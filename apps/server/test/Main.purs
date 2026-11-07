@@ -151,6 +151,21 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "fractured-world/fractured-world-test-01")
         Left e -> fail e
+    it "the scenario is served with its round range, default round count and game seed; the overview names the preset" do
+      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+        Right ctx -> do
+          db <- liftEffect (open ":memory:")
+          let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          scen <- api "GET" "/api/scenario" [] ""
+          scen.status `shouldEqual` 200
+          scen.body `shouldSatisfy` contains (Pattern "\"default\":5")
+          scen.body `shouldSatisfy` contains (Pattern "\"min\":4")
+          scen.body `shouldSatisfy` contains (Pattern "\"max\":8")
+          scen.body `shouldSatisfy` contains (Pattern "\"gameSeed\":26021")
+          _ <- api "POST" "/api/runs" [] "{\"name\":\"p\",\"preset\":\"Conservative\",\"playerSeed\":null,\"rounds\":null}"
+          overview <- api "GET" "/api/runs/run-1/overview" [] ""
+          overview.body `shouldSatisfy` contains (Pattern "[\"Preset\",\"Conservative\"]")
+        Left e -> fail e
     it "the run list has archived and source columns after the existing ones" do
       liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
         Right ctx -> do
