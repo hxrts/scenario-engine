@@ -87,7 +87,9 @@ type Key = { effect :: String, round :: Int, seats :: Array String }
 keyOfPayload :: String -> Either String Key
 keyOfPayload input = do
   j <- jsonParser input
-  o <- note "the payload is not an object" (toObject j)
+  o0 <- note "the payload is not an object" (toObject j)
+  -- a joint pass correction carries the original request under `request` (Handlers.Llm.joint)
+  let o = fromMaybe o0 (Object.lookup "request" o0 >>= toObject)
   round <- note "the payload has no round" (Object.lookup "round" o >>= toNumber >>= Int.fromNumber)
   case Object.lookup "transcripts" o, Object.lookup "actor" o of
     Just ts, _ -> do

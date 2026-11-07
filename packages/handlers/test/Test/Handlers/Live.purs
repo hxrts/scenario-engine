@@ -125,7 +125,7 @@ spec = do
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` false
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
 
-    it "an undecodable joint reply: the front page is the plain listing, and only the joint pass calls the model" do
+    it "an undecodable joint reply: the front page is the plain listing, and only the joint pass calls the model (its first call and two corrections)" do
       g <- setup
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
@@ -134,7 +134,7 @@ spec = do
       map listing out.records `shouldEqual` out.narration
       map (contains (Pattern "Round 1:")) out.narration `shouldEqual` [ true ]
       calls <- liftEffect (Ref.read counter)
-      calls `shouldEqual` 1
+      calls `shouldEqual` 3
 
     it "an unknown market in a joint reply is a rejected Proposal; the round's other Proposals still execute" do
       g <- setup

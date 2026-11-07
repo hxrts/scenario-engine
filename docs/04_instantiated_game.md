@@ -234,6 +234,7 @@ Events record executed quantities, so a partial fill appears as a smaller `Trade
 ### 11.2 Live session
 
 - **Human players.** One audio submission per player per round, then no further input. Transcription and joint interpretation run once per round over all submissions. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, and the player is told why ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
+- **Joint pass corrections.** A joint-pass reply that does not decode is sent back with the same system prompt, the original request, the previous reply, and the decode error, and the model is asked for a corrected reply. At most two corrections follow the first call, so a joint pass makes at most three calls. If the last reply still does not decode, the joint pass yields no Proposals, the speakers are told, and the round proceeds ([Handlers.Llm](../packages/handlers/src/Handlers/Llm.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they get no confirmation.
 - **Strategy seats** play their bound strategy.
 

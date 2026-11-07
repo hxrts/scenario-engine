@@ -19,19 +19,21 @@ module Handlers.Llm
 
 import Prelude
 
-import Core.Proposal (jointProposals, proposedDealShape)
+import Core.Proposal (ProposedDeal, jointProposals, proposedDealShape)
 import Core.Shape (Format(..), Shape, arrayOf, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
-import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Core (Json, fromObject, fromString, stringify)
 import Data.Array (fromFoldable, null)
-import Data.Either (Either, either)
+import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.String (joinWith)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
+import Foreign.Object as Object
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
@@ -52,33 +54,60 @@ type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect U
 -- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
 type Key = { round :: Int, seats :: Array String }
 
+-- | The joint pass makes at most this many corrections after its first call (docs/04 §11).
+maxCorrections :: Int
+maxCorrections = 2
+
 seatText :: EntityId -> String
 seatText (Id s) = s
 
--- | One call: the payload is encoded through its shape, the prompt and the payload go to the backend,
--- | the reply decodes, and the call's evidence and typed exchange are kept. A failed call is not kept.
-ask :: forall p a. Backend -> String -> Key -> String -> Shape p -> p -> Shape a -> (String -> Either String a) -> Aff (Either String a)
-ask b effect key template requestShape payload replyShape decode = do
-  let
-    request = encodeWith Snapshot requestShape payload
-    input = stringify request
+-- | One call with its payload already encoded: the payload goes to the backend, the reply decodes,
+-- | and the call's evidence and typed exchange are kept. A failed call is not kept.
+send :: forall a. Backend -> String -> Key -> String -> Json -> Shape a -> (String -> Either String a) -> Aff { text :: String, decoded :: Either String a }
+send b effect key template request replyShape decode = do
+  let input = stringify request
   out <- b.call template input
   let decoded = decode out.text
   liftEffect do
     b.evidence { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
     b.exchange { effect, round: key.round, seats: key.seats, request, reply: encodeReply replyShape decoded }
-  pure decoded
+  pure { text: out.text, decoded }
 
--- | The round's transcripts to Proposals, one joint call. A reply that does not decode is a
--- | `Left` (the caller tells the speakers and submits nothing). Entries the engine could not use
--- | are dropped by the joint pass rule (`Core.Proposal.jointProposals`).
+-- | One call: the payload is encoded through its shape, and the reply decodes.
+ask :: forall p a. Backend -> String -> Key -> String -> Shape p -> p -> Shape a -> (String -> Either String a) -> Aff (Either String a)
+ask b effect key template requestShape payload replyShape decode =
+  _.decoded <$> send b effect key template (encodeWith Snapshot requestShape payload) replyShape decode
+
+-- | A correction's payload: the original request, the previous reply's text, and the decode error as
+-- | the decoder reports it. The system prompt is the same as the first call's.
+correction :: Json -> String -> String -> Json
+correction request previous err = fromObject (Object.fromFoldable [ Tuple "request" request, Tuple "previous_reply" (fromString previous), Tuple "error" (fromString err) ])
+
+-- | The joint pass: one call, then up to `maxCorrections` corrections while the reply does not decode.
+-- | The first reply that decodes is the result. If the last correction does not decode either, the
+-- | result is that decode error (the caller tells the speakers and submits nothing).
+joint :: Backend -> Key -> JointRequest -> Aff (Either String (Array ProposedDeal))
+joint b key request = go 0 original
+  where
+  original = encodeWith Snapshot jointRequestShape request
+  go n payload = do
+    out <- send b "interpret" key interpretPrompt payload (arrayOf proposedDealShape) decodeJoint
+    case out.decoded of
+      Right ps -> pure (Right ps)
+      Left err
+        | n < maxCorrections -> go (n + 1) (correction original out.text err)
+        | otherwise -> pure (Left err)
+
+-- | The round's transcripts to Proposals, one joint pass (`joint`). A reply that still does not
+-- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
+-- | Entries the engine could not use are dropped by the joint pass rule (`Core.Proposal.jointProposals`).
 interpreter :: Backend -> WorldState -> InterpretF ~> Aff
 interpreter b w (Interpret round transcripts k) = k <$> do
   let
     request :: JointRequest
     request = { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets w }
     key = { round, seats: map (\t -> seatText t.seat) transcripts }
-  r <- ask b "interpret" key interpretPrompt jointRequestShape request (arrayOf proposedDealShape) decodeJoint
+  r <- joint b key request
   pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
 
 markets :: WorldState -> Array MarketId

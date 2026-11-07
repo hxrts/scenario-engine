@@ -11,9 +11,10 @@ import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposalBodyShape
 import Core.Engine.Prepare (observe)
 import Core.Types (Id(..), intentShape)
 import Core.World (RoundResult)
-import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Core (stringify, toObject, toString)
+import Data.Argonaut.Parser (jsonParser)
 import Data.Array (length)
-import Data.Either (Either(..), either, isLeft)
+import Data.Either (Either(..), either, hush, isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
@@ -33,6 +34,7 @@ import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replay
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), encodeWith, prose)
+import Foreign.Object as Object
 
 setup :: Aff Game
 setup = meridian
@@ -56,6 +58,13 @@ single = case _ of
   Right [ j ] -> pure j
   Right js -> fail ("expected one Proposal, got " <> show (length js)) *> throwError (error "single")
   Left why -> fail ("the reply should decode: " <> why) *> throwError (error "single")
+
+-- | A string field of a JSON object payload, read back from its text.
+stringField :: String -> String -> Maybe String
+stringField key text = do
+  json <- hush (jsonParser text)
+  o <- toObject json
+  Object.lookup key o >>= toString
 
 -- | One round with no seat strategies: its record is what the front page is written from.
 oneRound :: Game -> Aff RoundResult
@@ -125,6 +134,42 @@ spec = do
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
 
+    it "a joint reply that does not decode is corrected: the second call carries the request, the previous reply and the decode error, and its valid reply is the result" do
+      g <- setup
+      calls <- liftEffect (Ref.new [])
+      let
+        backend = backendOf \system input -> do
+          liftEffect (Ref.modify_ (_ <> [ { system, input } ]) calls)
+          n <- liftEffect (Ref.read calls)
+          pure { text: if length n == 1 then "not json" else replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ], raw: "" }
+      j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
+      j.signed `shouldEqual` [ Id "US", Id "DE" ]
+      seen <- liftEffect (Ref.read calls)
+      map _.system seen `shouldEqual` [ interpretPrompt, interpretPrompt ]
+      case decodeJoint "not json" of
+        Left err -> case map _.input seen of
+          [ _, second ] -> do
+            stringField "error" second `shouldEqual` Just err
+            stringField "previous_reply" second `shouldEqual` Just "not json"
+            contains (Pattern "\"request\"") second `shouldEqual` true
+          _ -> fail "the joint pass should make exactly two calls"
+        Right _ -> fail "a reply of plain text should not decode"
+
+    it "a joint reply that still does not decode after two corrections is three calls, then a Left" do
+      g <- setup
+      counter <- liftEffect (Ref.new 0)
+      out <- jointWith g (answering counter (\_ _ -> "not json")) [ tr "US" "buy ten energy" ]
+      isLeft out `shouldEqual` true
+      calls <- liftEffect (Ref.read counter)
+      calls `shouldEqual` 3
+
+    it "a valid first reply makes exactly one call, with no correction" do
+      g <- setup
+      counter <- liftEffect (Ref.new 0)
+      _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ])) [ tr "US" "I sell DE ten energy" ]
+      calls <- liftEffect (Ref.read counter)
+      calls `shouldEqual` 1
+
     it "an author who did not speak is dropped" do
       g <- setup
       backend <- answerWith (replyJoint [ dealOf (Id "SA") [ Id "DE" ] [ Id "SA" ] ])
@@ -167,14 +212,14 @@ spec = do
       map (\e -> { m: e.model, raw: e.raw, template: SCU.length e.template, input: SCU.length e.input }) evs
         `shouldEqual` [ { m: "fake/model", raw: "raw/1.jsonl", template: 16, input: 16 } ]
 
-    it "a reply that does not decode is a Left, and its evidence says so" do
+    it "a reply that does not decode is a Left, and each attempt's evidence says so" do
       g <- setup
       evidence <- liftEffect (Ref.new [])
       let backend = { model: "fake/model", call: \_ _ -> pure { text: "not json", raw: "" }, evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence, exchange: \_ -> pure unit }
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
       evs <- liftEffect (Ref.read evidence)
-      map (\e -> contains (Pattern "error: ") e.decoded) evs `shouldEqual` [ true ]
+      map (\e -> contains (Pattern "error: ") e.decoded) evs `shouldEqual` [ true, true, true ]
 
     it "a recorded exchange replays: the recording file reads back, and the replayed Proposal equals the live one" do
       g <- setup
