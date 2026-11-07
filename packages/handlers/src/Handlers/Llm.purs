@@ -13,7 +13,7 @@ module Handlers.Llm
   , Backend
   , interpreter
   , narrator
-  , agents
+  , speak
   , listing
   ) where
 
@@ -105,12 +105,10 @@ listing r = joinWith "\n" ([ "Round " <> show r.record.round <> ":" ] <> bullets
 
 -- | AI-agent seats: one short transcript per round, from the role briefing and the authorized View.
 -- | An undecodable reply is an empty transcript, so the seat submits nothing.
-agents :: Backend -> (EntityId -> String) -> { speak :: EntityId -> View -> Aff String }
-agents b briefing =
-  { speak: \e v -> do
-      let
-        request :: SpeakRequest
-        request = { actor: e, briefing: briefing e, view: v }
-        key = { round: v.round, seats: [ seatText e ] }
-      either (const "") identity <$> ask b "seat:speak" key speakPrompt speakRequestShape request stringShape decodeText
-  }
+speak :: Backend -> (EntityId -> String) -> EntityId -> View -> Aff String
+speak b briefing e v = do
+  let
+    request :: SpeakRequest
+    request = { actor: e, briefing: briefing e, view: v }
+    key = { round: v.round, seats: [ seatText e ] }
+  either (const "") identity <$> ask b "seat:speak" key speakPrompt speakRequestShape request stringShape decodeText

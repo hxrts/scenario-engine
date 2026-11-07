@@ -37,7 +37,7 @@ import Effects.Signatures (NarrateF(..))
 import Effects.Store (createRun, failRun, finish)
 import Foreign.Object as Object
 import Handlers.Live (runLive)
-import Handlers.Llm (agents, interpreter, narrator)
+import Handlers.Llm (interpreter, narrator, speak)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore)
 import Node.Process (exit')
@@ -85,7 +85,7 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.scenario <> "/v0")) 
             front <- narrator backend failed (Narrate r identity)
             liftEffect (report humans r front)
             pure front
-        , agents: agents backend briefing
+        , speak: speak backend briefing
         , record: \r transcripts -> liftEffect (save r transcripts)
         }
         game

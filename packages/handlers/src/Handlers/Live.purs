@@ -42,7 +42,7 @@ type Live =
   , notify :: EntityId -> String -> Aff Unit -- a message to the seat that needs no answer
   , interpret :: InterpretF ~> Aff -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
-  , agents :: { speak :: EntityId -> View -> Aff String }
+  , speak :: EntityId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
   , record :: RoundResult -> Array Transcript -> Aff Unit -- persist the round
   }
 
@@ -75,7 +75,7 @@ runLive live game = do
         text <- live.input (prompt e v.round ProposeDeadline)
         await closed v.round ProposeDeadline
         pure text
-      Just Agent -> live.agents.speak e v
+      Just Agent -> live.speak e v
       _ -> pure ""
     Propose e v k -> k <$> case binding e of
       Just Human -> pure []

@@ -74,10 +74,11 @@ packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Han
 packages/policy:     Policy.Interpret, Policy.InWorld, Policy.Strategy
 packages/premises:   Premises.Capstone, Premises.Fixtures, Premises.Fixtures.Circulation, Premises.Fixtures.Common, Premises.Fixtures.ConflictingActions, Premises.Fixtures.GermanyEu, Premises.Fixtures.MarketExchange, Premises.Fixtures.NpcResponse, Premises.Fixtures.Reservation, Premises.Fixtures.SignedProposals, Premises.Fixtures.SmeRepresentation, Premises.Literal, Premises.Load, Premises.Meridian, Premises.Meridian.Entities, Premises.Meridian.Entities.Aggregates, Premises.Meridian.Entities.Capabilities, Premises.Meridian.Entities.Seats, Premises.Meridian.Holdings, Premises.Meridian.Parameters, Premises.Meridian.Policies, Premises.Names, Premises.Presets, Premises.Tree
 packages/schema:     Schema.Build.Base, Schema.Build.Decision, Schema.Build.Fixture, Schema.Build.Intent, Schema.Build.Quantity, Schema.Build.World, Schema.Decode.Common, Schema.Gameboard, Schema.Premise.Actor, Schema.Premise.Fixture, Schema.Premise.Gameboard, Schema.Premise.Intent, Schema.Premise.Strategy, Schema.Premise.World, Schema.Round
-packages/simulator:  Simulator.Options, Simulator.Records, Simulator.Simulate
+packages/simulator:  Simulator.Records, Simulator.Simulate
 packages/testkit:    Testkit.Capstone, Testkit.Fixture, Testkit.Meridian
 packages/views:      Views.Actions, Views.Agency, Views.Balance, Views.Balances, Views.Common, Views.Compare, Views.Difference, Views.Drivers, Views.Entity, Views.Glossary, Views.Markets, Views.Metrics, Views.Overview, Views.Representation, Views.Standings
 apps/cli:            Compile, Compile.Render, Main, Session, Transcript
+apps/flags:          Flags (shared by apps/cli and apps/server)
 apps/dashboard:      Dashboard.Api, Dashboard.Chart, Dashboard.Client, Dashboard.Components, Dashboard.DataTable, Dashboard.Entity, Dashboard.Glossary, Dashboard.Launch, Dashboard.Layout, Dashboard.Main, Dashboard.Palette, Dashboard.Results, Dashboard.Route, Dashboard.RunActions, Dashboard.RunForms, Dashboard.Runs, Dashboard.Theme, Dashboard.UI
 apps/server:         Http, Server, Server.Derive, Server.Errors, Server.Implementation, Server.Launch, Server.Read
 ```

@@ -126,6 +126,7 @@
             "sp-adapters",
             "sp-core",
             "sp-effects",
+            "sp-flags",
             "sp-game",
             "sp-handlers",
             "sp-premises",
@@ -301,6 +302,21 @@
             "spec",
             "spec-node"
           ]
+        }
+      },
+      "sp-flags": {
+        "path": "apps/flags",
+        "core": {
+          "dependencies": [
+            "arrays",
+            "either",
+            "foreign-object",
+            "maybe",
+            "prelude"
+          ]
+        },
+        "test": {
+          "dependencies": []
         }
       },
       "sp-game": {
@@ -514,6 +530,7 @@
             "sp-core",
             "sp-effects",
             "sp-experiments",
+            "sp-flags",
             "sp-game",
             "sp-handlers",
             "sp-premises",

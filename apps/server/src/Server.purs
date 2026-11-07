@@ -15,7 +15,7 @@ import Data.Maybe (Maybe(..))
 import Data.Int as Int
 import Effect (Effect)
 import Effect.Console (log)
-import Simulator.Options (flagOr, parseFlags)
+import Flags (flagOr, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')

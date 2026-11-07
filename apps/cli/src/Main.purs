@@ -25,7 +25,7 @@ import Effect.Console (log)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Assemble (assemblePreset)
-import Simulator.Options (flagOr, parseFlags)
+import Flags (flagOr, parseFlags)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)

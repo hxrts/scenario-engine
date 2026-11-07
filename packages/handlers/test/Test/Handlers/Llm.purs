@@ -24,7 +24,7 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
+import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplyShape, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Test.Handlers.Run (meridian, runTest)
@@ -235,8 +235,8 @@ spec = do
         Just de -> pure (observe g.world de)
         Nothing -> fail "Germany should be an Entity" *> throwError (error "entity")
       spoken <- answerWith (replyText "I will buy ten energy")
-      said <- (agents spoken (const "Secure energy.")).speak (Id "DE") view
+      said <- speak spoken (const "Secure energy.") (Id "DE") view
       said `shouldEqual` "I will buy ten energy"
       silent <- answerWith "not json"
-      none <- (agents silent (const "Secure energy.")).speak (Id "DE") view
+      none <- speak silent (const "Secure energy.") (Id "DE") view
       none `shouldEqual` ""

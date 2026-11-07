@@ -23,7 +23,7 @@ import Effect.Class (liftEffect)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (NarrateF(..))
-import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
+import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
 import Core.Proposal (ProposedDeal)
 import Handlers.Live (runLive)
@@ -81,7 +81,7 @@ liveWith g0 n seat input backend = do
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
-    , agents: agents backend (const "Secure energy at a fair price.")
+    , speak: speak backend (const "Secure energy at a fair price.")
     , narrate: \failed r -> do
         t <- narrator backend failed (Narrate r identity)
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)

@@ -1,0 +1,8 @@
+package:
+  name: sp-flags
+  dependencies:
+    - prelude
+    - arrays
+    - either
+    - foreign-object
+    - maybe

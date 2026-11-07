@@ -28,6 +28,8 @@ const allowed = {
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge (work/4.md §9)
   testkit: ["core", "schema", "premises", "game", "adapters", "simulator", "checks"],
+  // the flag parser both apps read their arguments with (no workspace dependency)
+  flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
 const pure = ["core", "schema", "board", "policy", "game", "checks", "views", "experiments"];
