@@ -74,7 +74,7 @@ metricChart c = D.div
   , children:
       [ D.p { className: "text-sm font-medium", children: [ D.text (c.title <> " (" <> c.unit <> ")") ] }
       , element UI.chartContainer
-          { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.series)
+          { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColor i }) c.series)
           , className: "h-96 w-full"
           , children:
               [ element UI.lineChart
@@ -85,7 +85,7 @@ metricChart c = D.div
                       , element UI.yAxis { domain: [ "auto", "auto" ] }
                       , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
                       , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                      ] <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", dot: false, isAnimationActive: false }) c.series
+                      ] <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
                   }
               ]
           }
@@ -101,7 +101,7 @@ stackedBars c = D.div
       [ D.p { className: "text-sm font-medium", children: [ D.text c.title ] }
       , D.p { className: "text-sm text-muted-foreground", children: [ D.text c.purpose ] }
       , element UI.chartContainer
-          { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.kinds)
+          { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: seriesColor i }) c.kinds)
           , className: "h-96 w-full"
           , children:
               [ element UI.barChart
@@ -147,3 +147,9 @@ fetched = component "Fetched" \p -> React.do
 -- | Dims content that is the previous selection while its replacement loads.
 stale :: Boolean -> JSX -> JSX
 stale busy child = if busy then D.div { className: "opacity-60 transition-opacity", children: [ child ] } else child
+
+-- | A distinct colour for the i-th series. The theme has five chart colours, which repeat across
+-- | a dozen players, so each series gets its own hue, spaced by the golden angle so neighbours
+-- | differ. Lightness and saturation are fixed so every hue reads on both themes.
+seriesColor :: Int -> String
+seriesColor i = "hsl(" <> show ((i * 137) `mod` 360) <> " 70% 58%)"
