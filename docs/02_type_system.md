@@ -789,6 +789,8 @@ A `DrawKey` names the draw's semantic purpose: round, Representation or Policy, 
 
 All quantities, prices, and settlement amounts use fixed-point arithmetic with **4 decimal places**, rounded **half-to-even** at each settlement step. Uniform batch prices are rounded before they are multiplied by quantities. No floating-point arithmetic enters economic state. Other specifications reference this rule and do not restate it.
 
+**Principle: storage is exact, display is shorter.** Storage, computation, JSON encodings, and the parse rules stay at four decimal places. Only what a person reads changes, and it changes through one display function per display kind, so no call site formats a number itself.
+
 The numeric rules below are implemented once, in `Core.Num` (`Q`). Every boundary imports that module; no other code parses, rounds, or formats an economic value.
 
 - **Representation.** A `Q` is an arbitrary-precision integer count of 10⁻⁴ units (`BigInt`). Addition, subtraction and negation are exact.
@@ -797,8 +799,15 @@ The numeric rules below are implemented once, in `Core.Num` (`Q`). Every boundar
 - **Overflow and underflow.** None. Arbitrary precision means no quantity saturates or wraps. A negative holding is an invariant violation (INV-04), not a numeric event.
 - **Division by zero.** Explicit. `div` fails loudly; a caller whose divisor can be zero uses `divMaybe` or `divFloor` and handles `Nothing`.
 - **Parse.** `Q.parse` is the only decimal parser: an optional sign, one or more digits, and optionally a point followed by one to four digits. Anything else, including a fifth decimal, is an error; no input is rounded silently. JSON decoding, the DSL's quantity literals, and any dashboard value read back all use it.
-- **Format.** `Q.format` is the only formatter: an optional `-`, the integer part, and exactly four decimals, with no grouping and no trailing-zero trimming. `show`, JSON encoding, the CLI, the harness views and the dashboard all reach it.
-- **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion to a float, for display only (chart axis scaling); its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.
+- **Format.** `Q.format` is the exact formatter: an optional `-`, the integer part, and exactly four decimals, with no grouping and no trailing-zero trimming. It is the text of `show`, of JSON encoding, of the overrides JSON, and of chart points (a plot keeps full precision). It is never shown as a display value.
+- **Display.** `Q.display` dispatches on a `Q.Kind`, and each kind has one function: `Q.displayQuantity`, `Q.displayPrice`, and `Q.displayRatio`. Every view, table, chart, and CLI line that shows a number names its kind and calls one of these; nothing else formats for display. All three round the exact value half-to-even at the display precision, with no float arithmetic:
+  - **Quantity** (Money and Resource counts): a whole number shows no decimals; otherwise at most two decimals, trailing zeros trimmed (`12`, `12.5`, `12.25`). A value that is not zero but would round to zero shows as `<0.01` (or `-<0.01`).
+  - **Price** (quote per base unit): two decimals, trailing zeros trimmed, under the same rule as Quantity.
+  - **Ratio** (Gini, influence, shrinkage, factors, support and threshold, tariff rates): always two decimals.
+  - Percentages: none are shown.
+  - Chart axis ticks are the one Number on the display path: `Q.displayTick` rounds a tick to the 0.0001 grid and displays it under the chart's kind. A tick label is never parsed back into a quantity.
+- **Which kind.** The dashboard, the CLI, and the Compare views use these kinds as [06 §9](06_simulator.md#9-pages) states.
+- **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion of a quantity to a float, for display only (chart plotting); its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.
 
 ## 10. Design Boundaries
 
