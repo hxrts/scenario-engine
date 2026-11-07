@@ -12,8 +12,6 @@ module Effects.Signatures
   , JointProposal
   , NARRATE
   , NarrateF(..)
-  , CLOCK
-  , ClockF(..)
   , Deadline(..)
   , STORE
   , StoreF(..)
@@ -48,8 +46,9 @@ derive instance Functor SeatInputF
 
 type SEAT_INPUT r = (seatInput :: SeatInputF | r)
 
--- | Append a round's result to the run's records.
-data RecordF a = Record RoundResult a
+-- | Append a round's result to the run's records, with the seat transcripts its joint pass read (none
+-- | when no seat spoke, and in simulation, where no seat speaks).
+data RecordF a = Record RoundResult (Array Transcript) a
 
 derive instance Functor RecordF
 
@@ -71,14 +70,16 @@ derive instance Functor InterpretF
 
 type INTERPRET r = (interpret :: InterpretF | r)
 
--- | Resolved events to the front page and balance-sheet text; narration adds no facts.
+-- | Resolved events to the front page and balance-sheet text; narration adds no facts. Every round
+-- | requests one; only live play answers with text (simulation and replay answer with the empty text).
 data NarrateF a = Narrate RoundResult (String -> a)
 
 derive instance Functor NarrateF
 
 type NARRATE r = (narrate :: NarrateF | r)
 
--- | Session deadlines (live play only): wait until the propose or sign deadline passes.
+-- | Session deadlines (live play only): the propose and sign windows of a round. The live handler
+-- | waits out each window; no program requests a wait.
 data Deadline = ProposeDeadline | SignDeadline
 
 derive instance Eq Deadline
@@ -86,12 +87,6 @@ derive instance Eq Deadline
 instance Show Deadline where
   show ProposeDeadline = "propose"
   show SignDeadline = "sign"
-
-data ClockF a = Await RoundIndex Deadline a
-
-derive instance Functor ClockF
-
-type CLOCK r = (clock :: ClockF | r)
 
 -- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
 -- | the overrides, and the source it was derived from). Each producer writes its own fields.

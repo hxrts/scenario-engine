@@ -18,6 +18,7 @@
             "maybe",
             "node-buffer",
             "node-fs",
+            "node-path",
             "node-process",
             "nullable",
             "prelude",

@@ -29,7 +29,7 @@ import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Analysis.Experiments (agency)
-import Simulator.Simulate (Context)
+import Simulator.Simulate (Context, presetSpec, seats)
 import Analysis.Views.Actions as Actions
 import Analysis.Views.Balance as Balance
 import Analysis.Views.Balances as Balances
@@ -43,7 +43,6 @@ import Analysis.Views.Representation as Representation
 import Analysis.Views.Standings as Standings
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, ok, viewOr)
-import Server.Launch (presetSpec, seats)
 
 -- | A query parameter, or the default when the request does not give it.
 param :: Object String -> String -> String -> String

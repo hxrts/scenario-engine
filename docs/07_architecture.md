@@ -34,7 +34,7 @@
                      Run Store ──► server (read API) ──► dashboard
 ```
 
-Each round is one call to `runRound`. Seats propose and sign through `SEAT_INPUT`, and the pure engine resolves the signed Proposals. The engine checks authority and signatures and keeps the books balanced. It never authors or rewrites an Intent. Handlers choose where seat inputs come from and where records go. Live play also uses `INTERPRET`, `NARRATE`, and `CLOCK` ([§4](#4-key-interfaces)). The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, read API, and dashboard are in [06](06_simulator.md).
+Each round is one call to `runRound`. Seats propose and sign through `SEAT_INPUT`, and the pure engine resolves the signed Proposals. The engine checks authority and signatures and keeps the books balanced. It never authors or rewrites an Intent. Handlers choose where seat inputs come from and where records go. Every round is also narrated (`NARRATE`), and live play adds `INTERPRET` ([§4](#4-key-interfaces)). The live handler waits out each human deadline window itself. The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, read API, and dashboard are in [06](06_simulator.md).
 
 ## 3. Codebase Layout
 
@@ -66,16 +66,20 @@ packages/
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Program (decision language), Policy.InWorld (in-world Programs, `acts`), Policy.Interpret (propose, sign, `envFor`)
   scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
-  effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors),
-               Effects.Round (runRound, runGame): the algebra and the round program only
-  handlers/    Handlers.Seats, Sim, Replay, Live (the round's handlers); Handlers.Llm (the model handler: prompts, decoding,
-               the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (prompt text and reply
-               decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD over a
-               StoreBackend); test/Test/Handlers/Stub holds the stub backend and the recording replay
+  effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors and
+               the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
+  handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
+               deadline windows, the joint pass, narration, the record write); Handlers.Llm (the model handler: prompts,
+               decoding, the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (prompt text and
+               reply decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD
+               over a StoreBackend; `validRunId`, the run identity rule); test/Test/Handlers/Stub holds the stub backend and
+               the recording replay
   adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.SQLite (SQLite statements and the JSON
-               text of stored values; `sqliteBackend`), Adapters.Clock (wall clock), Adapters.Random (the only OS seed),
-               Adapters.Filesystem (file reads, directory listings, environment variables; `fileOps`)
-  simulator/   Simulator.Simulate, Overrides, Records, Options, Capstone (simulation orchestration)
+               text of stored values; `sqliteBackend`), Adapters.Clock (wall clock, `delayMs`), Adapters.Random (the only OS
+               seed), Adapters.Filesystem (file reads, directory listings, environment variables, `appendLine`; `fileOps`),
+               Adapters.Console (the terminal: `readLine`, `writeLine`, `closeInput`; Console.js is the readline interface)
+  simulator/   Simulator.Simulate (`startOf`, `presetSpec`, `seats`, simulation orchestration), Overrides, Recipe (a run's
+               stored spec, and the derive rules), Records, Options, Capstone
   analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models)
 apps/
   cli/         Main (run, session), Session, Compile, Transcript (the capstone recording)
@@ -119,16 +123,17 @@ sign    :: Program -> Env -> Array ProposalId     -- chooses among view.toSign
 
 ```purescript
 type SEAT_INPUT r = (seatInput :: SeatInputF | r)   -- Propose EntityId View | Sign EntityId View | Speak EntityId View
-type RECORD r     = (record :: RecordF | r)         -- Record RoundResult
+type RECORD r     = (record :: RecordF | r)         -- Record RoundResult (Array Transcript): the round and the transcripts its joint pass read
 type INTERPRET r  = (interpret :: InterpretF | r)   -- Interpret RoundIndex (Array Transcript): the joint pass (live play)
-type NARRATE r    = (narrate :: NarrateF | r)       -- Narrate RoundResult: the front page (live play and reports)
-type CLOCK r      = (clock :: ClockF | r)           -- Await RoundIndex Deadline: propose and sign deadlines (live play)
+type NARRATE r    = (narrate :: NarrateF | r)       -- Narrate RoundResult: the front page, requested after each round (live play answers with text)
 type STORE r      = (store :: StoreF | r)           -- the Run Store: run writes and reads (§4 Run Store)
 
-runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError RoundResult)
+runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
 The request and reply types of each operation are declared beside it in `effects`: a joint pass answers `Either String (Array JointProposal)`, a narration answers `String`, and a seat's transcript is `Maybe String`. The operations are the whole model interface, so no port record duplicates them.
+
+The live handler's devices are a line of input, one window's wait, a line of output, the model's calls, and the record write. `Handlers.Live.runLive` takes them as a record, and the composition root (`apps/cli`, `Session`) supplies `Adapters.Console`, `Adapters.Clock`, and the model backend. A human's propose and sign windows are the live handler's own clock, not an effect.
 
 Randomness needs no effect. Every draw is the pure `Core.Draw.draw` on the game seed or the player seed, and the handler supplies the player seed.
 
@@ -156,7 +161,7 @@ type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendR
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.SQLite.sqliteBackend` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `capstone/transcript.json`; neither is production code.
 
-**Run Store** (`effects/Signatures` `STORE`, `effects/Store` constructors, `handlers/Store`, `adapters/SQLite`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
+**Run Store** (`effects/Signatures` `STORE`, `effects/Store` constructors, `handlers/Store`, `adapters/SQLite`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. `finish` (`Effects.Store`) is the lifecycle's last step: completed, or failed with the error as its reason. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
 
 ```purescript
 data StoreF a = CreateRun NewRun (Unit -> a) | FailRunning String (Int -> a) | ... | ListRuns (Array RunInfo -> a) | ReadRounds String (Array StoredRound -> a) | ...

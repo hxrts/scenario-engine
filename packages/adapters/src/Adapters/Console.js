@@ -1,10 +1,8 @@
+// The terminal: one readline interface for the session's prompts, and the lines written to it.
 import { createInterface } from "node:readline/promises";
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
 
-// One readline interface for the session. If input ends (EOF, or the interface is closed) while a
-// prompt is pending, that prompt fails with an error instead of never resolving, so the session
-// can record why it stopped.
+// If input ends (EOF, or the interface is closed) while a prompt is pending, that prompt fails with
+// an error instead of never resolving, so the caller can record why it stopped.
 let rl = null;
 let closed = false;
 let rejectPending = null;
@@ -22,7 +20,8 @@ const ensure = () => {
   return rl;
 };
 
-export const promptImpl = (question) => (onError, onSuccess) => {
+// One line of input after `question`, trimmed.
+export const readLineImpl = (question) => (onError, onSuccess) => {
   if (closed) {
     onError(new Error("input closed before the prompt was answered"));
     return (_, __, done) => done();
@@ -45,10 +44,10 @@ export const promptImpl = (question) => (onError, onSuccess) => {
   };
 };
 
-export const closePrompt = () => {
+export const writeLine = (line) => () => console.log(line);
+
+export const closeInput = () => {
   const r = rl;
   rl = null;
   r?.close();
 };
-
-export const appendLine = (path) => (line) => () => { mkdirSync(dirname(path), { recursive: true }); appendFileSync(path, line + "\n"); };

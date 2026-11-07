@@ -616,7 +616,7 @@ resolveRound :: WorldState -> Array SignedProposal
 
 -- Round runner (Effects.Round): runs phases 1–3 with effects, then resolveRound
 runRound :: InWorld -> WorldState
-         -> Run (SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
+         -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
 `runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation. In-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
@@ -633,16 +633,15 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 |---|---|---|
 | `SEAT_INPUT` | `Propose`, `Sign`, `Speak` | A seat's Proposals in Propose, its signatures in Sign, and its transcript in Speak |
 | `INTERPRET` | `Interpret` | The round's transcripts to Intents, read together across players. No confirmation (live play) |
-| `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text. Adds no facts |
-| `RECORD` | `Record` | Append a round result to the run's records |
-| `CLOCK` | `Await` | Wait for a propose or sign deadline (live play only) |
+| `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text, requested after each round. Adds no facts |
+| `RECORD` | `Record` | Append a round result, with the transcripts its joint pass read, to the run's records |
 | `STORE` | `CreateRun`, `FailRunning`, `ReadRounds`, … | The Run Store: run writes and reads, for the server and the CLI ([07 §4](07_architecture.md#4-key-interfaces)) |
 
 Handlers interpret these operations over typed backends; the adapters supply the raw I/O primitives ([07 §4](07_architecture.md#4-key-interfaces)).
 
 Handlers choose the context. The round runner is the same code under all of them:
 
-- **Live session:** `SEAT_INPUT` through humans and `INTERPRET`. `CLOCK` enforces deadlines.
+- **Live session:** `SEAT_INPUT` through humans and `INTERPRET`, and each round narrated. The live handler enforces the human deadline windows.
 - **Simulation:** `SEAT_INPUT` through preset programs or AI agents, whose randomness draws from the player seed.
 - **Replay:** `SEAT_INPUT` feeds recorded Proposals and signatures.
 - **Test:** all handlers pure.

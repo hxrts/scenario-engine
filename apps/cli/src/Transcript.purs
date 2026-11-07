@@ -1,7 +1,7 @@
 -- | `just _scenarios` (after `Compile`): writes the capstone's joint-pass recording,
 -- | `capstone/transcript.json` under the scenario root. Each exchange the DSL defines
 -- | (`Scenarios.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
--- | stub model that answers with the DSL's reply text; the handler reports each exchange, which is kept. Each Intent set is
+-- | stub model that answers with the DSL's reply text (`jointLineFor`); the handler reports each exchange, which is kept. Each Intent set is
 -- | checked against the DSL's expectation before anything is written; a mismatch exits 1 and writes
 -- | nothing. No model is called: the file is generated, never hand-maintained.
 module Transcript (main) where
@@ -16,11 +16,10 @@ import Core.Types (Id(..))
 import Core.World (WorldState)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (find, length)
+import Data.Array (length)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Effect.Aff (Aff, runAff_)
 import Effect.Class (liftEffect)
@@ -33,7 +32,7 @@ import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
 import Node.Process (exit')
-import Scenarios.Capstone (jointLines)
+import Scenarios.Capstone (jointLineFor, jointLines)
 import Scenarios.Load (load)
 
 -- | The capstone's world: the shipped Meridian at its default configuration.
@@ -46,7 +45,7 @@ worldOf = do
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }
-answer _ input = case find (\l -> contains (Pattern l.text) input) jointLines of
+answer _ input = case jointLineFor input of
   Just l -> pure { text: stringify l.reply, raw: "" }
   Nothing -> throwError (error ("the capstone defines no reply for: " <> input))
 

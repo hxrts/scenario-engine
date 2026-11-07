@@ -1,7 +1,7 @@
 -- | The Run Store handler (docs/06_simulator.md §8): interprets the `STORE` operations (`Effects.Store`)
 -- | and the `RECORD` operation, which saves each round as it completes with its transcripts and its
 -- | metrics. The handler does the logic: the metric definitions, the round's assertions, and the run
--- | lifecycle (`finish`). The backend is the set of raw store primitives an adapter implements
+-- | identity rule (`validRunId`). The backend is the set of raw store primitives an adapter implements
 -- | (`Adapters.SQLite.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
 -- | append-only, and the metric version is recorded with each value.
 module Handlers.Store
@@ -9,8 +9,8 @@ module Handlers.Store
   , AppendRound
   , Metric
   , metricsVersion
+  , validRunId
   , runStore
-  , finish
   , recorder
   , persister
   ) where
@@ -21,14 +21,14 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (Failure, check)
 import Core.Market (marginal)
 import Core.World (RoundResult, RoundRecord, WorldState)
-import Data.Either (Either, either)
+import Data.Array (all, length, uncons)
 import Data.Map as Map
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
+import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Ref as Ref
 import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, Transcript)
-import Effects.Store (failRun, setStatus)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -88,9 +88,15 @@ interpretStore b = case _ of
 runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a
 runStore b = run (case_ # on (Proxy :: _ "store") (interpretStore b))
 
--- | Mark a finished run completed, or failed with the error as its reason.
-finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
-finish id = either (failRun id <<< show) (const (setStatus id "completed"))
+-- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
+-- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
+validRunId :: String -> Boolean
+validRunId s = case uncons cs of
+  Just { head: h } -> length cs <= 64 && alnum h && all (\c -> alnum c || c == '-' || c == '_') cs
+  Nothing -> false
+  where
+  cs = toCharArray s
+  alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 
 -- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
 persister :: StoreBackend -> String -> WorldState -> Effect (RoundResult -> Effect Unit)

@@ -161,7 +161,7 @@ Mechanics take no random draws by default. Nothing in the initial state is resam
 
 The schedule is the round count (`rounds`, within `roundRange`). Every round has the same length, and `horizon` gives the total in years ([03 §3](03_gameboard.md#3-scenario)). Per-round intervals, and scaling annual rates to round length ([INV-28](02_type_system.md#inv-28)), are planned. Rates are per round.
 
-In live play, each round has two windows, closed by the clock ([Effects.Signatures](../packages/effects/src/Effects/Signatures.purs)): a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
+In live play, each round has two windows, closed by the clock (the live handler, [Handlers.Live](../packages/handlers/src/Handlers/Live.purs), waits out each one with `Adapters.Clock.delayMs`): a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
 
 ## 9. Runtime State and Lifecycle
 

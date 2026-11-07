@@ -10,7 +10,7 @@ import Core.Types (EntityId, MarketId)
 import Core.World (RoundResult)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
-import Effects.Signatures (INTERPRET, RECORD, SEAT_INPUT)
+import Effects.Signatures (INTERPRET, NARRATE, RECORD, SEAT_INPUT)
 import Foreign.Object (Object)
 import Handlers.Seats (collectRecords, handleSeats, programs)
 import Policy.Program (Program)
@@ -24,5 +24,5 @@ type SeatBindings =
   , playerSeed :: Seed
   }
 
-runTest :: forall a. SeatBindings -> Run (SEAT_INPUT + INTERPRET + RECORD + ()) a -> { records :: Array RoundResult, value :: a }
+runTest :: forall a. SeatBindings -> Run (SEAT_INPUT + INTERPRET + NARRATE + RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 runTest b = collectRecords <<< handleSeats (programs { bound: b.programs, params: b.params, home: b.home, playerSeed: b.playerSeed })

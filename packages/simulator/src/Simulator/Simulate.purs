@@ -11,21 +11,23 @@ module Simulator.Simulate
   , resume
   , simulateWith
   , resumeWith
-  , seatsOf
+  , startOf
   , presetSeats
+  , presetSpec
+  , seats
   ) where
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard, InstantiationConfig)
+import Board.Gameboard.Schema (Gameboard, InitialWorld, InstantiationConfig)
 import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (EngineError)
 import Core.Num (Q)
 import Core.Query (homeMarket)
-import Core.Types (CapacityRef, Controller(..), EntityId, EntityKind(..))
+import Core.Types (CapacityRef, EntityId)
 import Core.World (Manifest, RoundResult, WorldState)
-import Data.Array (any, concatMap, filter, fromFoldable)
+import Data.Array (any, filter, fromFoldable)
 import Data.Foldable (foldM)
 import Data.Traversable (traverse)
 import Data.Either (Either(..))
@@ -36,9 +38,9 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Effect (Effect)
-import Policy.InWorld (acts, inWorldOf)
+import Policy.InWorld (InWorld, acts, inWorldOf)
 import Effects.Round (runGame)
-import Effects.Signatures (INTERPRET, RECORD, SEAT_INPUT)
+import Effects.Signatures (INTERPRET, NARRATE, RECORD, SEAT_INPUT)
 import Handlers.Seats (SeatSource, collectRecords, handleSeats, programs)
 import Handlers.Sim (runSim)
 import Run as R
@@ -89,36 +91,42 @@ resolve ctx spec = foldM apply { gameboard: ctx.gameboard, config: ctx.config } 
 type Prepared =
   { manifest :: Manifest
   , world :: WorldState
-  , game :: R.Run (SEAT_INPUT + INTERPRET + RECORD + ()) (Either EngineError WorldState)
+  , game :: R.Run (SEAT_INPUT + INTERPRET + NARRATE + RECORD + ()) (Either EngineError WorldState)
   , seats :: SeatSource
   }
 
+-- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
+-- | world does not instantiate, when the Policy catalog does not decode, or when a seat that acts has
+-- | no home market (checked before any round).
+startOf :: Gameboard -> InstantiationConfig -> Either String { initial :: InitialWorld, inWorld :: InWorld }
+startOf gameboard config = case instantiate gameboard config, inWorldOf gameboard of
+  Left es, _ -> Left (show es)
+  _, Left e -> Left (show e)
+  Right initial, Right inWorld -> do
+    checkHomes (acts inWorld) initial.world
+    pure { initial, inWorld }
+
 -- | Instantiate a spec: the initial world, its game, and its seat source.
 prepare :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> Either String Prepared
-prepare ctx spec from =
-  case resolve ctx spec of
-    Left e -> Left e
-    Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
-      Left es, _ -> Left (show es)
-      _, Left e -> Left (show e)
-      Right initial, Right inWorld -> do
-        checkHomes (acts inWorld) initial.world
-        -- a preset named by a seat must exist; a typo is an error, not a seat that silently does nothing
-        bound <- traverse
-          ( case _ of
-              Preset name -> maybe (Left ("unknown preset " <> name)) Right (Object.lookup name ctx.presets)
-              Custom p -> Right p
-          )
-          spec.seats
-        let
-          w0 = maybe initial.world _.world from
-          remaining = fromMaybe config.rounds spec.rounds - maybe 0 _.done from
-        pure
-          { manifest: initial.manifest
-          , world: w0
-          , game: runGame inWorld remaining w0
-          , seats: programs { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
-          }
+prepare ctx spec from = do
+  { gameboard, config } <- resolve ctx spec
+  { initial, inWorld } <- startOf gameboard config
+  -- a preset named by a seat must exist; a typo is an error, not a seat that silently does nothing
+  bound <- traverse
+    ( case _ of
+        Preset name -> maybe (Left ("unknown preset " <> name)) Right (Object.lookup name ctx.presets)
+        Custom p -> Right p
+    )
+    spec.seats
+  let
+    w0 = maybe initial.world _.world from
+    remaining = fromMaybe config.rounds spec.rounds - maybe 0 _.done from
+  pure
+    { manifest: initial.manifest
+    , world: w0
+    , game: runGame inWorld remaining w0
+    , seats: programs { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
+    }
 
 -- | Play a spec to completion with records kept in memory. Pure.
 simulate :: Context -> SimulationSpec -> Either String Run
@@ -149,13 +157,12 @@ resumeWith ctx spec from store = case prepare ctx spec from of
 
 -- | Bind each seat to a preset by name.
 presetSeats :: (EntityId -> String) -> Array EntityId -> Map EntityId SeatPolicy
-presetSeats preset seats = Map.fromFoldable (map (\s -> Tuple s (Preset (preset s))) seats)
+presetSeats preset ids = Map.fromFoldable (map (\s -> Tuple s (Preset (preset s))) ids)
 
--- | The seats of an instantiated world.
-seatsOf :: WorldState -> Array EntityId
-seatsOf w = concatMap
-  ( \e -> case e.kind of
-      Actor (Seat _) -> [ e.id ]
-      _ -> []
-  )
-  (fromFoldable (Map.values w.entities))
+-- | The seats the context's configuration names.
+seats :: Context -> Array EntityId
+seats ctx = fromFoldable (Map.keys ctx.config.seats)
+
+-- | A spec that binds every seat of the context to one preset.
+presetSpec :: Context -> String -> Seed -> Array Override -> Maybe Int -> SimulationSpec
+presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed, overrides, rounds }

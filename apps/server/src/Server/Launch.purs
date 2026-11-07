@@ -8,36 +8,29 @@ module Server.Launch
   , launch
   , start
   , failInterrupted
-  , presetSpec
-  , seats
   , Scenario
   , scenarioInfo
   ) where
 
 import Prelude
 
-import Adapters.Random (resolveSeed)
 import Adapters.Clock (nowIso)
-import Effects.Store (createRun, failRun, failRunning, listSummaries)
-import Handlers.Store (StoreBackend, finish, persister, runStore)
+import Adapters.Random (resolveSeed)
 import Board.Decode.Common (readJson)
 import Board.Gameboard.Schema (gameIdOf)
 import Core.Draw (Seed(..))
-import Core.Types (EntityId)
-import Data.Argonaut.Core (stringify)
-import Data.Array (concatMap, foldl, fromFoldable, mapMaybe)
+import Data.Array (concatMap, foldl, mapMaybe)
 import Data.Either (Either(..))
 import Data.Int as Int
-import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
-import Foreign.Object as Object
-import Simulator.Overrides (encodeOverrides)
-import Simulator.Simulate (Context, Override, SimulationSpec, presetSeats, simulateWith)
+import Effects.Store (createRun, failRun, failRunning, finish, listSummaries)
+import Handlers.Store (StoreBackend, persister, runStore)
+import Simulator.Recipe (Derivation, encodeSpec)
+import Simulator.Simulate (Context, Override, presetSpec, simulateWith)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.
@@ -53,7 +46,7 @@ type Start =
   , playerSeed :: Maybe Int
   , rounds :: Maybe Int
   , overrides :: Array Override
-  , derivation :: Maybe { source :: String, kind :: String }
+  , derivation :: Maybe Derivation
   }
 
 -- | Decode a launch body.
@@ -78,13 +71,7 @@ start ctx store l = do
   id <- nextRunId store
   seed <- resolveSeed (Seed <$> l.playerSeed)
   let
-    spec = Object.fromFoldable $
-      [ Tuple "gameId" (fromMaybe "" (gameIdOf ctx.gameboard))
-      , Tuple "preset" l.preset
-      , Tuple "playerSeed" (show (unwrap seed))
-      , Tuple "rounds" (maybe "default" show l.rounds)
-      , Tuple "overrides" (stringify (encodeOverrides l.overrides))
-      ] <> maybe [] (\d -> [ Tuple "source" d.source, Tuple "kind" d.kind ]) l.derivation
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf ctx.gameboard), playerSeed: seed, preset: l.preset, rounds: l.rounds, overrides: l.overrides, derivation: l.derivation }
     source = _.source <$> l.derivation
     kind = _.kind <$> l.derivation
   created <- nowIso
@@ -119,11 +106,3 @@ scenarioInfo ctx =
   , rounds: { min: ctx.gameboard.rounds.min, max: ctx.gameboard.rounds.max, default: ctx.config.rounds }
   , gameSeed: unwrap ctx.config.seed
   }
-
--- | The scenario's seats, as configured.
-seats :: Context -> Array EntityId
-seats ctx = fromFoldable (Map.keys ctx.config.seats)
-
--- | Every seat plays one preset.
-presetSpec :: Context -> String -> Seed -> Array Override -> Maybe Int -> SimulationSpec
-presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed, overrides, rounds }

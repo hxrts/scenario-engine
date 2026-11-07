@@ -14,7 +14,7 @@ import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
 import Policy.Interpret (Draft, envFor)
 import Policy.Interpret as Policy
@@ -49,8 +49,9 @@ replay records =
 
 -- | Interpret SEAT_INPUT with a source, leaving the other effects. A source has no transcripts,
 -- | so Speak answers Nothing and the joint pass is never called: Sim and Replay runs make no model call.
-handleSeats :: forall r a. SeatSource -> Run (SEAT_INPUT + INTERPRET + r) a -> Run r a
-handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy :: _ "interpret") silent send))
+-- | Narration answers the empty text, since no front page is written without live play.
+handleSeats :: forall r a. SeatSource -> Run (SEAT_INPUT + INTERPRET + NARRATE + r) a -> Run r a
+handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy :: _ "interpret") silent (on (Proxy :: _ "narrate") quiet send)))
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
@@ -61,10 +62,14 @@ handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy ::
   silent :: InterpretF ~> Run r
   silent (Interpret _ _ k) = pure (k (Right []))
 
--- | Collect RECORD purely: the in-memory record store, shared by the replay and test runners.
+  quiet :: NarrateF ~> Run r
+  quiet (Narrate _ k) = pure (k "")
+
+-- | Collect RECORD purely: the in-memory record store, shared by the replay and test runners. The
+-- | transcripts of a record are not kept: a source-driven run has none.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 collectRecords = go []
   where
   go records r = case peel r of
     Right value -> { records, value }
-    Left v -> v # (case_ # on (Proxy :: _ "record") (\(Record result next) -> go (records <> [ result ]) next))
+    Left v -> v # (case_ # on (Proxy :: _ "record") (\(Record result _ next) -> go (records <> [ result ]) next))

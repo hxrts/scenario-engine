@@ -1,9 +1,11 @@
 -- | Smart constructors for the Run Store operations (`STORE` in `Effects.Signatures`). Callers
--- | write `createRun id ...` inside a `Run (STORE + r)` program; a handler interprets it.
+-- | write `createRun id ...` inside a `Run (STORE + r)` program; a handler interprets it. `finish`
+-- | is the one program built from them: the run lifecycle's last step.
 module Effects.Store
   ( createRun
   , setStatus
   , failRun
+  , finish
   , failRunning
   , setSpec
   , setArchived
@@ -17,6 +19,7 @@ module Effects.Store
 
 import Prelude
 
+import Data.Either (Either, either)
 import Data.Maybe (Maybe)
 import Effects.Signatures (MetricRow, NewRun, RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
 import Run (Run, lift)
@@ -34,6 +37,10 @@ setStatus id status = lift store (SetStatus id status identity)
 
 failRun :: forall r. String -> String -> Run (STORE + r) Unit
 failRun id reason = lift store (FailRun id reason identity)
+
+-- | Mark a finished run completed, or failed with the error as its reason.
+finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
+finish id = either (failRun id <<< show) (const (setStatus id "completed"))
 
 -- | Fail every run still marked running; returns how many.
 failRunning :: forall r. String -> Run (STORE + r) Int

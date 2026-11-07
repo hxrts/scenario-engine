@@ -3,13 +3,16 @@
 -- | untested together. `just scenarios` compiles it to `packages/scenarios/capstone/run.json`,
 -- | which the simulator decodes through the normal Policy and Board paths. The world and the
 -- | Entity Policies are the shipped ones; only the seat programs and the expectations are here.
-module Scenarios.Capstone (file, rounds, playerSeed, JointLine, jointLines) where
+module Scenarios.Capstone (file, rounds, playerSeed, JointLine, jointLines, jointLineFor) where
 
 import Prelude ((==), map, ($), (<<<))
 import Scenarios.Names as N
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
+import Data.Array (find)
+import Data.Maybe (Maybe)
+import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import DSL.Base (Built, Keyed, (:=), keyed, q)
@@ -239,3 +242,7 @@ jointLines =
   [ { text: "ban shipments into India", reply: proposalReply N.us banIntent, expect: [ banIntent ] }
   , { text: "buy ten energy", reply: proposalReply N.us tradeIntent, expect: [ tradeIntent ] }
   ]
+
+-- | The line whose transcript a joint call's payload names: the model's reply to that call.
+jointLineFor :: String -> Maybe JointLine
+jointLineFor input = find (\l -> contains (Pattern l.text) input) jointLines

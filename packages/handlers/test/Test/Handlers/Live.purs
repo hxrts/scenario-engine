@@ -24,10 +24,10 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
-import Effects.Signatures (ClockF(..), Deadline(..), NarrateF(..))
+import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
 import Handlers.Llm.Wire (ProposedDeal, interpretPrompt, narratePrompt)
-import Handlers.Live (Prompt, Seat(..), runLive)
+import Handlers.Live (Seat(..), runLive)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (programs)
 import Partial.Unsafe (unsafeCrashWith)
@@ -73,28 +73,31 @@ jointAnswers ps template input
 type Session = { records :: Array RoundResult, narration :: Array String, notices :: Array String }
 
 -- | The US player's script: buy in Round 1, then nothing.
-scripted :: Prompt -> Aff String
-scripted p
-  | p.round == 1 && p.window == ProposeDeadline = pure "buy ten energy"
+scripted :: String -> Aff String
+scripted prompt
+  | contains (Pattern "[round 1, propose window]") prompt = pure "buy ten energy"
   | otherwise = pure "nothing"
 
 -- | A live session of `n` rounds with the given seats and human answers.
-liveWith :: Game -> Int -> (EntityId -> Seat) -> (Prompt -> Aff String) -> Backend -> Aff Session
-liveWith g n seat ask backend = do
+liveWith :: Game -> Int -> (EntityId -> Seat) -> (String -> Aff String) -> Backend -> Aff Session
+liveWith g n seat input backend = do
   recs <- liftEffect (Ref.new [])
   texts <- liftEffect (Ref.new [])
   notes <- liftEffect (Ref.new [])
   _ <- runLive
     { seat
-    , ask
+    , input
+    , window: pure unit
+    , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
-    , clock: \(Await _ _ a) -> pure a
     , agents: agents backend (const "Secure energy at a fair price.")
     , programs: programs { bound: Map.empty, params: g.params, home: const (Just (Id "energy-atlantic")), playerSeed: Seed 1 }
-    , record: \r failed -> do
+    , narrate: \failed r -> do
         t <- narrator backend failed (Narrate r identity)
-        liftEffect (Ref.modify_ (_ <> [ r ]) recs *> Ref.modify_ (_ <> [ t ]) texts)
+        liftEffect (Ref.modify_ (_ <> [ t ]) texts)
+        pure t
+    , record: \r _ -> liftEffect (Ref.modify_ (_ <> [ r ]) recs)
     }
     (runGame g.inWorld n g.world)
   { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
@@ -179,14 +182,14 @@ spec = do
           | t == interpretPrompt = replyJoint []
           | otherwise = model t i
 
-        says :: Prompt -> Aff String
-        says p = pure (if p.seat == Id "US" then "I sell DE ten energy" else "nothing")
+        says :: String -> Aff String
+        says prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "nothing")
       backendOne <- withAnswers deal
       one <- liveWith g 1 (const Human) says backendOne
       map (lapsed (Id "r1/US/0")) one.records `shouldEqual` [ true ]
       let
-        agreeing :: Prompt -> Aff String
-        agreeing p = pure (if p.seat == Id "US" then "I sell DE ten energy" else "I agree")
+        agreeing :: String -> Aff String
+        agreeing prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "I agree")
       backendBoth <- withAnswers deal
       both <- liveWith g 1 (const Human) agreeing backendBoth
       map (lapsed (Id "r1/US/0")) both.records `shouldEqual` [ false ]

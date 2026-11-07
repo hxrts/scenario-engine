@@ -11,40 +11,33 @@ module Server.Derive
 
 import Prelude
 
-import Effects.Signatures (Spec, Stored, StoredRound)
-import Effects.Store (deleteRun, failRun, listRuns, readManifest, readRounds, setArchived, setSpec, setStatus)
-import Handlers.Store (StoreBackend, finish, persister, runStore)
 import Board.Decode.Common (readJson)
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
-import Data.Argonaut.Core (Json, isNull, toString)
-import Data.Argonaut.Decode (decodeJson)
+import Data.Argonaut.Core (Json, toString)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (elem, filter, find, last, length, null)
-import Data.Either (Either(..), either, hush, note)
-import Data.Int as Int
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Either (Either(..), either, note)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Exception (message, throwException, try)
+import Effects.Signatures (Spec, Stored, StoredRound)
+import Effects.Store (deleteRun, failRun, finish, listRuns, readManifest, readRounds, setArchived, setSpec, setStatus)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Simulator.Overrides (decodeOverrides)
-import Simulator.Records (recordsEqual)
-import Simulator.Simulate (Context, Override, resumeWith)
+import Handlers.Store (StoreBackend, persister, runStore)
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)
-import Server.Launch (presetSpec, start)
+import Server.Launch (start)
 import Server.Read (loadRun)
+import Simulator.Recipe (Recipe, decodeSpec, deriveRecipe)
+import Simulator.Records (recordsEqual)
+import Simulator.Simulate (Context, presetSpec, resumeWith)
 
 -- | `POST /api/runs/:id/resume` body: the round count the run is extended to.
 type Resume = { rounds :: Int }
-
--- | What a new run is played from: its preset, player seed (Nothing draws one), round count
--- | (Nothing is the configuration's), and overrides. It is what a run's stored spec records.
-type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, overrides :: Array Override }
 
 -- | `POST /api/runs/:id/derive`. The body's kind decides what may change:
 --   duplicate, rerun: the source's spec unchanged, under a new name (rerun is the claim that the
@@ -74,7 +67,7 @@ deriveRun ctx store sourceId body = case readJson body :: Either String (Object 
               | null src.records -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
             _ -> do
               stored <- runStore store (readManifest sourceId)
-              case stored <#> \m -> m.spec >>= storedRecipe of
+              case stored <#> \m -> m.spec >>= decodeSpec of
                 Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
                 Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
                 Just (Right base) -> case deriveRecipe kind o base of
@@ -108,54 +101,6 @@ deriveRun ctx store sourceId body = case readJson body :: Either String (Object 
     _ -> failWith 400 ("kind must be one of " <> joinWith ", " kinds)
   where
   kinds = [ "duplicate", "rerun", "variant", "counterfactual" ]
-
--- | The recipe a derived run is played from, given the kind and the body.
-deriveRecipe :: String -> Object Json -> Recipe -> Either String Recipe
-deriveRecipe kind body base = case kind of
-  "duplicate" -> unchanged [ "preset", "playerSeed", "rounds", "overrides" ] *> pure base
-  "rerun" -> unchanged [ "preset", "playerSeed", "rounds", "overrides" ] *> pure base
-  "variant" -> do
-    unchanged [ "overrides" ]
-    preset <- maybe (pure base.preset) (\j -> note "preset must be a string" (toString j)) (Object.lookup "preset" body)
-    playerSeed <- case Object.lookup "playerSeed" body of
-      Nothing -> pure base.playerSeed
-      Just j | isNull j -> pure Nothing
-      Just j -> Just <$> intField "playerSeed" j
-    rounds <- case Object.lookup "rounds" body of
-      Nothing -> pure base.rounds
-      Just j | isNull j -> pure base.rounds
-      Just j -> Just <$> intField "rounds" j
-    pure { preset, playerSeed, rounds, overrides: base.overrides }
-  _ -> do
-    unchanged [ "preset", "playerSeed", "rounds" ]
-    given <- case Object.lookup "overrides" body of
-      Nothing -> Left "a counterfactual needs overrides"
-      Just j -> decodeOverrides j
-    if null given then Left "a counterfactual needs at least one override" else pure unit
-    pure base { overrides = base.overrides <> given }
-  where
-  -- a field the kind does not take is an error, not a silent no-op
-  unchanged :: Array String -> Either String Unit
-  unchanged fields = case find (\f -> Object.member f body) fields of
-    Just f -> Left (kind <> " does not take " <> f <> "; only a variant or counterfactual changes the spec")
-    Nothing -> pure unit
-
-  intField :: String -> Json -> Either String Int
-  intField name j = note (name <> " must be an integer") (decodeIntJson j)
-
--- | An integer from a JSON number, or Nothing.
-decodeIntJson :: Json -> Maybe Int
-decodeIntJson j = hush (decodeJson j)
-
--- | The recipe a stored specification was played with.
-storedRecipe :: Object String -> Either String Recipe
-storedRecipe s = do
-  preset <- note "the stored spec has no preset" (Object.lookup "preset" s)
-  playerSeed <- note "the stored spec has no player seed" (Object.lookup "playerSeed" s >>= Int.fromString)
-  overrides <- case Object.lookup "overrides" s of
-    Nothing -> Right []
-    Just text -> jsonParser text >>= decodeOverrides
-  pure { preset, playerSeed: Just playerSeed, rounds: Object.lookup "rounds" s >>= Int.fromString, overrides }
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
@@ -195,7 +140,7 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
   prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
     spec <- text
-    base <- storedRecipe spec
+    base <- decodeSpec spec
     seed <- note "the stored spec has no player seed" base.playerSeed
     snapshot <- latest.snapshot
     pure { spec, base, seed: Seed seed, snapshot, done }

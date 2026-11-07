@@ -155,7 +155,7 @@ Conversion of random values into quantities uses the Type System's fixed-point r
 
 ## 6. Lifecycle and Execution
 
-In the Run Store a run's status is `running`, `completed`, or `failed`. The dashboard's run list adds `unreadable` for a run it cannot decode. A run is `running` from its creation until it finishes. A failed run keeps its last valid state and diagnostics.
+In the Run Store a run's status is `running`, `completed`, or `failed`, and a finished run's status is set by the `finish` program (`Effects.Store`). The dashboard's run list adds `unreadable` for a run it cannot decode. A run is `running` from its creation until it finishes. A failed run keeps its last valid state and diagnostics.
 
 Each round follows the canonical sequence (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence)). The simulator drives the same round runner and engine as live play, with seat Policies bound:
 

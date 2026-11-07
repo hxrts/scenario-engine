@@ -9,7 +9,6 @@ import Prelude
 
 import Adapters.Pi (defaultModel)
 import Adapters.Random (resolveSeed)
-import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (check)
@@ -26,13 +25,14 @@ import Effect.Console (log)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Simulator.Options (flagOr, parseFlags)
-import Simulator.Simulate (presetSeats, seatsOf, simulate)
+import Simulator.Simulate (presetSpec, simulate, startOf)
 import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readScenario)
 import Scenarios.Load (loadContext)
-import Session (Options, session, validId)
+import Handlers.Store (validRunId)
+import Session (Options, session)
 
 main :: Effect Unit
 main = do
@@ -70,7 +70,7 @@ sessionOptions scenario fs = do
   rounds <- number "--rounds" 5 fs
   window <- numberFrom 0 "--window" 0 fs
   let id = flagOr "--id" "session-1" fs
-  if validId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
+  if validRunId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
   seed <- seedFlag fs
   pure { scenario, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
 
@@ -98,12 +98,11 @@ runScenario scenario presetName rounds given = do
   loaded <- map (_ >>= loadContext) (readScenario fileOps (scenario <> "/v0"))
   case loaded of
     Left e -> fail e
-    Right ctx -> case instantiate ctx.gameboard ctx.config of
-      Left es -> fail (show es)
-      Right initial -> do
+    Right ctx -> case startOf ctx.gameboard ctx.config of
+      Left e -> fail e
+      Right { initial } -> do
         seed <- resolveSeed given
-        let spec = { seats: presetSeats (const presetName) (seatsOf initial.world), playerSeed: seed, overrides: [], rounds: Just rounds }
-        case simulate ctx spec of
+        case simulate ctx (presetSpec ctx presetName seed [] (Just rounds)) of
           Left e -> fail e
           Right out -> do
             log (ctx.gameboard.id <> "@" <> ctx.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds, player seed " <> show (unwrap seed))
