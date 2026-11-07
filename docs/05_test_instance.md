@@ -1,15 +1,15 @@
-# Scenario Planning Game — Reference Instance: The Fractured World
+# Scenario Planning Game — Reference Instance: Meridian
 
 **Version:** 0.2  
 **Status:** Experimental configuration; all scenario choices and numerical parameters are provisional  
-**Scenario ID:** `fractured-world`, version `v0` (Gameboard `fractured-world@v0`)  
+**Scenario ID:** `meridian`, version `v0` (Gameboard `meridian@v0`)  
 **Implementation language:** PureScript
 
 ---
 
 ## 1. Purpose
 
-This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **The Fractured World**.
+This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **Meridian**. The instance was first called *The Fractured World*; that name is retired, and runs recorded under it keep their old game ids (`fractured-world/...`).
 
 It exercises the architecture set out in the Type System, Gameboard, and Instantiated Game specifications. Unlike them, it makes specific choices about resources, participants, markets, facilities, circulation, policies, and rules. These choices are experimental; the engine does not require them.
 
@@ -171,7 +171,7 @@ Government Actors hold only government-controlled resources and enact rules only
 
 # Part II — Gameboard Configuration
 
-## 6. Scenario: The Fractured World
+## 6. Scenario: Meridian
 
 ### 6.1 Setting
 
@@ -536,8 +536,8 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 
 | Parameter | Value |
 |---|---|
-| Game ID | `fractured-world/fractured-world-test-01`: the Gameboard id, then the test-instance label (`fractured-world-test-01`, in the Gameboard). Every run records it in its spec. |
-| Gameboard | `fractured-world`, version `v0` |
+| Game ID | `meridian/meridian-test-01`: the Gameboard id, then the test-instance label (`meridian-test-01`, in the Gameboard). Every run records it in its spec. |
+| Gameboard | `meridian`, version `v0` |
 | Seats / NPC Actors / Aggregates | 15 / 1 (China) / 6 |
 | Horizon and rounds | 5 years; 5 rounds of 1 year |
 | Real-world session | About 6 hours |
@@ -651,7 +651,7 @@ A provisional six-hour session: 20 minutes of briefing, five 60-minute rounds (a
 
 ## 20. Phase Mapping
 
-| Canonical phase | Fractured World content |
+| Canonical phase | Meridian content |
 |---|---|
 | **1. Prepare round** | Deliver production and procurement; apply capacity renewals; activate rule changes and strikes; apply the Round 3 disruption |
 | **2. Create observations** | Authorized views, including both regional prices and the SME factor stored last round |
@@ -848,7 +848,7 @@ The instance is a versioned configuration package containing no new foundational
 
 ```text
 packages/scenarios/
-  fractured-world/v0/   scenario  resources  markets  transformations  circulation
+  meridian/v0/   scenario  resources  markets  transformations  circulation
                         entities  representations  game-rules  policies  instantiation
   presets.json          the seat presets, shared by every scenario (docs/06 §4.2)
   fixtures/             the engine-level fixtures A–G (generated, not committed)
@@ -885,7 +885,7 @@ The test does not need realistic macroeconomic forecasting; its objective is coh
 
 ## 33. Summary
 
-*The Fractured World* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources, two regional Energy Markets, three facilities sharing the CostFunction primitive, a balanced circulation schedule, fifteen seats with distinct capabilities, dependencies, and measurable objectives, one NPC China, and six Aggregates.
+*Meridian* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources, two regional Energy Markets, three facilities sharing the CostFunction primitive, a balanced circulation schedule, fifteen seats with distinct capabilities, dependencies, and measurable objectives, one NPC China, and six Aggregates.
 
 Germany influences EU decisions by signing the EU's procedure Proposals, which execute in the same round, while German households and firms remain in the EU residual. The small-business owner influences Global SME demand through a bounded Representation, applied in the following round. Scarcity comes from the scheduled disruption and player choices, not from incomplete accounting.
 

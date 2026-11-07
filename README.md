@@ -4,7 +4,7 @@ A multiplayer economic strategy game where players act as governments, corporati
 
 ## Status
 
-Implemented against the specification in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md). The reference scenario is *The Fractured World*.
+Implemented against the specification in [`docs/`](docs/); start with [`01_overview.md`](docs/01_overview.md). The reference scenario is *Meridian*.
 
 ## Development
 
@@ -14,8 +14,8 @@ Requires Nix with direnv (`use flake`). The dev shell installs the pinned PureSc
 just build                                                  # compile
 just check                                                  # format, dependency direction, build, tests
 just all                                                    # check + dashboard smoke test
-just sim fractured-world --preset Conservative              # simulate a game
-just session fractured-world --humans US                    # live session (AI seats via pi)
+just sim meridian --preset Conservative              # simulate a game
+just session meridian --humans US                    # live session (AI seats via pi)
 just serve                                                  # dashboard and JSON API on :8787
 ```
 

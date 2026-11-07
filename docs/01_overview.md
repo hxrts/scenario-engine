@@ -153,7 +153,7 @@ Every role should have a meaningful capability, a dependency that others can pro
 | [`02_type_system.md`](02_type_system.md) | Types, glossary, round resolution, invariants, numerics |
 | [`03_gameboard.md`](03_gameboard.md) | How a scenario is configured |
 | [`04_instantiated_game.md`](04_instantiated_game.md) | How a game is initialized and run |
-| [`05_test_instance.md`](05_test_instance.md) | The Fractured World reference scenario and fixtures |
+| [`05_test_instance.md`](05_test_instance.md) | Meridian reference scenario and fixtures |
 | [`06_simulator.md`](06_simulator.md) | Simulation harness (seat Policies, replay, experiments) and dashboard |
 | [`07_architecture.md`](07_architecture.md) | Codebase layout, module boundaries, and key interfaces |
 

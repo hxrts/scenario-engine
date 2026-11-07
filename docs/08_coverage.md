@@ -1,8 +1,8 @@
 # 08 Feature Coverage Audit
 
 This audit maps each feature of the game to the tests that exercise it, and records whether the
-capstone run exercises it. The capstone is a test-only, eight-round game on the shipped Fractured
-World, authored in the scenario DSL (`packages/scenarios/src/Scenarios/Capstone.purs`), compiled to
+capstone run exercises it. The capstone is a test-only, eight-round game on the shipped Meridian
+scenario, authored in the scenario DSL (`packages/scenarios/src/Scenarios/Capstone.purs`), compiled to
 `packages/scenarios/capstone/run.json`, and decoded through the Policy and Board decoders.
 
 Status values: **covered** (a named test checks it end to end or at unit level), **partial**

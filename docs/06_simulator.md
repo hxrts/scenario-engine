@@ -3,7 +3,7 @@
 **Version:** 0.2  
 **Scope:** Automated Simulation, Persistence, Testing, and Gameplay Analysis  
 **Implementation language:** PureScript  
-**Reference scenario:** The Fractured World
+**Reference scenario:** Meridian
 
 ---
 
@@ -67,7 +67,7 @@ The specification must be enough to reproduce the complete economic history with
 
 ### 3.1 Configuration inheritance
 
-A specification may reference a baseline and apply declarative overrides. For example: start from `fractured-world-test-01` (an illustrative baseline; no test-instance id exists yet), raise Energy production capacity by 20%, cut procurement capacity from 30 to 20, set SME estimator shrinkage to 0.40, and give the US the `Aggressive` preset.
+A specification may reference a baseline and apply declarative overrides. For example: start from `meridian-test-01` (an illustrative baseline; no test-instance id exists yet), raise Energy production capacity by 20%, cut procurement capacity from 30 to 20, set SME estimator shrinkage to 0.40, and give the US the `Aggressive` preset.
 
 Overrides must respect the layer boundaries. Tuning an instance changes declarative data, never engine code:
 
@@ -389,7 +389,7 @@ Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of t
 |---|---|---|---|
 | Name | optional | `run-N`, the next run id | A label. A blank name uses the default. |
 | Preset | required | Conservative | The seat Policy every seat plays. |
-| Scenario | required | `fractured-world@v0` | The one scenario the server serves. |
+| Scenario | required | `meridian@v0` | The one scenario the server serves. |
 | Rounds | optional | the scenario's default round count (5) | A select of the scenario's supported counts (4 to 8). |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
 | Game seed | read-only | the scenario's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
@@ -513,7 +513,7 @@ Evaluation combines each Actor's measurable objective criteria with system-level
 
 ## 13. Reference Coverage
 
-The initial suite runs *The Fractured World* (the reference Gameboard `fractured-world`, version `v0`). Its contents are defined in the reference test instance specification and are not restated here.
+The initial suite runs *Meridian* (the reference Gameboard `meridian`, version `v0`). Its contents are defined in the reference test instance specification and are not restated here.
 
 Every one of the fifteen seats receives a simple, predictable preset seat Policy, so its actions can be checked independently.
 
