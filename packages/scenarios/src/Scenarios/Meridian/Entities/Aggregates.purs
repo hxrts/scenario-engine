@@ -1,6 +1,6 @@
 -- | Meridian's Aggregates (docs/05_test_instance.md §10 Aggregate Catalog): the
 -- | collective Actors and the Representation Aggregates, with the EU's collective procedures.
-module Scenarios.Meridian.Entities.Aggregates (eu, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, globalSmesAggregate) where
+module Scenarios.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, globalSmesAggregate) where
 
 import Prelude ((<>))
 
@@ -15,6 +15,16 @@ eu = entity
   , capabilities: dealer "energy-atlantic" <> [ enactTariff ] <> shipping
   , capacities: keyed []
   , aggregate: euAggregate
+  }
+
+-- | The EU's solidarity pool (docs/05 §10.1): an Entity of its own, with no policy, that starts
+-- | empty. The EU's solidarity procedure draws on it as the EU's agent (`euAggregate`).
+euPool :: Built "entity"
+euPool = entity
+  { accounts: keyed [ "E" := 0 ]
+  , capabilities: []
+  , capacities: keyed []
+  , aggregate: aggregate { policy: "solidarity-pool-v0", members: [] }
   }
 
 cnPrivate :: Built "entity"
@@ -59,9 +69,10 @@ worldHouseholds = entity
 
 -- | The EU and its two collective procedures; fixtures reuse it.
 euAggregate :: Built "aggregate"
-euAggregate = aggregate { policy: "eu-coordination-v0", members: [ "DE" ], procedures: keyed [ Tuple "eu-solidarity" solidarity, Tuple "eu-trade" tradeProcedure ] }
+euAggregate = aggregate { policy: "eu-coordination-v0", members: [ "DE", "EU_POOL" ], procedures: keyed [ Tuple "eu-solidarity" solidarity, Tuple "eu-trade" tradeProcedure ] }
   where
-  solidarity = collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ trade "energy-atlantic" ] }
+  -- The pool is a member with no weight: it acts for the EU in this procedure without signing (docs/02 §2.2).
+  solidarity = collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ trade "energy-atlantic", transfer "E" ] }
   tradeProcedure = collective { weights: keyed [ "DE" := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ enactTariff ] }
 
 -- | Global small businesses, represented by the SME owner; fixtures reuse it.

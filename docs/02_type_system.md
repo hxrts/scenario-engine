@@ -1,4 +1,4 @@
-# Scenario Planning Game — Type System Specification
+# Scenario Planning Game: Type System Specification
 
 **Version:** 0.2  
 **Scope:** Type System Layer  
@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-The Type System Layer defines the reusable economic machinery of the Scenario Planning Game: a minimal set of types and operations through which human players, NPCs, and implicit populations act in one shared, deterministic economy. The engine is pure; all impurity is expressed as algebraic effects interpreted by handlers ([§8.4](#84-effects-and-handlers)). The layer is independent of any scenario, resource taxonomy, or conflict. It stays small by giving existing primitives precise semantics rather than adding a primitive for every phenomenon.
+The Type System Layer defines the reusable economic machinery of the Scenario Planning Game: a minimal set of types and operations through which human players, NPCs, and implicit populations act in one shared, deterministic economy. The engine is pure. All impurity is expressed as algebraic effects interpreted by handlers ([§8.4](#84-effects-and-handlers)). The layer is independent of any scenario, resource taxonomy, or conflict. It stays small by giving existing primitives precise semantics rather than adding a primitive for every phenomenon.
 
 ## 2. Core Ontology
 
@@ -30,7 +30,7 @@ Derived terms (Actor, Controller, NPC, Seat, Transformation, Proposal, World Sta
 
 ### 2.1 Entity representation
 
-Every Entity has the same economic record; its `kind` says whether it is an Actor or an Aggregate.
+Every Entity has the same economic record. Its `kind` says whether it is an Actor or an Aggregate.
 
 ```purescript
 type Entity =
@@ -54,9 +54,9 @@ data Controller
   | NPC PolicyId    -- Policy defined by the scenario
 ```
 
-Identifiers, Holdings, Capacities, and units are domain types defined in code; the snippets in this document are interfaces, not complete modules.
+Identifiers, Holdings, Capacities, and units are domain types defined in code. The snippets in this document are interfaces, not complete modules.
 
-Actors and Aggregates own accounts, hold capabilities, and act in the same Markets and Transformations. They differ only in how their decisions are produced: an Actor is driven by a seat or NPC Policy, an Aggregate by its baseline Policy and any collective procedures. A government, a corporation, or a small-business owner may be an Actor; households, an industry, or a supranational bloc may be Aggregates. A government Actor holds government-controlled resources only ([§7.1](#71-aggregate-semantics)).
+Actors and Aggregates own accounts, hold capabilities, and act in the same Markets and Transformations. They differ only in how their decisions are produced: an Actor is driven by a seat or NPC Policy, an Aggregate by its baseline Policy and any collective procedures. A government, a corporation, or a small-business owner may be an Actor. Households, an industry, or a supranational bloc may be Aggregates. A government Actor holds government-controlled resources only ([§7.1](#71-aggregate-semantics)).
 
 ### 2.2 Three projections of an Entity
 
@@ -64,7 +64,7 @@ Membership, economic ownership, and collective decision-making are distinct rela
 
 | Projection | Question it answers | Rule |
 |---|---|---|
-| **Membership** | Which Entities belong to this population or organization? | An Aggregate's `members` list. It is descriptive, may overlap with other Aggregates, and confers nothing. |
+| **Membership** | Which Entities belong to this population or organization? | An Aggregate's `members` list. It is descriptive and may overlap with other Aggregates. The one authority it confers is agency in a procedure the member holds no weight in (§2.2). |
 | **Account ownership** | Who authoritatively owns each economic account and behavioral responsibility? | Every account and responsibility has exactly one owner ([INV-08](#inv-08)). |
 | **Collective procedures and capabilities** | How does an institution decide, and what authority does it hold? | Authority belongs to the institutional Entity or a rule mechanism, never to members by virtue of membership ([INV-03](#inv-03)). |
 
@@ -81,11 +81,13 @@ A collective procedure is a weighted-signature rule on the Aggregate's own Propo
 
 **Support = residualWeight + Σ weightᵢ over the members who signed**
 
-Publishing implies the author's signature, so the residual weight always counts. The Proposal executes in that round if support exceeds `threshold`; otherwise it lapses. The engine records the signers, support, threshold, and outcome.
+Publishing implies the author's signature, so the residual weight always counts. The Proposal executes in that round if support exceeds `threshold`. Otherwise it lapses. The engine records the signers, support, threshold, and outcome.
 
-A member that is not explicit has its weight folded into `residualWeight`; instantiation moves weight between the two, as part of resolution consistency ([INV-14](#inv-14)).
+A member that is not explicit has its weight folded into `residualWeight`. Instantiation moves weight between the two, as part of resolution consistency ([INV-14](#inv-14)).
 
-Germany is in the EU's `members` whether or not it signs in a given round. The EU Aggregate owns the residual European accounts; Germany influences EU procedures through its declared weight without owning EU accounts or exercising EU capabilities. A manufacturer may belong to the small-business population, the manufacturing sector, and a regional economy at once, but those memberships never let three Aggregates own its assets. Accounting is partitioned; classification is not.
+A member with no weight in a procedure acts for the Aggregate in that procedure without signing: its Intents may appear in the procedure Proposal and are executed from its own accounts. The EU's solidarity pool is such a member ([docs/05 §12.1](05_test_instance.md#121-germany--eu-collective-procedure)).
+
+Germany is in the EU's `members` whether or not it signs in a given round. The EU Aggregate owns the residual European accounts. Germany influences EU procedures through its declared weight without owning EU accounts or exercising EU capabilities. A manufacturer may belong to the small-business population, the manufacturing sector, and a regional economy at once, but those memberships never let three Aggregates own its assets. Accounting is partitioned. Classification is not.
 
 ### 2.3 Resource
 
@@ -101,7 +103,7 @@ type ResourceDefinition =
   }
 ```
 
-`Restricted` means authority-gated transfer. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. A Transformation declares the quantity it reserves per unit ordered (`reserves`, empty by default). The Gameboard rejects a reservation of a Resource that is not `reservable`. A Resource that no Transformation produces or consumes is conserved; this follows from the declared Transformations, not from a separate declaration.
+`Restricted` means authority-gated transfer. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. A Transformation declares the quantity it reserves per unit ordered (`reserves`, empty by default). The Gameboard rejects a reservation of a Resource that is not `reservable`. A Resource that no Transformation produces or consumes is conserved. This follows from the declared Transformations, not from a separate declaration.
 
 A reservation lasts within one round, and its mechanics are given in [§8.2](#82-single-round-update-and-snapshot-discipline): the reserved quantity limits competing actions but is neither consumed nor transferred, and nothing stays reserved across a round boundary.
 
@@ -141,7 +143,7 @@ This table is the single source of term definitions. The other specifications us
 | **Entity** | An economic participant with accounts, capacities, capabilities, and a kind (Actor or Aggregate). |
 | **Controller** | What drives an Actor: a seat or an NPC Policy. |
 | **NPC** | An Actor whose Policy is part of the scenario. |
-| **Seat** | An Actor whose Policy is supplied from outside the scenario; swapping the implementation never changes the Actor. |
+| **Seat** | An Actor whose Policy is supplied from outside the scenario. Swapping the implementation never changes the Actor. |
 | **Policy** | Anything that produces Intents from its authorized View ([§4](#4-policies)). |
 | **Policy kind** | How a Policy is implemented: declarative program, AI agent, or human. Recorded in the manifest and round records, not on Proposals. |
 | **Preset** | A named parameter set for a declarative program, such as the seat-policy preset `Conservative`. |
@@ -154,13 +156,13 @@ This table is the single source of term definitions. The other specifications us
 | **Money** | The numeraire Resource (World State `numeraire`): the Resource facility costs are paid in. |
 | **Resource** | An identifiable economic quantity with a unit and declared properties ([§2.3](#23-resource)). |
 | **Holding** | A quantity of a Resource held by an Entity or a Market's reserves. |
-| **Capacity** | A throughput quantity an Entity holds, which Transformations draw on; its owner is the Entity holding it. |
+| **Capacity** | A throughput quantity an Entity holds, which Transformations draw on. Its owner is the Entity holding it. |
 | **Residual** | The accounts and behavior of a population remaining in an Aggregate after explicitly modeled accounts are assigned elsewhere. |
-| **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers neither ownership nor authority. |
+| **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers no ownership, and agency only in procedures the member holds no weight in (§2.2). |
 | **Collective procedure** | An Aggregate's weighted-signature rule for Proposals made in its name ([§2.2](#22-three-projections-of-an-entity)). |
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
 | **Rule** | An institutional condition the engine interprets: a `Tariff`, an `AccessBan`, or a `Withholding` ([§3](#3-intents-and-economic-actions)). |
-| **Jurisdiction** | The Entity that enacts and governs a Tariff or AccessBan against others; a Withholding is governed by its capacity's owner ([§2.4](#24-capability)). |
+| **Jurisdiction** | The Entity that enacts and governs a Tariff or AccessBan against others. A Withholding is governed by its capacity's owner ([§2.4](#24-capability)). |
 | **Intent** | A typed action: `Trade`, `Route`, `Transfer`, `Transform`, or `ChangeRule` ([§3](#3-intents-and-economic-actions)). |
 | **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a deal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
 | **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing. |
@@ -173,11 +175,11 @@ This table is the single source of term definitions. The other specifications us
 | **Best execution** | The Entity-facing form of an order that names a base and quote pair, not a Market. The engine routes it across the Markets for that pair the Entity can trade on ([§5.2](#52-exchange-markets)). |
 | **Escrow** | The hold placed at screening on a Proposal's maximum cost, in any Resource, released at commit if unused ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
 | **Reservation** | A reserved quantity of a reservable Resource, such as deployed Military: unavailable within the round, not consumed. |
-| **Shortfall** | An amount owed but not paid, because the payer's holdings were insufficient; recorded, never driving a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
+| **Shortfall** | An amount owed but not paid, because the payer's holdings were insufficient. Recorded, never driving a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
 | **Delivery** | A scheduled change to a holding or capacity, applied at the start of the round it is due. |
 | **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
 | **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate's baseline ([§7](#7-aggregates-and-representation)). |
-| **Behavior domain** | The Resource whose purchases a Representation observes; the part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
+| **Behavior domain** | The Resource whose purchases a Representation observes. The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
 | **Observation** | The admissible proposed buy quantity a Representation reads from its Actor's validated Proposals ([§7.3](#73-representation-pipeline)). |
 | **Estimator** | The configured function that turns a representative's observed behavior into an adjustment factor ([§7.4](#74-estimation-semantics)). |
 | **Adjustment factor** | The stored multiplier an Aggregate's baseline is scaled by in the following round ([§7.4](#74-estimation-semantics)). |
@@ -189,7 +191,7 @@ This table is the single source of term definitions. The other specifications us
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
 | **Player seed** | A second seed, used only by the simulation harness, from which all seat-Policy randomness is derived. |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
-| **Display kind** | One of Quantity, Price, or Ratio; each has one display function ([§9.1](#91-numerics-and-randomness)). |
+| **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
 
 ## 3. Intents and Economic Actions
 
@@ -198,7 +200,7 @@ Intents are the only input to the engine, and every executed Intent came from a 
 The Intent algebra has four categories:
 
 - **Trade:** An order on a public Market, with an optional limit price. A **Route** is a Trade with its Market omitted: a best-execution order for a base and quote pair ([§5.2](#52-exchange-markets)). A Route must carry a limit price.
-- **Transfer:** A movement of a Resource from one Entity to another. Alone it is a gift or payment; bundled in a multi-signer Proposal it is one side of a deal. Its `from` must be a required signer.
+- **Transfer:** A movement of a Resource from one Entity to another. Alone it is a gift or payment. Bundled in a multi-signer Proposal it is one side of a deal. Its `from` must be a required signer.
 - **Transform:** Execute a declared Transformation, such as production, consumption, procurement, or investment. Its `by` must be a required signer.
 - **ChangeRule:** Enact or repeal a Rule under the Entity's authority. A repeal names an existing Rule, and only the authority that governs it may repeal it ([§2.4](#24-capability)). Enactment takes effect at the next round boundary.
 
@@ -243,7 +245,7 @@ type Proposal =
   }
 ```
 
-A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers; Gameboard visibility rules may make it more public. Intents are carried by Proposals and are never applied directly to state.
+A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers. Gameboard visibility rules may make it more public. Intents are carried by Proposals and are never applied directly to state.
 
 An Intent's economic meaning does not depend on who generated it: a seat, NPC, or Aggregate can all propose a Trade, and the engine determines whether it is permitted, feasible, and executable. Provenance (which seat or Policy produced a Proposal, and its Policy kind) is kept in the round record and manifest.
 
@@ -278,15 +280,15 @@ Every Intent reaches the engine inside a Proposal. Each round the round runner (
 
 A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule) has its author as the only required signer. An **offer** also requires its counterparties: SA's Proposal [Transfer 20 E to JP, Transfer 48 M to SA] with signers [SA, JP] is an offer, and JP's signature is the acceptance. An N-party deal requires N signers.
 
-Multi-signer Proposals ("deals") may bundle only Transfers and Transforms; a deal containing a Trade, Route, or ChangeRule is rejected. Trades travel in single-author Proposals and follow the partial-fill rules ([§3.2](#32-infeasible-actions)). A deal is all-or-nothing: if its signed facility orders exceed a facility's capacity, every deal using that facility in that round is rejected as a unit and recorded. Single-author facility orders keep pro-rata fills. Each `ProposalId` is derived from (round, author, index in the author's submission), so recorded signatures replay deterministically.
+Multi-signer Proposals ("deals") may bundle only Transfers and Transforms. A deal containing a Trade, Route, or ChangeRule is rejected. Trades travel in single-author Proposals and follow the partial-fill rules ([§3.2](#32-infeasible-actions)). A deal is all-or-nothing: if its signed facility orders exceed a facility's capacity, every deal using that facility in that round is rejected as a unit and recorded. Single-author facility orders keep pro-rata fills. Each `ProposalId` is derived from (round, author, index in the author's submission), so recorded signatures replay deterministically.
 
 A **procedure Proposal** is authored by an Aggregate under one of its collective procedures and names that procedure's members as signers. It executes when the signed weight exceeds the procedure's threshold ([§2.2](#22-three-projections-of-an-entity)), and is then the Aggregate's own action: it may carry any Intent the procedure authorizes, including a Trade, which fills under the normal partial-fill rules. The deal restrictions above do not apply to procedure Proposals.
 
 A Proposal whose signature rule is not met **lapses**: it is recorded as a decline and the round resolves normally. Because acceptance is a signature on the offer's own terms, the two sides of a deal cannot disagree. A counteroffer is a new Proposal, signable next round, and the engine enforces no promises across rounds.
 
-A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)); each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
+A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)). Each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
 
-Negotiation happens out of band for humans; the interpreter turns "we accept SA's deal" into a signature on that Proposal. Programs propose and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"); AI agents read the Proposals that name them and choose.
+Negotiation happens out of band for humans. The interpreter turns "we accept SA's deal" into a signature on that Proposal. Programs propose and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"). AI agents read the Proposals that name them and choose.
 
 ## 4. Policies
 
@@ -312,11 +314,11 @@ The engine (World State + Intents → World State) is separate from the Policies
 |---|---|---|
 | **Declarative program** | NPC rules, Aggregate baselines, seat-policy presets, run on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)) | The game seed |
 | **AI agent** | A language model given the role's briefing, objectives, and authorized view | Recorded Intents |
-| **Human** | A person whose typed text the AI interpreter converts into Intents | Recorded Intents |
+| **Human** | A person whose audio submission, transcribed, is interpreted into Intents | Recorded transcripts and Intents |
 
-Accepted Intents are always recorded, and replay starts from them; deterministic programs can also be regenerated from the seed.
+Accepted Intents are always recorded, and replay starts from them. Deterministic programs can also be regenerated from the seed.
 
-A seat's Policy is supplied from outside and bound at run time; swapping it (human, agent, or program) never changes the Actor's definition ([INV-30](#inv-30)).
+A seat's Policy is supplied from outside and bound at run time. Swapping it (human, agent, or program) never changes the Actor's definition ([INV-30](#inv-30)).
 
 **Policy memory is planned, not implemented.** No World State field holds it yet. Policies read the previous round's events and stored factors, and seat-Policy state lives in the run record ([06](06_simulator.md)).
 
@@ -341,13 +343,13 @@ An initialized Policy must:
 - Operate only on an authorized view of the world.
 - Produce typed Intents.
 - Respect deterministic execution, using seeded randomness only where its definition explicitly calls for it.
-- Remain distinct from institutional rules that players may be authorized to change. A seat enacting a tariff changes a Rule through `ChangeRule`; it does not rewrite any Entity's Policy.
+- Remain distinct from institutional rules that players may be authorized to change. A seat enacting a tariff changes a Rule through `ChangeRule`. It does not rewrite any Entity's Policy.
 
 ### 4.4 Shared decision-language interpreter
 
-All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters; events of the previous round; Rules in force) and the templates it proposes: market and facility orders, deals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
+All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, deals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
 
-The market `$home` names the Entity's home market: the first Market, by id, that the Entity has access to. An Entity that acts must have one; a scenario that gives it none fails at startup, naming the Entity.
+The market `$home` names the Entity's home market: the first Market, by id, that the Entity has access to. An Entity that acts must have one. A scenario that gives it none fails at startup, naming the Entity.
 
 The interpreter drafts only the ordinary intents its Entity is authorized to execute, using the same `authorized` function the engine applies ([§2.4](#24-capability)). Procedure and deal intents are exempt, because the engine checks them against their own authority. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
 
@@ -364,7 +366,7 @@ type CostFunction =
   }
 ```
 
-Cost functions are linear. A Market's position persists across rounds; a facility's position is its total for the current round. A CostFunction prices quantity and never creates or destroys an asset by itself ([INV-07](#inv-07)).
+Cost functions are linear. A Market's position persists across rounds. A facility's position is its total for the current round. A CostFunction prices quantity and never creates or destroys an asset by itself ([INV-07](#inv-07)).
 
 ### 5.2 Exchange Markets
 
@@ -382,14 +384,14 @@ type Market =
   }
 ```
 
-The base Resource is the good being exchanged; the quote Resource is the denomination. The same cost function prices purchases and sales (positive and negative quantities), subject to domain and reserve constraints. Markets cannot supply resources they do not hold. A regional Market is expressed through `access`.
+The base Resource is the good being exchanged. The quote Resource is the denomination. The same cost function prices purchases and sales (positive and negative quantities), subject to domain and reserve constraints. Markets cannot supply resources they do not hold. A regional Market is expressed through `access`.
 
-**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair; the regional Markets remain the physical structure. In scenario JSON a routed trade is a `trade` whose `market` is `null` and which names its pair. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
+**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair. The regional Markets remain the physical structure. In scenario JSON a routed trade is a `trade` whose `market` is `null` and which names its pair. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
 
 - **Candidates.** The Markets whose base and quote match, to which the Entity has access and for which it holds the trade capability. A routed order with no candidate is rejected at screening. An explicit order on an inaccessible Market is also rejected.
-- **Limit.** A routed order must carry a limit price, for both sides; screening rejects one without it. Its escrow ceiling is therefore its limit (for a buy, limit × quantity; for a sell, its quantity).
+- **Limit.** A routed order must carry a limit price, for both sides. Screening rejects one without it. Its escrow ceiling is therefore its limit (for a buy, limit × quantity, for a sell, its quantity).
 - **Merit order.** Candidates are taken in order of their opening marginal price: lowest first for a buy, highest first for a sell. Ties break by MarketId.
-- **Split rule.** Routed orders are planned in canonical order (EntityId, ProposalId, Intent index), never submission order. Each candidate in merit order takes the largest quantity whose uniform batch price, including explicit orders and slices already planned there, stays within a cap: the limit, or the opening marginal price of the next candidate if that is tighter. Market bounds (domain and reserves) also bind. The rest passes to the next candidate; the last candidate's cap is the limit alone.
+- **Split rule.** Routed orders are planned in canonical order (EntityId, ProposalId, Intent index), never submission order. Each candidate in merit order takes the largest quantity whose uniform batch price, including explicit orders and slices already planned there, stays within a cap: the limit, or the opening marginal price of the next candidate if that is tighter. Market bounds (domain and reserves) also bind. The rest passes to the next candidate. The last candidate's cap is the limit alone.
 - **Clearing.** The planned slices are ordinary Market orders and clear with the rest of the Market's batch ([§5.5](#55-simultaneous-clearing)).
 - **Guarantees.** The split is deterministic and order-independent ([INV-11](#inv-11)). An Entity's fills across Markets sum to at most its routed quantity, and no Market is filled beyond its domain or reserves ([INV-06](#inv-06)).
 - **Non-guarantees.** The split does not equalise marginal prices across Markets. Explicit orders removed at clearing for their limit change the batch after planning, so a slice may stay unfilled rather than be re-routed. The unfilled remainder is not reported as a rejection.
@@ -419,9 +421,9 @@ type CapacityEffect =   -- per unit ordered, applied after the delay; holder def
   { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
 ```
 
-Investment and disruption are facilities with capacity effects: an investment raises a capacity after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit. Those that also share a cost function share one uniform price, a single function of the pool's filled quantity. Escrow applies that function to the pool's ceiling: for a capped facility, the capacity ÷ the smallest `capacityUse` among the facilities drawing on it, rounded down, since any total of fills draws on the capacity at least that fast; for an uncapped facility (no capacity, or `capacityUse` zero), the top of its CostFunction's domain. Every member escrows at this one ceiling, and fills never exceed it, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
+Investment and disruption are facilities with capacity effects: an investment raises a capacity after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit. Those that also share a cost function share one uniform price, a single function of the pool's filled quantity. Escrow applies that function to the pool's ceiling: for a capped facility, the capacity ÷ the smallest `capacityUse` among the facilities drawing on it, rounded down, since any total of fills draws on the capacity at least that fast. For an uncapped facility (no capacity, or `capacityUse` zero), the top of its CostFunction's domain. Every member escrows at this one ceiling, and fills never exceed it, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
 
-Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available. Money paid to a facility goes to a declared payee Entity, so expenditure re-enters circulation; facilities hold no reserves.
+Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available. Money paid to a facility goes to a declared payee Entity, so expenditure re-enters circulation. Facilities hold no reserves.
 
 A facility may be presented as a "market" in the player interface, but its accounting is that of a Transformation: outputs are created only by the recipe, within capacity ([INV-07](#inv-07)).
 
@@ -431,12 +433,12 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 
 - Scoped or regional Market nodes, and market access rules that determine which Entities may trade.
 - `Tariff` and `AccessBan` Rules applied to particular jurisdictions and origins ([§3](#3-intents-and-economic-actions)).
-- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)). Two Entities are in the same region when some Market for the Resource lets both trade. A cross-region Transfer must be bundled with a matching order on the Resource's transport facility, executed by the sender and signed by the owner of that facility's capacity. An `AccessBan` makes the shipment infeasible; a `Tariff` adds its rate to the shipment, paid by the sender to the restricting jurisdiction.
+- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)). Two Entities are in the same region when some Market for the Resource lets both trade. A cross-region Transfer must be bundled with a matching order on the Resource's transport facility, executed by the sender and signed by the owner of that facility's capacity. An `AccessBan` makes the shipment infeasible. A `Tariff` adds its rate to the shipment, paid by the sender to the restricting jurisdiction.
 - Facilities that share a capacity share its limit and its uniform price.
 
 ### 5.5 Simultaneous clearing
 
-All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price; they do not order individual orders.
+All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders.
 
 For a given Market:
 
@@ -452,7 +454,7 @@ The clearing result must not depend on the order in which submissions were recei
 
 ### 5.6 Market-rule changes
 
-A `Tariff` adds its rate to deliveries from the origin into the jurisdiction, paid to the jurisdiction's government; an `AccessBan` makes such deliveries infeasible; a `Withholding` removes units of a capacity. Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
+A `Tariff` adds its rate to deliveries from the origin into the jurisdiction, paid to the jurisdiction's government. An `AccessBan` makes such deliveries infeasible. A `Withholding` removes units of a capacity. Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
 
 ## 6. Economic Circulation
 
@@ -490,7 +492,7 @@ Explicit Actors influence an implicit Aggregate in two distinct ways. **Represen
 
 An Aggregate maintains a `members` list, residual economic accounts and capacities, a baseline behavioral Policy, any collective procedures and institutional capabilities, and relationships to any representative Actors.
 
-**An Aggregate's economic accounts are the residual after explicitly modeled accounts have been assigned to other Entities.** An explicit small-business Actor owns its own resources; the small-business Aggregate holds the resources attributed to the remaining, implicitly represented businesses. Making a government's head explicit extracts only the accounts and responsibilities assigned to that government Actor; the households and firms of that country remain in whichever Aggregate owns them.
+**An Aggregate's economic accounts are the residual after explicitly modeled accounts have been assigned to other Entities.** An explicit small-business Actor owns its own resources. The small-business Aggregate holds the resources attributed to the remaining, implicitly represented businesses. Making a government's head explicit extracts only the accounts and responsibilities assigned to that government Actor. The households and firms of that country remain in whichever Aggregate owns them.
 
 ### 7.2 Representation and estimators
 
@@ -525,7 +527,7 @@ Representation proceeds through four stages, and the engine records each one:
 3. **Proposed Aggregate Intent.** The Aggregate Policy's adjusted Proposal.
 4. **Executed result.** The settled outcome after feasibility checks.
 
-The observation and estimate belong to round r; the proposed Intent and executed result to round r + 1. Any difference between intended and executed actions is recorded.
+The observation and estimate belong to round r. The proposed Intent and executed result to round r + 1. Any difference between intended and executed actions is recorded.
 
 ### 7.4 Estimation semantics
 
@@ -539,13 +541,13 @@ Sampling noise models the uncertainty of inferring a population from a few repre
 
 **Adjustment factor = 1 + shrinkage × Σ(weightᵢ × deviationᵢ)**
 
-The sum runs over the Representations targeting that Aggregate and domain. The engine computes the factor from round r's validated Proposals and stores it in World State; it never creates or changes a Proposal. In round r + 1 the Aggregate's Policy proposes:
+The sum runs over the Representations targeting that Aggregate and domain. The engine computes the factor from round r's validated Proposals and stores it in World State. It never creates or changes a Proposal. In round r + 1 the Aggregate's Policy proposes:
 
 **Adjusted target = Baseline × stored factor**
 
 where the baseline is that of round r + 1, replaced exactly once.
 
-Representatives are strategic players, not random samples, and have an incentive to act for influence. The type system does not eliminate this, because disproportionate influence for small players is a design goal; it makes influence explicit and bounded. Estimator parameters are declared balancing assumptions, not claims of unbiased inference. When no observation was made in the previous round, no factor is stored and the Aggregate follows its baseline.
+Representatives are strategic players, not random samples, and have an incentive to act for influence. The type system does not eliminate this, because disproportionate influence for small players is a design goal. It makes influence explicit and bounded. Estimator parameters are declared balancing assumptions, not claims of unbiased inference. When no observation was made in the previous round, no factor is stored and the Aggregate follows its baseline.
 
 ### 7.5 Multiple representatives
 
@@ -561,7 +563,7 @@ A representative decision therefore has two independently validated effects: a d
 
 ## 8. World State and Round Resolution
 
-World State is the complete economic snapshot at a round boundary ([§2.5](#25-glossary)). Policies read World State but cannot mutate it; they only submit Intents. The engine advances the world through one deterministic round-resolution function.
+World State is the complete economic snapshot at a round boundary ([§2.5](#25-glossary)). Policies read World State but cannot mutate it. They only submit Intents. The engine advances the world through one deterministic round-resolution function.
 
 ### 8.1 Canonical resolution sequence
 
@@ -592,14 +594,14 @@ Atomically commit the new World State, and record the round's inputs and events.
 
 ### 8.2 Single round update and snapshot discipline
 
-All Actor and Aggregate actions for a round are bundled into one round update and resolved together. Clearing is uniform, so no action settles "before" another and submission order is irrelevant ([INV-11](#inv-11)). The steps in [§8.1](#81-canonical-resolution-sequence) are functional dependencies, such as screening before estimation; they never order individual actions. Two rules make this hold:
+All Actor and Aggregate actions for a round are bundled into one round update and resolved together. Clearing is uniform, so no action settles "before" another and submission order is irrelevant ([INV-11](#inv-11)). The steps in [§8.1](#81-canonical-resolution-sequence) are functional dependencies, such as screening before estimation. They never order individual actions. Two rules make this hold:
 
-- **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit); for a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `reserves` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
-- **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round; selling and buying both draw on opening holdings.
+- **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit). For a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `reserves` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
+- **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying both draw on opening holdings.
 
-Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error; it is a backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them. If a settled holding or Market reserve would still be negative, the commit fails the round with an engine error, which is an invariant failure ([INV-04](#inv-04)), not an infeasible action.
+Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error. It is a backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them. If a settled holding or Market reserve would still be negative, the commit fails the round with an engine error, which is an invariant failure ([INV-04](#inv-04)), not an infeasible action.
 
-Passive consumption rules (such as operating requirements), decay, and derived flows (such as revenue sharing) are functions of the batch result, evaluated on each Entity's net position at commit. All decisions in a round operate on the beginning-of-round Snapshot; everything a round computes becomes observable in the next round, so there is no same-round feedback.
+Passive consumption rules (such as operating requirements), decay, and derived flows (such as revenue sharing) are functions of the batch result, evaluated on each Entity's net position at commit. All decisions in a round operate on the beginning-of-round Snapshot. Everything a round computes becomes observable in the next round, so there is no same-round feedback.
 
 ### 8.3 Functional interface
 
@@ -617,7 +619,7 @@ runRound :: InWorld -> WorldState
          -> Run (SEAT_INPUT + RECORD + r) (Either EngineError RoundResult)
 ```
 
-`runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation; in-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
+`runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation. In-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
 
 `EngineError` reports a failure of the configured simulation or of its execution, such as an unknown reference or a negative balance that settlement should have prevented. Lapsed Proposals and ordinary infeasible actions are outcomes recorded as events and never fail the round.
 
@@ -630,14 +632,14 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 | Effect row | Operation | Meaning |
 |---|---|---|
 | `SEAT_INPUT` | `Propose`, `Sign` | A seat's Proposals in Propose and its signatures in Sign |
-| `INTERPRET` | `Interpret` | Text to candidate Intents, with confirmation (live play) |
-| `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text; adds no facts |
+| `INTERPRET` | `Interpret` | The round's transcripts to Intents, read together across players. No confirmation (live play) |
+| `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text. Adds no facts |
 | `RECORD` | `Record` | Append a round result to the run's records |
 | `CLOCK` | `Await` | Wait for a propose or sign deadline (live play only) |
 
-Handlers choose the context; the round runner is the same code under all of them:
+Handlers choose the context. The round runner is the same code under all of them:
 
-- **Live session:** `SEAT_INPUT` through humans and `INTERPRET`; `CLOCK` enforces deadlines.
+- **Live session:** `SEAT_INPUT` through humans and `INTERPRET`. `CLOCK` enforces deadlines.
 - **Simulation:** `SEAT_INPUT` through preset programs or AI agents, whose randomness draws from the player seed.
 - **Replay:** `SEAT_INPUT` feeds recorded Proposals and signatures.
 - **Test:** all handlers pure.
@@ -672,14 +674,14 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 | <a id="inv-22"></a>INV-22 | G | Version stability | A Gameboard version's definitions are immutable. |
 | <a id="inv-23"></a>INV-23 | I | Unique control | Every explicit Actor has exactly one valid controller. |
 | <a id="inv-24"></a>INV-24 | I | Valid participation | Every selected Actor and Representation is permitted by the Gameboard and validly parameterized. |
-| <a id="inv-25"></a>INV-25 | I | Fallback completeness | Every unselected Actor definition has a permitted fallback; no required responsibility is left unowned. |
+| <a id="inv-25"></a>INV-25 | I | Fallback completeness | Every unselected Actor definition has a permitted fallback. No required responsibility is left unowned. |
 | <a id="inv-26"></a>INV-26 | I | Policy completeness | Every NPC and Aggregate has an executable initialized Policy. |
 | <a id="inv-27"></a>INV-27 | I | Market feasibility | Initial Market positions, reserves, and capacities satisfy economic constraints. |
 | <a id="inv-28"></a>INV-28 | I | Temporal consistency | Round intervals and Policy timing fit the simulated horizon. |
 | <a id="inv-29"></a>INV-29 | H | Engine and interpreter reuse | Simulated games use the same engine, resolution sequence, and decision-language interpreter as real games. |
 | <a id="inv-30"></a>INV-30 | H | Controller integrity | Swapping a seat's Policy implementation never changes the Actor's definition and never turns a seat into an NPC. |
-| <a id="inv-31"></a>INV-31 | H | Authoritative records | Manifests, append-only round records, and snapshots are authoritative and immutable; metrics are versioned projections. |
-| <a id="inv-36"></a>INV-36 | E, H | Purity | The engine is a pure function; all impurity occurs only through declared effects interpreted by handlers ([§8.4](#84-effects-and-handlers)). |
+| <a id="inv-31"></a>INV-31 | H | Authoritative records | Manifests, append-only round records, and snapshots are authoritative and immutable. Metrics are versioned projections. |
+| <a id="inv-36"></a>INV-36 | E, H | Purity | The engine is a pure function. All impurity occurs only through declared effects interpreted by handlers ([§8.4](#84-effects-and-handlers)). |
 
 IDs 18, 20, and 32–35 are retired.
 
@@ -689,7 +691,7 @@ IDs 18, 20, and 32–35 are retired.
 
 Mechanics are deterministic by default. Randomness is introduced only where a Gameboard rule or estimator explicitly calls for it, such as estimator sampling noise.
 
-**Seeds.** Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness; it exists only under the simulation handler, and live play has none. A seed is either injected or drawn once at initialization by the adapter layer, the only place OS entropy enters; the drawn value is recorded. During a run there is no entropy, so the same seed gives the same run. The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
+**Seeds.** Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness) uses it. The simulation harness adds a **player seed** for all seat-Policy randomness. It exists only under the simulation handler, and live play has none. A seed is either injected or drawn once at initialization by the adapter layer, the only place OS entropy enters. The drawn value is recorded. During a run there is no entropy, so the same seed gives the same run. The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
 
 **Draws.** Every draw is one pure function, so randomness needs no effect:
 
@@ -703,21 +705,21 @@ A `DrawKey` names the draw's semantic purpose: round, source (Representation or 
 
 **Principle: storage is exact, display is shorter.** Storage, computation, JSON encodings, and parse rules stay at four decimal places. Only what a person reads changes, and it changes through one display function per display kind, so no call site formats a number itself.
 
-The rules are implemented once, in `Core.Num` (`Q`). Every boundary imports that module; no other code parses, rounds, or formats an economic value.
+The rules are implemented once, in `Core.Num` (`Q`). Every boundary imports that module. No other code parses, rounds, or formats an economic value.
 
 - **Representation.** A `Q` is an arbitrary-precision integer count of 10⁻⁴ units. Addition, subtraction, and negation are exact. There is no overflow or underflow. A negative holding is an invariant violation ([INV-04](#inv-04)), not a numeric event.
 - **Rounding.** A product or quotient off the 4-decimal grid is rounded half-to-even (ties to the even last digit, symmetric in sign). Rounding at the grid is the only rounding: nothing is truncated silently.
-- **Remainders.** A total split among shares uses `proRata` (or `proRataWhole`, which first truncates the total toward zero to whole units): largest remainder, ties to the earlier index in canonical order. The shares sum to the total, so nothing is created or lost. A quotient used as a *scale* (a fraction of a claim that may be funded) uses `divFloor`, truncated toward zero, so that the scaled amount never exceeds its numerator; a half-even quotient can round up and overdraw.
-- **Division by zero.** Explicit. `div` fails loudly; a caller whose divisor can be zero uses `divMaybe` or `divFloor` and handles `Nothing`.
-- **Parse.** `Q.parse` is the only decimal parser: an optional sign, one or more digits, and optionally a point followed by one to four digits. Anything else, including a fifth decimal, is an error; no input is rounded silently.
+- **Remainders.** A total split among shares uses `proRata` (or `proRataWhole`, which first truncates the total toward zero to whole units): largest remainder, ties to the earlier index in canonical order. The shares sum to the total, so nothing is created or lost. A quotient used as a *scale* (a fraction of a claim that may be funded) uses `divFloor`, truncated toward zero, so that the scaled amount never exceeds its numerator. A half-even quotient can round up and overdraw.
+- **Division by zero.** Explicit. `div` fails loudly. A caller whose divisor can be zero uses `divMaybe` or `divFloor` and handles `Nothing`.
+- **Parse.** `Q.parse` is the only decimal parser: an optional sign, one or more digits, and optionally a point followed by one to four digits. Anything else, including a fifth decimal, is an error. No input is rounded silently.
 - **Format.** `Q.format` is the exact formatter: an optional `-`, the integer part, and exactly four decimals, with no grouping and no trailing-zero trimming. It is the text of `show`, of JSON encoding, and of the overrides JSON. It is never shown as a display value.
 - **Display.** `Q.display` dispatches on a `Q.Kind` (Quantity, Price, Ratio), and each kind has one function: `Q.displayQuantity`, `Q.displayPrice`, and `Q.displayRatio`. Every view, table, chart, and CLI line that shows a number names its kind and calls one of these. All three round the exact value half-to-even at the display precision:
-  - **Quantity** (Money and Resource counts): a whole number shows no decimals; otherwise at most two decimals, trailing zeros trimmed (`12`, `12.5`, `12.25`). A value that is not zero but would round to zero shows as `<0.01` (or `-<0.01`).
+  - **Quantity** (Money and Resource counts): a whole number shows no decimals. Otherwise at most two decimals, trailing zeros trimmed (`12`, `12.5`, `12.25`). A value that is not zero but would round to zero shows as `<0.01` (or `-<0.01`).
   - **Price** (quote per base unit): two decimals, trailing zeros trimmed, under the same rule as Quantity.
   - **Ratio** (Gini, influence, shrinkage, factors, support and threshold, tariff rates): always two decimals.
   - **Chart axes:** `Q.displayTick` rounds an axis tick to the 0.0001 grid and displays it under the chart's kind. A tick label is never parsed back into a quantity.
 - **Which kind.** The dashboard, the CLI, and the Compare views use these kinds as [06 §9](06_simulator.md#9-pages) states.
-- **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion of a quantity to a float, for display only (chart plotting); its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.
+- **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion of a quantity to a float, for display only (chart plotting). Its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.
 
 ## 10. Design Boundaries
 
@@ -731,4 +733,4 @@ The type system deliberately does not prescribe the following:
 
 **An LLM-based economic authority.** Language models interpret submissions and narrate outcomes. They do not bypass economic validation or directly mutate World State.
 
-**A fixed degree of market realism.** Cost functions are linear; other curve families or clearing mechanisms may be added later behind the same interfaces.
+**A fixed degree of market realism.** Cost functions are linear. Other curve families or clearing mechanisms may be added later behind the same interfaces.

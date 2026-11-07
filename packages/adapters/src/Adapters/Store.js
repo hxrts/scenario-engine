@@ -21,6 +21,8 @@ const migrations = [
   `alter table runs add column archived integer not null default 0;
    alter table runs add column source text;
    alter table runs add column kind text;`,
+  // transcripts: the round's seat transcripts (JSON array of { seat, text }) read by the joint pass
+  `alter table rounds add column transcripts text not null default '[]';`,
 ];
 
 export const latestVersion = migrations.length;
@@ -101,11 +103,11 @@ export const deleteRunImpl = (db, id) => () => {
   }
 };
 
-export const appendRoundImpl = (db, id, round, record, snapshot, assertions, metrics) => () => {
+export const appendRoundImpl = (db, id, round, record, snapshot, assertions, transcripts, metrics) => () => {
   db.exec("begin");
   try {
-    db.prepare("insert into rounds (run, round, record, snapshot, assertions) values (?, ?, ?, ?, ?)")
-      .run(id, round, record, snapshot, assertions);
+    db.prepare("insert into rounds (run, round, record, snapshot, assertions, transcripts) values (?, ?, ?, ?, ?, ?)")
+      .run(id, round, record, snapshot, assertions, transcripts);
     const m = db.prepare("insert into metrics (run, metric, version, round, value) values (?, ?, ?, ?, ?)");
     for (const x of metrics) m.run(id, x.metric, x.version, round, x.value);
     db.exec("commit");
@@ -150,7 +152,7 @@ export const manifestImpl = (db, id) => () => {
 };
 
 export const roundsImpl = (db, id) => () =>
-  db.prepare("select round, record, snapshot, assertions from rounds where run = ? order by round").all(id).map((r) => ({ ...r }));
+  db.prepare("select round, record, snapshot, assertions, transcripts from rounds where run = ? order by round").all(id).map((r) => ({ ...r }));
 
 export const metricImpl = (db, id, metric, version) => () =>
   db.prepare("select round, value from metrics where run = ? and metric = ? and version = ? order by round").all(id, metric, version).map((r) => ({ ...r }));

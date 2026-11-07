@@ -37,7 +37,7 @@ import Foreign.Object as Object
 import Effect (Effect)
 import Effects.Environment (checkHomes, homeMarket, inWorldOf)
 import Effects.Round (runGame)
-import Effects.Signatures (RECORD, SEAT_INPUT)
+import Effects.Signatures (INTERPRET, RECORD, SEAT_INPUT)
 import Handlers.Seats (SeatSource, collectRecords, handleSeats, programs)
 import Handlers.Sim (runSim)
 import Run as R
@@ -88,7 +88,7 @@ resolve ctx spec = foldM apply { gameboard: ctx.gameboard, config: ctx.config } 
 type Prepared =
   { manifest :: Manifest
   , world :: WorldState
-  , game :: R.Run (SEAT_INPUT + RECORD + ()) (Either EngineError WorldState)
+  , game :: R.Run (SEAT_INPUT + INTERPRET + RECORD + ()) (Either EngineError WorldState)
   , seats :: SeatSource
   }
 

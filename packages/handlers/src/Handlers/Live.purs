@@ -1,80 +1,67 @@
 -- | The Live handler (docs/04_instantiated_game.md §8, §11): runs `runRound` unchanged in Aff.
--- | Human seats type text, read through INTERPRET, within the propose and sign windows of CLOCK;
--- | AI-agent seats answer SEAT_INPUT directly; any other seat plays its bound program.
-module Handlers.Live (Live, Seat(..), Prompt, runLive, confirmed) where
+-- | Human seats submit one transcript per round within the propose window; AI-agent seats speak
+-- | through their own model call; the round's transcripts go to one joint pass (INTERPRET). Any
+-- | other seat plays its bound program. There is no clarification and no confirmation.
+module Handlers.Live (Live, Seat(..), Prompt, runLive) where
 
 import Prelude
 
-import Core.Types (EntityId, ProposalId)
+import Core.Types (EntityId)
 import Core.World (RoundResult, View)
-import Data.Array (length)
-import Data.String (toLower, trim)
+import Data.Either (Either(..))
+import Data.Foldable (for_)
 import Effect.Aff (Aff)
-import Effects.Signatures (ClockF(..), Deadline(..), InterpretF(..), Interpretation(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects.Signatures (ClockF(..), Deadline(..), INTERPRET, InterpretF(..), JointProposal, RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Handlers.Seats (SeatSource)
-import Policy.Interpret (Draft)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 data Seat = Human | Agent | Program
 
--- | A message to one human seat: an open window (`question` empty), or a question to answer.
-type Prompt = { seat :: EntityId, round :: Int, window :: Deadline, question :: String }
+-- | A human seat's prompt for its transcript: the round and the window it is typed in.
+type Prompt = { seat :: EntityId, round :: Int, window :: Deadline }
 
 type Live =
   { seat :: EntityId -> Seat
-  , ask :: Prompt -> Aff String -- the seat's next utterance
+  , ask :: Prompt -> Aff String -- a human seat's transcript for the round
   , notify :: EntityId -> String -> Aff Unit -- a message to the seat that needs no answer
-  , interpret :: InterpretF ~> Aff
+  , interpret :: InterpretF ~> Aff -- the round's joint pass
   , clock :: ClockF ~> Aff
-  , agents :: { propose :: EntityId -> View -> Aff (Array Draft), sign :: EntityId -> View -> Aff (Array ProposalId) }
+  , agents :: { speak :: EntityId -> View -> Aff String }
   , programs :: SeatSource
   , record :: RoundResult -> Aff Unit -- persist, then narrate
   }
 
--- | A confirmation is `y` or `yes`, in any letter case, after trimming; anything else declines.
-confirmed :: String -> Boolean
-confirmed answer = toLower (trim answer) == "y" || toLower (trim answer) == "yes"
-
-runLive :: forall a. Live -> Run (SEAT_INPUT + RECORD + ()) a -> Aff a
-runLive live = run (case_ # on (Proxy :: _ "seatInput") seat # on (Proxy :: _ "record") record)
+runLive :: forall a. Live -> Run (SEAT_INPUT + INTERPRET + RECORD + ()) a -> Aff a
+runLive live = run (case_ # on (Proxy :: _ "seatInput") seat # on (Proxy :: _ "interpret") joint # on (Proxy :: _ "record") record)
   where
   record (Record r next) = live.record r *> pure next
   seat = case _ of
+    Speak e v k -> k <$> case live.seat e of
+      Human -> do
+        text <- live.ask { seat: e, round: v.round, window: ProposeDeadline }
+        live.clock (Await v.round ProposeDeadline unit)
+        pure text
+      Agent -> live.agents.speak e v
+      Program -> pure ""
     Propose e v k -> k <$> case live.seat e of
-      Human -> human e v ProposeDeadline \i -> case i of
-        Understood ds _ -> ds
-        _ -> []
-      Agent -> live.agents.propose e v
       Program -> pure (live.programs.propose e v)
+      _ -> pure []
     Sign e v k -> k <$> case live.seat e of
-      Human -> human e v SignDeadline \i -> case i of
-        Understood _ ids -> ids
-        _ -> []
-      Agent -> live.agents.sign e v
+      Human -> live.clock (Await v.round SignDeadline unit) $> []
+      Agent -> pure []
       Program -> pure (live.programs.sign e v)
 
-  -- Interpret what the seat says; ask back a clarification at most twice and confirm a
-  -- candidate before the window closes. An inadmissible or unconfirmed action is dropped, and
-  -- the seat is told that it was dropped.
-  human :: forall b. EntityId -> View -> Deadline -> (Interpretation -> Array b) -> Aff (Array b)
-  human e v window pick = do
-    said <- live.ask { seat: e, round: v.round, window, question: "" }
-    out <- go 2 said
-    live.clock (Await v.round window unit)
-    pure out
-    where
-    prompt question = live.ask { seat: e, round: v.round, window, question }
-    notice why = live.notify e ("Round " <> show v.round <> " " <> show window <> " window: " <> why) $> []
-    go n said = live.interpret (Interpret e v said identity) >>= case _ of
-      Clarify q | n > 0 -> prompt q >>= go (n - 1)
-      Clarify _ -> notice "the action stayed ambiguous, so nothing was submitted"
-      Inadmissible why -> prompt ("Flagged as inadmissible: " <> why) $> []
-      i@(Understood _ _) -> do
-        let candidate = pick i
-        if length candidate == 0 then pure []
-        else do
-          yes <- prompt ("Confirm " <> show (length candidate) <> " item(s)? (y/n)")
-          if confirmed yes then pure candidate
-          else notice (show (length candidate) <> " item(s) not confirmed, so nothing was submitted")
+  -- A transcript that does not decode submits nothing for the round, and each human speaker is
+  -- told so. Nothing is asked back.
+  joint :: forall b. InterpretF b -> Aff b
+  joint (Interpret round transcripts k) = k <$> do
+    out <- live.interpret (Interpret round transcripts identity)
+    case out of
+      Right (js :: Array JointProposal) -> pure js
+      Left why -> do
+        for_ transcripts \t -> case live.seat t.seat of
+          Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")
+          _ -> pure unit
+        pure []

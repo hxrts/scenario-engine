@@ -6,7 +6,7 @@ import Prelude (negate)
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (Keyed, keyed, Built)
-import DSL.Decision (Clause, choose, gt, holding, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
+import DSL.Decision (Clause, choose, deal, gt, holding, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2).
 presets :: Keyed (Built "program")
@@ -74,12 +74,16 @@ opportunistic = program
   , sign: [ signAll ]
   }
 
+-- | Invests in energy capacity while holding more than 100 Mil. The investment is a deal with the
+-- | capacity's owner (CHIP, in Meridian) as a signer, because the owner of an `ownerSigns` capacity
+-- | must sign the order. The preset signs what is put to it, so an Investor owner signs too.
 investor :: Built "program"
 investor = program
   { rules:
       [ rule [ gt (holding "M") (lit 100) ]
-          [ transformT { transformation: "energy-capacity-investment", quantity: (lit 1) } ]
+          [ deal { signers: [ "CHIP" ], transfers: [], transforms: [ { transformation: "energy-capacity-investment", quantity: lit 1 } ] } ]
       ]
+  , sign: [ signAll ]
   }
 
 crisisresponse :: Built "program"

@@ -7,7 +7,7 @@ import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (q, Keyed, keyed, Built)
-import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, mul, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transformT, transformedLastRound)
+import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transferT, transformT, transformedLastRound)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
 policies :: Keyed (Built "program")
@@ -21,6 +21,7 @@ policies = keyed
   , Tuple "energy-suppliers-v0" energySuppliers
   , Tuple "government-default-v0" governmentDefault
   , Tuple "firm-default-v0" firmDefault
+  , Tuple "solidarity-pool-v0" solidarityPool
   ]
 
 chinaStrategic :: Built "program"
@@ -42,8 +43,8 @@ euCoordination = program
           [ tradeT { market: "energy-atlantic", quantity: (lit 8) } ]
       , rule [ gt (price "energy-atlantic") (lit 3) ]
           [ tradeT { market: "energy-atlantic", quantity: (lit 4) } ]
-      , rule [ gt (price "energy-atlantic") (lit 3) ]
-          [ procedureT { id: "eu-solidarity", signers: [ "DE" ], intents: [ tradeT { market: "energy-atlantic", quantity: (lit (-8)) } ] } ]
+      , rule [ gt (price "energy-atlantic") (lit 3), ge (holding "E") (lit 8) ]
+          [ procedureT { id: "eu-solidarity", signers: [ "DE" ], intents: [ transferT { from: "EU_POOL", to: "EU", resource: "E", quantity: (lit 8) }, tradeT { market: "energy-atlantic", quantity: (lit (-8)) } ] } ]
       , tariffMatch "US"
       , tariffMatch "CN"
       ]
@@ -97,13 +98,14 @@ worldHouseholds = program
 -- | The Energy suppliers' offers in one Market, parameterized by the market and the
 -- | suffix its scenario parameters carry (`supplier-offer-<suffix>`, `disruption-cut-<suffix>`).
 -- | Below the high price they offer the base volume; at or above it, the high volume. In the
--- | disruption round the offer is cut by the disruption amount.
+-- | disruption round the offer is cut by the disruption amount, and never below zero: a cut
+-- | larger than the offer removes it, and never turns it into a purchase.
 supplierOffers :: String -> String -> Array Clause
 supplierOffers m suffix =
   [ rule [ notDisruption, low ] [ offer (sub (lit 0) (param base)) ]
   , rule [ notDisruption, high ] [ offer (sub (lit 0) (param baseHigh)) ]
-  , rule [ disruption, low ] [ offer (sub (sub (lit 0) (param base)) (sub (lit 0) (param cut))) ]
-  , rule [ disruption, high ] [ offer (sub (sub (lit 0) (param baseHigh)) (sub (lit 0) (param cut))) ]
+  , rule [ disruption, low ] [ offer (sub (lit 0) (max' (lit 0) (sub (param base) (param cut)))) ]
+  , rule [ disruption, high ] [ offer (sub (lit 0) (max' (lit 0) (sub (param baseHigh) (param cut)))) ]
   ]
   where
   base = "supplier-offer-" <> suffix
@@ -121,6 +123,10 @@ energySuppliers = program
 
 governmentDefault :: Built "program"
 governmentDefault = program {}
+
+-- | The solidarity pool has no policy: it only gives Energy when the EU's procedure draws on it.
+solidarityPool :: Built "program"
+solidarityPool = program {}
 
 firmDefault :: Built "program"
 firmDefault = program

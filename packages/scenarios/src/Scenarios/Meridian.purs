@@ -19,6 +19,7 @@ module Scenarios.Meridian
   , defenceTerms
   , defenceAccess
   , smeSample
+  , majorShock
   ) where
 
 import Prelude (negate, (<>))
@@ -74,7 +75,7 @@ coreResources = keyed
 
 markets :: Keyed (Built "market")
 markets = keyed
-  [ Tuple "energy-atlantic" (market (union atlanticTerms { access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] }))
+  [ Tuple "energy-atlantic" (market (union atlanticTerms { access: [ "US", "DE", "UK", "BR", "NG", "ENCO", "DEF", "LABOR", "SME", "AID", "EU", "EU_POOL", "US_WORKERS", "GLOBAL_SMES", "SHIP", "ENERGY_SUPPLIERS" ] }))
   , Tuple "energy-asia" (market (union asiaTerms { access: [ "CN", "IN", "JP", "SA", "CHIP", "CN_PRIVATE", "WORLD_HOUSEHOLDS", "SHIP", "ENERGY_SUPPLIERS" ] }))
   , Tuple "defence-goods" (market (union defenceTerms { access: defenceAccess }))
   ]
@@ -244,6 +245,19 @@ smeSample =
 schemes :: Array (Built "scheme")
 schemes =
   [ scheme { id: smeSample.id, eligibleActors: [ smeSample.actor ], target: smeSample.aggregate, domain: smeSample.domain, estimator: estimator { reference: smeSample.reference, shrinkage: smeSample.shrinkage, bound: smeSample.bound, noiseSpread: q "0.1" } }
+  ]
+
+-- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's
+-- | Prepare phase removes both regions' supplier offers entirely (a cut at or above the offer
+-- | removes it, and never turns it into a purchase). It is the shock that flips the most preset
+-- | behaviours without any round of the reference disruption: Accumulator, Trader, Opportunistic and
+-- | Deployer change their Atlantic actions as the price crosses 3.0. Run it as overrides of the
+-- | reference game; the harness test "Major shock" pins what it flips.
+majorShock :: Array (Tuple String String)
+majorShock =
+  [ Tuple "disruption-round" "1"
+  , Tuple "disruption-cut-atlantic" "60"
+  , Tuple "disruption-cut-asia" "40"
   ]
 
 parameters :: Keyed Qty

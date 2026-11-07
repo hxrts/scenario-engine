@@ -1,4 +1,4 @@
-# Scenario Planning Game — Instantiated Game Specification
+# Scenario Planning Game: Instantiated Game Specification
 
 **Version:** 0.3
 **Scope:** Instantiated Game Layer
@@ -23,7 +23,7 @@ The configuration is a JSON object, `instantiation.json` in a scenario directory
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
-| `seed` | integer | yes | The game seed. Becomes the World State's `seed`; every in-world random draw uses it ([§7.3](#73-seeds-and-randomness)). |
+| `seed` | integer | yes | The game seed. Becomes the World State's `seed`. Every in-world random draw uses it ([§7.3](#73-seeds-and-randomness)). |
 | `rounds` | integer | yes | Rounds to play. Must lie in the Gameboard's `roundRange` ([03 §3](03_gameboard.md#3-scenario)). |
 | `seats` | object: Actor → seat id | no | Actors controlled by a seat, such as `"US": "seat-1"`. |
 | `npcs` | object: Actor → Policy id | no | Actors controlled by an in-world NPC Policy, such as `"CN": "china-strategic-v0"`. |
@@ -32,7 +32,7 @@ The configuration is a JSON object, `instantiation.json` in a scenario directory
 
 Meridian's configuration (`instantiation.json`) has 15 seats (`seat-1` to `seat-15`), one NPC (`CN`), one representation (`SME` for `sme-energy-sample`, weight 1), 5 rounds, and seed `26021` ([05 §14](05_test_instance.md#14-game-settings)).
 
-Holdings, capacities, Market state, Rules, Policy parameters, and round intervals are not configurable; the Gameboard fixes them ([03 §11](03_gameboard.md#11-initialization-constraints)). Configuring them, or selecting Aggregates directly, is planned.
+Holdings, capacities, Market state, Rules, Policy parameters, and round intervals are not configurable. The Gameboard fixes them ([03 §11](03_gameboard.md#11-initialization-constraints)). Configuring them, or selecting Aggregates directly, is planned.
 
 The Gameboard determines which choices are eligible. An invalid configuration fails with `ValidationError`s before any economic state is created.
 
@@ -87,8 +87,8 @@ Each Aggregate's baseline Policy is its `aggregate.policy`. Representations are 
 
 Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
-- its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State;
-- its procedure weight folds into `residualWeight` (§4.1);
+- its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
+- its procedure weight folds into `residualWeight` (§4.1).
 - every Market access list, jurisdiction entry, flow, share, production entry, and requirement that names it is retargeted to the Aggregate. Self-flows and self-shares are dropped, and requirements for the same Entity and Resource are summed.
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
@@ -97,9 +97,9 @@ An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do 
 
 Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_type_system.md#inv-14)). For example, a German government that is implicit within the EU, and one that is an explicit seat, must agree before any decision is made, on:
 
-- stocks (Entity accounts and Market reserves);
-- capacities;
-- procedure weights;
+- stocks (Entity accounts and Market reserves).
+- capacities.
+- procedure weights.
 - enacting authority.
 
 Validation checks this for each coverage Actor, comparing the configuration with that Actor unselected ([03 §12.4](03_gameboard.md#124-resolution-consistency)). A difference is `ResolutionInconsistent`. The check runs in validation, not in `instantiate`. A simulation override that changes explicitness is instantiated without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
@@ -110,8 +110,8 @@ Later trajectories may legitimately diverge, because players decide differently.
 
 Each `representations` entry activates a scheme ([03 §9](03_gameboard.md#9-representation-schemes)) for one Actor. The resulting World State Representation takes:
 
-- `aggregate`, `domain`, and `estimator` from the scheme;
-- `actor` and `weight` from the entry, with `weight` defaulting to `1`;
+- `aggregate`, `domain`, and `estimator` from the scheme.
+- `actor` and `weight` from the entry, with `weight` defaulting to `1`.
 - `id` from the scheme.
 
 Instantiation checks that the scheme exists (`UnknownReference`) and that the Actor is listed in the scheme's `eligibleActors` and is selected (`IneligibleRepresentative`). Range checks on the weight and estimator, checks for duplicate assignments, and compatibility checks are planned, not implemented.
@@ -129,13 +129,13 @@ Representation never confers holdings or capabilities ([INV-03](02_type_system.m
 
 A Policy is bound by reference to the catalog ([03 §8](03_gameboard.md#8-policy-catalog)):
 
-- an NPC Actor's controller names its Policy (from `npcs`, or from an institutional fallback);
-- an Aggregate's baseline is `aggregate.policy`;
+- an NPC Actor's controller names its Policy (from `npcs`, or from an institutional fallback).
+- an Aggregate's baseline is `aggregate.policy`.
 - a seat's Policy is bound by the simulator or session, not by instantiation ([06 §4](06_simulator.md#4-seat-policies)).
 
 A Policy instance is the catalog Program together with the Entity it governs. Its parameters are the Gameboard's named values ([03 §11](03_gameboard.md#11-initialization-constraints)). Per-instance parameters, triggers, and View permissions ([INV-16](02_type_system.md#inv-16)) are planned, not implemented. Each View is the beginning-of-round snapshot: the Entity's own state, prices, Rules in force, the events so far, the Entity's stored factors, and any Proposals it may sign.
 
-Policies are fixed for the game, and a `ChangeRule` alters the World State's Rules, never a Policy. A Policy has no memory store: what it knows from earlier rounds comes from recorded events and stored factors. The stored factors start empty. The engine never authors or rewrites a Proposal; in the estimate step it stores factors and nothing else ([INV-26](02_type_system.md#inv-26)).
+Policies are fixed for the game, and a `ChangeRule` alters the World State's Rules, never a Policy. A Policy has no memory store: what it knows from earlier rounds comes from recorded events and stored factors. The stored factors start empty. The engine never authors or rewrites a Proposal. In the estimate step it stores factors and nothing else ([INV-26](02_type_system.md#inv-26)).
 
 ## 7. Economic Initialization
 
@@ -143,7 +143,7 @@ Policies are fixed for the game, and a `ChangeRule` alters the World State's Rul
 
 Holdings, reserves, capacities, cost curves, Market access, and Rules come from the Gameboard. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
 
-Each Market starts at its configured `position` (default `0`), and its price is derived from the cost curve at that position. The Rules in force at the start come from `game-rules.json`; Meridian has none. Starting feasibility ([INV-27](02_type_system.md#inv-27)) is not checked at initialization. A negative holding or reserve instead fails the first round that produces one ([03 §5.6](03_gameboard.md#56-limits)).
+Each Market starts at its configured `position` (default `0`), and its price is derived from the cost curve at that position. The Rules in force at the start come from `game-rules.json`. Meridian has none. Starting feasibility ([INV-27](02_type_system.md#inv-27)) is not checked at initialization. A negative holding or reserve instead fails the first round that produces one ([03 §5.6](03_gameboard.md#56-limits)).
 
 ### 7.2 Recurring flows
 
@@ -161,22 +161,22 @@ Mechanics take no random draws by default. Nothing in the initial state is resam
 
 The schedule is the round count (`rounds`, within `roundRange`). Every round has the same length, and `horizon` gives the total in years ([03 §3](03_gameboard.md#3-scenario)). Per-round intervals, and scaling annual rates to round length ([INV-28](02_type_system.md#inv-28)), are planned. Rates are per round.
 
-In live play, each round has two windows, closed by the clock ([Effects.Signatures](../packages/effects/src/Effects/Signatures.purs)): a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure); the engine does not enforce it. Windows control only when submissions are accepted; they never change outcomes.
+In live play, each round has two windows, closed by the clock ([Effects.Signatures](../packages/effects/src/Effects/Signatures.purs)): a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
 
 ## 9. Runtime State and Lifecycle
 
 A run's state is:
 
-- the **World State**: the round index, the game seed, Entities with their controllers, Markets, capacities, Rules in force, scheduled Rule changes, pending deliveries, stored factors, events, and Representations;
-- the appended **round records**, one per round ([§11](#11-round-execution));
+- the **World State**: the round index, the game seed, Entities with their controllers, Markets, capacities, Rules in force, scheduled Rule changes, pending deliveries, stored factors, events, and Representations.
+- the appended **round records**, one per round ([§11](#11-round-execution)).
 - the **manifest**.
 
 `runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset programs in the harness), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
 
 The **manifest** is immutable and holds:
 
-- `gameboard`: `<id>@<version>`;
-- `engine` and `draw`: the engine and draw-scheme versions;
+- `gameboard`: `<id>@<version>`.
+- `engine` and `draw`: the engine and draw-scheme versions.
 - `initial`: the initial World State. It carries every controller, procedure, Representation, Market, Rule, and the game seed.
 
 It does not hold the Policy programs, the round count, or the player seed. The run's spec holds those ([06 §3](06_simulator.md#3-simulation-specification), [§8](06_simulator.md#8-persistence)). Round records are append-only, and snapshots are stored per round by the run store ([INV-31](02_type_system.md#inv-31)). Settings change during play only through supported mechanisms, never by editing the manifest.
@@ -214,7 +214,7 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 4. **Sign (phase 3b).** Each non-Aggregate Entity named as a signer of another Entity's Proposal is asked to sign. Human seats answer within the sign window. Aggregates do not sign.
 5. **Screen (phase 4).** Duplicate Proposal ids are rejected. Authority is checked, and each signature rule is applied: every signer for a deal, or support above the threshold for a procedure. Failures are recorded as `Rejected` or `Lapsed`. Inputs are ordered by author, then submission index, never by arrival time ([INV-11](02_type_system.md#inv-11)).
 6. **Estimate (phase 5).** Each Representation's factor is computed from the validated, proposed quantities, before funding, and stored for the next round.
-7. **Fund and settle (phase 6).** Proposed quantities are funded from escrow. Accepted actions resolve as one batch: Market trades clear at uniform prices; each deal settles atomically with any Facility order it bundles; a passed procedure Proposal counts as its Aggregate's action. Limit prices, pro-rata allocation, and tie-breaking are defined in Type System [§3](02_type_system.md#3-intents-and-economic-actions) and [§5.5](02_type_system.md#55-simultaneous-clearing).
+7. **Fund and settle (phase 6).** Proposed quantities are funded from escrow. Accepted actions resolve as one batch: Market trades clear at uniform prices. Each deal settles atomically with any Facility order it bundles. A passed procedure Proposal counts as its Aggregate's action. Limit prices, pro-rata allocation, and tie-breaking are defined in Type System [§3](02_type_system.md#3-intents-and-economic-actions) and [§5.5](02_type_system.md#55-simultaneous-clearing).
 8. **Circulate (phase 6).** The recurring cycle is evaluated on the batch result: production delivered next round, shares, requirements with shortfall penalties, fixed flows, and decay ([03 §5.4](03_gameboard.md#54-recurring-cycle)).
 9. **Commit (phase 7).** The net change is applied to every Entity and Market, and the round index advances. A negative holding or reserve fails the round (`NegativeBalance`, `NegativeReserve`) rather than recording an invalid state.
 10. **Record.** The round runner appends `{ round, inputs, events }` ([§11.1](#111-round-record)).
@@ -223,21 +223,21 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 
 A round record contains:
 
-- `round`: the round index;
-- `inputs`: the accepted signed Proposals, each with its signatures;
+- `round`: the round index.
+- `inputs`: the accepted signed Proposals, each with its signatures.
 - `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (with its reason), `Traded`, `Transferred`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `CapacityChanged`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
 Events record executed quantities, so a partial fill appears as a smaller `Traded` quantity, not as a separate state. Replay starts from `inputs` and does not re-run language-model interpretation ([Handlers.Seats](../packages/handlers/src/Handlers/Seats.purs)).
 
 ### 11.2 Live session
 
-- **Human text.** The interpreter may ask for clarification at most twice. Each candidate action is read back, and it is submitted only after the player confirms with `y` or `yes`. Inadmissible or unconfirmed actions are dropped, and the seat is told why ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
-- **AI agent seats** answer directly, without the confirmation step.
+- **Human players.** One audio submission per player per round, then no further input. Transcription and joint interpretation run once per round over all submissions. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, and the player is told why ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
+- **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they get no confirmation.
 - **Preset seats** play their bound program.
 
 Admissibility is enforced by the engine at screening (step 5), whichever source produced a Proposal ([Type System §3.1](02_type_system.md#31-intent-validation)).
 
-The session prints each seat's briefing from its View, and the front page and balance sheets from recorded events ([apps/cli](../apps/cli/src/Session.purs); [06 §9.2](06_simulator.md#92-run-details)). Narration adds no facts.
+The session prints each seat's briefing from its View, and the front page and balance sheets from recorded events ([apps/cli](../apps/cli/src/Session.purs), [06 §9.2](06_simulator.md#92-run-details)). Narration adds no facts.
 
 All participants act on one World State ([INV-15](02_type_system.md#inv-15)). Alternative outcomes need a separate instance or a deliberate replay branch.
 
@@ -247,13 +247,13 @@ A valid Instantiated Game satisfies every invariant in the Type System master ta
 
 | ID | Checked as | Status |
 |---|---|---|
-| [INV-03](02_type_system.md#inv-03) | Coverage keeps enacting authority equal (§4.3); institutional fallbacks keep capabilities. | Checked for coverage Actors |
-| [INV-05](02_type_system.md#inv-05) | Cycle reconciliation; Facility payees for costed Facilities. | Payee only; reconciliation planned |
-| [INV-08](02_type_system.md#inv-08) | Capacities have one owner; coverage merges leave no duplicate accounts. | Checked |
-| [INV-14](02_type_system.md#inv-14) | Stocks, capacities, procedure weights, and authority match across explicitness. | Checked for coverage Actors; liabilities and flows planned |
-| [INV-15](02_type_system.md#inv-15), [INV-16](02_type_system.md#inv-16) | One World State per run; each Policy's View limited to its permitted information. | One World State: by construction. View limits: planned |
-| [INV-23](02_type_system.md#inv-23) | Each selected Actor has exactly one controller. | By construction; controller compatibility checked |
-| [INV-24](02_type_system.md#inv-24) | Selection, eligibility, and scheme existence. | Partly checked; ranges planned |
+| [INV-03](02_type_system.md#inv-03) | Coverage keeps enacting authority equal (§4.3). Institutional fallbacks keep capabilities. | Checked for coverage Actors |
+| [INV-05](02_type_system.md#inv-05) | Cycle reconciliation. Facility payees for costed Facilities. | Payee only. Reconciliation planned |
+| [INV-08](02_type_system.md#inv-08) | Capacities have one owner. Coverage merges leave no duplicate accounts. | Checked |
+| [INV-14](02_type_system.md#inv-14) | Stocks, capacities, procedure weights, and authority match across explicitness. | Checked for coverage Actors. Liabilities and flows planned |
+| [INV-15](02_type_system.md#inv-15), [INV-16](02_type_system.md#inv-16) | One World State per run. Each Policy's View limited to its permitted information. | One World State: by construction. View limits: planned |
+| [INV-23](02_type_system.md#inv-23) | Each selected Actor has exactly one controller. | By construction. Controller compatibility checked |
+| [INV-24](02_type_system.md#inv-24) | Selection, eligibility, and scheme existence. | Partly checked. Ranges planned |
 | [INV-25](02_type_system.md#inv-25) | Non-required Actors have a fallback. | Partly checked |
 | [INV-26](02_type_system.md#inv-26) | Aggregate and NPC Policies exist and decode. | Checked |
 | [INV-27](02_type_system.md#inv-27) | Starting Market and capacity feasibility. | Planned |
@@ -271,9 +271,9 @@ Meridian's seat assignments, initial holdings, Market state, round schedule, and
 
 Instantiation turns a reusable Gameboard into a playable world. It:
 
-- selects which Entities are explicit, and resolves each unselected Actor by its fallback;
-- assigns a controller to each explicit Actor;
-- merges implicit coverage into Aggregates and binds Representations;
+- selects which Entities are explicit, and resolves each unselected Actor by its fallback.
+- assigns a controller to each explicit Actor.
+- merges implicit coverage into Aggregates and binds Representations.
 - produces one initial World State and its manifest, atomically.
 
 Each round then follows the canonical sequence and appends a record. The Gameboard defines the possible world, the configuration chooses its resolution, and the engine determines how it evolves.

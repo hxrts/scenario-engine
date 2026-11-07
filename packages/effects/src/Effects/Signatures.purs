@@ -7,7 +7,8 @@ module Effects.Signatures
   , RecordF(..)
   , INTERPRET
   , InterpretF(..)
-  , Interpretation(..)
+  , Transcript
+  , JointProposal
   , NARRATE
   , NarrateF(..)
   , CLOCK
@@ -18,13 +19,16 @@ module Effects.Signatures
 import Prelude
 
 import Core.Types (EntityId, ProposalId, RoundIndex)
+import Data.Either (Either)
 import Core.World (RoundResult, View)
 import Policy.Interpret (Draft)
 
--- | A seat's Proposals in Propose and its signatures in Sign.
+-- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
+-- | Speak (the seat's words, read by the round's joint pass; "" when it says nothing).
 data SeatInputF a
   = Propose EntityId View (Array Draft -> a)
   | Sign EntityId View (Array ProposalId -> a)
+  | Speak EntityId View (String -> a)
 
 derive instance Functor SeatInputF
 
@@ -37,13 +41,16 @@ derive instance Functor RecordF
 
 type RECORD r = (record :: RecordF | r)
 
--- | Transcript to candidate Intents (live play). The interpreter proposes; the player confirms.
-data Interpretation
-  = Understood (Array Draft) (Array ProposalId) -- Proposals to publish, and Proposals to sign
-  | Clarify String -- a materially ambiguous action, returned as a question
-  | Inadmissible String -- claimed resources or authority the Actor lacks
+-- | One seat's transcript of the round: its id and what it said.
+type Transcript = { seat :: EntityId, text :: String }
 
-data InterpretF a = Interpret EntityId View String (Interpretation -> a)
+-- | A Proposal reconciled by the joint pass: its author, its Draft (Intents, and the signers
+-- | the deal asks for besides the author), and the seats whose transcripts describe it. The
+-- | engine signs for `signed` (and the author) and lapses the Proposal when a signer is missing.
+type JointProposal = { author :: EntityId, draft :: Draft, signed :: Array EntityId }
+
+-- | One joint pass over a round's transcripts (live play): the Proposals they reconcile into.
+data InterpretF a = Interpret RoundIndex (Array Transcript) (Either String (Array JointProposal) -> a)
 
 derive instance Functor InterpretF
 

@@ -14,7 +14,7 @@ import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple)
 import Scenarios.Fixtures.Circulation (fixtureCirculation)
 import Scenarios.Fixtures.ConflictingActions (fixtureF)
-import Scenarios.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB3, fixtureB4Unsigned, fixtureB4)
+import Scenarios.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4)
 import Scenarios.Fixtures.MarketExchange (fixtureA, fixtureA2)
 import Scenarios.Fixtures.NpcResponse (fixtureD, fixtureDMinor)
 import Scenarios.Fixtures.Reservation (fixtureR, fixtureRAlone)
@@ -28,6 +28,7 @@ fixtures =
   , fixtureA2
   , fixtureB1
   , fixtureB2
+  , fixtureB2Pool
   , fixtureB3
   , fixtureB4Unsigned
   , fixtureB4

@@ -58,7 +58,8 @@ data Template
   = TradeT { market :: MarketId, quantity :: Expr, limit :: Maybe Expr }
   | RouteT { pair :: Pair, quantity :: Expr, limit :: Maybe Expr } -- best execution: no Market named (docs/02 §5.2)
   | TransformT { transformation :: TransformationId, quantity :: Expr }
-  | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, tariffs, reciprocations only
+  | TransferT { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr } -- an Intent a procedure may carry (docs/05 §12.1)
+  | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, transfers, tariffs, reciprocations only
   | EnactTariff { origin :: EntityId, rate :: Expr }
   | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
   | Deal { signers :: Array EntityId, transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }, transforms :: Array { transformation :: TransformationId, quantity :: Expr } } -- `self` names the author; a deal bundles Transfers and Transforms (docs/02 §3)
@@ -157,6 +158,7 @@ programRefs p =
     TradeT x -> [ MarketName (unwrapId x.market) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
     RouteT x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
     TransformT x -> [ TransformationName (unwrapId x.transformation) ] <> exprRefs x.quantity
+    TransferT x -> transferRefs x
     Procedure x -> map (EntityName <<< unwrapId) x.signers <> concatMap templateRefs x.intents
     EnactTariff x -> [ EntityName (unwrapId x.origin) ] <> exprRefs x.rate
     ReciprocateLastRound x -> [ EntityName (unwrapId x.target) ]
@@ -292,6 +294,12 @@ object tag body = do
       t <- o .: "transformation"
       quantity <- o .: "quantity" >>= expr
       pure (TransformT { transformation: Id t, quantity })
+    "transfer" -> do
+      from <- o .: "from"
+      to <- o .: "to"
+      resource <- o .: "resource"
+      quantity <- o .: "quantity" >>= expr
+      pure (TransferT { from: Id from, to: Id to, resource: Id resource, quantity })
     "procedure" -> do
       p <- o .: "id"
       signers <- o .: "signers"

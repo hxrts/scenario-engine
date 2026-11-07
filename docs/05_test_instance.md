@@ -1,7 +1,7 @@
-# Scenario Planning Game — Reference Instance: Meridian
+# Scenario Planning Game: Reference Instance: Meridian
 
 **Version:** 0.2  
-**Status:** Experimental configuration; all scenario choices and numerical parameters are provisional  
+**Status:** Experimental configuration. All scenario choices and numerical parameters are provisional  
 **Scenario ID:** `meridian`, version `v0` (Gameboard `meridian@v0`)  
 **Implementation language:** PureScript
 
@@ -9,9 +9,9 @@
 
 ## 1. Purpose
 
-This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **Meridian**. It was first called *The Fractured World*; that name is retired, and runs recorded under it keep their old game ids (`fractured-world/...`).
+This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **Meridian**. It was first called *The Fractured World*. That name is retired, and runs recorded under it keep their old game ids (`fractured-world/...`).
 
-It makes experimental choices about resources, participants, markets, facilities, circulation, policies, and rules on top of the Type System, Gameboard, and Instantiated Game specifications. Terms follow the Type System Glossary ([§2.5](02_type_system.md#25-glossary)); invariants are cited by ID ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). Changing this instance should normally mean changing data, not engine code; a mechanic that does not fit the existing types is a finding, not a special case.
+It makes experimental choices about resources, participants, markets, facilities, circulation, policies, and rules on top of the Type System, Gameboard, and Instantiated Game specifications. Terms follow the Type System Glossary ([§2.5](02_type_system.md#25-glossary)). Invariants are cited by ID ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). Changing this instance should normally mean changing data, not engine code. A mechanic that does not fit the existing types is a finding, not a special case.
 
 ### 1.1 Test objectives
 
@@ -30,7 +30,7 @@ The instance should demonstrate that:
 
 ---
 
-# Part I — Type System Configuration
+# Part I: Type System Configuration
 
 Part I chooses values for the Type System's abstract types. Their rules are in [Type System](02_type_system.md) and are not restated here.
 
@@ -42,10 +42,10 @@ The instance uses exactly four Resources, all abstract game units. Their differe
 |---|---|---|---|---|---|
 | **Money** | M | Nothing (issuance disabled in v0), so it is conserved | Transferable and tradable | None | No |
 | **Energy** | E | Production / consumption | Transferable and tradable | None | No |
-| **Military** | Mil | Procurement / declared attrition | Government-to-government Transfer, under procurement authority; a Trade on the `defence-goods` Market for the US and its allies ([§3.5](#35-defence-goods-market)) | None | Yes, by deployment |
+| **Military** | Mil | Procurement / declared attrition | Government-to-government Transfer, under procurement authority. A Trade on the `defence-goods` Market for the US and its allies ([§3.5](#35-defence-goods-market)) | None | Yes, by deployment |
 | **Soft Power** | S | Campaigns and aid / spending and decay | Non-transferable | 10% per simulated year | No |
 
-Energy is one commodity; geography is expressed through regional Markets and transport capacity. There is no tactical combat.
+Energy is one commodity. Geography is expressed through regional Markets and transport capacity. There is no tactical combat.
 
 ### 2.1 Economic state that is not a Resource
 
@@ -53,13 +53,13 @@ Energy is one commodity; geography is expressed through regional Markets and tra
 |---|---|---|
 | Energy production capacity | Energy producers | Energy created each round ([§8.1](#81-energy-production)) |
 | Transport capacity | SHIP | Capacity of `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)) |
-| Semiconductor capacity | CHIP | 15 units/round; backs procurement (1 unit per 2 Mil) and Energy capacity investment |
+| Semiconductor capacity | CHIP | 15 units/round. Backs procurement (1 unit per 2 Mil) and Energy capacity investment |
 | Procurement capacity | DEF | Annual Military production ([§3.3](#33-defense-procurement-facility)) |
-| Rules in force (`Tariff`, `AccessBan`, `Withholding`) | Governments; the EU collective procedure; CHIP | Who may ship across regions and at what surcharge; withheld capacity |
+| Rules in force (`Tariff`, `AccessBan`, `Withholding`) | Governments. The EU collective procedure. CHIP | Who may ship across regions and at what surcharge. Withheld capacity |
 
 ## 3. Markets and Facilities
 
-Markets and facilities price through the shared CostFunction primitive; facilities create output only through their recipe ([INV-07](02_type_system.md#inv-07)).
+Markets and facilities price through the shared CostFunction primitive. Facilities create output only through their recipe ([INV-07](02_type_system.md#inv-07)).
 
 ### 3.1 Regional Energy Markets
 
@@ -68,19 +68,19 @@ Markets and facilities price through the shared CostFunction primitive; faciliti
 | `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, US_WORKERS, GLOBAL_SMES | 700 M | 350 E | −80 ≤ x ≤ 300 |
 | `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS | 500 M | 250 E | −80 ≤ x ≤ 200 |
 
-SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy; other Entities trade only on their home node. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
+SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy. Other Entities trade only on their home node. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
 
 Both nodes use the same curve:
 
 **p(x) = 2 + 0.02x**, **C(x) = 2x + 0.01x²**
 
-where x is the node's cumulative net Energy sold. The initial price is 2 M/E. Each upper bound sits 50 E below the node's Energy reserve; at the lower bound a node pays out C(0) − C(−80) = 96 M, within both Money reserves ([INV-06](02_type_system.md#inv-06)). Orders and escrow follow [Type System §5.5](02_type_system.md#55-simultaneous-clearing) and [§8.2](02_type_system.md#82-single-round-update-and-snapshot-discipline).
+where x is the node's cumulative net Energy sold. The initial price is 2 M/E. Each upper bound sits 50 E below the node's Energy reserve. At the lower bound a node pays out C(0) − C(−80) = 96 M, within both Money reserves ([INV-06](02_type_system.md#inv-06)). Orders and escrow follow [Type System §5.5](02_type_system.md#55-simultaneous-clearing) and [§8.2](02_type_system.md#82-single-round-update-and-snapshot-discipline).
 
 ### 3.2 Transport capacity and trade restrictions
 
 **Transformation ID:** `energy-shipping`
 
-- **Capacity:** 60 E per round (SHIP's transport capacity); logistics investment adds capacity from the next round.
+- **Capacity:** 60 E per round (SHIP's transport capacity). Logistics investment adds capacity from the next round.
 - **Cost:** flat 0.3 M per E (CostFunction base 0.3, slope 0), with no delay.
 - **Payee:** SHIP. **Authority:** every shipping order requires SHIP's signature.
 
@@ -93,7 +93,7 @@ Governments restrict shipping by enacting Rules through `ChangeRule`, effective 
 | **Shipment ban** | `AccessBan` | Shipping orders between the restricting and target jurisdictions' Entities are infeasible |
 | **Import tariff** | `Tariff` | Adds t M/E (t ≤ 1.0) to shipping orders delivering into the restricting jurisdiction from the origin, paid to the restricting government |
 
-Germany holds no tariff authority of its own; EU-wide restrictions belong to the EU collective procedure ([§12.1](#121-germany--eu-collective-procedure)).
+Germany holds no tariff authority of its own. EU-wide restrictions belong to the EU collective procedure ([§12.1](#121-germany--eu-collective-procedure)).
 
 ### 3.3 Defense procurement (facility)
 
@@ -103,14 +103,14 @@ Germany holds no tariff authority of its own; EU-wide restrictions belong to the
 - **Cost:** **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is total Military ordered this round. Every order settles at the uniform price C(Q)/Q.
 - **Recipe:** each Mil also consumes 2 E.
 - **Payee:** DEF for every buyer except CN, whose payments go to CN_PRIVATE. DEF passes 25% of its procurement revenue to US_WORKERS as variable wages.
-- **Constraints:** buyers need procurement authority; Money and Energy are escrowed at screening at the full-capacity price (15.5 M/Mil); delivery is at the Prepare phase of the next round; over-subscription is allocated pro rata in whole units, remaining units by largest remainder, ties by canonical EntityId.
+- **Constraints:** buyers need procurement authority. Money and Energy are escrowed at screening at the full-capacity price (15.5 M/Mil). Delivery is at the Prepare phase of the next round. Over-subscription is allocated pro rata in whole units, remaining units by largest remainder, ties by canonical EntityId.
 
 ### 3.4 Public attention (facility)
 
 **Transformation ID:** `public-attention`
 
-- **Cost:** **p(q) = 3 + 0.2q**, **C(q) = 3q + 0.1q²**, where q is total Soft Power generated this round; uniform price C(Q)/Q.
-- **Capacity:** 50 S per round globally, 10 S per Actor; over-subscription pro rata.
+- **Cost:** **p(q) = 3 + 0.2q**, **C(q) = 3q + 0.1q²**, where q is total Soft Power generated this round. Uniform price C(Q)/Q.
+- **Capacity:** 50 S per round globally, 10 S per Actor. Over-subscription pro rata.
 - **Payee:** WORLD_HOUSEHOLDS, standing in for the media sector.
 
 ### 3.5 Defence-goods market
@@ -121,7 +121,7 @@ Germany holds no tariff authority of its own; EU-wide restrictions belong to the
 |---|---|---:|---:|---|---|
 | `defence-goods` | Mil / M | 300 M | 60 Mil | US, DE, UK, JP | −80 ≤ x ≤ 20 |
 
-**Cost:** p(x) = 3 + 0.01x, **C(x) = 3x + 0.005x²**, where x is the Market's cumulative net Military sold. The price runs from 2.2 to 3.2 across the interval; the initial price is 3 M/Mil. The upper bound sits 40 Mil below the Military reserve (the Energy Markets sit 50 E below theirs), and the lower bound is −80. The Money reserve pays sellers.
+**Cost:** p(x) = 3 + 0.01x, **C(x) = 3x + 0.005x²**, where x is the Market's cumulative net Military sold. The price runs from 2.2 to 3.2 across the interval. The initial price is 3 M/Mil. The upper bound sits 40 Mil below the Military reserve (the Energy Markets sit 50 E below theirs), and the lower bound is −80. The Money reserve pays sellers.
 
 **Access:** the US and its allies (Germany, the UK, Japan), each holding the `trade defence-goods` capability, so the access rule and the capabilities agree. No other Entity may trade on it.
 
@@ -133,15 +133,15 @@ Germany holds no tariff authority of its own; EU-wide restrictions belong to the
 |---|---|---|---|
 | **Military Procurement** | Money + 2 E per Mil | Military delivered next round | DEF, or CN_PRIVATE for CN ([§3.3](#33-defense-procurement-facility)) |
 | **Public Campaign** | Money | Soft Power | WORLD_HOUSEHOLDS |
-| **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider; the 5 E is consumed in relief; at most twice per Actor per round | WORLD_HOUSEHOLDS |
-| **Military Deployment** (`military-deployment`, uncapped) | Reserves 1 Mil per unit; no input | Reservation for the round, released at commit; nothing consumed or produced ([§13.3](#133-military-deployment)) | — |
-| **Major Military Action** (`major-military-action`, uncapped, minimum 12) | 1 Mil per unit, 0.75 returned at commit | Reservation for the round; 25% attrition ([§13.3](#133-military-deployment)) | — |
-| **Energy Shipping** | 0.3 M per E, paid by the sender; SHIP must sign | Makes a bundled cross-region Energy Transfer valid ([§3.2](#32-transport-capacity-and-trade-restrictions)) | SHIP |
+| **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider. The 5 E is consumed in relief. At most twice per Actor per round | WORLD_HOUSEHOLDS |
+| **Military Deployment** (`military-deployment`, uncapped) | Reserves 1 Mil per unit. No input | Reservation for the round, released at commit. Nothing consumed or produced ([§13.3](#133-military-deployment)) | - |
+| **Major Military Action** (`major-military-action`, uncapped, minimum 12) | 1 Mil per unit, 0.75 returned at commit | Reservation for the round. 25% attrition ([§13.3](#133-military-deployment)) | - |
+| **Energy Shipping** | 0.3 M per E, paid by the sender. SHIP must sign | Makes a bundled cross-region Energy Transfer valid ([§3.2](#32-transport-capacity-and-trade-restrictions)) | SHIP |
 | **Logistics Investment** | 10 M + 3 E (SHIP only) | +10 E/round `energy-shipping` capacity from next round | GLOBAL_SMES |
 | **Energy Capacity Investment** | 12 M + 3 E + 1 semiconductor unit bought from CHIP by signed Proposal (producers only) | +2 E/round production capacity from next round | GLOBAL_SMES |
 | **Strike** | 8 S + 5 M strike pay (LABOR only) | Next round: ENCO production capacity −6.25 E/round and CHIP semiconductor capacity −3.75 units (which back procurement) | US_WORKERS |
 
-Investments change future capacity; they never create Energy or Military directly.
+Investments change future capacity. They never create Energy or Military directly.
 
 ## 5. Intents and Capabilities
 
@@ -149,9 +149,9 @@ Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-
 
 ---
 
-# Part II — Gameboard Configuration
+# Part II: Gameboard Configuration
 
-Part II lists Meridian's Verticals, Actors, Aggregates, Policies, and rules. Gameboard configuration is in [Gameboard](03_gameboard.md); instance initialization is in [Instantiated Game](04_instantiated_game.md).
+Part II lists Meridian's Verticals, Actors, Aggregates, Policies, and rules. Gameboard configuration is in [Gameboard](03_gameboard.md). Instance initialization is in [Instantiated Game](04_instantiated_game.md).
 
 ## 6. Scenario: Meridian
 
@@ -161,7 +161,7 @@ A hypothetical near-future economy of intensifying competition between the Unite
 
 ### 6.2 Time horizon
 
-Five simulated years, played as five one-year rounds. Other instantiations may use four to eight rounds; annual flows scale to round duration.
+Five simulated years, played as five one-year rounds. Other instantiations may use four to eight rounds. Annual flows scale to round duration.
 
 ### 6.3 Central tensions
 
@@ -170,7 +170,7 @@ Five simulated years, played as five one-year rounds. Other instantiations may u
 | **Geopolitical competition** | Procurement, deployment, China's conditional Policy, shipment bans |
 | **Energy security** | Regional nodes, production and transport capacity, tariffs, the Round 3 disruption |
 | **European coordination** | Germany's signatures on the EU's procedure Proposals |
-| **Distributional conflict** | Wage, tax, and spending flows; DEF's variable wages; LABOR's strike; household and small-business exposure to Energy prices |
+| **Distributional conflict** | Wage, tax, and spending flows. DEF's variable wages. LABOR's strike. Household and small-business exposure to Energy prices |
 
 ## 7. Economic Verticals
 
@@ -218,7 +218,7 @@ Consumed at commit from each Entity's net Energy position, evaluated on the batc
 
 At baseline, production equals operating requirements. The Round 3 disruption ([§13.6](#136-energy-disruption)) is the designed scarcity.
 
-Aggregate market demand is 80 E per round (EU 8, CN_PRIVATE 12, US_WORKERS 8, WORLD_HOUSEHOLDS 12, GLOBAL_SMES 40) against `ENERGY_SUPPLIERS`' offer of 40 E ([§11.4](#114-other-aggregate-policies)). Prices therefore rise unless the explicit producers (SA, ENCO, BR, NG, IN; 80 E) sell roughly 40 E per round. This is the producers' deliberate leverage.
+Aggregate market demand is 80 E per round (EU 8, CN_PRIVATE 12, US_WORKERS 8, WORLD_HOUSEHOLDS 12, GLOBAL_SMES 40) against `ENERGY_SUPPLIERS`' offer of 40 E ([§11.4](#114-other-aggregate-policies)). Prices therefore rise unless the explicit producers (SA, ENCO, BR, NG, IN, 80 E) sell roughly 40 E per round. This is the producers' deliberate leverage.
 
 **Shortfall rule:** each unit of unmet requirement reduces the Entity's fixed incoming transfers ([§8.3](#83-fixed-income-and-expenditure)) by 2 M, which the payers keep.
 
@@ -265,7 +265,7 @@ Net per round:
 | | | WORLD_HOUSEHOLDS | −3 |
 | **Total inflow** | **+32** | **Total outflow** | **−32** |
 
-The schedule conserves Money. CHIP's supply contract covers its wages; further CHIP revenue comes from signed Proposals.
+The schedule conserves Money. CHIP's supply contract covers its wages. Further CHIP revenue comes from signed Proposals.
 
 ### 8.4 Variable flows
 
@@ -275,45 +275,45 @@ Energy sales pay sellers the node's uniform price. ENERGY_SUPPLIERS pays 50% of 
 
 Investment in round r changes capacity from the Prepare phase of round r + 1, recorded with its originating Intent.
 
-At the end of every round the engine checks [INV-05](02_type_system.md#inv-05): total Money is unchanged; the change in total Energy equals production minus consumption, procurement, aid, and investment; the change in Military equals deliveries minus attrition; the change in Soft Power equals production minus spending minus decay. Fixture `circulation` checks five rounds with no other action: US Money 260 → 300, and DE Money 125 → 131 with Energy 0, since DE's 8 E requirement exceeds its stock in round 5 (2 E unmet withholds 4 M of its incoming transfers).
+At the end of every round the engine checks [INV-05](02_type_system.md#inv-05): total Money is unchanged. The change in total Energy equals production minus consumption, procurement, aid, and investment. The change in Military equals deliveries minus attrition. The change in Soft Power equals production minus spending minus decay. Fixture `circulation` checks five rounds with no other action: US Money 260 → 300, and DE Money 125 → 131 with Energy 0, since DE's 8 E requirement exceeds its stock in round 5 (2 E unmet withholds 4 M of its incoming transfers).
 
 ## 9. Actor Catalog
 
-The reference instantiation selects all fifteen seat roles plus China as an NPC. This table is the one description of each Actor; quantities appear once, in the section named.
+The reference instantiation selects all fifteen seat roles plus China as an NPC. This table is the one description of each Actor. Quantities appear once, in the section named.
 
 | ID | Actor | Category | Region | Distinctive capability | Dependency | Objective ([§9.3](#93-objectives)) |
 |---|---|---|---|---|---|---|
-| US | US Head of State | Government | Atlantic | Tariffs, shipment bans, deployment, Military sales; largest procurement budget | Energy; procurement capacity | Military leadership, solvent |
-| DE | German Chancellor | Government | Atlantic | Signs EU procedure Proposals; optional solidarity contributions | Atlantic Energy; EU residual tax revenue | Energy security |
-| IN | Indian Prime Minister | Government | Asia | Energy production ([§8.1](#81-energy-production)); tariffs | Asia Energy prices | Industrial autonomy |
-| JP | Japanese Prime Minister | Government | Asia | Tariffs; procurement; large Asia purchasing | Imports and transport; no production | Energy security, credible defense |
-| UK | UK Prime Minister | Government | Atlantic | Tariffs; procurement; campaigns | Atlantic Energy | Diplomatic influence |
-| BR | Brazilian President | Government | Atlantic | Energy production; capacity investment | Semiconductor units | Stronger finances |
+| US | US Head of State | Government | Atlantic | Tariffs, shipment bans, deployment, Military sales. Largest procurement budget | Energy. Procurement capacity | Military leadership, solvent |
+| DE | German Chancellor | Government | Atlantic | Signs EU procedure Proposals. Optional solidarity contributions | Atlantic Energy. EU residual tax revenue | Energy security |
+| IN | Indian Prime Minister | Government | Asia | Energy production ([§8.1](#81-energy-production)). Tariffs | Asia Energy prices | Industrial autonomy |
+| JP | Japanese Prime Minister | Government | Asia | Tariffs. Procurement. Large Asia purchasing | Imports and transport. No production | Energy security, credible defense |
+| UK | UK Prime Minister | Government | Atlantic | Tariffs. Procurement. Campaigns | Atlantic Energy | Diplomatic influence |
+| BR | Brazilian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units | Stronger finances |
 | SA | Saudi Energy Minister | Government | Asia | Largest government production | Transport for Atlantic sales | Energy wealth |
-| NG | Nigerian President | Government | Atlantic | Energy production; capacity investment | Semiconductor units; investment | National capacity |
-| ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production; capacity investment | Semiconductor units; strikes | Profit and supply growth |
-| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-economic-state-that-is-not-a-resource)); may withhold or sell units | Operating Energy | Secure Energy inputs |
-| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)); chooses which shipments to sign; arbitrage | Fuel; shipment bans | Open routes, high throughput |
-| DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement; receives non-Chinese revenue | CHIP's semiconductor capacity; strikes | Procurement revenue |
-| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues; Soft Power | Workers' position and influence |
-| SME | Small-Business Owner | Small participant | Atlantic | Representation of Global SME demand ([§12.2](#122-small-business-owner--global-smes-representation)) | Atlantic prices; small cash | Business viability |
-| AID | Humanitarian Alliance Director | Civil institution | Atlantic | Aid; Energy relief to Aggregates in shortfall; Soft Power | EU donations; Energy purchases | Limit crisis damage |
-| CN | Chinese Head of State | Government | Asia | Tariffs, shipment bans, deployment | Asia Energy prices; CN_PRIVATE tax base | Military parity, solvent |
+| NG | Nigerian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units. Investment | National capacity |
+| ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production. Capacity investment | Semiconductor units. Strikes | Profit and supply growth |
+| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-economic-state-that-is-not-a-resource)). May withhold or sell units | Operating Energy | Secure Energy inputs |
+| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)). Chooses which shipments to sign. Arbitrage | Fuel. Shipment bans | Open routes, high throughput |
+| DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement. Receives non-Chinese revenue | CHIP's semiconductor capacity. Strikes | Procurement revenue |
+| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues. Soft Power | Workers' position and influence |
+| SME | Small-Business Owner | Small participant | Atlantic | Representation of Global SME demand ([§12.2](#122-small-business-owner--global-smes-representation)) | Atlantic prices. Small cash | Business viability |
+| AID | Humanitarian Alliance Director | Civil institution | Atlantic | Aid. Energy relief to Aggregates in shortfall. Soft Power | EU donations. Energy purchases | Limit crisis damage |
+| CN | Chinese Head of State | Government | Asia | Tariffs, shipment bans, deployment | Asia Energy prices. CN_PRIVATE tax base | Military parity, solvent |
 
 ### 9.1 Semiconductor capacity
 
-CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-that-is-not-a-resource)); compensation is a Transfer or signed Proposal. An Energy capacity investment needs 1 unit bought from CHIP by signed Proposal. Each unit so consumed counts against CHIP's units and cuts that round's procurement capacity by 2 Mil.
+CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-that-is-not-a-resource)). Compensation is a Transfer or signed Proposal. An Energy capacity investment needs 1 unit bought from CHIP by signed Proposal. Each unit so consumed counts against CHIP's units and cuts that round's procurement capacity by 2 Mil.
 
 ### 9.2 Fallbacks
 
 | Actor | Fallback when not explicit |
 |---|---|
-| US, CN | Required explicit; human or NPC controller |
-| DE | Government accounts held in the EU Aggregate as member-government accounts; Germany's weight folds into the EU's residual weights ([§14.2](#142-resolution-consistency)) |
+| US, CN | Required explicit. Human or NPC controller |
+| DE | Government accounts held in the EU Aggregate as member-government accounts. Germany's weight folds into the EU's residual weights ([§14.2](#142-resolution-consistency)) |
 | IN, JP, UK, BR, SA, NG | `government-default-v0` controls the same accounts: baseline spending, no discretionary actions |
 | ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts and capacities: sells Energy above 30 E on its home node and signs `energy-shipping` Proposals |
-| LABOR | Implicit coverage: accounts merge into US_WORKERS; no strike capability |
-| SME | Implicit coverage: accounts merge into GLOBAL_SMES; no Representation |
+| LABOR | Implicit coverage: accounts merge into US_WORKERS. No strike capability |
+| SME | Implicit coverage: accounts merge into GLOBAL_SMES. No Representation |
 | AID | Implicit coverage: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
 
 An unassigned responsibility fails initialization ([INV-25](02_type_system.md#inv-25)).
@@ -324,68 +324,68 @@ Each Actor's objective is data: measurable criteria over the recorded game ([Gam
 
 | Actor | Criteria |
 |---|---|
-| US | Final Military ≥ CN final Military; final Money ≥ 200 |
-| CN | Final Military ≥ US final Military; final Money ≥ 200 |
-| DE | No Energy shortfall in any round; final Money ≥ 110 |
-| IN | Final production capacity ≥ 7 E/round; no shortfall in any round |
-| JP | No shortfall in any round; final Military ≥ 36 |
-| UK | Final Soft Power ≥ 47; final Money ≥ 110 |
+| US | Final Military ≥ CN final Military. Final Money ≥ 200 |
+| CN | Final Military ≥ US final Military. Final Money ≥ 200 |
+| DE | No Energy shortfall in any round. Final Money ≥ 110 |
+| IN | Final production capacity ≥ 7 E/round. No shortfall in any round |
+| JP | No shortfall in any round. Final Military ≥ 36 |
+| UK | Final Soft Power ≥ 47. Final Money ≥ 110 |
 | BR | Final Money ≥ 150 |
-| SA | Final Money ≥ 250; final Energy ≥ 60 |
-| NG | Final production capacity ≥ 14 E/round; final Money ≥ 90 |
-| ENCO | Final Money ≥ 220; final production capacity ≥ 27 E/round |
-| CHIP | No shortfall in any round; final Money ≥ 150 |
-| SHIP | Cumulative Energy shipped ≥ 150 E; final Money ≥ 130 |
+| SA | Final Money ≥ 250. Final Energy ≥ 60 |
+| NG | Final production capacity ≥ 14 E/round. Final Money ≥ 90 |
+| ENCO | Final Money ≥ 220. Final production capacity ≥ 27 E/round |
+| CHIP | No shortfall in any round. Final Money ≥ 150 |
+| SHIP | Cumulative Energy shipped ≥ 150 E. Final Money ≥ 130 |
 | DEF | Cumulative procurement revenue ≥ 300 M |
-| LABOR | US_WORKERS final Money ≥ 260; final Soft Power ≥ 30 |
-| SME | Final Money ≥ 15; GLOBAL_SMES shortfall in at most 1 round |
-| AID | Total Aggregate shortfall across the game ≤ 20 E; final Soft Power ≥ 55 |
+| LABOR | US_WORKERS final Money ≥ 260. Final Soft Power ≥ 30 |
+| SME | Final Money ≥ 15. GLOBAL_SMES shortfall in at most 1 round |
+| AID | Total Aggregate shortfall across the game ≤ 20 E. Final Soft Power ≥ 55 |
 
-Military and Soft Power matter through these objectives (US, CN, JP; UK, LABOR, AID) and through the deployment and strike mechanics.
+Military and Soft Power matter through these objectives (US, CN, JP, UK, LABOR, AID) and through the deployment and strike mechanics.
 
 ## 10. Aggregate Catalog
 
 | ID | Aggregate | Residual accounts | Region | Baseline responsibility |
 |---|---|---|---|---|
-| EU | European Union | Non-explicit member economies and bloc accounts | Atlantic | Energy purchasing; collective decisions |
-| CN_PRIVATE | Chinese Private Economy | Chinese activity outside the government | Asia | Industrial demand; Chinese defense production |
+| EU | European Union | Non-explicit member economies and bloc accounts | Atlantic | Energy purchasing. Collective decisions |
+| CN_PRIVATE | Chinese Private Economy | Chinese activity outside the government | Asia | Industrial demand. Chinese defense production |
 | US_WORKERS | US Workforce | Residual worker accounts | Atlantic | Household demand |
-| GLOBAL_SMES | Global Small Businesses | Small businesses outside explicit ones | Atlantic | Energy demand; investment supply |
+| GLOBAL_SMES | Global Small Businesses | Small businesses outside explicit ones | Atlantic | Energy demand. Investment supply |
 | ENERGY_SUPPLIERS | Other Energy Producers | Production not held by explicit Actors | Both | Energy supply |
-| WORLD_HOUSEHOLDS | Other World Households | Residual household activity | Asia | Household demand; media and relief payee |
+| WORLD_HOUSEHOLDS | Other World Households | Residual household activity | Asia | Household demand. Media and relief payee |
 
-Each Aggregate's members, accounts, and collective procedures are defined separately ([Type System §2.2](02_type_system.md#22-three-projections-of-an-entity)); no account has two owners ([INV-08](02_type_system.md#inv-08)).
+Each Aggregate's members, accounts, and collective procedures are defined separately ([Type System §2.2](02_type_system.md#22-three-projections-of-an-entity)). No account has two owners ([INV-08](02_type_system.md#inv-08)).
 
 ### 10.1 Germany and the EU
 
 - **Membership.** Germany is listed in the EU's `members` whether or not it signs anything in a given round.
-- **Account ownership.** Making the Chancellor explicit extracts only the German government's accounts. German households and firms stay in the EU residual, which is why German tax revenue flows EU → DE ([§8.3](#83-fixed-income-and-expenditure)). The EU also owns a **solidarity pool**, initially empty.
+- **Account ownership.** Making the Chancellor explicit extracts only the German government's accounts. German households and firms stay in the EU residual, which is why German tax revenue flows EU → DE ([§8.3](#83-fixed-income-and-expenditure)). The EU also owns a **solidarity pool**, initially empty: a separate account with no policy, held by the Entity `EU_POOL`, which acts for the EU only inside its solidarity procedure ([§12.1](#121-germany--eu-collective-procedure)).
 - **Collective procedures.** The EU's capabilities are exercised by its two procedures, which Germany influences by signing ([§12.1](#121-germany--eu-collective-procedure)).
 
 ### 10.2 Small-business representation
 
-The owner is a member of `GLOBAL_SMES`. Their holdings and direct transactions are excluded from the residual; their proposed decisions serve as bounded evidence through a Representation ([§12.2](#122-small-business-owner--global-smes-representation)).
+The owner is a member of `GLOBAL_SMES`. Their holdings and direct transactions are excluded from the residual. Their proposed decisions serve as bounded evidence through a Representation ([§12.2](#122-small-business-owner--global-smes-representation)).
 
 ## 11. Policy Catalog
 
 Policies are declarative programs ([Type System §4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record.
 
-### 11.1 China NPC Policy — `china-strategic-v0`
+### 11.1 China NPC Policy: `china-strategic-v0`
 
 1. If the US ran `major-military-action` of at least 12 Mil in the previous round, order 4 Mil from the procurement facility.
 2. If the beginning-of-round `energy-asia` price exceeds 3.2 M/E, offer up to 12 E on that node.
 3. If a US restriction targeting China was enacted in the previous round, enact the reciprocal restriction, effective at the next round boundary.
-4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant exceeds it, the engine scales China's actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)); a priority order would be a scenario-level addition.
+4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant exceeds it, the engine scales China's actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)). A priority order would be a scenario-level addition.
 
 The NPC does not improvise outside its declared Policy.
 
-### 11.2 EU Aggregate Policy — `eu-coordination-v0`
+### 11.2 EU Aggregate Policy: `eu-coordination-v0`
 
-- Buy 8 E per round on `energy-atlantic`; 4 E when the beginning-of-round price exceeds 3.0 M/E.
+- Buy 8 E per round on `energy-atlantic`. 4 E when the beginning-of-round price exceeds 3.0 M/E.
 - Publish the solidarity and trade procedure Proposals when their conditions hold ([§12.1](#121-germany--eu-collective-procedure)).
 - Pay the fixed flows in [§8.3](#83-fixed-income-and-expenditure).
 
-### 11.3 Global Small-Business Policy — `global-smes-v0`
+### 11.3 Global Small-Business Policy: `global-smes-v0`
 
 Baseline demand of 40 E per round on `energy-atlantic`, reduced by 20% when the beginning-of-round price exceeds 3.5 M/E. The target is that baseline multiplied by the factor stored in the previous round ([§12.2](#122-small-business-owner--global-smes-representation)), or the baseline alone when none was stored. The target is both the purchase order and the operating requirement.
 
@@ -393,9 +393,9 @@ Baseline demand of 40 E per round on `energy-atlantic`, reduced by 20% when the 
 
 | Aggregate | Policy |
 |---|---|
-| CN_PRIVATE | Buys 12 E on `energy-asia`; 9 E above 3.0 M/E |
-| US_WORKERS | Buys 8 E on `energy-atlantic`; 6 E above 3.0 M/E |
-| WORLD_HOUSEHOLDS | Buys 12 E on `energy-asia`; 9 E above 3.0 M/E |
+| CN_PRIVATE | Buys 12 E on `energy-asia`. 9 E above 3.0 M/E |
+| US_WORKERS | Buys 8 E on `energy-atlantic`. 6 E above 3.0 M/E |
+| WORLD_HOUSEHOLDS | Buys 12 E on `energy-asia`. 9 E above 3.0 M/E |
 | ENERGY_SUPPLIERS | Produces 60 E. Offers 40 E (24 Atlantic / 16 Asia), or 50 E (30 / 20) at a node whose beginning-of-round price is at least 2.6 M/E. Retains unsold output |
 
 Each household and industrial Aggregate's purchase target is also its operating requirement. `government-default-v0` and `firm-default-v0` are fallbacks, inactive in the reference instantiation.
@@ -418,11 +418,11 @@ Each procedure is a weighted-signature rule on Proposals the EU's Policy publish
 | `eu-solidarity` | Energy sales on `energy-atlantic` | DE 0.20 | 0.40 | 0.45 |
 | `eu-trade` | `Enact Tariff` | DE 0.20 | 0.48 | 0.45 |
 
-**Support = residual weight + the weights of the members who signed.** A procedure Proposal executes in the round it is published if support exceeds the threshold; otherwise it lapses. Germany supports by signing in the Sign step and declines by not signing. Each round's record lists the Proposal, signers, support, threshold, and outcome.
+**Support = residual weight + the weights of the members who signed.** A procedure Proposal executes in the round it is published if support exceeds the threshold. Otherwise it lapses. Germany supports by signing in the Sign step and declines by not signing. Each round's record lists the Proposal, signers, support, threshold, and outcome.
 
 The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy--eu-coordination-v0)):
 
-- **Solidarity Proposal:** sell up to 8 E on `energy-atlantic`, drawing first on the pool and then on its holdings. Published in any round whose beginning-of-round Atlantic price exceeds 3.0 M/E, provided the EU's reserves cover its operating requirement.
+- **Solidarity Proposal:** sell up to 8 E on `energy-atlantic`, drawing first on the pool and then on its holdings. The pool's transfer is scaled to what it holds, so the pool gives min(8, pool) and the EU sells 8 E. Published in any round whose beginning-of-round Atlantic price exceeds 3.0 M/E, provided the EU's holdings cover its operating requirement of 8 E.
 - **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction affecting the Atlantic region is in force.
 
 | Procedure | Germany signs | Germany does not sign |
@@ -430,7 +430,7 @@ The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy--eu-c
 | `eu-solidarity` | 0.40 + 0.20 = 0.60: executes | 0.40: lapses |
 | `eu-trade` | 0.48 + 0.20 = 0.68: executes | 0.48: executes |
 
-Germany is pivotal for solidarity and has no veto on trade. Germany may also Transfer Energy into the solidarity pool at any time, independent of signing. This is a stylized procedure, not a claim about EU voting law.
+Germany is pivotal for solidarity and has no veto on trade. Germany may also Transfer Energy into the solidarity pool at any time, independent of signing. That Transfer is an ordinary Proposal by Germany, made in the Fixture B1 scenario rather than by its default Policy. This is a stylized procedure, not a claim about EU voting law.
 
 ### 12.2 Small-Business Owner → Global SMEs (Representation)
 
@@ -460,21 +460,21 @@ The stored factor replaces the next round's baseline exactly once. Round r uses 
 
 ### 12.3 Incentives and bounds
 
-The owner knows their choice moves the Aggregate, so it is a strategic choice, not an independent sample. That is intended: shrinkage and the clamp keep influence explicit and bounded, and shrinkage is a balancing parameter, not a population estimate. The simulator reports the **Representation influence ratio**: next-round Aggregate change attributable to the owner, divided by the owner's executed purchase. In the noise-free 4 E case, 2 E against 4 E gives 0.5; across ε it ranges from 0.25 to 0.75.
+The owner knows their choice moves the Aggregate, so it is a strategic choice, not an independent sample. That is intended: shrinkage and the clamp keep influence explicit and bounded, and shrinkage is a balancing parameter, not a population estimate. The simulator reports the **Representation influence ratio**: next-round Aggregate change attributable to the owner, divided by the owner's executed purchase. In the noise-free 4 E case, 2 E against 4 E gives 0.5. Across ε it ranges from 0.25 to 0.75.
 
 ## 13. Scenario Rules
 
 ### 13.1 Round resolution
 
-Each round is one simulated year and follows the Type System canonical sequence ([§8.1](02_type_system.md#81-canonical-resolution-sequence)); [§20](#20-phase-mapping) gives the Meridian content of each phase. Prices produced by a round become observable in the next round.
+Each round is one simulated year and follows the Type System canonical sequence ([§8.1](02_type_system.md#81-canonical-resolution-sequence)). [§20](#20-phase-mapping) gives the Meridian content of each phase. Prices produced by a round become observable in the next round.
 
 ### 13.2 Institutional changes
 
-Tariffs, shipment bans, withholding, and strikes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round; a tariff it enacts in round r is in force from round r+1.
+Tariffs, shipment bans, withholding, and strikes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round. A tariff it enacts in round r is in force from round r+1.
 
 ### 13.3 Military deployment
 
-`military-deployment` reserves 1 Mil per unit for the round: the reserved Mil is unavailable to the same Entity's other actions, is not consumed, and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). `major-military-action` (minimum 12 Mil) consumes 1 Mil per unit and returns 0.75 at commit, so a major action loses 25% of its units; a smaller order is rejected (Fixture D-minor). China's NPC rule reads only `major-military-action` ([§11.1](#111-china-npc-policy--china-strategic-v0)), so a reservation alone does not trigger it. All of these values are provisional.
+`military-deployment` reserves 1 Mil per unit for the round: the reserved Mil is unavailable to the same Entity's other actions, is not consumed, and is released at commit ([Type System §2.3](02_type_system.md#23-resource)). `major-military-action` (minimum 12 Mil) consumes 1 Mil per unit and returns 0.75 at commit, so a major action loses 25% of its units. A smaller order is rejected (Fixture D-minor). China's NPC rule reads only `major-military-action` ([§11.1](#111-china-npc-policy--china-strategic-v0)), so a reservation alone does not trigger it. All of these values are provisional.
 
 **Fixture R (golden).** Round 1: the US orders a 60 Mil deployment and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil. Their claims on the US's 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the sale sells 38 Mil. The Market is fresh, so the uniform price is (C(−38) − C(0)) / −38 = 2.81, and the sale pays 38 × 2.81 = **106.78 M**. US Military is 95 − 38 = **57** (the reserved 57 are not consumed) and US Money is 260 + 106.78 = **366.78**. Round 2: the reservation is released, so a 50 Mil Transfer to Japan runs in full, leaving US Military at **7** and Japan at **86**.
 
@@ -488,19 +488,21 @@ Soft Power is produced by campaigns and aid, spent on strikes, and decays at the
 
 ### 13.5 Proposals and signatures
 
-Out-of-band deals enter as Proposals whose signers are every party; Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
+Out-of-band deals enter as Proposals whose signers are every party. Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
 
 ### 13.6 Energy disruption
 
-The only scheduled event: at the Prepare phase of Round 3, a logistics disruption cuts `ENERGY_SUPPLIERS`' maximum offer by 20 E (12 Atlantic, 8 Asia). Production continues; unreleased output accumulates in its holdings. It is predeclared configuration, not an AI intervention.
+The only scheduled event: at the Prepare phase of Round 3, a logistics disruption cuts `ENERGY_SUPPLIERS`' maximum offer by 20 E (12 Atlantic, 8 Asia). A cut never takes the offer below zero, so a cut at or above the offer removes it and never turns it into a purchase. Production continues. Unreleased output accumulates in its holdings. It is predeclared configuration, not an AI intervention.
+
+**Major shock (designed test case).** `Scenarios.Meridian.majorShock` is the reference disruption moved to Round 1 with both cuts at or above the offers: Atlantic 60, Asia 40. Each region's supply is zero that round. It is not the default game. It flips the Atlantic price across 3.0 in both directions, and four presets' Atlantic actions with it. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and shocked 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, Accumulator, Trader, and Deployer change their proposals in Rounds 2, 3, and 5, and Opportunistic in Rounds 2 to 4. The EU's solidarity Proposal is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so CrisisResponse does not flip. [Test 8b](06_simulator.md#14-mandatory-tests) pins the flip.
 
 ### 13.7 Evaluation
 
-Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30-measurements). No single winner; outcomes are not reduced to Money.
+Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30-measurements). No single winner. Outcomes are not reduced to Money.
 
 ---
 
-# Part III — Instantiated Game Configuration
+# Part III: Instantiated Game Configuration
 
 ## 14. Game Settings
 
@@ -509,17 +511,17 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 | Game ID | `meridian/meridian-test-01`: the Gameboard id, then the test-instance label. Every run records it in its spec. |
 | Gameboard | `meridian`, version `v0` |
 | Seats / NPC Actors / Aggregates | 15 / 1 (China) / 6 |
-| Horizon and rounds | 5 years; 5 rounds of 1 year ([§6.2](#62-time-horizon)) |
+| Horizon and rounds | 5 years. 5 rounds of 1 year ([§6.2](#62-time-horizon)) |
 | Real-world session | About 6 hours ([§19](#19-session-structure)) |
-| Game seed | `26021` (the only in-world seed; its only use in v0 is SME sampling noise) |
-| Player seed (simulation only) | `1` by default for reference simulation runs; varies seat-Policy randomness only |
+| Game seed | `26021` (the only in-world seed, its only use in v0 is SME sampling noise) |
+| Player seed (simulation only) | `1` by default for reference simulation runs. Varies seat-Policy randomness only |
 | Reports | Fictional financial-news front page and Actor balance sheets |
 
 ### 14.1 Seat assignments
 
-Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human; in simulation it may be an AI agent or a preset program. Rebinding a seat requires no Gameboard change.
+Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human. In simulation it may be an AI agent or a preset program. Rebinding a seat requires no Gameboard change.
 
-China is Actor `CN` with controller `NPC china-strategic-v0`; it has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0` with Germany among its members and both collective procedures active; no human controls it. The `sme-energy-sample` Representation is active.
+China is Actor `CN` with controller `NPC china-strategic-v0`. It has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0` with Germany among its members and both collective procedures active. No human controls it. The `sme-energy-sample` Representation is active.
 
 ### 14.2 Resolution consistency
 
@@ -532,7 +534,7 @@ With Germany implicit, the German government's accounts sit in the EU Aggregate 
 | Military | 24 + 50 = 74 | 74 |
 | Soft Power | 45 + 75 = 120 | 120 |
 
-Implicitly, the EU → DE and DE → EU flows become internal and net to zero; DE's 8 E requirement joins the EU's (16 E total); Germany's 0.20 weight joins the EU's residual weight (0.60 for `eu-solidarity`, 0.68 for `eu-trade`, as in [§12.1](#121-germany--eu-collective-procedure)); and every capability keeps the same owner.
+Implicitly, the EU → DE and DE → EU flows become internal and net to zero. DE's 8 E requirement joins the EU's (16 E total). Germany's 0.20 weight joins the EU's residual weight (0.60 for `eu-solidarity`, 0.68 for `eu-trade`, as in [§12.1](#121-germany--eu-collective-procedure)). And every capability keeps the same owner.
 
 ## 15. Initial Holdings
 
@@ -563,14 +565,14 @@ Implicitly, the EU → DE and DE → EU flows become internal and net to zero; D
 | *Other Energy Producers* | *200* | *240* | *0* | *22* |
 | *Other World Households* | *360* | *90* | *0* | *35* |
 
-Aggregates are in italics. Government holdings cover only government-controlled resources. The German government's holdings are excluded from the EU and German private accounts are included; the owner's holdings are excluded from Global SMEs; China's government and private economy are separate; ENCO's holdings and capacity are excluded from Other Energy Producers ([INV-08](02_type_system.md#inv-08)). The solidarity pool starts at 0 E within EU holdings.
+Aggregates are in italics. Government holdings cover only government-controlled resources. The German government's holdings are excluded from the EU and German private accounts are included. The owner's holdings are excluded from Global SMEs. China's government and private economy are separate. ENCO's holdings and capacity are excluded from Other Energy Producers ([INV-08](02_type_system.md#inv-08)). The solidarity pool (`EU_POOL`) starts at 0 E, as its own account.
 
 ## 16. Initial Market and Capacity State
 
 | Mechanism | Initial state |
 |---|---|
-| Regional Energy Markets and `defence-goods` | Position x = 0; reserves and opening prices as in [§3](#3-markets-and-facilities) |
-| Defense procurement, public attention, semiconductor capacity | 0 orders; capacities as in [§2.1](#21-economic-state-that-is-not-a-resource), [§3.3](#33-defense-procurement-facility) and [§3.4](#34-public-attention-facility) |
+| Regional Energy Markets and `defence-goods` | Position x = 0. Reserves and opening prices as in [§3](#3-markets-and-facilities) |
+| Defense procurement, public attention, semiconductor capacity | 0 orders. Capacities as in [§2.1](#21-economic-state-that-is-not-a-resource), [§3.3](#33-defense-procurement-facility) and [§3.4](#34-public-attention-facility) |
 | `energy-shipping` and production | Capacities as in [§3.2](#32-transport-capacity-and-trade-restrictions) and [§8.1](#81-energy-production) |
 | Rules | No `Tariff`, `AccessBan`, or `Withholding` in force |
 
@@ -594,7 +596,7 @@ Themes indicate opportunities, not mandatory events.
 
 ## 19. Session Structure
 
-A provisional six-hour session: 20 minutes of briefing, five 60-minute rounds (about 40 minutes negotiation; 7 minutes oral announcements with confirmation of ambiguous Intents, ending at the propose deadline; 3 minutes signing, ending at the sign deadline; 10 minutes resolution and reporting), 20 minutes closing analysis, and 20 minutes of breaks.
+A provisional six-hour session: 20 minutes of briefing, five 60-minute rounds (about 40 minutes negotiation, 7 minutes of audio submissions, after which humans give no further input and transcription and interpretation run before the propose deadline, 3 minutes signing, ending at the sign deadline, 10 minutes resolution and reporting), 20 minutes closing analysis, and 20 minutes of breaks.
 
 ## 20. Phase Mapping
 
@@ -602,35 +604,35 @@ The canonical phases are defined in [Type System §8.1](02_type_system.md#81-can
 
 | Canonical phase | Meridian content |
 |---|---|
-| **1. Prepare round** | Deliver production and procurement; apply capacity renewals; activate rule changes and strikes; apply the Round 3 disruption |
+| **1. Prepare round** | Deliver production and procurement. Apply capacity renewals. Activate rule changes and strikes. Apply the Round 3 disruption |
 | **2. Create observations** | Authorized views, including both regional prices and the SME factor stored last round |
-| **3. Generate Proposals** (round runner) | 3a Propose: all Policies at once (seats, with human text interpreted in live play; China; Aggregate Policies, applying last round's stored factor; the EU's procedure Proposals when conditions hold). 3b Sign: each required signer signs the Proposals it endorses, including Germany on EU procedure Proposals |
-| **4. Screen and interpret** | Authority, signature rules, and escrow ([§12.1](#121-germany--eu-collective-procedure) for thresholds); the owner's observation |
-| **5. Estimate** | Compute and store the SME adjustment factor for use next round; no Proposal is created or changed |
-| **6. Resolve economy** | One batch: joint feasibility against escrow; uniform clearing of both nodes; all actions and circulation evaluated together; operating requirements and decay applied at commit |
-| **7. Commit and record** | New World State, events, diagnostics, balance sheets; AI front page from recorded events |
+| **3. Generate Proposals** (round runner) | 3a Propose: all Policies at once (seats, with human text interpreted in live play, China, Aggregate Policies, applying last round's stored factor, the EU's procedure Proposals when conditions hold). 3b Sign: each required signer signs the Proposals it endorses, including Germany on EU procedure Proposals |
+| **4. Screen and interpret** | Authority, signature rules, and escrow ([§12.1](#121-germany--eu-collective-procedure) for thresholds). The owner's observation |
+| **5. Estimate** | Compute and store the SME adjustment factor for use next round. No Proposal is created or changed |
+| **6. Resolve economy** | One batch: joint feasibility against escrow. Uniform clearing of both nodes. All actions and circulation evaluated together. Operating requirements and decay applied at commit |
+| **7. Commit and record** | New World State, events, diagnostics, balance sheets. AI front page from recorded events |
 
 ---
 
-# Part IV — Playtest Fixtures
+# Part IV: Playtest Fixtures
 
 Unless stated otherwise, fixtures disable circulation, production, and operating requirements to isolate the mechanism under test. Amounts are exact at the precision of Type System [§9.1](02_type_system.md#91-numerics-and-randomness).
 
 | Fixture | Isolates | Section |
 |---|---|---|
-| A, A2 | Direct Market exchange; limit prices | [§21](#21-fixture-a-direct-market-exchange) |
-| B1–B4, B4-unsigned | Germany's signature against EU procedure support | [§22](#22-fixture-b-germany-and-the-eu-collective-procedure) |
+| A, A2 | Direct Market exchange. Limit prices | [§21](#21-fixture-a-direct-market-exchange) |
+| B1–B4, B2-pool, B4-unsigned | Germany's signature against EU procedure support. The solidarity pool | [§22](#22-fixture-b-germany-and-the-eu-collective-procedure) |
 | C1–C5 | Bounded Representation and its one-round lag | [§23](#23-fixture-c-small-business-owner-representation) |
-| D, D-minor | China's NPC response; minimum major action | [§24](#24-fixture-d-china-responds-as-an-npc) |
+| D, D-minor | China's NPC response. Minimum major action | [§24](#24-fixture-d-china-responds-as-an-npc) |
 | R, R-alone | A deployment reserving Mil against a Military sale | [§13.3](#133-military-deployment) |
 | E | Scarcity and restriction propagation (qualitative) | [§25](#25-fixture-e-scarcity-and-trade-restriction) |
-| F | Conflicting orders; deterministic allocation | [§26](#26-fixture-f-simultaneous-conflicting-orders) |
+| F | Conflicting orders. Deterministic allocation | [§26](#26-fixture-f-simultaneous-conflicting-orders) |
 | G1–G5, G3-ban, G5-unsigned | Atomic settlement, lapse, and access bans | [§27](#27-fixture-g-proposals-and-signatures) |
 | circulation | Five rounds of circulation and reconciliation | [§8.5](#85-capacity-renewal-and-reconciliation) |
 
 ## 21. Fixture A: Direct Market Exchange
 
-`energy-atlantic` starts at x = 0. The US buys 10 E; Germany sells 5 E. Net demand is 5 E.
+`energy-atlantic` starts at x = 0. The US buys 10 E. Germany sells 5 E. Net demand is 5 E.
 
 **C(5) − C(0) = 2 × 5 + 0.01 × 25 = 10.25 M**, uniform price 10.25 / 5 = **2.05 M/E**.
 
@@ -640,21 +642,23 @@ Unless stated otherwise, fixtures disable circulation, production, and operating
 | Germany | 125 | 135.25 | 38 | 33 |
 | `energy-atlantic` | 700 | 710.25 | 350 | 345 |
 
-Money totals 1,085 before and after; Energy totals 458 before and after.
+Money totals 1,085 before and after. Energy totals 458 before and after.
 
-**A2 (limit price).** The US adds a limit of 2.04. At the trial price 2.05 its order is removed. Net demand becomes −5 E: price = (C(0) − C(−5)) / 5 = (0 − (−9.75)) / 5 = **1.95 M/E**. Germany receives 9.75 M (ending at 134.75 M and 33 E); the US order is recorded as rejected and US balances are unchanged.
+**A2 (limit price).** The US adds a limit of 2.04. At the trial price 2.05 its order is removed. Net demand becomes −5 E: price = (C(0) − C(−5)) / 5 = (0 − (−9.75)) / 5 = **1.95 M/E**. Germany receives 9.75 M (ending at 134.75 M and 33 E). The US order is recorded as rejected and US balances are unchanged.
 
-Verifies [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06), [INV-11](02_type_system.md#inv-11); limit handling.
+Verifies [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06), [INV-11](02_type_system.md#inv-11). Limit handling.
 
 ## 22. Fixture B: Germany and the EU (collective procedure)
 
-**B1: contribution, normal prices.** The Atlantic price is at or below 3.0, so the EU publishes no solidarity Proposal. Germany transfers 10 E to the pool. DE Energy 38 → 28; EU 125 → 135, pool 10 E.
+**B1: contribution, normal prices.** The Atlantic price is at or below 3.0, so the EU publishes no solidarity Proposal. Germany transfers 10 E to the pool. DE Energy 38 → 28. Pool 0 → 10 E. The EU's own account stays at 125 E. EU holdings including the pool are 135 E.
 
-**B2: Germany signs, high prices.** Atlantic price above 3.0; the EU publishes the solidarity Proposal and Germany signs it, transferring nothing. Support = 0.40 + 0.20 = 0.60 > 0.45, so the EU's offer of up to 8 E enters this round's clearing.
+**B2: Germany signs, high prices.** Atlantic price above 3.0. The EU publishes the solidarity Proposal and Germany signs it, transferring nothing. Support = 0.40 + 0.20 = 0.60 > 0.45, so the EU's offer of up to 8 E enters this round's clearing. The pool is empty, so its leg gives nothing and the EU sells from its own holdings.
 
-**B3: Germany does not sign, high prices.** Support = 0.40; the Proposal lapses and the round resolves.
+**B2-pool: the pool drawn first.** As B2, with 10 E in the pool. The pool gives 8 E to the EU, which sells 8 E: pool 10 → 2, EU account 125 unchanged.
 
-**B4: `eu-trade`.** A US shipment ban on China is in force, so the EU publishes the tariff Proposal. Support is 0.68 with Germany's signature and 0.48 without ([§12.1](#121-germany--eu-collective-procedure)); either way it passes and the tariff is in force next round.
+**B3: Germany does not sign, high prices.** Support = 0.40. The Proposal lapses and the round resolves.
+
+**B4: `eu-trade`.** A US shipment ban on China is in force, so the EU publishes the tariff Proposal. Support is 0.68 with Germany's signature and 0.48 without ([§12.1](#121-germany--eu-collective-procedure)). Either way it passes and the tariff is in force next round.
 
 Verifies that signing and transfers are independent, that a procedure Proposal executes only when support exceeds its threshold, and that Germany never controls EU holdings or authority ([INV-03](02_type_system.md#inv-03), [INV-08](02_type_system.md#inv-08), [INV-10](02_type_system.md#inv-10)).
 
@@ -665,20 +669,20 @@ Verifies that signing and transfers are independent, that a procedure Proposal e
 In round r the owner submits a purchase of 4 E (reference 5 E). Deviation −20%, within the clamp, so the stored factor is 0.95. Global SMEs uses its 40 E baseline in round r. In round r+1 its target is 40 × 0.95 = **38 E**, replacing the 40 E baseline. The owner's 4 E executes separately in round r.
 
 - **C2 (clamp):** owner proposes 0 E → clamped to −50% → factor 0.875 → 35 E next round.
-- **C3 (proposed vs executed):** owner proposes 4 E with a limit violated at clearing. The observation is still 4 E and the next-round target is 38 E; the record shows 4 E proposed, 0 E executed.
-- **C4 (high price):** when the round r+1 price is above 3.5 M/E the baseline is 32 E; the 0.95 factor from a 4 E observation gives 32 × 0.95 = 30.4 E. This is a golden test case on the adjustment arithmetic, not a fixture file.
+- **C3 (proposed vs executed):** owner proposes 4 E with a limit violated at clearing. The observation is still 4 E and the next-round target is 38 E. The record shows 4 E proposed, 0 E executed.
+- **C4 (high price):** when the round r+1 price is above 3.5 M/E the baseline is 32 E. The 0.95 factor from a 4 E observation gives 32 × 0.95 = 30.4 E. This is a golden test case on the adjustment arithmetic, not a fixture file.
 - **C5 (seeded noise):** noise spread 0.10, game seed `26021`. The next-round target for a 4 E observation lies in [37, 39] E and equals 40 × (1 + 0.25 × (−0.20 + ε)) for the recorded draw. Replaying with the same seed gives the identical target. A different seed generally gives a different target in the same range. A 0 E proposal still gives exactly 35 E.
 
 Verifies bounded extrapolation, separate ownership, and no double-counting ([INV-08](02_type_system.md#inv-08), [INV-09](02_type_system.md#inv-09)).
 
 ## 24. Fixture D: China Responds as an NPC
 
-**Round 1.** The US deploys 12 Mil (major action). Attrition 25% × 12 = 3; 9 Mil return at round end. US Military 95 → 92.
+**Round 1.** The US deploys 12 Mil (major action). Attrition 25% × 12 = 3. 9 Mil return at round end. US Military 95 → 92.
 
-**Round 2.** China observes the recorded action and orders 4 Mil; no other orders.
+**Round 2.** China observes the recorded action and orders 4 Mil. No other orders.
 
-- Cost C(4) = 32 + 4 = **36 M**, uniform price 9 M/Mil; Energy 8 E.
-- China: Money 255 → 219; Energy 95 → 87.
+- Cost C(4) = 32 + 4 = **36 M**, uniform price 9 M/Mil. Energy 8 E.
+- China: Money 255 → 219. Energy 95 → 87.
 - Payee CN_PRIVATE: 210 → 246.
 
 **Round 3 Prepare.** 4 Mil delivered: China 88 → 92.
@@ -691,7 +695,7 @@ Verifies conditional Policy execution, cross-round observation, reservation and 
 
 [Fixture E](#25-fixture-e-scarcity-and-trade-restriction) is qualitative: it has no fixed expected values. It passes on reconciliation, solvency, and the propagation below.
 
-With full circulation enabled, the Round 3 disruption ([§13.6](#136-energy-disruption)) reduces supplier offers. Expected propagation: operating shortfalls; capacity investment and procurement; household and SME demand; SHIP arbitrage; China's Asia offer rule; and the EU's solidarity Proposal, with Germany's pivotal signature, executed in the same round.
+With full circulation enabled, the Round 3 disruption ([§13.6](#136-energy-disruption)) reduces supplier offers. Expected propagation: operating shortfalls. Capacity investment and procurement. Household and SME demand. SHIP arbitrage. China's Asia offer rule. And the EU's solidarity Proposal, with Germany's pivotal signature, executed in the same round.
 
 **E2 (restriction).** In Round 2 the US enacts a shipment ban on China, effective Round 3. China reciprocates in Round 3, effective Round 4. With the ban in force in Round 3, the EU publishes and passes its tariff Proposal in Round 3, in force from Round 4 ([Fixture B4](#22-fixture-b-germany-and-the-eu-collective-procedure)). Compare regional price gaps, shipping volumes, and tariff revenue against the unrestricted run. Every consequence must be explainable from recorded transitions ([INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06)).
 
@@ -699,7 +703,7 @@ With full circulation enabled, the Round 3 disruption ([§13.6](#136-energy-disr
 
 The US, UK, and Japan order 15, 8, and 9 Mil: 32 against a capacity of 30. Escrow at 15.5 M/Mil: US 232.5, UK 124, JP 139.5, all within their Money.
 
-**Allocation:** 30/32 = 0.9375 gives 14.0625, 7.5, 8.4375. Floors 14 + 7 + 8 = 29; the remaining unit goes to the largest remainder (UK, 0.5). Fills: **US 14, UK 8, JP 8**.
+**Allocation:** 30/32 = 0.9375 gives 14.0625, 7.5, 8.4375. Floors 14 + 7 + 8 = 29. The remaining unit goes to the largest remainder (UK, 0.5). Fills: **US 14, UK 8, JP 8**.
 
 **Cost:** C(30) = 240 + 225 = **465 M**, uniform price 15.5 M/Mil.
 
@@ -729,15 +733,15 @@ The Proposal settles atomically in the round batch, assuming no other balance ch
 | JP | 150 | 102 | 40 | 60 |
 
 - **G2 (unsigned):** JP does not sign. The Proposal lapses, balances are unchanged, and the rest of the round resolves.
-- **G3 (cross-region):** the same deal with Germany. SA proposes [Transfer 20 E SA → DE, Transfer 48 M DE → SA, Transform `energy-shipping` 20 by SA], signers [SA, DE, SHIP]. The shipping fee is 0.3 × 20 = 6 M, paid by SA to SHIP: SA 155 → 197 M, 110 → 90 E; DE 125 → 77 M, 38 → 58 E; SHIP 110 → 116 M. Under an `AccessBan` covering the route the Proposal is fully signed but the shipping order is infeasible, so it is rejected as a unit while the rest of the round resolves. If SHIP signs shipments totalling more than 60 E in a round, all of that round's shipping Proposals are rejected ([§3.2](#32-transport-capacity-and-trade-restrictions)).
-- **G4 (out-of-band strike deal):** LABOR, ENCO, and DEF agree off-system that LABOR will not strike. In Round 2 LABOR declares no strike and ENCO and DEF each Transfer 10 M to LABOR. The engine sees ordinary Transfers; nothing binds LABOR in later rounds.
-- **G5 (three-party):** SA proposes [Transfer 20 E SA → JP, Transfer 48 M JP → SA, Transfer 10 M JP → SHIP (service fee)], signers [SA, JP, SHIP]. JP and SHIP sign: SA 155 → 203 M, 110 → 90 E; JP 150 → 92 M, 40 → 60 E; SHIP 110 → 120 M. If SHIP does not sign, the whole Proposal lapses and no balance changes.
+- **G3 (cross-region):** the same deal with Germany. SA proposes [Transfer 20 E SA → DE, Transfer 48 M DE → SA, Transform `energy-shipping` 20 by SA], signers [SA, DE, SHIP]. The shipping fee is 0.3 × 20 = 6 M, paid by SA to SHIP: SA 155 → 197 M, 110 → 90 E. DE 125 → 77 M, 38 → 58 E. SHIP 110 → 116 M. Under an `AccessBan` covering the route the Proposal is fully signed but the shipping order is infeasible, so it is rejected as a unit while the rest of the round resolves. If SHIP signs shipments totalling more than 60 E in a round, all of that round's shipping Proposals are rejected ([§3.2](#32-transport-capacity-and-trade-restrictions)).
+- **G4 (out-of-band strike deal):** LABOR, ENCO, and DEF agree off-system that LABOR will not strike. In Round 2 LABOR declares no strike and ENCO and DEF each Transfer 10 M to LABOR. The engine sees ordinary Transfers. Nothing binds LABOR in later rounds.
+- **G5 (three-party):** SA proposes [Transfer 20 E SA → JP, Transfer 48 M JP → SA, Transfer 10 M JP → SHIP (service fee)], signers [SA, JP, SHIP]. JP and SHIP sign: SA 155 → 203 M, 110 → 90 E. JP 150 → 92 M, 40 → 60 E. SHIP 110 → 120 M. If SHIP does not sign, the whole Proposal lapses and no balance changes.
 
 Verifies signature completeness, lapsing, atomic settlement of bundled Intents, and that the engine enforces no promises ([INV-10](02_type_system.md#inv-10)).
 
 ---
 
-# Part V — Balancing and Iteration
+# Part V: Balancing and Iteration
 
 ## 28. Tunable Parameters
 
@@ -779,7 +783,7 @@ Vary one parameter at a time from the baseline before combining changes.
 
 ## 30. Measurements
 
-Recorded each round; dashboard metrics are versioned projections of snapshots and events ([INV-31](02_type_system.md#inv-31)).
+Recorded each round. Dashboard metrics are versioned projections of snapshots and events ([INV-31](02_type_system.md#inv-31)).
 
 | Measurement | Purpose |
 |---|---|
@@ -790,7 +794,7 @@ Recorded each round; dashboard metrics are versioned projections of snapshots an
 | Procurement, deployment, attrition | Escalation |
 | Soft Power created, spent, decayed | Influence mechanics |
 | Semiconductor units withheld or sold, and capacity effect | Industrial dependency |
-| EU support and outcome; SME baseline vs adjusted | Procedure and Representation effects |
+| EU support and outcome. SME baseline vs adjusted | Procedure and Representation effects |
 | Representation influence ratio | Representation balance |
 | Rejected and partial actions | Constraints |
 | NPC actions and triggers | Policy behavior |
@@ -811,32 +815,32 @@ packages/scenarios/
   fixtures/             the golden fixtures of Part IV (generated, not committed)
 ```
 
-Each section file is one JSON object, merged into the Gameboard; `instantiation.json` is the Instantiation Configuration. Capabilities, objectives, and relationships live in `entities.json` and the DSL; verticals and initial conditions have no file yet. A revised cost curve or circulation flow is a Gameboard change; a different initial node reserve within range is an Instantiation change; new player assignments need no engine change.
+Each section file is one JSON object, merged into the Gameboard. `instantiation.json` is the Instantiation Configuration. Capabilities, objectives, and relationships live in `entities.json` and the DSL. Verticals and initial conditions have no file yet. A revised cost curve or circulation flow is a Gameboard change. A different initial node reserve within range is an Instantiation change. New player assignments need no engine change.
 
 ---
 
-# Part VI — Acceptance Criteria
+# Part VI: Acceptance Criteria
 
 ## 32. Minimum Viable Test
 
 The first complete test succeeds when the engine can:
 
 1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* scenarios: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
-2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*; harness: *12 Resolution consistency*.
-3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden); harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
-4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden); handlers: *Fixture D end to end*; harness: *7 NPC response*.
-5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden); harness: *7b Reservation*, *7c Deployer*.
+2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*. Harness: *12 Resolution consistency*.
+3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden). Harness: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
+4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Harness: *7 NPC response*.
+5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden). Harness: *7b Reservation*, *7c Deployer*.
 6. Produce, spend, and decay Soft Power. *Proved by:* harness: *Soft Power is produced, spent, and decays*.
-7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden); harness: *1 Full game*, *8 Scarcity*; INV-05 asserted every round.
-8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* scenarios: *china-strategic-v0 procures after a major US action*; harness: *7 NPC response*.
-9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden); harness: *5 Germany and EU*.
-10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test); harness: *6 SME Representation*.
-11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden); harness: *10 Signed Proposals*.
-12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*; harness: *3 Submission order*.
-13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* harness: *2 Replay*; adapters: *13 Persistence*, *a scripted live session equals replaying…*.
+7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden). Harness: *1 Full game*, *8 Scarcity*. INV-05 asserted every round.
+8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* scenarios: *china-strategic-v0 procures after a major US action*. Harness: *7 NPC response*.
+9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden). Harness: *5 Germany and EU*.
+10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test). Harness: *6 SME Representation*.
+11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden). Harness: *10 Signed Proposals*.
+12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*. Harness: *3 Submission order*.
+13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* harness: *2 Replay*. Adapters: *13 Persistence*, *a scripted live session equals replaying…*.
 14. Evaluate every Actor's objective criteria from the records. *Proved by:* harness: *14 Agency*.
 
-The test does not need realistic macroeconomic forecasting; its objective is coherent, consequential, explainable interaction.
+The test does not need realistic macroeconomic forecasting. Its objective is coherent, consequential, explainable interaction.
 
 ## 33. Summary
 

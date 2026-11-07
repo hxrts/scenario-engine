@@ -32,7 +32,7 @@ us = entity
 de :: Built "entity"
 de = entity
   { accounts: keyed [ "M" := 125, "E" := 38, "Mil" := 24, "S" := 45 ]
-  , capabilities: dealer "energy-atlantic" <> allied <> [ transform "public-attention", transform "humanitarian-aid", transform "military-deployment", transfer "Mil" ] <> shipping
+  , capabilities: dealer "energy-atlantic" <> allied <> [ transform "public-attention", transform "humanitarian-aid", transform "military-deployment", transfer "Mil", transfer "E" ] <> shipping
   , capacities: keyed []
   , definition: definition
       { required: false

@@ -1,9 +1,9 @@
 -- | Language-model adapters (docs/04_instantiated_game.md §11, docs/01_overview.md §10). Each
 -- | call is one ephemeral, tool-less `pi` process; the model ID is the only configuration.
 -- | Every prompt asks for one JSON object, decoded with the shared codecs. A reply that fails
--- | to decode becomes a clarification (Interpret), an empty submission (seats), or a plain
--- | event listing (Narrate), and is never retried silently. Model output is only a candidate:
--- | it still goes through confirmation and screening.
+-- | to decode is an empty submission (the joint pass, or a seat's transcript) or a plain event
+-- | listing (Narrate), and is never retried silently. Model output is only a candidate: the
+-- | engine checks authority, signatures, and balances when it resolves the round.
 module Adapters.Llm
   ( Backend
   , Evidence
@@ -18,24 +18,22 @@ module Adapters.Llm
 import Prelude
 
 import Board.Decode.Common (readJson)
-
-import Core.Engine.Screen (authorized, executor)
 import Control.Monad.Error.Class (catchError, throwError)
-import Core.Types (Entity, EntityId, ProposalId, proposalId)
-import Core.World (View)
+import Core.Types (EntityId, Intent, MarketId)
+import Core.World (View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (all, concatMap, elem, filter, length, mapWithIndex)
+import Data.Array (elem, filter, fromFoldable, length, mapMaybe, nub, null)
 import Data.Either (Either(..), either)
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Map as Map
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (Error, error, message)
-import Effects.Signatures (InterpretF(..), Interpretation(..), NarrateF(..))
-import Policy.Interpret (Draft)
+import Effects.Signatures (InterpretF(..), JointProposal, NarrateF(..), Transcript)
 
 -- | One model call: the system template and the JSON payload, to the reply text and the
 -- | path of its raw event stream.
@@ -61,7 +59,7 @@ pi c = { model: c.model, call: \system input -> fromEffectFnAff (piImpl c.model 
 backendFailed :: forall a. String -> Error -> Aff a
 backendFailed model e = throwError (error ("language model backend failed (" <> model <> "): " <> message e))
 
--- | Canned replies keyed by the call (the interpretation suite and CI; no network).
+-- | Canned replies keyed by the call (the test suites and CI; no network).
 stub :: (String -> String -> String) -> Backend
 stub reply = { model: "stub", call: \system input -> pure { text: reply system input, raw: "" } }
 
@@ -73,26 +71,30 @@ ask b log effect template payload = do
   liftEffect $ log { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
   pure decoded
 
-type Reply = { kind :: String, proposals :: Maybe (Array Draft), sign :: Maybe (Array ProposalId), message :: Maybe String }
+-- | The joint pass's reply: one entry per reconciled Proposal.
+type JointReply = { proposals :: Array { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId } }
 
--- | Typed text to candidate Proposals and signatures. Admissibility is checked here against
--- | the Actor's own capabilities, not taken from the model.
-interpreter :: Backend -> Log -> (EntityId -> Maybe Entity) -> InterpretF ~> Aff
-interpreter b log entity (Interpret e v said k) = k <$> do
-  r <- ask b log "interpret" interpretTemplate (encodeJson { actor: e, capabilities: map _.capabilities (entity e), view: v, text: said })
-  pure case r of
-    Left _ -> Clarify "I could not read that as an action. Please restate it."
-    Right (x :: Reply) -> case x.kind of
-      "understood" ->
-        let
-          ds = fromMaybe [] x.proposals
-          caps = fromMaybe [] (map _.capabilities (entity e))
-          ok = all identity (concatMap (\{ i, d } -> let p = { id: proposalId v.round e i, author: e, intents: d.intents, signers: d.signers, procedure: d.procedure } in map (\it -> executor p it /= e || authorized caps e it) d.intents) (mapWithIndex (\i d -> { i, d }) ds))
-        in
-          -- a sign list is a candidate too: keep only the ids the Actor may sign now
-          if ok then Understood ds (filter (_ `elem` map _.id v.toSign) (fromMaybe [] x.sign)) else Inadmissible "the action needs a capability this Actor does not hold"
-      "inadmissible" -> Inadmissible (fromMaybe "" x.message)
-      _ -> Clarify (fromMaybe "Please clarify." x.message)
+-- | The round's transcripts to Proposals, one joint call. A reply that does not decode is a
+-- | `Left` (the caller tells the speakers and submits nothing). Entries the engine could not
+-- | use are dropped here: an author who did not speak, an empty Intent list, and unknown
+-- | signers. Only speakers can be recorded as agreeing.
+interpreter :: Backend -> Log -> WorldState -> InterpretF ~> Aff
+interpreter b log w (Interpret round transcripts k) = k <$> do
+  r <- ask b log "interpret" interpretTemplate
+    (encodeJson { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets })
+  pure (map (\(x :: JointReply) -> mapMaybe joint x.proposals) r)
+  where
+  speakers = map _.seat transcripts
+  markets :: Array MarketId
+  markets = map _.id (fromFoldable (Map.values w.markets))
+  joint p
+    | not (p.author `elem` speakers) = Nothing
+    | null p.intents = Nothing
+    | otherwise = Just
+        { author: p.author
+        , draft: { intents: p.intents, signers: filter (\s -> s /= p.author && Map.member s w.entities) p.signers, procedure: Nothing }
+        , signed: nub ([ p.author ] <> filter (\s -> s `elem` speakers) p.agreed)
+        }
 
 -- | Resolved events to front-page text; grounded only in the round's record.
 narrator :: Backend -> Log -> NarrateF ~> Aff
@@ -102,21 +104,21 @@ narrator b log (Narrate r k) = k <$> do
     Right ({ text } :: { text :: String }) -> text
     Left _ -> "Round " <> show r.record.round <> ": " <> show (length r.record.events) <> " events recorded."
 
--- | AI-agent seats: Proposals and signatures from the role briefing and the authorized View.
-agents :: Backend -> Log -> (EntityId -> String) -> { propose :: EntityId -> View -> Aff (Array Draft), sign :: EntityId -> View -> Aff (Array ProposalId) }
+-- | AI-agent seats: one short transcript per round, from the role briefing and the authorized View.
+-- | An undecodable reply is an empty transcript, so the seat submits nothing.
+agents :: Backend -> Log -> (EntityId -> String) -> { speak :: EntityId -> View -> Aff String }
 agents b log briefing =
-  { propose: \e v -> either (const []) (\(x :: Reply) -> fromMaybe [] x.proposals) <$> ask b log "seat:propose" seatTemplate (encodeJson { step: "propose", actor: e, briefing: briefing e, view: v })
-  , sign: \e v -> either (const []) (\(x :: Reply) -> fromMaybe [] x.sign) <$> ask b log "seat:sign" seatTemplate (encodeJson { step: "sign", actor: e, briefing: briefing e, view: v })
+  { speak: \e v -> either (const "") (\(x :: { text :: String }) -> x.text) <$> ask b log "seat:speak" speakTemplate (encodeJson { actor: e, briefing: briefing e, view: v })
   }
 
 common :: String
-common = "You are a component of a scenario-planning game engine. The user message is a JSON payload. Reply with exactly one JSON object and nothing else. Intents and Drafts use the engine's JSON encoding as it appears in the payload (tagged objects with \"tag\" and \"values\"). Never invent quantities, Entities, Markets, or Resources that are not in the payload."
+common = "You are a component of a scenario-planning game engine. The user message is a JSON payload. Reply with exactly one JSON object and nothing else. Intents use the engine's JSON encoding as it appears in the payload (tagged objects with \"tag\" and \"values\"). Never invent quantities, Entities, Markets, or Resources that are not in the payload."
 
 interpretTemplate :: String
-interpretTemplate = common <> "\nTask: interpret a human player's typed text as game actions for `actor`, using only `capabilities` and `view`. Reply {\"kind\":\"understood\",\"proposals\":[Draft],\"sign\":[ProposalId]} when the action is clear (sign lists ids from view.toSign the player endorses); {\"kind\":\"clarify\",\"message\":question} when a quantity, counterparty, or market is materially ambiguous; {\"kind\":\"inadmissible\",\"message\":reason} when the player claims resources or authority they lack. A Draft is {\"intents\":[Intent],\"signers\":[EntityId],\"procedure\":null}."
+interpretTemplate = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats is Transfer intents; a Trade is one seat's own action. Never ask a question and never reply with a clarification; reconcile instead. Reply {\"proposals\":[{\"author\":EntityId,\"intents\":[Intent],\"signers\":[EntityId],\"agreed\":[EntityId]}]}. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed."
 
 narrateTemplate :: String
 narrateTemplate = common <> "\nTask: write the round's front page: a short newspaper-style summary of `events`. Report only what the events state; add no facts, motives, or numbers not present. Reply {\"text\":string}."
 
-seatTemplate :: String
-seatTemplate = common <> "\nTask: you play the seat `actor` according to `briefing`. For step \"propose\" reply {\"kind\":\"understood\",\"proposals\":[Draft]} (an empty list is allowed); for step \"sign\" reply {\"kind\":\"understood\",\"sign\":[ProposalId]} choosing among view.toSign. A Draft is {\"intents\":[Intent],\"signers\":[EntityId],\"procedure\":null}."
+speakTemplate :: String
+speakTemplate = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply {\"text\":string}: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any deal you propose and the party it is with."

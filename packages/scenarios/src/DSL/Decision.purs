@@ -25,6 +25,7 @@ module DSL.Decision
   , tradeT
   , routeT
   , transformT
+  , transferT
   , procedureT
   , enactTariffT
   , deal
@@ -168,6 +169,15 @@ transformT
   => Record r
   -> Template
 transformT = Template <<< tag "transform" <<< encodeJson
+
+-- | A Transfer, for a procedure to carry (docs/05 §12.1): the agent `from` gives `quantity` to `to`.
+transferT
+  :: forall r rest
+   . Union r rest (from :: String, to :: String, resource :: String, quantity :: Expr)
+  => EncodeJson (Record r)
+  => Record r
+  -> Template
+transferT = Template <<< tag "transfer" <<< encodeJson
 
 -- | An Aggregate's own procedure Proposal, for its members to sign.
 procedureT

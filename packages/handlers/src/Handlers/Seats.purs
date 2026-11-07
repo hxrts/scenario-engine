@@ -14,7 +14,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe, maybe)
 import Effects.Environment (envFor)
-import Effects.Signatures (RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
 import Policy.Interpret (Draft)
 import Policy.Interpret as Policy
@@ -47,14 +47,18 @@ replay records =
   where
   inputs r = maybe [] _.inputs (find (\x -> x.round == r) records)
 
--- | Interpret SEAT_INPUT with a source, leaving the other effects.
-handleSeats :: forall r a. SeatSource -> Run (SEAT_INPUT + r) a -> Run r a
-handleSeats source = interpret (on (Proxy :: _ "seatInput") handle send)
+-- | Interpret SEAT_INPUT with a source, leaving the other effects. A source has no transcripts,
+-- | so Speak answers "" and the joint pass is never called: Sim and Replay runs make no model call.
+handleSeats :: forall r a. SeatSource -> Run (SEAT_INPUT + INTERPRET + r) a -> Run r a
+handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy :: _ "interpret") silent send))
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
     Propose e v k -> pure (k (source.propose e v))
     Sign e v k -> pure (k (source.sign e v))
+    Speak _ _ k -> pure (k "")
+  silent :: InterpretF ~> Run r
+  silent (Interpret _ _ k) = pure (k (Right []))
 
 -- | Collect RECORD purely: the in-memory record store, shared by the replay and test runners.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }

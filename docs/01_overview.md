@@ -1,4 +1,4 @@
-# Scenario Planning Game — Overview
+# Scenario Planning Game: Overview
 
 ## 1. Concept
 
@@ -24,11 +24,11 @@ The world has two parts: explicitly represented participants, and an implicit ec
 | Input | Out-of-band negotiation, oral announcements, and AI-interpreted actions |
 | Output | Economic outcomes, balance sheets, and a fictional financial-news front page |
 
-Each round runs in five steps. The engine's sequence within a round is in [02 §8.1](02_type_system.md#81-canonical-resolution-sequence); the session procedure is in [04 §11](04_instantiated_game.md#11-round-execution).
+Each round runs in five steps. The engine's sequence within a round is in [02 §8.1](02_type_system.md#81-canonical-resolution-sequence). The session procedure is in [04 §11](04_instantiated_game.md#11-round-execution).
 
 1. **Briefing.** Players receive the current state of the world.
-2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band; the system has no negotiation protocol.
-3. **Submission.** Players announce their intended actions. One side of an agreed deal proposes it (for example, "20 Energy to Japan for 48 Money"), and the other side signs it. AI converts these into structured actions and confirms anything materially ambiguous before the deadline. A deal that isn't signed by everyone involved lapses.
+2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band. The system has no negotiation protocol.
+3. **Submission.** Players talk with each other in private, then each human submits one audio recording of what they intend to do this round. A trade may be described by one party, by both, or by neither. Once submitted, a human has no further input in that round. Transcription and interpretation then read every transcript together. A transcript that describes a deal is that party's agreement to it, and the interpreter reconciles matching descriptions into one Proposal, adjusting details slightly where needed. Informal transcripts are loose by nature, and a player who did not want a deal would not have described it. A deal that only one side describes lapses, as any Proposal whose signatures are missing does.
 4. **Resolution.** The engine resolves every player, NPC, and implicit-economy action together as one round update.
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
@@ -42,7 +42,7 @@ Each round runs in five steps. The engine's sequence within a round is in [02 §
 
 ## 4. Core Types
 
-The type system is built from a small set of primitives: Resources, Entities with accounts and capabilities, Policies, Markets, costed Transformations (Facilities), Aggregates, Representations, Intents, and Proposals. Their definitions are in [02 §2–§5](02_type_system.md); the glossary is [02 §2.5](02_type_system.md#25-glossary).
+The type system is built from a small set of primitives: Resources, Entities with accounts and capabilities, Policies, Markets, costed Transformations (Facilities), Aggregates, Representations, Intents, and Proposals. Their definitions are in [02 §2–§5](02_type_system.md). The glossary is [02 §2.5](02_type_system.md#25-glossary).
 
 Authority and resources are distinct. A government can regulate businesses without owning their resources. Not everything meaningful is a Resource: production capacity, market access, and authority are economic state or rules. This lets a few Resources support a rich economy.
 
@@ -79,7 +79,7 @@ The engine takes the World State and a round's Intents and produces the next Wor
 
 - **Programs:** declarative rules for NPCs, Aggregate baselines, and preset seat behaviour, all on one shared interpreter.
 - **AI agents:** a language model playing a role from its briefing and view.
-- **Humans:** a person whose typed text AI turns into Intents.
+- **Humans:** a person who submits one audio recording per round, which is transcribed and interpreted into Intents.
 
 Programs are reproducible from their seed. AI agents and humans are reproducible from their recorded Intents ([02 §4](02_type_system.md#4-policies), [INV-13](02_type_system.md#inv-13)).
 
@@ -102,28 +102,27 @@ Seat decisions, NPC decisions, Aggregate behaviour, and signed deals all become 
 
 ## 10. AI Interface and Reporting
 
-Players never touch the type system directly. AI turns their typed decisions into structured Intents, confirms materially ambiguous ones, and records the accepted Intents so a game can be replayed without reinterpreting text ([04 §11](04_instantiated_game.md#11-round-execution)). Input is text; a speech-to-text front end can be added later without changing the interpreter.
+Players never touch the type system, and they give no input after submitting audio. A middleware transcribes each recording, then interprets all of a round's transcripts together into Intents on a best-effort basis, in the spirit of each transcript. Ambiguity is resolved in that translation, so there is no clarification or confirmation step. The transcripts and the Intents built from them are recorded, so a game can be replayed without reinterpreting ([04 §11](04_instantiated_game.md#11-round-execution)).
 
-The engine, not the language model, decides what happens. AI then writes a fictional financial-news front page in the style of the *Financial Times* or *The Economist*, and each player receives a balance sheet. **AI interprets inputs and communicates results; the engine determines outcomes.** Reporting must stay grounded in the resolved world state.
+The engine, not the language model, decides what happens. AI then writes a fictional financial-news front page in the style of the *Financial Times* that all players can read, along side an update to their balance sheet dashboard. **AI interprets inputs and communicates results. The engine determines outcomes.** Reporting must stay grounded in the resolved world state.
 
 ## 11. Evaluation
 
-There is no single winner. Each Actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of Energy, and the scenario defines system-level measures ([03 §10.5](03_gameboard.md#105-evaluation)). Objectives are evaluated from the recorded game and never affect the economy. Outcomes are not reduced to Money; military capacity, influence, and resource security matter through these objectives.
+There is no single winner. Each Actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of Energy, and the scenario defines system-level measures ([03 §10.5](03_gameboard.md#105-evaluation)). Objectives are evaluated from the recorded game and never affect the economy. Outcomes are not reduced to Money. Military capacity, influence, and resource security matter through these objectives.
 
 Every role should have a meaningful capability, a dependency that others can provide or withhold, and an objective others can help or obstruct. A small-business owner doesn't need the resources of the United States, but their choices should materially alter some part of the economy.
 
 ## 12. Design Principles
 
-- **Minimal ontology.** A small set of types supports many scenarios. New phenomena tighten existing primitives rather than add new ones.
-- **One economy, many resolutions.** Explicit Actors and implicit Aggregates are different views of one economic world. Instantiating it at any resolution must preserve its accounts, liabilities, and authority ([INV-14](02_type_system.md#inv-14)).
-- **Uniform action semantics.** Intents are the only input. Humans, agents, programs, NPCs, and Aggregates all act through them ([INV-01](02_type_system.md#inv-01)).
-- **The engine is an accountant.** It checks authority and signatures and keeps the books balanced. Negotiation, persuasion, and agreement happen out of band; the engine only sees what was proposed and who signed.
-- **Complete circulation.** Resources are produced, exchanged, distributed, and renewed, so the economy sustains itself (§6).
-- **Intrinsic asymmetry.** Participants need not be equal in resources, authority, or influence.
-- **Cross-scale participation.** Representation and collective procedures let small Actors and member states influence Aggregates without unrealistic control (§8).
-- **AI-mediated experience.** Natural language makes the system accessible without making the language model the authority over outcomes (§10).
-- **Purity.** The engine is a pure function. Randomness, player input, AI interpretation and narration, persistence, and time are declared effects interpreted by handlers ([02 §8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)).
-- **Reproducibility.** The same initial state, accepted Intents, and seeds always produce the same outcome ([INV-13](02_type_system.md#inv-13)). Each game has one game seed for in-world randomness. The simulator adds a separate player seed for simulated player behaviour, so one fixed game can be replayed under many player seeds ([02 §9.1](02_type_system.md#91-numerics-and-randomness)).
+- **One world, many scales.** Players, NPCs, and the implicit economy share one economy. A scenario can be played at any resolution, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_type_system.md#inv-14)).
+- **Same rules for everyone.** Every participant, human or not, acts through the same kinds of decision under the same rules. No seat gets special mechanics ([INV-01](02_type_system.md#inv-01)).
+- **Diplomacy is free. Deals are binding.** Players negotiate, persuade, and bluff however they like. Only what is proposed and signed by every party takes effect, and every deal must be paid for.
+- **Unequal but interdependent.** Power, resources, and authority are deliberately unequal, yet every role has a capability, a dependency others control, and an objective others can help or obstruct (§11).
+- **Small players matter.** Representation and collective procedures let a small business or a member state shift a larger economy, with influence that is real but bounded (§8).
+- **A living economy.** Production, trade, income, and investment recur every round, so the world sustains itself across five years and scarcity comes from choices, not from accounting gaps (§6).
+- **Consequences, not scripts.** Outcomes emerge from decisions meeting markets. NPCs keep fixed motives, so players change the world others respond to, not the way they respond.
+- **Many ways to succeed.** There is no single winner and no single measure of success. Security, influence, and capacity count alongside Money (§11).
+- **Plain language in, grounded story out.** Players speak naturally and read a news front page, but the economy, not the narrator, decides what happened (§10).
 
 ## 13. Document Map
 

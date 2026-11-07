@@ -148,6 +148,11 @@ intents env = case _ of
       q = eval env x.quantity
     in
       if q == Q.zero then [] else [ Transform { by: env.view.self.id, transformation: x.transformation, quantity: q } ]
+  TransferT x ->
+    let
+      q = eval env x.quantity
+    in
+      if q == Q.zero then [] else [ Transfer { from: x.from, to: x.to, resource: x.resource, quantity: q } ]
   EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: x.origin, rate: eval env x.rate })) ]
   EnactAccessBan x -> [ ChangeRule (Enact (AccessBan { jurisdiction: env.view.self.id, target: x.target })) ]
   EnactWithholding x -> [ ChangeRule (Enact (Withholding { capacity: x.capacity, units: eval env x.units })) ]

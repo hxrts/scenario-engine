@@ -1,4 +1,4 @@
-# Scenario Planning Game — Technical Architecture
+# Scenario Planning Game: Technical Architecture
 
 **Version:** 0.3  
 **Scope:** Package layout, dependency direction, and the key interfaces between packages  

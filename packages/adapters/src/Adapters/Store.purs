@@ -19,6 +19,7 @@ module Adapters.Store
   , deleteRun
   , nowIso
   , persister
+  , recorder
   , setStatus
   , finish
   , failRun
@@ -36,13 +37,14 @@ import Core.World (Manifest, RoundResult, WorldState)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either, either)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn7, Fn8, runFn1, runFn2, runFn3, runFn4, runFn7, runFn8)
+import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, runFn1, runFn2, runFn3, runFn4, runFn8)
 import Data.Map as Map
 import Data.Maybe (Maybe)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Ref as Ref
+import Effects.Signatures (Transcript)
 
 foreign import data Db :: Type
 
@@ -63,7 +65,7 @@ type RunSummary =
   , assertions :: Array String
   }
 
-type StoredRound = { round :: Int, record :: String, snapshot :: String, assertions :: String }
+type StoredRound = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
 
 type Metric = { metric :: String, version :: String, value :: String }
 
@@ -76,7 +78,7 @@ foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
 foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
 foreign import busyTimeoutImpl :: Db -> Effect Int
 foreign import busyTimeoutMs :: Int
-foreign import appendRoundImpl :: Fn7 Db String Int String String String (Array Metric) (Effect Unit)
+foreign import appendRoundImpl :: Fn8 Db String Int String String String String (Array Metric) (Effect Unit)
 foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
 foreign import failStaleRunsImpl :: Fn2 Db String (Effect Int)
@@ -135,16 +137,23 @@ setSpec db id spec = runFn3 setSpecImpl db id spec
 deleteRun :: Db -> String -> Effect Int
 deleteRun db id = runFn2 deleteRunImpl db id
 
--- | A RECORD target for the Sim handler: saves each round as it completes.
+-- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
 persister :: Db -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
 persister db id initial = do
+  save <- recorder db id initial
+  pure \r -> save r []
+
+-- | A RECORD target that also stores the round's transcripts, in the same transaction as the round.
+recorder :: Db -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
+recorder db id initial = do
   previous <- Ref.new initial
-  pure \r -> do
+  pure \r transcripts -> do
     before <- Ref.read previous
-    runFn7 appendRoundImpl db id r.record.round
+    runFn8 appendRoundImpl db id r.record.round
       (stringify (encodeJson r.record))
       (stringify (encodeJson r.world))
       (stringify (encodeJson (check (prepareRound before) r)))
+      (stringify (encodeJson transcripts))
       (metrics r)
     Ref.write r.world previous
 

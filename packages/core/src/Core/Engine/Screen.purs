@@ -220,9 +220,12 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities of
       support = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) signed)))
       passes = support > proc.threshold
       outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
+      -- A member with no weight in the procedure acts for the Aggregate without signing (docs/02 §2.2).
+      agents = filter (\m -> not (Map.member m proc.weights)) a.members
+      executedBy i = executor p i == p.author || executor p i `elem` agents
     in
-      if not (all (\i -> executor p i == p.author) p.intents) then reject "outside the procedure's authority"
-      else case validate w p signed (ProcedureAuthority proc.authorizes) of
+      if not (all executedBy p.intents) then reject "outside the procedure's authority"
+      else case validate w p (signed <> agents) (ProcedureAuthority proc.authorizes) of
         Left reason -> reject reason
         Right tariffs
           | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]

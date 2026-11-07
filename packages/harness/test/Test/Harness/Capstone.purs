@@ -104,7 +104,7 @@ toStored id r =
 
 spec :: Aff Context -> Spec Unit
 spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
-  it "invariants hold in every round (INV-01..16)" do
+  it "the checked invariants hold in every round (INV-02, 04, 05, 06, 10; see docs/02 §9)" do
     ctx <- context
     cap <- load
     r <- runOf ctx (specOf cap)

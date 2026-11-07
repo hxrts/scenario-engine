@@ -21,6 +21,7 @@ import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, n
 import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -39,6 +40,7 @@ import Harness.Capstone (Capstone, decodeCapstone)
 import Test.Spec (describe, it)
 import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments
+import Test.Harness.Shock as ShockTests
 import Test.Harness.Views as ViewTests
 import Test.Harness.Statistics as StatTests
 import Test.Harness.Capstone as CapstoneTests
@@ -98,6 +100,7 @@ price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> margin
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   Experiments.spec context
+  ShockTests.spec context
   ViewTests.spec context
   StatTests.spec context
   CapstoneTests.spec context
@@ -190,6 +193,26 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       fixture "R"
       -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
+    it "7d Investor: the capacity investment executes once its owner signs too" do
+      ctx <- context
+      -- every seat is an Investor, so ENCO (the capacity's owner) signs the investment it is offered
+      r <- run ctx { seats: presetSeats (const "Investor") (map Id [ "US", "ENCO", "CHIP", "SHIP", "DEF" ]), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+      let
+        events = concatMap (\rec -> rec.record.events) r.records
+        invested = any
+          ( case _ of
+              Transformed t -> t.transformation == Id "energy-capacity-investment"
+              _ -> false
+          )
+          events
+        unsigned = any
+          ( case _ of
+              Rejected x -> contains (Pattern "must sign") x.reason
+              _ -> false
+          )
+          events
+      invested `shouldEqual` true
+      unsigned `shouldEqual` false
     it "7c Deployer: the shipped preset reserves and sells its Mil in the rounds the Atlantic price is above 3" do
       ctx <- context
       r <- run ctx { seats: Map.singleton (Id "US") (Preset "Deployer"), playerSeed: Seed 1, overrides: [], rounds: Nothing }

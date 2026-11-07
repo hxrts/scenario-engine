@@ -7,7 +7,7 @@ module Scenarios.Meridian.Entities (entities) where
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (Built, Keyed, keyed)
-import Scenarios.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, globalSmes, usWorkers, worldHouseholds)
+import Scenarios.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
 import Scenarios.Meridian.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
 
 -- | Every Entity, in catalog order.
@@ -30,6 +30,7 @@ entities = keyed
   , Tuple "AID" aid
   , Tuple "CN" cn
   , Tuple "EU" eu
+  , Tuple "EU_POOL" euPool
   , Tuple "CN_PRIVATE" cnPrivate
   , Tuple "US_WORKERS" usWorkers
   , Tuple "GLOBAL_SMES" globalSmes
