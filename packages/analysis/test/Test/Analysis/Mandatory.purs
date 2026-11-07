@@ -21,7 +21,8 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Policy.Program (Program, decodeProgram)
-import Adapters.Scenarios (readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile)
 import Analysis.Experiments (agency, counterfactual, evaluateObjectives, playerSeedRuns)
 import Scenarios.Load (loadFixture)
 import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, simulate)
@@ -57,7 +58,7 @@ initialOf :: Run -> WorldState
 initialOf r = r.manifest.initial
 
 fixture :: String -> Aff Unit
-fixture name = liftEffect (map (_ >>= loadFixture name) (readText ("fixtures/" <> name <> ".json"))) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail e
   Right f -> checkFixture f `shouldEqual` []
 

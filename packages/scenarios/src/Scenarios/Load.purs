@@ -1,12 +1,10 @@
 -- | Decodes a scenario package from its file contents: every JSON section is merged into one
 -- | Gameboard object, except `instantiation.json`, the Instantiation Configuration. The Gameboard,
 -- | the Policy catalog, and the shared seat presets are decoded and checked against each other
--- | here, so bad data fails at decode time and never inside a run. The texts are read by the
--- | adapter (`Adapters.Scenarios`): this module does no IO.
+-- | here, so bad data fails at decode time and never inside a run. The texts come in as values
+-- | (`Scenarios.Tree`): this module does no IO.
 module Scenarios.Load
-  ( Section
-  , Scenario
-  , Loaded
+  ( Loaded
   , LoadError(..)
   , load
   , fromFiles
@@ -44,14 +42,9 @@ import Foreign.Object as Object
 import Policy.Program (Program, decodeProgram, programRefs)
 import Policy.Tags as T
 import Scenarios.Names (instantiationFile, presetsFile)
+import Scenarios.Tree (Scenario, Section)
 
 type Loaded = { gameboard :: Gameboard, config :: InstantiationConfig }
-
--- | One scenario file as the adapter read it: its name, its path (for failure messages), and its text.
-type Section = { name :: String, path :: String, text :: String }
-
--- | A scenario directory's sections, and the shared seat presets file.
-type Scenario = { sections :: Array Section, presets :: Section }
 
 -- | Why a scenario, its presets, or a fixture does not load.
 data LoadError

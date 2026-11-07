@@ -8,7 +8,8 @@ module Transcript (main) where
 
 import Prelude
 
-import Adapters.Scenarios (readScenario, scenariosRoot)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario, scenarioRoot)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
@@ -38,7 +39,7 @@ import Scenarios.Load (load)
 -- | The capstone's world: the shipped Meridian at its default configuration.
 worldOf :: Aff WorldState
 worldOf = do
-  loaded <- liftEffect (readScenario "meridian/v0") >>= either (throwError <<< error) pure >>= (either (throwError <<< error) pure <<< load)
+  loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= either (throwError <<< error) pure >>= (either (throwError <<< error) pure <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure initial.world
     Left _ -> throwError (error "instantiation")
@@ -62,7 +63,7 @@ main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (con
         | map (\j -> stringify (encodeJson j.draft.intents)) js == [ stringify (encodeJson l.expect) ] -> pure unit
         | otherwise -> throwError (error ("the capstone exchange \"" <> l.text <> "\" does not give the Intents the DSL expects"))
   rec <- liftEffect (Ref.read ref)
-  root <- liftEffect scenariosRoot
+  root <- liftEffect (scenarioRoot fileOps)
   liftEffect do
     writeTextFile UTF8 (root <> "capstone/transcript.json") (encodeRecording rec)
     log ("wrote " <> show (length rec) <> " capstone exchanges to " <> root <> "capstone/transcript.json")

@@ -9,7 +9,8 @@ module Test.Adapters.LiveInterpret (main) where
 import Prelude
 
 import Adapters.Pi (defaultModel, pi)
-import Adapters.Scenarios (readScenario)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
@@ -38,7 +39,7 @@ transcripts =
 
 world :: Aff WorldState
 world = do
-  s <- liftEffect (readScenario "meridian/v0")
+  s <- liftEffect (readScenario fileOps "meridian/v0")
   case s of
     Left e -> throwError (error e)
     Right scenario -> case load scenario of

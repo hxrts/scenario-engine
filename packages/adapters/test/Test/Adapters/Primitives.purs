@@ -6,7 +6,8 @@ module Test.Adapters.Primitives (spec) where
 import Prelude
 
 import Adapters.Clock (nowIso)
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Adapters.Seed (resolveSeed)
 import Core.Draw (Seed(..))
 import Data.Array (length, sort)
@@ -35,7 +36,7 @@ spec = describe "Primitives: seed, clock, scenario reads" do
     contains (Pattern "Z") t `shouldEqual` true
 
   it "a scenario directory reads its files, with the shared presets" do
-    s <- liftEffect (readScenario "meridian/v0")
+    s <- liftEffect (readScenario fileOps "meridian/v0")
     case s of
       Right sc -> do
         map _.name sc.sections `shouldEqual` sort (map _.name sc.sections)
@@ -44,17 +45,17 @@ spec = describe "Primitives: seed, clock, scenario reads" do
       Left e -> fail e
 
   it "a missing scenario directory is a failure that names its path" do
-    s <- liftEffect (readScenario "no-such-scenario")
+    s <- liftEffect (readScenario fileOps "no-such-scenario")
     case s of
       Left e -> contains (Pattern "no-such-scenario") e `shouldEqual` true
       Right _ -> fail "a missing directory must not read"
 
   it "readText reads a file under the scenario root; a missing file names its path" do
-    ok <- liftEffect (readText "presets.json")
+    ok <- liftEffect (readRootFile fileOps "presets.json")
     case ok of
       Right _ -> pure unit
       Left e -> fail e
-    missing <- liftEffect (readText "no-such-file.json")
+    missing <- liftEffect (readRootFile fileOps "no-such-file.json")
     case missing of
       Left e -> contains (Pattern "no-such-file.json") e `shouldEqual` true
       Right _ -> fail "a missing file must not read"

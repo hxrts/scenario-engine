@@ -29,7 +29,8 @@ import Simulator.Options (flagOr, parseFlags)
 import Simulator.Simulate (presetSeats, seatsOf, simulate)
 import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
-import Adapters.Scenarios (readScenario)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario)
 import Scenarios.Load (loadContext)
 import Session (Options, session, validId)
 
@@ -94,7 +95,7 @@ usage why = do
 
 runScenario :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runScenario scenario presetName rounds given = do
-  loaded <- map (_ >>= loadContext) (readScenario (scenario <> "/v0"))
+  loaded <- map (_ >>= loadContext) (readScenario fileOps (scenario <> "/v0"))
   case loaded of
     Left e -> fail e
     Right ctx -> case instantiate ctx.gameboard ctx.config of

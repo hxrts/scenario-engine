@@ -12,10 +12,13 @@ import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (all, any, concatMap, index, length)
+import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.String (joinWith)
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Encode (encodeJson)
 import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -30,9 +33,11 @@ import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
+import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, metricsVersion, recorder)
 import Policy.Program (Program, decodeProgram)
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Scenarios.Load (load, loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -43,7 +48,7 @@ type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
+  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
   case loaded of
     Left e -> throwError (error e)
     Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
@@ -111,10 +116,25 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.transcripts rows `shouldEqual` [ said, [] ]
       (all (\r -> length r.metrics > 0 && all (\m -> m.version == metricsVersion) r.metrics) rows) `shouldEqual` true
 
+  describe "Replay (Handlers.Replay over recorded rounds)" do
+    it "a round with eleven proposals by one author replays into the same ids and order as recorded" do
+      g <- setup
+      let
+        propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show i <> "\"}}"
+        eleven = program ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
+      records <- play g 1 (Map.singleton (Id "US") eleven)
+      case runReplay 1 (map _.record records) (runGame g.inWorld 1 g.world) of
+        Left e -> fail e
+        Right out -> do
+          let ids rs = map (\r -> map (\s -> s.proposal.id) r.record.inputs) rs
+          length (filter (\s -> s.proposal.author == Id "US") (concatMap _.record.inputs records)) `shouldEqual` 11
+          ids out.records `shouldEqual` ids records
+          map (\r -> stringify (encodeJson r.record.inputs)) out.records `shouldEqual` map (\r -> stringify (encodeJson r.record.inputs)) records
+
   describe "Round runner and Test handler" do
     it "plays five rounds with every seat Conservative and with every seat Passive" do
       g <- setup
-      presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
+      presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
       case presets of
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do

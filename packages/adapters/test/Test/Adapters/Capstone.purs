@@ -5,8 +5,9 @@ module Test.Adapters.Capstone (spec) where
 
 import Prelude
 
-import Adapters.Scenarios (readScenario, readText)
-import Adapters.Store (open, sqliteBackend)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
+import Adapters.SQLite (open, sqliteBackend)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (stringify)
@@ -35,14 +36,14 @@ orThrow = either (throwError <<< error) pure
 
 capstone :: Aff Capstone
 capstone = do
-  file <- liftEffect (readText "capstone/run.json") >>= orThrow >>= (orThrow <<< loadRun)
+  file <- liftEffect (readRootFile fileOps "capstone/run.json") >>= orThrow >>= (orThrow <<< loadRun)
   orThrow (decodeCapstone file)
 
 spec :: Spec Unit
 spec = describe "Capstone: the Run Store" do
   it "the capstone run round-trips through the store: saved, reloaded byte-identically, and replayed" do
-    loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-    presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+    loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+    presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
     cap <- capstone
     let
       ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }

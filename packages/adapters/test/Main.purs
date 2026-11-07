@@ -5,7 +5,7 @@ module Test.Adapters.Main where
 
 import Prelude
 
-import Adapters.Store (busyTimeout, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
+import Adapters.SQLite (busyTimeout, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -31,7 +31,8 @@ import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, listRuns, listSummaries, readManifest, readMetric, readRounds, setArchived, setSpec, setStatus)
 import Handlers.Store (metricsVersion, persister, recorder, runStore)
 import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Scenarios.Load (load, loadPresets)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
@@ -50,7 +51,7 @@ orThrow = case _ of
 -- | The initial manifest of the reference scenario, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure initial.manifest
     Left _ -> fail "instantiation" *> throwError (error "instantiation")
@@ -62,8 +63,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PrimitiveTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
         spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "RandomValid")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 7, overrides: [], rounds: Nothing }
@@ -154,8 +155,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
-      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
         spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Passive")) [ "US", "DE" ]), playerSeed: Seed 3, overrides: [], rounds: Just 2 }
@@ -192,8 +193,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
         spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Conservative")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 1, overrides: [], rounds: Just 2 }

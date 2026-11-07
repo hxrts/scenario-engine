@@ -2,7 +2,7 @@
 -- | and the `RECORD` operation, which saves each round as it completes with its transcripts and its
 -- | metrics. The handler does the logic: the metric definitions, the round's assertions, and the run
 -- | lifecycle (`finish`). The backend is the set of raw store primitives an adapter implements
--- | (`Adapters.Store.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
+-- | (`Adapters.SQLite.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
 -- | append-only, and the metric version is recorded with each value.
 module Handlers.Store
   ( StoreBackend

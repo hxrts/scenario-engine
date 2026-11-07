@@ -60,16 +60,16 @@ packages/
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
   policy/      Policy.Program (decision language), Policy.InWorld (in-world Programs, `acts`), Policy.Interpret (propose, sign, `envFor`)
-  scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load)
+  scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
   effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors),
                Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay, Live (the round's handlers); Handlers.Llm (the model handler: prompts, decoding,
                the joint pass, fallbacks, evidence; `Llm.js` is the one sha256), Handlers.Llm.Wire (prompt text and reply
                decoding), Handlers.Recording (typed exchanges, the capstone recording), Handlers.Store (STORE and RECORD over a
                StoreBackend); test/Test/Handlers/Stub holds the stub backend and the recording replay
-  adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.Store (SQLite statements and the JSON
+  adapters/    raw primitives only: Adapters.Pi (one `pi` process per call), Adapters.SQLite (SQLite statements and the JSON
                text of stored values; `sqliteBackend`), Adapters.Clock (wall clock), Adapters.Seed (the only OS seed),
-               Adapters.Scenarios (scenario file reads, SCENARIOS_DIR)
+               Adapters.Filesystem (file reads, directory listings, environment variables; `fileOps`)
   simulator/   Simulator.Simulate, Overrides, Records, Options, Capstone (simulation orchestration)
   analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models)
 apps/
@@ -149,7 +149,7 @@ type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect U
 type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendRound -> Effect Unit, readRounds :: String -> Effect (Array StoredRound), ... }  -- Handlers.Store: one primitive per STORE operation, and the round write
 ```
 
-`Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Store.sqliteBackend` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `capstone/transcript.json`; neither is production code.
+`Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.SQLite.sqliteBackend` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `capstone/transcript.json`; neither is production code.
 
 **Run Store** (`effects/Signatures` `STORE`, `handlers/Store`, `adapters/Store`). The run lifecycle writes (`createRun`, `setStatus`, `failRun`, `failRunning`, `setSpec`, `setArchived`, `deleteRun`) and the reads the server answers from (`listRuns`, `listSummaries`, `readManifest`, `readRounds`, `readMetric`) are operations. A program is written as `Run (STORE + r)` and run with `runStore backend`. The reads are new operations because `RECORD` is write-only; each round's write stays `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Round records and snapshots are insert-only.
 

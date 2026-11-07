@@ -7,7 +7,8 @@ module Test.Handlers.Capstone (spec) where
 
 import Prelude
 
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Entity, EntityId, Id(..))
@@ -37,13 +38,13 @@ orThrow = either (throwError <<< error) pure
 
 -- | `packages/scenarios/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
-recording = liftEffect (readText "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
+recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
 
 type Game = { world :: WorldState, lookup :: EntityId -> Maybe Entity }
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
     Left _ -> throwError (error "instantiation")

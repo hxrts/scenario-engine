@@ -2,9 +2,9 @@
 -- | primitives as one `StoreBackend`, which `Handlers.Store` interprets the `STORE` operations over.
 -- | This module does the JSON: a typed value is encoded to the text the store keeps, and a stored text
 -- | is decoded back, or is a `Left` naming what failed (`Effects.Signatures.Stored`). The SQL is in
--- | `Store.js`. Runs are append-only; the schema is versioned with PRAGMA user_version and migrated in
+-- | `SQLite.js`. Runs are append-only; the schema is versioned with PRAGMA user_version and migrated in
 -- | order when the store is opened read-write.
-module Adapters.Store
+module Adapters.SQLite
   ( Db
   , open
   , openReadOnly

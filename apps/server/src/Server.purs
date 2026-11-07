@@ -5,8 +5,9 @@ module Server (main) where
 
 import Prelude
 
-import Adapters.Scenarios (readScenario)
-import Adapters.Store (open, sqliteBackend)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario)
+import Adapters.SQLite (open, sqliteBackend)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -26,7 +27,7 @@ main = do
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
     Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
-      Just port | port > 0 && port < 65536 -> map (_ >>= loadContext) (readScenario "meridian/v0") >>= case _ of
+      Just port | port > 0 && port < 65536 -> map (_ >>= loadContext) (readScenario fileOps "meridian/v0") >>= case _ of
         Right ctx -> do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store

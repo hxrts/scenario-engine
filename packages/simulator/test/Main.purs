@@ -33,7 +33,8 @@ import Policy.Program (Program, decodeProgram)
 import Data.Argonaut.Parser (jsonParser)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Scenarios.Load (load, loadFixture, loadPresets, loadRun)
 import Simulator.Capstone (Capstone, decodeCapstone)
 import Test.Spec (describe, it)
@@ -45,8 +46,8 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 context :: Aff Context
 context = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
-  presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
+  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
+  presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
   case loaded, presets of
     Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }
     Left e, _ -> throwError (error e)
@@ -79,13 +80,13 @@ initialOf r = r.manifest.initial
 -- | The capstone run file (DSL-authored), decoded.
 capstone :: Aff Capstone
 capstone = do
-  file <- liftEffect (map (_ >>= loadRun) (readText "capstone/run.json"))
+  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
   case file of
     Left e -> throwError (error e)
     Right j -> either (throwError <<< error) pure (decodeCapstone j)
 
 fixture :: String -> Aff Unit
-fixture name = liftEffect (map (_ >>= loadFixture name) (readText ("fixtures/" <> name <> ".json"))) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail e
   Right f -> checkFixture f `shouldEqual` []
 
@@ -153,7 +154,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
-      liftEffect (map (_ >>= loadFixture "C1") (readText "fixtures/C1.json")) >>= case _ of
+      liftEffect (map (_ >>= loadFixture "C1") (readRootFile fileOps "fixtures/C1.json")) >>= case _ of
         Left e -> fail e
         Right f -> do
           let

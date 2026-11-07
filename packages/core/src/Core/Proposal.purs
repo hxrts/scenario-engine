@@ -8,17 +8,19 @@ module Core.Proposal
   , jointProposalsOf
   , signableBy
   , assembleSigned
+  , submissionOrder
   ) where
 
 import Prelude
 
 import Core.Query (isAggregate)
-import Core.Types (CollectiveProcedureId, Entity, EntityId, Intent, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId)
+import Core.Types (CollectiveProcedureId, Entity, EntityId, Intent, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
 import Data.Array (concatMap, elem, filter, mapWithIndex)
 import Data.Either (Either, either)
 import Data.Map as Map
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Traversable (mapAccumL)
+import Data.Tuple (Tuple(..))
 
 -- | What a Proposal says before its id and author are assigned (a policy's Draft has this shape).
 type ProposalBody = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
@@ -62,3 +64,11 @@ assembleSigned proposals signatures jointNumbered = map
   proposals
   where
   jointSigned pid = concatMap _.signed (filter (\j -> j.proposal.id == pid) jointNumbered)
+
+-- | The canonical order of SignedProposals: by author, then by the numeric index of the author's
+-- | submission (so index 10 follows index 2), then by id. The engine commits in this order and
+-- | replay seats answer in it.
+submissionOrder :: SignedProposal -> Tuple String (Tuple Int String)
+submissionOrder { proposal: p } = Tuple (show p.author) (Tuple index (show p.id))
+  where
+  index = fromMaybe 0 (submissionIndex p.id)

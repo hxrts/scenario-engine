@@ -24,7 +24,8 @@ import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Simulator.Capstone (Capstone, RoundExpect, decodeCapstone)
 import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, resume, simulate)
-import Adapters.Scenarios (readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile)
 import Scenarios.Load (loadRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -32,7 +33,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 -- | The capstone run file, decoded.
 load :: Aff Capstone
 load = do
-  file <- liftEffect (map (_ >>= loadRun) (readText "capstone/run.json"))
+  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
   case file of
     Left e -> throwError (error e)
     Right j -> case decodeCapstone j of

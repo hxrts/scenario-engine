@@ -10,7 +10,7 @@ import Prelude
 import Adapters.Clock (nowIso)
 import Adapters.Pi (pi)
 import Adapters.Seed (resolveSeed)
-import Adapters.Store (open, sqliteBackend)
+import Adapters.SQLite (open, sqliteBackend)
 import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed)
 import Core.Num as Q
@@ -46,7 +46,8 @@ import Handlers.Llm (agents, interpreter, narrator)
 import Handlers.Store (finish, recorder, runStore)
 import Handlers.Seats (programs)
 import Node.Process (exit')
-import Adapters.Scenarios (readScenario)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario)
 import Scenarios.Load (load)
 
 foreign import promptImpl :: String -> EffectFnAff String
@@ -66,7 +67,7 @@ validId s = case uncons cs of
   alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 
 session :: Options -> Effect Unit
-session o = map (_ >>= load) (readScenario (o.scenario <> "/v0")) >>= case _ of
+session o = map (_ >>= load) (readScenario fileOps (o.scenario <> "/v0")) >>= case _ of
   Left e -> log e *> exit' 1
   Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of
     -- a seat with no home market is a startup error, named before any round

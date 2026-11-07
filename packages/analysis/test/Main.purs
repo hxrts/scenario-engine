@@ -5,7 +5,8 @@ module Test.Analysis.Main where
 
 import Prelude
 
-import Adapters.Scenarios (readScenario, readText)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readRootFile, readScenario)
 import Control.Monad.Error.Class (throwError)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -24,8 +25,8 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 context :: Aff Context
 context = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
-  presets <- liftEffect (map (_ >>= loadPresets) (readText "presets.json"))
+  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
+  presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
   case loaded, presets of
     Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }
     Left e, _ -> throwError (error e)

@@ -5,7 +5,8 @@ module Compile (main) where
 
 import Prelude
 
-import Adapters.Scenarios (scenariosRoot)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (scenarioRoot)
 import Data.Array (length)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -21,7 +22,7 @@ main :: Effect Unit
 main = case compile of
   Left e -> log ("invalid scenario: " <> e) *> exit' 1
   Right files -> do
-    root <- scenariosRoot
+    root <- scenarioRoot fileOps
     for_ [ "meridian/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
     log ("compiled " <> show (length files) <> " files")

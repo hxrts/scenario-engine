@@ -6,6 +6,7 @@ import Prelude
 
 import Core.Draw (Seed)
 import Core.Num (Q)
+import Core.Proposal (submissionOrder)
 import Core.Types (EntityId, MarketId, ProposalId)
 import Core.World (RoundRecord, RoundResult, View)
 import Data.Array (elem, filter, find, sortWith)
@@ -40,7 +41,7 @@ programs b =
 replay :: Array RoundRecord -> SeatSource
 replay records =
   { propose: \e v -> map (\s -> { intents: s.proposal.intents, signers: s.proposal.signers, procedure: s.proposal.procedure })
-      (sortWith (_.proposal.id) (filter (\s -> s.proposal.author == e) (inputs v.round)))
+      (sortWith submissionOrder (filter (\s -> s.proposal.author == e) (inputs v.round)))
   , sign: \e v -> map (_.proposal.id) (filter (\s -> e `elem` s.signatures) (inputs v.round))
   }
   where

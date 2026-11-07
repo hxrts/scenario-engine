@@ -34,7 +34,8 @@ import DSL.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, e
 import DSL.World (atLeast, own)
 import DSL.Decision (deal, lit, max', param, program, rule, signProcedures, tradeT, transformT)
 import DSL.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
-import Adapters.Scenarios (readScenario)
+import Adapters.Filesystem (fileOps)
+import Scenarios.Tree (readScenario)
 import Scenarios.Load (LoadError(..), checkPresets, decodePresets, fromFiles, load)
 import Scenarios.Meridian (files)
 import Scenarios.Meridian.Policies (policies)
@@ -75,7 +76,7 @@ holdings =
 -- | The reference instance's Gameboard and configuration, as the loader reads them.
 loaded :: Aff { gameboard :: Gameboard, config :: InstantiationConfig }
 loaded = do
-  r <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
+  r <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
   case r of
     Left e -> failWith e
     Right x -> pure x

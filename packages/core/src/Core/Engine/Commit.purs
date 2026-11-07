@@ -17,8 +17,9 @@ import Core.Engine.Screen (duplicatedIds, screen)
 import Core.Engine.Settle (Account(..), Settlement, ledgerByAccount, settle)
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Proposal (submissionOrder)
 import Core.Represent as Represent
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, SignedProposal, submissionIndex)
+import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, SignedProposal)
 import Core.World (Event, RoundResult, WorldState)
 import Data.Array (concatMap, find, sortWith)
 import Data.Either (Either(..), either)
@@ -53,13 +54,6 @@ resolveRound w0 inputs0 =
     settled = circulate w (settle w funded.items)
   in
     commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
-
--- | The canonical order of Proposals: by author, then by the numeric index of the author's
--- | submission (so index 10 follows index 2), then by id.
-submissionOrder :: SignedProposal -> Tuple String (Tuple Int String)
-submissionOrder { proposal: p } = Tuple (show p.author) (Tuple index (show p.id))
-  where
-  index = fromMaybe 0 (submissionIndex p.id)
 
 commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
 commit w inputs screenEvents factors st = do
