@@ -1,5 +1,5 @@
 -- | The route table: each request's method and path segments pick one handler from `Server.Read`,
--- | `Server.Launch`, or `Server.Derive`. Anything else is a 404.
+-- | `Server.Launch`, or `Server.Derive`; `GET /api/scenario` is the launch form's defaults. Anything else is a 404.
 module Server.Routes (route) where
 
 import Prelude
@@ -14,12 +14,13 @@ import Harness.Views.Overview as Overview
 import Http (Request, Response)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
-import Server.Launch (launch, readLaunch)
+import Server.Launch (launch, readLaunch, scenarioInfo)
 import Server.Read (agencyView, compareView, getView, param, runSummaries)
 
 route :: Context -> Db -> Request -> Effect Response
 route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.path) of
   "GET", [ "api", "runs" ] -> runSummaries (param req.query "archived" "" == "true") db >>= ok <<< Overview.runList
+  "GET", [ "api", "scenario" ] -> ok (scenarioInfo ctx)
   "POST", [ "api", "runs" ] -> case readLaunch req.body of
     Left e -> failWith 400 e
     Right l -> launch ctx db l >>= either (failWith 400) ok

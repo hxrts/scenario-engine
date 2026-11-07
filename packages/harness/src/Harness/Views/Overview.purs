@@ -70,6 +70,7 @@ overview spec r =
   , rows:
       [ [ "Run", r.id ]
       , [ "Name", r.name ]
+      , [ "Preset", fromMaybe "" (specValue r.spec "preset") ]
       , [ "Game ID", fromMaybe "" (specValue r.spec "gameId") ]
       , [ "Derived from", fromMaybe "" (specValue r.spec "source") ]
       , [ "Kind", fromMaybe "" (specValue r.spec "kind") ]
