@@ -307,19 +307,16 @@ The page shows a sortable, filterable table with these columns: name, Gameboard 
 
 The available actions are:
 
-- **Run:** implemented (the form launches a run from a preset, a player seed, and optional game seed and rounds).
+- **Run** (on Prepare, [§9.3](#93-prepare)): launches a run of the scenario.
 - **Inspect** and **Compare:** implemented.
-- **Duplicate:** creates a run with the same spec under a name the developer gives.
-- **Rerun:** creates a run with the same spec. The dashboard shows whether the server reports the new run's round records as matching this run's, and links to the new run. When the server reports no match result, the dashboard only links.
-- **Variant:** creates a run from this run's spec with any of a preset, a player seed, and a round count changed. Blank fields keep the server's defaults.
-- **Counterfactual** ([§10.4](#104-counterfactual-experiments)): a variant, recorded as a link to this run. The override editor is not yet available, so it takes the same fields as a variant.
 - **Archive** and **Unarchive**, and **Delete**: Delete asks for the run's id, typed exactly, before it deletes the run.
+- **Resume:** on the run's page, while the run has fewer rounds than its target.
 
-The derivation, archive, resume, and delete actions are validated and performed by the server. The dashboard sends the request, shows the server's message when it refuses one, and then opens the new run or refreshes this one.
+Duplicate, rerun, variant and counterfactual are derive operations (`POST /api/runs/:id/derive`, [§10.4](#104-counterfactual-experiments)). They are API-only: the Dashboard has no control for them, on Prepare or on a run's page.
+
+The server performs the launch, derive, resume, archive, and delete actions and validates them. The dashboard sends the request, shows the server's message when it refuses one, and then opens the new run or refreshes this one.
 
 The run list shows every stored run that is not archived. A **Show archived runs** toggle adds the archived ones, and each run has an Archived column and a Source column that links to the run it was derived from. A run that cannot be read appears with status `unreadable` and its reason; the other runs stay visible. Runs are listed in the order they were created, with the reason for any failed run.
-
-The new-simulation form selects the Gameboard, the configuration, seat Policies or presets, permitted parameters, and both seeds. It separates Gameboard-level parameters from Instantiation-level ones. A Gameboard change creates or selects a Gameboard variant.
 
 ### 9.2 Run Details
 
@@ -380,6 +377,21 @@ The view reports the **Representation influence ratio**: the induced change in A
 - resource changes;
 - triggered assertions.
 
+### 9.3 Prepare
+
+Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of the scenario. Every field has a default, so Run needs no edits:
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| Name | optional | `run-N`, the next run id | A label. A blank name uses the default. |
+| Preset | required | Conservative | The seat Policy every seat plays. |
+| Scenario | required | `fractured-world@v0` | The one scenario the server serves. |
+| Rounds | optional | the scenario's default round count (5) | A select of the scenario's supported counts (4 to 8). |
+| Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
+| Game seed | read-only | the scenario's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
+
+A summary line under the fields says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run; a refused one shows the server's message. The round range, the default and the game seed come from `GET /api/scenario`. Prepare has no derive controls: duplicate, rerun, variant and counterfactual are API-only (§9.1).
+
 ## 10. Comparison
 
 Comparison is a core feature. It supports both correctness testing and balancing.
@@ -421,7 +433,7 @@ The counterfactual operation works as follows:
 3. Replay the run.
 4. Compare it against the original as the baseline.
 
-In the Dashboard, a variant or counterfactual is launched as an ordinary run (preset, player seed, overrides) and then opened beside its source in the comparison view. Both seeds and all DrawKeys are held fixed, so the difference measures the intervention's total modeled effect, including downstream consequences. Counterfactual runs are ordinary immutable runs, linked to their source run.
+Through the API, a variant or counterfactual is launched as an ordinary run (preset, player seed, overrides) and then opened beside its source in the comparison view. Both seeds and all DrawKeys are held fixed, so the difference measures the intervention's total modeled effect, including downstream consequences. Counterfactual runs are ordinary immutable runs, linked to their source run.
 
 Typical questions:
 
