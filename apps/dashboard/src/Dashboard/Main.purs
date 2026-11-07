@@ -25,18 +25,17 @@ import Data.Array (elem, filter, find, findIndex, head, index, null, reverse)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Aff, launchAff_)
+import Effect.Aff (Aff, launchAff, launchAff_, killFiber)
 import Effect.Class (liftEffect)
-import Effect.Exception (throw)
+import Effect.Exception (error, throw)
 import Effect.Uncurried (mkEffectFn1)
 import Harness.Views.Common (Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler, handler_)
-import React.Basic.Hooks (Component, JSX, component, element, useEffectOnce, useState, useState', (/\))
+import React.Basic.Hooks (Component, JSX, component, element, useEffect, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks as React
 import Routing.Duplex (parse, print)
 import Routing.Hash (matchesWith, setHash)
@@ -271,9 +270,14 @@ mkRuns grid = do
   component "Runs" \p -> React.do
     archived /\ setArchived <- useState' false
     version /\ setVersion <- useState' 0
-    -- one fetch of every run per change; the archived box filters the rows already here, so
-    -- toggling it does not reload the page
-    everyRun <- useFetch version (listRuns true)
+    -- every run, fetched on each change. The previous list stays on screen until the new one
+    -- arrives, so an archive or delete does not blank the page; the archived box only filters rows
+    everyRun /\ setEveryRun <- useState' (Nothing :: Maybe (Either String Table))
+    useEffect version do
+      fiber <- launchAff do
+        result <- listRuns true
+        liftEffect (setEveryRun (Just result))
+      pure (launchAff_ (killFiber (error "superseded") fiber))
     pure $ Layout.page
       { title: "Runs"
       , purpose: "Every stored run, with the selected run's results, lineage and actions beside the list. With no run selected, the latest readable run is shown."
