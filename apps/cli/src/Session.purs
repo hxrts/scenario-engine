@@ -12,6 +12,7 @@ import Adapters.Seed (resolveSeed)
 import Adapters.Store (createRun, failRun, finish, nowIso, open, persister)
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (Seed)
+import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
@@ -127,4 +128,4 @@ report :: Array EntityId -> RoundResult -> String -> Effect Unit
 report humans r front = do
   log ("\n=== Front page, round " <> show r.record.round <> " ===\n" <> front)
   for_ (fromFoldable (Map.values r.world.entities)) \e ->
-    when (e.id `elem` humans) $ log ("Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> show v) (Map.toUnfoldable e.accounts)))
+    when (e.id `elem` humans) $ log ("Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> Q.displayQuantity v) (Map.toUnfoldable e.accounts)))

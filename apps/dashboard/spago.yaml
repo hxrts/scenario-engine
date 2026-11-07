@@ -11,6 +11,7 @@ package:
     - either
     - exceptions
     - foreign-object
+    - functions
     - integers
     - js-uri
     - maybe
@@ -20,6 +21,7 @@ package:
     - routing
     - routing-duplex
     - strings
+    - unsafe-coerce
     - tuples
     - web-dom
     - web-html
