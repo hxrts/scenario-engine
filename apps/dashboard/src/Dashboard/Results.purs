@@ -11,6 +11,7 @@ import Dashboard.Api (runPath, useApi)
 import Dashboard.Components (as, fetched, metricChart, status, tableOf)
 import Dashboard.Glossary (emptyCell)
 import Dashboard.DataTable (DataTable)
+import Dashboard.Entity (mkEntity)
 import Dashboard.Layout as Layout
 import Data.Array (find, index)
 import Data.Either (Either(..))
@@ -121,7 +122,7 @@ type BodyProps = { id :: String, table :: Table }
 
 -- | The sections, in the order of the five questions. Each has one purpose line.
 mkBody :: DataTable -> Component BodyProps
-mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
+mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResultsBody" \b -> React.do
   let
     n = fromMaybe 0 (roundCount b.table)
     path view = runPath b.id <> "/" <> view
@@ -173,5 +174,6 @@ mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
             , children: [ fetch { path: path ("balances?round=" <> show n), render: as \(t :: Table) -> titled grid t } ]
             }
+        , entity { id: b.id }
         ]
     }
