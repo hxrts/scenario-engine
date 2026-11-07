@@ -15,10 +15,11 @@ const header = (id) => `${NAMES[id]} (${id})`;
 // A table view model: its title, columns and rows.
 const table = (title, columns, rows) => ({ title, columns, rows });
 
-// A grouped bar view model, one bar per run in each category.
-const bars = (title, unit, categories, ids, value) => ({
+// A grouped bar view model, one bar per run in each category, shown under its display kind.
+const bars = (title, unit, kind, categories, ids, value) => ({
   title,
   unit,
+  kind,
   categories,
   series: ids.map((id, i) => ({ name: id, values: categories.map((_, j) => value(i, j)) })),
 });
@@ -29,12 +30,12 @@ function comparison(ids) {
   const line = (id, base) => ({ name: id, points: [0, 1, 2, 3].map((round) => ({ round, value: String(base + round) })) });
   const cols = ["Measure", "Unit", ...ids.map(header)];
   return {
-    markets: ["energy-atlantic", "energy-asia"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", series: ids.map((id, i) => line(id, 1 + i + k)) })),
-    netWorth: players.map((p) => ({ player: p, chart: { title: `Net worth, ${p}`, unit: "M", series: ids.map((id, i) => line(id, 10 + i)) } })),
-    standings: bars("Final net worth by player", "M", players, ids, (i, j) => String(10 + i + j)),
+    markets: ["energy-atlantic", "energy-asia"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i + k)) })),
+    netWorth: players.map((p) => ({ player: p, chart: { title: `Net worth, ${p}`, unit: "M", kind: "quantity", series: ids.map((id, i) => line(id, 10 + i)) } })),
+    standings: bars("Final net worth by player", "M", "quantity", players, ids, (i, j) => String(10 + i + j)),
     balance: {
-      spread: bars("Spread of final net worth", "M", ["Spread"], ids, (i) => String(3 + i)),
-      gini: bars("Gini of final net worth", "index, 0 to 1", ["Gini"], ids, () => "0.1000"),
+      spread: bars("Spread of final net worth", "M", "quantity", ["Spread"], ids, (i) => String(3 + i)),
+      gini: bars("Gini of final net worth", "index, 0 to 1", "ratio", ["Gini"], ids, () => "0.1000"),
     },
     keyValues: table("Key values by run", cols, [["Final net worth, US", "M", ...ids.map(() => "10.0000")]]),
     final: table("Final state", ["Entity", "Resource", ...ids.map(header)], [["US", "M", ...ids.map(() => "10.0000")]]),
