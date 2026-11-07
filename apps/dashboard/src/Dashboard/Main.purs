@@ -8,7 +8,7 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Dashboard.Api (encode, get, post, runPath, useApi, useFetch)
-import Dashboard.Components (as, diffTable, fetched, metricChart, status, tableOf)
+import Dashboard.Components (as, diffTable, fetched, groupedBars, overlayChart, placeholderFrame, status, tableOf)
 import Dashboard.DataTable (DataTable, mkDataTable)
 import Dashboard.Launch (LaunchForm, LaunchRequest, Scenario, emptyForm, nextRunName, roundChoices, roundValue, scenarioOf, summary, validate)
 import Dashboard.Layout as Layout
@@ -21,7 +21,7 @@ import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
 import Data.Array as Array
-import Data.Array (elem, filter, find, findIndex, head, index, null, reverse)
+import Data.Array (elem, filter, find, findIndex, index, null, reverse)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
@@ -30,7 +30,7 @@ import Effect.Aff (Aff, launchAff, launchAff_, killFiber)
 import Effect.Class (liftEffect)
 import Effect.Exception (error, throw)
 import Effect.Uncurried (mkEffectFn1)
-import Harness.Views.Common (Chart, Table)
+import Harness.Views.Common (Bars, Chart, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
 import React.Basic.DOM.Events (targetValue)
@@ -45,7 +45,7 @@ import Web.HTML.HTMLDocument (toNonElementParentNode)
 import Web.HTML.Window (document)
 
 -- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
-type Tab = { key :: String, label :: String, purpose :: String, path :: String, render :: Render }
+type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
 
 type Render = Json -> JSX
 
@@ -56,7 +56,18 @@ runKeyColumn :: Int
 runKeyColumn = 0
 
 -- | The comparison view model (`/api/compare`); each part is one of its fields.
-type CompareView = { trajectory :: Chart, final :: Table, diff :: Table, config :: Table, compatibility :: Table, seeds :: Table }
+type CompareView =
+  { markets :: Array Chart
+  , netWorth :: Array { player :: String, chart :: Chart }
+  , standings :: Bars
+  , balance :: { spread :: Bars, gini :: Bars }
+  , keyValues :: Table
+  , final :: Table
+  , diff :: Table
+  , config :: Table
+  , compatibility :: Table
+  , seeds :: Table
+  }
 
 -- | The run list. Without `archived` it is the runs that are not archived; with it, the archived
 -- | runs are listed too (the list's `?archived=true`), in one table.
@@ -90,33 +101,13 @@ runLinks t i row
       if elem s (map _.id (runInfos t)) then Just (href (Run s)) else Nothing
   | otherwise = Nothing
 
--- | A link to a run's page.
-runLink :: String -> JSX
-runLink id = D.a { href: href (Run id), className: "underline", children: [ D.text id ] }
-
--- | A comparison of the given runs, one tab per part. Each tab has its purpose line.
-compareTabs :: DataTable -> Array String -> String -> Array Tab
-compareTabs grid ids market =
-  [ part "Trajectory" "The marginal price of one Market in each compared run, by round." (comparePath <> "&market=" <> encode market) (\c -> metricChart c.trajectory)
-  , part "Final state" "Every account's holding after the final round, one column per run; differing values are highlighted." comparePath (\c -> diffTable grid { baseline: 2 } c.final)
-  , part "Baseline diff" "The holdings that differ from the first run, for each run, as a change." comparePath (\c -> tableOf grid c.diff)
-  , part "Configuration" "The specification settings that differ between the runs; differing values are highlighted." comparePath (\c -> diffTable grid { baseline: 1 } c.config)
-  , part "Compatibility" "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection." comparePath (\c -> tableOf grid c.compatibility)
-  , part "Seed variation" "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported." comparePath (\c -> tableOf grid c.seeds)
-  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", path: "/api/agency", render: as \(t :: Table) -> tableOf grid t }
-  ]
-  where
-  comparePath = "/api/compare?runs=" <> joinIds
-  joinIds = String.joinWith "," (map encode ids)
-  part label purpose path f = { key: label, label, purpose, path, render: as (f :: CompareView -> JSX) }
-
--- | The tabs, each showing its purpose line and then its fetched view.
-tabbed :: Fetched -> Array Tab -> JSX
-tabbed fetch ts = element UI.tabs
+-- | The tabs: each shows its purpose line, then its content.
+tabbed :: Array Tab -> JSX
+tabbed ts = element UI.tabs
   { defaultValue: maybe "" _.key (index ts 0)
   , children:
       [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
-        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.p { className: "mb-3 text-sm text-muted-foreground", children: [ D.text t.purpose ] }, fetch { path: t.path, render: t.render } ] })
+        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.p { className: "mb-3 text-sm text-muted-foreground", children: [ D.text t.purpose ] }, t.content ] })
   }
 
 -- | The run list as a table. A row click selects that run; the selected row is highlighted.
@@ -358,67 +349,152 @@ mkRuns grid = do
           ]
       }
 
--- | Compare: the runs chosen for comparison, a market selector for the trajectory, and the parts as
--- | tabs. Removing a run changes the route's id list.
+-- | Compare: the runs ticked in the choice list (the route's ids; the first is the baseline), and the
+-- | comparison's plots and tables. The comparison is fetched whenever the ids change, and the last one
+-- | loaded stays on screen until the new one arrives, so ticking a run does not move the page. Every
+-- | plot sits in a frame of fixed height.
 mkCompare :: DataTable -> Component (Array String)
 mkCompare grid = do
   fetch <- fetched
   component "Compare" \ids -> React.do
-    markets <- useApi ids (runPath (fromMaybe "" (head ids)) <> "/markets")
     everyRun <- useFetch unit (listRuns true)
+    shown /\ setShown <- useState' (Nothing :: Maybe (Either String CompareView))
     picked /\ setPicked <- useState' (Nothing :: Maybe String)
+    useEffect (String.joinWith "," ids) do
+      if null ids then setShown Nothing *> pure (pure unit)
+      else do
+        fiber <- launchAff do
+          result <- (get (comparePath ids) :: Aff (Either String CompareView))
+          liftEffect (setShown (Just result))
+        pure (launchAff_ (killFiber (error "superseded") fiber))
     pure $ Layout.page
       { title: "Compare runs"
-      , purpose: "Runs side by side: their price trajectories, final holdings, configuration differences, and compatibility."
+      , purpose: "Runs side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
           [ case everyRun of
               Just (Right (t :: Table)) -> choices t ids
               Just (Left e) -> status (Just e)
               Nothing -> status Nothing
-          , if null ids then Layout.section
-              { title: "No runs selected"
-              , purpose: "Tick runs in the list above to compare them."
-              , children: []
-              }
-            else Layout.section
-              { title: "Runs compared"
-              , purpose: "The runs in this comparison; the first is the baseline. Remove a run to take it out."
-              , children:
-                  [ D.div
-                      { className: "flex flex-wrap gap-2"
-                      , children: ids <#> \id -> D.div
-                          { key: id
-                          , className: "flex items-center gap-2 rounded-md border px-3 py-1 text-sm"
-                          , children:
-                              [ runLink id
-                              , element UI.button
-                                  { size: "sm"
-                                  , variant: "ghost"
-                                  , onClick: handler_ (setHash (print route (Compare (filter (_ /= id) ids))))
-                                  , children: [ D.text "Remove" ]
-                                  }
-                              ]
-                          }
-                      }
-                  , case markets of
-                      Just (Right (cs :: Array Chart)) -> marketPicker cs picked setPicked ids grid fetch
-                      Just (Left e) -> status (Just e)
-                      Nothing -> status Nothing
-                  ]
-              }
+          , plots grid fetch ids shown picked (setPicked)
           ]
       }
 
--- | The Compare page's choices: every readable run as a checkbox, so no id is typed. Ticking a run adds
--- | it to the comparison (the route's ids, in the order ticked; the first is the baseline), and
--- | unticking removes it. Each tick changes the route.
+-- | The comparison's request: the ids, each encoded as one path segment.
+comparePath :: Array String -> String
+comparePath ids = "/api/compare?runs=" <> String.joinWith "," (map encode ids)
+
+-- | A plot in its grid cell: a title on one line, then the plot. Half width from `lg`, so a plot and
+-- | its placeholder take the same box.
+item :: String -> JSX -> JSX
+item title child = D.div
+  { className: "col-span-12 flex min-w-0 flex-col gap-2 lg:col-span-6"
+  , children: [ D.p { className: "text-sm font-medium", children: [ D.text title ] }, child ]
+  }
+
+-- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
+-- | order: how each Market's price moves, how each player's net worth moves, who ends ahead, how even
+-- | the outcome is, and what the key values are. Until a comparison is loaded, each plot's frame is
+-- | shown in the same place and size, so nothing moves when the data arrives. The tables in the tabs
+-- | hold the rest.
+plots :: DataTable -> Fetched -> Array String -> Maybe (Either String CompareView) -> Maybe String -> (Maybe String -> Effect Unit) -> JSX
+plots grid fetch ids shown picked setPicked = D.div
+  { className: "flex min-w-0 flex-col gap-section"
+  , children:
+      [ Layout.section
+          { title: "Prices by market"
+          , purpose: "How each Market's marginal price moves after every round: one line per run, on the same axes."
+          , children: loadedWith (Layout.grid [ item "Prices by market" waiting ]) \c ->
+              [ Layout.grid (c.markets <#> \m -> item m.title (overlayChart ids m)) ]
+          }
+      , Layout.section
+          { title: "Net worth over time"
+          , purpose: "One player's net worth from the start (round 0) to the final round, with one line per run. Choose the player."
+          , children:
+              [ D.div { className: "flex h-9 items-center", children: loadedWith (D.span_ []) (\c -> [ playerPicker c ]) }
+              , D.div { children: loadedWith waiting (\c -> netWorthPlot c) }
+              ]
+          }
+      , Layout.section
+          { title: "Final standings"
+          , purpose: "Each player's net worth after the final round: one group per player, with one bar per run."
+          , children: loadedWith waiting \c -> [ groupedBars ids "Player" c.standings ]
+          }
+      , Layout.section
+          { title: "Spread and Gini"
+          , purpose: "How even final net worth is among the players in each run. The spread is in M; the Gini coefficient runs from 0 (equal) to 1 (one player holds everything)."
+          , children: loadedWith (balance waiting waiting) \c -> [ balance (groupedBars ids "Measure" c.balance.spread) (groupedBars ids "Measure" c.balance.gini) ]
+          }
+      , Layout.section
+          { title: "Key values"
+          , purpose: "One row per measure or player, one column per run; each column is headed by the run's name and id. A run keeps its colour in the plots."
+          , children: loadedWith waiting \c -> [ tableOf grid c.keyValues ]
+          }
+      , Layout.section
+          { title: "Details"
+          , purpose: "The comparison's full tables, one tab each."
+          , children:
+              [ tabbed
+                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: 2 } c.final ] } }
+                  , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
+                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: 1 } c.config ] } }
+                  , { key: "compatibility", label: "Compatibility", purpose: "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
+                  , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
+                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { path: "/api/agency", render: as \(t :: Table) -> tableOf grid t } }
+                  ]
+              ]
+          }
+      ]
+  }
+  where
+  message = if null ids then "Tick runs in the list above to compare them." else "Loading the comparison…"
+  waiting = placeholderFrame message
+
+  -- the loaded comparison's content; until one is loaded, the waiting content of the same size shows
+  loadedWith :: JSX -> (CompareView -> Array JSX) -> Array JSX
+  loadedWith waitingContent f = case shown of
+    Just (Right c) -> f c
+    Just (Left e) -> [ status (Just e) ]
+    Nothing -> [ waitingContent ]
+
+  -- the two balance plots side by side, each in its own panel
+  balance spreadPlot giniPlot = Layout.grid
+    [ Layout.panel { span: 6, title: "Spread", purpose: "Highest minus lowest final net worth, in M.", children: [ spreadPlot ] }
+    , Layout.panel { span: 6, title: "Gini coefficient", purpose: "Inequality of final net worth, from 0 to 1.", children: [ giniPlot ] }
+    ]
+
+  playerPicker c = D.label
+    { className: "flex items-center gap-2 text-sm"
+    , children:
+        [ D.text "Player"
+        , D.select
+            { value: chosen c
+            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+            , onChange: handler targetValue (\v -> setPicked v)
+            , children: c.netWorth <#> \p -> D.option { key: p.player, value: p.player, children: [ D.text p.player ] }
+            }
+        ]
+    }
+
+  netWorthPlot c = case find (\nw -> nw.player == chosen c) c.netWorth of
+    Nothing -> [ waiting ]
+    Just nw -> [ overlayChart ids nw.chart ]
+
+  -- the player shown: the one picked, when the comparison has them, else the first
+  chosen c = case picked of
+    Just p | elem p (map _.player c.netWorth) -> p
+    _ -> maybe "" _.player (index c.netWorth 0)
+
+-- | The choice list: every readable run as a checkbox, so no id is typed. Ticking a run adds it to the
+-- | comparison (the route's ids, in the order ticked; the first is the baseline), and unticking removes
+-- | it: a run is removed only by unticking it. Each tick changes the route. A ticked run shows the
+-- | colour its plots and tables use.
 choices :: Table -> Array String -> JSX
 choices t ids = Layout.section
   { title: "Choose runs"
-  , purpose: "Every readable run. Tick the runs to compare; the first run ticked is the baseline."
+  , purpose: "Every readable run. Tick a run to compare it; untick it to remove it. The first run ticked is the baseline."
   , children:
       [ D.div
-          { className: "flex flex-col gap-2"
+          { className: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
           , children: readableIds t <#> \id -> D.label
               { key: id
               , className: "flex items-center gap-2 text-sm"
@@ -427,7 +503,9 @@ choices t ids = Layout.section
                       { checked: elem id ids
                       , onCheckedChange: mkEffectFn1 (\on -> setHash (print route (Compare (toggled id on))))
                       }
-                  , D.text id
+                  , D.span { className: "size-3 shrink-0 rounded-full " <> swatch id }
+                  , D.span { className: "font-medium", children: [ D.text id ] }
+                  , D.span { className: "text-muted-foreground", children: [ D.text (if index ids 0 == Just id then "baseline" else "") ] }
                   ]
               }
           }
@@ -437,31 +515,17 @@ choices t ids = Layout.section
   toggled id on
     | on = if elem id ids then ids else ids <> [ id ]
     | otherwise = filter (_ /= id) ids
+  -- the run's colour: the same position in the ids as the plots use (Dashboard.Chart.colourOf)
+  swatch id = swatchClass (fromMaybe 0 (findIndex (_ == id) ids) `mod` 5)
 
--- | The market selector and the tabs, for the chosen market (the trajectory's default is the Atlantic energy market).
-marketPicker :: Array Chart -> Maybe String -> (Maybe String -> Effect Unit) -> Array String -> DataTable -> Fetched -> JSX
-marketPicker cs picked setPicked ids grid fetch = D.div
-  { className: "flex min-w-0 flex-col gap-stack"
-  , children:
-      [ D.label
-          { className: "text-sm"
-          , children:
-              [ D.text "Market "
-              , D.select
-                  { value: market
-                  , onChange: handler targetValue (\v -> setPicked v)
-                  , children: names <#> \m -> D.option { key: m, value: m, children: [ D.text m ] }
-                  }
-              ]
-          }
-      , tabbed fetch (compareTabs grid ids market)
-      ]
-  }
-  where
-  names = maybe [] (map _.name <<< _.series) (head cs)
-  market = case picked of
-    Just m | elem m names -> m
-    _ -> if elem "energy-atlantic" names then "energy-atlantic" else fromMaybe "" (head names)
+-- | A colour swatch's class: one theme chart colour, named in full so Tailwind finds it.
+swatchClass :: Int -> String
+swatchClass n = case n of
+  0 -> "bg-[var(--chart-1)]"
+  1 -> "bg-[var(--chart-2)]"
+  2 -> "bg-[var(--chart-3)]"
+  3 -> "bg-[var(--chart-4)]"
+  _ -> "bg-[var(--chart-5)]"
 
 -- | The top bar: the app name, then the three pages (Runs, Prepare, and Compare with how many runs it
 -- | holds). Every item is a link on every page. The comparison set lives in the App, so every page sees it.
@@ -531,7 +595,7 @@ mkApp = do
       Runs -> runsPage { selected: Nothing }
       Run id -> runsPage { selected: Just id }
       Prepare -> prepare unit
-      Compare ids -> D.div { key: String.joinWith "," ids, children: [ compare ids ] }
+      Compare ids -> compare ids
 
 main :: Effect Unit
 main = do

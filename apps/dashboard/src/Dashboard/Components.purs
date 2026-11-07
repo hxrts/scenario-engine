@@ -1,12 +1,12 @@
 -- | The generic views (tables, the field list, metric charts) and the fetching helper. They render the
 -- | harness view models as given; no game logic here. Pages place these in Layout panels, which carry
 -- | each view's title and purpose.
-module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, fetched, status, definition, Render, as, card) where
+module Dashboard.Components (tableOf, linkedTable, diffTable, metricChart, overlayChart, groupedBars, plotFrame, placeholderFrame, fetched, status, definition, Render, as, card) where
 
 import Prelude
 
 import Dashboard.Api (useApi)
-import Dashboard.Chart (chartRows)
+import Dashboard.Chart (barRows, chartRows, colourOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
@@ -16,7 +16,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Harness.Views.Common (Chart, Statistic, Table)
+import Harness.Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, element)
 import React.Basic.Hooks as React
@@ -73,7 +73,7 @@ metricChart c = D.div
       [ D.p { className: "text-sm font-medium", children: [ D.text (c.title <> " (" <> c.unit <> ")") ] }
       , element UI.chartContainer
           { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.series)
-          , className: "h-64 w-full"
+          , className: "h-[360px] w-full"
           , children:
               [ element UI.lineChart
                   { data: chartRows c.series
@@ -86,6 +86,71 @@ metricChart c = D.div
                       ] <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", dot: false, isAnimationActive: false }) c.series
                   }
               ]
+          }
+      ]
+  }
+
+-- | A plot's frame: a labelled figure of a fixed height, so the plot takes the same room whether or
+-- | not its data has arrived, and the page does not move when it does.
+plotFrame :: String -> JSX -> JSX
+plotFrame title child = element UI.region
+  { role: "figure"
+  , "aria-label": title
+  , className: "block h-[360px] w-full min-w-0"
+  , children: [ child ]
+  }
+
+-- | The same frame, empty, with a message: what the plot will show once its data is loaded.
+placeholderFrame :: String -> JSX
+placeholderFrame message = element UI.region
+  { role: "figure"
+  , "aria-label": message
+  , className: "flex h-[360px] w-full items-center justify-center text-sm text-muted-foreground"
+  , children: [ D.text message ]
+  }
+
+-- | A run's legend label: its id, and the word `baseline` for the first run (the baseline).
+legendLabel :: Array String -> String -> String
+legendLabel ids id = if index ids 0 == Just id then id <> " (baseline)" else id
+
+-- | Runs on the same axes: one line per run, each in its run's colour (`colourOf`) and named in the
+-- | legend. The baseline (the first run) is drawn thicker. The axes name the round and the unit.
+overlayChart :: Array String -> Chart -> JSX
+overlayChart ids c = plotFrame c.title $ element UI.chartContainer
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: legendLabel ids s.name, color: colourOf ids s.name }) c.series)
+  , className: "h-full w-full"
+  , children:
+      [ element UI.lineChart
+          { data: chartRows c.series
+          , children:
+              [ element UI.cartesianGrid { vertical: false }
+              , element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
+              , element UI.yAxis { domain: [ "auto", "auto" ], label: { value: c.unit, angle: -90, position: "insideLeft" } }
+              , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+              , element UI.chartLegend { content: element UI.chartLegendContent {} }
+              ]
+                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: if index ids 0 == Just s.name then 3 else 2, dot: false, isAnimationActive: false }) c.series
+          }
+      ]
+  }
+
+-- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
+-- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
+groupedBars :: Array String -> String -> Bars -> JSX
+groupedBars ids xLabel b = plotFrame b.title $ element UI.chartContainer
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: legendLabel ids s.name, color: colourOf ids s.name }) b.series)
+  , className: "h-full w-full"
+  , children:
+      [ element UI.groupedBarChart
+          { data: barRows b
+          , children:
+              [ element UI.cartesianGrid { vertical: false }
+              , element UI.xAxis { dataKey: "category", label: { value: xLabel, position: "insideBottom", offset: -4 } }
+              , element UI.yAxis { label: { value: b.unit, angle: -90, position: "insideLeft" } }
+              , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+              , element UI.chartLegend { content: element UI.chartLegendContent {} }
+              ]
+                <> map (\s -> element UI.groupedBar { key: s.name, dataKey: s.name, fill: "var(--color-" <> s.name <> ")", isAnimationActive: false }) b.series
           }
       ]
   }
