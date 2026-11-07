@@ -1,5 +1,5 @@
 -- | The `Shape` description algebra (design 4, §5.3). A Shape is built once from combinators. The
--- | same value carries a description (for JSON Schema and prose) and a codec per format (scenario,
+-- | same value carries a description (for JSON Schema and prose) and a codec per format (premise,
 -- | snapshot). Nothing here is a second description of a type: the codec and the interpreters read
 -- | the same combinator calls. Instances of `Described` sit beside their types (PureScript forbids
 -- | orphan instances), so this module imports no domain type.
@@ -59,13 +59,13 @@ import Data.Traversable (traverse)
 import Foreign.Object as Object
 
 -- | The two JSON formats a description is interpreted into. Snapshot is the generic encoding the
--- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Scenario is the authored
+-- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Premise is the authored
 -- | fixture and Gameboard format (one-key unions, `kind:argument` strings, omitted empty keys).
-data Format = Scenario | Snapshot
+data Format = Premise | Snapshot
 
 derive instance Eq Format
 
--- | How a sum is written in the scenario format. Snapshot always uses the generic form.
+-- | How a sum is written in the premise format. Snapshot always uses the generic form.
 data TagForm = OneKey | KindArg | Bare
 
 derive instance Eq TagForm
@@ -87,7 +87,7 @@ type DField = { scen :: String, snap :: String, desc :: String, shape :: Desc }
 type DCtor = { tag :: String, desc :: String, payload :: Desc }
 
 -- | A shape of `a`: its description, its codec in each format, whether a value is omitted from
--- | the scenario format when absent, and what a missing key decodes to (if anything).
+-- | the premise format when absent, and what a missing key decodes to (if anything).
 type Shape a =
   { desc :: Desc
   , codec :: Format -> Codec a
@@ -95,14 +95,14 @@ type Shape a =
   , missing :: Maybe a
   }
 
--- | Key order of an object as written. The scenario format is sorted ascending, as `Compile`
+-- | Key order of an object as written. The premise format is sorted ascending, as `Compile`
 -- | writes it. The snapshot format is descending, which is what Argonaut's generic encoder
 -- | emits (checked against the stored records: `{"values":..,"tag":..}`, `{"quantity":..,"market":..}`).
 objectOf :: Format -> Array (Tuple String Json) -> Json
 objectOf fmt pairs = fromObject (Object.fromFoldable (sortBy order pairs))
   where
   order a b = case fmt of
-    Scenario -> compare (fst a) (fst b)
+    Premise -> compare (fst a) (fst b)
     Snapshot -> compare (fst b) (fst a)
 
 -- | A record field: its key in each format, a note, its shape, and the getter.
@@ -129,13 +129,13 @@ prim name enc dec =
   }
 
 -- | A fixed-point quantity, written as a decimal string. The two formats spell the same value
--- | differently: the snapshot writes four decimals (`Q.format`); the scenario format writes the
+-- | differently: the snapshot writes four decimals (`Q.format`); the premise format writes the
 -- | minimal decimal the author wrote (`10`, `2.04`), which is what the compiled fixtures hold.
 qShape :: Shape Q
 qShape =
   { desc: DPrim "Q"
   , codec: \fmt ->
-      { enc: \q -> fromString (if fmt == Scenario then minimal (Q.format q) else Q.format q)
+      { enc: \q -> fromString (if fmt == Premise then minimal (Q.format q) else Q.format q)
       , dec: \j -> note "expected a decimal quantity string" (toString j >>= Q.parse)
       }
   , absent: \_ -> false
@@ -194,7 +194,7 @@ dField :: forall a b. Field a b -> DField
 dField f = { scen: f.scen, snap: f.snap, desc: f.desc, shape: f.shape.desc }
 
 keyOf :: forall a b. Format -> Field a b -> String
-keyOf Scenario f = f.scen
+keyOf Premise f = f.scen
 keyOf Snapshot f = f.snap
 
 encField :: forall a b. Format -> Field a b -> a -> Array (Tuple String Json)
@@ -202,7 +202,7 @@ encField fmt f x =
   let
     b = f.get x
   in
-    if fmt == Scenario && f.shape.absent b then []
+    if fmt == Premise && f.shape.absent b then []
     else [ Tuple (keyOf fmt f) ((f.shape.codec fmt).enc b) ]
 
 decField :: forall a b. Format -> Field a b -> Object.Object Json -> Either String b
@@ -265,7 +265,7 @@ ctorOf t s proj inj =
   , inject: \fmt j -> map inj ((s.codec fmt).dec j)
   }
 
--- | A sum with one constructor list per format. The scenario list gives the authored tags; the
+-- | A sum with one constructor list per format. The premise list gives the authored tags; the
 -- | snapshot list gives the generic tags. Both lists project and inject the same Haskell value.
 sumOf :: forall a. String -> TagForm -> Array (Ctor a) -> Array (Ctor a) -> Shape a
 sumOf name form scen snap =
@@ -275,7 +275,7 @@ sumOf name form scen snap =
   , missing: Nothing
   }
   where
-  ctorsOf fmt = if fmt == Scenario then scen else snap
+  ctorsOf fmt = if fmt == Premise then scen else snap
 
   encSum fmt x = case Array.foldl (pick fmt x) Nothing (ctorsOf fmt) of
     Just (Tuple c j) -> wrap fmt c j
@@ -290,7 +290,7 @@ sumOf name form scen snap =
       values = if c.payload == DPrim "null" then [] else [ j ]
     in
       objectOf Snapshot [ Tuple "tag" (fromString c.tag), Tuple "values" (fromArray values) ]
-  wrap Scenario c j = case form of
+  wrap Premise c j = case form of
     OneKey -> fromObject (Object.singleton c.tag j)
     KindArg -> fromString (c.tag <> ":" <> fromMaybe "" (toString j))
     Bare -> fromString c.tag
@@ -303,7 +303,7 @@ sumOf name form scen snap =
       let
         payload = fromMaybe jsonNull (Array.head values)
       pickRight ("no constructor " <> tag) (map (\c -> c.inject fmt payload) (Array.filter (\c -> c.tag == tag) (ctorsOf fmt)))
-    Scenario -> case form of
+    Premise -> case form of
       OneKey -> do
         o <- note "expected a one-key object" (toObject j)
         case Object.toUnfoldable o of

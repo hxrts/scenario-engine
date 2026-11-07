@@ -9,7 +9,8 @@ import Prelude
 
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
-import Board.Gameboard.Schema (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..))
+import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
+import Board.Error (RefKind(..), ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
 import Core.Types (EntityId, RuleF(..), domainResource)
 import Core.World (ShareSource(..))

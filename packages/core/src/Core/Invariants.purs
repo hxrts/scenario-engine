@@ -1,6 +1,6 @@
 -- | Invariant predicates over one resolved round (docs/02_type_system.md §9). Each returns
 -- | the failures it finds; an empty array means the invariant holds. Pure and read-only: the
--- | checks run after resolution, in the test suites, the simulator, the scenario golden tests,
+-- | checks run after resolution, in the test suites, the simulator, the premise golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
 module Core.Invariants (Failure, Invariant(..), check, checkRun) where

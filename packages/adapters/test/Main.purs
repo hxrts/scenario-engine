@@ -33,8 +33,8 @@ import Analysis.Views.Metrics (metricsVersion, roundMetrics)
 import Handlers.Store (persister, recorder, runStore)
 import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
-import Scenarios.Load (load, loadPresets)
+import Premises.Tree (readRootFile, readPremise)
+import Premises.Load (load, loadPresets)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
@@ -52,7 +52,7 @@ orThrow = case _ of
 -- | The initial manifest of the reference scenario, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure initial.manifest
     Left _ -> fail "instantiation" *> throwError (error "instantiation")
@@ -64,7 +64,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PrimitiveTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
       presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
@@ -160,7 +160,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
-      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
       presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
@@ -198,7 +198,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
       presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }

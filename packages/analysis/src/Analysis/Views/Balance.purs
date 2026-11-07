@@ -19,7 +19,7 @@ module Analysis.Views.Balance
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard, Outcome(..))
+import Schema.Gameboard (Gameboard, Outcome(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId)

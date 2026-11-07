@@ -15,7 +15,7 @@ module Test.Handlers.Stub
 
 import Prelude
 
-import Board.Decode.Common (readJson)
+import Schema.Decode.Common (readJson)
 import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (fromObject, stringify, toObject)
 import Data.Argonaut.Encode (encodeJson)

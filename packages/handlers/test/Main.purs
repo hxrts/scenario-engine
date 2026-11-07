@@ -7,7 +7,7 @@ import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Invariants (checkRun)
 import Core.Query (homeMarket, priceOf)
-import Board.Decode.Common (readJsonWith)
+import Schema.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult, WorldState)
@@ -36,10 +36,10 @@ import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
-import Policy.Strategy (decodeStrategy)
+import Schema.Decode.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
-import Scenarios.Load (load, loadPresets)
+import Premises.Tree (readRootFile, readPremise)
+import Premises.Load (load, loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -49,7 +49,7 @@ type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
+  loaded <- liftEffect (map (_ >>= load) (readPremise fileOps "meridian/v0"))
   case loaded of
     Left e -> throwError (error e)
     Right { gameboard, config } -> case instantiate gameboard config of

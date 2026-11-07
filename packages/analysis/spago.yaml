@@ -3,6 +3,7 @@ package:
   dependencies:
     - prelude
     - sp-core
+    - sp-schema
     - sp-board
     - sp-simulator
     - arrays
@@ -24,7 +25,7 @@ package:
       - aff
       - effect
       - exceptions
-      - sp-scenarios
+      - sp-premises
       - sp-adapters
       - sp-testkit
       - argonaut-core

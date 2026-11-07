@@ -18,9 +18,10 @@ package:
     - strings
     - tuples
     - sp-core
+    - sp-schema
     - sp-board
     - sp-policy
-    - sp-scenarios
+    - sp-premises
     - sp-effects
     - sp-handlers
     - sp-adapters

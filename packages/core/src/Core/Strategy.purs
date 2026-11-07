@@ -24,7 +24,7 @@ type Clause = { when :: Array Cond, propose :: Array Template }
 
 data Expr
   = Lit Q
-  | Param String -- a scenario parameter (checked against the Gameboard at load time)
+  | Param String -- a premise parameter (checked against the Gameboard at load time)
   | Round -- the current round
   | Price MarketId -- beginning-of-round marginal price
   | Holding ResourceId -- the Entity's own holding
@@ -53,7 +53,7 @@ data Template
   | Choose (Array Template) -- one option, picked by a seeded draw
   | NoAction -- propose nothing (an option for Choose)
 
--- | The in-world Policies (NPC and Aggregate) and the scenario parameters they read. The Strategies
+-- | The in-world Policies (NPC and Aggregate) and the premise parameters they read. The Strategies
 -- | are the Gameboard's catalog; this is the Type System's record of them (docs/02 §4.4).
 type InWorld = { strategies :: Map PolicyId Strategy, params :: Object Q }
 

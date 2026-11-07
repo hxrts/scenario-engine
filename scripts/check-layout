@@ -8,6 +8,9 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 
 // The rules are checked on PureScript source (src/ trees; tests are not held to them).
+// Tag kinds of the premise format (Schema.Tags, docs/03 §3): a kind with its separator is written only there.
+const tagKinds = [...fs.readFileSync(path.join(root, "packages/schema/src/Schema/Tags.purs"), "utf8").matchAll(/^\w+Kind = "(\w+)"/gm)].map((m) => m[1]);
+
 const rules = [
   {
     name: "effects declare operations only: no interpret, on, or handler definition",
@@ -19,6 +22,11 @@ const rules = [
     name: "no \"/api\" path string outside the route table (interim home: apps/dashboard/src/Dashboard/Client.purs; Handlers.Api.Route from Phase 8)",
     files: (f) => f.includes("/src/") && f !== "apps/dashboard/src/Dashboard/Client.purs",
     bad: (line) => /"\/api/.test(line),
+  },
+  {
+    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in Schema.Tags only (work/4.md §13 Phase 3)",
+    files: (f) => f.includes("/src/") && !f.startsWith("packages/schema/src/"),
+    bad: (line) => tagKinds.some((k) => line.includes(`"${k}:`)),
   },
   {
     name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",

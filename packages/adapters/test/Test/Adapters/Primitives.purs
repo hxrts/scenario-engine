@@ -7,7 +7,7 @@ import Prelude
 
 import Adapters.Clock (nowIso)
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
+import Premises.Tree (readRootFile, readPremise)
 import Adapters.Random (resolveSeed)
 import Core.Draw (Seed(..))
 import Data.Array (length, sort)
@@ -36,7 +36,7 @@ spec = describe "Primitives: seed, clock, scenario reads" do
     contains (Pattern "Z") t `shouldEqual` true
 
   it "a scenario directory reads its files, with the shared presets" do
-    s <- liftEffect (readScenario fileOps "meridian/v0")
+    s <- liftEffect (readPremise fileOps "meridian/v0")
     case s of
       Right sc -> do
         map _.name sc.sections `shouldEqual` sort (map _.name sc.sections)
@@ -45,7 +45,7 @@ spec = describe "Primitives: seed, clock, scenario reads" do
       Left e -> fail e
 
   it "a missing scenario directory is a failure that names its path" do
-    s <- liftEffect (readScenario fileOps "no-such-scenario")
+    s <- liftEffect (readPremise fileOps "no-such-scenario")
     case s of
       Left e -> contains (Pattern "no-such-scenario") e `shouldEqual` true
       Right _ -> fail "a missing directory must not read"

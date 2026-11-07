@@ -8,7 +8,7 @@ module Test.Handlers.Capstone (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
+import Premises.Tree (readRootFile, readPremise)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (JointProposal)
@@ -28,9 +28,9 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
-import Scenarios.Capstone (JointLine, jointLines)
+import Premises.Capstone (JointLine, jointLines)
 import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
-import Scenarios.Load (load)
+import Premises.Load (load)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -45,7 +45,7 @@ type Game = { world :: WorldState, lookup :: EntityId -> Maybe Entity }
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
     Left _ -> throwError (error "instantiation")

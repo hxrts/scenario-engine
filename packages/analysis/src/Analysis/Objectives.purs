@@ -9,7 +9,7 @@ module Analysis.Objectives
 
 import Prelude
 
-import Board.Gameboard.Schema (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
+import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, eventsOf, holding)

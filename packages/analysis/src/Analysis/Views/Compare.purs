@@ -18,7 +18,7 @@ module Analysis.Views.Compare
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard)
+import Schema.Gameboard (Gameboard)
 import Core.Num (Kind(..))
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)

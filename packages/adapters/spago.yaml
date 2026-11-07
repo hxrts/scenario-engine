@@ -4,6 +4,7 @@ package:
     - prelude
     - run
     - sp-core
+    - sp-schema
     - sp-board
     - sp-policy
     - sp-effects
@@ -34,7 +35,7 @@ package:
       - exceptions
       - ordered-collections
       - sp-simulator
-      - sp-scenarios
+      - sp-premises
       - strings
       - refs
       - partial

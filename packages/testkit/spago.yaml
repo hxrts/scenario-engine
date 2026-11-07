@@ -13,5 +13,5 @@ package:
     - transformers
     - sp-core
     - sp-simulator
-    - sp-scenarios
+    - sp-premises
     - sp-adapters

@@ -30,8 +30,8 @@ import Analysis.Views.Common (price)
 import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readScenario)
-import Scenarios.Load (loadContext)
+import Premises.Tree (readPremise)
+import Premises.Load (loadContext)
 import Handlers.Store (validRunId)
 import Session (Options, session)
 
@@ -96,7 +96,7 @@ usage why = do
 
 runScenario :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runScenario scenario presetName rounds given = do
-  loaded <- map (_ >>= loadContext) (readScenario fileOps (scenario <> "/v0"))
+  loaded <- map (_ >>= loadContext) (readPremise fileOps (scenario <> "/v0"))
   case loaded of
     Left e -> fail e
     Right ctx -> case startOf ctx.gameboard ctx.config of

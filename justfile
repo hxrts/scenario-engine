@@ -1,6 +1,6 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
-packages := "core board policy scenarios effects handlers adapters simulator analysis cli server dashboard"
+packages := "core board policy premises schema effects handlers adapters simulator analysis cli server dashboard"
 
 _default:
     @just --list
@@ -10,7 +10,7 @@ build:
     spago build
 
 # Run every package's test suite
-test: _scenarios
+test: _premises
     #!/usr/bin/env bash
     set -euo pipefail
     for p in {{packages}}; do spago test -p sp-$p; done
@@ -19,7 +19,7 @@ test: _scenarios
 [positional-arguments]
 test-pkg *args:
     @scripts/validate test-pkg "$@"
-    @just _scenarios
+    @just _premises
     spago test -p sp-"$1"
 
 # Format all PureScript sources
@@ -38,8 +38,8 @@ _deps:
 _layout:
     node scripts/check-layout
 
-# Compile the DSL scenarios to JSON, then generate the capstone recording (no model call)
-_scenarios:
+# Compile the premise DSL to JSON, then generate the capstone recording (no model call)
+_premises:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript
 
@@ -53,14 +53,14 @@ all: check dashboard-test
 [positional-arguments]
 sim *args:
     @scripts/validate sim "$@"
-    @just _scenarios
+    @just _premises
     spago run -p sp-cli -- run "$@"
 
 # Live facilitator session
 [positional-arguments]
 session *args:
     @scripts/validate session "$@"
-    @just _scenarios
+    @just _premises
     spago run -p sp-cli -- session "$@"
 
 
@@ -118,7 +118,7 @@ _dashboard: _ui
 [positional-arguments]
 serve *args:
     @scripts/validate serve "$@"
-    @just _scenarios _dashboard
+    @just _premises _dashboard
     @scripts/free-port "$@"
     spago run -p sp-server -- "$@"
 
@@ -127,11 +127,11 @@ live-interpret:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ "${ALLOW_BILLED_LIVE:-}" != "1" ]; then echo "refused: this makes a billed model call; set ALLOW_BILLED_LIVE=1"; exit 2; fi
-    just _scenarios
+    just _premises
     spago test -p sp-adapters -m Test.Adapters.LiveInterpret
 
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
-dashboard-test: _scenarios _dashboard
+dashboard-test: _premises _dashboard
     cd apps/dashboard && playwright test
 
 _clean:

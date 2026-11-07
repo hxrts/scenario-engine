@@ -8,7 +8,7 @@ module Test.Handlers.Live (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readScenario)
+import Premises.Tree (readPremise)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -33,7 +33,7 @@ import Handlers.Seats (strategies)
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
-import Scenarios.Load (load)
+import Premises.Load (load)
 import Test.Handlers.Stub (answering, dealOf, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -43,7 +43,7 @@ import Foreign.Object (Object)
 type Game = { world :: WorldState, inWorld :: InWorld, params :: Object Q.Q }
 
 setup :: Aff Game
-setup = liftEffect (readScenario fileOps "meridian/v0") >>= case _ of
+setup = liftEffect (readPremise fileOps "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
   Right s -> case load s of
     Left e -> throwError (error e)

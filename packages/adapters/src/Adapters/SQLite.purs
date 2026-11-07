@@ -16,7 +16,7 @@ module Adapters.SQLite
 
 import Prelude
 
-import Board.Decode.Common (readJson)
+import Schema.Decode.Common (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)

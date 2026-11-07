@@ -6,7 +6,8 @@ module Board.Gameboard.Reconcile
 
 import Prelude
 
-import Board.Gameboard.Schema (Difference(..), InitialWorld)
+import Schema.Gameboard (InitialWorld)
+import Board.Error (Difference(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)

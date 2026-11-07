@@ -11,7 +11,7 @@ module Server.Derive
 
 import Prelude
 
-import Board.Decode.Common (readJson)
+import Schema.Decode.Common (readJson)
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
 import Data.Argonaut.Core (Json, toString)

@@ -1,5 +1,5 @@
 -- | The capstone run file (`packages/scenarios/capstone/run.json`, authored in
--- | `Scenarios.Capstone`): its seat strategies, counterfactual seats, round expectations and
+-- | `Premises.Capstone`): its seat strategies, counterfactual seats, round expectations and
 -- | objective outcomes, decoded through the Policy and Board decoders. No Proposal or override
 -- | is built here.
 module Simulator.Capstone
@@ -12,9 +12,9 @@ module Simulator.Capstone
 
 import Prelude
 
-import Board.Decode.Common (decodeError)
-import Board.Decode.Rounds (Expect, decodeExpect)
-import Board.Gameboard.Schema (Outcome(..))
+import Schema.Decode.Common (decodeError)
+import Schema.Decode.Rounds (Expect, decodeExpect)
+import Schema.Gameboard (Outcome(..))
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..))
 import Data.Argonaut.Core (Json, toArray, toObject, toString)
@@ -28,7 +28,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Core.Strategy (Strategy)
-import Policy.Strategy (decodeStrategy)
+import Schema.Decode.Strategy (decodeStrategy)
 
 type RoundExpect = { round :: Int, expect :: Expect }
 

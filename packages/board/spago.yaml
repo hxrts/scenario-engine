@@ -3,9 +3,7 @@ package:
   dependencies:
     - prelude
     - sp-core
-    - argonaut-codecs
-    - argonaut-core
-    - argonaut-generic
+    - sp-schema
     - arrays
     - either
     - foldable-traversable

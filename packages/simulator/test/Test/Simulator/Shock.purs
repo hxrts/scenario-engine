@@ -1,4 +1,4 @@
--- | The major shock (docs/05 §13.6, `Scenarios.Meridian.majorShock`): a designed test case beside the
+-- | The major shock (docs/05 §13.6, `Premises.Meridian.majorShock`): a designed test case beside the
 -- | reference disruption. Calm and shocked games have the same seats, presets and player seed, so a
 -- | difference in a seat's proposals is the shock's doing.
 module Test.Simulator.Shock (spec) where
@@ -18,7 +18,7 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Exception (error)
 import Simulator.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, simulate)
-import Scenarios.Meridian (majorShock)
+import Premises.Meridian (majorShock)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldSatisfy)
 

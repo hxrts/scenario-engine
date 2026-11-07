@@ -1,4 +1,4 @@
--- | The simulator's checks on the capstone (packages/scenarios/src/Scenarios/Capstone.purs): an
+-- | The simulator's checks on the capstone (packages/scenarios/src/Premises/Capstone.purs): an
 -- | eight-round run authored in the DSL, decoded from `capstone/run.json`, checked for invariants,
 -- | expectations, replay, and resume. The analysis checks on the same run (objectives,
 -- | counterfactual, view models) are in the analysis suite (Test.Analysis.Capstone).
@@ -19,7 +19,7 @@ import Effect.Aff (Aff)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
-import Board.Gameboard.Schema (Outcome(..))
+import Schema.Gameboard (Outcome(..))
 import Simulator.Capstone (RoundExpect, outcomeOf)
 import Testkit.Capstone (load, specOf, runOf)
 import Simulator.Simulate (Context, Run, resume)

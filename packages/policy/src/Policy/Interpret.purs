@@ -21,7 +21,7 @@ import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Tags as T
+import Schema.Tags as T
 
 -- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every

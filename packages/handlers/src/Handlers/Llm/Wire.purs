@@ -16,7 +16,7 @@ module Handlers.Llm.Wire
 
 import Prelude
 
-import Board.Decode.Common (readJson)
+import Schema.Decode.Common (readJson)
 import Core.Proposal (Transcript)
 import Core.Types (EntityId, Intent, MarketId, RoundIndex)
 import Core.World (Event, View)

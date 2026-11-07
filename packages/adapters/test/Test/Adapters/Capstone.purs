@@ -6,7 +6,7 @@ module Test.Adapters.Capstone (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
+import Premises.Tree (readRootFile, readPremise)
 import Adapters.SQLite (open, sqliteBackend)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
@@ -28,7 +28,7 @@ import Handlers.Store (persister, runStore)
 import Data.Map as Map
 import Data.Set as Set
 import Policy.InWorld (inWorldOf)
-import Scenarios.Load (load, loadPresets, loadRun)
+import Premises.Load (load, loadPresets, loadRun)
 import Simulator.Capstone (Capstone, decodeCapstone)
 import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Test.Spec (Spec, describe, it)
@@ -45,7 +45,7 @@ capstone = do
 spec :: Spec Unit
 spec = describe "Capstone: the Run Store" do
   it "the capstone run round-trips through the store: saved, reloaded byte-identically, and replayed" do
-    loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+    loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
     presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
     cap <- capstone
     let
@@ -78,7 +78,7 @@ spec = describe "Capstone: the Run Store" do
   it "the capstone's stored price metric rows are the pinned values" do
     cap <- capstone
     presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
-    loaded <- liftEffect (readScenario fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
+    loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
     let ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
     let spec' = { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just cap.rounds }
     db <- liftEffect (open ":memory:")

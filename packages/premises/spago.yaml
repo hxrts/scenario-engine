@@ -1,0 +1,35 @@
+package:
+  name: sp-premises
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-schema
+    - sp-board
+    - sp-policy
+    - partial
+    - argonaut-core
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - strings
+    - tuples
+    - record
+    - typelevel-prelude
+    - maybe
+  test:
+    main: Test.Premises.Main
+    dependencies:
+      - effect
+      - sp-adapters
+      - spec
+      - spec-node
+      - quickcheck
+      - spec-quickcheck
+      - argonaut-codecs
+      - maybe
+      - ordered-collections
+      - aff
+      - arrays
+      - partial
+      - exceptions

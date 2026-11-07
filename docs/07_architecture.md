@@ -15,7 +15,7 @@
   - **Adapters expose devices.** An adapter wraps one device (the filesystem, SQLite, a process, the clock, the OS seed) as raw primitives: text in, text out, or one statement. It knows nothing of games, runs, prompts or scenarios.
   - **Effects define the program's interface to a device.** A module in `effects` declares the operations a program may request, with their typed requests and replies. It contains no implementation.
   - **Handlers hold the program logic.** A handler interprets an effect's operations over a device primitive. Prompt building, reply decoding, fallbacks, run lifecycle, and recording belong here. Handlers never import adapters; the composition root wires the two.
-  - A new device is a new adapter; a new program need is a new operation and its handler. Domain rules are not in any of the three; they stay in `core`, `board`, `policy` and `scenarios`.
+  - A new device is a new adapter; a new program need is a new operation and its handler. Domain rules are not in any of the three; they stay in `core`, `schema`, `board`, `policy` and `premises`.
 - **Scenarios are data.** Gameboards, instantiations, fixtures, and presets are declarative data, authored in a typed PureScript DSL that compiles to JSON. The engine reads only the compiled files. Fixture expected values are literals, never computed.
 - **Small.** One concept per module. No frameworks inside the core.
 
@@ -43,15 +43,16 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | Package | May depend on |
 |---|---|
 | `core` | nothing in the workspace |
-| `board`, `policy` | `core` |
-| `scenarios` | `core`, `board`, `policy` |
-| `effects` | `core`, `board`, `policy` |
-| `handlers` | `core`, `board`, `policy`, `effects` |
-| `adapters`, `simulator` | `core`, `board`, `policy`, `effects`, `handlers` |
-| `analysis` | `core`, `board`, `simulator` |
+| `schema` | `core` |
+| `board`, `policy` | `core`, `schema` |
+| `premises` | `core`, `schema`, `board`, `policy` (until `game` takes assembly, design 4 Phase 4) |
+| `effects` | `core`, `schema`, `board`, `policy` |
+| `handlers` | `core`, `schema`, `board`, `policy`, `effects` |
+| `adapters`, `simulator` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` |
+| `analysis` | `core`, `schema`, `board`, `simulator` |
 | `apps/*` | anything |
 
-`scenarios` is kept free of IO by convention, not by the checker.
+`premises` is kept free of IO by convention, not by the checker. `schema` holds the premise format (its types, decoders, tags, and the authoring builders in `Schema.Build`); `board` holds realization only and imports no JSON library.
 
 Module map, for finding code:
 
@@ -64,9 +65,10 @@ packages/
     Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript`, `JointProposal`, and the reconciliation rule `jointProposals`), Represent, Invariants
     Strategy       the Strategy language's types (`Strategy`, `Clause`, `Cond`, `Expr`, `Template`, `SignRule`), decoded by `Policy.Strategy`
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
-  board/       Board.Gameboard.* (Schema, Validate, Instantiate, Reconcile), Board.Decode.* (World composes the section decoders; Common holds the shared readers), Board.Tags (the tag grammar), Fixture
-  policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`), Policy.Tags (the decision language's JSON tags)
-  scenarios/   DSL.*, Scenarios.* (Meridian and its submodules, Names, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
+  schema/      Schema.Gameboard (the Gameboard and Instantiation Configuration types), Schema.Tags (the premise format's tag grammar and the decision language's tags), Schema.Decode.* (World composes the section decoders; Common holds the shared readers; Strategy decodes Policies), Schema.Build.* (the authoring builders, JSON-emitting until their typed rewrite)
+  board/       Board.Gameboard.* (Validate, Instantiate, Reconcile), Board.Error (ValidationError, RefKind, Difference), Fixture
+  policy/      Policy.Strategy (Strategy queries: the names a Strategy uses), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
+  premises/    Premises.* (Meridian and its submodules, Names, Presets, Fixtures, Capstone, Compile, Load, Tree: the premise file tree, pure); a premise is authored, a scenario is one run
   effects/     Effects.Signatures (the operations and their request and reply records, STORE's read-model records included), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
@@ -89,7 +91,7 @@ apps/
 test/          packages/<pkg>/test (Test.<Pkg>.Main); apps/{cli,server,dashboard}/test; apps/dashboard/e2e (Playwright)
 ```
 
-Compiled scenario files (`packages/scenarios/meridian/`, `presets.json`, `fixtures/`, and `capstone/run.json`) are gitignored build output. `capstone/transcript.json` is generated by `just _scenarios` (`apps/cli`'s `Transcript`) and gitignored: the capstone's joint-pass recording, with no model call. The shadcn/ui components in `apps/dashboard/ui` are generated, not committed.
+Compiled premise files (`packages/premises/meridian/`, `presets.json`, `fixtures/`, and `capstone/run.json`) are gitignored build output. `capstone/transcript.json` is generated by `just _scenarios` (`apps/cli`'s `Transcript`) and gitignored: the capstone's joint-pass recording, with no model call. The shadcn/ui components in `apps/dashboard/ui` are generated, not committed.
 
 ## 4. Key Interfaces
 
@@ -191,7 +193,7 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 **Data formats.** Two JSON formats cover overlapping types and are not interchangeable:
 
 - The **snapshot format** is the engine's own state as core's codecs write it: `WorldState`, round records, and manifests. Runs store it, and replay reads it back.
-- The **scenario format** is the authored configuration that `board` and `policy` decode: Gameboard sections, `instantiation.json`, seat-policy presets, and fixtures. Its tags are `kind:argument` strings (constants in `Board.Tags`), and its tagged unions are objects with exactly one key.
+- The **premise format** is the authored configuration that `schema` decodes: Gameboard sections, `instantiation.json`, seat-policy presets, and fixtures. Its tags are `kind:argument` strings (constants in `Schema.Tags`), and its tagged unions are objects with exactly one key.
 
 Each format's codec lives in the package that owns its type.
 

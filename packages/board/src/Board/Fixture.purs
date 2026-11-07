@@ -7,7 +7,7 @@ module Board.Fixture (Fixture, Field(..), FixtureError(..), checkFixture, expect
 
 import Prelude
 
-import Board.Decode.Rounds (Delivery, Expect, ProcedureExpect, ProposalRef, Round)
+import Schema.Decode.Rounds (Delivery, Expect, ProcedureExpect, ProposalRef, Round)
 import Core.Engine.Commit (resolveRound)
 import Core.Engine.Run (runRounds)
 import Core.Invariants (check)

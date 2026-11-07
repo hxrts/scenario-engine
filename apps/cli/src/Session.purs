@@ -44,14 +44,14 @@ import Handlers.Seats (strategies)
 import Analysis.Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore)
 import Node.Process (exit')
-import Scenarios.Load (loadContext)
-import Scenarios.Tree (readScenario)
+import Premises.Load (loadContext)
+import Premises.Tree (readPremise)
 import Simulator.Simulate (startOf)
 
 type Options = { scenario :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 session :: Options -> Effect Unit
-session o = map (_ >>= loadContext) (readScenario fileOps (o.scenario <> "/v0")) >>= case _ of
+session o = map (_ >>= loadContext) (readPremise fileOps (o.scenario <> "/v0")) >>= case _ of
   Left e -> writeLine e *> exit' 1
   Right { gameboard, config } -> case startOf gameboard config of
     Left e -> writeLine (show e) *> exit' 1

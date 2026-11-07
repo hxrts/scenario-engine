@@ -4,6 +4,7 @@ package:
     - prelude
     - run
     - sp-core
+    - sp-schema
     - sp-board
     - sp-policy
     - sp-effects
@@ -25,7 +26,7 @@ package:
     main: Test.Handlers.Main
     dependencies:
       - effect
-      - sp-scenarios
+      - sp-premises
       - sp-adapters
       - aff
       - exceptions

@@ -20,7 +20,7 @@ package:
     - sp-core
     - sp-board
     - sp-policy
-    - sp-scenarios
+    - sp-premises
     - sp-effects
     - sp-handlers
     - sp-adapters

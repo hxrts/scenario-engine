@@ -6,17 +6,17 @@ set -euo pipefail
 recipe=$1
 shift
 
-scenarios="meridian"
-presets=$(grep -o 'Tuple "[A-Za-z]*"' packages/scenarios/src/Scenarios/Presets.purs | cut -d'"' -f2 | tr '\n' ' ')
+premises="meridian"
+presets=$(grep -o 'Tuple "[A-Za-z]*"' packages/premises/src/Premises/Presets.purs | cut -d'"' -f2 | tr '\n' ' ')
 packages=$(just --evaluate packages)
 
 case $recipe in
-  sim)      usage="just sim <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  sim)      usage="just sim <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
             example="just sim meridian --preset Conservative --rounds 5"
-            flags="--preset --rounds --seed" positional=scenario ;;
-  session)  usage="just session <scenario> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
+            flags="--preset --rounds --seed" positional=premise ;;
+  session)  usage="just session <premise> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
             example="just session meridian --humans US --rounds 3"
-            flags="--humans --model --rounds --window --id --db --seed" positional=scenario ;;
+            flags="--humans --model --rounds --window --id --db --seed" positional=premise ;;
   serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
             example="just serve --port 9000"
             flags="--db --port --static" positional= ;;
@@ -30,7 +30,7 @@ fail() {
   echo
   echo "usage: $usage"
   case $positional in
-    scenario) echo "  scenarios: $scenarios" ;;
+    premise) echo "  premises: $premises" ;;
     package)  echo "  packages:  $packages" ;;
   esac
   [ "$recipe" = sim ] && echo "  presets:   $presets"
@@ -44,7 +44,7 @@ one_of() { [[ " $2 " == *" $1 "* ]]; }
 if [ -n "$positional" ]; then
   [ $# -gt 0 ] && [[ "$1" != -* ]] || fail "missing $positional"
   case $positional in
-    scenario) one_of "$1" "$scenarios" || fail "unknown scenario '$1'" ;;
+    premise) one_of "$1" "$premises" || fail "unknown premise '$1'" ;;
     package)  one_of "$1" "$packages" || fail "unknown package '$1'"
               [ $# -eq 1 ] || fail "test-pkg takes one package" ;;
   esac

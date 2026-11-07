@@ -1,5 +1,5 @@
--- | In-world Policies: the Strategies that NPC and Aggregate Entities run, and the scenario
--- | parameters they read. The Gameboard's catalog is already typed (`Board.Gameboard.Schema`),
+-- | In-world Policies: the Strategies that NPC and Aggregate Entities run, and the premise
+-- | parameters they read. The Gameboard's catalog is already typed (`Schema.Gameboard`),
 -- | so this is a projection. Pure.
 module Policy.InWorld
   ( inWorldOf

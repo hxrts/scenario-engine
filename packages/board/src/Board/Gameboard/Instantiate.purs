@@ -9,7 +9,8 @@ module Board.Gameboard.Instantiate
 
 import Prelude
 
-import Board.Gameboard.Schema (Fallback(..), Gameboard, InitialWorld, InstantiationConfig, RefKind(..), ValidationError(..))
+import Schema.Gameboard (Fallback(..), Gameboard, InitialWorld, InstantiationConfig)
+import Board.Error (RefKind(..), ValidationError(..))
 import Core.Draw (drawVersion)
 import Core.Num (Q)
 import Core.Num as Q

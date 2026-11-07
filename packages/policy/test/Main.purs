@@ -17,7 +17,8 @@ import Partial.Unsafe (unsafeCrashWith)
 import Core.Proposal (ProposalBody)
 import Policy.Interpret (Env, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
-import Policy.Strategy (decodeStrategy, strategyParams, strategyRefs)
+import Policy.Strategy (strategyParams, strategyRefs)
+import Schema.Decode.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -184,10 +185,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         e = env { view = seat { factors = Map.fromFoldable [ Tuple (Id "E") (fromMaybe Q.zero (Q.parse "0.5")) ] } }
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" e)
         `shouldEqual` [ [ trade "energy-atlantic" "2.5" ] ]
-    it "a Param the scenario does not define evaluates to zero, so an order of that size is dropped" do
+    it "a Param the premise does not define evaluates to zero, so an order of that size is dropped" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "param": "missing" } } } ] } ] }""" env)
         `shouldEqual` []
-    it "strategyParams lists every scenario parameter a Strategy reads" do
+    it "strategyParams lists every premise parameter a Strategy reads" do
       strategyParams (strategy """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
         `shouldEqual` [ "limit", "size" ]
 
@@ -227,27 +228,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       signedIn 3 `shouldEqual` []
       signedIn 4 `shouldEqual` [ procP.id ]
 
-  describe "Decoding" do
+  describe "Load-time references" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
       strategyRefs (strategy """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
         { entities: [ "bogus" ], markets: [], resources: [ "E" ], transformations: [], parameters: [] }
-    it "a tagged object must have exactly one key" do
-      case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
-        other -> fail ("expected a multi-key template error, got " <> outcome other)
-      case decodeText """{ "rules": [ { "propose": [ {} ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
-        other -> fail ("expected an empty template error, got " <> outcome other)
-    it "an expression with two keys is rejected" do
-      isLeft (decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": { "round": null, "param": "x" } } } ] } ] }""")
-        `shouldEqual` true
-    it "an unknown tag is a typed error naming its kind" do
-      case decodeText """{ "rules": [ { "propose": [ { "bogus": {} } ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
-        other -> fail ("expected a template error, got " <> outcome other)
-      case decodeText """{ "rules": [ { "when": [ { "bogus": [] } ], "propose": [] } ] }""" of
-        Left (Named "condition" (UnexpectedValue _)) -> pure unit
-        other -> fail ("expected a condition error, got " <> outcome other)
-    it "a well-formed strategy decodes" do
-      isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
-        `shouldEqual` false

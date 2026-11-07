@@ -345,7 +345,7 @@ instance DecodeJson RuleKind where
 
 -- Described shapes (design 4, §5.3). The engine's Intents, Rules and rule changes are described once
 -- here. Their JSON codecs are the snapshot codec of the shape, so no second codec exists for them.
--- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the scenario-format tags of
+-- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the premise-format tags of
 -- these types are added with the `schema` package (design 4, Phase 3).
 
 idShape :: forall t. Shape (Id t)

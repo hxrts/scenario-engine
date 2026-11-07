@@ -8,21 +8,24 @@ const path = require("path");
 
 const allowed = {
   core: [],
-  board: ["core"],
-  policy: ["core"],
-  scenarios: ["core", "board", "policy"],
-  effects: ["core", "board", "policy"],
-  handlers: ["core", "board", "policy", "effects"],
-  adapters: ["core", "board", "policy", "effects", "handlers"],
-  simulator: ["core", "board", "policy", "effects", "handlers"],
-  analysis: ["core", "board", "simulator"],
+  schema: ["core"],
+  board: ["core", "schema"],
+  policy: ["core", "schema"],
+  // Phase 3 transitional: the loader still validates and instantiates (board) and queries Strategies (policy).
+  // Phase 4 moves that assembly into game and leaves premises with core, schema, and game (work/4.md §12.2).
+  premises: ["core", "schema", "board", "policy"],
+  effects: ["core", "schema", "board", "policy"],
+  handlers: ["core", "schema", "board", "policy", "effects"],
+  adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
+  simulator: ["core", "schema", "board", "policy", "effects", "handlers"],
+  analysis: ["core", "schema", "board", "simulator"],
   // test support only (the shared fixtures of the analysis and simulator suites); no suite's source imports it
-  testkit: ["core", "board", "policy", "scenarios", "adapters", "simulator"],
+  testkit: ["core", "schema", "board", "policy", "premises", "adapters", "simulator"],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
 // workspace dependencies a package's test suite may not take, beyond its `allowed` set
 const testForbidden = { simulator: ["analysis"] };
-const pure = ["core", "board", "policy"];
+const pure = ["core", "schema", "board", "policy"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
 // Import rules for source modules, checked on the `import` lines of each src/ file.
@@ -33,8 +36,12 @@ const ADAPTER_HANDLER_IMPORTS = { "Handlers.Store": ["Metric", "StoreBackend"] }
 
 // Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
 const rules = [
-  { name: "pure packages import no effectful module", packages: pure.concat(["scenarios"]),
+  { name: "pure packages import no effectful module", packages: pure.concat(["premises"]),
     forbid: (m) => IMPURE_MODULE.test(m) },
+  { name: "board imports no JSON library: the premise format is decoded in schema (work/4.md §8)", packages: ["board"],
+    forbid: (m) => /^Data\.Argonaut(\.|$)/.test(m) },
+  { name: "schema holds no realization: it imports no board or policy module (work/4.md §8)", packages: ["schema"],
+    forbid: (m) => /^(Board|Policy|Premises|Game|Simulator)(\.|$)/.test(m) },
   { name: "the views are pure: no simulator, game, experiments, or effect module (docs/07 §3)", packages: ["analysis"],
     under: "Analysis/Views/", forbid: (m) => /^(Simulator|Game|Experiments)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
   { name: "handlers import no adapter, and no views, simulator, or experiments", packages: ["handlers"],

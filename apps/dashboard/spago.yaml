@@ -26,6 +26,7 @@ package:
     - web-dom
     - web-html
     - sp-core
+    - sp-schema
     - sp-analysis
     - sp-board
   test:

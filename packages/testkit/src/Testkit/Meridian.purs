@@ -10,14 +10,14 @@ import Data.Either (Either(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
-import Scenarios.Load (load, loadPresets)
-import Scenarios.Tree (readRootFile, readScenario)
+import Premises.Load (load, loadPresets)
+import Premises.Tree (readRootFile, readPremise)
 import Simulator.Simulate (Context)
 
 -- | The Meridian scenario, its configuration and presets, as a simulation context.
 context :: Aff Context
 context = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
+  loaded <- liftEffect (map (_ >>= load) (readPremise fileOps "meridian/v0"))
   presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
   case loaded, presets of
     Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }

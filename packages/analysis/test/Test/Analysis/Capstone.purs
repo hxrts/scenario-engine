@@ -1,4 +1,4 @@
--- | The analysis checks of the capstone (packages/scenarios/src/Scenarios/Capstone.purs): an
+-- | The analysis checks of the capstone (packages/scenarios/src/Premises/Capstone.purs): an
 -- | eight-round run authored in the DSL, decoded from `capstone/run.json`, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
 -- | The simulator's own checks on the run are in the simulator suite (Test.Simulator.Capstone).

@@ -6,7 +6,7 @@ module Test.Handlers.Llm (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readScenario)
+import Premises.Tree (readPremise)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -34,7 +34,7 @@ import Handlers.Llm.Wire (ProposedDeal, decodeJoint, decodeText, interpretPrompt
 import Handlers.Recording (encodeRecording)
 import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
-import Scenarios.Load (load)
+import Premises.Load (load)
 import Test.Handlers.Run (runTest)
 import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
@@ -44,7 +44,7 @@ import Core.Num (Q)
 type Game = { world :: WorldState, inWorld :: InWorld, params :: Object Q }
 
 setup :: Aff Game
-setup = liftEffect (readScenario fileOps "meridian/v0") >>= case _ of
+setup = liftEffect (readPremise fileOps "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
   Right s -> case load s of
     Left e -> throwError (error e)

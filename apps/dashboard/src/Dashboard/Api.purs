@@ -4,7 +4,7 @@ module Dashboard.Api (get, post, command, remove, encode, Loaded, useLoad) where
 
 import Prelude
 
-import Board.Decode.Common (readJson)
+import Schema.Decode.Common (readJson)
 
 import Control.Monad.Error.Class (try)
 import Control.Promise (Promise, toAffE)

@@ -21,7 +21,8 @@ module Simulator.Simulate
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard, InitialWorld, InstantiationConfig, ValidationError)
+import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
+import Board.Error (ValidationError)
 import Board.Gameboard.Instantiate (checkHomes, instantiate)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (EngineError)

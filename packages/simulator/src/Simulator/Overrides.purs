@@ -5,7 +5,7 @@ module Simulator.Overrides (encodeOverrides, decodeOverrides) where
 
 import Prelude
 
-import Board.Decode.Common (decodeError)
+import Schema.Decode.Common (decodeError)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)

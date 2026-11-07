@@ -14,7 +14,7 @@ module Analysis.Views.Overview
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard)
+import Schema.Gameboard (Gameboard)
 import Core.Num as Q
 import Core.Query (eventsOf)
 import Core.World (Event(..))

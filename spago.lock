@@ -28,7 +28,8 @@
             "sp-core",
             "sp-effects",
             "sp-handlers",
-            "sp-policy"
+            "sp-policy",
+            "sp-schema"
           ]
         },
         "test": {
@@ -42,7 +43,7 @@
             "quickcheck",
             "refs",
             "sp-analysis",
-            "sp-scenarios",
+            "sp-premises",
             "sp-simulator",
             "spec",
             "spec-node",
@@ -68,6 +69,7 @@
             "prelude",
             "sp-board",
             "sp-core",
+            "sp-schema",
             "sp-simulator",
             "strings",
             "tuples",
@@ -85,7 +87,7 @@
             "now",
             "quickcheck",
             "sp-adapters",
-            "sp-scenarios",
+            "sp-premises",
             "sp-testkit",
             "spec",
             "spec-node",
@@ -97,9 +99,6 @@
         "path": "packages/board",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
-            "argonaut-core",
-            "argonaut-generic",
             "arrays",
             "either",
             "foldable-traversable",
@@ -108,6 +107,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
+            "sp-schema",
             "strings",
             "tuples"
           ]
@@ -153,7 +153,7 @@
             "sp-effects",
             "sp-handlers",
             "sp-policy",
-            "sp-scenarios",
+            "sp-premises",
             "sp-simulator",
             "strings",
             "tuples"
@@ -229,6 +229,7 @@
             "sp-analysis",
             "sp-board",
             "sp-core",
+            "sp-schema",
             "strings",
             "tuples",
             "unsafe-coerce",
@@ -303,6 +304,7 @@
             "sp-core",
             "sp-effects",
             "sp-policy",
+            "sp-schema",
             "strings",
             "tuples",
             "type-equality",
@@ -319,7 +321,7 @@
             "partial",
             "quickcheck",
             "sp-adapters",
-            "sp-scenarios",
+            "sp-premises",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -340,6 +342,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
+            "sp-schema",
             "tuples"
           ]
         },
@@ -356,8 +359,8 @@
           ]
         }
       },
-      "sp-scenarios": {
-        "path": "packages/scenarios",
+      "sp-premises": {
+        "path": "packages/premises",
         "core": {
           "dependencies": [
             "argonaut-core",
@@ -372,6 +375,7 @@
             "sp-board",
             "sp-core",
             "sp-policy",
+            "sp-schema",
             "strings",
             "tuples",
             "typelevel-prelude"
@@ -392,6 +396,38 @@
             "spec",
             "spec-node",
             "spec-quickcheck"
+          ]
+        }
+      },
+      "sp-schema": {
+        "path": "packages/schema",
+        "core": {
+          "dependencies": [
+            "argonaut-codecs",
+            "argonaut-core",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
+            "partial",
+            "prelude",
+            "record",
+            "sp-core",
+            "strings",
+            "tuples"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "partial",
+            "quickcheck",
+            "spec",
+            "spec-node",
+            "spec-quickcheck",
+            "unsafe-coerce"
           ]
         }
       },
@@ -423,7 +459,8 @@
             "sp-effects",
             "sp-handlers",
             "sp-policy",
-            "sp-scenarios",
+            "sp-premises",
+            "sp-schema",
             "sp-simulator",
             "strings",
             "tuples"
@@ -460,6 +497,7 @@
             "sp-effects",
             "sp-handlers",
             "sp-policy",
+            "sp-schema",
             "strings",
             "tuples",
             "typelevel-prelude"
@@ -476,7 +514,7 @@
             "now",
             "quickcheck",
             "sp-adapters",
-            "sp-scenarios",
+            "sp-premises",
             "sp-testkit",
             "spec",
             "spec-node",
@@ -499,7 +537,7 @@
             "prelude",
             "sp-adapters",
             "sp-core",
-            "sp-scenarios",
+            "sp-premises",
             "sp-simulator",
             "transformers"
           ]

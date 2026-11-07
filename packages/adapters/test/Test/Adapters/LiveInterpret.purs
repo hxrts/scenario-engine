@@ -10,7 +10,7 @@ import Prelude
 
 import Adapters.Pi (defaultModel, pi)
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readScenario)
+import Premises.Tree (readPremise)
 import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (Transcript)
@@ -28,7 +28,7 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (interpreter)
 import Node.Process (exit', lookupEnv)
-import Scenarios.Load (load)
+import Premises.Load (load)
 
 -- | The fixed transcripts: the US and Germany describe one trade, and Japan says something unrelated.
 transcripts :: Array Transcript
@@ -40,7 +40,7 @@ transcripts =
 
 world :: Aff WorldState
 world = do
-  s <- liftEffect (readScenario fileOps "meridian/v0")
+  s <- liftEffect (readPremise fileOps "meridian/v0")
   case s of
     Left e -> throwError (error e)
     Right scenario -> case load scenario of
