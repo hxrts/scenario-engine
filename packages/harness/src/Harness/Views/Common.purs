@@ -4,6 +4,7 @@
 module Harness.Views.Common
   ( Table
   , Chart
+  , Statistic
   , StoredRun
   , MetricSpec
   , defaultMetricSpec
@@ -15,6 +16,8 @@ module Harness.Views.Common
   , series
   , specValue
   , joinComma
+  , players
+  , roundResults
   ) where
 
 import Prelude
@@ -22,18 +25,23 @@ import Prelude
 import Core.Invariants (Failure)
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Query (isAggregate)
 import Core.Types (EntityId, EntityKind(..))
-import Core.World (Manifest, RoundRecord, WorldState)
+import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, find, index, length, mapWithIndex, nub)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (joinWith)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
 
 type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
 
 -- | A metric per round; values are decimal strings in their own units.
 type Chart = { title :: String, unit :: String, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
+
+-- | A statistic the views show: its name, the question it answers, its one-line definition, and its
+-- | formula. Each statistic is defined once, in the module that computes it; the dashboard renders it.
+type Statistic = { name :: String, question :: String, definition :: String, formula :: String }
 
 -- | A run as read back from the Run Store, with its records and snapshots (single-run views).
 type StoredRun =
@@ -105,3 +113,13 @@ specValue spec k = map (\(Tuple _ v) -> v) (find (\(Tuple x _) -> x == k) spec)
 
 joinComma :: Array String -> String
 joinComma = joinWith ", "
+
+-- | The players of a World State: its Actors, every Entity except the Aggregates (which are residual
+-- | representations, not players), in Entity order.
+players :: WorldState -> Array EntityId
+players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (Map.toUnfoldable w.entities :: Array _))
+
+-- | Each record with the World State it leaves behind (round i+1 pairs with record i), as the
+-- | objectives are evaluated over a run.
+roundResults :: StoredRun -> Array RoundResult
+roundResults r = mapWithIndex (\i rec -> { world: fromMaybe r.manifest.initial (at r (i + 1)), record: rec }) r.records

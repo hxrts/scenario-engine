@@ -7,13 +7,14 @@ module Harness.Views.Compare
   , baselineDiff
   , configDiff
   , agencyTable
+  , sameSpecification
   ) where
 
 import Prelude
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (concat, concatMap, filter, find, fromFoldable, index, length, nub, sortWith, tail)
+import Data.Array (concat, concatMap, filter, find, fromFoldable, index, length, notElem, nub, sortWith, tail, uncons)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
@@ -99,11 +100,22 @@ configDiff base others =
   , rows: filter (\row -> nub (fromMaybe [] (tail row)) /= fromMaybe [] (map pure (index row 1))) (map (\k -> [ k, value base k ] <> map (\r -> value r k) others) keys)
   }
   where
-  keys = nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) ([ base ] <> others) <> [ "game seed", "player seed" ])
+  -- the player seed is its own row, so the specification's copy of it is not listed again
+  keys = filter (_ /= "playerSeed") (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) ([ base ] <> others) <> [ "game seed", "player seed" ]))
   value r k
     | k == "game seed" = show r.manifest.initial.seed
     | k == "player seed" = r.playerSeed
     | otherwise = fromMaybe "—" (map (\(Tuple _ v) -> v) (find (\(Tuple k' _) -> k' == k) r.spec))
+
+-- | The runs of the first run's specification: the same settings, whatever their seeds. Their
+-- | differences are seed-to-seed variation (§10.2); the bookkeeping keys (the seed, the derivation)
+-- | are not part of the specification.
+sameSpecification :: Array StoredRun -> Array StoredRun
+sameSpecification runs = case uncons runs of
+  Nothing -> []
+  Just { head: first } -> filter (\r -> specOf r == specOf first) runs
+  where
+  specOf r = filter (\(Tuple k _) -> notElem k [ "playerSeed", "source", "kind" ]) r.spec
 
 agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =

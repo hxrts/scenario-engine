@@ -13,14 +13,15 @@ import Prelude
 import Board.Gameboard.Schema (Gameboard)
 import Core.Num as Q
 import Core.World (Event(..))
-import Data.Array (concat, concatMap, filter, length, mapWithIndex)
+import Data.Array (concat, concatMap, length, mapWithIndex)
 import Data.Either (Either(..))
-import Data.Foldable (any)
+import Data.Foldable (any, sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Harness.Analysis (evaluateObjectives)
-import Harness.Views.Common (MetricSpec, StoredRun, Table, at, final, joinComma, q, specValue)
+import Harness.Views.Actions (rejectionCount)
+import Harness.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, q, roundResults, specValue)
 import Harness.Views.Markets (marketPrices)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
@@ -82,7 +83,7 @@ overview spec r =
       -- the round count the run was launched for; a run shorter than it can be resumed to it
       , [ "Rounds target", show (fromMaybe (length r.records) (specValue r.spec "rounds" >>= Int.fromString)) ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
-      , [ "Rejected Proposals", show (count isRejected) ]
+      , [ "Rejected Proposals", show (sum (map rejectionCount r.records)) ]
       , [ spec.procurementLabel <> " procured", q (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
       ] <> map (\p -> [ "Final price " <> p.market, p.price ]) (marketPrices (final r))
   }
@@ -92,10 +93,6 @@ overview spec r =
     Just _
       | r.sourceDeleted -> "deleted"
       | otherwise -> "present"
-  count f = length (filter f (concatMap _.events r.records))
-  isRejected = case _ of
-    Rejected _ -> true
-    _ -> false
   procured = case _ of
     Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> [ t.quantity ]
     _ -> []
@@ -106,5 +103,5 @@ objectives gb r =
   { title: "Objectives"
   , columns: [ "Actor", "Objective", "Criterion", "Outcome", "Values", "Bound" ]
   , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map q c.values), joinComma (map q c.bound) ]) o.criteria)
-      (evaluateObjectives gb (mapWithIndex (\i rec -> { world: fromMaybe r.manifest.initial (at r (i + 1)), record: rec }) r.records))
+      (evaluateObjectives gb (roundResults r))
   }

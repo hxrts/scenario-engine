@@ -29,12 +29,16 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Harness.Analysis (agency)
 import Harness.Simulate (Context)
+import Harness.Views.Actions as Actions
+import Harness.Views.Balance as Balance
 import Harness.Views.Balances as Balances
 import Harness.Views.Common (StoredRun, defaultMetricSpec)
 import Harness.Views.Compare as Compare
+import Harness.Views.Drivers as Drivers
 import Harness.Views.Markets as Markets
 import Harness.Views.Overview as Overview
 import Harness.Views.Representation as Representation
+import Harness.Views.Standings as Standings
 import Http (Response)
 import Server.Errors (LoadError(..), decodeAs, describe, failWith, ok, viewOr)
 import Server.Launch (presetSpec, seats)
@@ -137,6 +141,11 @@ getView ctx db query id view = loadRun db id >>= case _ of
     "representation" -> ok (Representation.representation r)
     "procedures" -> ok (Representation.procedures r)
     "objectives" -> ok (Overview.objectives ctx.gameboard r)
+    "standings" -> ok (Standings.standings r)
+    "networth" -> ok (Standings.netWorthChart r)
+    "actions" -> ok (Actions.actions r)
+    "drivers" -> ok (Drivers.drivers r)
+    "balance" -> ok { measures: Balance.measures r, completion: Balance.completion ctx.gameboard r }
     "events" -> viewOr (roundParam 1 >>= Balances.events r)
     _ -> failWith 404 view
 
@@ -159,6 +168,7 @@ compareView db query = do
         , final: Compare.finalState good
         , diff: Compare.baselineDiff base others
         , config: Compare.configDiff base others
+        , seeds: Balance.seedVariation (Compare.sameSpecification good)
         , skipped
         }
 

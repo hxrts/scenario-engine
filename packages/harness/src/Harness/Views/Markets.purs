@@ -27,7 +27,9 @@ import Data.Map as Map
 import Data.Maybe (fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
+import Harness.Views.Actions (rejectionCount)
 import Harness.Views.Common (Chart, StoredRun, Table, kindOf, q, series)
+import Harness.Views.Drivers (shortfallTotal)
 
 -- | A Market's price after a World State, as the views show it.
 type MarketPrice = { market :: String, price :: String }
@@ -108,27 +110,21 @@ type Pressure = { shortfall :: Q, consumed :: Q, decayed :: Q, rejected :: Int, 
 
 roundPressure :: RoundRecord -> Pressure
 roundPressure rec =
-  { shortfall: sum' shortfallOf
+  { shortfall: shortfallTotal rec
   , consumed: sum' consumedOf
   , decayed: sum' decayedOf
-  , rejected: count isRejected
+  , rejected: rejectionCount rec
   , lapsed: count isLapsed
   }
   where
   sum' f = Q.sumQ (concatMap f rec.events)
   count f = length (filter f rec.events)
-  shortfallOf = case _ of
-    Shortfall s -> [ s.quantity ]
-    _ -> []
   consumedOf = case _ of
     Consumed c -> [ c.quantity ]
     _ -> []
   decayedOf = case _ of
     Decayed d -> [ d.quantity ]
     _ -> []
-  isRejected = case _ of
-    Rejected _ -> true
-    _ -> false
   isLapsed = case _ of
     Lapsed _ -> true
     _ -> false

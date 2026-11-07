@@ -58,13 +58,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           bal <- api "GET" "/api/runs/run-1/balances" [ { k: "round", v: "3" } ] ""
           bal.status `shouldEqual` 200
           cmp <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" } ] ""
-          cmp.body `shouldSatisfy` contains (Pattern "playerSeed")
+          -- the seed is listed once, as the player seed row of the configuration diff
+          cmp.body `shouldSatisfy` contains (Pattern "player seed")
+          cmp.body `shouldSatisfy` (not <<< contains (Pattern "playerSeed"))
           -- the trajectory unit is the market's quote per base unit; an unknown market is a client error
           cmp.body `shouldSatisfy` contains (Pattern "\"unit\":\"M/E\"")
           noMarket <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "market", v: "no-such-market" } ] ""
           noMarket.status `shouldEqual` 400
           missing <- api "GET" "/api/runs/run-9/overview" [] ""
           missing.status `shouldEqual` 404
+          -- the statistics views of the dashboard's summary are served for a run
+          standings <- api "GET" "/api/runs/run-1/standings" [] ""
+          standings.status `shouldEqual` 200
+          standings.body `shouldSatisfy` contains (Pattern "Change from start")
+          networth <- api "GET" "/api/runs/run-1/networth" [] ""
+          networth.status `shouldEqual` 200
+          actionsView <- api "GET" "/api/runs/run-1/actions" [] ""
+          actionsView.status `shouldEqual` 200
+          drivers <- api "GET" "/api/runs/run-1/drivers" [] ""
+          drivers.status `shouldEqual` 200
+          balance <- api "GET" "/api/runs/run-1/balance" [] ""
+          balance.status `shouldEqual` 200
+          balance.body `shouldSatisfy` contains (Pattern "Gini coefficient")
           -- a round the run does not have is a client error, not the initial state
           outOfRange <- api "GET" "/api/runs/run-1/balances" [ { k: "round", v: "9" } ] ""
           outOfRange.status `shouldEqual` 400

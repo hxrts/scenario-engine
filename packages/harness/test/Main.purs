@@ -40,6 +40,7 @@ import Test.Spec (describe, it)
 import Test.Harness.Experiments (seats)
 import Test.Harness.Experiments as Experiments
 import Test.Harness.Views as ViewTests
+import Test.Harness.Statistics as StatTests
 import Test.Harness.Capstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -98,6 +99,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   Experiments.spec context
   ViewTests.spec context
+  StatTests.spec context
   CapstoneTests.spec context
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
