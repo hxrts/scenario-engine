@@ -18,7 +18,7 @@ The simulator runs on the existing Type System, Gameboard, and Instantiated Game
 The simulator lets a developer:
 
 1. Select a Gameboard and configure an Instantiated Game.
-2. Bind a seat Policy (preset program, AI agent, or recorded human) to every seat.
+2. Bind a seat Policy (preset strategy, AI agent, or recorded human) to every seat.
 3. Run a whole game automatically, including NPC and Aggregate behavior.
 4. Save complete runs persistently.
 5. Inspect balance sheets and how the world economy evolved.
@@ -56,10 +56,10 @@ Narrative reporting is optional in simulation. Analysis reads authoritative engi
 A Simulation Specification is a serializable, versioned description of one complete automated playthrough.
 
 ```purescript
-type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program }
+type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
 
 type SimulationSpec =
-  { seats :: Map EntityId SeatPolicy    -- Preset name or a Custom program; unlisted seats submit nothing
+  { seats :: Map EntityId SeatPolicy    -- Preset name or a Custom strategy; unlisted seats submit nothing
   , playerSeed :: Seed
   , overrides :: Array Override         -- GameSeed, Parameter, Capacity, Shrinkage, Implicit
   , rounds :: Maybe Int }               -- defaults to the configuration's round count
@@ -83,7 +83,7 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the scenario. An NPC's Policy is part of the scenario. In simulation the simulator binds each seat to a **seat Policy**. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
-Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset program, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset programs run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
+Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset strategy, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset strategies run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
 
 Every kind sees only its Actor's authorized view ([INV-16](02_type_system.md#inv-16)) and maps it to Intents:
 
@@ -93,7 +93,7 @@ Accepted Intents are always recorded, so every run replays from its round record
 
 ### 4.1 Propose and sign
 
-Each seat Policy acts twice per round, against the same snapshot (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses. An author's own signature is implicit in publishing. Preset programs sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". AI agents read the Proposals and choose. A Proposal missing a signature lapses ([INV-10](02_type_system.md#inv-10)). The round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
+Each seat Policy acts twice per round, against the same snapshot (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses. An author's own signature is implicit in publishing. Preset strategies sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". AI agents read the Proposals and choose. A Proposal missing a signature lapses ([INV-10](02_type_system.md#inv-10)). The round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
 
 Illustrative seat Policies (not all are presets):
 
@@ -104,7 +104,7 @@ Illustrative seat Policies (not all are presets):
 
 ### 4.2 Presets
 
-Preset programs are named parameter sets of the shared interpreter, not separate programs. The presets are the executable definition: this table states what each one does (`packages/scenarios/src/Scenarios/Presets.purs`, compiled to `presets.json`). "Home price" is the price of the Entity's home market, and every quantity is in Resource units per round.
+Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/scenarios/src/Scenarios/Presets.purs`, compiled to `presets.json`). "Home price" is the price of the Entity's home market, and every quantity is in Resource units per round.
 
 | Preset | Behavior |
 |---|---|
@@ -128,7 +128,7 @@ Every seat has exactly one bound seat Policy. A seat Policy that produces nothin
 
 ## 5. Deterministic Randomness
 
-Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset program declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
+Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset strategy declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
 **The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Adapters.Random.resolveSeed`. The stored spec records the resolved seed, never an absent value. The simulator functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
 
@@ -531,7 +531,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 ## 15. Summary
 
-The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset programs, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
+The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset strategies, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
 
 The development loop is:
 

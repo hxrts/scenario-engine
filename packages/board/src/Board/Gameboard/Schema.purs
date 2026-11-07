@@ -50,7 +50,7 @@ type Gameboard =
   , world :: WorldState -- resources, Markets, facilities, circulation, rules, and every Entity
   , actors :: Map EntityId ActorDefinition
   , schemes :: Array Scheme
-  , policies :: Object Json -- the Policy catalog (declarative programs), decoded and checked by the scenario loader
+  , policies :: Object Json -- the Policy catalog (declarative strategies), decoded and checked by the scenario loader
   , parameters :: Object Q -- named scenario parameters read by Policies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_gameboard.md §4)

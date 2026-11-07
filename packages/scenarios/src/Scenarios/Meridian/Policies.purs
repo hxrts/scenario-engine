@@ -7,13 +7,13 @@ import Prelude (negate, (<>))
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (Built, Keyed, keyed)
-import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, procedureT, program, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transferT, transformT, transformedLastRound)
+import DSL.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, procedureT, strategy, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transferT, transformT, transformedLastRound)
 import Policy.Tags as T
 import Scenarios.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Scenarios.Names as N
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
-policies :: Keyed (Built "program")
+policies :: Keyed (Built "strategy")
 policies = keyed
   [ Tuple N.policyChinaStrategic chinaStrategic
   , Tuple N.policyEuCoordination euCoordination
@@ -27,8 +27,8 @@ policies = keyed
   , Tuple N.policySolidarityPool solidarityPool
   ]
 
-chinaStrategic :: Built "program"
-chinaStrategic = program
+chinaStrategic :: Built "strategy"
+chinaStrategic = strategy
   { rules:
       [ rule [ transformedLastRound { by: N.us, transformation: N.majorMilitaryAction, atLeast: param majorActionThreshold } ]
           [ transformT { transformation: N.defenseProcurementCn, quantity: (lit 4) } ]
@@ -39,8 +39,8 @@ chinaStrategic = program
       ]
   }
 
-euCoordination :: Built "program"
-euCoordination = program
+euCoordination :: Built "strategy"
+euCoordination = strategy
   { rules:
       banded N.energyAtlantic 3 8 4
         <>
@@ -64,8 +64,8 @@ banded m threshold below above =
   , rule [ gt (price m) (lit threshold) ] [ tradeT { market: m, quantity: lit above } ]
   ]
 
-globalSmes :: Built "program"
-globalSmes = program
+globalSmes :: Built "strategy"
+globalSmes = strategy
   { rules:
       [ rule [ le (price N.energyAtlantic) (lit "3.5") ]
           [ tradeT { market: N.energyAtlantic, quantity: (mul (lit 40) (factor N.energy)) } ]
@@ -74,14 +74,14 @@ globalSmes = program
       ]
   }
 
-cnPrivate :: Built "program"
-cnPrivate = program { rules: banded N.energyAsia 3 12 9 }
+cnPrivate :: Built "strategy"
+cnPrivate = strategy { rules: banded N.energyAsia 3 12 9 }
 
-usWorkers :: Built "program"
-usWorkers = program { rules: banded N.energyAtlantic 3 8 6 }
+usWorkers :: Built "strategy"
+usWorkers = strategy { rules: banded N.energyAtlantic 3 8 6 }
 
-worldHouseholds :: Built "program"
-worldHouseholds = program { rules: banded N.energyAsia 3 12 9 }
+worldHouseholds :: Built "strategy"
+worldHouseholds = strategy { rules: banded N.energyAsia 3 12 9 }
 
 -- | The Energy suppliers' offers in one Market, from the Market and the supplier parameters that
 -- | the Market's suffix names (`Parameters.supplierAtlantic` and `supplierAsia`). Below the high
@@ -102,19 +102,19 @@ supplierOffers m names =
   high = ge (price m) (param supplierHighPrice)
   offer quantity = tradeT { market: m, quantity: quantity }
 
-energySuppliers :: Built "program"
-energySuppliers = program
+energySuppliers :: Built "strategy"
+energySuppliers = strategy
   { rules: supplierOffers N.energyAtlantic supplierAtlantic.names <> supplierOffers N.energyAsia supplierAsia.names }
 
-governmentDefault :: Built "program"
-governmentDefault = program {}
+governmentDefault :: Built "strategy"
+governmentDefault = strategy {}
 
 -- | The solidarity pool has no policy: it only gives Energy when the EU's procedure draws on it.
-solidarityPool :: Built "program"
-solidarityPool = program {}
+solidarityPool :: Built "strategy"
+solidarityPool = strategy {}
 
-firmDefault :: Built "program"
-firmDefault = program
+firmDefault :: Built "strategy"
+firmDefault = strategy
   { rules:
       [ rule [ gt (holding N.energy) (lit 30) ]
           [ tradeT { market: T.homeMarket, quantity: (sub (lit 30) (holding N.energy)) } ]

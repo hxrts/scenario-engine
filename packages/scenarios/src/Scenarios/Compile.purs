@@ -36,7 +36,7 @@ compile = do
 outputs :: Array (Tuple String Json)
 outputs =
   map (\(Tuple name j) -> Tuple ("meridian/v0/" <> name) j) Meridian.files
-    <> [ Tuple presetsFile (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
+    <> [ Tuple presetsFile (encodeJson (Presets.presets :: Keyed (Built "strategy"))) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
 

@@ -41,16 +41,16 @@ import Effect (Effect)
 import Policy.InWorld (InWorld, acts, inWorldOf)
 import Effects.Round (runGame)
 import Effects.Signatures (INTERPRET, NARRATE, RECORD, SEAT_INPUT)
-import Handlers.Seats (SeatSource, collectRecords, handleSeats, programs)
+import Handlers.Seats (SeatSource, collectRecords, handleSeats, strategies)
 import Handlers.Sim (runSim)
 import Run as R
 import Type.Row (type (+))
-import Policy.Program (Program)
+import Policy.Strategy (Strategy)
 
 -- | What a run is resolved against: the Gameboard, its default configuration, the presets.
-type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program }
+type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
 
-data SeatPolicy = Preset String | Custom Program
+data SeatPolicy = Preset String | Custom Strategy
 
 -- | Declarative overrides of a baseline (§3.1). Values change within the Gameboard's
 -- | structure; none touches engine code.
@@ -125,7 +125,7 @@ prepare ctx spec from = do
     { manifest: initial.manifest
     , world: w0
     , game: runGame inWorld remaining w0
-    , seats: programs { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
+    , seats: strategies { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
     }
 
 -- | Play a spec to completion with records kept in memory. Pure.

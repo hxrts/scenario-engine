@@ -368,7 +368,7 @@ The owner is a member of `GLOBAL_SMES`. Their holdings and direct transactions a
 
 ## 11. Policy Catalog
 
-Policies are declarative programs ([Type System §4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record.
+Policies are declarative strategies ([Type System §4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record.
 
 ### 11.1 China NPC Policy: `china-strategic-v0`
 
@@ -519,7 +519,7 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 
 ### 14.1 Seat assignments
 
-Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human. In simulation it may be an AI agent or a preset program. Rebinding a seat requires no Gameboard change.
+Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human. In simulation it may be an AI agent or a preset strategy. Rebinding a seat requires no Gameboard change.
 
 China is Actor `CN` with controller `NPC china-strategic-v0`. It has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0` with Germany among its members and both collective procedures active. No human controls it. The `sme-energy-sample` Representation is active.
 

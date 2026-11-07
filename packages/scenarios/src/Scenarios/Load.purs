@@ -39,7 +39,7 @@ import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Program (Program, decodeProgram, programRefs)
+import Policy.Strategy (Strategy, decodeStrategy, strategyRefs)
 import Policy.Tags as T
 import Scenarios.Names (instantiationFile, presetsFile)
 import Scenarios.Tree (Scenario, Section)
@@ -67,7 +67,7 @@ instance Show LoadError where
     Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref
 
 -- | A scenario with the seat presets: everything a simulation context needs.
-loadContext :: Scenario -> Either String { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Program }
+loadContext :: Scenario -> Either String { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
 loadContext s = do
   loaded <- load s
   presets <- lmap show (presetsOf s.presets)
@@ -75,24 +75,24 @@ loadContext s = do
 
 -- | The seat-policy presets (docs/06_simulator.md §4.2) from the presets file's text. `load` also
 -- | checks them against the scenario's Gameboard; this reads them alone.
-loadPresets :: String -> Either String (Object Program)
+loadPresets :: String -> Either String (Object Strategy)
 loadPresets t = jsonParser t >>= decodePresets
 
-decodePresets :: Json -> Either String (Object Program)
+decodePresets :: Json -> Either String (Object Strategy)
 decodePresets j = lmap show (presetsFrom j)
 
-presetsFrom :: Json -> Either LoadError (Object Program)
+presetsFrom :: Json -> Either LoadError (Object Strategy)
 presetsFrom j = do
   o <- note (NotAnObject presetsFile) (toObject j)
-  lmap (Undecodable presetsFile) (traverseWithIndex (const decodeProgram) o)
+  lmap (Undecodable presetsFile) (traverseWithIndex (const decodeStrategy) o)
 
 -- | The presets file's section, parsed and decoded.
-presetsOf :: Section -> Either LoadError (Object Program)
+presetsOf :: Section -> Either LoadError (Object Strategy)
 presetsOf p = lmap (Unreadable p.path) (jsonParser p.text) >>= presetsFrom
 
 -- | Every preset's markets, resources, transformations, entities and parameters resolve in
 -- | the Gameboard (`$home` and `self` excepted, as the interpreter resolves them).
-checkPresets :: Gameboard -> Object Program -> Either LoadError Unit
+checkPresets :: Gameboard -> Object Strategy -> Either LoadError Unit
 checkPresets gb presets = traverse_ (\(Tuple name p) -> checkRefs ("preset " <> name) gb p) (Object.toUnfoldable presets :: Array _)
 
 -- | A fixture's file text, decoded as an engine-level fixture named `name`.
@@ -152,16 +152,16 @@ checkPolicies :: Gameboard -> Either LoadError Unit
 checkPolicies gb = traverse_ check (Object.toUnfoldable gb.policies :: Array _)
   where
   check (Tuple name j) = do
-    p <- lmap (Undecodable ("policy " <> name)) (decodeProgram j)
+    p <- lmap (Undecodable ("policy " <> name)) (decodeStrategy j)
     checkRefs ("policy " <> name) gb p
 
--- | The first name a Program uses that the Gameboard lacks. `$home` is the Entity's own
+-- | The first name a Strategy uses that the Gameboard lacks. `$home` is the Entity's own
 -- | home market, resolved by the interpreter, so it is not checked here.
-checkRefs :: String -> Gameboard -> Program -> Either LoadError Unit
+checkRefs :: String -> Gameboard -> Strategy -> Either LoadError Unit
 checkRefs what gb p =
   maybe (Right unit) (\(Tuple kind ref) -> Left (Unresolved what kind ref)) (head missing)
   where
-  r = programRefs p
+  r = strategyRefs p
   w = gb.world
   missing = concat'
     [ tag EntityRef (filter (\e -> not (Map.member (Id e) w.entities)) r.entities)

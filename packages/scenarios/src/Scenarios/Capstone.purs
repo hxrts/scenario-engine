@@ -1,8 +1,8 @@
 -- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Meridian, eight
--- | rounds, with a seat program for each seat that exercises the features the audit found
+-- | rounds, with a seat strategy for each seat that exercises the features the audit found
 -- | untested together. `just scenarios` compiles it to `packages/scenarios/capstone/run.json`,
 -- | which the simulator decodes through the normal Policy and Board paths. The world and the
--- | Entity Policies are the shipped ones; only the seat programs and the expectations are here.
+-- | Entity Policies are the shipped ones; only the seat strategies and the expectations are here.
 module Scenarios.Capstone (file, rounds, playerSeed, JointLine, jointLines, jointLineFor) where
 
 import Prelude ((==), map, ($), (<<<))
@@ -16,7 +16,7 @@ import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import DSL.Base (Built, Keyed, (:=), keyed, q)
-import DSL.Decision (deal, enactAccessBanT, enactWithholdingT, eq, ge, gt, lit, price, program, repealT, round, rule, signAll, signFacility, signIf, signProcedures, tradeT, transformT)
+import DSL.Decision (deal, enactAccessBanT, enactWithholdingT, eq, ge, gt, lit, price, strategy, repealT, round, rule, signAll, signFacility, signIf, signProcedures, tradeT, transformT)
 import DSL.Fixture (expect, procedureOutcome, refAt)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
@@ -31,8 +31,8 @@ playerSeed = 7
 -- | round 6. Its first Proposal in round 2 is the ban, so the Rule's id is `r2/US/0/rule-0`.
 -- | Whenever the Atlantic price is above 3 it reserves 60 Mil for a deployment and orders a
 -- | 40-unit major action (the shipped Deployer clause).
-us :: Built "program"
-us = program
+us :: Built "strategy"
+us = strategy
   { rules:
       [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
@@ -44,8 +44,8 @@ us = program
   }
 
 -- | The US without the deployment: the counterfactual's US seat keeps its ban and repeal only.
-usWithoutDeployment :: Built "program"
-usWithoutDeployment = program
+usWithoutDeployment :: Built "strategy"
+usWithoutDeployment = strategy
   { rules:
       [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
@@ -55,14 +55,14 @@ usWithoutDeployment = program
 -- | Germany signs the EU's solidarity Proposal from round 5 only. The EU's own policy proposes that
 -- | procedure when the Atlantic price is above 3: round 4 starts above 3, Germany does not sign,
 -- | and the procedure lapses; round 5 starts above 3 again, Germany signs, and it executes.
-de :: Built "program"
-de = program { sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "eu-solidarity" ]), signProcedures [ "eu-trade" ] ] }
+de :: Built "strategy"
+de = strategy { sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "eu-solidarity" ]), signProcedures [ "eu-trade" ] ] }
 
 -- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then
 -- | (its requirement takes 8 a round), so the deal is funded.
-jp :: Built "program"
-jp = program
+jp :: Built "strategy"
+jp = strategy
   { rules:
       [ rule [ eq round (lit 3) ]
           [ deal { signers: [ N.jp, N.india ], transfers: [ { from: "self", to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
@@ -72,8 +72,8 @@ jp = program
 -- | Enco ships Energy into India across regions in rounds 4 and 7: a transport order (its own
 -- | energy-shipping facility, which SHIP signs) and a deal that India signs. The US ban on
 -- | shipments into India blocks round 4; the repeal in round 6 lets round 7 through.
-enco :: Built "program"
-enco = program
+enco :: Built "strategy"
+enco = strategy
   { rules:
       [ rule [ eq round (lit 4) ] (shipment)
       , rule [ eq round (lit 7) ] (shipment)
@@ -91,34 +91,34 @@ enco = program
 -- | SME buys 4 Energy in the Atlantic market every round. Its orders are the observation its
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
-sme :: Built "program"
-sme = program { rules: [ rule [] [ tradeT { market: N.energyAtlantic, quantity: lit 4 } ] ] }
+sme :: Built "strategy"
+sme = strategy { rules: [ rule [] [ tradeT { market: N.energyAtlantic, quantity: lit 4 } ] ] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
-shipping :: Built "program"
-shipping = program { sign: [ signFacility N.energyShipping ] }
+shipping :: Built "strategy"
+shipping = strategy { sign: [ signFacility N.energyShipping ] }
 
 -- | India signs every Proposal addressed to it.
-india :: Built "program"
-india = program { sign: [ signAll ] }
+india :: Built "strategy"
+india = strategy { sign: [ signAll ] }
 
 -- | Chip owner: withholds 5 units of semiconductor capacity from round 4, and repeals the
 -- | withholding in round 6 (its first Proposal in round 4, `r4/CHIP/0/rule-0`).
-chip :: Built "program"
-chip = program
+chip :: Built "strategy"
+chip = strategy
   { rules:
       [ rule [ eq round (lit 4) ] [ enactWithholdingT { capacity: N.semiconductors, units: lit 5 } ]
       , rule [ eq round (lit 6) ] [ repealT { rule: "r4/CHIP/0/rule-0" } ]
       ]
   }
 
-passive :: Built "program"
-passive = program {}
+passive :: Built "strategy"
+passive = strategy {}
 
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
-seats :: Built "program" -> Keyed (Built "program")
-seats usProgram = keyed
-  [ Tuple N.us usProgram
+seats :: Built "strategy" -> Keyed (Built "strategy")
+seats usStrategy = keyed
+  [ Tuple N.us usStrategy
   , Tuple N.de de
   , Tuple N.india india
   , Tuple N.jp jp
@@ -136,7 +136,7 @@ seats usProgram = keyed
   ]
 
 -- | Round expectations, checked by the simulator with the fixture checker. The values are the
--- | capstone run's own (the seat programs above on the shipped economics): each one is
+-- | capstone run's own (the seat strategies above on the shipped economics): each one is
 -- | explained by its mechanism in the comment, and the simulator fails if any drifts.
 expectations :: Array Json
 expectations =
@@ -183,7 +183,7 @@ baseObjectives = map (\e -> outcome e "notMet") allActors
 counterfactualObjectives :: Array Json
 counterfactualObjectives = map (\e -> outcome e (if e == N.us then "met" else "notMet")) allActors
 
--- | The run file: the seat programs, the counterfactual's replacement seats, the expectations,
+-- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
 -- | and every objective's expected outcome in each case.
 file :: Json
 file = encodeJson

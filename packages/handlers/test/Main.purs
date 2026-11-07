@@ -35,7 +35,7 @@ import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, metricsVersion, recorder)
-import Policy.Program (Program, decodeProgram)
+import Policy.Strategy (Strategy, decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile, readScenario)
 import Scenarios.Load (load, loadPresets)
@@ -56,16 +56,16 @@ setup = do
       Left es, _ -> throwError (error (show es))
       _, Left e -> throwError (error (printJsonDecodeError e))
 
-program :: String -> Program
-program text = case readJsonWith decodeProgram text of
+strategy :: String -> Strategy
+strategy text = case readJsonWith decodeStrategy text of
   Right p -> p
   Left _ -> { rules: [], sign: [] }
 
--- | Play `n` rounds with the given seat programs; every round's invariants must hold.
-play :: Game -> Int -> Map.Map EntityId Program -> Aff (Array RoundResult)
-play g n programs = do
+-- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
+play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
+play g n strategies = do
   let
-    out = runTest { programs, params: g.params, home: homeMarket g.world, playerSeed: Seed 1 } (runGame g.inWorld n g.world)
+    out = runTest { strategies, params: g.params, home: homeMarket g.world, playerSeed: Seed 1 } (runGame g.inWorld n g.world)
   case out.value of
     Left e -> fail (show e)
     Right _ -> pure unit
@@ -121,7 +121,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- setup
       let
         propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show i <> "\"}}"
-        eleven = program ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
+        eleven = strategy ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
       records <- play g 1 (Map.singleton (Id "US") eleven)
       case runReplay 1 (map _.record records) (runGame g.inWorld 1 g.world) of
         Left e -> fail e
@@ -144,7 +144,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
       g <- setup
-      records <- play g 3 (Map.singleton (Id "US") (program """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
+      records <- play g 3 (Map.singleton (Id "US") (strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
       let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.entities >>= \x -> Map.lookup (Id e) x.accounts)
       case index records 0, index records 1, index records 2 of
         Just r1, Just r2, Just r3 -> do
@@ -171,12 +171,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         g = g0
           { world = g0.world { markets = Map.update (\m -> Just m { position = Q.fromInt 60 }) (Id "energy-atlantic") g0.world.markets }
-          , inWorld = g0.inWorld { programs = Map.insert (Id "china-strategic-v0") (program """{"sign":[{"all":null}]}""") g0.inWorld.programs }
+          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (strategy """{"sign":[{"all":null}]}""") g0.inWorld.strategies }
           }
       records <- play g 1
         ( Map.fromFoldable
-            [ Tuple (Id "DE") (program """{"sign":[{"procedures":["eu-solidarity"]}]}""")
-            , Tuple (Id "SA") (program """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
+            [ Tuple (Id "DE") (strategy """{"sign":[{"procedures":["eu-solidarity"]}]}""")
+            , Tuple (Id "SA") (strategy """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
             ]
         )
       let events = concatMap (_.record.events) records

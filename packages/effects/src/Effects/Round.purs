@@ -62,10 +62,10 @@ runRound inWorld w0 = do
   pure result
   where
   proposeFor e v = case policyOf inWorld e of
-    Just program -> pure (Policy.propose program (env e v))
+    Just strategy -> pure (Policy.propose strategy (env e v))
     Nothing -> lift _seatInput (Propose e.id v identity)
   signFor e v = case policyOf inWorld e of
-    Just program -> pure (Policy.sign program (env e v))
+    Just strategy -> pure (Policy.sign strategy (env e v))
     Nothing -> lift _seatInput (Sign e.id v identity)
 
   env :: Entity -> View -> Env

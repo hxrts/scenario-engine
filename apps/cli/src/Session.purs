@@ -40,7 +40,7 @@ import Effects.Store (createRun, failRun, finish)
 import Foreign.Object as Object
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Llm (agents, interpreter, narrator)
-import Handlers.Seats (programs)
+import Handlers.Seats (strategies)
 import Handlers.Store (recorder, runStore)
 import Node.Process (exit')
 import Scenarios.Load (loadContext)
@@ -87,7 +87,7 @@ session o = map (_ >>= loadContext) (readScenario fileOps (o.scenario <> "/v0"))
             liftEffect (report humans r front)
             pure front
         , agents: agents backend briefing
-        , programs: programs { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: seed }
+        , strategies: strategies { bound: Map.empty, params: gameboard.parameters, home: homeMarket w0, playerSeed: seed }
         , record: \r transcripts -> liftEffect (save r transcripts)
         }
         (runGame inWorld o.rounds w0)

@@ -29,10 +29,10 @@ import Effect.Class (liftEffect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
-import Policy.Program (Program, SignRule(..), decodeProgram, programRefs)
+import Policy.Strategy (Strategy, SignRule(..), decodeStrategy, strategyRefs)
 import DSL.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, holdingOf)
 import DSL.World (atLeast, own)
-import DSL.Decision (deal, lit, max', param, program, rule, signProcedures, tradeT, transformT)
+import DSL.Decision (deal, lit, max', param, strategy, rule, signProcedures, tradeT, transformT)
 import DSL.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readScenario)
@@ -90,7 +90,7 @@ withSection :: String -> Json -> Array { name :: String, json :: Json }
 withSection name json = map (\s -> if s.name == name then s { json = json } else s) sections
 
 -- | The shipped seat presets, decoded.
-shippedPresets :: Either String (Object Program)
+shippedPresets :: Either String (Object Strategy)
 shippedPresets = decodePresets (encodeJson Presets.presets)
 
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
@@ -110,10 +110,10 @@ envWith :: View -> Q -> Env
 envWith v u = { view: v, params: Object.empty, home: Just (Id "energy-asia"), random: const u }
 
 -- | The Policy named in the catalog, decoded.
-policyNamed :: Gameboard -> String -> Aff Program
+policyNamed :: Gameboard -> String -> Aff Strategy
 policyNamed gb name = case Object.lookup name gb.policies of
   Nothing -> failWith ("no policy named " <> name)
-  Just j -> case decodeProgram j of
+  Just j -> case decodeStrategy j of
     Left e -> failWith (printJsonDecodeError e)
     Right p -> pure p
 
@@ -155,13 +155,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   golden
 
   describe "Scenario DSL builders" do
-    it "max' and signProcedures compile to a program the decoder accepts" do
+    it "max' and signProcedures compile to a strategy the decoder accepts" do
       let
-        p = program
+        p = strategy
           { rules: [ rule [] [ transformT { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) } ] ]
           , sign: [ signProcedures [ "EU" ] ]
           }
-      case decodeProgram (builtJson p) of
+      case decodeStrategy (builtJson p) of
         Left e -> fail (show e)
         Right prog -> do
           length prog.rules `shouldEqual` 1
@@ -194,12 +194,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Just s -> isRight (BD.capability s) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
-        p = program
+        p = strategy
           { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ] }
-      case decodeProgram (builtJson p) of
+      case decodeStrategy (builtJson p) of
         Left e -> fail (show e)
         Right prog -> do
-          let refs = programRefs prog
+          let refs = strategyRefs prog
           refs.resources `shouldEqual` [ "E" ]
           refs.entities `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
@@ -453,20 +453,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (NotAnObject "scenario.json")
     it "a policy that names an unknown market fails the load" do
       let
-        bad = program { rules: [ rule [] [ tradeT { market: "energy-nowhere", quantity: lit 1 } ] ] }
+        bad = strategy { rules: [ rule [] [ tradeT { market: "energy-nowhere", quantity: lit 1 } ] ] }
         catalog = policies <> keyed [ Tuple "bad-v0" bad ]
       outcome (fromFiles (withSection "policies.json" (encodeJson { policies: catalog })))
         `shouldEqual` Left (Unresolved "policy bad-v0" MarketRef "energy-nowhere")
     it "a policy that reads an unknown parameter fails the load" do
       let
-        bad = program { rules: [ rule [] [ tradeT { market: "energy-atlantic", quantity: param "no-such-parameter" } ] ] }
+        bad = strategy { rules: [ rule [] [ tradeT { market: "energy-atlantic", quantity: param "no-such-parameter" } ] ] }
         catalog = policies <> keyed [ Tuple "bad-v0" bad ]
       outcome (fromFiles (withSection "policies.json" (encodeJson { policies: catalog })))
         `shouldEqual` Left (Unresolved "policy bad-v0" ParameterRef "no-such-parameter")
     it "a preset that names an unknown transformation fails the check" do
       { gameboard } <- loaded
-      let bad = program { rules: [ rule [] [ transformT { transformation: "no-such-facility", quantity: lit 1 } ] ] }
-      case decodeProgram (builtJson bad) of
+      let bad = strategy { rules: [ rule [] [ transformT { transformation: "no-such-facility", quantity: lit 1 } ] ] }
+      case decodeStrategy (builtJson bad) of
         Left e -> fail (show e)
         Right p -> checkPresets gameboard (Object.singleton "Bad" p)
           `shouldEqual` Left (Unresolved "preset Bad" TransformationRef "no-such-facility")

@@ -16,7 +16,7 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| DSL record builders, `:=`, `q` quantities | `packages/scenarios/test/Main.purs` :: "Scenario DSL builders" | covered | yes (every seat program and expectation) |
+| DSL record builders, `:=`, `q` quantities | `packages/scenarios/test/Main.purs` :: "Scenario DSL builders" | covered | yes (every seat strategy and expectation) |
 | DSL withholding and access-ban enactments decode | `packages/scenarios/test/Main.purs` :: "a withholding rule and an enactment of one decode…" | covered | yes |
 | DSL capability tags match the decoder | `packages/scenarios/test/Main.purs` :: "every capability the DSL writes is a tag the Gameboard decoder reads" | covered | yes |
 | DSL `deal` decodes, with transforms | `packages/scenarios/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
@@ -24,7 +24,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Gameboard validation (each `ValidationError`) | `packages/scenarios/test/Main.purs` :: "Gameboard validation…" | covered | n/a |
 | Board decoding of run file, expectations, rules, fixtures | `packages/simulator/src/Simulator/Capstone.purs` (`decodeCapstone`). `packages/board/test/Main.purs` | covered | yes |
 
-## Policies and programs
+## Policies and strategies
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
@@ -63,7 +63,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Major shock flips preset behaviour. Disruption offers never below zero | `packages/simulator/test/Test/Simulator/Shock.purs` :: "Major shock (docs/05 §13.6)" | covered | no |
 | Solidarity pool: Germany's transfer in, and the pool drawn first by the EU's procedure | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "B1" and "B2-pool" (Fixture B) | covered | no (pool stays empty in the capstone) |
 | Tariff enactment and in-force condition | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
-| Access ban enacted by a seat's program | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
+| Access ban enacted by a seat's strategy | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
 | Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
 | Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
 | Withholding changes capacity | decode only (`packages/scenarios/test/Main.purs`) | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |

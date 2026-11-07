@@ -15,7 +15,7 @@ import Effect (Effect)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.Interpret (Draft, Env, propose, sign)
-import Policy.Program (Program, SignRule(..), decodeProgram, programParams, programRefs)
+import Policy.Strategy (Strategy, SignRule(..), decodeStrategy, strategyParams, strategyRefs)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -23,17 +23,17 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- Fixtures ----------------------------------------------------------------------------
 
--- | Decode a Program from JSON text. Quantities are strings, as the decoders read them.
-decodeText :: String -> Either JsonDecodeError Program
+-- | Decode a Strategy from JSON text. Quantities are strings, as the decoders read them.
+decodeText :: String -> Either JsonDecodeError Strategy
 decodeText text = case jsonParser text of
   Left e -> Left (TypeMismatch e)
-  Right j -> decodeProgram j
+  Right j -> decodeStrategy j
 
--- | Decode, crashing the test on any error: a program that fails to decode must never yield
--- | an empty program that passes vacuously.
-program :: String -> Program
-program text = case decodeText text of
-  Left e -> unsafeCrashWith ("program does not decode: " <> show e)
+-- | Decode, crashing the test on any error: a strategy that fails to decode must never yield
+-- | an empty strategy that passes vacuously.
+strategy :: String -> Strategy
+strategy text = case decodeText text of
+  Left e -> unsafeCrashWith ("strategy does not decode: " <> show e)
   Right p -> p
 
 -- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
@@ -62,15 +62,15 @@ trade m quantity = Trade { market: Id m, quantity: fromMaybe Q.zero (Q.parse qua
 intentsOf :: Array Draft -> Array (Array Intent)
 intentsOf = map _.intents
 
--- | The Drafts a text Program proposes in an environment.
+-- | The Drafts a text Strategy proposes in an environment.
 drafts :: String -> Env -> Array Draft
-drafts text e = propose (program text) e
+drafts text e = propose (strategy text) e
 
 -- | What a decode produced, for a failure message.
-outcome :: Either JsonDecodeError Program -> String
+outcome :: Either JsonDecodeError Strategy -> String
 outcome = case _ of
   Left e -> show e
-  Right _ -> "a decoded program"
+  Right _ -> "a decoded strategy"
 
 -- | Two Choose blocks, each with two options of different size.
 chooseTwice :: String
@@ -85,8 +85,8 @@ chooseTwice =
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Choose draws" do
-    it "two Choose blocks in one program draw independently" do
-      intentsOf (propose (program chooseTwice) env { random = highDraws })
+    it "two Choose blocks in one strategy draw independently" do
+      intentsOf (propose (strategy chooseTwice) env { random = highDraws })
         `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
     it "a Choose in a clause whose condition fails draws nothing" do
       let
@@ -154,7 +154,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "restrictedLastRound holds only for a restriction enacted at this round's boundary" do
       let
         text = """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "EU" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires events = intentsOf (propose (program text) env { view = seat { events = events } })
+        fires events = intentsOf (propose (strategy text) env { view = seat { events = events } })
         fired = [ Enacted { round: 3, id: Id "r", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ]
         stale = [ Enacted { round: 2, id: Id "r", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ]
       fires fired `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
@@ -173,7 +173,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ Transformed { round: 2, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []
-      programParams (program text) `shouldEqual` [ "threshold" ]
+      strategyParams (strategy text) `shouldEqual` [ "threshold" ]
     it "a Factor with no stored factor is 1" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" env)
         `shouldEqual` [ [ trade "energy-atlantic" "5" ] ]
@@ -185,8 +185,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a Param the scenario does not define evaluates to zero, so an order of that size is dropped" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "param": "missing" } } } ] } ] }""" env)
         `shouldEqual` []
-    it "programParams lists every scenario parameter a Program reads" do
-      programParams (program """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
+    it "strategyParams lists every scenario parameter a Strategy reads" do
+      strategyParams (strategy """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
         `shouldEqual` [ "limit", "size" ]
 
   describe "Signing" do
@@ -221,13 +221,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "signIf signs a Proposal only while its conditions hold" do
       let
         procP = { id: proposalId 3 (Id "A") 0, author: Id "A", intents: [], signers: [], procedure: Just (Id "eu-solidarity") }
-        signedIn r = sign (program """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
+        signedIn r = sign (strategy """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
       signedIn 3 `shouldEqual` []
       signedIn 4 `shouldEqual` [ procP.id ]
 
   describe "Decoding" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
-      programRefs (program """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
+      strategyRefs (strategy """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
         { entities: [ "bogus" ], markets: [], resources: [ "E" ], transformations: [], parameters: [] }
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
@@ -246,6 +246,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeText """{ "rules": [ { "when": [ { "bogus": [] } ], "propose": [] } ] }""" of
         Left (Named "condition" (UnexpectedValue _)) -> pure unit
         other -> fail ("expected a condition error, got " <> outcome other)
-    it "a well-formed program decodes" do
+    it "a well-formed strategy decodes" do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
         `shouldEqual` false

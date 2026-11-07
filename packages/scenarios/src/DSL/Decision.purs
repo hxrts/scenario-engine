@@ -1,5 +1,5 @@
 -- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions,
--- | Proposal templates, sign rules and clauses from which a Policy's Program is built. The
+-- | Proposal templates, sign rules and clauses from which a Policy's Strategy is built. The
 -- | builders emit the JSON that the `policy` interpreter reads.
 module DSL.Decision
   ( Expr
@@ -42,7 +42,7 @@ module DSL.Decision
   , repealT
   , Clause
   , rule
-  , program
+  , strategy
   ) where
 
 import Prelude
@@ -264,7 +264,7 @@ signAll = SignRule (tag T.allTag jsonNull)
 signIf :: Array Cond -> SignRule -> SignRule
 signIf when inner = SignRule (tag T.signIfTag (encodeJson { when, rule: inner }))
 
--- | One clause of a Program: when every condition holds, propose the templates.
+-- | One clause of a Strategy: when every condition holds, propose the templates.
 newtype Clause = Clause Json
 
 instance EncodeJson Clause where
@@ -274,10 +274,10 @@ instance EncodeJson Clause where
 rule :: Array Cond -> Array Template -> Clause
 rule when propose = Clause (encodeJson { when, propose })
 
-program
+strategy
   :: forall r rest
    . Union r rest (rules :: Array Clause, sign :: Array SignRule)
   => EncodeJson (Record r)
   => Record r
-  -> Built "program"
-program = build
+  -> Built "strategy"
+strategy = build

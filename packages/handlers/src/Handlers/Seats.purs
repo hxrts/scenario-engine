@@ -1,6 +1,6 @@
 -- | Seat sources and the SEAT_INPUT handler they share. A source answers a seat's Propose
--- | and Sign steps: bound declarative programs (Test, Sim) or recorded input (Replay).
-module Handlers.Seats (SeatSource, programs, replay, handleSeats, collectRecords) where
+-- | and Sign steps: bound declarative strategies (Test, Sim) or recorded input (Replay).
+module Handlers.Seats (SeatSource, strategies, replay, handleSeats, collectRecords) where
 
 import Prelude
 
@@ -18,7 +18,7 @@ import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), REC
 import Foreign.Object (Object)
 import Policy.Interpret (Draft, envFor)
 import Policy.Interpret as Policy
-import Policy.Program (Program)
+import Policy.Strategy (Strategy)
 import Run (Run, case_, interpret, on, peel, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -28,9 +28,9 @@ type SeatSource =
   , sign :: EntityId -> View -> Array ProposalId
   }
 
--- | Seats bound to declarative programs; their randomness draws from the player seed.
-programs :: { bound :: Map EntityId Program, params :: Object Q, home :: EntityId -> Maybe MarketId, playerSeed :: Seed } -> SeatSource
-programs b =
+-- | Seats bound to declarative strategies; their randomness draws from the player seed.
+strategies :: { bound :: Map EntityId Strategy, params :: Object Q, home :: EntityId -> Maybe MarketId, playerSeed :: Seed } -> SeatSource
+strategies b =
   { propose: \e v -> maybe [] (\p -> Policy.propose p (env e v)) (Map.lookup e b.bound)
   , sign: \e v -> maybe [] (\p -> Policy.sign p (env e v)) (Map.lookup e b.bound)
   }

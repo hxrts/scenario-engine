@@ -1,6 +1,6 @@
 -- | The decision language's JSON vocabulary (docs/02_type_system.md §4.4): the variant tags of
 -- | expressions, conditions, templates and sign rules, and the two sentinel names. The DSL
--- | builders (packages/scenarios, DSL.Decision) emit these constants and `Policy.Program` decodes
+-- | builders (packages/scenarios, DSL.Decision) emit these constants and `Policy.Strategy` decodes
 -- | them, so the two sides cannot drift apart.
 module Policy.Tags
   ( -- expressions

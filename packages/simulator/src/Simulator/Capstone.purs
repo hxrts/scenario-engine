@@ -1,5 +1,5 @@
 -- | The capstone run file (`packages/scenarios/capstone/run.json`, authored in
--- | `Scenarios.Capstone`): its seat programs, counterfactual seats, round expectations and
+-- | `Scenarios.Capstone`): its seat strategies, counterfactual seats, round expectations and
 -- | objective outcomes, decoded through the Policy and Board decoders. No Proposal or override
 -- | is built here.
 module Simulator.Capstone
@@ -24,7 +24,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Program (Program, decodeProgram)
+import Policy.Strategy (Strategy, decodeStrategy)
 
 type RoundExpect = { round :: Int, expect :: Expect }
 
@@ -34,8 +34,8 @@ type ObjectiveExpect = { entity :: EntityId, outcome :: String }
 type Capstone =
   { rounds :: Int
   , playerSeed :: Seed
-  , seats :: Map EntityId Program
-  , counterfactual :: Map EntityId Program -- replaces the named seats in the counterfactual run
+  , seats :: Map EntityId Strategy
+  , counterfactual :: Map EntityId Strategy -- replaces the named seats in the counterfactual run
   , expectations :: Array RoundExpect
   , objectives :: Array ObjectiveExpect
   , counterfactualObjectives :: Array ObjectiveExpect
@@ -47,8 +47,8 @@ decodeCapstone j = do
   o <- note "capstone: the run file must be an object" (toObject j)
   rounds <- field o "rounds" int
   playerSeed <- Seed <$> field o "playerSeed" int
-  seats <- field o "seats" programs
-  counterfactual <- field o "counterfactual" programs
+  seats <- field o "seats" strategies
+  counterfactual <- field o "counterfactual" strategies
   expectations <- field o "expectations" (\x -> arrayOf roundExpect x)
   objectives <- field o "objectives" (\x -> arrayOf objective x)
   counterfactualObjectives <- field o "counterfactualObjectives" (\x -> arrayOf objective x)
@@ -62,11 +62,11 @@ field o k decode = case Object.lookup k o of
 int :: Json -> Either String Int
 int j = lmapJson (decodeJson j)
 
-programs :: Json -> Either String (Map EntityId Program)
-programs j = do
-  o <- note "capstone: seats must be an object of programs" (toObject j)
+strategies :: Json -> Either String (Map EntityId Strategy)
+strategies j = do
+  o <- note "capstone: seats must be an object of strategies" (toObject j)
   let entries = Object.toUnfoldable o :: Array (Tuple String Json)
-  kvs <- traverse (\(Tuple e p) -> Tuple (Id e) <$> lmapJson (decodeProgram p)) entries
+  kvs <- traverse (\(Tuple e p) -> Tuple (Id e) <$> lmapJson (decodeStrategy p)) entries
   pure (Map.fromFoldable kvs)
 
 roundExpect :: Json -> Either String RoundExpect

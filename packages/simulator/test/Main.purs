@@ -29,7 +29,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Handlers.Replay (runReplay)
 import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, resume, simulate)
-import Policy.Program (Program, decodeProgram)
+import Policy.Strategy (Strategy, decodeStrategy)
 import Data.Argonaut.Parser (jsonParser)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
@@ -56,9 +56,9 @@ context = do
 everySeat :: String -> SimulationSpec
 everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
 
-program :: String -> Program
-program text = case jsonParser text of
-  Right j -> case decodeProgram j of
+strategy :: String -> Strategy
+strategy text = case jsonParser text of
+  Right j -> case decodeStrategy j of
     Right p -> p
     Left _ -> { rules: [], sign: [] }
   Left _ -> { rules: [], sign: [] }
@@ -231,7 +231,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
       ctx <- context
       let
-        labor = program """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
+        labor = strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
       r <- run ctx { seats: Map.singleton (Id "LABOR") (Custom labor), playerSeed: Seed 1, overrides: [], rounds: Nothing }
       valid (initialOf r) r
       let
@@ -262,7 +262,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ [ "G1", "G2", "G3", "G3-ban", "G5", "G5-unsigned" ] fixture
 
     it "11 Trade restriction: the DSL-authored US ban, the EU tariff, and a banned shipment" do
-      -- the ban, the tariff and the shipment are the capstone's seat programs (DSL data), not Proposals built here
+      -- the ban, the tariff and the shipment are the capstone's seat strategies (DSL data), not Proposals built here
       ctx <- context
       cap <- capstone
       r <- case simulate ctx { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just 4 } of

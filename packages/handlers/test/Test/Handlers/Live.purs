@@ -29,7 +29,7 @@ import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
 import Handlers.Llm.Wire (ProposedDeal, interpretPrompt, narratePrompt)
 import Handlers.Live (Seat(..), runLive)
 import Handlers.Replay (runReplay)
-import Handlers.Seats (programs)
+import Handlers.Seats (strategies)
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.InWorld (InWorld, inWorldOf)
 import Scenarios.Load (load)
@@ -92,7 +92,7 @@ liveWith g n seat input backend = do
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
     , agents: agents backend (const "Secure energy at a fair price.")
-    , programs: programs { bound: Map.empty, params: g.params, home: const (Just (Id "energy-atlantic")), playerSeed: Seed 1 }
+    , strategies: strategies { bound: Map.empty, params: g.params, home: const (Just (Id "energy-atlantic")), playerSeed: Seed 1 }
     , narrate: \failed r -> do
         t <- narrator backend failed (Narrate r identity)
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)
@@ -122,7 +122,7 @@ spec = do
     it "a scripted live session equals replaying its recorded Proposals and signatures" do
       g <- setup
       backend <- withAnswers model
-      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Program) scripted backend
+      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Strategy) scripted backend
       length out.records `shouldEqual` 3
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
       out.narration `shouldEqual` [ "Markets moved.", "Markets moved.", "Markets moved." ]
@@ -131,7 +131,7 @@ spec = do
     it "an undecodable joint reply submits nothing, tells the speaker, and the run completes" do
       g <- setup
       backend <- withAnswers garbled
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Program) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
       length out.records `shouldEqual` 1
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` false
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
@@ -140,7 +140,7 @@ spec = do
       g <- setup
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Program) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
       length out.records `shouldEqual` 1
       map listing out.records `shouldEqual` out.narration
       map (contains (Pattern "Round 1:")) out.narration `shouldEqual` [ true ]
@@ -152,7 +152,7 @@ spec = do
       let
         bad = tradeTenEnergy { intents = [ Trade { market: Id "no-such-market", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
       backend <- withAnswers (jointAnswers [ tradeTenEnergy, bad ])
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Program) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
       length out.records `shouldEqual` 1
       let
         events = bind out.records (_.record.events)

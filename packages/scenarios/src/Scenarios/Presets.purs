@@ -7,11 +7,11 @@ import Scenarios.Names as N
 
 import Data.Tuple (Tuple(..))
 import DSL.Base (Keyed, keyed, Built)
-import DSL.Decision (Clause, Expr, choose, deal, gt, holding, le, lit, noAction, price, program, rule, signAll, tradeT, transformT)
+import DSL.Decision (Clause, Expr, choose, deal, gt, holding, le, lit, noAction, price, strategy, rule, signAll, tradeT, transformT)
 import Policy.Tags as T
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2).
-presets :: Keyed (Built "program")
+presets :: Keyed (Built "strategy")
 presets = keyed
   [ Tuple "Passive" passive
   , Tuple "Conservative" conservative
@@ -35,33 +35,33 @@ buyBelow threshold quantity limit = rule [ le (price T.homeMarket) threshold ] [
 sellAbove :: Expr -> Expr -> Expr -> Clause
 sellAbove threshold quantity limit = rule [ gt (price T.homeMarket) threshold ] [ tradeT { market: T.homeMarket, quantity, limit } ]
 
-passive :: Built "program"
-passive = program {}
+passive :: Built "strategy"
+passive = strategy {}
 
-conservative :: Built "program"
-conservative = program
+conservative :: Built "strategy"
+conservative = strategy
   { rules:
       [ rule [ gt (lit 30) (holding N.energy), le (price T.homeMarket) (lit "2.5") ]
           [ tradeT { market: T.homeMarket, quantity: (lit 5), limit: (lit "2.5") } ]
       ]
   }
 
-aggressive :: Built "program"
-aggressive = program
+aggressive :: Built "strategy"
+aggressive = strategy
   { rules:
       [ rule []
           [ transformT { transformation: N.defenseProcurement, quantity: (lit 4) } ]
       ]
   }
 
-accumulator :: Built "program"
-accumulator = program
+accumulator :: Built "strategy"
+accumulator = strategy
   { rules:
       [ buyBelow (lit 3) (lit 10) (lit 3) ]
   }
 
-trader :: Built "program"
-trader = program
+trader :: Built "strategy"
+trader = strategy
   { rules:
       [ buyBelow (lit "2.2") (lit 5) (lit "2.2")
       , sellAboveThree
@@ -72,11 +72,11 @@ trader = program
 sellAboveThree :: Clause
 sellAboveThree = sellAbove (lit 3) (lit (-5)) (lit 3)
 
-cooperative :: Built "program"
-cooperative = program { sign: [ signAll ] }
+cooperative :: Built "strategy"
+cooperative = strategy { sign: [ signAll ] }
 
-opportunistic :: Built "program"
-opportunistic = program
+opportunistic :: Built "strategy"
+opportunistic = strategy
   { rules: [ sellAboveThree ]
   , sign: [ signAll ]
   }
@@ -84,8 +84,8 @@ opportunistic = program
 -- | Invests in energy capacity while holding more than 100 Mil. The investment is a deal with the
 -- | capacity's owner (CHIP, in Meridian) as a signer, because the owner of an `ownerSigns` capacity
 -- | must sign the order. The preset signs what is put to it, so an Investor owner signs too.
-investor :: Built "program"
-investor = program
+investor :: Built "strategy"
+investor = strategy
   { rules:
       [ rule [ gt (holding N.money) (lit 100) ]
           [ deal { signers: [ N.chip ], transfers: [], transforms: [ { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
@@ -93,16 +93,16 @@ investor = program
   , sign: [ signAll ]
   }
 
-crisisresponse :: Built "program"
-crisisresponse = program
+crisisresponse :: Built "strategy"
+crisisresponse = strategy
   { rules:
       [ rule [ gt (price T.homeMarket) (lit "3.5"), gt (lit 20) (holding N.energy) ]
           [ tradeT { market: T.homeMarket, quantity: (lit 3), limit: (lit 4) } ]
       ]
   }
 
-randomvalid :: Built "program"
-randomvalid = program
+randomvalid :: Built "strategy"
+randomvalid = strategy
   { rules:
       [ rule []
           [ choose [ noAction, tradeT { market: T.homeMarket, quantity: (lit 5), limit: (lit 3) }, tradeT { market: T.homeMarket, quantity: (lit (-5)), limit: (lit 2) } ] ]
@@ -114,8 +114,8 @@ randomvalid = program
 -- | and the reservation compete for the seat's Mil: both scale by 95/100 on 95 Mil, and the sale
 -- | of 38 Mil is what is actually sold. The sale's limit is 2.4 M/Mil, the lowest average price it
 -- | accepts; the Market's price falls as the seat sells, so the limit binds in later rounds.
-deployer :: Built "program"
-deployer = program
+deployer :: Built "strategy"
+deployer = strategy
   { rules:
       [ rule [ gt (price N.energyAtlantic) (lit 3) ]
           [ transformT { transformation: N.militaryDeployment, quantity: (lit 60) }

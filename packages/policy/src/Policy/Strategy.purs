@@ -1,8 +1,8 @@
 -- | The shared decision language (docs/02_type_system.md §4.4). One interpreter runs NPC
 -- | Policies, Aggregate baselines, and seat-policy presets. The language holds only what the
 -- | reference Policies and presets use. The JSON vocabulary is `Policy.Tags`.
-module Policy.Program
-  ( Program
+module Policy.Strategy
+  ( Strategy
   , Clause
   , Cond(..)
   , Expr(..)
@@ -10,9 +10,9 @@ module Policy.Program
   , TransferTemplate
   , SignRule(..)
   , Refs
-  , decodeProgram
-  , programRefs
-  , programParams
+  , decodeStrategy
+  , strategyRefs
+  , strategyParams
   ) where
 
 import Prelude
@@ -30,7 +30,7 @@ import Foreign.Object as Object
 import Policy.Tags as T
 
 -- | Clauses propose; sign rules choose which addressed Proposals to sign.
-type Program = { rules :: Array Clause, sign :: Array SignRule }
+type Strategy = { rules :: Array Clause, sign :: Array SignRule }
 
 -- | Every condition must hold for the clause's templates to be proposed.
 type Clause = { when :: Array Cond, propose :: Array Template }
@@ -82,8 +82,8 @@ data SignRule
 
 -- Decoding ---------------------------------------------------------------------
 
-decodeProgram :: Json -> Either JsonDecodeError Program
-decodeProgram j = do
+decodeStrategy :: Json -> Either JsonDecodeError Strategy
+decodeStrategy j = do
   o <- decodeJson j
   rules <- o .:? "rules" .!= [] >>= traverse clause
   sign <- o .:? "sign" .!= [] >>= traverse signRule
@@ -96,7 +96,7 @@ clause j = do
   propose <- o .: "propose" >>= traverse template
   pure { when, propose }
 
--- | Every name a Program refers to, for the load-time check against a Gameboard. `self` and
+-- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` and
 -- | `$home` are not listed: the interpreter resolves them at every position they can appear.
 type Refs =
   { entities :: Array String
@@ -106,7 +106,7 @@ type Refs =
   , parameters :: Array String
   }
 
--- | One name a Program refers to.
+-- | One name a Strategy refers to.
 data Ref
   = EntityName String
   | MarketName String
@@ -116,8 +116,8 @@ data Ref
 
 derive instance Eq Ref
 
-programRefs :: Program -> Refs
-programRefs p =
+strategyRefs :: Strategy -> Refs
+strategyRefs p =
   { entities: mapMaybe entityName refs
   , markets: mapMaybe marketName refs
   , resources: mapMaybe resourceName refs
@@ -200,9 +200,9 @@ programRefs p =
   unwrapId :: forall t. Id t -> String
   unwrapId (Id s) = s
 
--- | The scenario parameters a Program reads.
-programParams :: Program -> Array String
-programParams = _.parameters <<< programRefs
+-- | The scenario parameters a Strategy reads.
+strategyParams :: Strategy -> Array String
+strategyParams = _.parameters <<< strategyRefs
 
 -- | `{ "<tag>": body }`: exactly one key names the variant. `kind` names what is decoded, for
 -- | the error. Several keys, or none, is a `Named` error carrying the offending value.

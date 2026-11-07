@@ -18,7 +18,7 @@ The economic engine is built around seven concepts.
 |---|---|
 | **Resource** | An economic quantity that can be owned, exchanged, produced, consumed, reserved, or allocated. |
 | **Entity** | An economic participant with accounts, capacities, capabilities, and a kind. |
-| **Policy** | Anything that produces Intents from the authorized view of the Actor or Aggregate it drives: a declarative program, an AI agent, or a human ([§4](#4-policies)). |
+| **Policy** | Anything that produces Intents from the authorized view of the Actor or Aggregate it drives: a declarative strategy, an AI agent, or a human ([§4](#4-policies)). |
 | **Market** | A mechanism that exchanges existing resources, determines prices, and settles exchange. |
 | **Aggregate** | An Entity representing the residual accounts and baseline behavior of an implicit population or institution. |
 | **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate's baseline through an estimator. |
@@ -145,8 +145,9 @@ This table is the single source of term definitions. The other specifications us
 | **NPC** | An Actor whose Policy is part of the scenario. |
 | **Seat** | An Actor whose Policy is supplied from outside the scenario. Swapping the implementation never changes the Actor. |
 | **Policy** | Anything that produces Intents from its authorized View ([§4](#4-policies)). |
-| **Policy kind** | How a Policy is implemented: declarative program, AI agent, or human. Recorded in the manifest and round records, not on Proposals. |
-| **Preset** | A named parameter set for a declarative program, such as the seat-policy preset `Conservative`. |
+| **Policy kind** | How a Policy is implemented: declarative strategy, AI agent, or human. Recorded in the manifest and round records, not on Proposals. |
+| **Preset** | A named parameter set for a declarative strategy, such as the seat-policy preset `Conservative`. |
+| **Strategy** | The declarative rules a Policy runs on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)). A Policy is the actor-level concept (a seat, NPC or Aggregate decides); its Strategy is the rules it runs. Only declarative Policies have one. |
 | **View** | What a Policy sees of the Snapshot: its own Entity, prices, Rules in force, permitted events, stored adjustment factors, and the Proposals awaiting its signature. |
 | **Decision-language interpreter** | The shared interpreter that runs every declarative Policy ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls `resolveRound` ([§8.3](#83-functional-interface)). |
@@ -288,7 +289,7 @@ A Proposal whose signature rule is not met **lapses**: it is recorded as a decli
 
 A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)). Each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
 
-Negotiation happens out of band for humans. The interpreter turns "we accept SA's deal" into a signature on that Proposal. Programs propose and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"). AI agents read the Proposals that name them and choose.
+Negotiation happens out of band for humans. The interpreter turns "we accept SA's deal" into a signature on that Proposal. Strategies propose and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"). AI agents read the Proposals that name them and choose.
 
 ## 4. Policies
 
@@ -312,13 +313,13 @@ The engine (World State + Intents → World State) is separate from the Policies
 
 | Kind | Implementation | Reproduced from |
 |---|---|---|
-| **Declarative program** | NPC rules, Aggregate baselines, seat-policy presets, run on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)) | The game seed |
+| **Declarative strategy** | NPC rules, Aggregate baselines, seat-policy presets, run on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)) | The game seed |
 | **AI agent** | A language model given the role's briefing, objectives, and authorized view | Recorded Intents |
 | **Human** | A person whose audio submission, transcribed, is interpreted into Intents | Recorded transcripts and Intents |
 
-Accepted Intents are always recorded, and replay starts from them. Deterministic programs can also be regenerated from the seed.
+Accepted Intents are always recorded, and replay starts from them. Deterministic strategies can also be regenerated from the seed.
 
-A seat's Policy is supplied from outside and bound at run time. Swapping it (human, agent, or program) never changes the Actor's definition ([INV-30](#inv-30)).
+A seat's Policy is supplied from outside and bound at run time. Swapping it (human, agent, or strategy) never changes the Actor's definition ([INV-30](#inv-30)).
 
 **Policy memory is planned, not implemented.** No World State field holds it yet. Policies read the previous round's events and stored factors, and seat-Policy state lives in the run record ([06](06_simulator.md)).
 
@@ -347,7 +348,7 @@ An initialized Policy must:
 
 ### 4.4 Shared decision-language interpreter
 
-All declarative programs (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A program is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, deals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
+All declarative strategies (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A strategy is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, deals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
 
 The market `$home` names the Entity's home market: the first Market, by id, that the Entity has access to. An Entity that acts must have one. A scenario that gives it none fails at startup, naming the Entity.
 
@@ -577,7 +578,7 @@ Produce the beginning-of-round Snapshot and each Entity's View of it ([§4](#4-p
 
 **3. Generate Proposals** *(round runner)*
 
-- **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or program), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
+- **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or strategy), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
 - **3b Sign.** Every signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
 
 **4. Screen and interpret** *(engine)*
@@ -619,7 +620,7 @@ runRound :: InWorld -> WorldState
          -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
-`runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation. In-world declarative programs run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
+`runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation. In-world declarative strategies run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
 
 `EngineError` reports a failure of the configured simulation or of its execution, such as an unknown reference or a negative balance that settlement should have prevented. Lapsed Proposals and ordinary infeasible actions are outcomes recorded as events and never fail the round.
 
@@ -642,7 +643,7 @@ Handlers interpret these operations over typed backends; the adapters supply the
 Handlers choose the context. The round runner is the same code under all of them:
 
 - **Live session:** `SEAT_INPUT` through humans and `INTERPRET`, and each round narrated. The live handler enforces the human deadline windows.
-- **Simulation:** `SEAT_INPUT` through preset programs or AI agents, whose randomness draws from the player seed.
+- **Simulation:** `SEAT_INPUT` through preset strategies or AI agents, whose randomness draws from the player seed.
 - **Replay:** `SEAT_INPUT` feeds recorded Proposals and signatures.
 - **Test:** all handlers pure.
 

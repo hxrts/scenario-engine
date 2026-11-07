@@ -48,7 +48,7 @@ Each selected Actor has exactly one controller ([INV-23](02_type_system.md#inv-2
 data Controller = Seat SeatId | NPC PolicyId
 ```
 
-- **Seat.** Permitted only if the definition's `seat` is true (the default). The Policy that drives a seat is bound outside the scenario: a human's text in a live session, an AI agent, or a preset program ([06 §4](06_simulator.md#4-seat-policies)). Swapping that Policy never changes the Actor's definition or makes it an NPC ([INV-30](02_type_system.md#inv-30)). The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
+- **Seat.** Permitted only if the definition's `seat` is true (the default). The Policy that drives a seat is bound outside the scenario: a human's text in a live session, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-policies)). Swapping that Policy never changes the Actor's definition or makes it an NPC ([INV-30](02_type_system.md#inv-30)). The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
 - **NPC.** Permitted only if the Policy id is in the definition's `npc` list. The Policy is in-world ([03 §8](03_gameboard.md#8-policy-catalog)).
 - **Required.** A `required` Actor must be selected (`RequiredNotSelected`).
 - **CLI session.** `session --humans` lists the Actors played by humans. Every other seat is an AI agent ([apps/cli](../apps/cli/src/Session.purs)).
@@ -133,7 +133,7 @@ A Policy is bound by reference to the catalog ([03 §8](03_gameboard.md#8-policy
 - an Aggregate's baseline is `aggregate.policy`.
 - a seat's Policy is bound by the simulator or session, not by instantiation ([06 §4](06_simulator.md#4-seat-policies)).
 
-A Policy instance is the catalog Program together with the Entity it governs. Its parameters are the Gameboard's named values ([03 §11](03_gameboard.md#11-initialization-constraints)). Per-instance parameters, triggers, and View permissions ([INV-16](02_type_system.md#inv-16)) are planned, not implemented. Each View is the beginning-of-round snapshot: the Entity's own state, prices, Rules in force, the events so far, the Entity's stored factors, and any Proposals it may sign.
+A Policy instance is the catalog Strategy together with the Entity it governs. Its parameters are the Gameboard's named values ([03 §11](03_gameboard.md#11-initialization-constraints)). Per-instance parameters, triggers, and View permissions ([INV-16](02_type_system.md#inv-16)) are planned, not implemented. Each View is the beginning-of-round snapshot: the Entity's own state, prices, Rules in force, the events so far, the Entity's stored factors, and any Proposals it may sign.
 
 Policies are fixed for the game, and a `ChangeRule` alters the World State's Rules, never a Policy. A Policy has no memory store: what it knows from earlier rounds comes from recorded events and stored factors. The stored factors start empty. The engine never authors or rewrites a Proposal. In the estimate step it stores factors and nothing else ([INV-26](02_type_system.md#inv-26)).
 
@@ -171,7 +171,7 @@ A run's state is:
 - the appended **round records**, one per round ([§11](#11-round-execution)).
 - the **manifest**.
 
-`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset programs in the simulator), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
+`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset strategies in the simulator), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
 
 The **manifest** is immutable and holds:
 
@@ -179,7 +179,7 @@ The **manifest** is immutable and holds:
 - `engine` and `draw`: the engine and draw-scheme versions.
 - `initial`: the initial World State. It carries every controller, procedure, Representation, Market, Rule, and the game seed.
 
-It does not hold the Policy programs, the round count, or the player seed. The run's spec holds those ([06 §3](06_simulator.md#3-simulation-specification), [§8](06_simulator.md#8-persistence)). Round records are append-only, and snapshots are stored per round by the run store ([INV-31](02_type_system.md#inv-31)). Settings change during play only through supported mechanisms, never by editing the manifest.
+It does not hold the Policy strategies, the round count, or the player seed. The run's spec holds those ([06 §3](06_simulator.md#3-simulation-specification), [§8](06_simulator.md#8-persistence)). Round records are append-only, and snapshots are stored per round by the run store ([INV-31](02_type_system.md#inv-31)). Settings change during play only through supported mechanisms, never by editing the manifest.
 
 Run states and archiving are defined in [06 §6](06_simulator.md#6-lifecycle-and-execution). A run starts only after instantiation succeeds, and a failed instantiation leaves no state ([§10](#10-initialization-pipeline)).
 
@@ -233,7 +233,7 @@ Events record executed quantities, so a partial fill appears as a smaller `Trade
 
 - **Human players.** One audio submission per player per round, then no further input. Transcription and joint interpretation run once per round over all submissions. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, and the player is told why ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they get no confirmation.
-- **Preset seats** play their bound program.
+- **Preset seats** play their bound strategy.
 
 Admissibility is enforced by the engine at screening (step 5), whichever source produced a Proposal ([Type System §3.1](02_type_system.md#31-intent-validation)).
 

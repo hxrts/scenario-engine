@@ -2,7 +2,7 @@
 -- | Human seats type one transcript per round at their prompt, within the propose window; AI-agent
 -- | seats speak through their own model call; the round's transcripts go to one joint pass (INTERPRET).
 -- | Each round is recorded with those transcripts, then narrated (NARRATE). Any other seat plays its
--- | bound program. Each deadline's window is waited out once. There is no clarification and no
+-- | bound strategy. Each deadline's window is waited out once. There is no clarification and no
 -- | confirmation.
 module Handlers.Live (Live, Seat(..), runLive) where
 
@@ -26,7 +26,7 @@ import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-data Seat = Human | Agent | Program
+data Seat = Human | Agent | Strategy
 
 -- | The live session's devices and callbacks, supplied by the composition root: the seats, a line of
 -- | input, the window's wait, output, the model calls, and the record write.
@@ -39,7 +39,7 @@ type Live =
   , interpret :: InterpretF ~> Aff -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , agents :: { speak :: EntityId -> View -> Aff String }
-  , programs :: SeatSource
+  , strategies :: SeatSource
   , record :: RoundResult -> Array Transcript -> Aff Unit -- persist the round
   }
 
@@ -68,14 +68,14 @@ runLive live prog = do
         await closed v.round ProposeDeadline
         pure text
       Agent -> live.agents.speak e v
-      Program -> pure ""
+      Strategy -> pure ""
     Propose e v k -> k <$> case live.seat e of
-      Program -> pure (live.programs.propose e v)
+      Strategy -> pure (live.strategies.propose e v)
       _ -> pure []
     Sign e v k -> k <$> case live.seat e of
       Human -> await closed v.round SignDeadline $> []
       Agent -> pure []
-      Program -> pure (live.programs.sign e v)
+      Strategy -> pure (live.strategies.sign e v)
 
   await :: Ref (Array (Tuple RoundIndex Deadline)) -> RoundIndex -> Deadline -> Aff Unit
   await closed round d = do

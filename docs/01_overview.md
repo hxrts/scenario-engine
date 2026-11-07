@@ -77,13 +77,13 @@ Money paid into production always goes to a declared recipient, and stocks recon
 
 The engine takes the World State and a round's Intents and produces the next World State. It never knows how the Intents were produced. A **Policy** produces Intents from what its Actor is allowed to see. There are three kinds:
 
-- **Programs:** declarative rules for NPCs, Aggregate baselines, and preset seat behaviour, all on one shared interpreter.
+- **Strategies:** declarative rules for NPCs, Aggregate baselines, and preset seat behaviour, all on one shared interpreter.
 - **AI agents:** a language model playing a role from its briefing and view.
 - **Humans:** a person who submits one audio recording per round, which is transcribed and interpreted into Intents.
 
-Programs are reproducible from their seed. AI agents and humans are reproducible from their recorded Intents ([02 §4](02_type_system.md#4-policies), [INV-13](02_type_system.md#inv-13)).
+Strategies are reproducible from their seed. AI agents and humans are reproducible from their recorded Intents ([02 §4](02_type_system.md#4-policies), [INV-13](02_type_system.md#inv-13)).
 
-An NPC's Policy is part of the scenario, such as a government that retaliates against tariffs. A seat's Policy comes from outside, so the simulator can replace a human with an agent or program without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes. A player who changes a rule changes the conditions the Policies respond to, never the Policies themselves.
+An NPC's Policy is part of the scenario, such as a government that retaliates against tariffs. A seat's Policy comes from outside, so the simulator can replace a human with an agent or strategy without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes. A player who changes a rule changes the conditions the Policies respond to, never the Policies themselves.
 
 **Negotiation is propose, then sign.** Each round, every Policy publishes Proposals and then signs the ones that name it and that it endorses. Publishing implies the author's signature. A deal is a Proposal that also needs the counterparty's signature, so the two sides cannot disagree about terms. An unsigned deal lapses, and a counteroffer is a new Proposal for the next round ([02 §3.3](02_type_system.md#33-proposals-and-signatures)).
 

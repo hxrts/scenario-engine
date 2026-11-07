@@ -188,7 +188,7 @@ The schema has no relationship list. Mechanical links are the fields above (depe
 
 ## 8. Policy Catalog
 
-`policies.json` maps each Policy id to a Program, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Programs are declarative and fixed for a game. The loader checks that every name a Program uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Policy.Interpret`): `self` is the acting Entity at every entity position, so the loader does not check it.
+`policies.json` maps each Policy id to a Strategy, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Strategies are declarative and fixed for a game. The loader checks that every name a Strategy uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Policy.Interpret`): `self` is the acting Entity at every entity position, so the loader does not check it.
 
 Policies are referenced by an Actor's `npc` list (chosen in the configuration's `npcs`) and by `aggregate.policy`. Seat presets are bound by the simulator or session ([06 §4](06_simulator.md#4-seat-policies)).
 
@@ -246,7 +246,7 @@ Each criterion is reported as met, not met, or not evaluated (when the run has n
 
 ## 11. Initialization Constraints
 
-The Gameboard fixes every economic value: holdings, capacities, Market cost curves and reserves, Facility parameters, cycle entries, Rules in force, Policy programs, named parameters, and scheme estimators. The configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) may choose only:
+The Gameboard fixes every economic value: holdings, capacities, Market cost curves and reserves, Facility parameters, cycle entries, Rules in force, Policy strategies, named parameters, and scheme estimators. The configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) may choose only:
 
 - seats, NPC Policies, and fallbacks, within each Actor's `seat`, `npc`, and `fallback` declarations.
 - each Representation's weight (default `1`).

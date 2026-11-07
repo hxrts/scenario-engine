@@ -64,7 +64,7 @@ packages/
     Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly), Represent, Invariants
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
   board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
-  policy/      Policy.Program (decision language), Policy.InWorld (in-world Programs, `acts`), Policy.Interpret (propose, sign, `envFor`)
+  policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
   scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
   effects/     Effects.Signatures (the operations and their request and reply records), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
@@ -108,11 +108,11 @@ validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array Validatio
 instantiate       :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
 ```
 
-**Policy** (`policy`). A Program is pure and reduces to two functions over an environment. A seat, human or AI agent, satisfies the same shape through `SEAT_INPUT`:
+**Policy** (`policy`). A Strategy is pure and reduces to two functions over an environment. A seat, human or AI agent, satisfies the same shape through `SEAT_INPUT`:
 
 ```purescript
-propose :: Program -> Env -> Array Draft
-sign    :: Program -> Env -> Array ProposalId     -- chooses among view.toSign
+propose :: Strategy -> Env -> Array Draft
+sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 -- Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
 -- Env   = { view :: View, params :: Object Q, home :: Maybe MarketId, random :: Int -> Q }
 ```

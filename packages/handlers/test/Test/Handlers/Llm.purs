@@ -70,10 +70,10 @@ single = case _ of
   Right js -> fail ("expected one Proposal, got " <> show (length js)) *> throwError (error "single")
   Left why -> fail ("the reply should decode: " <> why) *> throwError (error "single")
 
--- | One round with no seat programs: its record is what the front page is written from.
+-- | One round with no seat strategies: its record is what the front page is written from.
 oneRound :: Game -> Aff RoundResult
 oneRound g = do
-  let out = runTest { programs: Map.empty, params: g.params, home: const Nothing, playerSeed: Seed 1 } (runGame g.inWorld 1 g.world)
+  let out = runTest { strategies: Map.empty, params: g.params, home: const Nothing, playerSeed: Seed 1 } (runGame g.inWorld 1 g.world)
   case out.records of
     [ r ] -> pure r
     _ -> fail "one round should be recorded" *> throwError (error "round")

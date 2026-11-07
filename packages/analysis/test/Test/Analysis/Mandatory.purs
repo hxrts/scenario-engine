@@ -20,7 +20,7 @@ import Data.Traversable (for_)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
-import Policy.Program (Program, decodeProgram)
+import Policy.Strategy (Strategy, decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile)
 import Analysis.Experiments (agency, counterfactual, evaluateObjectives, playerSeedRuns)
@@ -33,9 +33,9 @@ import Test.Spec.Assertions (fail, shouldEqual)
 seats :: Array String
 seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
-program :: String -> Program
-program text = case jsonParser text of
-  Right j -> case decodeProgram j of
+strategy :: String -> Strategy
+strategy text = case jsonParser text of
+  Right j -> case decodeStrategy j of
     Right p -> p
     Left _ -> { rules: [], sign: [] }
   Left _ -> { rules: [], sign: [] }
@@ -68,7 +68,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     ctx <- context
     fixture "D"
     let
-      deploy = program """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""
+      deploy = strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""
       china r = any
         ( \x -> any
             ( case _ of

@@ -1,4 +1,4 @@
--- | The decision-language interpreter: a Program and an authorized View produce the
+-- | The decision-language interpreter: a Strategy and an authorized View produce the
 -- | Entity's draft Proposals (Propose) and the ids it signs (Sign). Pure.
 module Policy.Interpret (Draft, Env, envFor, propose, sign) where
 
@@ -17,7 +17,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Program (Cond(..), Expr(..), Program, SignRule(..), Template(..), TransferTemplate)
+import Policy.Strategy (Cond(..), Expr(..), Strategy, SignRule(..), Template(..), TransferTemplate)
 import Policy.Tags as T
 
 -- | A Proposal before the round runner assigns its id and author.
@@ -39,16 +39,16 @@ envFor c e v =
   }
 
 -- | The Drafts of every Clause whose conditions hold. The draw counter runs through the
--- | whole Program, so each Choose draws independently of the others.
-propose :: Program -> Env -> Array Draft
-propose program env = (foldl clause { next: 0, drafts: [] } program.rules).drafts
+-- | whole Strategy, so each Choose draws independently of the others.
+propose :: Strategy -> Env -> Array Draft
+propose strategy env = (foldl clause { next: 0, drafts: [] } strategy.rules).drafts
   where
   clause acc r
     | all (holds env) r.when = foldl (\a t -> let d = draft env a.next t in { next: d.next, drafts: a.drafts <> d.drafts }) acc r.propose
     | otherwise = acc
 
-sign :: Program -> Env -> Array ProposalId
-sign program env = map _.id (filter (\p -> any (matches p) program.sign) env.view.toSign)
+sign :: Strategy -> Env -> Array ProposalId
+sign strategy env = map _.id (filter (\p -> any (matches p) strategy.sign) env.view.toSign)
   where
   matches p = case _ of
     SignProcedures ids -> maybe false (\pid -> pid `elem'` ids) p.procedure
@@ -65,7 +65,7 @@ sign program env = map _.id (filter (\p -> any (matches p) program.sign) env.vie
 eval :: Env -> Expr -> Q
 eval env = case _ of
   Lit q -> q
-  -- Program.params checks every name against the Gameboard at load time, so the default is unreachable
+  -- Strategy.params checks every name against the Gameboard at load time, so the default is unreachable
   Param name -> fromMaybe Q.zero (Object.lookup name env.params)
   Round -> Q.fromInt env.view.round
   -- an Entity with no home market never runs a `$home` condition: checkHomes rejects it at startup
