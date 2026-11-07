@@ -2,8 +2,7 @@
 -- | parameters they read. The Gameboard's catalog is already typed (`Board.Gameboard.Schema`),
 -- | so this is a projection. Pure.
 module Policy.InWorld
-  ( InWorld
-  , inWorldOf
+  ( inWorldOf
   , policyOf
   , acts
   ) where
@@ -11,15 +10,12 @@ module Policy.InWorld
 import Prelude
 
 import Core.Num (Q)
-import Core.Strategy (Strategy)
+import Core.Strategy (InWorld, Strategy)
 import Core.Types (Controller(..), Entity, EntityKind(..), PolicyId)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust)
 import Foreign.Object (Object)
-
--- | In-world Policies (NPC and Aggregate) and the scenario parameters they read.
-type InWorld = { strategies :: Map PolicyId Strategy, params :: Object Q }
 
 -- | The in-world view of a Gameboard's typed catalog and parameters.
 inWorldOf :: forall r. { policies :: Map PolicyId Strategy, parameters :: Object Q | r } -> InWorld

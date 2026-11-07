@@ -15,8 +15,9 @@ import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, holding)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
 import Data.Tuple (Tuple(..), snd)
+import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (all, concatMap, filter, length, zip)
@@ -628,3 +629,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "EntityKind" $ quickCheck (roundTrip genKind)
     it "Event" $ quickCheck (roundTrip (genQ <#> \x -> Traded { round: 1, market: Id "energy-atlantic", entity: Id "US", quantity: x, price: x }))
     it "Transferability" $ quickCheck (roundTrip (elements (cons' Free [ Restricted, NonTransferable ])))
+    it "the snapshot form of an Intent is the stored record's form" do
+      stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing }))
+        `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"market\":\"energy-asia\",\"limitPrice\":null}],\"tag\":\"Trade\"}"
+    it "the snapshot form of a rule enactment nests the Rule the same way" do
+      stringify (encodeJson (ChangeRule (Enact (Tariff { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" }))))
+        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"rate\":\"0.5000\",\"origin\":\"US\",\"jurisdiction\":\"EU\"}],\"tag\":\"Tariff\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"

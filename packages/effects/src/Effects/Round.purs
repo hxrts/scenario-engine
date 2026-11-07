@@ -21,7 +21,8 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Traversable (for)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
-import Policy.InWorld (InWorld, policyOf)
+import Policy.InWorld (policyOf)
+import Core.Strategy (InWorld)
 import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Run (Run, lift)

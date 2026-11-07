@@ -12,7 +12,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (eventsOf)
-import Core.Types (EntityId, ResourceId, Rule(..))
+import Core.Types (EntityId, ResourceId, Rule, RuleF(..))
 import Data.Maybe (Maybe(..))
 import Core.World (Event(..), RoundRecord)
 import Data.Array (concatMap, filter, length, nub)

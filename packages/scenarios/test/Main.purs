@@ -11,7 +11,7 @@ import Board.Gameboard.Schema (Difference(..), Fallback(..), Gameboard, Instanti
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
+import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)

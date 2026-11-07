@@ -9,7 +9,7 @@ import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, Id(..), Intent(..), ResourceId)
+import Core.Types (EntityId, Id(..), IntentF(..), ResourceId)
 import Core.World (Event(..), RejectReason(..), RoundRecord, WorldState, rejection)
 import Data.Array (find, index, length, take)
 import Data.Either (Either(..))

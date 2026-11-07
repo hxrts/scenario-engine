@@ -71,8 +71,8 @@ fixtureB3 = fixture "B3"
 
 -- | The EU's `eu-trade` procedure enacts a tariff on the US. The variants differ only in
 -- | who signed and so in the support the procedure gathers.
-euTradeTariff :: String -> Array String -> String -> Tuple String Json
-euTradeTariff name signatures support = fixture name
+euTariffProcedure :: String -> Array String -> String -> Tuple String Json
+euTariffProcedure name signatures support = fixture name
   { markets: energyAt (q 0) atlanticAccess [ N.sa, N.jp ]
   , entities: germanyAndEu (q 0)
   , proposals:
@@ -81,8 +81,8 @@ euTradeTariff name signatures support = fixture name
   }
 
 fixtureB4Unsigned :: Tuple String Json
-fixtureB4Unsigned = euTradeTariff "B4-unsigned" [] "0.48"
+fixtureB4Unsigned = euTariffProcedure "B4-unsigned" [] "0.48"
 
 fixtureB4 :: Tuple String Json
-fixtureB4 = euTradeTariff "B4" [ N.de ] "0.68"
+fixtureB4 = euTariffProcedure "B4" [ N.de ] "0.68"
 

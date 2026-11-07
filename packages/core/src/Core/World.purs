@@ -7,7 +7,7 @@ import Prelude
 import Core.Draw (Seed)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef)
+import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef)
 import Data.Argonaut.Core (fromString)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Decode.Generic (genericDecodeJson)

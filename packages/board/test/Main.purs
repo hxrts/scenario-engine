@@ -9,7 +9,7 @@ import Board.Decode.World (decodeFixture)
 import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Schema (decodeConfig, decodeGameboard, withCatalog)
 import Core.Num as Q
-import Core.Types (Capability(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..))
+import Core.Types (Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)

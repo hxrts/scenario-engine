@@ -7,7 +7,7 @@ import Prelude
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, EntityId, Intent(..), Proposal, Ratio, Representation, domainResource)
+import Core.Types (BehaviorDomain, EntityId, IntentF(..), Proposal, Ratio, Representation, domainResource)
 import Core.World (Event(..), WorldState)
 import Data.Array (concatMap, foldl, null)
 import Data.Map (Map)

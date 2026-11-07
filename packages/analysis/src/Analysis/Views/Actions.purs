@@ -17,7 +17,7 @@ module Analysis.Views.Actions
 import Prelude
 
 import Core.Query (countEvents)
-import Core.Types (EntityId, Intent(..), Proposal, ProposalId)
+import Core.Types (EntityId, IntentF(..), Proposal, ProposalId)
 import Core.World (Event(..), RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)

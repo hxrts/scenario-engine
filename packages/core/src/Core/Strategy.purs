@@ -7,13 +7,14 @@ module Core.Strategy
   , Cond(..)
   , Expr(..)
   , Template(..)
-  , TransferTemplate
   , SignRule(..)
+  , InWorld
   ) where
 
 import Core.Num (Q)
-import Data.Maybe (Maybe)
-import Core.Types (BehaviorDomain, CapacityRef, CollectiveProcedureId, EntityId, MarketId, Pair, ResourceId, RuleId, TransformationId)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
+import Data.Map (Map)
+import Foreign.Object (Object)
 
 -- | Clauses propose; sign rules choose which addressed Proposals to sign.
 type Strategy = { rules :: Array Clause, sign :: Array SignRule }
@@ -42,23 +43,19 @@ data Cond
   | RestrictedLastRound { by :: EntityId, target :: EntityId } -- a restriction enacted last round
   | RestrictionInForce { by :: EntityId } -- an AccessBan or Tariff by that jurisdiction is in force
 
--- | A Transfer a template carries: the agent `from` gives `quantity` to `to`.
-type TransferTemplate = { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }
-
+-- | A Strategy's template: an Intent or a Proposal with its quantities as expressions, or one of the
+-- | combinators that choose among them or depend on the last round's events. `self` names the acting
+-- | Entity in any entity position, and `$home` the Entity's home Market (`Policy.Interpret`).
 data Template
-  = TradeT { market :: MarketId, quantity :: Expr, limit :: Maybe Expr }
-  | RouteT { pair :: Pair, quantity :: Expr, limit :: Maybe Expr } -- best execution: no Market named (docs/02 §5.2)
-  | TransformT { transformation :: TransformationId, quantity :: Expr }
-  | TransferT TransferTemplate -- an Intent a procedure may carry (docs/05 §12.1)
-  | Procedure { procedure :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array Template } -- intents: trades, transforms, transfers, tariffs, reciprocations only
-  | EnactTariff { origin :: EntityId, rate :: Expr }
+  = IntentT (IntentF Expr) -- one Intent (docs/02 §3)
+  | ProposalT (ProposalF Expr) -- a Deal (no procedure), or a Procedure (its id); its Intents are Intent templates
   | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
-  | Deal { signers :: Array EntityId, transfers :: Array TransferTemplate, transforms :: Array { transformation :: TransformationId, quantity :: Expr } } -- `self` names the author; a deal bundles Transfers and Transforms (docs/02 §3)
   | Choose (Array Template) -- one option, picked by a seeded draw
-  | EnactAccessBan { target :: EntityId } -- a ban on shipments from the Entity's jurisdiction into `target`
-  | EnactWithholding { capacity :: CapacityRef, units :: Expr } -- withhold units of a capacity the Entity owns
-  | RepealRule { rule :: RuleId } -- repeal a Rule the Entity governs, by the id the engine assigned it
   | NoAction -- propose nothing (an option for Choose)
+
+-- | The in-world Policies (NPC and Aggregate) and the scenario parameters they read. The Strategies
+-- | are the Gameboard's catalog; this is the Type System's record of them (docs/02 §4.4).
+type InWorld = { strategies :: Map PolicyId Strategy, params :: Object Q }
 
 data SignRule
   = SignProcedures (Array CollectiveProcedureId)

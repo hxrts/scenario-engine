@@ -13,7 +13,7 @@ module Core.Authority
 import Prelude
 
 import Core.Query (owner)
-import Core.Types (Capability(..), EntityId, Intent(..), Proposal, Rule(..), RuleChange(..), RuleKind(..))
+import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..))
 import Core.World (WorldState)
 import Data.Array (any, elem)
 import Data.Maybe (Maybe(..), maybe)

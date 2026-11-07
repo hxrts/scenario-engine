@@ -8,7 +8,7 @@ import Prelude
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (Id(..), Intent(..))
+import Core.Types (Id(..), Intent, IntentF(..))
 import Data.Array (concatMap, elem, filter, index, length, nub, range)
 import Data.Either (Either(..))
 import Data.Foldable (any)

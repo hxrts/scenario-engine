@@ -14,7 +14,7 @@ import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (facilityPrice, holding, lookupQ, poolCeiling)
-import Core.Types (EntityId, Intent(..), ResourceId, Transformation)
+import Core.Types (EntityId, IntentF(..), ResourceId, Transformation)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (any, concatMap, elem, fromFoldable, partition)
 import Data.Map as Map

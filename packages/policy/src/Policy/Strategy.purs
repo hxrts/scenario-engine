@@ -9,11 +9,11 @@ module Policy.Strategy
 
 import Prelude
 
-import Core.Strategy (Clause, Cond(..), Expr(..), Strategy, SignRule(..), Template(..), TransferTemplate)
-import Core.Types (Id(..))
+import Core.Strategy (Clause, Cond(..), Expr(..), Strategy, SignRule(..), Template(..))
+import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
 import Data.Argonaut.Core (Json, fromString, toArray, toObject, toString)
 import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
-import Data.Array (concatMap, find, mapMaybe)
+import Data.Array (concat, concatMap, find, mapMaybe)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
@@ -102,25 +102,21 @@ strategyRefs p =
     RestrictionInForce x -> [ EntityName (unwrapId x.by) ]
 
   templateRefs = case _ of
-    TradeT x -> [ MarketName (unwrapId x.market) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
-    RouteT x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limit
-    TransformT x -> [ TransformationName (unwrapId x.transformation) ] <> exprRefs x.quantity
-    TransferT x -> transferRefs x
-    Procedure x -> map (EntityName <<< unwrapId) x.signers <> concatMap templateRefs x.intents
-    EnactTariff x -> [ EntityName (unwrapId x.origin) ] <> exprRefs x.rate
+    IntentT x -> intentRefs x
+    ProposalT x -> map (EntityName <<< unwrapId) x.signers <> concatMap intentRefs x.intents
     ReciprocateLastRound x -> [ EntityName (unwrapId x.target) ]
-    Deal x -> map (EntityName <<< unwrapId) x.signers <> concatMap transferRefs x.transfers <> concatMap transformRefs x.transforms
     Choose xs -> concatMap templateRefs xs
-    EnactAccessBan x -> [ EntityName (unwrapId x.target) ]
-    EnactWithholding x -> exprRefs x.units
-    RepealRule _ -> []
     NoAction -> []
 
-  transferRefs t =
-    [ ResourceName (unwrapId t.resource), EntityName (unwrapId t.from), EntityName (unwrapId t.to) ]
-      <> exprRefs t.quantity
-
-  transformRefs t = [ TransformationName (unwrapId t.transformation) ] <> exprRefs t.quantity
+  intentRefs = case _ of
+    Trade x -> [ MarketName (unwrapId x.market) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limitPrice
+    Route x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limitPrice
+    Transform x -> [ TransformationName (unwrapId x.transformation) ] <> exprRefs x.quantity
+    Transfer x -> [ ResourceName (unwrapId x.resource), EntityName (unwrapId x.from), EntityName (unwrapId x.to) ] <> exprRefs x.quantity
+    ChangeRule (Enact (Tariff x)) -> [ EntityName (unwrapId x.origin) ] <> exprRefs x.rate
+    ChangeRule (Enact (AccessBan x)) -> [ EntityName (unwrapId x.target) ]
+    ChangeRule (Enact (Withholding x)) -> exprRefs x.units
+    ChangeRule (Repeal _) -> []
 
   signRefs = case _ of
     SignFacility t -> [ TransformationName (unwrapId t) ]
@@ -213,42 +209,45 @@ template :: Json -> Either JsonDecodeError Template
 template j = tagged "template" j >>= dispatch "template"
   [ Tuple T.chooseTag (\b -> Choose <$> (decodeJson b >>= traverse template))
   , Tuple T.noActionTag (\_ -> pure NoAction)
-  , Tuple T.tradeTag trade
-  , Tuple T.routeTag route
-  , Tuple T.transformTag transform
-  , Tuple T.transferTag (\b -> TransferT <$> transferSpec b)
+  , Tuple T.tradeTag (\b -> IntentT <$> trade b)
+  , Tuple T.routeTag (\b -> IntentT <$> route b)
+  , Tuple T.transformTag (\b -> IntentT <$> transform b)
+  , Tuple T.transferTag (\b -> IntentT <$> transferSpec b)
   , Tuple T.procedureTag procedure
-  , Tuple T.enactTariffTag enactTariff
+  , Tuple T.enactTariffTag (\b -> IntentT <$> enactTariff b)
   , Tuple T.dealTag deal
   , Tuple T.reciprocateTag reciprocate
-  , Tuple T.enactAccessBanTag enactAccessBan
-  , Tuple T.enactWithholdingTag enactWithholding
-  , Tuple T.repealTag repeal
+  , Tuple T.enactAccessBanTag (\b -> IntentT <$> enactAccessBan b)
+  , Tuple T.enactWithholdingTag (\b -> IntentT <$> enactWithholding b)
+  , Tuple T.repealTag (\b -> IntentT <$> repeal b)
   ]
   where
+  -- `self` names the acting Entity in an entity position; `Policy.Interpret` resolves it
+  self = Id T.selfEntity
   trade b = do
     o <- decodeJson b
     m <- o .: "market"
     quantity <- o .: "quantity" >>= expr
-    limit <- o .:? "limit" >>= traverse expr
+    limitPrice <- o .:? "limit" >>= traverse expr
     market <- decodeJson m
-    pure (TradeT { market: Id market, quantity, limit })
+    pure (Trade { market: Id market, quantity, limitPrice })
   transform b = do
     o <- decodeJson b
     t <- o .: "transformation"
     quantity <- o .: "quantity" >>= expr
-    pure (TransformT { transformation: Id t, quantity })
+    pure (Transform { by: self, transformation: Id t, quantity })
+  -- a Procedure's Proposal: its signers, its id, and its Intents (see `procedureIntent`)
   procedure b = do
     o <- decodeJson b
     p <- o .: "id"
     signers <- o .: "signers"
     intents <- o .: "intents" >>= traverse procedureIntent
-    pure (Procedure { procedure: Id p, signers: map Id signers, intents })
+    pure (ProposalT { signers: map Id signers, intents: concat intents, procedure: Just (Id p) })
   enactTariff b = do
     o <- decodeJson b
     origin <- o .: "origin"
     rate <- o .: "rate" >>= expr
-    pure (EnactTariff { origin: Id origin, rate })
+    pure (ChangeRule (Enact (Tariff { jurisdiction: self, origin: Id origin, rate })))
   deal b = do
     o <- decodeJson b
     signers <- o .: "signers"
@@ -257,8 +256,8 @@ template j = tagged "template" j >>= dispatch "template"
       x <- decodeJson t
       transformation <- x .: "transformation"
       quantity <- x .: "quantity" >>= expr
-      pure { transformation: Id transformation, quantity }
-    pure (Deal { signers: map Id signers, transfers, transforms })
+      pure (Transform { by: self, transformation: Id transformation, quantity })
+    pure (ProposalT { signers: map Id signers, intents: transfers <> transforms, procedure: Nothing })
   reciprocate b = do
     o <- decodeJson b
     target <- o .: "target"
@@ -266,48 +265,47 @@ template j = tagged "template" j >>= dispatch "template"
   enactAccessBan b = do
     o <- decodeJson b
     target <- o .: "target"
-    pure (EnactAccessBan { target: Id target })
+    pure (ChangeRule (Enact (AccessBan { jurisdiction: self, target: Id target })))
   enactWithholding b = do
     o <- decodeJson b
     capacity <- o .: "capacity"
     units <- o .: "units" >>= expr
-    pure (EnactWithholding { capacity: Id capacity, units })
+    pure (ChangeRule (Enact (Withholding { capacity: Id capacity, units })))
   repeal b = do
     o <- decodeJson b
     rule <- o .: "rule"
-    pure (RepealRule { rule: Id rule })
+    pure (ChangeRule (Repeal (Id rule)))
 
--- | A template inside a Procedure: only Intents may be proposed there. Nested Procedures,
--- | Deals and Choose are rejected, since a Procedure's Proposal carries only Intents.
-procedureIntent :: Json -> Either JsonDecodeError Template
+-- | An Intent a Procedure may carry. A Procedure's Proposal holds Intents only, so a nested Procedure,
+-- | a Deal, a Choose and a reciprocation are rejected. NoAction yields nothing and is dropped.
+procedureIntent :: Json -> Either JsonDecodeError (Array (IntentF Expr))
 procedureIntent j = do
   t <- template j
   case t of
-    Procedure _ -> Left (Named "procedure intent" (UnexpectedValue j))
-    Deal _ -> Left (Named "procedure intent" (UnexpectedValue j))
-    Choose _ -> Left (Named "procedure intent" (UnexpectedValue j))
-    _ -> pure t
+    IntentT i -> pure [ i ]
+    NoAction -> pure []
+    _ -> Left (Named "procedure intent" (UnexpectedValue j))
 
 -- | One transfer: `from` gives `quantity` of `resource` to `to`. A Deal's transfers and a
 -- | standalone transfer decode alike.
-transferSpec :: Json -> Either JsonDecodeError TransferTemplate
+transferSpec :: Json -> Either JsonDecodeError (IntentF Expr)
 transferSpec j = do
   o <- decodeJson j
   from <- o .: "from"
   to <- o .: "to"
   resource <- o .: "resource"
   quantity <- o .: "quantity" >>= expr
-  pure { from: Id from, to: Id to, resource: Id resource, quantity }
+  pure (Transfer { from: Id from, to: Id to, resource: Id resource, quantity })
 
 -- | A routed order: the pair, the quantity and the optional limit (no Market is named).
-route :: Json -> Either JsonDecodeError Template
+route :: Json -> Either JsonDecodeError (IntentF Expr)
 route b = do
   o <- decodeJson b
   base <- o .: "base"
   quote <- o .: "quote"
   quantity <- o .: "quantity" >>= expr
-  limit <- o .:? "limit" >>= traverse expr
-  pure (RouteT { pair: { base: Id base, quote: Id quote }, quantity, limit })
+  limitPrice <- o .:? "limit" >>= traverse expr
+  pure (Route { pair: { base: Id base, quote: Id quote }, quantity, limitPrice })
 
 signRule :: Json -> Either JsonDecodeError SignRule
 signRule j = tagged "sign rule" j >>= dispatch "sign rule"

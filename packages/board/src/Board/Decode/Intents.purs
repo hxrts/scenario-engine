@@ -9,7 +9,7 @@ import Prelude
 
 import Board.Decode.Common (oneKey, unknownKind)
 import Board.Tags (accessBanKind, enactKind, tariffKind, tradeKind, transferKind, transformKind, withholdingKind)
-import Core.Types (Id(..), Intent(..), Rule(..), RuleChange(..))
+import Core.Types (Id(..), Intent, IntentF(..), Rule, RuleF(..), RuleChangeF(..))
 import Data.Argonaut.Core (Json, isNull)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:), (.:?))
 import Data.Either (Either(..))

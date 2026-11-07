@@ -13,12 +13,15 @@ module Core.Proposal
   , signableBy
   , assembleSigned
   , submissionOrder
+  , proposalBodyShape
   ) where
 
 import Prelude
 
 import Core.Query (isAggregate)
-import Core.Types (CollectiveProcedureId, Entity, EntityId, Intent, Proposal, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
+import Core.Shape (Shape, arrayOf, field, optionalOf, rec3)
+import Core.Types (Entity, EntityId, Intent, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
+import Core.Num (Q)
 import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null)
 import Data.Either (Either, either)
 import Data.Map as Map
@@ -26,8 +29,18 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (Tuple(..))
 
--- | What a Proposal says before its id and author are assigned (a policy's Draft has this shape).
-type ProposalBody = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
+-- | What a Proposal says before its id and author are assigned: a Strategy's draft, a seat's
+-- | submission, and a joint-pass draft all have this shape (`ProposalF` at `Q`).
+type ProposalBody = ProposalF Q
+
+-- | A ProposalBody in the snapshot form. A record synonym cannot carry a class instance, so this is a
+-- | value; a body that crosses a boundary is encoded through `Core.Shape.codec` over it.
+proposalBodyShape :: Shape ProposalBody
+proposalBodyShape = rec3 "ProposalBody"
+  (field "intents" "intents" "the Intents" (arrayOf intentShape) _.intents)
+  (field "signers" "signers" "the Entities asked to sign" (arrayOf idShape) _.signers)
+  (field "procedure" "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure)
+  (\i s p -> { intents: i, signers: s, procedure: p })
 
 -- | One seat's transcript of a round: its id and what it said.
 type Transcript = { seat :: EntityId, text :: String }

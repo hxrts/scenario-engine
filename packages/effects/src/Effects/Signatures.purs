@@ -34,12 +34,12 @@ import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Foreign.Object (Object)
-import Policy.Interpret (Draft)
+import Core.Proposal (ProposalBody)
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
 -- | Speak (the seat's words, read by the round's joint pass; Nothing when it says nothing).
 data SeatInputF a
-  = Propose EntityId View (Array Draft -> a)
+  = Propose EntityId View (Array ProposalBody -> a)
   | Sign EntityId View (Array ProposalId -> a)
   | Speak EntityId View (Maybe String -> a)
 

@@ -16,7 +16,7 @@ import Core.Authority (authorizedIn, executor, governs)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ, owner, transfersOf, transformsOf)
-import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent(..), MarketId, Pair, Proposal, ProposalId, Rule(..), RuleChange(..), SignedProposal, Transferability(..))
+import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ProposalId, RuleF(..), RuleChangeF(..), SignedProposal, Transferability(..))
 import Core.World (Event(..), RejectReason(..), WorldState, rejection)
 import Data.Array (all, any, concat, elem, filter, fromFoldable, length, nub, null)
 import Data.Either (Either(..), note)

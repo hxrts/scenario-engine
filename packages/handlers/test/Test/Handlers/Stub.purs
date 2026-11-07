@@ -29,7 +29,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Foreign.Object as Object
 import Core.Num as Q
-import Core.Types (EntityId, Id(..), Intent(..))
+import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call)
 import Handlers.Llm.Wire (ProposedDeal)
 import Handlers.Recording (Exchange, Recording)

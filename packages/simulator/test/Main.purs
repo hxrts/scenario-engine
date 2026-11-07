@@ -15,7 +15,7 @@ import Core.Invariants (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
-import Core.Types (Id(..), Rule(..))
+import Core.Types (Id(..), RuleF(..))
 import Core.World (Event(..), RejectReason(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, reverse)
 import Data.Either (Either(..))

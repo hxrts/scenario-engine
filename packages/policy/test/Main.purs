@@ -3,7 +3,7 @@ module Test.Policy.Main where
 import Prelude
 
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent(..), Rule(..), RuleChange(..), RuleKind(..), proposalId)
+import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
 import Core.World (Event(..), View)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
@@ -14,7 +14,8 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
-import Policy.Interpret (Draft, Env, propose, sign)
+import Core.Proposal (ProposalBody)
+import Policy.Interpret (Env, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (decodeStrategy, strategyParams, strategyRefs)
 import Test.Spec (describe, it)
@@ -60,11 +61,11 @@ highDraws i = if i == 0 then Q.zero else fromMaybe Q.zero (Q.parse "0.9")
 trade :: String -> String -> Intent
 trade m quantity = Trade { market: Id m, quantity: fromMaybe Q.zero (Q.parse quantity), limitPrice: Nothing }
 
-intentsOf :: Array Draft -> Array (Array Intent)
+intentsOf :: Array ProposalBody -> Array (Array Intent)
 intentsOf = map _.intents
 
 -- | The Drafts a text Strategy proposes in an environment.
-drafts :: String -> Env -> Array Draft
+drafts :: String -> Env -> Array ProposalBody
 drafts text e = propose (strategy text) e
 
 -- | What a decode produced, for a failure message.

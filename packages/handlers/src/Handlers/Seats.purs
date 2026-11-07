@@ -16,7 +16,8 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
-import Policy.Interpret (Draft, envFor)
+import Core.Proposal (ProposalBody)
+import Policy.Interpret (envFor)
 import Policy.Interpret as Policy
 import Core.Strategy (Strategy)
 import Run (Run, case_, interpret, on, peel, send)
@@ -24,7 +25,7 @@ import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 type SeatSource =
-  { propose :: EntityId -> View -> Array Draft
+  { propose :: EntityId -> View -> Array ProposalBody
   , sign :: EntityId -> View -> Array ProposalId
   }
 

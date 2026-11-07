@@ -1,27 +1,27 @@
 -- | The decision-language interpreter: a Strategy and an authorized View produce the
--- | Entity's draft Proposals (Propose) and the ids it signs (Sign). Pure.
-module Policy.Interpret (Draft, Env, envFor, propose, sign) where
+-- | Entity's Proposals (Propose) and the ids it signs (Sign). Pure.
+module Policy.Interpret (Env, envFor, propose, sign) where
 
 import Prelude
 
-import Core.Draw (Seed, draw)
 import Core.Authority (authorized)
+import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
-import Core.Types (CollectiveProcedureId, EntityId, Id(..), Intent(..), MarketId, ProposalId, Rule(..), RuleChange(..))
+import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
+import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, Rule, RuleChangeF(..), RuleF(..))
 import Core.World (View)
-import Data.Newtype (unwrap)
-import Data.Array (all, any, concatMap, filter, foldl, index, length, mapMaybe, null)
+import Data.Array (all, any, filter, foldl, index, length, mapMaybe, null)
+import Data.Identity (Identity(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
+import Data.Newtype (unwrap)
+import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Core.Strategy (Cond(..), Expr(..), Strategy, SignRule(..), Template(..), TransferTemplate)
 import Policy.Tags as T
-
--- | A Proposal before the round runner assigns its id and author.
-type Draft = { intents :: Array Intent, signers :: Array EntityId, procedure :: Maybe CollectiveProcedureId }
 
 -- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every
@@ -38,9 +38,9 @@ envFor c e v =
   , random: \i -> draw c.seed { round: v.round, source: c.source, entity: unwrap e, category: "choice", index: i }
   }
 
--- | The Drafts of every Clause whose conditions hold. The draw counter runs through the
--- | whole Strategy, so each Choose draws independently of the others.
-propose :: Strategy -> Env -> Array Draft
+-- | The Proposals of every Clause whose conditions hold, in the order the Strategy writes them. The
+-- | draw counter runs through the whole Strategy, so each Choose draws independently of the others.
+propose :: Strategy -> Env -> Array ProposalBody
 propose strategy env = (foldl clause { next: 0, drafts: [] } strategy.rules).drafts
   where
   clause acc r
@@ -94,74 +94,89 @@ jurisdictionOf = case _ of
   Tariff x -> Just x.jurisdiction
   Withholding _ -> Nothing
 
--- | The Draft(s) one template yields, and the draw counter after it. A Choose consumes one
--- | draw for its pick, then interprets the chosen option with the next counter value.
-draft :: Env -> Int -> Template -> { next :: Int, drafts :: Array Draft }
+-- | The Proposals one template yields, and the draw counter after it. A Choose consumes one draw for
+-- | its pick, then interprets the chosen option with the next counter value.
+draft :: Env -> Int -> Template -> { next :: Int, drafts :: Array ProposalBody }
 draft env n t = case t of
   Choose options -> case index options (pick (length options)) of
     Just o -> draft env (n + 1) o
     Nothing -> { next: n + 1, drafts: [] }
+  ProposalT p -> { next: n, drafts: [ proposalOf env p ] }
   _ ->
     { next: n
-    , drafts: map single (filter (authorized env.view.self.capabilities env.view.self.id) (intents env t)) <> procedure
+    , drafts: map single (filter (authorized env.view.self.capabilities env.view.self.id) (intentsOf env t))
     }
   where
   -- index ⌊u × n⌋ for a draw u in [0, 1)
   pick count = Q.floorInt (Q.mul (env.random n) (Q.fromInt count))
   single i = { intents: [ i ], signers: [], procedure: Nothing }
-  procedure = case t of
-    Procedure p -> [ { intents: concatMap (intents env) p.intents, signers: map (entityRef env) p.signers, procedure: Just p.procedure } ]
-    Deal d ->
-      [ { intents: map (\x -> transfer env x) d.transfers
-            <> map (\x -> Transform { by: env.view.self.id, transformation: x.transformation, quantity: eval env x.quantity }) d.transforms
-        , signers: map (entityRef env) d.signers
-        , procedure: Nothing
-        }
-      ]
-    _ -> []
 
--- | The Intents one template yields. A zero quantity yields nothing; any other quantity is
--- | passed on, and the engine rejects what it cannot settle (a negative transform, for one).
-intents :: Env -> Template -> Array Intent
-intents env = case _ of
-  TradeT x -> case resolveMarket env x.market of
-    -- an Entity with no home market drafts no `$home` order; checkHomes rejects at startup every Entity that could draft one
-    Nothing -> []
-    Just m ->
-      let
-        q = eval env x.quantity
-      in
-        if q == Q.zero then [] else [ Trade { market: m, quantity: q, limitPrice: map (eval env) x.limit } ]
-  RouteT x ->
-    let
-      q = eval env x.quantity
-    in
-      if q == Q.zero then [] else [ Route { pair: x.pair, quantity: q, limitPrice: map (eval env) x.limit } ]
-  TransformT x ->
-    let
-      q = eval env x.quantity
-    in
-      if q == Q.zero then [] else [ Transform { by: env.view.self.id, transformation: x.transformation, quantity: q } ]
-  TransferT x ->
-    let
-      q = eval env x.quantity
-    in
-      if q == Q.zero then [] else [ transfer env x ]
-  EnactTariff x -> [ ChangeRule (Enact (Tariff { jurisdiction: env.view.self.id, origin: entityRef env x.origin, rate: eval env x.rate })) ]
-  EnactAccessBan x -> [ ChangeRule (Enact (AccessBan { jurisdiction: env.view.self.id, target: entityRef env x.target })) ]
-  EnactWithholding x -> [ ChangeRule (Enact (Withholding { capacity: x.capacity, units: eval env x.units })) ]
-  RepealRule x -> [ ChangeRule (Repeal x.rule) ]
+-- | The Intents one single-Intent template yields. A zero quantity yields nothing; any other quantity
+-- | is passed on, and the engine rejects what it cannot settle (a negative transform, for one).
+intentsOf :: Env -> Template -> Array Intent
+intentsOf env = case _ of
+  IntentT x -> maybe [] keep (evalIntent env x)
   ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedAtBoundary env.view.round (entityRef env x.target) env.view.self.id env.view.events))
-  Procedure _ -> []
-  Deal _ -> []
-  Choose _ -> []
   NoAction -> []
+  Choose _ -> []
+  ProposalT _ -> []
   where
+  keep i = if zeroQuantity i then [] else [ i ]
   -- the restriction, turned back on the Entity that enacted it; a Withholding has no mirror
   mirror = case _ of
     AccessBan r -> Just (AccessBan { jurisdiction: env.view.self.id, target: r.jurisdiction })
     Tariff r -> Just (Tariff { jurisdiction: env.view.self.id, origin: r.jurisdiction, rate: r.rate })
     Withholding _ -> Nothing
+
+-- | A Proposal template, evaluated. A Procedure's Intents drop zero quantities, as its single Intents
+-- | do; a Deal's do not (docs/02 §3). An Intent with no home Market (`$home`) is dropped.
+proposalOf :: Env -> ProposalF Expr -> ProposalBody
+proposalOf env p =
+  { intents: mapMaybe (\x -> evalIntent env x >>= keep) p.intents
+  , signers: map (entityRef env) p.signers
+  , procedure: p.procedure
+  }
+  where
+  keep i = if isJust p.procedure && zeroQuantity i then Nothing else Just i
+
+-- | Evaluates one Intent template: `self` is resolved as an entity position, `$home` as a market
+-- | (Nothing when the Entity has no home), and every quantity by `traverse`, so no field is missed.
+evalIntent :: Env -> IntentF Expr -> Maybe Intent
+evalIntent env t = do
+  resolved <- resolveHome env.view.self.id env.home t
+  pure (unwrap (traverse (\e -> Identity (eval env e)) resolved))
+
+-- | The entity slots of an Intent that name `self` resolve to the acting Entity.
+resolveSelf :: EntityId -> IntentF Expr -> IntentF Expr
+resolveSelf me = case _ of
+  Trade o -> Trade o
+  Route r -> Route r
+  Transfer x -> Transfer (x { from = entity x.from, to = entity x.to })
+  Transform x -> Transform (x { by = entity x.by })
+  ChangeRule (Enact (Tariff x)) -> ChangeRule (Enact (Tariff (x { jurisdiction = entity x.jurisdiction, origin = entity x.origin })))
+  ChangeRule (Enact (AccessBan x)) -> ChangeRule (Enact (AccessBan (x { jurisdiction = entity x.jurisdiction, target = entity x.target })))
+  ChangeRule (Enact (Withholding x)) -> ChangeRule (Enact (Withholding x))
+  ChangeRule (Repeal r) -> ChangeRule (Repeal r)
+  where
+  entity x = if x == Id T.selfEntity then me else x
+
+-- | Resolves `self` and `$home` in an Intent template. `$home` names the Entity's home Market; the
+-- | Intent is dropped (Nothing) when the Entity has none.
+resolveHome :: EntityId -> Maybe MarketId -> IntentF Expr -> Maybe (IntentF Expr)
+resolveHome me home t = case resolveSelf me t of
+  Trade x -> (\m -> Trade (x { market = m })) <$> market x.market
+  other -> Just other
+  where
+  market m = if m == Id T.homeMarket then home else Just m
+
+-- | A zero quantity: a Trade, Route, Transfer or Transform of nothing.
+zeroQuantity :: Intent -> Boolean
+zeroQuantity = case _ of
+  Trade x -> x.quantity == Q.zero
+  Route x -> x.quantity == Q.zero
+  Transfer x -> x.quantity == Q.zero
+  Transform x -> x.quantity == Q.zero
+  ChangeRule _ -> false
 
 -- | `$home` names the Entity's home market; any other market names itself.
 resolveMarket :: Env -> MarketId -> Maybe MarketId
@@ -170,7 +185,3 @@ resolveMarket env m = if m == Id T.homeMarket then env.home else Just m
 -- | `self` names the acting Entity; any other name is itself. Every entity position resolves through here.
 entityRef :: Env -> EntityId -> EntityId
 entityRef env x = if x == Id T.selfEntity then env.view.self.id else x
-
--- | The Transfer a template carries, with its entities resolved.
-transfer :: Env -> TransferTemplate -> Intent
-transfer env x = Transfer { from: entityRef env x.from, to: entityRef env x.to, resource: x.resource, quantity: eval env x.quantity }

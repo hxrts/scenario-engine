@@ -11,7 +11,7 @@ import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Board.Gameboard.Schema (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig, RefKind(..), ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (EntityId, Rule(..), domainResource)
+import Core.Types (EntityId, RuleF(..), domainResource)
 import Core.World (ShareSource(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA

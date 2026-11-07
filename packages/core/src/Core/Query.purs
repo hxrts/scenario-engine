@@ -32,7 +32,7 @@ import Prelude
 import Core.Market (averagePrice, marginal)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent(..), MarketId, Order, Price, Quantity, Ratio, ResourceId, RoundIndex, Rule(..), TransferSpec, Transformation, TransformationId, TransformSpec)
+import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent, IntentF(..), MarketId, Order, Price, Quantity, Ratio, ResourceId, RoundIndex, Rule, RuleF(..), TransferSpec, Transformation, TransformationId, TransformSpec)
 import Core.World (Event(..), WorldState)
 import Data.Array (any, concatMap, elem, filter, find, fromFoldable, length, mapMaybe)
 import Data.Either (Either(..))
