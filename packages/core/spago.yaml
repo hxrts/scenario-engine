@@ -12,6 +12,7 @@ package:
     - js-bigints
     - maybe
     - newtype
+    - numbers
     - ordered-collections
     - partial
     - strings

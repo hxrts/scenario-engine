@@ -22,6 +22,8 @@ import Data.Array (all, concatMap, filter, length, zip)
 import Data.Array.NonEmpty (cons')
 import Data.Either (Either(..))
 import Data.Map as Map
+import Data.String (Pattern(..)) as S
+import Data.String as Str
 import Data.Maybe (Maybe(..), fromMaybe)
 import Effect (Effect)
 import Test.QuickCheck ((===), Result)
@@ -83,6 +85,24 @@ q :: String -> Q
 q s = case Q.parse s of
   Just x -> x
   Nothing -> Q.zero
+
+-- | A displayed value is within half a hundredth of the exact one and has at most two decimals: a
+-- | fixed kind keeps exactly two, a trimmed kind keeps none that are trailing zeros. The "<0.01"
+-- | marker stands only for a non-zero value under a hundredth.
+displayWithin :: Boolean -> Q -> String -> Boolean
+displayWithin fixed x s
+  | Str.take 1 s == "<" || Str.take 2 s == "-<" = Q.abs x /= Q.zero && Q.abs x < q "0.01"
+  | otherwise =
+      case Q.parse s of
+        Nothing -> false
+        Just p -> bigAbs (Q.toUnits x - Q.toUnits p) <= BI.fromInt 50 && decimalsOk
+      where
+      decimalsOk = case fraction of
+        Nothing -> not fixed
+        Just f
+          | fixed -> Str.length f == 2
+          | otherwise -> Str.length f <= 2 && Str.take 1 (Str.drop (Str.length f - 1) f) /= "0"
+      fraction = map (\i -> Str.drop (i + 1) s) (Str.indexOf (S.Pattern ".") s)
 
 -- | The 0.0001 scale, as a BigInt, for checks that work on raw units.
 scale4 :: BigInt
@@ -295,6 +315,52 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "toDisplayNumber is the only float boundary and is exact for display" do
       Q.toDisplayNumber (q "1.5") `shouldEqual` 1.5
       Q.toDisplayNumber (q "-0.0001") `shouldEqual` (-0.0001)
+    it "display rounds half to even at two decimals" do
+      Q.displayRatio (q "0.125") `shouldEqual` "0.12"
+      Q.displayRatio (q "0.135") `shouldEqual` "0.14"
+      Q.displayRatio (q "-0.125") `shouldEqual` "-0.12"
+      Q.displayPrice (q "2.675") `shouldEqual` "2.68"
+      Q.displayPrice (q "2.665") `shouldEqual` "2.66"
+      Q.displayQuantity (q "12.125") `shouldEqual` "12.12"
+      Q.displayQuantity (q "12.375") `shouldEqual` "12.38"
+    it "display trims trailing zeros and shows the kind's precision" do
+      Q.displayQuantity (Q.fromInt 12) `shouldEqual` "12"
+      Q.displayQuantity (q "12.5") `shouldEqual` "12.5"
+      Q.displayQuantity (q "12.25") `shouldEqual` "12.25"
+      Q.displayQuantity (q "12.10") `shouldEqual` "12.1"
+      Q.displayQuantity (q "12.001") `shouldEqual` "12"
+      Q.displayQuantity (q "-12.5") `shouldEqual` "-12.5"
+      Q.displayQuantity Q.zero `shouldEqual` "0"
+      Q.displayQuantity (q "0.0001") `shouldEqual` "<0.01"
+      Q.displayQuantity (q "0.004") `shouldEqual` "<0.01"
+      Q.displayQuantity (q "-0.0001") `shouldEqual` "-<0.01"
+      Q.displayQuantity (q "0.01") `shouldEqual` "0.01"
+      Q.displayPrice (q "3.10") `shouldEqual` "3.1"
+      Q.displayPrice (q "3.00") `shouldEqual` "3"
+      Q.displayRatio (Q.fromInt 1) `shouldEqual` "1.00"
+      Q.displayRatio (q "0.5") `shouldEqual` "0.50"
+      Q.displayRatio (q "-0.25") `shouldEqual` "-0.25"
+      Q.displayRatio (q "-0.004") `shouldEqual` "0.00"
+      Q.display Q.Ratio (q "0.3333") `shouldEqual` "0.33"
+      Q.displayTick Q.Quantity 2.5 `shouldEqual` "2.5"
+      Q.displayTick Q.Ratio 0.333333 `shouldEqual` "0.33"
+    it "a whole number shows no decimals" do
+      quickCheck do
+        n <- chooseInt (-100000) 100000
+        pure (((Q.displayQuantity (Q.fromInt n) == show n) && (Q.displayPrice (Q.fromInt n) == show n)) === true)
+    it "display stays within half a hundredth, never drops digits, and trims" do
+      quickCheck do
+        x <- genQ
+        pure ((displayWithin false x (Q.displayQuantity x) && displayWithin false x (Q.displayPrice x) && displayWithin true x (Q.displayRatio x)) === true)
+    it "display rounds every tie half to even" do
+      quickCheck do
+        k <- chooseInt 0 5000
+        let
+          -- (2k+1) × 0.005 is exactly k + 1/2 hundredths, so the even neighbour is the answer
+          x = Q.fromUnits (BI.fromInt (50 * (2 * k + 1)))
+          expected = if k `mod` 2 == 0 then k else k + 1
+          shown s = (Q.toUnits <$> Q.parse s) == Just (BI.fromInt (100 * expected))
+        pure ((shown (Q.displayPrice x) && shown (Q.displayRatio x) && shown (Q.displayQuantity x)) === true)
   describe "Core.Market clearing" do
     let
       cost = { base: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.fromInt 0, hi: Q.fromInt 100 } }

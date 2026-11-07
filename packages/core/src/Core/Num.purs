@@ -1,5 +1,6 @@
 -- | Fixed-point quantities: 4 decimal places, rounded half-to-even
--- | (docs/02_type_system.md §9.1). No `Number` enters economic state.
+-- | (docs/02_type_system.md §9.1). No `Number` enters economic state. Storage and computation are
+-- | exact; the display kinds (`displayQuantity`, `displayPrice`, `displayRatio`) only change text.
 module Core.Num
   ( Q
   , fromInt
@@ -21,6 +22,12 @@ module Core.Num
   , toUnits
   , fromUnits
   , toDisplayNumber
+  , Kind(..)
+  , display
+  , displayQuantity
+  , displayPrice
+  , displayRatio
+  , displayTick
   ) where
 
 import Prelude hiding (add, sub, mul, div, zero)
@@ -31,9 +38,10 @@ import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..))
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Array (all, any, findIndex, foldl, mapWithIndex, sortBy, zipWith)
 import Data.Char (toCharCode)
-import Data.Either (note)
+import Data.Either (Either(..), note)
 import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Number (round)
 import Data.String (Pattern(..), drop, indexOf, length, take) as S
 import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -210,3 +218,97 @@ floorInt (Q u) = fromMaybe 0 (BI.toInt (P.div u scale))
 -- | axes). Never feed the result back into economic state; parse with `parse` instead.
 toDisplayNumber :: Q -> Number
 toDisplayNumber (Q u) = BI.toNumber u / 10000.0
+
+-- | A display kind (docs/02 §9.1): how a value is shown. Each kind has one display function below;
+-- | every view, table, chart and CLI line names its kind and calls that function.
+data Kind = Quantity | Price | Ratio
+
+derive instance Eq Kind
+
+kindName :: Kind -> String
+kindName = case _ of
+  Quantity -> "quantity"
+  Price -> "price"
+  Ratio -> "ratio"
+
+instance EncodeJson Kind where
+  encodeJson = J.fromString <<< kindName
+
+instance DecodeJson Kind where
+  decodeJson j = case J.toString j of
+    Just "quantity" -> Right Quantity
+    Just "price" -> Right Price
+    Just "ratio" -> Right Ratio
+    _ -> Left (TypeMismatch "display kind: quantity, price or ratio")
+
+-- | The text of a value under its display kind.
+display :: Kind -> Q -> String
+display = case _ of
+  Quantity -> displayQuantity
+  Price -> displayPrice
+  Ratio -> displayRatio
+
+-- | Counts of units (Money, Resources): a whole number shows no decimals; otherwise at most two,
+-- | with trailing zeros trimmed (12, 12.5, 12.25). A value that would round to zero but is not
+-- | zero shows as "<0.01" (or "-<0.01").
+displayQuantity :: Q -> String
+displayQuantity = displayTrimmed
+
+-- | Prices (quote per base unit): two decimals with trailing zeros trimmed, under the same rule as
+-- | `displayQuantity`. The displayed value is the exact one rounded half-to-even at two decimals.
+displayPrice :: Q -> String
+displayPrice = displayTrimmed
+
+-- | Ratios and shares (Gini, influence, shrinkage, factors): always two decimals, half-to-even.
+displayRatio :: Q -> String
+displayRatio q = fixed2 (hundredths q)
+
+-- | A chart axis tick (a Number chosen by the chart library) under a display kind. The one float
+-- | boundary for display only: the tick is rounded to the 0.0001 grid and never parsed back into
+-- | economic state.
+displayTick :: Kind -> Number -> String
+displayTick k n = case BI.fromNumber (round (n * 10000.0)) of
+  Just u -> display k (Q u)
+  Nothing -> ""
+
+-- | The exact value in hundredths (10⁻²), rounded half-to-even.
+hundredths :: Q -> BigInt
+hundredths (Q u) = divRound u (BI.fromInt 100)
+
+displayTrimmed :: Q -> String
+displayTrimmed q =
+  let
+    h = hundredths q
+  in
+    if q /= zero && h == P.zero then (if q < zero then "-<0.01" else "<0.01") else trimmed2 h
+
+-- | Hundredths as text, trailing zeros trimmed.
+trimmed2 :: BigInt -> String
+trimmed2 h = sign <> BI.toString i <> frac
+  where
+  hundred = BI.fromInt 100
+  ten = BI.fromInt 10
+  a = magnitude h
+  i = P.div a hundred
+  f = a - i * hundred
+  sign = if h < P.zero then "-" else ""
+  frac
+    | f == P.zero = ""
+    | f - P.div f ten * ten == P.zero = "." <> BI.toString (P.div f ten)
+    | otherwise = "." <> pad2 f
+
+-- | Hundredths as text with exactly two decimals.
+fixed2 :: BigInt -> String
+fixed2 h = sign <> BI.toString i <> "." <> pad2 f
+  where
+  hundred = BI.fromInt 100
+  a = magnitude h
+  i = P.div a hundred
+  f = a - i * hundred
+  sign = if h < P.zero then "-" else ""
+
+pad2 :: BigInt -> String
+pad2 n = let s = BI.toString n in if S.length s < 2 then "0" <> s else s
+
+magnitude :: BigInt -> BigInt
+magnitude x = if x < P.zero then negate x else x

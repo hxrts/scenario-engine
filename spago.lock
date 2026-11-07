@@ -137,6 +137,7 @@
             "js-bigints",
             "maybe",
             "newtype",
+            "numbers",
             "ordered-collections",
             "partial",
             "prelude",
@@ -167,6 +168,7 @@
             "either",
             "exceptions",
             "foreign-object",
+            "functions",
             "integers",
             "js-uri",
             "maybe",
@@ -181,6 +183,7 @@
             "sp-harness",
             "strings",
             "tuples",
+            "unsafe-coerce",
             "web-dom",
             "web-html"
           ]
