@@ -1,6 +1,7 @@
--- | The dashboard (docs/06_simulator.md §9–§10). Four pages, one hash route each: the run list (home,
--- | with the latest run's summary), Prepare (launch and derive runs), View (one run's results and
--- | actions), and Compare (runs side by side). Every view model comes from the read API.
+-- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
+-- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
+-- | results, lineage and actions), Prepare (launch and derive runs), and Compare (runs side by side).
+-- | Every view model comes from the read API.
 module Dashboard.Main (main) where
 
 import Prelude
@@ -128,25 +129,41 @@ runTable grid t s = D.div
       ]
   }
 
--- | A labelled text input, or a preset select, for the launch form.
+-- | The launch form's fields and its Run button, with the line that says what is required. A required
+-- | field's label carries an asterisk and the word `required`; an optional one says `optional` and
+-- | what it defaults to.
 launchFields :: LaunchForm -> ((LaunchForm -> LaunchForm) -> Effect Unit) -> Maybe String -> Effect Unit -> JSX
 launchFields form setForm failure launch = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ field "Name" form.name (\v f -> f { name = v })
+      [ field { label: "Name", required: true, note: "required" } form.name (\v f -> f { name = v })
       , presetField
-      , field "Player seed" form.playerSeed (\v f -> f { playerSeed = v })
-      , field "Rounds (blank for the scenario default)" form.rounds (\v f -> f { rounds = v })
+      , field { label: "Player seed", required: false, note: "optional, a seed is drawn by the server when blank" } form.playerSeed (\v f -> f { playerSeed = v })
+      , field { label: "Rounds", required: false, note: "optional, defaults to the scenario's round count when blank" } form.rounds (\v f -> f { rounds = v })
       , maybe (D.span_ []) (\e -> D.pre { className: "text-destructive whitespace-pre-wrap", children: [ D.text e ] }) failure
       , element UI.button { onClick: handler_ launch, children: [ D.text "Run" ] }
+      , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Required: Name and Preset. Player seed and Rounds are optional and take their defaults when blank." ] }
       ]
   }
   where
-  field label value set = D.label { className: "flex flex-col gap-1 text-sm", children: [ D.text label, element UI.input { value, onChange: handler targetValue (\v -> setForm (set (fromMaybe "" v))) } ] }
+  field f value set = D.label
+    { className: "flex flex-col gap-1 text-sm"
+    , children:
+        [ fieldHeading f
+        , element UI.input { value, "aria-required": f.required, onChange: handler targetValue (\v -> setForm (set (fromMaybe "" v))) }
+        ]
+    }
+  fieldHeading f = D.span
+    { className: "flex flex-col"
+    , children:
+        [ D.span { className: "font-medium", children: [ D.text f.label, D.span { className: "text-destructive", children: [ D.text (if f.required then " *" else "") ] } ] }
+        , D.span { className: "text-xs text-muted-foreground", children: [ D.text f.note ] }
+        ]
+    }
   presetField = D.label
     { className: "flex flex-col gap-1 text-sm"
     , children:
-        [ D.text "Preset"
+        [ fieldHeading { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " is preselected" }
         , D.select
             { value: form.preset
             , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
@@ -223,23 +240,43 @@ mkPrepare _ = do
         ]
     }
 
--- | Home: the run list, and the selected run's summary (the latest readable run until one is
--- | selected). Selecting a run changes the summary in place: no page change.
-mkHome :: DataTable -> Component { compareSet :: Array String, toggle :: String -> Effect Unit }
-mkHome grid = do
+-- | The manage panel's actions for one run: archive, resume and delete. The run's rounds and target
+-- | come from its overview, so Resume is offered only while the run is shorter than its target.
+mkManage :: Component { id :: String, archived :: Boolean, onChanged :: Effect Unit }
+mkManage = do
+  actions <- Actions.mkRunActions
+  component "Manage" \p -> React.do
+    overview <- useApi p.id (runPath p.id <> "/overview")
+    pure $ case overview of
+      Just (Right (t :: Table)) -> actions { id: p.id, derive: false, archived: p.archived, rounds: roundCount t, target: roundTarget t, onChanged: p.onChanged }
+      Just (Left e) -> status (Just e)
+      Nothing -> status Nothing
+
+-- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
+-- | selection, the latest readable run. The selected run's results come first; its lineage and its
+-- | manage actions are stacked under them. Selecting a row changes the route, so a selected run has
+-- | its own address. Archive, resume and delete bump `version`, which refetches the list and remounts
+-- | the selected run's panels.
+mkRuns :: DataTable -> Component { selected :: Maybe String, compareSet :: Array String, toggle :: String -> Effect Unit }
+mkRuns grid = do
   results <- mkRunResults grid
-  component "Home" \p -> React.do
-    selected /\ setSelected <- useState' (Nothing :: Maybe String)
+  manage <- mkManage
+  component "Runs" \p -> React.do
     archived /\ setArchived <- useState' false
-    runs <- useFetch archived (listRuns archived)
+    version /\ setVersion <- useState' 0
+    shown <- useFetch (Tuple archived version) (listRuns archived)
+    everyRun <- useFetch version (listRuns true)
     pure $ Layout.page
-      { title: "Simulation runs"
-      , purpose: "Every stored run, with the latest run's results beside the list. Select a run to show its results here, or open it in View."
+      { title: "Runs"
+      , purpose: "Every stored run, with the selected run's results, lineage and actions beside the list. With no run selected, the latest readable run is shown."
       , children:
-          [ case runs of
-              Just (Right (t :: Table)) ->
+          [ case shown, everyRun of
+              Just (Left e), _ -> status (Just e)
+              _, Just (Left e) -> status (Just e)
+              Just (Right (t :: Table)), Just (Right (all :: Table)) ->
                 let
-                  current = fromMaybe "" (selected <|> latestReadable t)
+                  current = fromMaybe "" (p.selected <|> latestReadable t)
+                  info = runInfo all current
                 in
                   Layout.grid
                     [ Layout.panel
@@ -251,22 +288,27 @@ mkHome grid = do
                                 { className: "flex items-center gap-2 text-sm"
                                 , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
                                 }
-                            , runTable grid t { selected: current, select: \id -> setSelected (Just id) }
+                            , runTable grid t { selected: current, select: \id -> setHash (print route (Run id)) }
                             , D.a { href: href Prepare, className: "text-sm underline", children: [ D.text "Prepare a run" ] }
                             ]
                         }
-                    , Layout.panel
+                    , if current == "" then Layout.panel
                         { span: 8
-                        , title: "Latest run"
-                        , purpose: "The selected run's key results: its figures, price, balances, objectives, and rejections and shortfalls."
+                        , title: "Selected run"
+                        , purpose: "The selected run's results appear here."
+                        , children: [ D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run yet. Prepare a run to see its results here." ] } ]
+                        }
+                      else D.div
+                        { key: current <> "#" <> show version
+                        , className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
                         , children:
-                            [ if current == "" then D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run yet. Prepare a run to see its results here." ] }
-                              else D.div
-                                { key: current
+                            [ Layout.panel
+                                { span: 12
+                                , title: "Results"
+                                , purpose: "The run's key results: its figures, price, balances, objectives, and rejections and shortfalls. Each deeper topic is under its Details."
                                 , children:
                                     [ results
                                         { id: current
-                                        , details: false
                                         , inComparison: elem current p.compareSet
                                         , comparisonCount: Array.length p.compareSet
                                         , comparisonHref: href (Compare p.compareSet)
@@ -274,68 +316,17 @@ mkHome grid = do
                                         }
                                     ]
                                 }
-                            ]
-                        }
-                    ]
-              Just (Left e) -> status (Just e)
-              Nothing -> status Nothing
-          ]
-      }
-
--- | View: one run's lineage and actions, and its results with the deep views in Details.
-mkView :: DataTable -> Component { id :: String, compareSet :: Array String, toggle :: String -> Effect Unit }
-mkView grid = do
-  results <- mkRunResults grid
-  actions <- Actions.mkRunActions
-  component "View" \p -> React.do
-    version /\ setVersion <- useState' 0
-    overview <- useApi (Tuple version p.id) (runPath p.id <> "/overview")
-    runs <- useFetch (Tuple version p.id) (listRuns true)
-    pure $ Layout.page
-      { title: "Run " <> p.id
-      , purpose: "This run's results and its actions. The key results come first; each deeper topic is under its Details."
-      , children:
-          [ case overview, runs of
-              Just (Left e), _ -> status (Just e)
-              _, Just (Left e) -> status (Just e)
-              Just (Right (t :: Table)), Just (Right (all :: Table)) ->
-                let
-                  info = runInfo all p.id
-                in
-                  Layout.grid
-                    [ Layout.panel
-                        { span: 5
-                        , title: "Lineage"
-                        , purpose: "The run this one was derived from, and the runs derived from it."
-                        , children: [ lineage all p.id info ]
-                        }
-                    , Layout.panel
-                        { span: 7
-                        , title: "Manage this run"
-                        , purpose: "Archive, resume or delete this run. Derive, duplicate and variant runs from Prepare."
-                        , children:
-                            [ actions
-                                { id: p.id
-                                , derive: false
-                                , archived: maybe false _.archived info
-                                , rounds: roundCount t
-                                , target: roundTarget t
-                                , onChanged: setVersion (version + 1)
+                            , Layout.panel
+                                { span: 12
+                                , title: "Lineage"
+                                , purpose: "The run this one was derived from, and the runs derived from it."
+                                , children: [ lineage all current info ]
                                 }
-                            ]
-                        }
-                    , Layout.panel
-                        { span: 12
-                        , title: "Results"
-                        , purpose: "The run's results: the same summary as the home page, with each deeper topic under Details."
-                        , children:
-                            [ results
-                                { id: p.id
-                                , details: true
-                                , inComparison: elem p.id p.compareSet
-                                , comparisonCount: Array.length p.compareSet
-                                , comparisonHref: href (Compare p.compareSet)
-                                , toggleComparison: p.toggle p.id
+                            , Layout.panel
+                                { span: 12
+                                , title: "Manage this run"
+                                , purpose: "Archive, resume or delete this run. Derive, duplicate and variant runs from Prepare."
+                                , children: [ manage { id: current, archived: maybe false _.archived info, onChanged: setVersion (version + 1) } ]
                                 }
                             ]
                         }
@@ -429,10 +420,10 @@ marketPicker cs picked setPicked ids grid fetch = D.div
     Just m | elem m names -> m
     _ -> if elem "energy-atlantic" names then "energy-atlantic" else fromMaybe "" (head names)
 
--- | The top bar: the app name, then the pages. View links to the run last viewed, and Compare shows how
--- | many runs it holds. The comparison set and the viewed run live in the App, so every page sees them.
-shell :: Route -> Array String -> Maybe String -> JSX -> JSX -> JSX
-shell current compareSet viewed themeButton page = D.div
+-- | The top bar: the app name, then the three pages (Runs, Prepare, and Compare with how many runs it
+-- | holds). Every item is a link on every page. The comparison set lives in the App, so every page sees it.
+shell :: Route -> Array String -> JSX -> JSX -> JSX
+shell current compareSet themeButton page = D.div
   { className: "min-h-screen"
   , children:
       [ D.header
@@ -445,11 +436,8 @@ shell current compareSet viewed themeButton page = D.div
                       , D.nav
                           { className: "flex flex-wrap items-center gap-4 text-sm"
                           , children:
-                              [ navLink "Runs" Runs (current == Runs)
+                              [ navLink "Runs" Runs (isRuns current)
                               , navLink "Prepare" Prepare (current == Prepare)
-                              , case viewed of
-                                  Just id -> navLink "View" (Run id) (isView current)
-                                  Nothing -> D.span { className: "text-muted-foreground", children: [ D.text "View" ] }
                               , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (Array.length compareSet) <> ")") (Compare compareSet) (isCompare current)
                               ]
                           }
@@ -462,8 +450,9 @@ shell current compareSet viewed themeButton page = D.div
       ]
   }
   where
-  isView = case _ of
+  isRuns = case _ of
     Run _ -> true
+    Runs -> true
     _ -> false
   isCompare = case _ of
     Compare _ -> true
@@ -474,32 +463,30 @@ shell current compareSet viewed themeButton page = D.div
     , children: [ D.text label ]
     }
 
--- | The app: the routes, the comparison set (added from any run, and taken from a compare route), and
--- | the last viewed run (for the top bar's View link).
+-- | The app: the routes and the comparison set (added from any run, and taken from a compare route).
+-- | `#/runs` and `#/runs/:id` render the same Runs component, so its list keeps its state as a run is
+-- | selected.
 mkApp :: Component Unit
 mkApp = do
   grid <- mkDataTable
-  home <- mkHome grid
+  runsPage <- mkRuns grid
   prepare <- mkPrepare grid
-  view <- mkView grid
   compare <- mkCompare grid
   toggle <- themeToggle
   component "App" \_ -> React.do
     current /\ setCurrent <- useState' Runs
     compareSet /\ setCompareSet <- useState' ([] :: Array String)
-    viewed /\ setViewed <- useState' (Nothing :: Maybe String)
     useEffectOnce $ matchesWith (parse route) \_ r -> do
       setCurrent r
       case r of
-        Run id -> setViewed (Just id)
         Compare ids -> setCompareSet ids
         _ -> pure unit
     let
       toggleComparison id = setCompareSet (if elem id compareSet then filter (_ /= id) compareSet else compareSet <> [ id ])
-    pure $ shell current compareSet viewed (toggle unit) case current of
-      Runs -> home { compareSet, toggle: toggleComparison }
+    pure $ shell current compareSet (toggle unit) case current of
+      Runs -> runsPage { selected: Nothing, compareSet, toggle: toggleComparison }
+      Run id -> runsPage { selected: Just id, compareSet, toggle: toggleComparison }
       Prepare -> prepare unit
-      Run id -> D.div { key: id, children: [ view { id, compareSet, toggle: toggleComparison } ] }
       Compare ids -> D.div { key: String.joinWith "," ids, children: [ compare ids ] }
 
 main :: Effect Unit

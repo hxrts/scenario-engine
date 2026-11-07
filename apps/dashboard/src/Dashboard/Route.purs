@@ -1,4 +1,4 @@
--- | Dashboard routes (hash-based): `#/runs`, `#/runs/:id`, and `#/compare/:id/:id/...`. Each run id
+-- | Dashboard routes (hash-based): `#/runs`, `#/runs/:id`, `#/prepare`, and `#/compare/:id/:id/...`. Each run id
 -- | is one path segment, so the router percent-encodes it and a compared id is never split.
 module Dashboard.Route (Route(..), route, href) where
 
@@ -9,8 +9,8 @@ import Routing.Duplex (RouteDuplex', print, root, segment, rest)
 import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 
--- | The pages: the run list (home), Prepare (launch and derive runs), View (one run's results and
--- | actions), and Compare (runs side by side).
+-- | The pages: Runs (the run list, with the selected run's results, lineage and actions; `Run id`
+-- | selects one), Prepare (launch and derive runs), and Compare (runs side by side).
 data Route = Runs | Prepare | Run String | Compare (Array String)
 
 derive instance Generic Route _

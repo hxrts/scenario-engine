@@ -58,11 +58,43 @@ test("a run's key results are visible without opening any tab or Details section
   await expect(page.locator("details[open]")).toHaveCount(0);
 });
 
-test("selecting a run in the list updates the results panel in place, with no page change", async ({ page }) => {
+test("clicking a run row selects it and shows its results on the same page, with the list still beside them", async ({ page }) => {
   await page.goto("/#/runs");
   await page.getByRole("button", { name: "run-4", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
-  await expect(page).toHaveURL(/#\/runs$/);
+  await expect(page).toHaveURL(/#\/runs\/run-4$/);
+  await expect(page.getByRole("button", { name: "run-1", exact: true })).toBeVisible();
+  await expect(page.getByText("Lineage", { exact: true })).toBeVisible();
+});
+
+test("#/runs/:id opens the Runs page with that run selected, its lineage and its actions beneath", async ({ page }) => {
+  await page.goto("/#/runs/run-2");
+  await expect(page.getByRole("heading", { name: "Run run-2" })).toBeVisible();
+  // run-2 is an original run, so its lineage says so
+  await expect(page.getByText("Not derived from another run (an original run).")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
+});
+
+test("the top bar has Runs, Prepare and Compare, and no View item", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  const nav = page.getByRole("navigation");
+  await expect(nav.getByRole("link")).toHaveText(["Runs", "Prepare", "Compare"]);
+  await expect(nav.getByText("View", { exact: true })).toHaveCount(0);
+});
+
+test("every top-bar link navigates, from every page", async ({ page }) => {
+  const pages = ["#/runs", "#/runs/run-1", "#/prepare", "#/compare/run-1"];
+  const targets = [
+    [{ name: "Runs", exact: true }, /#\/runs$/],
+    [{ name: "Prepare", exact: true }, /#\/prepare$/],
+    [{ name: /^Compare/ }, /#\/compare/],
+  ];
+  for (const from of pages)
+    for (const [name, url] of targets) {
+      await page.goto(`/${from}`);
+      await page.getByRole("navigation").getByRole("link", name).click();
+      await expect(page).toHaveURL(url);
+    }
 });
 
 test("a run's Details sections are closed until opened, and each shows its purpose", async ({ page }) => {
@@ -113,7 +145,7 @@ test("a run is added to the comparison from its results, and the comparison show
   await expect(page.getByRole("link", { name: oldest, exact: true })).toBeVisible();
 });
 
-test("the comparison is reachable from a run's View page too", async ({ page }) => {
+test("the comparison is reachable from a run's page too", async ({ page }) => {
   await page.goto("/#/runs/run-3");
   await page.getByRole("button", { name: "Add to comparison", exact: true }).click();
   await page.getByRole("link", { name: "Compare (1)" }).click();
@@ -221,7 +253,20 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
   await expect(page).toHaveURL(/#\/prepare$/);
 });
 
-test("a launch opens the new run's View page", async ({ page }) => {
+test("the launch form marks its required fields, says what is optional, and names a blank required field", async ({ page }) => {
+  await page.goto("/#/prepare");
+  const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
+  await expect(launch.locator("label", { hasText: "Name" })).toContainText("required");
+  await expect(launch.locator("label", { hasText: "Preset" })).toContainText("required");
+  await expect(launch.locator("label", { hasText: "Player seed" })).toContainText("optional");
+  await expect(launch.locator("label", { hasText: "Rounds" })).toContainText("optional");
+  await expect(launch.getByText("Required: Name and Preset.")).toBeVisible();
+  await launch.getByLabel("Name").fill("");
+  await launch.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(launch.getByText("Name is required.")).toBeVisible();
+});
+
+test("a launch opens the new run's page", async ({ page }) => {
   await page.goto("/#/prepare");
   const launch = page.locator("section").filter({ hasText: "Launch a run" }).first();
   await launch.getByLabel("Preset").selectOption("Trader");

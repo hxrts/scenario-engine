@@ -24,7 +24,7 @@ emptyForm = { name: "run", preset: "Conservative", playerSeed: "", rounds: "" }
 validate :: LaunchForm -> Either String LaunchRequest
 validate f = do
   name <- if trim f.name == "" then Left "Name is required." else Right (trim f.name)
-  if elem f.preset presetNames then Right unit else Left ("Unknown preset: " <> f.preset)
+  if elem f.preset presetNames then Right unit else Left ("Preset is unknown: " <> f.preset <> ".")
   playerSeed <- case trim f.playerSeed of
     "" -> Right Nothing
     s -> maybe (Left "Player seed must be a whole number. Leave it blank to draw one.") (Right <<< Just) (Int.fromString s)

@@ -16,7 +16,6 @@ import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Harness.Views.Common (Table)
 import Data.Foldable (for_)
-import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
@@ -44,7 +43,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "Prepare round-trips as /prepare" do
       print route Prepare `shouldEqual` "/prepare"
       parse route "/prepare" `shouldEqual` Right Prepare
-    it "View round-trips as /runs/:id" do
+    it "Run round-trips as /runs/:id, the selected run on the Runs page" do
       print route (Run "run-1") `shouldEqual` "/runs/run-1"
       parse route "/runs/run-1" `shouldEqual` Right (Run "run-1")
     it "Compare round-trips as /compare/:ids" do
@@ -89,7 +88,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       validate (emptyForm { rounds = "0" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
       validate (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1, or blank for the scenario default."
     it "a preset must be one of the known presets" do
-      validate (emptyForm { preset = "Nope" }) `shouldEqual` Left "Unknown preset: Nope"
+      validate (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
     it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
       validate (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { name: "run", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
       validate (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."

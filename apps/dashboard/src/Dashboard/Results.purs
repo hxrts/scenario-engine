@@ -1,7 +1,7 @@
--- | One run's results (docs/06_simulator.md §9.2): the summary that the home page shows (the key
--- | figures, the price chart, the balances after the final round, the objectives, and the rejections
--- | and shortfalls), and on the View page the deep views behind one Details section per topic. Every
--- | number comes from the read API; this module only chooses what to show and where.
+-- | One run's results (docs/06_simulator.md §9.2): the summary (the key figures, the price chart, the
+-- | balances after the final round, the objectives, and the rejections and shortfalls), and the deep
+-- | views behind one Details section per topic. Every number comes from the read API; this module only
+-- | chooses what to show and where.
 module Dashboard.Results (mkRunResults, Props, roundCount, roundTarget, clampRound, rowValue) where
 
 import Prelude
@@ -25,11 +25,10 @@ import React.Basic.Events (handler, handler_)
 import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
 import React.Basic.Hooks as React
 
--- | The run whose results are shown. `details` adds the deep views (the View page); the comparison
--- | controls add the run to the comparison, or remove it, and link to the comparison when it has runs.
+-- | The run whose results are shown. The comparison controls add the run to the comparison, or remove
+-- | it, and link to the comparison when it has runs.
 type Props =
   { id :: String
-  , details :: Boolean
   , inComparison :: Boolean
   , comparisonCount :: Int
   , comparisonHref :: String
@@ -101,14 +100,14 @@ mkRunResults grid = do
           , case overview of
               Nothing -> status Nothing
               Just (Left e) -> status (Just e)
-              Just (Right (t :: Table)) -> body { id: p.id, table: t, details: p.details }
+              Just (Right (t :: Table)) -> body { id: p.id, table: t }
           ]
       }
 
-type BodyProps = { id :: String, table :: Table, details :: Boolean }
+type BodyProps = { id :: String, table :: Table }
 
--- | The summary, and with `details` the deep views. The round selector (for balance sheets and
--- | events) is clamped to the run's rounds.
+-- | The summary, then the deep views. The round selector (for balance sheets and events) is clamped
+-- | to the run's rounds.
 mkBody :: DataTable -> Component BodyProps
 mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
   requested /\ setRequested <- useState' (Nothing :: Maybe Int)
@@ -203,5 +202,5 @@ mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
       ]
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-section"
-    , children: summary <> (if b.details then deep else [])
+    , children: summary <> deep
     }

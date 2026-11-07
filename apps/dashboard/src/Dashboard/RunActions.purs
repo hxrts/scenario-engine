@@ -7,7 +7,6 @@ module Dashboard.RunActions (Props, mkRunActions) where
 import Prelude
 
 import Dashboard.Api (command, encode, post, remove, runPath)
-import Dashboard.Components (card)
 import Dashboard.Presets (presetNames)
 import Dashboard.RunForms (Derived, Spec, derivedOf, deleteConfirmed, deriveBody, requiredName, requiredRounds, resumeBody, variantSpec)
 import Dashboard.Route (Route(..), href, route)
@@ -30,7 +29,8 @@ import Routing.Hash (setHash)
 -- | overview reports one: Resume is offered only while the run is shorter than the target), and a
 -- | callback that refreshes the page after an archive or a resume.
 -- | `derive` selects the Prepare page's half (duplicate, rerun, variant, counterfactual); otherwise
--- | the View page's half (archive, resume, delete) is shown.
+-- | the Runs page's manage half (archive, resume, delete) is shown. Each half is a plain body: its
+-- | Layout panel carries the title.
 type Props = { id :: String, derive :: Boolean, archived :: Boolean, rounds :: Maybe Int, target :: Maybe Int, onChanged :: Effect Unit }
 
 -- | A rerun's outcome, shown in the panel with a link to the new run.
@@ -91,7 +91,7 @@ mkRunActions = component "RunActions" \p -> React.do
       p.onChanged
 
     delete = submit (if deleteConfirmed p.id typed then Right unit else Left "Type the run id exactly to delete this run.") (\_ -> remove (runPath p.id <> "?confirm=" <> encode p.id)) \(_ :: Json) ->
-      setHash (print route Runs)
+      p.onChanged *> setHash (print route Runs)
 
     canResume = case p.rounds, p.target of
       Just r, Just t -> r < t
@@ -115,7 +115,7 @@ mkRunActions = component "RunActions" \p -> React.do
         }
 
   pure $
-    if p.derive then card "Derive a run"
+    if p.derive then D.div_
       [ D.div
           { className: "flex flex-col gap-6"
           , children:
@@ -145,7 +145,7 @@ mkRunActions = component "RunActions" \p -> React.do
               ]
           }
       ]
-    else card "Manage this run"
+    else D.div_
       [ D.div
           { className: "flex flex-col gap-6"
           , children:

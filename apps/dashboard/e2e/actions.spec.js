@@ -1,13 +1,15 @@
-// Run actions (docs/06_simulator.md §9). Derive actions live on Prepare, and archive, resume and delete on
-// a run's View page. Every request these tests depend on is answered by page.route (e2e/mocks.js), so they
+// Run actions (docs/06_simulator.md §9). Derive actions live on Prepare, and archive, resume and delete under
+// the selected run on the Runs page. Every request these tests depend on is answered by page.route (e2e/mocks.js), so they
 // do not depend on the e2e server's seeded data or on the write endpoints being present: each mock answers
 // the contract (apps/server), and the test asserts the request the page sent.
 import { test, expect } from "@playwright/test";
 import { mockReads, ARCHIVED, isPath, json } from "./mocks.js";
 
-test("the View page shows the manage actions, and no resume when the run is at its target", async ({ page }) => {
+test("the selected run shows the manage actions, and no resume when the run is at its target", async ({ page }) => {
   await mockReads(page);
   await page.goto("/#/runs/run-1");
+  // the panel's title is shown once: the manage body is not a second card repeating it
+  await expect(page.getByText("Manage this run", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Resume" })).toHaveCount(0);
