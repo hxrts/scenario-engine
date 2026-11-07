@@ -1,7 +1,7 @@
--- | The Fractured World's in-world Policy catalog: the China NPC, Aggregate baselines, and
+-- | Meridian's in-world Policy catalog: the China NPC, Aggregate baselines, and
 -- | institutional fallbacks (docs/05_test_instance.md §11). `just scenarios` compiles it to
--- | `packages/scenarios/fractured-world/v0/policies.json`.
-module Scenarios.FracturedWorld.Policies (policies) where
+-- | `packages/scenarios/meridian/v0/policies.json`.
+module Scenarios.Meridian.Policies (policies) where
 
 import Prelude (negate, (<>))
 

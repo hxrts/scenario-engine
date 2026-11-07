@@ -38,7 +38,7 @@ type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q
 
 setup :: Aff Game
 setup = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario "fractured-world/v0"))
+  loaded <- liftEffect (map (_ >>= load) (readScenario "meridian/v0"))
   case loaded of
     Left e -> throwError (error e)
     Right { gameboard, config } -> case instantiate gameboard config, inWorldOf gameboard of

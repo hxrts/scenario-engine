@@ -11,7 +11,7 @@ import DSL.Base (q, keyed, (:=), transform)
 import DSL.World (entity)
 import DSL.Fixture (delivery, expect, proposal, ref, roundOf, transformI)
 import Scenarios.Fixtures.Common (energy, facilities, fixture)
-import Scenarios.FracturedWorld (majorMilitaryAction, procurement)
+import Scenarios.Meridian (majorMilitaryAction, procurement)
 
 fixtureDMinor :: Tuple String Json
 fixtureDMinor = fixture "D-minor"

@@ -14,7 +14,7 @@ import Prim.Row (class Union)
 import Record (union)
 import DSL.Base (Qty, Keyed, keyed, Built)
 import DSL.World (market)
-import Scenarios.FracturedWorld (asiaTerms, atlanticTerms, energyShipping, gameSeed, procurement, resources, transport)
+import Scenarios.Meridian (asiaTerms, atlanticTerms, energyShipping, gameSeed, procurement, resources, transport)
 
 -- | What every fixture shares; each fixture gives the rest and may override these.
 type FixtureFields =

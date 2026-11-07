@@ -14,9 +14,9 @@ The system is implemented: engine, scenario, Policies, harness, Run Store, read 
 - Single test: `spago test -p sp-core -- --example "<test name>"` (spec-node filter)
 - `just fmt`: purs-tidy.
 - `just check`: fmt-check, deps, build, test. `just all`: `check` plus the dashboard's Playwright smoke test (`just dashboard-test`). Recipes starting with `_` are internal steps, hidden from `just --list` but still runnable.
-- `just sim fractured-world --preset Conservative --rounds 5`: play a game from the CLI. `just session fractured-world --humans US --model anthropic/claude-opus-5-5`: live facilitator console (typed input; other seats are AI agents via the `pi` binary, which makes billed model calls).
+- `just sim meridian --preset Conservative --rounds 5`: play a game from the CLI. `just session meridian --humans US --model anthropic/claude-opus-5-5`: live facilitator console (typed input; other seats are AI agents via the `pi` binary, which makes billed model calls).
 - `just serve --db runs.db`: build the dashboard and serve it with the JSON API on :8787. Dashboard ports (API 8787, e2e 8799) are set in `apps/dashboard/ports.mjs`; `just dashboard-test` needs `cd apps/dashboard && npx playwright install` once.
-- Scenarios and presets are authored in the PureScript DSL (`packages/scenarios/src/DSL/` and `src/Scenarios/`); `packages/scenarios` does no IO, so reading the directory is `adapters/Scenarios` and writing the compiled files is `apps/cli`'s `Compile`. So are the golden fixtures (`src/Scenarios/Fixtures.purs`): they share the scenario's world pieces, but every expected value stays a literal from the worked examples in `docs/05_test_instance.md`, never computed. `just _scenarios` compiles all of them to `fractured-world/v0/*.json`, `presets.json` and `fixtures/*.json`, which are gitignored build outputs; `test`, `sim`, `session`, `serve` and `all` compile them first. Never hand-edit those JSON files.
+- Scenarios and presets are authored in the PureScript DSL (`packages/scenarios/src/DSL/` and `src/Scenarios/`); `packages/scenarios` does no IO, so reading the directory is `adapters/Scenarios` and writing the compiled files is `apps/cli`'s `Compile`. So are the golden fixtures (`src/Scenarios/Fixtures.purs`): they share the scenario's world pieces, but every expected value stays a literal from the worked examples in `docs/05_test_instance.md`, never computed. `just _scenarios` compiles all of them to `meridian/v0/*.json`, `presets.json` and `fixtures/*.json`, which are gitignored build outputs; `test`, `sim`, `session`, `serve` and `all` compile them first. Never hand-edit those JSON files.
 - The dashboard (`apps/dashboard`) is PureScript `react-basic-hooks` over vendored shadcn/ui in `apps/dashboard/ui/` (FFI bindings in `Dashboard.UI`, `Dashboard.Api` and `Dashboard.Theme`). View models are computed in `packages/harness/src/Harness/Views/` (one module per view group, shared shapes in `Views/Common`); keep business logic out of the frontend.
 
 `work/` is gitignored scratch space for implementation-process docs such as `work/1.md` (the work plan) and `work/deviations.md`. It is not part of the spec.
@@ -29,7 +29,7 @@ Read them in order. Each layer references the one before it, and none restates i
 2. `02_type_system.md`: the authoritative source for the glossary (§2.5), Intents and Proposals (§3), Policies (§4), markets and facilities (§5), Representation (§7), the canonical round sequence (§8.1), effects and handlers (§8.4), the master invariant table `INV-xx` (§9), and numerics and randomness (§9.1)
 3. `03_gameboard.md`: how a scenario is configured
 4. `04_instantiated_game.md`: initialization and live round execution
-5. `05_test_instance.md`: *The Fractured World*, the reference scenario, with fixtures A–G (exact expected balances)
+5. `05_test_instance.md`: *Meridian*, the reference scenario, with fixtures A–G (exact expected balances)
 6. `06_simulator.md`: simulation harness, run store, dashboard, mandatory tests
 7. `07_architecture.md`: package layout, dependency direction, and the key interfaces
 

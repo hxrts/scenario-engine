@@ -1,4 +1,4 @@
--- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Fractured World, eight
+-- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat program for each seat that exercises the features the audit found
 -- | untested together. `just scenarios` compiles it to `packages/scenarios/capstone/run.json`,
 -- | which the harness decodes through the normal Policy and Board paths. The world and the

@@ -18,7 +18,7 @@ import DSL.Base (Keyed, Built)
 import Foreign.Object as Object
 import Scenarios.Capstone as Capstone
 import Scenarios.Fixtures as Fixtures
-import Scenarios.FracturedWorld as FracturedWorld
+import Scenarios.Meridian as Meridian
 import Scenarios.Load (checkPresets, decodePresets, fromFiles)
 import Scenarios.Presets as Presets
 
@@ -34,7 +34,7 @@ compile = do
 -- | Every compiled file's path under the scenario root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  map (\(Tuple name j) -> Tuple ("fractured-world/v0/" <> name) j) FracturedWorld.files
+  map (\(Tuple name j) -> Tuple ("meridian/v0/" <> name) j) Meridian.files
     <> [ Tuple "presets.json" (encodeJson (Presets.presets :: Keyed (Built "program"))) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
@@ -43,7 +43,7 @@ outputs =
 -- | Gameboard, the Policies, the presets against the Gameboard, and every fixture.
 validate :: Either String Unit
 validate = do
-  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) FracturedWorld.files))
+  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) Meridian.files))
   presets <- decodePresets (encodeJson Presets.presets)
   lmap show (checkPresets loaded.gameboard presets)
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeFixture j)

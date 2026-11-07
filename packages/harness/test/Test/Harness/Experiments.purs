@@ -1,4 +1,4 @@
--- | Phase 9: the variant experiments of docs/06_simulator.md §11 on The Fractured World,
+-- | Phase 9: the variant experiments of docs/06_simulator.md §11 on Meridian,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
 -- | every invariant; the printed table is the balancing evidence for docs/05 §28–§29.
 module Test.Harness.Experiments (spec, seats) where

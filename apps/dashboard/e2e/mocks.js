@@ -5,8 +5,8 @@ export const COLUMNS = ["Run", "Name", "Gameboard", "Game seed", "Player seed", 
 
 // The run list as the server answers it: the default list omits archived runs, `?archived=true` lists them.
 export const listed = (rows) => ({ title: "Simulation runs", columns: COLUMNS, rows });
-export const ACTIVE = ["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
-export const ARCHIVED = ["run-9", "old", "fractured-world@v0", "26021", "4", "3", "completed", "0", "", "yes", "run-1"];
+export const ACTIVE = ["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
+export const ARCHIVED = ["run-9", "old", "meridian@v0", "26021", "4", "3", "completed", "0", "", "yes", "run-1"];
 
 // run-1's overview: three rounds completed, and a target of `target` rounds.
 export const overview = (target) => ({
@@ -15,8 +15,8 @@ export const overview = (target) => ({
   rows: [
     ["Run", "run-1"],
     ["Name", "base"],
-    ["Gameboard", "fractured-world@v0"],
-    ["Game ID", "fractured-world@v0/fractured-world-test-01"],
+    ["Gameboard", "meridian@v0"],
+    ["Game ID", "meridian/meridian-test-01"],
     ["Rounds", "3"],
     ["Rounds target", String(target)],
   ],

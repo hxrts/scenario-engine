@@ -25,9 +25,9 @@ const rowNamed = (scope, cells) => scope.getByRole("row", { name: cells.join(" "
 test("the run list shows each seeded run's id, name, rounds and status; empty fields say why", async ({ page }) => {
   await page.goto("/#/runs");
   // the last two cells are Reason (none: the run did not fail) and Source (none: an original run), with Archived before them
-  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "fractured-world@v0", "26021", "1", "3", "completed", "0", "none", "no", "none"]);
-  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "fractured-world@v0", "26021", "2", "3", "completed", "0", "none", "no", "none"]);
-  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "fractured-world@v0", "26021", "1", "2", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "meridian@v0", "26021", "2", "3", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "meridian@v0", "26021", "1", "2", "completed", "0", "none", "no", "none"]);
   await expect(page.getByRole("button", { name: "run-1", exact: true })).toBeVisible();
 });
 
@@ -102,7 +102,7 @@ test("the header names the run, its scenario, status, rounds completed out of ta
   await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
   await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
   await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
-  await expect(page.getByText("fractured-world@v0", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("meridian@v0", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("completed", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Game ID", { exact: true })).toBeVisible();
 });
@@ -236,7 +236,7 @@ test("every visible table column has a definition on hover", async ({ page }) =>
 
 test("an empty field says not recorded, or none with its reason, on hover", async ({ page }) => {
   // a run whose stored spec has no player seed, and a derived run's source is none
-  await mockReads(page, { active: [["run-1", "base", "fractured-world@v0", "26021", "", "3", "completed", "0", "", "no", ""]] });
+  await mockReads(page, { active: [["run-1", "base", "meridian@v0", "26021", "", "3", "completed", "0", "", "no", ""]] });
   await page.goto("/#/runs");
   const player = rowWith(page, ["run-1"]).getByRole("cell").nth(4);
   await expect(player).toHaveText("not recorded");
@@ -275,7 +275,7 @@ test("the launch form on Prepare offers the known presets and the scenario's rou
   await expect(launch.getByLabel("Preset").locator("option")).toHaveText(PRESETS);
   await expect(launch.getByLabel("Rounds")).toHaveValue("5");
   await expect(launch.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
-  await expect(launch.getByLabel("Scenario").locator("option")).toHaveText(["fractured-world@v0"]);
+  await expect(launch.getByLabel("Scenario").locator("option")).toHaveText(["meridian@v0"]);
   await expect(launch.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
   await launch.getByLabel("Player seed").fill("x");
   await launch.getByRole("button", { name: "Run", exact: true }).click();

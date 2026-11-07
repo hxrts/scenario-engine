@@ -24,7 +24,7 @@ import Effect.Aff (Aff)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
 import Scenarios.Fixtures as Fixtures
-import Scenarios.FracturedWorld (gameSeed)
+import Scenarios.Meridian (gameSeed)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 

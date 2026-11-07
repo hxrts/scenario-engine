@@ -48,7 +48,7 @@ orThrow = case _ of
 -- | The initial manifest of the reference scenario, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+  loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
   case instantiate loaded.gameboard loaded.config of
     Right initial -> pure initial.manifest
     Left _ -> fail "instantiation" *> throwError (error "instantiation")
@@ -59,7 +59,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   CapstoneTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
       presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
@@ -170,7 +170,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      loaded <- liftEffect (readScenario "fractured-world/v0") >>= orThrow >>= (orThrow <<< load)
+      loaded <- liftEffect (readScenario "meridian/v0") >>= orThrow >>= (orThrow <<< load)
       presets <- liftEffect (readText "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
       let
         ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }

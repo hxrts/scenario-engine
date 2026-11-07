@@ -16,7 +16,7 @@ apps/dashboard/ui/
 apps/dashboard/theme.css
 
 # compiled from the scenario DSL (`just scenarios`)
-packages/scenarios/fractured-world/
+packages/scenarios/meridian/
 packages/scenarios/presets.json
 packages/scenarios/fixtures/
 .claude/worktrees/

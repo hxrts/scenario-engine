@@ -6,16 +6,16 @@ set -euo pipefail
 recipe=$1
 shift
 
-scenarios="fractured-world"
+scenarios="meridian"
 presets=$(grep -o 'Tuple "[A-Za-z]*"' packages/scenarios/src/Scenarios/Presets.purs | cut -d'"' -f2 | tr '\n' ' ')
 packages=$(just --evaluate packages)
 
 case $recipe in
   sim)      usage="just sim <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]"
-            example="just sim fractured-world --preset Conservative --rounds 5"
+            example="just sim meridian --preset Conservative --rounds 5"
             flags="--preset --rounds --seed" positional=scenario ;;
   session)  usage="just session <scenario> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
-            example="just session fractured-world --humans US --rounds 3"
+            example="just session meridian --humans US --rounds 3"
             flags="--humans --model --rounds --window --id --db --seed" positional=scenario ;;
   serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
             example="just serve --port 9000"

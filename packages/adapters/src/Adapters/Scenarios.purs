@@ -40,7 +40,7 @@ scenariosRoot = do
   dir <- fromMaybe "packages/scenarios" <$> lookupEnv "SCENARIOS_DIR"
   pure (if isJust (stripSuffix (Pattern "/") dir) then dir else dir <> "/")
 
--- | A scenario directory under the root (`fractured-world/v0`): every `.json` file in it, sorted
+-- | A scenario directory under the root (`meridian/v0`): every `.json` file in it, sorted
 -- | by name, and `presets.json` from the root. A failure names the path that could not be read.
 readScenario :: String -> Effect (Either String Scenario)
 readScenario dir = do

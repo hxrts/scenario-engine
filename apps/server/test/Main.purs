@@ -44,7 +44,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       recordsEqual [ r1 ] [ r1, r2 ] `shouldEqual` false
   describe "Read API" do
     it "launches a run, then serves its views and a comparison" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let
@@ -109,7 +109,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           oldClient.status `shouldEqual` 200
         Left e -> fail e
     it "a drawn player seed and the same seed injected make the same run" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let
@@ -139,20 +139,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           map _.snapshot drawnRows `shouldEqual` map _.snapshot explicitRows
         Left e -> fail e
     it "every run stores its game id, shown in the overview" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"g\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           stored <- liftEffect ((reader db).manifest "run-1")
           case stored of
-            Just m -> m.spec `shouldSatisfy` contains (Pattern "\"gameId\":\"fractured-world/fractured-world-test-01\"")
+            Just m -> m.spec `shouldSatisfy` contains (Pattern "\"gameId\":\"meridian/meridian-test-01\"")
             Nothing -> fail "no stored spec"
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
-          overview.body `shouldSatisfy` contains (Pattern "fractured-world/fractured-world-test-01")
+          overview.body `shouldSatisfy` contains (Pattern "meridian/meridian-test-01")
         Left e -> fail e
     it "the scenario is served with its round range, default round count and game seed; the overview names the preset" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -167,7 +167,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview.body `shouldSatisfy` contains (Pattern "[\"Preset\",\"Conservative\"]")
         Left e -> fail e
     it "the run list has archived and source columns after the existing ones" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -176,7 +176,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           list.body `shouldSatisfy` contains (Pattern "\"Reason\",\"Archived\",\"Source\"")
         Left e -> fail e
     it "derive: duplicate, rerun, variant and counterfactual link to their source; bad requests are refused" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -238,7 +238,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overridesOnVariant.status `shouldEqual` 400
         Left e -> fail e
     it "resume extends a completed run in place, and matches a run played to that length from the start" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -261,7 +261,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           missingRun.status `shouldEqual` 404
         Left e -> fail e
     it "archive hides a run from the default list until it is asked for; delete needs its id as confirm" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -297,7 +297,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           derivedView.body `shouldSatisfy` contains (Pattern "deleted")
         Left e -> fail e
     it "a rerun reports recordsMatch true for a completed run; a missing or unreadable source is 404 or 409" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
@@ -321,7 +321,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           listed.body `shouldSatisfy` (not <<< contains (Pattern "\"run-5\""))
         Left e -> fail e
     it "a derive or resume after a delete never reuses an id that a run still cites" do
-      liftEffect (map (_ >>= loadContext) (readScenario "fractured-world/v0")) >>= case _ of
+      liftEffect (map (_ >>= loadContext) (readScenario "meridian/v0")) >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route ctx db { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })

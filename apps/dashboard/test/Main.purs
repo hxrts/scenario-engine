@@ -119,9 +119,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       validate "run-1" scenarioRounds (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Scenario reply" do
     it "the scenario's name, round range and game seed are decoded from GET /api/scenario" do
-      decodeScenario "{\"name\":\"fractured-world\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021}"
-        `shouldEqual` Right { name: "fractured-world", version: "v0", rounds: scenarioRounds, gameSeed: 26021 }
-      decodeScenario "{\"name\":\"fractured-world\"}" `shouldSatisfy` isLeft
+      decodeScenario "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021}"
+        `shouldEqual` Right { name: "meridian", version: "v0", rounds: scenarioRounds, gameSeed: 26021 }
+      decodeScenario "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
   describe "Presets" do
     it "the launch form offers exactly the compiled presets" do
       text <- liftEffect (readTextFile UTF8 presetsPath)
@@ -163,7 +163,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   runList :: Table
   runList = { title: "Simulation runs", columns: [ "Run", "Name", "Reason", "Archived", "Source" ], rows: [ row1, row2, row3 ] }
 
-  -- the fractured-world scenario's round range: 4 to 8, with 5 by default
+  -- the meridian scenario's round range: 4 to 8, with 5 by default
   scenarioRounds :: RoundRange
   scenarioRounds = { min: 4, max: 8, default: 5 }
 
