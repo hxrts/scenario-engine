@@ -2,7 +2,6 @@ module Test.Handlers.Main where
 
 import Prelude
 
-import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Invariants (checkRun)
@@ -28,33 +27,27 @@ import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
 import Effects.Round (runGame)
 import Foreign.Object as Object
-import Test.Handlers.Run (runTest)
+import Test.Handlers.Run (meridian, runTest)
+import Game.Types (Game, SeatBinding(..))
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
+import Handlers.Seats (seatEnv)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
 import Schema.Premise.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
-import Premises.Load (load, loadPresets)
+import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
-type Game = { world :: WorldState, inWorld :: InWorld, params :: Object.Object Q.Q }
-
 setup :: Aff Game
-setup = do
-  loaded <- liftEffect (map (_ >>= load) (readPremise fileOps "meridian/v0"))
-  case loaded of
-    Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config of
-      Right initial -> pure { world: initial.world, inWorld: inWorldOf gameboard, params: gameboard.parameters }
-      Left es -> throwError (error (show es))
+setup = meridian
 
 strategy :: String -> Strategy
 strategy text = case readJsonWith decodeStrategy text of
@@ -65,7 +58,7 @@ strategy text = case readJsonWith decodeStrategy text of
 play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
 play g n strategies = do
   let
-    out = runTest { strategies, params: g.params, home: homeMarket g.world, playerSeed: Seed 1 } (runGame g.inWorld n g.world)
+    out = runTest (Seed 1) g { seats = map Strategy strategies } (runGame g.inWorld n g.world)
   case out.value of
     Left e -> fail (show e)
     Right _ -> pure unit
@@ -127,7 +120,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show i <> "\"}}"
         eleven = strategy ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
       records <- play g 1 (Map.singleton (Id "US") eleven)
-      case runReplay 1 (map _.record records) (runGame g.inWorld 1 g.world) of
+      case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) (runGame g.inWorld 1 g.world) of
         Left e -> fail e
         Right out -> do
           let ids rs = map (\r -> map (\s -> s.proposal.id) r.record.inputs) rs

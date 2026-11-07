@@ -7,6 +7,7 @@ module Core.Proposal
   , Transcript
   , JointProposal
   , proposalsOf
+  , proposalAt
   , numberJoint
   , jointProposalsOf
   , jointProposals

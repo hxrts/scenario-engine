@@ -1,0 +1,27 @@
+package:
+  name: sp-game
+  dependencies:
+    - prelude
+    - sp-core
+    - sp-schema
+    - sp-board
+    - sp-policy
+    - argonaut-core
+    - argonaut-codecs
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - newtype
+    - strings
+    - tuples
+  test:
+    main: Test.Game.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - quickcheck
+      - spec-quickcheck

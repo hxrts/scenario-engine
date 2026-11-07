@@ -1,44 +1,82 @@
--- | The capstone run file (`packages/scenarios/capstone/run.json`) as the test suites read it: its
--- | decoded form, the spec it plays, its counterfactual, and the run it produces. Test support only.
-module Testkit.Capstone (load, specOf, counterfactualOf, runOf) where
+-- | The capstone run as the test suites read it: the Meridian premise assembled with the capstone's seat
+-- | bindings (and its counterfactual's), its expectations and objectives, and the run it produces. The
+-- | values come from `Premises.Capstone`; nothing decodes `capstone/run.json`. Test support only.
+module Testkit.Capstone (Capstone, RoundExpect, ObjectiveExpect, load, runOf) where
 
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
+import Core.Draw (Seed(..))
+import Core.Types (EntityId, Id(..))
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Decode (JsonDecodeError, decodeJson)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Data.Map as Map
+import Data.Traversable (traverse)
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
 import Effect.Exception (error)
-import Adapters.Filesystem (fileOps)
-import Premises.Load (loadRun)
-import Premises.Tree (readRootFile)
-import Simulator.Capstone (Capstone, decodeCapstone)
-import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, simulate)
+import Game.Assemble (assemble, withRounds)
+import Game.Premise (GameboardParts, Premise(..))
+import Game.Types (Bindings, Game)
+import Premises.Capstone as C
+import Schema.Decode.Rounds (Expect, decodeExpect)
+import Schema.Gameboard (Outcome(..))
+import Simulator.Simulate (SimRun, simulate)
+import Testkit.Meridian (orThrow, premise)
 
--- | The capstone run file, decoded.
+type RoundExpect = { round :: Int, expect :: Expect }
+
+-- | An objective the run must end with, by its Entity and its outcome.
+type ObjectiveExpect = { entity :: EntityId, outcome :: Outcome }
+
+type Capstone =
+  { rounds :: Int
+  , playerSeed :: Seed
+  , game :: Game
+  , counterfactual :: Game
+  , expectations :: Array RoundExpect
+  , objectives :: Array ObjectiveExpect
+  , counterfactualObjectives :: Array ObjectiveExpect
+  }
+
+-- | The capstone's game and its counterfactual, with their expectations and objectives.
 load :: Aff Capstone
 load = do
-  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
-  case file of
-    Left e -> throwError (error e)
-    Right j -> case decodeCapstone j of
-      Left e -> throwError (error e)
-      Right cap -> pure cap
+  p <- premise
+  game <- assembled p C.seatBindings
+  counterfactual <- assembled p C.counterfactualBindings
+  expectations <- orThrow (traverse roundExpect C.expectations)
+  pure
+    { rounds: C.rounds
+    , playerSeed: Seed C.playerSeed
+    , game
+    , counterfactual
+    , expectations
+    , objectives: map objective C.baseObjectives
+    , counterfactualObjectives: map objective C.counterfactualObjectives
+    }
+  where
+  assembled :: GameboardParts -> Bindings -> Aff Game
+  assembled p bindings = orThrow (map (withRounds (Just C.rounds)) (assemble (GameboardPremise p) bindings []))
 
--- | The spec the capstone run plays: its seats, player seed and round count.
-specOf :: Capstone -> SimulationSpec
-specOf cap = { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just cap.rounds }
+  roundExpect :: Json -> Either JsonDecodeError RoundExpect
+  roundExpect j = do
+    o <- decodeJson j :: Either JsonDecodeError { round :: Int, expect :: Json }
+    e <- decodeExpect o.expect
+    pure { round: o.round, expect: e }
 
--- | The counterfactual: the same seats, with the named seats replaced.
-counterfactualOf :: Capstone -> SimulationSpec
-counterfactualOf cap = (specOf cap) { seats = Map.union (map Custom cap.counterfactual) (map Custom cap.seats) }
+  objective o = { entity: Id o.entity, outcome: outcomeOf o.outcome }
 
--- | Play a spec to its end; a simulation or engine failure is an error.
-runOf :: Context -> SimulationSpec -> Aff Run
-runOf ctx s = case simulate ctx s of
-  Left e -> throwError (error (show e))
-  Right r -> case r.final of
+  outcomeOf :: String -> Outcome
+  outcomeOf = case _ of
+    "met" -> Met
+    "notMet" -> NotMet
+    _ -> NotEvaluated
+
+-- | Play a game to its end under a player seed; a simulation or engine failure is an error.
+runOf :: Seed -> Game -> Aff SimRun
+runOf seed g = do
+  r <- orThrow (simulate seed g)
+  case r.final of
     Left e -> throwError (error (show e))
     Right _ -> pure r

@@ -28,7 +28,11 @@ import Analysis.Agency (agency, counterfactual, playerSeedRuns)
 import Analysis.Objectives (evaluateObjectives)
 import Testkit.Meridian (seats)
 import Premises.Load (loadFixture)
-import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, simulate)
+import Simulator.Simulate (SimRun)
+import Game.Premise (GameboardParts)
+import Game.Types (Game, SeatBinding(..))
+import Testkit.Capstone (runOf)
+import Testkit.Meridian (presetGame)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -39,21 +43,17 @@ strategy text = case jsonParser text of
     Left _ -> { rules: [], sign: [] }
   Left _ -> { rules: [], sign: [] }
 
-everySeat :: String -> SimulationSpec
-everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+everySeat :: GameboardParts -> String -> Aff Game
+everySeat p preset = presetGame p preset [] Nothing
 
-run :: Context -> SimulationSpec -> Aff Run
-run ctx s = case simulate ctx s of
-  Left e -> throwError (error (show e))
-  Right r -> case r.final of
-    Left e -> throwError (error (show e))
-    Right _ -> pure r
+run :: Game -> Aff SimRun
+run g = runOf (Seed 1) g
 
 -- | Every round's invariants (INV-02, 04, 05, 06, 10) hold.
-valid :: WorldState -> Run -> Aff Unit
+valid :: WorldState -> SimRun -> Aff Unit
 valid initial r = checkRun initial r.records `shouldEqual` []
 
-initialOf :: Run -> WorldState
+initialOf :: SimRun -> WorldState
 initialOf r = r.manifest.initial
 
 fixture :: String -> Aff Unit
@@ -61,10 +61,11 @@ fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("
   Left e -> fail e
   Right f -> checkFixture f `shouldEqual` []
 
-spec :: Aff Context -> Spec Unit
+spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "7 NPC response: Fixture D as a pair, with and without the deployment" do
     ctx <- context
+    base <- everySeat ctx "Passive"
     fixture "D"
     let
       deploy = strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""
@@ -77,7 +78,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
             x.record.events
         )
         r.records
-    cf <- case counterfactual ctx (everySeat "Passive") { seats = Map.singleton (Id "US") (Custom deploy) } (\s -> s { seats = Map.empty }) of
+    cf <- case counterfactual (Seed 1) base { seats = Map.singleton (Id "US") (Strategy deploy) } (\g -> g { seats = Map.empty }) of
       Right x -> pure x
       Left e -> throwError (error (show e))
     china cf.base `shouldEqual` true
@@ -85,16 +86,18 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
 
   it "14 Agency: every role is analysed and its objectives reported" do
     ctx <- context
-    case agency ctx (everySeat "Conservative") "Aggressive" (map Id seats) of
+    g <- everySeat ctx "Conservative"
+    case agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seats) of
       Left e -> fail (show e)
       Right profiles -> do
         length profiles `shouldEqual` 15
-        base <- run ctx (everySeat "Conservative")
+        base <- run g
         length (evaluateObjectives ctx.gameboard base.records) `shouldEqual` 16
 
   it "player seeds vary seat behaviour while every Game-stream draw stays identical" do
     ctx <- context
-    case playerSeedRuns ctx (everySeat "RandomValid") (range 1 10) of
+    g <- everySeat ctx "RandomValid"
+    case playerSeedRuns g (range 1 10) of
       Left e -> fail (show e)
       Right runs -> do
         for_ runs \r -> valid (initialOf r) r

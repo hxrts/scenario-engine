@@ -6,7 +6,7 @@ module Test.Analysis.Main where
 import Prelude
 
 import Effect (Effect)
-import Testkit.Meridian (context)
+import Testkit.Meridian (premise)
 import Test.Analysis.Capstone as CapstoneTests
 import Test.Analysis.Experiments as Experiments
 import Test.Analysis.Mandatory as MandatoryTests
@@ -17,8 +17,8 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  Experiments.spec context
-  ViewTests.spec context
-  StatTests.spec context
-  CapstoneTests.spec context
-  MandatoryTests.spec context
+  Experiments.spec premise
+  ViewTests.spec premise
+  StatTests.spec premise
+  CapstoneTests.spec premise
+  MandatoryTests.spec premise

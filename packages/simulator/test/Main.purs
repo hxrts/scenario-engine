@@ -7,7 +7,6 @@ import Prelude
 import Board.Fixture (checkFixture)
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
@@ -15,7 +14,7 @@ import Core.Invariants (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
-import Core.Types (Id(..), RuleF(..))
+import Core.Types (EntityId, Id(..), RuleF(..))
 import Core.World (Event(..), RejectReason(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, reverse)
 import Data.Either (Either(..))
@@ -28,7 +27,9 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Handlers.Replay (runReplay)
-import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, resume, simulate)
+import Handlers.Seats (seatEnv)
+import Simulator.Simulate (SimRun, Snapshot, resumeFrom)
+import Board.Gameboard.Instantiate (instantiate)
 import Core.Strategy (Strategy)
 import Schema.Premise.Strategy (decodeStrategy)
 import Data.Argonaut.Parser (jsonParser)
@@ -37,8 +38,12 @@ import Effects.Round (runGame)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Premises.Load (loadFixture)
-import Testkit.Capstone (load)
-import Testkit.Meridian (context, seats)
+import Game.Assemble (presetBindings, withRounds)
+import Game.Override (Override)
+import Game.Premise (GameboardParts)
+import Game.Types (Game, SeatBinding(..))
+import Testkit.Capstone (load, runOf)
+import Testkit.Meridian (orThrow, presetGame, premise, seats)
 import Test.Spec (describe, it)
 import Test.Simulator.Shock as ShockTests
 import Test.Simulator.Capstone as CapstoneTests
@@ -46,8 +51,20 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
-everySeat :: String -> SimulationSpec
-everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+-- | Every seat plays one preset, under player seed 1: the game the mandatory tests start from.
+everySeat :: GameboardParts -> String -> Aff Game
+everySeat p preset = presetGame p preset [] Nothing
+
+-- | Only the named seats play `preset`; every other seat submits nothing.
+someSeats :: GameboardParts -> String -> Array String -> Aff Game
+someSeats p preset ids = do
+  g <- presetGame p preset [] Nothing
+  bindings <- orThrow (presetBindings p.presets (const preset) (map Id ids))
+  pure g { seats = bindings }
+
+-- | The game with the named seat replaced by a Strategy.
+withStrategy :: Game -> String -> Strategy -> Game
+withStrategy g e s = g { seats = Map.insert (Id e) (Strategy s) g.seats }
 
 strategy :: String -> Strategy
 strategy text = case jsonParser text of
@@ -56,18 +73,14 @@ strategy text = case jsonParser text of
     Left _ -> { rules: [], sign: [] }
   Left _ -> { rules: [], sign: [] }
 
-run :: Context -> SimulationSpec -> Aff Run
-run ctx spec = case simulate ctx spec of
-  Left e -> throwError (error (show e))
-  Right r -> case r.final of
-    Left e -> throwError (error (show e))
-    Right _ -> pure r
+run :: Seed -> Game -> Aff SimRun
+run = runOf
 
 -- | Every round's invariants (INV-02, 04, 05, 06, 10) hold.
-valid :: WorldState -> Run -> Aff Unit
+valid :: WorldState -> SimRun -> Aff Unit
 valid initial r = checkRun initial r.records `shouldEqual` []
 
-initialOf :: Run -> WorldState
+initialOf :: SimRun -> WorldState
 initialOf r = r.manifest.initial
 
 fixture :: String -> Aff Unit
@@ -80,49 +93,47 @@ price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> margin
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  ShockTests.spec context
-  CapstoneTests.spec context
+  ShockTests.spec premise
+  CapstoneTests.spec
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
-      ctx <- context
-      for_ [ "Conservative", "Passive" ] \p -> do
-        r <- run ctx (everySeat p)
+      p <- premise
+      for_ [ "Conservative", "Passive" ] \preset -> do
+        g <- everySeat p preset
+        r <- run (Seed 1) g
         length r.records `shouldEqual` 5
         valid (initialOf r) r
-      a <- run ctx (everySeat "RandomValid")
-      a' <- run ctx (everySeat "RandomValid")
-      b <- run ctx (everySeat "RandomValid") { playerSeed = Seed 2 }
+      g <- everySeat p "RandomValid"
+      a <- run (Seed 1) g
+      a' <- run (Seed 1) g
+      b <- run (Seed 2) g
       valid (initialOf a) a
       valid (initialOf b) b
       map _.world a.records `shouldEqual` map _.world a'.records
       (map _.world a.records /= map _.world b.records) `shouldEqual` true
 
     it "Every preset plays 8 rounds with invariants holding and no engine error" do
-      ctx <- context
-      for_ [ "Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid", "Deployer" ] \p -> do
-        r <- run ctx ((everySeat p) { rounds = Just 8 })
+      p <- premise
+      for_ [ "Passive", "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "RandomValid", "Deployer" ] \preset -> do
+        g <- presetGame p preset [] (Just 8)
+        r <- run (Seed 1) g
         length r.records `shouldEqual` 8
         valid (initialOf r) r
 
     it "2 Replay: same seeds reproduce, and the replay handler reproduces from records" do
-      ctx <- context
-      a <- run ctx (everySeat "RandomValid")
-      case instantiate ctx.gameboard ctx.config of
-        Right initial ->
-          let
-            inWorld = inWorldOf ctx.gameboard
-          in
-            do
-              case runReplay 5 (map _.record a.records) (runGame inWorld 5 initial.world) of
-                Left e -> fail (show e)
-                Right out -> do
-                  map _.world out.records `shouldEqual` map _.world a.records
-                  map _.record out.records `shouldEqual` map _.record a.records
-        Left _ -> fail "instantiation"
+      p <- premise
+      g <- everySeat p "RandomValid"
+      a <- run (Seed 1) g
+      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) (runGame g.inWorld 5 g.world) of
+        Left e -> fail (show e)
+        Right out -> do
+          map _.world out.records `shouldEqual` map _.world a.records
+          map _.record out.records `shouldEqual` map _.record a.records
 
     it "3 Submission order: permuting a recorded round's inputs changes nothing" do
-      ctx <- context
-      a <- run ctx (everySeat "Conservative")
+      p <- premise
+      g <- everySeat p "Conservative"
+      a <- run (Seed 1) g
       for_ (index a.records 0) \r -> do
         let w = prepareRound (initialOf a)
         map _.world (resolveRound w (reverse r.record.inputs)) `shouldEqual` Right r.world
@@ -156,9 +167,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
     it "7d Investor: the capacity investment executes once its owner signs too" do
-      ctx <- context
+      p <- premise
       -- every seat is an Investor, so ENCO (the capacity's owner) signs the investment it is offered
-      r <- run ctx { seats: presetSeats (const "Investor") (map Id [ "US", "ENCO", "CHIP", "SHIP", "DEF" ]), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+      g <- someSeats p "Investor" [ "US", "ENCO", "CHIP", "SHIP", "DEF" ]
+      r <- run (Seed 1) g
       let
         events = concatMap (\rec -> rec.record.events) r.records
         invested = any
@@ -176,8 +188,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       invested `shouldEqual` true
       unsigned `shouldEqual` false
     it "7c Deployer: the shipped preset reserves and sells its Mil in the rounds the Atlantic price is above 3" do
-      ctx <- context
-      r <- run ctx { seats: Map.singleton (Id "US") (Preset "Deployer"), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+      p <- premise
+      g <- someSeats p "Deployer" [ "US" ]
+      r <- run (Seed 1) g
       valid (initialOf r) r
       let
         -- what the US ordered of a Transformation in round i (0-based), if it did
@@ -214,10 +227,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       usMil 4 `shouldEqual` Just (parse "34.2")
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
-      ctx <- context
+      p <- premise
+      g <- everySeat p "Passive"
       let
         labor = strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
-      r <- run ctx { seats: Map.singleton (Id "LABOR") (Custom labor), playerSeed: Seed 1, overrides: [], rounds: Nothing }
+
+      r <- run (Seed 1) (withStrategy g "LABOR" labor)
       valid (initialOf r) r
       let
         has f = any (\x -> any f x.record.events) r.records
@@ -233,8 +248,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         ) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's disruption raises prices and the books balance" do
-      ctx <- context
-      r <- run ctx (everySeat "Passive")
+      p <- premise
+      g <- everySeat p "Passive"
+      r <- run (Seed 1) g
       valid (initialOf r) r
       case index r.records 1, index r.records 2 of
         Just r2, Just r3 -> (price r3 "energy-atlantic" > price r2 "energy-atlantic") `shouldEqual` true
@@ -248,11 +264,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "11 Trade restriction: the DSL-authored US ban, the EU tariff, and a banned shipment" do
       -- the ban, the tariff and the shipment are the capstone's seat strategies (DSL data), not Proposals built here
-      ctx <- context
       cap <- load
-      r <- case simulate ctx { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just 4 } of
-        Left e -> throwError (error (show e))
-        Right x -> pure x
+      r <- run cap.playerSeed (withRounds (Just 4) cap.game)
       let
         events = concatMap (_.record.events) r.records
         procedureRan = any
@@ -280,16 +293,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       banned `shouldEqual` true
 
     it "12 Resolution consistency: Germany explicit vs implicit" do
-      ctx <- context
-      case instantiate ctx.gameboard ctx.config, instantiate ctx.gameboard ctx.config { seats = Map.delete (Id "DE") ctx.config.seats } of
+      p <- premise
+      case instantiate p.gameboard p.config, instantiate p.gameboard p.config { seats = Map.delete (Id "DE") p.config.seats } of
         Right a, Right b -> reconcile a b `shouldEqual` Right unit
         _, _ -> fail "instantiation"
 
     it "a run resumed from its third snapshot matches the uninterrupted run" do
-      ctx <- context
-      full <- run ctx (everySeat "RandomValid")
+      p <- premise
+      g <- everySeat p "RandomValid"
+      full <- run (Seed 1) g
       case index full.records 2 of
         Nothing -> fail "rounds"
-        Just r3 -> case resume ctx (everySeat "RandomValid") (Just { world: r3.world, done: 3 }) of
+        Just r3 -> case resumeFrom (Seed 1) g ({ world: r3.world, done: 3 } :: Snapshot) of
           Left e -> fail (show e)
           Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 3 full.records)

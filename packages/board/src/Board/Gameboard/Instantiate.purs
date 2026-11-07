@@ -1,9 +1,8 @@
 -- | Instantiation (docs/04_instantiated_game.md §10): a Gameboard and its configuration become
 -- | the initial World State, with controllers, fallbacks, account partitioning, procedure
--- | weights, and Representations resolved. `checkHomes` is the startup check that follows it.
+-- | weights, and Representations resolved.
 module Board.Gameboard.Instantiate
   ( instantiate
-  , checkHomes
   , mergeRequirements
   ) where
 
@@ -14,13 +13,13 @@ import Board.Error (RefKind(..), ValidationError(..))
 import Core.Draw (drawVersion)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (aggregateOf, homeMarket, lookupQ)
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..))
-import Core.World (Requirement, UnseededWorld, WorldState, seeded)
-import Data.Array (concatMap, elem, filter, find, foldl, fromFoldable, mapMaybe, nub, null)
+import Core.Query (aggregateOf, lookupQ)
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..))
+import Core.World (Requirement, UnseededWorld, seeded)
+import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isNothing)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 
 -- | Controllers and fallbacks, account partitioning and procedure weights, Representation
@@ -130,10 +129,3 @@ mergeRequirements = foldl add []
     Just x, Just y -> Just (Just (Q.add x y))
     Nothing, Nothing -> Just Nothing
     _, _ -> Nothing
-
--- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market,
--- | because `$home` names it. An acting Entity with none is a startup error, named here, before any round.
-checkHomes :: (Entity -> Boolean) -> WorldState -> Either EntityId Unit
-checkHomes acts w = case find (\e -> acts e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
-  Just e -> Left e.id
-  Nothing -> Right unit

@@ -19,8 +19,7 @@ package:
     - tuples
     - sp-core
     - sp-schema
-    - sp-board
-    - sp-policy
+    - sp-game
     - sp-premises
     - sp-effects
     - sp-handlers

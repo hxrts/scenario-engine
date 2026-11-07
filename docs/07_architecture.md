@@ -45,6 +45,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `core` | nothing in the workspace |
 | `schema` | `core` |
 | `board`, `policy` | `core`, `schema` |
+| `game` | `core`, `schema`, `board`, `policy` |
 | `premises` | `core`, `schema`, `board`, `policy` (until `game` takes assembly, design 4 Phase 4) |
 | `effects` | `core`, `schema`, `board`, `policy` |
 | `handlers` | `core`, `schema`, `board`, `policy`, `effects` |

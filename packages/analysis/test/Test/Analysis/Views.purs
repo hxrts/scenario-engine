@@ -21,7 +21,12 @@ import Effect.Aff (Aff)
 import Effect.Exception (error)
 import Schema.Gameboard (Outcome(..))
 import Analysis.Objectives (evaluateObjectives)
-import Simulator.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, resolve, simulate)
+import Simulator.Simulate (SimRun)
+import Game.Assemble (assemblePreset)
+import Game.Override (Override(..), resolve)
+import Game.Premise (GameboardParts)
+import Testkit.Capstone (runOf)
+import Testkit.Meridian (orThrow)
 import Analysis.Views.Balances (balances, events)
 import Testkit.Meridian (seats)
 import Analysis.Views.Common (StoredRun, Table, defaultMetricSpec, final, quantity)
@@ -34,14 +39,17 @@ import Analysis.Views.Representation (representation)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
-everySeat :: String -> Int -> SimulationSpec
-everySeat preset rounds = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Just rounds }
+-- | A setup: every seat plays one preset for a number of rounds, under overrides and a player seed.
+type Setup = { preset :: String, rounds :: Int, overrides :: Array Override, seed :: Int }
 
-conservative :: Int -> SimulationSpec
+everySeat :: String -> Int -> Setup
+everySeat preset rounds = { preset, rounds, overrides: [], seed: 1 }
+
+conservative :: Int -> Setup
 conservative = everySeat "Conservative"
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
-toStored :: String -> Run -> StoredRun
+toStored :: String -> SimRun -> StoredRun
 toStored id r =
   { id
   , name: id
@@ -64,23 +72,23 @@ verdicts t = map (\row -> cell row 7) t.rows
 cell :: Array String -> Int -> String
 cell row i = fromMaybe "" (index row i)
 
-play :: Context -> SimulationSpec -> Aff Run
-play ctx s = case simulate ctx s of
-  Left e -> throwError (error (show e))
-  Right r -> pure r
+play :: GameboardParts -> Setup -> Aff SimRun
+play ctx s = do
+  g <- orThrow (assemblePreset ctx s.preset s.overrides (Just s.rounds))
+  runOf (Seed s.seed) g
 
-spec :: Aff Context -> Spec Unit
+spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Views and error paths" do
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
-    case simulate ctx base { seats = presetSeats (const "NoSuchPreset") (map Id seats) } of
+    case assemblePreset ctx "NoSuchPreset" [] (Just base.rounds) of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown preset NoSuchPreset")
       Right _ -> fail "an unknown preset ran"
-    case resolve ctx base { overrides = [ Parameter "no-such-parameter" (Q.fromInt 1) ] } of
+    case resolve { gameboard: ctx.gameboard, config: ctx.config } [ Parameter "no-such-parameter" (Q.fromInt 1) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown parameter no-such-parameter")
       Right _ -> fail "an unknown parameter was applied"
-    case resolve ctx base { overrides = [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] } of
+    case resolve { gameboard: ctx.gameboard, config: ctx.config } [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown scheme")
       Right _ -> fail "an unknown scheme was applied"
 

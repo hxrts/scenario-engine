@@ -31,7 +31,9 @@ import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Analysis.Agency (agency)
-import Simulator.Simulate (Context, presetSpec, seats)
+import Game.Assemble (assemblePreset, configuredSeats)
+import Game.Premise (GameboardParts)
+import Core.Draw (Seed(..))
 import Analysis.Views.Actions as Actions
 import Analysis.Views.Balance as Balance
 import Analysis.Views.Balances as Balances
@@ -122,7 +124,7 @@ loadRun store id = do
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: Context -> StoreBackend -> Object String -> String -> String -> Effect Response
+getView :: GameboardParts -> StoreBackend -> Object String -> String -> String -> Effect Response
 getView ctx store query id view = loadRun store id >>= case _ of
   Right r -> runView r
   Left Missing -> failWith 404 ("no run " <> id)
@@ -168,7 +170,7 @@ entityView store id entity = loadRun store id >>= case _ of
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: Context -> StoreBackend -> Object String -> Effect Response
+compareView :: GameboardParts -> StoreBackend -> Object String -> Effect Response
 compareView ctx store query = do
   let ids = filter (_ /= "") (split (Pattern ",") (param query "runs" ""))
   loaded <- traverse (loadRun store) ids
@@ -197,7 +199,7 @@ compareView ctx store query = do
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the scenario's
 -- | seats playing the preset against the alternative.
-agencyView :: Context -> Object String -> Effect Response
+agencyView :: GameboardParts -> Object String -> Effect Response
 agencyView ctx query = case Int.fromString (param query "playerSeed" "1") of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> viewOr (bimap show Compare.agencyTable (agency ctx (presetSpec ctx (param query "preset" "Conservative") (Seed s) [] Nothing) (param query "alternative" "Aggressive") (seats ctx)))
+  Just s -> viewOr (bimap show Compare.agencyTable (assemblePreset ctx (param query "preset" "Conservative") [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (param query "alternative" "Aggressive") (configuredSeats ctx.config)))

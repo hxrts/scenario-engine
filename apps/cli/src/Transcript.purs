@@ -10,7 +10,6 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise, premiseRoot)
-import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
 import Core.World (WorldState)
@@ -32,16 +31,18 @@ import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
 import Node.Process (exit')
-import Premises.Capstone (jointLineFor, jointLines)
-import Premises.Load (load)
+import Game.Assemble (assemble)
+import Game.Premise (Premise(..))
+import Premises.Capstone (jointLineFor, jointLines, seatBindings)
+import Premises.Load (loadPremise)
 
--- | The capstone's world: the shipped Meridian at its default configuration.
+-- | The capstone's world: the shipped Meridian at its default configuration, assembled with the capstone's seats.
 worldOf :: Aff WorldState
 worldOf = do
-  loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= either (throwError <<< error) pure >>= (either (throwError <<< error) pure <<< load)
-  case instantiate loaded.gameboard loaded.config of
-    Right initial -> pure initial.world
-    Left _ -> throwError (error "instantiation")
+  parts <- liftEffect (readPremise fileOps "meridian/v0") >>= either (throwError <<< error) pure >>= (either (throwError <<< error) pure <<< loadPremise)
+  case assemble (GameboardPremise parts) seatBindings [] of
+    Right game -> pure game.world
+    Left e -> throwError (error (show e))
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }

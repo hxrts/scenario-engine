@@ -19,7 +19,8 @@ import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
 import Premises.Meridian as Meridian
-import Premises.Load (checkPresets, decodeFixture, decodePresets, fromFiles)
+import Premises.Load (decodeFixture, decodePresets, fromFiles)
+import Game.Premise (checkPremise)
 import Premises.Names (presetsFile)
 import Premises.Presets as Presets
 
@@ -40,13 +41,13 @@ outputs =
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
 
--- | Decode and validate the compiled premise exactly as the loader will read it: the
--- | Gameboard, the Policies, the presets against the Gameboard, and every fixture.
+-- | Decode and check the compiled premise exactly as the loader will read it: the Gameboard, the
+-- | Policies, the presets against the Gameboard (`checkPremise`), and every fixture.
 validate :: Either String Unit
 validate = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) Meridian.files))
   presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
-  lmap show (checkPresets loaded.gameboard presets)
+  _ <- lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeFixture j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

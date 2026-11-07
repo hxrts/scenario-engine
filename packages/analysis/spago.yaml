@@ -5,6 +5,7 @@ package:
     - sp-core
     - sp-schema
     - sp-board
+    - sp-game
     - sp-simulator
     - arrays
     - effect

@@ -19,7 +19,10 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Exception (error)
-import Simulator.Simulate (Context, Run, presetSeats, simulate)
+import Simulator.Simulate (SimRun)
+import Game.Premise (GameboardParts)
+import Testkit.Meridian (presetGame, orThrow)
+import Testkit.Capstone (runOf)
 import Analysis.Views.Actions (actions)
 import Analysis.Views.Balance (gini, seedVariation, spread)
 import Analysis.Views.Common (StoredRun, Table, players)
@@ -43,12 +46,13 @@ energy = Id "E"
 
 -- | A simulated run's manifest and World States, read back as the Run Store would: the base every
 -- | hand-built run below reuses.
-baseRun :: Context -> Aff StoredRun
-baseRun ctx = case simulate ctx { seats: presetSeats (const "Conservative") (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Just 2 } of
-  Left e -> throwError (error (show e))
-  Right r -> pure (toStored r)
+baseRun :: GameboardParts -> Aff StoredRun
+baseRun p = do
+  g <- presetGame p "Conservative" [] (Just 2)
+  r <- runOf (Seed 1) g
+  pure (toStored r)
   where
-  toStored :: Run -> StoredRun
+  toStored :: SimRun -> StoredRun
   toStored r =
     { id: "base"
     , name: "base"
@@ -90,7 +94,7 @@ rowOf t name = find (\row -> index row 0 == Just name) t.rows
 fmt :: Maybe Q -> Maybe String
 fmt = map Q.format
 
-spec :: Aff Context -> Spec Unit
+spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Dashboard statistics on hand-built runs" do
   describe "Net worth" do
     it "a known holding at a known price: 100 M plus 10 E at 2 M/E is 120 M" do

@@ -18,8 +18,7 @@ package:
     - foldable-traversable
     - argonaut-codecs
     - sp-core
-    - sp-board
-    - sp-policy
+    - sp-game
     - sp-premises
     - sp-effects
     - sp-handlers

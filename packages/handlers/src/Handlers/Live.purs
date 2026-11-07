@@ -4,13 +4,17 @@
 -- | Each round is recorded with those transcripts, then narrated (NARRATE). Any other seat plays its
 -- | bound strategy. Each deadline's window is waited out once. There is no clarification and no
 -- | confirmation.
-module Handlers.Live (Live, Seat(..), runLive) where
+module Handlers.Live (Live, runLive) where
 
 import Prelude
 
+import Core.Draw (Seed)
 import Core.Proposal (Transcript)
 import Core.Types (EntityId, RoundIndex)
 import Core.World (RoundResult, View)
+import Core.Engine.Commit (EngineError)
+import Core.World (WorldState)
+import Data.Map as Map
 import Data.Array (elem)
 import Data.Either (Either(..), isLeft)
 import Data.Foldable (for_)
@@ -22,17 +26,18 @@ import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effects.Signatures (Deadline(..), INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
-import Handlers.Seats (SeatSource)
+import Game.Types (Game, SeatBinding(..))
+import Handlers.Seats (proposeFor, seatEnv, signFor)
+import Effects.Round (runGame)
 import Run (Run, case_, on, run)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-data Seat = Human | Agent | Strategy
-
--- | The live session's devices and callbacks, supplied by the composition root: the seats, a line of
--- | input, the window's wait, output, the model calls, and the record write.
+-- | The live session's devices and callbacks, supplied by the composition root: the player seed (the
+-- | machine seats draw from it), a line of input, the window's wait, output, the model calls, and the
+-- | record write. Which seats are human or agent is the game's: each seat's SeatBinding.
 type Live =
-  { seat :: EntityId -> Seat
+  { seed :: Seed
   , input :: String -> Aff String -- a human seat's line, after the prompt text
   , window :: Aff Unit -- one deadline's window of wall-clock time
   , say :: String -> Effect Unit -- a line for the facilitator
@@ -40,7 +45,6 @@ type Live =
   , interpret :: InterpretF ~> Aff -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , agents :: { speak :: EntityId -> View -> Aff String }
-  , strategies :: SeatSource
   , record :: RoundResult -> Array Transcript -> Aff Unit -- persist the round
   }
 
@@ -53,30 +57,36 @@ spokenText s = Just s
 prompt :: EntityId -> RoundIndex -> Deadline -> String
 prompt seat round window = "[round " <> show round <> ", " <> show window <> " window] " <> show seat <> "> "
 
-runLive :: forall a. Live -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + ()) a -> Aff a
-runLive live prog = do
+-- | Play a game live: the round program runs on the game's world and seats. Human and Agent seats are
+-- | answered here; every other binding is answered by `Handlers.Seats`.
+runLive :: Live -> Game -> Aff (Either EngineError WorldState)
+runLive live game = do
   -- set by the round's joint pass when its reply does not decode; read and cleared when the round is narrated
   failed <- liftEffect (Ref.new false)
   -- the deadlines whose windows have closed, so each window is waited out once
   closed <- liftEffect (Ref.new [])
-  run (case_ # on (Proxy :: _ "seatInput") (seat closed) # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") record # on (Proxy :: _ "narrate") (narrate failed)) prog
+  run (case_ # on (Proxy :: _ "seatInput") (seat closed) # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") record # on (Proxy :: _ "narrate") (narrate failed)) (runGame game.inWorld game.rounds game.world)
   where
+  env = seatEnv live.seed game
+  binding e = Map.lookup e game.seats
+
   seat :: Ref (Array (Tuple RoundIndex Deadline)) -> SeatInputF ~> Aff
   seat closed = case _ of
-    Speak e v k -> k <<< spokenText <$> case live.seat e of
-      Human -> do
+    Speak e v k -> k <<< spokenText <$> case binding e of
+      Just Human -> do
         text <- live.input (prompt e v.round ProposeDeadline)
         await closed v.round ProposeDeadline
         pure text
-      Agent -> live.agents.speak e v
-      Strategy -> pure ""
-    Propose e v k -> k <$> case live.seat e of
-      Strategy -> pure (live.strategies.propose e v)
-      _ -> pure []
-    Sign e v k -> k <$> case live.seat e of
-      Human -> await closed v.round SignDeadline $> []
-      Agent -> pure []
-      Strategy -> pure (live.strategies.sign e v)
+      Just Agent -> live.agents.speak e v
+      _ -> pure ""
+    Propose e v k -> k <$> case binding e of
+      Just Human -> pure []
+      Just Agent -> pure []
+      _ -> pure (proposeFor env game.seats e v)
+    Sign e v k -> k <$> case binding e of
+      Just Human -> await closed v.round SignDeadline $> []
+      Just Agent -> pure []
+      _ -> pure (signFor env game.seats e v)
 
   await :: Ref (Array (Tuple RoundIndex Deadline)) -> RoundIndex -> Deadline -> Aff Unit
   await closed round d = do
@@ -100,8 +110,8 @@ runLive live prog = do
     out <- live.interpret (Interpret round transcripts identity)
     liftEffect (Ref.write (isLeft out) failed)
     case out of
-      Left why -> for_ transcripts \t -> case live.seat t.seat of
-        Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")
+      Left why -> for_ transcripts \t -> case binding t.seat of
+        Just Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")
         _ -> pure unit
       Right _ -> pure unit
     pure (k out)

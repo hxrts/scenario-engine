@@ -17,7 +17,7 @@ import Effect.Console (log)
 import Simulator.Options (flagOr, parseFlags)
 import Http (serve)
 import Node.Process (argv, exit')
-import Premises.Load (loadContext)
+import Premises.Load (loadPremise)
 import Server.Launch (failInterrupted)
 import Server.Routes (route)
 
@@ -27,7 +27,7 @@ main = do
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
     Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
-      Just port | port > 0 && port < 65536 -> map (_ >>= loadContext) (readPremise fileOps "meridian/v0") >>= case _ of
+      Just port | port > 0 && port < 65536 -> map (_ >>= loadPremise) (readPremise fileOps "meridian/v0") >>= case _ of
         Right ctx -> do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store

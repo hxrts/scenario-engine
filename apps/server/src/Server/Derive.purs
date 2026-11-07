@@ -33,9 +33,11 @@ import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)
 import Server.Launch (start)
 import Server.Read (loadRun)
-import Simulator.Recipe (Recipe, decodeSpec, deriveRecipe)
+import Game.Assemble (assemblePreset)
+import Game.Premise (GameboardParts)
+import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Simulator.Records (recordsEqual)
-import Simulator.Simulate (Context, presetSpec, resumeWith)
+import Simulator.Simulate (resumeWith)
 
 -- | `POST /api/runs/:id/resume` body: the round count the run is extended to.
 type Resume = { rounds :: Int }
@@ -49,8 +51,8 @@ type Resume = { rounds :: Int }
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Context -> StoreBackend -> String -> String -> Effect Response
-deriveRun ctx store sourceId body = case readJson body :: Either String (Object Json) of
+deriveRun :: GameboardParts -> StoreBackend -> String -> String -> Effect Response
+deriveRun premise store sourceId body = case readJson body :: Either String (Object Json) of
   Left e -> failWith 400 e
   Right o -> case Object.lookup "kind" o >>= toString of
     Just kind | kind `elem` kinds -> do
@@ -75,7 +77,7 @@ deriveRun ctx store sourceId body = case readJson body :: Either String (Object 
                   Left e -> failWith 400 e
                   Right recipe -> do
                     let name = fromMaybe (info.name <> " (" <> kind <> ")") (Object.lookup "name" o >>= toString)
-                    started <- start ctx store
+                    started <- start premise store
                       { name
                       , preset: recipe.preset
                       , playerSeed: recipe.playerSeed
@@ -105,8 +107,8 @@ deriveRun ctx store sourceId body = case readJson body :: Either String (Object 
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: Context -> StoreBackend -> String -> String -> Effect Response
-resumeRun ctx store id body = case readJson body :: Either String Resume of
+resumeRun :: GameboardParts -> StoreBackend -> String -> String -> Effect Response
+resumeRun premise store id body = case readJson body :: Either String Resume of
   Left e -> failWith 400 e
   Right { rounds } -> do
     runs <- runStore store listRuns
@@ -123,18 +125,21 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
                 Right p
                   | rounds <= p.done -> failWith 400 ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
                   | otherwise -> do
-                      attempt <- try $ resumeWith ctx (presetSpec ctx p.base.preset p.seed p.base.overrides (Just rounds)) (Just { world: p.snapshot, done: p.done }) \_ -> do
-                        runStore store (setStatus id "running")
-                        runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
-                        persister store roundMetrics id p.snapshot
-                      case attempt of
-                        Left ex -> do
-                          runStore store (failRun id ("exception: " <> message ex))
-                          throwException ex
-                        Right (Left e) -> failWith 400 (show e)
-                        Right (Right r) -> do
-                          runStore store (finish id r)
-                          either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r
+                      case assemblePreset premise p.base.preset p.base.overrides (Just rounds) of
+                        Left e -> failWith 400 (show e)
+                        Right game -> do
+                          attempt <- try $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
+                            runStore store (setStatus id "running")
+                            runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
+                            persister store roundMetrics id p.snapshot
+                          case attempt of
+                            Left ex -> do
+                              runStore store (failRun id ("exception: " <> message ex))
+                              throwException ex
+                            Right (Left e) -> failWith 400 (show e)
+                            Right (Right r) -> do
+                              runStore store (finish id r)
+                              either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r
               _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count

@@ -6,12 +6,15 @@ package:
     - effect
     - exceptions
     - argonaut-core
+    - argonaut-codecs
     - arrays
     - foldable-traversable
     - maybe
     - ordered-collections
     - transformers
     - sp-core
+    - sp-schema
+    - sp-game
     - sp-simulator
     - sp-premises
     - sp-adapters

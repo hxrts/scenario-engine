@@ -6,7 +6,6 @@ module Test.Adapters.Main where
 import Prelude
 
 import Adapters.SQLite (busyTimeout, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
-import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
@@ -25,16 +24,16 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error, try)
 import Foreign.Object as Object
-import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, listRuns, listSummaries, readManifest, readMetric, readRounds, setArchived, setSpec, setStatus)
 import Analysis.Views.Metrics (metricsVersion, roundMetrics)
 import Handlers.Store (persister, recorder, runStore)
-import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
+import Simulator.Simulate (simulate, simulateWith)
+import Handlers.Seats (seatEnv)
+import Test.Adapters.Game (presetGame)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
-import Premises.Load (load, loadPresets)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
@@ -52,10 +51,8 @@ orThrow = case _ of
 -- | The initial manifest of the reference scenario, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-  case instantiate loaded.gameboard loaded.config of
-    Right initial -> pure initial.manifest
-    Left _ -> fail "instantiation" *> throwError (error "instantiation")
+  g <- presetGame [] "Passive" Nothing
+  pure g.manifest
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -64,14 +61,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PrimitiveTests.spec
   describe "Run Store" do
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      g <- presetGame [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
       let
-        ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
-        spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "RandomValid")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 7, overrides: [], rounds: Nothing }
+        seed = Seed 7
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
-      stored <- liftEffect $ simulateWith ctx spec \manifest -> do
+      stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "RandomValid", manifest, source: Nothing, kind: Nothing })
         persister port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
@@ -84,18 +79,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       records <- orThrow (traverse _.record rows)
       snapshots <- orThrow (traverse _.snapshot rows)
       -- the stored run equals the pure run, and replaying stored records reproduces it
-      pure' <- orThrow (simulate ctx spec)
+      pure' <- orThrow (simulate seed g)
       snapshots `shouldEqual` map _.world pure'.records
       map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
-      case instantiate ctx.gameboard ctx.config of
-        Right initial ->
-          let
-            inWorld = inWorldOf ctx.gameboard
-          in
-            case runReplay 5 records (runGame inWorld 5 initial.world) of
-              Left e -> fail e
-              Right out -> map _.world out.records `shouldEqual` snapshots
-        Left _ -> fail "instantiation"
+      case runReplay (seatEnv seed g) 5 records (runGame g.inWorld 5 g.world) of
+        Left e -> fail e
+        Right out -> map _.world out.records `shouldEqual` snapshots
       prices <- liftEffect (runStore port (readMetric "run-1" "price:energy-atlantic" metricsVersion))
       length prices `shouldEqual` 5
       -- a metric is read only at the version it was computed under
@@ -160,15 +149,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
-      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      g <- presetGame [ "US", "DE" ] "Passive" (Just 2)
       let
-        ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
-        spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Passive")) [ "US", "DE" ]), playerSeed: Seed 3, overrides: [], rounds: Just 2 }
+        seed = Seed 3
         said = [ { seat: Id "US", text: "I will buy ten energy" } ]
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
-      stored <- liftEffect $ simulateWith ctx spec \manifest -> do
+      stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
         save <- recorder port roundMetrics "run-1" manifest.initial
         pure \r -> save r (if r.record.round == 1 then said else [])
@@ -198,14 +185,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-      presets <- liftEffect (readRootFile fileOps "presets.json") >>= orThrow >>= (orThrow <<< loadPresets)
+      g <- presetGame [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
       let
-        ctx = { gameboard: loaded.gameboard, config: loaded.config, presets }
-        spec = { seats: Map.fromFoldable (map (\s -> Tuple (Id s) (Preset "Conservative")) [ "US", "DE", "SA", "JP", "SME" ]), playerSeed: Seed 1, overrides: [], rounds: Just 2 }
+        seed = Seed 1
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
-      stored <- liftEffect $ simulateWith ctx spec \manifest -> do
+      stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
         persister port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored

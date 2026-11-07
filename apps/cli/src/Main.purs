@@ -24,14 +24,15 @@ import Effect (Effect)
 import Effect.Console (log)
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Game.Assemble (assemblePreset)
 import Simulator.Options (flagOr, parseFlags)
-import Simulator.Simulate (presetSpec, simulate, startOf)
+import Simulator.Simulate (simulate)
 import Analysis.Views.Common (price)
 import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
-import Premises.Load (loadContext)
+import Premises.Load (loadPremise)
 import Handlers.Store (validRunId)
 import Session (Options, session)
 
@@ -96,18 +97,18 @@ usage why = do
 
 runScenario :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runScenario scenario presetName rounds given = do
-  loaded <- map (_ >>= loadContext) (readPremise fileOps (scenario <> "/v0"))
+  loaded <- map (_ >>= loadPremise) (readPremise fileOps (scenario <> "/v0"))
   case loaded of
     Left e -> fail e
-    Right ctx -> case startOf ctx.gameboard ctx.config of
+    Right parts -> case assemblePreset parts presetName [] (Just rounds) of
       Left e -> fail (show e)
-      Right { initial } -> do
+      Right game -> do
         seed <- resolveSeed given
-        case simulate ctx (presetSpec ctx presetName seed [] (Just rounds)) of
+        case simulate seed game of
           Left e -> fail (show e)
           Right out -> do
-            log (ctx.gameboard.id <> "@" <> ctx.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds, player seed " <> show (unwrap seed))
-            void $ foldM (\w r -> summarize w r $> r.world) initial.world out.records
+            log (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds, player seed " <> show (unwrap seed))
+            void $ foldM (\w r -> summarize w r $> r.world) game.world out.records
             case out.final of
               Left e -> fail (show e)
               Right _ -> pure unit

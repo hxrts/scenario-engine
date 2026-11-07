@@ -1,12 +1,29 @@
 -- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat strategy for each seat that exercises the features the audit found
--- | untested together. `just premises` compiles it to `packages/premises/capstone/run.json`,
--- | which the simulator decodes through the normal Policy and Board paths. The world and the
--- | Entity Policies are the shipped ones; only the seat strategies and the expectations are here.
-module Premises.Capstone (file, rounds, playerSeed, JointLine, jointLines, jointLineFor) where
+-- | untested together. It is a Gameboard premise with Strategy bindings (`seatBindings`); the
+-- | counterfactual replaces one seat (`counterfactualBindings`). `just premises` also compiles the
+-- | same seats, expectations and objectives to `capstone/run.json`, a record of them for readers; no
+-- | code decodes that file. The world and the Entity Policies are the shipped ones; only the seat
+-- | strategies and the expectations are here.
+module Premises.Capstone
+  ( file
+  , rounds
+  , playerSeed
+  , seatBindings
+  , counterfactualBindings
+  , expectations
+  , baseObjectives
+  , counterfactualObjectives
+  , ObjectiveExpect
+  , JointLine
+  , jointLines
+  , jointLineFor
+  ) where
 
-import Prelude ((==), map, ($), (<<<))
+import Prelude ((==), map, ($), (<<<), (<>))
 import Premises.Names as N
+import Game.Types (Bindings, SeatBinding(..))
+import Data.Map as Map
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
@@ -15,6 +32,7 @@ import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Core.Strategy (Strategy)
+import Core.Types (Id(..))
 import Data.Maybe (Maybe(..))
 import Schema.Build.Base (Built, (:=), keyed, q)
 import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
@@ -176,9 +194,11 @@ expectations =
   roundExp :: Int -> Built "expect" -> Json
   roundExp r e = encodeJson { round: r, expect: e }
 
--- | An objective's expected outcome: "met" or "notMet".
-outcome :: String -> String -> Json
-outcome entity o = encodeJson { entity, outcome: o }
+-- | An objective's expected outcome, by its Entity: "met", "notMet" or "notEvaluated" (the premise spelling).
+type ObjectiveExpect = { entity :: String, outcome :: String }
+
+outcome :: String -> String -> ObjectiveExpect
+outcome entity o = { entity, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
 allActors :: Array String
@@ -186,13 +206,24 @@ allActors = [ N.aid, N.br, N.chip, N.cn, N.de, N.def, N.enco, N.india, N.jp, N.l
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
-baseObjectives :: Array Json
+baseObjectives :: Array ObjectiveExpect
 baseObjectives = map (\e -> outcome e "notMet") allActors
 
 -- | Without the deployment the US keeps its 95 Mil and meets its objective; nothing else changes
 -- | the outcomes.
-counterfactualObjectives :: Array Json
+counterfactualObjectives :: Array ObjectiveExpect
 counterfactualObjectives = map (\e -> outcome e (if e == N.us then "met" else "notMet")) allActors
+
+-- | The seats of the capstone: each named seat bound to its Strategy.
+seatBindings :: Bindings
+seatBindings = strategyBindings (seats us)
+
+-- | The counterfactual's seats: the capstone's, with the US's Strategy replaced (the left operand wins).
+counterfactualBindings :: Bindings
+counterfactualBindings = Map.union (strategyBindings [ Tuple N.us usWithoutDeployment ]) seatBindings
+
+strategyBindings :: Array (Tuple String Strategy) -> Bindings
+strategyBindings xs = Map.fromFoldable (map (\(Tuple e s) -> Tuple (Id e) (Strategy s)) xs)
 
 -- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
 -- | and every objective's expected outcome in each case.

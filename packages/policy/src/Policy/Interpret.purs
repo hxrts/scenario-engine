@@ -68,7 +68,7 @@ eval env = case _ of
   -- Strategy.params checks every name against the Gameboard at load time, so the default is unreachable
   Param name -> fromMaybe Q.zero (Object.lookup name env.params)
   Round -> Q.fromInt env.view.round
-  -- an Entity with no home market never runs a `$home` condition: checkHomes rejects it at startup
+  -- an Entity with no home market never runs a `$home` condition: `Game.Assemble.checkHomes` rejects it at startup
   Price m -> maybe Q.zero (\x -> lookupQ x env.view.prices) (resolveMarket env m)
   Holding r -> lookupQ r env.view.self.accounts
   -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)

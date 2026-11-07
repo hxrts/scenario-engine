@@ -80,7 +80,7 @@ data Outcome = Met | NotMet | NotEvaluated
 
 derive instance Eq Outcome
 
--- | The words the views show; the stored DSL spells the same outcomes in its own form (Simulator.Capstone).
+-- | The words the views show; the stored DSL spells the same outcomes in its own form (the capstone's expectations, Premises.Capstone).
 instance Show Outcome where
   show = case _ of
     Met -> "met"

@@ -33,8 +33,11 @@ import Foreign.Object as Object
 import Analysis.Views.Metrics (roundMetrics)
 import Premises.Presets (presetNames)
 import Handlers.Store (StoreBackend, persister, runStore)
-import Simulator.Recipe (Derivation, encodeSpec)
-import Simulator.Simulate (Context, Override, presetSpec, simulateWith)
+import Game.Assemble (assemblePreset)
+import Game.Override (Override)
+import Game.Premise (GameboardParts)
+import Game.Recipe (Derivation, encodeSpec)
+import Simulator.Simulate (simulateWith)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.
@@ -63,31 +66,34 @@ failInterrupted :: StoreBackend -> Effect Int
 failInterrupted store = runStore store (failRunning "interrupted: the server stopped before the run finished")
 
 -- | Launch a run from a preset on every seat.
-launch :: Context -> StoreBackend -> Launch -> Effect (Either String Launched)
-launch ctx store l = start ctx store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
+launch :: GameboardParts -> StoreBackend -> Launch -> Effect (Either String Launched)
+launch p store l = start p store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
 -- | seed it used. The seed is resolved here, before the run starts, and the stored spec records that
--- | value. Nothing is stored unless the spec instantiates. A run that throws (a store or simulation
+-- | value. Nothing is stored unless the game assembles. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
-start :: Context -> StoreBackend -> Start -> Effect (Either String Launched)
-start ctx store l = do
+start :: GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
+start p store l = do
   id <- nextRunId store
   seed <- resolveSeed (Seed <$> l.playerSeed)
-  let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf ctx.gameboard), playerSeed: seed, preset: l.preset, rounds: l.rounds, overrides: l.overrides, derivation: l.derivation }
-    source = _.source <$> l.derivation
-    kind = _.kind <$> l.derivation
-  created <- nowIso
-  attempt <- try $ simulateWith ctx (presetSpec ctx l.preset seed l.overrides l.rounds) \manifest -> do
-    runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
-    persister store roundMetrics id manifest.initial
-  case attempt of
-    Left ex -> do
-      runStore store (failRun id ("exception: " <> message ex))
-      throwException ex
-    Right (Left e) -> pure (Left (show e))
-    Right (Right r) -> runStore store (finish id r) $> Right { id, playerSeed: unwrap seed }
+  case assemblePreset p l.preset l.overrides l.rounds of
+    Left e -> pure (Left (show e))
+    Right game -> do
+      let
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: l.rounds, overrides: l.overrides, derivation: l.derivation }
+        source = _.source <$> l.derivation
+        kind = _.kind <$> l.derivation
+      created <- nowIso
+      attempt <- try $ simulateWith seed game \manifest -> do
+        runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
+        persister store roundMetrics id manifest.initial
+      case attempt of
+        Left ex -> do
+          runStore store (failRun id ("exception: " <> message ex))
+          throwException ex
+        Right (Left e) -> pure (Left (show e))
+        Right (Right r) -> runStore store (finish id r) $> Right { id, playerSeed: unwrap seed }
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
 -- | link cannot come to resolve to a different run.
@@ -111,14 +117,14 @@ type Scenario =
   , presets :: Array String
   }
 
-scenarioInfo :: Context -> StoreBackend -> Effect Scenario
-scenarioInfo ctx store = do
+scenarioInfo :: GameboardParts -> StoreBackend -> Effect Scenario
+scenarioInfo p store = do
   next <- nextRunId store
   pure
-    { name: ctx.gameboard.id
-    , version: ctx.gameboard.version
-    , rounds: { min: ctx.gameboard.rounds.min, max: ctx.gameboard.rounds.max, default: ctx.config.rounds }
-    , gameSeed: unwrap ctx.config.seed
+    { name: p.gameboard.id
+    , version: p.gameboard.version
+    , rounds: { min: p.gameboard.rounds.min, max: p.gameboard.rounds.max, default: p.config.rounds }
+    , gameSeed: unwrap p.config.seed
     , defaultName: next
-    , presets: filter (\n -> Object.member n ctx.presets) presetNames
+    , presets: filter (\n -> Object.member n p.presets) presetNames
     }

@@ -4,8 +4,7 @@ package:
     - prelude
     - sp-core
     - sp-schema
-    - sp-board
-    - sp-policy
+    - sp-game
     - partial
     - argonaut-core
     - arrays
@@ -20,6 +19,8 @@ package:
   test:
     main: Test.Premises.Main
     dependencies:
+      - sp-board
+      - sp-policy
       - effect
       - sp-adapters
       - spec

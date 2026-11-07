@@ -2,7 +2,7 @@
 -- | is played from, and the stored specification that records them. `encodeSpec` writes that
 -- | specification, `decodeSpec` reads it back, and `deriveRecipe` applies a derive request to a
 -- | source's recipe. The server keeps the HTTP status of each failure.
-module Simulator.Recipe
+module Game.Recipe
   ( Recipe
   , Derivation
   , encodeSpec
@@ -22,11 +22,12 @@ import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
-import Effects.Signatures (Spec)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Simulator.Overrides (decodeOverrides, encodeOverrides)
-import Simulator.Simulate (Override)
+import Game.Override (Override, decodeOverrides, encodeOverrides)
+
+-- | A stored specification: every value is a string.
+type Spec = Object String
 
 -- | What a new run is played from: its preset, player seed (Nothing draws one), round count
 -- | (Nothing is the configuration's), and overrides. It is what a run's stored spec records.

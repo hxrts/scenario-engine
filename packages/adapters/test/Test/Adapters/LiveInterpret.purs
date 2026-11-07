@@ -11,7 +11,6 @@ import Prelude
 import Adapters.Pi (defaultModel, pi)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
-import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (Transcript)
 import Core.Types (Id(..))
@@ -28,7 +27,7 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (interpreter)
 import Node.Process (exit', lookupEnv)
-import Premises.Load (load)
+import Test.Adapters.Game (presetGame)
 
 -- | The fixed transcripts: the US and Germany describe one trade, and Japan says something unrelated.
 transcripts :: Array Transcript
@@ -40,14 +39,8 @@ transcripts =
 
 world :: Aff WorldState
 world = do
-  s <- liftEffect (readPremise fileOps "meridian/v0")
-  case s of
-    Left e -> throwError (error e)
-    Right scenario -> case load scenario of
-      Left e -> throwError (error e)
-      Right { gameboard, config } -> case instantiate gameboard config of
-        Right initial -> pure initial.world
-        Left _ -> throwError (error "instantiation")
+  g <- presetGame [] "Passive" Nothing
+  pure g.world
 
 -- | One joint pass, then the checks. A failed check throws; the caller reports and exits 1.
 check :: Aff Unit

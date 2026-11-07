@@ -9,6 +9,7 @@ import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (Fallback(..), Gameboard, InstantiationConfig)
 import Board.Error (Difference(..), RefKind(..), ValidationError(..))
+import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
@@ -43,7 +44,9 @@ import Schema.Build.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tar
 import Adapters.Filesystem (fileOps)
 import Premises.Load (decodeFixture)
 import Premises.Tree (readPremise)
-import Premises.Load (LoadError(..), checkPresets, decodePresets, fromFiles, load)
+import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
+import Game.Premise (GameboardParts, checkPremise)
+import Data.Bifunctor (lmap)
 import Premises.Meridian (files)
 import Premises.Meridian.Policies (policies)
 import Premises.Presets as Presets
@@ -81,9 +84,9 @@ holdings =
   ]
 
 -- | The reference instance's Gameboard and configuration, as the loader reads them.
-loaded :: Aff { gameboard :: Gameboard, config :: InstantiationConfig }
+loaded :: Aff GameboardParts
 loaded = do
-  r <- liftEffect (map (_ >>= load) (readPremise fileOps "meridian/v0"))
+  r <- liftEffect (map (_ >>= loadPremise) (readPremise fileOps "meridian/v0"))
   case r of
     Left e -> failWith e
     Right x -> pure x
@@ -125,6 +128,12 @@ policyNamed gb name = case Map.lookup (Id name) gb.policies of
 -- | A load outcome without its (non-comparable) premise, for equality checks.
 outcome :: forall a. Either LoadError a -> Either LoadError Unit
 outcome = map (const unit)
+
+-- | A load outcome, checked as the game checks it: the decoded sections, then `checkPremise` (the error text).
+checked :: Array { name :: String, json :: Json } -> Either String Unit
+checked files = do
+  d <- lmap show (fromFiles files)
+  map (const unit) (lmap show (checkPremise { gameboard: d.gameboard, config: d.config, presets: Object.empty }))
 
 -- Edits for the validation tests --------------------------------------------------------
 
@@ -227,7 +236,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (const unit) (validateGameboard gameboard config) `shouldEqual` Right unit
       case shippedPresets of
         Left e -> fail e
-        Right ps -> checkPresets gameboard ps `shouldEqual` Right unit
+        Right ps -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: ps })) `shouldEqual` Right unit
 
     it "instantiates with the initial holdings of §15" do
       { initial } <- instantiated
@@ -462,21 +471,21 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
-      outcome (fromFiles (withSection "policies.json" (encodeWith Premise policiesShape catalog)))
-        `shouldEqual` Left (Unresolved "policy bad-v0" MarketRef "energy-nowhere")
+      checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
+        `shouldEqual` Left (show (Unresolved "policy bad-v0" MarketRef "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
         bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
-      outcome (fromFiles (withSection "policies.json" (encodeWith Premise policiesShape catalog)))
-        `shouldEqual` Left (Unresolved "policy bad-v0" ParameterRef "no-such-parameter")
+      checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
+        `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
     it "a preset that names an unknown transformation fails the check" do
-      { gameboard } <- loaded
+      { gameboard, config } <- loaded
       let bad = strategy { rules: [ rule [] [ asTemplate (I.transform { by: "self", transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
       case decodeStrategy (encodeStrategy bad) of
         Left e -> fail (show e)
-        Right p -> checkPresets gameboard (Object.singleton "Bad" p)
-          `shouldEqual` Left (Unresolved "preset Bad" TransformationRef "no-such-facility")
+        Right p -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))
+          `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do

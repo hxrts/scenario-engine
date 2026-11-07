@@ -29,6 +29,16 @@ const rules = [
     bad: (line) => tagKinds.some((k) => line.includes(`"${k}:`)),
   },
   {
+    name: "one seat vocabulary: a seat's binding is SeatBinding in game (work/4.md §7.3); no SeatSource, and no second Seat type",
+    files: (f) => f.includes("/src/"),
+    bad: (line) => /\bSeatSource\b/.test(line) || /^(data|type|newtype) Seat\b/.test(line),
+  },
+  {
+    name: "apps assemble through game: no instantiation call in an app (game.assemble and startOf, work/4.md §12.4)",
+    files: (f) => f.startsWith("apps/") && f.includes("/src/"),
+    bad: (line) => /\binstantiate\b/.test(line),
+  },
+  {
     name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",
     files: () => true,
     bad: (line) => /\bSeed 0\b/.test(line),

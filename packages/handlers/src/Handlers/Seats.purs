@@ -1,63 +1,88 @@
--- | Seat sources and the SEAT_INPUT handler they share. A source answers a seat's Propose
--- | and Sign steps: bound declarative strategies (Test, Sim) or recorded input (Replay).
-module Handlers.Seats (SeatSource, strategies, replay, handleSeats, collectRecords) where
+-- | The SEAT_INPUT interpreter (work/4.md §7.3): one generic handler over a Game's seat bindings. A
+-- | Strategy binding calls the pure `policy` interpreter; a Script answers from its rounds, with no
+-- | eligibility filter; a Recorded binding answers from stored round records. Agent and Human bindings
+-- | are answered by live play (`Handlers.Live`), never here: this handler gives them no answer, and the
+-- | simulator rejects them before it runs.
+module Handlers.Seats
+  ( SeatEnv
+  , seatEnv
+  , proposeFor
+  , signFor
+  , recordedBindings
+  , handleSeats
+  , collectRecords
+  ) where
 
 import Prelude
 
 import Core.Draw (Seed)
 import Core.Num (Q)
-import Core.Proposal (submissionOrder)
+import Core.Proposal (ProposalBody, submissionOrder)
+import Core.Query (homeMarket)
 import Core.Types (EntityId, MarketId, ProposalId)
 import Core.World (RoundRecord, RoundResult, View)
-import Data.Array (elem, filter, find, sortWith)
+import Data.Array (concatMap, elem, filter, find, nub, sortWith)
 import Data.Either (Either(..))
-import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
+import Data.Tuple (Tuple(..))
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Foreign.Object (Object)
-import Core.Proposal (ProposalBody)
+import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.Interpret (envFor)
 import Policy.Interpret as Policy
-import Core.Strategy (Strategy)
 import Run (Run, case_, interpret, on, peel, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-type SeatSource =
-  { propose :: EntityId -> View -> Array ProposalBody
-  , sign :: EntityId -> View -> Array ProposalId
-  }
+-- | What a machine seat's answer depends on besides its own binding: the player seed, the Gameboard's
+-- | parameters, and each Entity's home market.
+type SeatEnv = { seed :: Seed, params :: Object Q, home :: EntityId -> Maybe MarketId }
 
--- | Seats bound to declarative strategies; their randomness draws from the player seed.
-strategies :: { bound :: Map EntityId Strategy, params :: Object Q, home :: EntityId -> Maybe MarketId, playerSeed :: Seed } -> SeatSource
-strategies b =
-  { propose: \e v -> maybe [] (\p -> Policy.propose p (env e v)) (Map.lookup e b.bound)
-  , sign: \e v -> maybe [] (\p -> Policy.sign p (env e v)) (Map.lookup e b.bound)
-  }
+-- | The seat environment of a game under a player seed.
+seatEnv :: Seed -> Game -> SeatEnv
+seatEnv seed g = { seed, params: g.parameters, home: homeMarket g.world }
+
+-- | The Proposal bodies a seat submits in a round. Agent and Human seats submit none here.
+proposeFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalBody
+proposeFor env bs e v = case Map.lookup e bs of
+  Just (Strategy p) -> Policy.propose p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Script rounds) -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
+  Just (Recorded records) ->
+    map (\s -> { intents: s.proposal.intents, signers: s.proposal.signers, procedure: s.proposal.procedure })
+      (sortWith submissionOrder (filter (\s -> s.proposal.author == e) (inputsOf records v.round)))
+  Just Agent -> []
+  Just Human -> []
+  Nothing -> []
+
+-- | The Proposals a seat signs in a round. Agent and Human seats sign nothing here.
+signFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalId
+signFor env bs e v = case Map.lookup e bs of
+  Just (Strategy p) -> Policy.sign p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Script rounds) -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
+  Just (Recorded records) -> map _.proposal.id (filter (\s -> e `elem` s.signatures) (inputsOf records v.round))
+  Just Agent -> []
+  Just Human -> []
+  Nothing -> []
+
+inputsOf records r = maybe [] _.inputs (find (\x -> x.round == r) records)
+
+-- | The Recorded bindings of every Entity a set of round records mentions, as authors or signers.
+recordedBindings :: Array RoundRecord -> Bindings
+recordedBindings records = Map.fromFoldable (map (\e -> Tuple e (Recorded records)) mentioned)
   where
-  env = envFor { params: b.params, home: b.home, seed: b.playerSeed, source: "seat" }
+  mentioned = nub (concatMap (\r -> concatMap (\s -> [ s.proposal.author ] <> s.signatures) r.inputs) records)
 
--- | Seats answered from recorded round records: what each seat proposed and signed.
-replay :: Array RoundRecord -> SeatSource
-replay records =
-  { propose: \e v -> map (\s -> { intents: s.proposal.intents, signers: s.proposal.signers, procedure: s.proposal.procedure })
-      (sortWith submissionOrder (filter (\s -> s.proposal.author == e) (inputs v.round)))
-  , sign: \e v -> map (_.proposal.id) (filter (\s -> e `elem` s.signatures) (inputs v.round))
-  }
-  where
-  inputs r = maybe [] _.inputs (find (\x -> x.round == r) records)
-
--- | Interpret SEAT_INPUT with a source, leaving the other effects. A source has no transcripts,
--- | so Speak answers Nothing and the joint pass is never called: Sim and Replay runs make no model call.
--- | Narration answers the empty text, since no front page is written without live play.
-handleSeats :: forall r a. SeatSource -> Run (SEAT_INPUT + INTERPRET + NARRATE + r) a -> Run r a
-handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy :: _ "interpret") silent (on (Proxy :: _ "narrate") quiet send)))
+-- | Interpret SEAT_INPUT over a game's bindings, leaving the other effects. A machine seat has no
+-- | transcript, so Speak answers Nothing and the joint pass is never called: a simulated run makes no
+-- | model call. Narration answers the empty text, since no front page is written without live play.
+handleSeats :: forall r a. SeatEnv -> Bindings -> Run (SEAT_INPUT + INTERPRET + NARRATE + r) a -> Run r a
+handleSeats env bs = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy :: _ "interpret") silent (on (Proxy :: _ "narrate") quiet send)))
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
-    Propose e v k -> pure (k (source.propose e v))
-    Sign e v k -> pure (k (source.sign e v))
+    Propose e v k -> pure (k (proposeFor env bs e v))
+    Sign e v k -> pure (k (signFor env bs e v))
     Speak _ _ k -> pure (k Nothing)
 
   silent :: InterpretF ~> Run r
@@ -66,8 +91,8 @@ handleSeats source = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy ::
   quiet :: NarrateF ~> Run r
   quiet (Narrate _ k) = pure (k "")
 
--- | Collect RECORD purely: the in-memory record store, shared by the replay and test runners. The
--- | transcripts of a record are not kept: a source-driven run has none.
+-- | Collect RECORD purely: the in-memory record store, shared by the replay and simulator runners. The
+-- | transcripts of a record are not kept: a machine-driven run has none.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 collectRecords = go []
   where

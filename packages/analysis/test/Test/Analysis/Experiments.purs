@@ -30,20 +30,35 @@ import Analysis.Agency (agency)
 import Testkit.Meridian (seats)
 import Schema.Gameboard (Outcome(..))
 import Analysis.Objectives (evaluateObjectives)
-import Simulator.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, simulate)
+import Simulator.Simulate (SimRun)
+import Game.Assemble (assemble, presetBindings)
+import Game.Override (Override(..))
+import Game.Premise (GameboardParts, Premise(..))
+import Game.Types (Game)
+import Testkit.Capstone (runOf)
+import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
-spec' :: (String -> String) -> Array Override -> Int -> SimulationSpec
-spec' preset overrides seed = { seats: presetSeats (preset <<< show) (map Id seats), playerSeed: Seed seed, overrides, rounds: Nothing }
+-- | A variant: each seat's preset by name, the overrides, and the player seed.
+type Variant = { preset :: String -> String, overrides :: Array Override, seed :: Int }
 
-play :: Context -> SimulationSpec -> Aff Run
-play ctx s = case simulate ctx s of
-  Left e -> throwError (error (show e))
-  Right r -> pure r
+spec' :: (String -> String) -> Array Override -> Int -> Variant
+spec' preset overrides seed = { preset, overrides, seed }
+
+-- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
+gameOf :: GameboardParts -> Variant -> Aff Game
+gameOf p v = do
+  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) (map Id seats))
+  orThrow (assemble (GameboardPremise p) bindings v.overrides)
+
+play :: GameboardParts -> Variant -> Aff SimRun
+play ctx v = do
+  g <- gameOf ctx v
+  runOf (Seed v.seed) g
 
 -- | The §12 indicators of one run, as a printed row.
-indicators :: Context -> Run -> { row :: String, failures :: Int }
+indicators :: GameboardParts -> SimRun -> { row :: String, failures :: Int }
 indicators ctx r = { row, failures }
   where
   events = concatMap _.record.events r.records
@@ -84,7 +99,7 @@ header = "variant | activity | executed/proposed | rejected | lapsed | P atlanti
 millis :: Aff Number
 millis = liftEffect (unwrap <<< unInstant <$> now)
 
-spec :: Aff Context -> Spec Unit
+spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Experiments (§11) and performance" do
   it "variant experiments keep every invariant (report printed)" do
     ctx <- context
@@ -110,11 +125,13 @@ spec context = describe "Experiments (§11) and performance" do
       i.failures `shouldEqual` 0
   it "agency: every seat has a measurable effect, or the gap is a balancing finding" do
     ctx <- context
-    for_ [ "Conservative", "RandomValid" ] \baseline -> case agency ctx (spec' (const baseline) [] 1) "Aggressive" (map Id seats) of
-      Left e -> fail (show e)
-      Right ps -> do
-        log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
-        length ps `shouldEqual` 15
+    for_ [ "Conservative", "RandomValid" ] \baseline -> do
+      g <- gameOf ctx (spec' (const baseline) [] 1)
+      case agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seats) of
+        Left e -> fail (show e)
+        Right ps -> do
+          log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
+          length ps `shouldEqual` 15
   it "a 5-round game resolves in under 1 s; a 100-player-seed batch in under 1 min" do
     ctx <- context
     t0 <- millis

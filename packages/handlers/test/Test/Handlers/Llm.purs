@@ -7,7 +7,6 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
-import Board.Gameboard.Instantiate (instantiate)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Proposal (JointProposal, Transcript)
@@ -34,23 +33,15 @@ import Handlers.Llm.Wire (ProposedDeal, decodeJoint, decodeText, interpretPrompt
 import Handlers.Recording (encodeRecording)
 import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
-import Premises.Load (load)
-import Test.Handlers.Run (runTest)
+import Test.Handlers.Run (meridian, runTest)
+import Game.Types (Game)
 import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Num (Q)
 
-type Game = { world :: WorldState, inWorld :: InWorld, params :: Object Q }
-
 setup :: Aff Game
-setup = liftEffect (readPremise fileOps "meridian/v0") >>= case _ of
-  Left e -> throwError (error e)
-  Right s -> case load s of
-    Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config of
-      Right initial -> let inWorld = inWorldOf gameboard in pure { world: initial.world, inWorld, params: gameboard.parameters }
-      Left _ -> throwError (error "instantiation")
+setup = meridian
 
 tr :: String -> String -> Transcript
 tr seat text = { seat: Id seat, text }
@@ -75,7 +66,7 @@ single = case _ of
 -- | One round with no seat strategies: its record is what the front page is written from.
 oneRound :: Game -> Aff RoundResult
 oneRound g = do
-  let out = runTest { strategies: Map.empty, params: g.params, home: const Nothing, playerSeed: Seed 1 } (runGame g.inWorld 1 g.world)
+  let out = runTest (Seed 1) g (runGame g.inWorld 1 g.world)
   case out.records of
     [ r ] -> pure r
     _ -> fail "one round should be recorded" *> throwError (error "round")

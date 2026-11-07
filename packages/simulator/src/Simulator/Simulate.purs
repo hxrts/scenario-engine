@@ -1,196 +1,73 @@
--- | Simulation Specifications and the one function that runs them (docs/06_simulator.md
--- | §3–§6). Every experiment, counterfactual, and agency analysis composes `simulate`.
+-- | The simulator (docs/06_simulator.md §3–§6): the one fold over a `Game`. `simulate` plays a game with
+-- | machine seats (Strategy, Script, Recorded) and is pure; `resumeFrom` continues a snapshot; the
+-- | `…With` variants persist each round through a store as it completes. The simulator imports no
+-- | premise, board, or policy module: a Game is all it sees.
 module Simulator.Simulate
-  ( Context
-  , SimulationSpec
-  , SeatPolicy(..)
-  , Override(..)
-  , Run
-  , SimError(..)
-  , renderSimError
-  , resolve
+  ( SimRun
+  , Snapshot
   , simulate
-  , resume
+  , resumeFrom
   , simulateWith
   , resumeWith
-  , startOf
-  , presetSeats
-  , presetSpec
-  , seats
   ) where
 
 import Prelude
 
-import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
-import Board.Error (ValidationError)
-import Board.Gameboard.Instantiate (checkHomes, instantiate)
-import Core.Draw (Seed(..))
+import Core.Draw (Seed)
 import Core.Engine.Commit (EngineError)
-import Core.Num (Q)
-import Core.Query (homeMarket)
-import Core.Types (CapacityRef, EntityId)
+import Core.Types (EntityId)
 import Core.World (Manifest, RoundResult, WorldState)
-import Data.Array (any, filter, fromFoldable)
-import Data.Bifunctor (lmap)
-import Data.Foldable (foldM)
-import Data.Traversable (traverse)
 import Data.Either (Either(..))
-import Data.Tuple (Tuple(..))
-import Data.Map (Map)
+import Data.Foldable (traverse_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Foreign.Object (Object)
-import Foreign.Object as Object
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Policy.InWorld (acts, inWorldOf)
-import Core.Strategy (InWorld)
 import Effects.Round (runGame)
-import Effects.Signatures (INTERPRET, NARRATE, RECORD, SEAT_INPUT)
-import Handlers.Seats (SeatSource, collectRecords, handleSeats, strategies)
+import Game.Error (GameError(..))
+import Game.Types (Game, SeatBinding(..))
+import Handlers.Seats (collectRecords, handleSeats, seatEnv)
 import Handlers.Sim (runSim)
-import Run as R
-import Type.Row (type (+))
-import Core.Strategy (Strategy)
 
--- | What a run is resolved against: the Gameboard, its default configuration, the presets.
-type Context = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }
+-- | One simulated run: its manifest, the player seed it was played with, its round records, and the
+-- | final World State (or the engine error that stopped it).
+type SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 
--- | Why a spec cannot run. Each constructor names one check; `renderSimError` is the only place the
--- | words are written, so a caller that needs text and a caller that needs the cause both have it.
-data SimError
-  = UnknownParameter String
-  | UnknownEntity EntityId
-  | UnknownScheme String
-  | UnknownPreset String
-  | Instantiation (Array ValidationError)
-  | NoHomeMarket EntityId -- an Entity that acts has no market it can reach
+-- | A saved World State after `done` completed rounds (docs/06 §8).
+type Snapshot = { world :: WorldState, done :: Int }
 
-derive instance Eq SimError
-
-instance Show SimError where
-  show = renderSimError
-
-renderSimError :: SimError -> String
-renderSimError = case _ of
-  UnknownParameter name -> "override: unknown parameter " <> name
-  UnknownEntity e -> "override: unknown entity " <> show e
-  UnknownScheme scheme -> "override: unknown scheme " <> show scheme
-  UnknownPreset name -> "unknown preset " <> name
-  Instantiation es -> show es
-  NoHomeMarket e -> "entity " <> show e <> " acts but has no accessible market, so it has no home market"
-
-data SeatPolicy = Preset String | Custom Strategy
-
--- | Declarative overrides of a baseline (§3.1). Values change within the Gameboard's
--- | structure; none touches engine code.
-data Override
-  = GameSeed Int
-  | Parameter String Q
-  | Capacity EntityId CapacityRef Q
-  | Shrinkage String Q
-  | Implicit EntityId -- the Actor is not explicit; its fallback applies
-
-type SimulationSpec =
-  { seats :: Map EntityId SeatPolicy -- unlisted seats submit nothing
-  , playerSeed :: Seed
-  , overrides :: Array Override
-  , rounds :: Maybe Int
-  }
-
-type Run = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
-
--- | Apply a spec's overrides to the baseline Gameboard and configuration.
-resolve :: Context -> SimulationSpec -> Either SimError { gameboard :: Gameboard, config :: InstantiationConfig }
-resolve ctx spec = foldM apply { gameboard: ctx.gameboard, config: ctx.config } spec.overrides
+-- | A game with a human or agent seat cannot be simulated: its answers come from live play.
+machineOnly :: Game -> Either GameError Unit
+machineOnly g = traverse_ check (Map.toUnfoldable g.seats :: Array (Tuple EntityId SeatBinding))
   where
-  -- an override naming something the baseline does not have is an error, not a silent no-op
-  apply acc = case _ of
-    GameSeed s -> Right acc { config = acc.config { seed = Seed s } }
-    Parameter name q
-      | Object.member name acc.gameboard.parameters -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-      | otherwise -> Left (UnknownParameter name)
-    Capacity e ref q
-      | Map.member e acc.gameboard.world.entities -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
-      | otherwise -> Left (UnknownEntity e)
-    Shrinkage scheme q
-      | any (\s -> s.id == scheme) acc.gameboard.schemes -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
-      | otherwise -> Left (UnknownScheme scheme)
-    Implicit e -> Right acc { config = acc.config { seats = Map.delete e acc.config.seats, npcs = Map.delete e acc.config.npcs, representations = filter (\r -> r.actor /= e) acc.config.representations } }
+  check (Tuple e b) = case b of
+    Human -> Left (NotSimulable e)
+    Agent -> Left (NotSimulable e)
+    _ -> Right unit
 
-type Prepared =
-  { manifest :: Manifest
-  , world :: WorldState
-  , game :: R.Run (SEAT_INPUT + INTERPRET + NARRATE + RECORD + ()) (Either EngineError WorldState)
-  , seats :: SeatSource
-  }
+-- | Play a game to completion with records kept in memory. Pure.
+simulate :: Seed -> Game -> Either GameError SimRun
+simulate seed g = do
+  machineOnly g
+  let out = collectRecords (handleSeats (seatEnv seed g) g.seats (runGame g.inWorld g.rounds g.world))
+  pure { manifest: g.manifest, playerSeed: seed, records: out.records, final: out.value }
 
--- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
--- | world does not instantiate, or when a seat that acts has no home market (checked before any round).
-startOf :: Gameboard -> InstantiationConfig -> Either SimError { initial :: InitialWorld, inWorld :: InWorld }
-startOf gameboard config = case instantiate gameboard config of
-  Left es -> Left (Instantiation es)
-  Right initial -> do
-    let inWorld = inWorldOf gameboard
-    lmap NoHomeMarket (checkHomes (acts inWorld) initial.world)
-    pure { initial, inWorld }
+-- | Continue a game from a saved snapshot. `rounds` is the game's total, so the snapshot's completed
+-- | rounds are subtracted. Seat randomness is keyed by round, so a resumed run matches the uninterrupted one.
+resumeFrom :: Seed -> Game -> Snapshot -> Either GameError SimRun
+resumeFrom seed g snap = simulate seed (fromSnapshot g snap)
 
--- | Instantiate a spec: the initial world, its game, and its seat source.
-prepare :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> Either SimError Prepared
-prepare ctx spec from = do
-  { gameboard, config } <- resolve ctx spec
-  { initial, inWorld } <- startOf gameboard config
-  -- a preset named by a seat must exist; a typo is an error, not a seat that silently does nothing
-  bound <- traverse
-    ( case _ of
-        Preset name -> maybe (Left (UnknownPreset name)) Right (Object.lookup name ctx.presets)
-        Custom p -> Right p
-    )
-    spec.seats
-  let
-    w0 = maybe initial.world _.world from
-    remaining = fromMaybe config.rounds spec.rounds - maybe 0 _.done from
-  pure
-    { manifest: initial.manifest
-    , world: w0
-    , game: runGame inWorld remaining w0
-    , seats: strategies { bound, params: gameboard.parameters, home: homeMarket initial.world, playerSeed: spec.playerSeed }
-    }
+fromSnapshot :: Game -> Snapshot -> Game
+fromSnapshot g snap = g { world = snap.world, rounds = g.rounds - snap.done }
 
--- | Play a spec to completion with records kept in memory. Pure.
-simulate :: Context -> SimulationSpec -> Either SimError Run
-simulate ctx spec = resume ctx spec Nothing
-
--- | Continue a run from a saved snapshot after `done` rounds (§8). Seat randomness is keyed by
--- | round, so a resumed run matches the uninterrupted one.
-resume :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> Either SimError Run
-resume ctx spec from = prepare ctx spec from <#> \p ->
-  let
-    out = collectRecords (handleSeats p.seats p.game)
-  in
-    { manifest: p.manifest, playerSeed: spec.playerSeed, records: out.records, final: out.value }
-
--- | Play a spec under the Sim handler, persisting each round through `store` as it completes.
-simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either SimError (Either EngineError WorldState))
-simulateWith ctx spec store = resumeWith ctx spec Nothing store
-
--- | Continue a stored run from its snapshot after `done` rounds, under the Sim handler, persisting
--- | the new rounds through `store`. `store` runs only once the spec has instantiated, so a spec
--- | that is rejected leaves the caller's store untouched.
-resumeWith :: Context -> SimulationSpec -> Maybe { world :: WorldState, done :: Int } -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either SimError (Either EngineError WorldState))
-resumeWith ctx spec from store = case prepare ctx spec from of
+-- | Play a game under the Sim runner, persisting each round through `store` as it completes. `store` runs
+-- | only once the game is machine-playable, so a rejected game leaves the caller's store untouched.
+simulateWith :: Seed -> Game -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+simulateWith seed g store = case machineOnly g of
   Left e -> pure (Left e)
-  Right p -> do
-    persist <- store p.manifest
-    Right <$> runSim p.seats persist p.game
+  Right _ -> do
+    persist <- store g.manifest
+    Right <$> runSim (seatEnv seed g) g.seats persist (runGame g.inWorld g.rounds g.world)
 
--- | Bind each seat to a preset by name.
-presetSeats :: (EntityId -> String) -> Array EntityId -> Map EntityId SeatPolicy
-presetSeats preset ids = Map.fromFoldable (map (\s -> Tuple s (Preset (preset s))) ids)
-
--- | The seats the context's configuration names.
-seats :: Context -> Array EntityId
-seats ctx = fromFoldable (Map.keys ctx.config.seats)
-
--- | A spec that binds every seat of the context to one preset.
-presetSpec :: Context -> String -> Seed -> Array Override -> Maybe Int -> SimulationSpec
-presetSpec ctx preset playerSeed overrides rounds = { seats: presetSeats (const preset) (seats ctx), playerSeed, overrides, rounds }
+-- | Continue a stored run from its snapshot under the Sim runner, persisting the new rounds through `store`.
+resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+resumeWith seed g snap store = simulateWith seed (fromSnapshot g snap) store

@@ -1,4 +1,4 @@
--- | The analysis checks of the capstone (packages/scenarios/src/Premises/Capstone.purs): an
+-- | The analysis checks of the capstone (packages/premises/src/Premises/Capstone.purs): an
 -- | eight-round run authored in the DSL, decoded from `capstone/run.json`, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
 -- | The simulator's own checks on the run are in the simulator suite (Test.Simulator.Capstone).
@@ -15,10 +15,11 @@ import Data.Either (Either(..))
 import Data.Foldable (any)
 import Effect.Aff (Aff)
 import Analysis.Agency (difference)
-import Testkit.Capstone (counterfactualOf, load, runOf, specOf)
+import Testkit.Capstone (load, runOf)
 import Analysis.Objectives (evaluateObjectives)
-import Simulator.Capstone (ObjectiveExpect)
-import Simulator.Simulate (Context, Run)
+import Simulator.Simulate (SimRun)
+import Game.Premise (GameboardParts)
+import Testkit.Capstone (ObjectiveExpect)
 import Analysis.Views.Balances as Balances
 import Analysis.Views.Common as Common
 import Analysis.Views.Compare as Compare
@@ -30,7 +31,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | Every objective the run evaluates has the outcome the DSL expects, and the two lists name
 -- | the same Entities: no objective is left without an explicit outcome.
-checkObjectives :: Context -> Run -> Array ObjectiveExpect -> Aff Unit
+checkObjectives :: GameboardParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
 checkObjectives ctx r expected = do
   let
     actual = sortWith _.entity (map (\o -> { entity: o.actor, outcome: o.outcome }) (evaluateObjectives ctx.gameboard r.records))
@@ -38,7 +39,7 @@ checkObjectives ctx r expected = do
   actual `shouldEqual` wanted
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
-toStored :: String -> Run -> Common.StoredRun
+toStored :: String -> SimRun -> Common.StoredRun
 toStored id r =
   { id
   , name: id
@@ -53,28 +54,28 @@ toStored id r =
   , sourceDeleted: false
   }
 
-spec :: Aff Context -> Spec Unit
+spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
   it "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" do
     ctx <- context
     cap <- load
-    base <- runOf ctx (specOf cap)
+    base <- runOf cap.playerSeed cap.game
     checkObjectives ctx base cap.objectives
-    cf <- runOf ctx (counterfactualOf cap)
+    cf <- runOf cap.playerSeed cap.counterfactual
     checkObjectives ctx cf cap.counterfactualObjectives
 
   it "the counterfactual without the deployment changes US Mil at the end of the run" do
     ctx <- context
     cap <- load
-    base <- runOf ctx (specOf cap)
-    cf <- runOf ctx (counterfactualOf cap)
+    base <- runOf cap.playerSeed cap.game
+    cf <- runOf cap.playerSeed cap.counterfactual
     let d = difference base cf
     any (\x -> x.entity == Id "US" && x.resource == Id "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
 
   it "every dashboard view model is non-empty for the run" do
     ctx <- context
     cap <- load
-    r <- runOf ctx (specOf cap)
+    r <- runOf cap.playerSeed cap.game
     let
       sr = toStored "capstone" r
 

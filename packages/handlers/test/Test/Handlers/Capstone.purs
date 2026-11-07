@@ -9,7 +9,8 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
-import Board.Gameboard.Instantiate (instantiate)
+import Test.Handlers.Run (meridian)
+import Game.Types (Game)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (JointProposal)
 import Core.Types (Entity, EntityId, Id(..))
@@ -30,25 +31,18 @@ import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
 import Premises.Capstone (JointLine, jointLines)
 import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
-import Premises.Load (load)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 orThrow :: forall a. Either String a -> Aff a
 orThrow = either (throwError <<< error) pure
 
--- | `packages/scenarios/capstone/transcript.json`, decoded to its recording.
+-- | `packages/premises/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
 recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
 
-type Game = { world :: WorldState, lookup :: EntityId -> Maybe Entity }
-
 setup :: Aff Game
-setup = do
-  loaded <- liftEffect (readPremise fileOps "meridian/v0") >>= orThrow >>= (orThrow <<< load)
-  case instantiate loaded.gameboard loaded.config of
-    Right initial -> pure { world: initial.world, lookup: \e -> Map.lookup e initial.world.entities }
-    Left _ -> throwError (error "instantiation")
+setup = meridian
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))

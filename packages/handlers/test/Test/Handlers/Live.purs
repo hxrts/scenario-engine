@@ -9,7 +9,8 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
-import Board.Gameboard.Instantiate (instantiate)
+import Data.Array as Array
+import Data.Tuple (Tuple(..))
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
@@ -27,29 +28,30 @@ import Effects.Round (runGame)
 import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
 import Handlers.Llm.Wire (ProposedDeal, interpretPrompt, narratePrompt)
-import Handlers.Live (Seat(..), runLive)
+import Handlers.Live (runLive)
+import Handlers.Seats (seatEnv)
+import Game.Assemble (assemble)
+import Game.Premise (Premise(..))
+import Game.Types (Game, SeatBinding(..))
+import Premises.Load (loadPremise)
 import Handlers.Replay (runReplay)
-import Handlers.Seats (strategies)
 import Partial.Unsafe (unsafeCrashWith)
 import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
-import Premises.Load (load)
 import Test.Handlers.Stub (answering, dealOf, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Core.Num as Q
 import Foreign.Object (Object)
 
-type Game = { world :: WorldState, inWorld :: InWorld, params :: Object Q.Q }
-
 setup :: Aff Game
 setup = liftEffect (readPremise fileOps "meridian/v0") >>= case _ of
   Left e -> throwError (error e)
-  Right s -> case load s of
+  Right s -> case loadPremise s of
     Left e -> throwError (error e)
-    Right { gameboard, config } -> case instantiate gameboard config of
-      Right initial -> let inWorld = inWorldOf gameboard in pure { world: initial.world, inWorld, params: gameboard.parameters }
-      Left _ -> throwError (error "instantiation")
+    Right parts -> case assemble (GameboardPremise parts) Map.empty [] of
+      Right g -> pure g
+      Left e -> throwError (error (show e))
 
 -- | The stub model for live play: the joint pass proposes a trade when a transcript names one, the
 -- | narrator writes a fixed front page, and each AI seat says one line.
@@ -80,32 +82,32 @@ scripted prompt
   | otherwise = pure "nothing"
 
 -- | A live session of `n` rounds with the given seats and human answers.
-liveWith :: Game -> Int -> (EntityId -> Seat) -> (String -> Aff String) -> Backend -> Aff Session
-liveWith g n seat input backend = do
+liveWith :: Game -> Int -> (EntityId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
+liveWith g0 n seat input backend = do
   recs <- liftEffect (Ref.new [])
   texts <- liftEffect (Ref.new [])
   notes <- liftEffect (Ref.new [])
+  let g = g0 { seats = Map.fromFoldable (map (\e -> Tuple e (seat e)) (Map.keys g0.world.entities # Array.fromFoldable)) }
   _ <- runLive
-    { seat
+    { seed: Seed 1
     , input
     , window: pure unit
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
     , agents: agents backend (const "Secure energy at a fair price.")
-    , strategies: strategies { bound: Map.empty, params: g.params, home: const (Just (Id "energy-atlantic")), playerSeed: Seed 1 }
     , narrate: \failed r -> do
         t <- narrator backend failed (Narrate r identity)
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)
         pure t
     , record: \r _ -> liftEffect (Ref.modify_ (_ <> [ r ]) recs)
     }
-    (runGame g.inWorld n g.world)
+    (g { rounds = n })
   { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
 
 -- | Replay the recorded rounds: the same worlds, with no model call.
 replayed :: Game -> Int -> Array RoundResult -> Array WorldState
-replayed g n records = case runReplay n (map _.record records) (runGame g.inWorld n g.world) of
+replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) (runGame g.inWorld n g.world) of
   Left e -> unsafeCrashWith e
   Right r -> map _.world r.records
 
@@ -123,7 +125,7 @@ spec = do
     it "a scripted live session equals replaying its recorded Proposals and signatures" do
       g <- setup
       backend <- withAnswers model
-      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Strategy) scripted backend
+      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Script []) scripted backend
       length out.records `shouldEqual` 3
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
       out.narration `shouldEqual` [ "Markets moved.", "Markets moved.", "Markets moved." ]
@@ -132,7 +134,7 @@ spec = do
     it "an undecodable joint reply submits nothing, tells the speaker, and the run completes" do
       g <- setup
       backend <- withAnswers garbled
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` false
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
@@ -141,7 +143,7 @@ spec = do
       g <- setup
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
       map listing out.records `shouldEqual` out.narration
       map (contains (Pattern "Round 1:")) out.narration `shouldEqual` [ true ]
@@ -153,7 +155,7 @@ spec = do
       let
         bad = tradeTenEnergy { intents = [ Trade { market: Id "no-such-market", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
       backend <- withAnswers (jointAnswers [ tradeTenEnergy, bad ])
-      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Strategy) scripted backend
+      out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
       let
         events = bind out.records (_.record.events)

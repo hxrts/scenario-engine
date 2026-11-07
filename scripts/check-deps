@@ -11,21 +11,22 @@ const allowed = {
   schema: ["core"],
   board: ["core", "schema"],
   policy: ["core", "schema"],
-  // Phase 3 transitional: the loader still validates and instantiates (board) and queries Strategies (policy).
-  // Phase 4 moves that assembly into game and leaves premises with core, schema, and game (work/4.md §12.2).
-  premises: ["core", "schema", "board", "policy"],
+  // the one domain package where board and policy meet: assembly (work/4.md §8)
+  game: ["core", "schema", "board", "policy"],
+  premises: ["core", "schema", "game"],
   effects: ["core", "schema", "board", "policy"],
-  handlers: ["core", "schema", "board", "policy", "effects"],
+  handlers: ["core", "schema", "board", "policy", "game", "effects"],
   adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
-  simulator: ["core", "schema", "board", "policy", "effects", "handlers"],
-  analysis: ["core", "schema", "board", "simulator"],
+  // the fold over a Game: no board or policy (work/4.md §12.2)
+  simulator: ["core", "game", "effects", "handlers"],
+  analysis: ["core", "schema", "board", "game", "simulator"],
   // test support only (the shared fixtures of the analysis and simulator suites); no suite's source imports it
-  testkit: ["core", "schema", "board", "policy", "premises", "adapters", "simulator"],
+  testkit: ["core", "schema", "premises", "game", "adapters", "simulator"],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
 // workspace dependencies a package's test suite may not take, beyond its `allowed` set
 const testForbidden = { simulator: ["analysis"] };
-const pure = ["core", "schema", "board", "policy"];
+const pure = ["core", "schema", "board", "policy", "game"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
 // Import rules for source modules, checked on the `import` lines of each src/ file.
@@ -45,7 +46,15 @@ const rules = [
   { name: "the views are pure: no simulator, game, experiments, or effect module (docs/07 §3)", packages: ["analysis"],
     under: "Analysis/Views/", forbid: (m) => /^(Simulator|Game|Experiments)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
   { name: "handlers import no adapter, and no views, simulator, or experiments", packages: ["handlers"],
-    forbid: (m) => /^(Adapters|Simulator|Analysis|Game|Experiments)(\.|$)/.test(m) },
+    forbid: (m) => /^(Adapters|Simulator|Analysis|Experiments)(\.|$)/.test(m) },
+  { name: "game imports no premise, runner, handler, adapter, or analysis module (game is data and rules)", packages: ["game"],
+    forbid: (m) => /^(Premises|Simulator|Handlers|Adapters|Analysis|Experiments|Testkit)(\.|$)/.test(m) },
+  { name: "the simulator imports no board or policy: a Game is all it sees (work/4.md §12.2)", packages: ["simulator"],
+    forbid: (m) => /^(Board|Policy|Premises|Analysis|Experiments)(\.|$)/.test(m) },
+  { name: "premises import no board or policy: assembly and checking are in game (work/4.md §8)", packages: ["premises"],
+    forbid: (m) => /^(Board|Policy|Simulator|Handlers)(\.|$)/.test(m) },
+  { name: "the composition roots instantiate and bind no seat: no board, policy, or seat-handler import (work/4.md §13 Phase 4)", packages: ["cli", "server"],
+    forbid: (m) => /^(Board|Policy|Handlers\.Seats)(\.|$)/.test(m) },
   { name: "effects are declarations: no handler or adapter import", packages: ["effects"],
     forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
 ];
@@ -107,6 +116,11 @@ for (const dir of dirs) {
     } else if (pure.includes(name) && impure(d)) {
       errors.push(`${name} is pure but depends on ${d}`);
     }
+  }
+  // board and policy meet in game (work/4.md §9, §12.3); the declarations and interpreters that take both
+  // (effects, handlers, adapters) are listed, and no domain package (premises, simulator, analysis, testkit) is
+  if (deps.includes("sp-board") && deps.includes("sp-policy") && !["game", "effects", "handlers", "adapters"].includes(name)) {
+    errors.push(`${name} depends on both board and policy: they meet only in game (and the interpreters listed in work/4.md §8)`);
   }
   // the simulator's test suite may not reach analysis either (docs/06 §14, docs/07 §3)
   for (const d of testDeps) {

@@ -10,7 +10,7 @@ import Data.Array (filter)
 import Data.Either (Either(..), either)
 import Data.String (Pattern(..), split)
 import Effect (Effect)
-import Simulator.Simulate (Context)
+import Game.Premise (GameboardParts)
 import Analysis.Views.Glossary (glossary)
 import Analysis.Views.Overview as Overview
 import Http (Request, Response)
@@ -19,7 +19,7 @@ import Server.Errors (failWith, ok)
 import Server.Launch (launch, readLaunch, scenarioInfo)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, param, runSummaries)
 
-route :: Context -> StoreBackend -> Request -> Effect Response
+route :: GameboardParts -> StoreBackend -> Request -> Effect Response
 route ctx store req = case req.method, filter (_ /= "") (split (Pattern "/") req.path) of
   "GET", [ "api", "runs" ] -> runSummaries (param req.query "archived" "" == "true") store >>= ok <<< Overview.runList
   "GET", [ "api", "scenario" ] -> scenarioInfo ctx store >>= ok
