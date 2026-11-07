@@ -223,10 +223,12 @@ standingsBars runs =
   where
   ps = playerIds runs
 
--- | The spread and the Gini of final net worth, one bar per run.
-balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars }
+-- | The spread and the Gini of final net worth, one bar per run, and the unit the spread is in (the
+-- | numeraire's unit, which the dashboard's Spread panel and section text name).
+balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars, unit :: String }
 balanceBars runs =
-  { spread:
+  { unit: numeraireUnit runs
+  , spread:
       { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" quantity (measuresOf r).spread ] }) runs }
   , gini:
       { title: "Gini of final net worth", unit: ratioUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" ratio (measuresOf r).gini ] }) runs }

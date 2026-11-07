@@ -62,10 +62,11 @@ packages/
     Types, World   Entity, Resource, Intent, Proposal, Market, …; WorldState, RoundRecord, RoundResult, Manifest
     Draw           keyed PRNG
     Market, Query (incl. `homeMarket`, capacity and facility-pool helpers, Intent selectors), Authority (`authorized`, `authorizedIn`, `executor`, `governs`), Proposal (numbering, signing eligibility, signature assembly; the joint pass's `Transcript`, `JointProposal`, and the reconciliation rule `jointProposals`), Represent, Invariants
+    Strategy       the Strategy language's types (`Strategy`, `Clause`, `Cond`, `Expr`, `Template`, `SignRule`), decoded by `Policy.Strategy`
     Engine.*       Prepare, Screen, Fund, Route, Settle, Circulate, Commit (resolveRound); Run (`runRounds`, the shared round fold for fixtures and invariant runs)
-  board/       Board.*: Gameboard schema, Board.Decode.*, validation, instantiation, Tags, Fixture
-  policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`)
-  scenarios/   DSL.*, Scenarios.* (Meridian, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
+  board/       Board.Gameboard.* (Schema, Validate, Instantiate, Reconcile), Board.Decode.* (World composes the section decoders; Common holds the shared readers), Board.Tags (the tag grammar), Fixture
+  policy/      Policy.Strategy (decision language), Policy.InWorld (in-world Strategies, `acts`), Policy.Interpret (propose, sign, `envFor`), Policy.Tags (the decision language's JSON tags)
+  scenarios/   DSL.*, Scenarios.* (Meridian and its submodules, Names, Presets, Fixtures, Capstone, Compile, Load, Tree: the scenario file tree, pure)
   effects/     Effects.Signatures (the operations and their request and reply records, STORE's read-model records included), Effects.Store (STORE constructors and
                the `finish` lifecycle program), Effects.Round (runRound, runGame): the algebra and the round program only
   handlers/    Handlers.Seats, Sim, Replay (the round's seat handlers); Handlers.Live (live play: the human prompts and
@@ -147,8 +148,8 @@ Randomness needs no effect. Every draw is the pure `Core.Draw.draw` on the game 
 **Simulation** (`simulator`, `Simulator.Simulate`). The simulator runs a spec through `runRound` with a chosen handler. It reads no entropy: the seed is resolved before the call (`Adapters.Random`).
 
 ```purescript
-simulate     :: Context -> SimulationSpec -> Either String Run
-simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either String (Either EngineError WorldState))
+simulate     :: Context -> SimulationSpec -> Either SimError Run
+simulateWith :: Context -> SimulationSpec -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either SimError (Either EngineError WorldState))
 -- Run = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 ```
 

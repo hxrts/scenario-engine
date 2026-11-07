@@ -138,3 +138,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeFixture (json """{ "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""") of
         Left e -> fail (show e)
         Right d -> show d.world.seed `shouldEqual` "7"
+
+  describe "Circulation flows" do
+    -- a minimal Gameboard with one flow of the given amount
+    let withFlow amount = """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": {}, "markets": {}, "transformations": {}, "entities": {}, "circulation": { "flows": [ { "from": "a", "to": "b", "resource": "M", "amount": """ <> amount <> """ } ] } }"""
+    it "a negative flow amount is a typed validation error at decode" do
+      case decodeGameboard (json (withFlow "\"-1\"")) of
+        Left (Named "flow amount" (UnexpectedValue _)) -> pure unit
+        Left e -> fail ("expected a flow amount error, got " <> show e)
+        Right _ -> fail "a negative flow decoded"
+    it "a zero flow amount is valid" do
+      case decodeGameboard (json (withFlow "\"0\"")) of
+        Left e -> fail (show e)
+        Right gb -> map _.amount gb.world.circulation.flows `shouldEqual` [ Q.zero ]
+    it "a decoded Gameboard never carries a negative flow, so the allocate guard is not reachable from it" do
+      case decodeGameboard (json (withFlow "\"-0.0001\"")) of
+        Left _ -> pure unit
+        Right gb -> fail ("a negative flow reached a decoded Gameboard: " <> show (map _.amount gb.world.circulation.flows))

@@ -375,7 +375,7 @@ plots grid fetch ids shown picked setPicked = D.div
           }
       , Layout.section
           { title: "Spread and Gini"
-          , purpose: "How even final net worth is among the players in each run. The spread is in M; the Gini coefficient runs from 0 (equal) to 1 (one player holds everything)."
+          , purpose: balancePurpose
           , children: loadedWith (balance waiting waiting) \c -> [ balance (groupedBars ids "Measure" c.balance.spread) (groupedBars ids "Measure" c.balance.gini) ]
           }
       , Layout.section
@@ -415,9 +415,18 @@ plots grid fetch ids shown picked setPicked = D.div
     , children: [ Layout.caption title, child ]
     }
 
+  -- the unit of the spread, which the loaded comparison names; until one is loaded, the copy omits it
+  spreadUnit = case shown of
+    Just (Right c) -> Just c.balance.unit
+    _ -> Nothing
+  inUnit = maybe "" (\u -> ", in " <> u) spreadUnit
+  balancePurpose = "How even final net worth is among the players in each run. "
+    <> maybe "The" (\u -> "The spread is in " <> u <> "; the") spreadUnit
+    <> " Gini coefficient runs from 0 (equal) to 1 (one player holds everything)."
+
   -- the two balance plots side by side, each in its own panel
   balance spreadPlot giniPlot = Layout.grid
-    [ Layout.panel { span: 6, title: "Spread", purpose: "Highest minus lowest final net worth, in M.", children: [ spreadPlot ] }
+    [ Layout.panel { span: 6, title: "Spread", purpose: "Highest minus lowest final net worth" <> inUnit <> ".", children: [ spreadPlot ] }
     , Layout.panel { span: 6, title: "Gini coefficient", purpose: "Inequality of final net worth, from 0 to 1.", children: [ giniPlot ] }
     ]
 

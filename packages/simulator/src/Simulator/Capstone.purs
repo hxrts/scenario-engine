@@ -7,6 +7,7 @@ module Simulator.Capstone
   , ObjectiveExpect
   , RoundExpect
   , decodeCapstone
+  , outcomeOf
   ) where
 
 import Prelude

@@ -40,7 +40,7 @@ type CompareView =
   { markets :: Array Chart
   , netWorth :: Array { player :: String, chart :: Chart }
   , standings :: Bars
-  , balance :: { spread :: Bars, gini :: Bars }
+  , balance :: { spread :: Bars, gini :: Bars, unit :: String }
   , keyValues :: Table
   , final :: Table
   , diff :: Table

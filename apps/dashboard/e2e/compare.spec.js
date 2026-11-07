@@ -39,6 +39,7 @@ function comparison(ids) {
     netWorth: players.map((p) => ({ player: p, chart: { title: `Net worth, ${p}`, unit: "M", kind: "quantity", series: ids.map((id, i) => line(id, 10 + i)) } })),
     standings: bars("Final net worth by player", "M", "quantity", players, ids, (i, j) => String(10 + i + j)),
     balance: {
+      unit: "M",
       spread: bars("Spread of final net worth", "M", "quantity", ["Spread"], ids, (i) => String(3 + i)),
       gini: bars("Gini of final net worth", "index, 0 to 1", "ratio", ["Gini"], ids, () => "0.1000"),
     },

@@ -12,14 +12,15 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (checkRun)
 import Core.World (WorldState)
 import Data.Array (drop, index, (!!))
-import Data.Either (Either(..))
+import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Effect.Aff (Aff)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
-import Simulator.Capstone (RoundExpect)
+import Board.Gameboard.Schema (Outcome(..))
+import Simulator.Capstone (RoundExpect, outcomeOf)
 import Testkit.Capstone (load, specOf, runOf)
 import Simulator.Simulate (Context, Run, resume)
 import Test.Spec (Spec, describe, it)
@@ -33,6 +34,12 @@ worldBefore r i
 
 spec :: Aff Context -> Spec Unit
 spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
+  it "objective outcomes decode from the DSL's spelling, and the spelling with a space is rejected" do
+    outcomeOf "met" `shouldEqual` Right Met
+    outcomeOf "notMet" `shouldEqual` Right NotMet
+    outcomeOf "notEvaluated" `shouldEqual` Right NotEvaluated
+    isLeft (outcomeOf "not met") `shouldEqual` true
+
   it "the checked invariants hold in every round (INV-02, 04, 05, 06, 10; see docs/02 §9)" do
     ctx <- context
     cap <- load

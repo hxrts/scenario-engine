@@ -5,13 +5,14 @@ module Board.Decode.Circulation
 
 import Prelude
 
+import Control.Applicative (when)
 import Board.Decode.Common (unknownKind)
 import Board.Tags (argOf, isBare, payeeKind, salesKind)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Core.World (Circulation, ShareSource(..))
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:), (.:?), (.!=))
+import Data.Argonaut.Decode (JsonDecodeError(..), decodeJson, (.:), (.:?), (.!=))
 import Data.Maybe (Maybe(..))
 import Data.Either (Either(..))
 import Data.Traversable (traverse)
@@ -31,6 +32,8 @@ decodeCirculation j = do
     to <- f .: "to"
     r <- f .: "resource"
     amount <- f .: "amount"
+    -- a flow is a fixed payment per round (docs/03 §5.4), so its amount is never negative
+    when (amount < Q.zero) (Left (Named "flow amount" (UnexpectedValue x)))
     pure { from: Id from, to: Id to, resource: Id r, amount }
   shares <- o .:? "shares" .!= [] >>= traverse \x -> do
     f <- decodeJson x
