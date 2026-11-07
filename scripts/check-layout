@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+// Named concept rules that imports cannot express (docs/design-4 §12.7 item 2; work/4.md). Each rule
+// names where its concept may live today. A rule with a transitional home says so, and is tightened
+// when that home is created (the phase that creates it is named in the rule).
+const fs = require("fs");
+const path = require("path");
+
+const root = path.join(__dirname, "..");
+
+// The rules are checked on PureScript source (src/ trees; tests are not held to them).
+const rules = [
+  {
+    name: "effects declare operations only: no interpret, on, or handler definition",
+    files: (f) => f.startsWith("packages/effects/src/"),
+    // a top-level definition or type named like an interpreter; `_interpret` row labels are not definitions
+    bad: (line) => /^(interpret|on|handler|handlers)\s*(::|=)/.test(line) || /^type\s+\w*Handler\w*\s*=/.test(line),
+  },
+  {
+    name: "no \"/api\" path string outside the route table (interim home: apps/dashboard/src/Dashboard/Client.purs; Handlers.Api.Route from Phase 8)",
+    files: (f) => f.includes("/src/") && f !== "apps/dashboard/src/Dashboard/Client.purs",
+    bad: (line) => /"\/api/.test(line),
+  },
+  {
+    name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",
+    files: () => true,
+    bad: (line) => /\bSeed 0\b/.test(line),
+  },
+  {
+    name: "handlers hold no economic arithmetic: no Number, parseFloat, or toFixed (economic values go through Core.Num)",
+    files: (f) => f.startsWith("packages/handlers/src/"),
+    bad: (line) => /\bparseFloat\b|\btoFixed\b|\bNumber\b/.test(line),
+  },
+];
+
+function purs(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(dir, e.name);
+    return e.isDirectory() ? purs(p) : e.name.endsWith(".purs") ? [p] : [];
+  });
+}
+
+const files = ["packages", "apps"].flatMap((d) =>
+  fs.readdirSync(path.join(root, d)).flatMap((n) => {
+    const src = path.join(root, d, n, "src");
+    return fs.existsSync(src) ? purs(src) : [];
+  }))
+  .map((f) => path.relative(root, f));
+
+const errors = [];
+for (const rule of rules) {
+  for (const f of files.filter(rule.files)) {
+    fs.readFileSync(path.join(root, f), "utf8").split("\n").forEach((line, i) => {
+      // comments may name a concept; only code is checked
+      if (line.trimStart().startsWith("--")) return;
+      if (rule.bad(line)) errors.push(`${f}:${i + 1}: ${rule.name}`);
+    });
+  }
+}
+if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
+console.log("layout ok");

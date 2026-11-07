@@ -34,13 +34,17 @@ _fmt-check:
 _deps:
     node scripts/check-deps
 
+# Check the named layout rules (docs/07 §3; work/4.md §12.7)
+_layout:
+    node scripts/check-layout
+
 # Compile the DSL scenarios to JSON, then generate the capstone recording (no model call)
 _scenarios:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript
 
-# fmt-check, deps, build, test
-check: _fmt-check _deps build test
+# fmt-check, deps, layout, build, test
+check: _fmt-check _deps _layout build test
 
 # check + dashboard smoke test
 all: check dashboard-test

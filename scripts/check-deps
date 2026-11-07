@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3)
-// or if a pure package depends on an effectful library.
+// Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3), if a pure
+// package depends on an effectful library, or if a source file imports a module its layer may not
+// import (docs/design-4 §12.7 item 1; work/4.md). Declared dependencies come from spago.yaml; the
+// import rules read the `import` lines of each package's src/ tree.
 const fs = require("fs");
 const path = require("path");
 
@@ -23,9 +25,62 @@ const testForbidden = { simulator: ["analysis"] };
 const pure = ["core", "board", "policy"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
+// Import rules for source modules, checked on the `import` lines of each src/ file.
+// A pure module imports no effect, runner, node, adapter, handler or effect-declaration module.
+const IMPURE_MODULE = /^(Effect(\.|$)|Run(\.|$)|Node\.|Adapters\.|Handlers\.|Effects\.)/;
+// Adapters import only these named backend record types from handlers (docs/07 §4).
+const ADAPTER_HANDLER_IMPORTS = { "Handlers.Store": ["Metric", "StoreBackend"] };
+
+// Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
+const rules = [
+  { name: "pure packages import no effectful module", packages: pure.concat(["scenarios"]),
+    forbid: (m) => IMPURE_MODULE.test(m) },
+  { name: "the views are pure: no simulator, game, experiments, or effect module (docs/07 §3)", packages: ["analysis"],
+    under: "Analysis/Views/", forbid: (m) => /^(Simulator|Game|Experiments)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
+  { name: "handlers import no adapter, and no views, simulator, or experiments", packages: ["handlers"],
+    forbid: (m) => /^(Adapters|Simulator|Analysis|Game|Experiments)(\.|$)/.test(m) },
+  { name: "effects are declarations: no handler or adapter import", packages: ["effects"],
+    forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
+];
+
 const root = path.join(__dirname, "..");
 const dirs = ["packages", "apps"].flatMap((d) =>
   fs.readdirSync(path.join(root, d)).map((n) => path.join(root, d, n)));
+
+// Every `import` line of a PureScript file: its module and the text of its import list (nested parens kept).
+function importsOf(text) {
+  const out = [];
+  const re = /^import\s+([A-Z][\w.]*)/gm;
+  let m;
+  while ((m = re.exec(text))) {
+    let i = re.lastIndex;
+    while (/\s/.test(text[i] || "")) i++;
+    let names = null;
+    if (text[i] === "(") {
+      let depth = 0, j = i;
+      for (; j < text.length; j++) {
+        if (text[j] === "(") depth++;
+        else if (text[j] === ")" && --depth === 0) break;
+      }
+      names = text.slice(i + 1, j);
+    }
+    out.push({ module: m[1], names });
+  }
+  return out;
+}
+
+// The top-level names an import list brings in, e.g. "Metric, StoreBackend" -> ["Metric", "StoreBackend"].
+function listedNames(names) {
+  return names.split(/,(?![^()]*\))/).map((s) => s.trim().replace(/\(.*$/s, "").trim()).filter((s) => s !== "");
+}
+
+function pursFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(dir, e.name);
+    return e.isDirectory() ? pursFiles(p) : e.name.endsWith(".purs") ? [p] : [];
+  });
+}
 
 let errors = [];
 for (const dir of dirs) {
@@ -49,6 +104,26 @@ for (const dir of dirs) {
   // the simulator's test suite may not reach analysis either (docs/06 §14, docs/07 §3)
   for (const d of testDeps) {
     if (name in testForbidden && testForbidden[name].includes(d.replace(/^sp-/, ""))) errors.push(`${name} (test) -> ${d} is not allowed`);
+  }
+
+  // import-level rules, over the src/ tree of this package
+  const srcDir = path.join(dir, "src");
+  for (const f of pursFiles(srcDir)) {
+    const rel = path.relative(srcDir, f);
+    const src = fs.readFileSync(f, "utf8");
+    for (const { module: mod, names } of importsOf(src)) {
+      for (const rule of rules) {
+        if (!rule.packages.includes(name)) continue;
+        if (rule.under && !rel.startsWith(rule.under)) continue;
+        if (rule.forbid(mod)) errors.push(`${path.relative(root, f)}: imports ${mod} (${rule.name})`);
+      }
+      if (name === "adapters" && /^Handlers(\.|$)/.test(mod)) {
+        const ok = ADAPTER_HANDLER_IMPORTS[mod];
+        const got = names === null ? [] : listedNames(names);
+        if (!ok) errors.push(`${path.relative(root, f)}: imports ${mod}; adapters may import only the backend record types of handlers`);
+        else if (got.some((n) => !ok.includes(n))) errors.push(`${path.relative(root, f)}: imports ${got.filter((n) => !ok.includes(n)).join(", ")} from ${mod}; adapters may import only ${ok.join(", ")}`);
+      }
+    }
   }
 }
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
