@@ -18,7 +18,7 @@ import Core.Query (holding)
 import Core.Types (Id(..), Rule(..))
 import Core.World (Event(..), RejectReason(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, reverse)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
@@ -35,24 +35,16 @@ import Data.Argonaut.Parser (jsonParser)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile, readScenario)
-import Scenarios.Load (load, loadFixture, loadPresets, loadRun)
-import Simulator.Capstone (Capstone, decodeCapstone)
+import Scenarios.Tree (readRootFile)
+import Scenarios.Load (loadFixture)
+import Testkit.Capstone (load)
+import Testkit.Meridian (context, seats)
 import Test.Spec (describe, it)
 import Test.Simulator.Shock as ShockTests
 import Test.Simulator.Capstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
-context :: Aff Context
-context = do
-  loaded <- liftEffect (map (_ >>= load) (readScenario fileOps "meridian/v0"))
-  presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
-  case loaded, presets of
-    Right { gameboard, config }, Right ps -> pure { gameboard, config, presets: ps }
-    Left e, _ -> throwError (error e)
-    _, Left e -> throwError (error e)
 
 everySeat :: String -> SimulationSpec
 everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Nothing }
@@ -66,7 +58,7 @@ strategy text = case jsonParser text of
 
 run :: Context -> SimulationSpec -> Aff Run
 run ctx spec = case simulate ctx spec of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right r -> case r.final of
     Left e -> throwError (error (show e))
     Right _ -> pure r
@@ -78,25 +70,13 @@ valid initial r = checkRun initial r.records `shouldEqual` []
 initialOf :: Run -> WorldState
 initialOf r = r.manifest.initial
 
--- | The capstone run file (DSL-authored), decoded.
-capstone :: Aff Capstone
-capstone = do
-  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
-  case file of
-    Left e -> throwError (error e)
-    Right j -> either (throwError <<< error) pure (decodeCapstone j)
-
 fixture :: String -> Aff Unit
 fixture name = liftEffect (map (_ >>= loadFixture name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
-  Left e -> fail e
+  Left e -> fail (show e)
   Right f -> checkFixture f `shouldEqual` []
 
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> marginal x.cost x.position)
-
--- | The Meridian seats, the same list the Shock test plays.
-seats :: Array String
-seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -134,7 +114,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           in
             do
               case runReplay 5 (map _.record a.records) (runGame inWorld 5 initial.world) of
-                Left e -> fail e
+                Left e -> fail (show e)
                 Right out -> do
                   map _.world out.records `shouldEqual` map _.world a.records
                   map _.record out.records `shouldEqual` map _.record a.records
@@ -160,7 +140,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
       liftEffect (map (_ >>= loadFixture "C1") (readRootFile fileOps "fixtures/C1.json")) >>= case _ of
-        Left e -> fail e
+        Left e -> fail (show e)
         Right f -> do
           let
             zero = f.world { representations = map (\r -> r { estimator = r.estimator { shrinkage = Q.zero } }) f.world.representations }
@@ -269,9 +249,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "11 Trade restriction: the DSL-authored US ban, the EU tariff, and a banned shipment" do
       -- the ban, the tariff and the shipment are the capstone's seat strategies (DSL data), not Proposals built here
       ctx <- context
-      cap <- capstone
+      cap <- load
       r <- case simulate ctx { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just 4 } of
-        Left e -> throwError (error e)
+        Left e -> throwError (error (show e))
         Right x -> pure x
       let
         events = concatMap (_.record.events) r.records
@@ -311,5 +291,5 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case index full.records 2 of
         Nothing -> fail "rounds"
         Just r3 -> case resume ctx (everySeat "RandomValid") (Just { world: r3.world, done: 3 }) of
-          Left e -> fail e
+          Left e -> fail (show e)
           Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 3 full.records)

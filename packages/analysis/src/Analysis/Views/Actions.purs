@@ -6,6 +6,9 @@ module Analysis.Views.Actions
   ( actionsStat
   , actionKinds
   , rejectionCount
+  , Counts
+  , PlayerCounts
+  , actionTotals
   , actions
   , ActionsChart
   , ActionsView
@@ -13,6 +16,7 @@ module Analysis.Views.Actions
 
 import Prelude
 
+import Core.Query (countEvents)
 import Core.Types (EntityId, Intent(..), Proposal, ProposalId)
 import Core.World (Event(..), RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
@@ -27,18 +31,19 @@ actionsStat =
   , formula: "trades = Traded events with the Actor; transforms = Transformed events by the Actor; transfers = Transferred events the Actor pays (from); deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = Rejected events on the Actor's own Proposals."
   }
 
--- | One Actor's counts in one round.
+-- | One Actor's counts of each kind of action, over a round or a whole run.
 type Counts = { trades :: Int, transforms :: Int, transfers :: Int, deals :: Int, rejected :: Int }
 
 -- | The kinds of action counted, in stacking order, with the plain-language label each is shown
--- | under and the count it takes from a player's counts.
-actionKinds :: Array { key :: String, label :: String, count :: Counts -> Int }
+-- | under, the short column heading of the per-round table, and the count it takes from a player's
+-- | counts. The tables are built from this list, so their headings and cells cannot drift.
+actionKinds :: Array { key :: String, label :: String, short :: String, count :: Counts -> Int }
 actionKinds =
-  [ { key: "trades", label: "Market trades (buys and sells)", count: _.trades }
-  , { key: "transforms", label: "Production and procurement", count: _.transforms }
-  , { key: "transfers", label: "Payments to other players", count: _.transfers }
-  , { key: "deals", label: "Deals signed", count: _.deals }
-  , { key: "rejected", label: "Proposals rejected", count: _.rejected }
+  [ { key: "trades", label: "Market trades (buys and sells)", short: "Trades", count: _.trades }
+  , { key: "transforms", label: "Production and procurement", short: "Transforms", count: _.transforms }
+  , { key: "transfers", label: "Payments to other players", short: "Transfers", count: _.transfers }
+  , { key: "deals", label: "Deals signed", short: "Deals signed", count: _.deals }
+  , { key: "rejected", label: "Proposals rejected", short: "Proposals rejected", count: _.rejected }
   ]
 
 -- | The run chart: one bar per player, ordered by total actions (highest first), each stacked by
@@ -54,9 +59,12 @@ type ActionsChart =
 -- | per-round counts.
 type ActionsView = { chart :: ActionsChart, totals :: Table, byRound :: Table }
 
+-- | A player's counts over the whole run, and their total.
+type PlayerCounts = { player :: EntityId, counts :: Counts, total :: Int }
+
 -- | Every Rejected event in a round: the number the Overview reports.
 rejectionCount :: RoundRecord -> Int
-rejectionCount rec = length (filter isRejected rec.events)
+rejectionCount rec = countEvents isRejected rec.events
   where
   isRejected = case _ of
     Rejected _ -> true
@@ -102,14 +110,13 @@ transferredBy e = case _ of
 
 countsOf :: RoundRecord -> EntityId -> Counts
 countsOf rec e =
-  { trades: count (tradedBy e)
-  , transforms: count (transformedBy e)
-  , transfers: count (transferredBy e)
+  { trades: countEvents (tradedBy e) rec.events
+  , transforms: countEvents (transformedBy e) rec.events
+  , transfers: countEvents (transferredBy e) rec.events
   , deals: length (filter signedDeal rec.inputs)
-  , rejected: count rejectedOwn
+  , rejected: countEvents rejectedOwn rec.events
   }
   where
-  count f = length (filter f rec.events)
   signedDeal s = elem e s.signatures && isDeal s.proposal && not (settledOff rec s.proposal.id)
   rejectedOwn = case _ of
     Rejected x -> maybe false (\p -> p.author == e) (proposalOf rec x.proposal)
@@ -131,23 +138,31 @@ addCounts a b =
 totalOf :: Counts -> Int
 totalOf c = foldl (\acc k -> acc + k.count c) 0 actionKinds
 
+-- | Every Actor's counts over the whole run, in Actor order: one read of the run, with no table built.
+actionTotals :: StoredRun -> Array PlayerCounts
+actionTotals r = map totalsOf (players r.manifest.initial)
+  where
+  totalsOf e =
+    let
+      counts = foldl addCounts zeroCounts (map (\rec -> countsOf rec e) r.records)
+    in
+      { player: e, counts, total: totalOf counts }
+
 -- | The per-round table (every Actor in every round), the run totals per Actor, and the run chart.
 actions :: StoredRun -> ActionsView
 actions r = { chart, totals, byRound }
   where
   ps = players r.manifest.initial
-  -- the Actors' counts in each round, as (round, Actor, counts)
-  perRound = concatMap (\rec -> map (\e -> { round: rec.round, actor: e, counts: countsOf rec e }) ps) r.records
+  totalsRows = actionTotals r
   byRound =
     { title: "Actions by round"
-    , columns: [ "Round", "Player", "Trades", "Transforms", "Transfers", "Deals signed", "Proposals rejected" ]
-    , rows: map (\x -> [ show x.round, show x.actor, show x.counts.trades, show x.counts.transforms, show x.counts.transfers, show x.counts.deals, show x.counts.rejected ]) perRound
+    , columns: [ "Round", "Player" ] <> map _.short actionKinds
+    , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) r.records
     }
-  summed = map (\e -> { player: show e, counts: sumFor e }) ps
   totals =
     { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a deal that is also a payment is counted in both."
     , columns: [ "Player" ] <> map _.label actionKinds <> [ "Total" ]
-    , rows: map (\x -> [ x.player ] <> map (\k -> show (k.count x.counts)) actionKinds <> [ show (totalOf x.counts) ]) summed
+    , rows: map (\x -> [ show x.player ] <> cellsOf x.counts <> [ show x.total ]) totalsRows
     }
   chart =
     { title: "Actions over the run, by player"
@@ -156,12 +171,12 @@ actions r = { chart, totals, byRound }
     , bars: sortBy (\a b -> compare b.total a.total)
         ( map
             ( \x ->
-                { player: x.player
-                , total: totalOf x.counts
+                { player: show x.player
+                , total: x.total
                 , counts: map (\k -> { key: k.key, count: k.count x.counts }) actionKinds
                 }
             )
-            summed
+            totalsRows
         )
     }
-  sumFor e = foldl addCounts zeroCounts (map _.counts (filter (\x -> x.actor == e) perRound))
+  cellsOf c = map (\k -> show (k.count c)) actionKinds

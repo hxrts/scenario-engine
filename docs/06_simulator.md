@@ -456,7 +456,7 @@ The comparison's runs and baseline are carried in the route (`#/compare/:ids`), 
 
 ## 11. Experiments
 
-**Planned as a launcher.** Experiments run today only inside the analysis test suite (`Test.Analysis.Experiments`, using `Analysis.Experiments.playerSeedRuns` and `counterfactual`). No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a comparison set.
+**Planned as a launcher.** Experiments run today only inside the analysis test suite (`Test.Analysis.Experiments`, using `Analysis.Agency.playerSeedRuns` and `counterfactual`). No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a comparison set.
 
 Target experiment kinds:
 
@@ -503,7 +503,7 @@ Every one of the fifteen seats receives a simple, predictable preset seat Policy
 
 ## 14. Mandatory Tests
 
-Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7c, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Analysis.Experiments`, so they run in the analysis suite (`packages/analysis/test/Test/Analysis/Mandatory.purs`); the simulator suite does not depend on analysis.
+Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7c, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Analysis.Agency` and `Analysis.Objectives`, so they run in the analysis suite (`packages/analysis/test/Test/Analysis/Mandatory.purs`); the simulator suite does not depend on analysis.
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|

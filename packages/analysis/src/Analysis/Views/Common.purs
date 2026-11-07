@@ -12,6 +12,10 @@ module Analysis.Views.Common
   , quantity
   , price
   , ratio
+  , ratioUnit
+  , unitOf
+  , ofCount
+  , supportThreshold
   , exact
   , at
   , final
@@ -19,6 +23,9 @@ module Analysis.Views.Common
   , kindOf
   , series
   , specValue
+  , Procedure
+  , asProcedure
+  , proceduresOf
   , joinComma
   , players
   , roundResults
@@ -29,12 +36,12 @@ import Prelude
 import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
 import Core.Num as Q
-import Core.Query (isAggregate)
-import Core.Types (EntityId, EntityKind(..))
-import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
+import Core.Query (eventsOf, isAggregate)
+import Core.Types (EntityId, EntityKind(..), ProposalId, ResourceId)
+import Core.World (Event(..), Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, find, index, length, mapWithIndex, nub)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 
@@ -93,6 +100,22 @@ price = Q.displayPrice
 ratio :: Q -> String
 ratio = Q.displayRatio
 
+-- | The unit every ratio and share is shown in (Gini, influence, shrinkage, factors, support).
+ratioUnit :: String
+ratioUnit = "index, 0 to 1"
+
+-- | A Resource's unit, from the run's manifest; empty for a Resource the manifest does not name.
+unitOf :: StoredRun -> ResourceId -> String
+unitOf r res = maybe "" _.unit (Map.lookup res r.manifest.initial.resources)
+
+-- | "N of M", the prose for a count of the total it is out of.
+ofCount :: Int -> Int -> String
+ofCount n total = show n <> " of " <> show total
+
+-- | "support S, threshold T", the prose for a collective procedure's support against its threshold.
+supportThreshold :: Q -> Q -> String
+supportThreshold support threshold = "support " <> ratio support <> ", threshold " <> ratio threshold
+
 -- | The exact value, at four decimals, for chart points: the plot keeps full precision.
 exact :: Q -> String
 exact = Q.format
@@ -120,8 +143,8 @@ kindOf w e = case _.kind <$> Map.lookup e w.entities of
 
 -- | One named series per key of `f` over the initial state and every snapshot, each point the
 -- | value of that key at a round (0 = initial).
-series :: forall a. StoredRun -> String -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array { round :: Int, value :: String } }
-series r _ f g =
+series :: forall a. StoredRun -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array { round :: Int, value :: String } }
+series r f g =
   let
     states = mapWithIndex Tuple ([ r.manifest.initial ] <> r.snapshots)
     names = nub (concatMap (\(Tuple _ w) -> map (\(Tuple n _) -> n) (f w)) states)
@@ -144,3 +167,26 @@ players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (Map.toUnfolda
 -- | objectives are evaluated over a run.
 roundResults :: StoredRun -> Array RoundResult
 roundResults r = mapWithIndex (\i rec -> { world: fromMaybe r.manifest.initial (at r (i + 1)), record: rec }) r.records
+
+-- | A collective procedure the run recorded: its Proposal, the members who signed it, and whether it
+-- | executed, with its support against its threshold. Drivers and Representation both render their
+-- | rows from this one read.
+type Procedure = { round :: Int, proposal :: ProposalId, executed :: Boolean, support :: Q, threshold :: Q, signers :: Array EntityId }
+
+-- | The procedure an event records, when it is a procedure outcome, within its round.
+asProcedure :: RoundRecord -> Event -> Maybe Procedure
+asProcedure rec = case _ of
+  ProcedureOutcome o ->
+    Just
+      { round: rec.round
+      , proposal: o.proposal
+      , executed: o.executed
+      , support: o.support
+      , threshold: o.threshold
+      , signers: concatMap (\s -> if s.proposal.id == o.proposal then s.signatures else []) rec.inputs
+      }
+  _ -> Nothing
+
+-- | Every procedure outcome in the run, in round order.
+proceduresOf :: StoredRun -> Array Procedure
+proceduresOf r = concatMap (\rec -> eventsOf (asProcedure rec) rec.events) r.records

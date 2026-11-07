@@ -6,6 +6,8 @@ module Analysis.Views.Standings
   , rankStat
   , netWorth
   , netWorths
+  , Standing
+  , standingsOf
   , standings
   , netWorthChart
   ) where
@@ -18,11 +20,12 @@ import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (EntityId)
 import Core.World (WorldState)
-import Data.Array (filter, find, fromFoldable, length, nub, sortBy)
+import Data.Array (filter, fromFoldable, length, nub, sortBy)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Tuple (Tuple(..), snd)
-import Analysis.Views.Common (Chart, Statistic, StoredRun, Table, exact, final, players, quantity, series)
+import Data.Tuple (Tuple(..))
+import Analysis.Views.Common (Chart, Statistic, StoredRun, Table, exact, final, players, quantity, series, unitOf)
 
 netWorthStat :: Statistic
 netWorthStat =
@@ -55,30 +58,37 @@ netWorth w e = Q.sumQ ([ holding w e w.numeraire ] <> map valued bases)
     in
       Q.div (Q.sumQ prices) (Q.fromInt (length prices))
 
--- | Every Actor's net worth in a World State, in Entity order.
-netWorths :: WorldState -> Array (Tuple EntityId Q)
-netWorths w = map (\e -> Tuple e (netWorth w e)) (players w)
+-- | Every Actor's net worth in a World State, keyed by Actor, in Entity order.
+netWorths :: WorldState -> Map EntityId Q
+netWorths w = Map.fromFoldable (map (\e -> Tuple e (netWorth w e)) (players w))
 
--- | The standings after the final round, highest net worth first: the net worth, its change from the
--- | start of the run (round 0), and its rank.
+-- | One Actor's standing after the final round: its net worth, its change from the start of the run,
+-- | and its rank.
+type Standing = { player :: EntityId, netWorth :: Q, change :: Q, rank :: Int }
+
+-- | The standings after the final round, highest net worth first.
+standingsOf :: StoredRun -> Array Standing
+standingsOf r = map standing ranked
+  where
+  start = netWorths r.manifest.initial
+  finals = netWorths (final r)
+  ranked = sortBy (\(Tuple _ a) (Tuple _ b) -> compare b a) (Map.toUnfoldable finals :: Array (Tuple EntityId Q))
+  rankOf v = 1 + length (filter (\(Tuple _ u) -> u > v) ranked)
+  standing (Tuple e v) = { player: e, netWorth: v, change: Q.sub v (fromMaybe Q.zero (Map.lookup e start)), rank: rankOf v }
+
+-- | The standings table: the net worth, its change from the start, and the rank of each Actor.
 standings :: StoredRun -> Table
 standings r =
   { title: "Standings after round " <> show (length r.records)
   , columns: [ "Player", "Net worth (M)", "Change from start (M)", "Rank" ]
-  , rows: map row ranked
+  , rows: map (\s -> [ show s.player, quantity s.netWorth, quantity s.change, show s.rank ]) (standingsOf r)
   }
-  where
-  start = netWorths r.manifest.initial
-  ranked = sortBy (\(Tuple _ a) (Tuple _ b) -> compare b a) (netWorths (final r))
-  rankOf v = 1 + length (filter (\(Tuple _ u) -> u > v) ranked)
-  startOf e = fromMaybe Q.zero (map snd (find (\(Tuple x _) -> x == e) start))
-  row (Tuple e v) = [ show e, quantity v, quantity (Q.sub v (startOf e)), show (rankOf v) ]
 
 -- | Every Actor's net worth over the run, one line per Actor, from round 0 (the start) to the final round.
 netWorthChart :: StoredRun -> Chart
 netWorthChart r =
   { title: "Net worth by player"
-  , unit: "M"
+  , unit: unitOf r r.manifest.initial.numeraire
   , kind: Quantity
-  , series: series r "net worth" (\w -> map (\(Tuple e v) -> Tuple (show e) v) (netWorths w)) exact
+  , series: series r (\w -> map (\(Tuple e v) -> Tuple (show e) v) (Map.toUnfoldable (netWorths w))) exact
   }

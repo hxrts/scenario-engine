@@ -19,6 +19,7 @@ import Handlers.Store (StoreBackend, runStore)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
+import Data.Bifunctor (bimap)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -28,7 +29,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Analysis.Experiments (agency)
+import Analysis.Agency (agency)
 import Simulator.Simulate (Context, presetSpec, seats)
 import Analysis.Views.Actions as Actions
 import Analysis.Views.Balance as Balance
@@ -190,4 +191,4 @@ compareView ctx store query = do
 agencyView :: Context -> Object String -> Effect Response
 agencyView ctx query = case Int.fromString (param query "playerSeed" "1") of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> viewOr (map Compare.agencyTable (agency ctx (presetSpec ctx (param query "preset" "Conservative") (Seed s) [] Nothing) (param query "alternative" "Aggressive") (seats ctx)))
+  Just s -> viewOr (bimap show Compare.agencyTable (agency ctx (presetSpec ctx (param query "preset" "Conservative") (Seed s) [] Nothing) (param query "alternative" "Aggressive") (seats ctx)))

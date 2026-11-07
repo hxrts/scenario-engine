@@ -11,10 +11,12 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Query (eventsOf)
 import Core.Types (EntityId, ResourceId, Rule(..))
+import Data.Maybe (Maybe(..))
 import Core.World (Event(..), RoundRecord)
 import Data.Array (concatMap, filter, length, nub)
-import Analysis.Views.Common (Statistic, StoredRun, Table, quantity, ratio)
+import Analysis.Views.Common (Procedure, Statistic, StoredRun, Table, asProcedure, quantity, ratio, supportThreshold)
 
 driversStat :: Statistic
 driversStat =
@@ -24,12 +26,14 @@ driversStat =
   , formula: "Shortfall(r, resource) = sum of Shortfall quantities in round r for that Resource, with the number of Entities short; a procedure's support and threshold are the ratios its ProcedureOutcome records."
   }
 
--- | The round's Shortfall events, in the order recorded.
-shortfalls :: RoundRecord -> Array { resource :: ResourceId, entity :: EntityId, quantity :: Q }
-shortfalls rec = concatMap
-  ( \ev -> case ev of
-      Shortfall s -> [ { resource: s.resource, entity: s.entity, quantity: s.quantity } ]
-      _ -> []
+-- | A round's Shortfall event: the Resource, the Entity short, and the quantity.
+type Shortfall = { resource :: ResourceId, entity :: EntityId, quantity :: Q }
+
+shortfalls :: RoundRecord -> Array Shortfall
+shortfalls rec = eventsOf
+  ( case _ of
+      Shortfall s -> Just { resource: s.resource, entity: s.entity, quantity: s.quantity }
+      _ -> Nothing
   )
   rec.events
 
@@ -55,6 +59,12 @@ ruleText = case _ of
   AccessBan b -> "access ban: " <> show b.jurisdiction <> " bars " <> show b.target
   Withholding w -> "withholding of " <> quantity w.units <> " from " <> show w.capacity
 
+-- | A procedure's row in the drivers table: its outcome and the support against the threshold.
+procedureRow :: Procedure -> Array String
+procedureRow p = [ show p.round, "Collective procedure", show p.proposal, "", outcome p.executed <> ": " <> supportThreshold p.support p.threshold ]
+  where
+  outcome e = if e then "executed" else "lapsed"
+
 -- | The drivers table: each round's enacted and repealed rules and procedure outcomes in the order the
 -- | engine recorded them, then that round's shortfalls per Resource.
 drivers :: StoredRun -> Table
@@ -66,17 +76,10 @@ drivers r =
   where
   roundRows rec =
     concatMap (eventRow rec) rec.events <> map (shortRow rec) (shortfallsOf rec)
-  eventRow rec = case _ of
-    Enacted e -> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText e.rule ] ]
-    Repealed e -> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
-    ProcedureOutcome o ->
-      [ [ show rec.round
-        , "Collective procedure"
-        , show o.proposal
-        , ""
-        , (if o.executed then "executed" else "lapsed") <> ": support " <> ratio o.support <> ", threshold " <> ratio o.threshold
-        ]
-      ]
-    _ -> []
+  eventRow rec ev = case asProcedure rec ev of
+    Just p -> [ procedureRow p ]
+    Nothing -> case ev of
+      Enacted e -> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText e.rule ] ]
+      Repealed e -> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
+      _ -> []
   shortRow rec s = [ show rec.round, "Shortfall", show s.resource, quantity s.quantity, show s.entities <> " entities short" ]
-

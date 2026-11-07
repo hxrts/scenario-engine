@@ -26,6 +26,7 @@ package:
       - exceptions
       - sp-scenarios
       - sp-adapters
+      - sp-testkit
       - argonaut-core
       - spec
       - spec-node

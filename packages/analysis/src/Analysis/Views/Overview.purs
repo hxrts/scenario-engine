@@ -12,6 +12,7 @@ import Prelude
 
 import Board.Gameboard.Schema (Gameboard)
 import Core.Num as Q
+import Core.Query (eventsOf)
 import Core.World (Event(..))
 import Data.Array (concat, concatMap, length, mapWithIndex)
 import Data.Either (Either(..))
@@ -19,9 +20,9 @@ import Data.Foldable (any, sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
-import Analysis.Experiments (evaluateObjectives)
+import Analysis.Objectives (evaluateObjectives)
 import Analysis.Views.Actions (rejectionCount)
-import Analysis.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, quantity, roundResults, specValue)
+import Analysis.Views.Common (MetricSpec, StoredRun, Table, final, joinComma, price, quantity, roundResults, specValue)
 import Analysis.Views.Markets (marketPrices)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
@@ -85,8 +86,8 @@ overview spec r =
       , [ "Rounds target", show (fromMaybe (length r.records) (specValue r.spec "rounds" >>= Int.fromString)) ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (sum (map rejectionCount r.records)) ]
-      , [ spec.procurementLabel <> " procured", quantity (Q.sumQ (concatMap procured (concatMap _.events r.records))) ]
-      ] <> map (\p -> [ "Final price " <> p.market, p.price ]) (marketPrices (final r))
+      , [ spec.procurementLabel <> " procured", quantity (Q.sumQ (concatMap (\rec -> eventsOf procured rec.events) r.records)) ]
+      ] <> map (\p -> [ "Final price " <> show p.market, price p.price ]) (marketPrices (final r))
   }
   where
   sourceStatus = case specValue r.spec "source" of
@@ -95,8 +96,8 @@ overview spec r =
       | r.sourceDeleted -> "deleted"
       | otherwise -> "present"
   procured = case _ of
-    Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> [ t.quantity ]
-    _ -> []
+    Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> Just t.quantity
+    _ -> Nothing
 
 -- | Every Actor's objective criteria as met, not met, or not evaluated, with the measured values.
 objectives :: Gameboard -> StoredRun -> Table

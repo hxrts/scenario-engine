@@ -1,4 +1,4 @@
--- | The mandatory tests of docs/06_simulator.md §14 that analyse runs through Analysis.Experiments:
+-- | The mandatory tests of docs/06_simulator.md §14 that analyse runs through Analysis.Agency and Analysis.Objectives:
 -- | test 7 (a counterfactual pair), test 14 (agency), and the player-seed variation runs. They sit
 -- | here, not in the simulator suite, because the simulator must not depend on analysis.
 module Test.Analysis.Mandatory (spec) where
@@ -24,15 +24,13 @@ import Core.Strategy (Strategy)
 import Policy.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Scenarios.Tree (readRootFile)
-import Analysis.Experiments (agency, counterfactual, evaluateObjectives, playerSeedRuns)
+import Analysis.Agency (agency, counterfactual, playerSeedRuns)
+import Analysis.Objectives (evaluateObjectives)
+import Testkit.Meridian (seats)
 import Scenarios.Load (loadFixture)
 import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, presetSeats, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-
--- | The Meridian seats, the same list the simulator's Main and Shock tests play.
-seats :: Array String
-seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 strategy :: String -> Strategy
 strategy text = case jsonParser text of
@@ -46,7 +44,7 @@ everySeat preset = { seats: presetSeats (const preset) (map Id seats), playerSee
 
 run :: Context -> SimulationSpec -> Aff Run
 run ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right r -> case r.final of
     Left e -> throwError (error (show e))
     Right _ -> pure r
@@ -81,14 +79,14 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
         r.records
     cf <- case counterfactual ctx (everySeat "Passive") { seats = Map.singleton (Id "US") (Custom deploy) } (\s -> s { seats = Map.empty }) of
       Right x -> pure x
-      Left e -> throwError (error e)
+      Left e -> throwError (error (show e))
     china cf.base `shouldEqual` true
     china cf.variant `shouldEqual` false
 
   it "14 Agency: every role is analysed and its objectives reported" do
     ctx <- context
     case agency ctx (everySeat "Conservative") "Aggressive" (map Id seats) of
-      Left e -> fail e
+      Left e -> fail (show e)
       Right profiles -> do
         length profiles `shouldEqual` 15
         base <- run ctx (everySeat "Conservative")
@@ -97,7 +95,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "player seeds vary seat behaviour while every Game-stream draw stays identical" do
     ctx <- context
     case playerSeedRuns ctx (everySeat "RandomValid") (range 1 10) of
-      Left e -> fail e
+      Left e -> fail (show e)
       Right runs -> do
         for_ runs \r -> valid (initialOf r) r
         length (nubEq (map (map _.world <<< _.records) runs)) `shouldEqual` 10

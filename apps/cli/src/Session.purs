@@ -54,7 +54,7 @@ session :: Options -> Effect Unit
 session o = map (_ >>= loadContext) (readScenario fileOps (o.scenario <> "/v0")) >>= case _ of
   Left e -> writeLine e *> exit' 1
   Right { gameboard, config } -> case startOf gameboard config of
-    Left e -> writeLine e *> exit' 1
+    Left e -> writeLine (show e) *> exit' 1
     Right { initial, inWorld } -> launchAff_ do
       let
         w0 = initial.world

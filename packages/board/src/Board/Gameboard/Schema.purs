@@ -11,6 +11,7 @@ module Board.Gameboard.Schema
   , Fallback(..)
   , Objective
   , Criterion
+  , Outcome(..)
   , MetricRef
   , Measure(..)
   , Span(..)
@@ -101,6 +102,19 @@ derive instance Eq Fallback
 type Objective = { description :: String, criteria :: Array Criterion }
 
 type Criterion = { metric :: MetricRef, over :: Span, atLeast :: Bound }
+
+-- | A criterion or objective is met, not met, or not evaluated. A run with no rounds, or a
+-- | criterion with no series, is not evaluated: it is neither a pass nor a failure.
+data Outcome = Met | NotMet | NotEvaluated
+
+derive instance Eq Outcome
+
+-- | The words the views show; the stored DSL spells the same outcomes in its own form (Simulator.Capstone).
+instance Show Outcome where
+  show = case _ of
+    Met -> "met"
+    NotMet -> "not met"
+    NotEvaluated -> "not evaluated"
 
 -- | A measurement summed over the listed Entities; `negated` expresses "at most".
 type MetricRef = { entities :: Array EntityId, measure :: Measure, negated :: Boolean }

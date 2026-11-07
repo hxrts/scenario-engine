@@ -36,7 +36,7 @@ game preset overrides = { seats: presetSeats (const preset) (map Id seats), play
 
 play :: Context -> SimulationSpec -> Aff Run
 play ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right r -> pure r
 
 -- | The kinds of Intent the seats proposed in one round: side and Market for a Trade, the

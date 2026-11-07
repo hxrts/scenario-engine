@@ -4,6 +4,9 @@
 module Core.Query
   ( lookupQ
   , holding
+  , accountsOf
+  , eventsOf
+  , countEvents
   , capacityHeld
   , priceOf
   , totalHolding
@@ -31,7 +34,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent(..), MarketId, Order, Price, Quantity, Ratio, ResourceId, RoundIndex, Rule(..), TransferSpec, Transformation, TransformationId, TransformSpec)
 import Core.World (Event(..), WorldState)
-import Data.Array (any, concatMap, elem, filter, find, fromFoldable, mapMaybe)
+import Data.Array (any, concatMap, elem, filter, find, fromFoldable, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
@@ -43,7 +46,21 @@ lookupQ k m = fromMaybe Q.zero (Map.lookup k m)
 
 -- | What an Entity holds of a Resource.
 holding :: WorldState -> EntityId -> ResourceId -> Q
-holding w e r = fromMaybe Q.zero (Map.lookup e w.entities <#> \x -> lookupQ r x.accounts)
+holding w e r = lookupQ r (accountsOf w e)
+
+-- | An Entity's accounts: the amount it holds of each Resource it has an account for; empty for an
+-- | Entity the World State does not have.
+accountsOf :: WorldState -> EntityId -> Map ResourceId Q
+accountsOf w e = maybe Map.empty _.accounts (Map.lookup e w.entities)
+
+-- | The values the matching events yield, in recorded order: the one way a view picks out events of
+-- | some kinds, so every event match reads the same way.
+eventsOf :: forall a. (Event -> Maybe a) -> Array Event -> Array a
+eventsOf = mapMaybe
+
+-- | How many events match the predicate.
+countEvents :: (Event -> Boolean) -> Array Event -> Int
+countEvents p = length <<< eventsOf (\ev -> if p ev then Just ev else Nothing)
 
 -- | The amount of a capacity an Entity holds.
 capacityHeld :: WorldState -> EntityId -> CapacityRef -> Q

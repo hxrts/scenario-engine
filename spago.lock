@@ -86,6 +86,7 @@
             "quickcheck",
             "sp-adapters",
             "sp-scenarios",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -475,10 +476,35 @@
             "quickcheck",
             "sp-adapters",
             "sp-scenarios",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
           ]
+        }
+      },
+      "sp-testkit": {
+        "path": "packages/testkit",
+        "core": {
+          "dependencies": [
+            "aff",
+            "argonaut-core",
+            "arrays",
+            "effect",
+            "exceptions",
+            "foldable-traversable",
+            "maybe",
+            "ordered-collections",
+            "prelude",
+            "sp-adapters",
+            "sp-core",
+            "sp-scenarios",
+            "sp-simulator",
+            "transformers"
+          ]
+        },
+        "test": {
+          "dependencies": []
         }
       }
     },

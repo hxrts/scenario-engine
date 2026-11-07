@@ -1,0 +1,17 @@
+package:
+  name: sp-testkit
+  dependencies:
+    - prelude
+    - aff
+    - effect
+    - exceptions
+    - argonaut-core
+    - arrays
+    - foldable-traversable
+    - maybe
+    - ordered-collections
+    - transformers
+    - sp-core
+    - sp-simulator
+    - sp-scenarios
+    - sp-adapters

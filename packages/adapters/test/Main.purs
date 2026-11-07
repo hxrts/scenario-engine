@@ -44,9 +44,9 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
-orThrow :: forall a. Either String a -> Aff a
+orThrow :: forall e a. Show e => Either e a -> Aff a
 orThrow = case _ of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right a -> pure a
 
 -- | The initial manifest of the reference scenario, for runs created by hand.

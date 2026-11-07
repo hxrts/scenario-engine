@@ -25,11 +25,9 @@ import Analysis.Views.Balance (gini, seedVariation, spread)
 import Analysis.Views.Common (StoredRun, Table, players)
 import Analysis.Views.Compare (sameSpecification)
 import Analysis.Views.Standings (netWorth, standings)
+import Testkit.Meridian (seats)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-
-seatIds :: Array String
-seatIds = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 us :: EntityId
 us = Id "US"
@@ -46,8 +44,8 @@ energy = Id "E"
 -- | A simulated run's manifest and World States, read back as the Run Store would: the base every
 -- | hand-built run below reuses.
 baseRun :: Context -> Aff StoredRun
-baseRun ctx = case simulate ctx { seats: presetSeats (const "Conservative") (map Id seatIds), playerSeed: Seed 1, overrides: [], rounds: Just 2 } of
-  Left e -> throwError (error e)
+baseRun ctx = case simulate ctx { seats: presetSeats (const "Conservative") (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Just 2 } of
+  Left e -> throwError (error (show e))
   Right r -> pure (toStored r)
   where
   toStored :: Run -> StoredRun

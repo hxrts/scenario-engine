@@ -83,7 +83,7 @@ start ctx store l = do
     Left ex -> do
       runStore store (failRun id ("exception: " <> message ex))
       throwException ex
-    Right (Left e) -> pure (Left e)
+    Right (Left e) -> pure (Left (show e))
     Right (Right r) -> runStore store (finish id r) $> Right { id, playerSeed: unwrap seed }
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's

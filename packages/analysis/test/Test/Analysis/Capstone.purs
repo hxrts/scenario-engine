@@ -7,71 +7,34 @@ module Test.Analysis.Capstone (spec) where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Types (Id(..))
 import Data.Array (length, sortWith)
 import Data.Either (Either(..))
 import Data.Foldable (any)
-import Data.Map as Map
-import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
-import Effect.Exception (error)
-import Analysis.Experiments (Outcome(..), difference, evaluateObjectives)
-import Simulator.Capstone (Capstone, ObjectiveExpect, decodeCapstone)
-import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, simulate)
+import Analysis.Agency (difference)
+import Testkit.Capstone (counterfactualOf, load, runOf, specOf)
+import Analysis.Objectives (evaluateObjectives)
+import Simulator.Capstone (ObjectiveExpect)
+import Simulator.Simulate (Context, Run)
 import Analysis.Views.Balances as Balances
 import Analysis.Views.Common as Common
 import Analysis.Views.Compare as Compare
 import Analysis.Views.Markets as Markets
 import Analysis.Views.Overview as Overview
 import Analysis.Views.Representation as Representation
-import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile)
-import Scenarios.Load (loadRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-
--- | The capstone run file, decoded.
-load :: Aff Capstone
-load = do
-  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
-  case file of
-    Left e -> throwError (error e)
-    Right j -> case decodeCapstone j of
-      Left e -> throwError (error e)
-      Right cap -> pure cap
-
-specOf :: Capstone -> SimulationSpec
-specOf cap = { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just cap.rounds }
-
--- | The counterfactual: the same seats, with the named seats replaced.
-counterfactualOf :: Capstone -> SimulationSpec
-counterfactualOf cap = (specOf cap) { seats = Map.union (map Custom cap.counterfactual) (map Custom cap.seats) }
-
-runOf :: Context -> SimulationSpec -> Aff Run
-runOf ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
-  Right r -> case r.final of
-    Left e -> throwError (error (show e))
-    Right _ -> pure r
-
--- | An objective's outcome, in the words the DSL uses.
-outcomeName :: Outcome -> String
-outcomeName = case _ of
-  Met -> "met"
-  NotMet -> "notMet"
-  NotEvaluated -> "notEvaluated"
 
 -- | Every objective the run evaluates has the outcome the DSL expects, and the two lists name
 -- | the same Entities: no objective is left without an explicit outcome.
 checkObjectives :: Context -> Run -> Array ObjectiveExpect -> Aff Unit
 checkObjectives ctx r expected = do
   let
-    actual = sortWith _.entity (map (\o -> { entity: show o.actor, outcome: outcomeName o.outcome }) (evaluateObjectives ctx.gameboard r.records))
-    wanted = sortWith _.entity (map (\o -> { entity: show o.entity, outcome: o.outcome }) expected)
+    actual = sortWith _.entity (map (\o -> { entity: o.actor, outcome: o.outcome }) (evaluateObjectives ctx.gameboard r.records))
+    wanted = sortWith _.entity (map (\o -> { entity: o.entity, outcome: o.outcome }) expected)
   actual `shouldEqual` wanted
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
@@ -106,7 +69,7 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     base <- runOf ctx (specOf cap)
     cf <- runOf ctx (counterfactualOf cap)
     let d = difference base cf
-    any (\x -> x.entity == Id "US" && x.resource == "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
+    any (\x -> x.entity == Id "US" && x.resource == Id "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
 
   it "every dashboard view model is non-empty for the run" do
     ctx <- context

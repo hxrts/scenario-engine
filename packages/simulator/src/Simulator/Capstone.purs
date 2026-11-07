@@ -11,11 +11,13 @@ module Simulator.Capstone
 
 import Prelude
 
+import Board.Decode.Common (decodeError)
 import Board.Decode.Rounds (Expect, decodeExpect)
+import Board.Gameboard.Schema (Outcome(..))
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..))
 import Data.Argonaut.Core (Json, toArray, toObject, toString)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError)
+import Data.Argonaut.Decode (decodeJson)
 import Data.Either (Either(..), note)
 import Data.Map (Map)
 import Data.Map as Map
@@ -29,8 +31,8 @@ import Policy.Strategy (decodeStrategy)
 
 type RoundExpect = { round :: Int, expect :: Expect }
 
--- | An objective the run must end with, by its Entity and its outcome ("met" or "notMet").
-type ObjectiveExpect = { entity :: EntityId, outcome :: String }
+-- | An objective the run must end with, by its Entity and its outcome.
+type ObjectiveExpect = { entity :: EntityId, outcome :: Outcome }
 
 type Capstone =
   { rounds :: Int
@@ -61,35 +63,38 @@ field o k decode = case Object.lookup k o of
   Nothing -> Left ("capstone: missing " <> k)
 
 int :: Json -> Either String Int
-int j = lmapJson (decodeJson j)
+int j = decodeError (decodeJson j)
 
 strategies :: Json -> Either String (Map EntityId Strategy)
 strategies j = do
   o <- note "capstone: seats must be an object of strategies" (toObject j)
   let entries = Object.toUnfoldable o :: Array (Tuple String Json)
-  kvs <- traverse (\(Tuple e p) -> Tuple (Id e) <$> lmapJson (decodeStrategy p)) entries
+  kvs <- traverse (\(Tuple e p) -> Tuple (Id e) <$> decodeError (decodeStrategy p)) entries
   pure (Map.fromFoldable kvs)
 
 roundExpect :: Json -> Either String RoundExpect
 roundExpect x = do
   o <- note "capstone: an expectation must be an object" (toObject x)
   round <- field o "round" int
-  expect <- field o "expect" (\v -> lmapJson (decodeExpect v))
+  expect <- field o "expect" (\v -> decodeError (decodeExpect v))
   pure { round, expect }
 
 objective :: Json -> Either String ObjectiveExpect
 objective x = do
   o <- note "capstone: an objective must be an object" (toObject x)
   entity <- field o "entity" (\v -> note "capstone: objective entity must be a string" (toString v))
-  outcome <- field o "outcome" (\v -> note "capstone: objective outcome must be a string" (toString v))
+  outcome <- field o "outcome" (\v -> note "capstone: objective outcome must be a string" (toString v) >>= outcomeOf)
   pure { entity: Id entity, outcome }
+
+-- | The DSL's spelling of an outcome: "met", "notMet" or "notEvaluated".
+outcomeOf :: String -> Either String Outcome
+outcomeOf = case _ of
+  "met" -> Right Met
+  "notMet" -> Right NotMet
+  "notEvaluated" -> Right NotEvaluated
+  other -> Left ("capstone: unknown objective outcome " <> other)
 
 arrayOf :: forall a. (Json -> Either String a) -> Json -> Either String (Array a)
 arrayOf f j = do
   xs <- note "capstone: expected an array" (toArray j)
   traverse f xs
-
-lmapJson :: forall a. Either JsonDecodeError a -> Either String a
-lmapJson = case _ of
-  Left e -> Left (printJsonDecodeError e)
-  Right a -> Right a

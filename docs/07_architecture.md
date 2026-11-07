@@ -80,7 +80,7 @@ packages/
                Adapters.Console (the terminal: `readLine`, `writeLine`, `closeInput`; Console.js is the readline interface)
   simulator/   Simulator.Simulate (`startOf`, `presetSpec`, `seats`, simulation orchestration), Overrides, Recipe (a run's
                stored spec, and the derive rules), Records, Options, Capstone
-  analysis/    Analysis.Experiments (objectives, differences, counterfactuals, agency); Analysis.Views.* (view models, including `Views.Metrics`, the versioned metric definitions)
+  analysis/    Analysis.Objectives (objective evaluation); Analysis.Agency (differences, counterfactuals, agency); Analysis.Views.* (view models, including `Views.Metrics`, the versioned metric definitions)
 apps/
   cli/         Main (run, session), Session, Compile, Transcript (the capstone recording)
   server/      Server, Server.Routes, Read, Launch, Derive, Errors; Http

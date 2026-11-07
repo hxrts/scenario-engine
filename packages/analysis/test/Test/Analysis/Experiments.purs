@@ -26,20 +26,20 @@ import Effect.Exception (error)
 import Effect.Now (now)
 import Data.DateTime.Instant (unInstant)
 import Data.Newtype (unwrap)
-import Analysis.Experiments (Outcome(..), agency, evaluateObjectives)
+import Analysis.Agency (agency)
+import Testkit.Meridian (seats)
+import Board.Gameboard.Schema (Outcome(..))
+import Analysis.Objectives (evaluateObjectives)
 import Simulator.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-
-seats :: Array String
-seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
 
 spec' :: (String -> String) -> Array Override -> Int -> SimulationSpec
 spec' preset overrides seed = { seats: presetSeats (preset <<< show) (map Id seats), playerSeed: Seed seed, overrides, rounds: Nothing }
 
 play :: Context -> SimulationSpec -> Aff Run
 play ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right r -> pure r
 
 -- | The §12 indicators of one run, as a printed row.
@@ -111,7 +111,7 @@ spec context = describe "Experiments (§11) and performance" do
   it "agency: every seat has a measurable effect, or the gap is a balancing finding" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> case agency ctx (spec' (const baseline) [] 1) "Aggressive" (map Id seats) of
-      Left e -> fail e
+      Left e -> fail (show e)
       Right ps -> do
         log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
         length ps `shouldEqual` 15

@@ -26,6 +26,7 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Simulator.Options (flagOr, parseFlags)
 import Simulator.Simulate (presetSpec, simulate, startOf)
+import Analysis.Views.Common (price)
 import Analysis.Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
@@ -99,11 +100,11 @@ runScenario scenario presetName rounds given = do
   case loaded of
     Left e -> fail e
     Right ctx -> case startOf ctx.gameboard ctx.config of
-      Left e -> fail e
+      Left e -> fail (show e)
       Right { initial } -> do
         seed <- resolveSeed given
         case simulate ctx (presetSpec ctx presetName seed [] (Just rounds)) of
-          Left e -> fail e
+          Left e -> fail (show e)
           Right out -> do
             log (ctx.gameboard.id <> "@" <> ctx.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds, player seed " <> show (unwrap seed))
             void $ foldM (\w r -> summarize w r $> r.world) initial.world out.records
@@ -115,7 +116,7 @@ summarize :: WorldState -> RoundResult -> Effect Unit
 summarize before r = do
   let
     p = roundPressure r.record
-    prices = map (\m -> m.market <> " " <> m.price) (marketPrices r.world)
+    prices = map (\m -> show m.market <> " " <> price m.price) (marketPrices r.world)
     failures = check (prepareRound before) r
   log
     ( "round " <> show r.record.round <> ": " <> joinWith ", " prices <> "; lapsed " <> show p.lapsed <> ", rejected " <> show p.rejected

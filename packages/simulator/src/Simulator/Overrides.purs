@@ -5,10 +5,11 @@ module Simulator.Overrides (encodeOverrides, decodeOverrides) where
 
 import Prelude
 
+import Board.Decode.Common (decodeError)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError, (.:))
+import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:))
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..), either, note)
 import Data.Traversable (traverse)
@@ -52,7 +53,7 @@ decode j = do
     other -> Left ("unknown override type " <> other)
   where
   fromJson :: forall a. Either JsonDecodeError a -> Either String a
-  fromJson = either (Left <<< printJsonDecodeError) Right
+  fromJson = decodeError
 
   quantity :: String -> Either String Q.Q
   quantity s = note ("override value is not a decimal number: " <> s) (Q.parse s)

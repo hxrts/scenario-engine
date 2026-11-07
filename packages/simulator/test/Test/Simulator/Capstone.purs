@@ -8,7 +8,6 @@ import Prelude
 
 import Board.Fixture (expectRound)
 import Board.Gameboard.Instantiate (instantiate)
-import Control.Monad.Error.Class (throwError)
 import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (checkRun)
 import Core.World (WorldState)
@@ -17,38 +16,14 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
-import Effect.Exception (error)
 import Policy.InWorld (inWorldOf)
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
-import Simulator.Capstone (Capstone, RoundExpect, decodeCapstone)
-import Simulator.Simulate (Context, Run, SeatPolicy(..), SimulationSpec, resume, simulate)
-import Adapters.Filesystem (fileOps)
-import Scenarios.Tree (readRootFile)
-import Scenarios.Load (loadRun)
+import Simulator.Capstone (RoundExpect)
+import Testkit.Capstone (load, specOf, runOf)
+import Simulator.Simulate (Context, Run, resume)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-
--- | The capstone run file, decoded.
-load :: Aff Capstone
-load = do
-  file <- liftEffect (map (_ >>= loadRun) (readRootFile fileOps "capstone/run.json"))
-  case file of
-    Left e -> throwError (error e)
-    Right j -> case decodeCapstone j of
-      Left e -> throwError (error e)
-      Right cap -> pure cap
-
-specOf :: Capstone -> SimulationSpec
-specOf cap = { seats: map Custom cap.seats, playerSeed: cap.playerSeed, overrides: [], rounds: Just cap.rounds }
-
-runOf :: Context -> SimulationSpec -> Aff Run
-runOf ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
-  Right r -> case r.final of
-    Left e -> throwError (error (show e))
-    Right _ -> pure r
 
 -- | The world before round `i` (1-based): the initial state for round 1, else the last round's result.
 worldBefore :: Run -> Int -> Maybe WorldState
@@ -83,7 +58,7 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
           inWorld = inWorldOf ctx.gameboard
         in
           case runReplay cap.rounds (map _.record r.records) (runGame inWorld cap.rounds initial.world) of
-            Left e -> fail e
+            Left e -> fail (show e)
             Right out -> do
               map _.world out.records `shouldEqual` map _.world r.records
               map _.record out.records `shouldEqual` map _.record r.records
@@ -96,5 +71,5 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     case index full.records 3 of
       Nothing -> fail "rounds"
       Just r4 -> case resume ctx (specOf cap) (Just { world: r4.world, done: 4 }) of
-        Left e -> fail e
+        Left e -> fail (show e)
         Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 4 full.records)

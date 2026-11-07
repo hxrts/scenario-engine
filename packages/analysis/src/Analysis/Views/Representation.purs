@@ -10,12 +10,13 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, Intent(..))
+import Core.Query (eventsOf, tradesOf)
+import Core.Types (EntityId)
 import Core.World (Event(..), RoundRecord)
-import Data.Array (concatMap, filter, index, mapWithIndex)
+import Data.Array (concat, concatMap, filter, index, mapWithIndex)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Analysis.Views.Common (StoredRun, Table, joinComma, quantity, ratio)
+import Analysis.Views.Common (Procedure, StoredRun, Table, joinComma, proceduresOf, quantity, ratio)
 
 -- | The four-stage record: observation and estimate in round r, the Aggregate's adjusted
 -- | purchase and its execution in round r+1, and the influence ratio. The last round has no
@@ -27,12 +28,10 @@ representation r =
   , rows: concatMap rows (mapWithIndex Tuple r.records)
   }
   where
-  rows (Tuple i rec) = concatMap
-    ( case _ of
-        Estimated est -> map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations)
-        _ -> []
-    )
-    rec.events
+  rows (Tuple i rec) = concat (eventsOf (estimate i rec) rec.events)
+  estimate i rec = case _ of
+    Estimated est -> Just (map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations))
+    _ -> Nothing
   stages i rec factor rep =
     let
       observed = proposedPurchases rep.actor rec
@@ -47,22 +46,15 @@ representation r =
 
 -- | Quantities an Entity offered to buy in a round's Proposals.
 proposedPurchases :: EntityId -> RoundRecord -> Q
-proposedPurchases e rec = Q.sumQ (concatMap (\s -> if s.proposal.author == e then concatMap buy s.proposal.intents else []) rec.inputs)
-  where
-  buy = case _ of
-    Trade o | o.quantity > Q.zero -> [ o.quantity ]
-    _ -> []
+proposedPurchases e rec = Q.sumQ (concatMap (\s -> if s.proposal.author == e then map _.quantity (filter (\o -> o.quantity > Q.zero) (tradesOf s.proposal.intents)) else []) rec.inputs)
 
 -- | Quantities an Entity actually bought in a round.
 bought :: EntityId -> RoundRecord -> Q
-bought e rec = Q.sumQ
-  ( concatMap
-      ( case _ of
-          Traded t | t.entity == e && t.quantity > Q.zero -> [ t.quantity ]
-          _ -> []
-      )
-      rec.events
-  )
+bought e rec = Q.sumQ (eventsOf (boughtBy e) rec.events)
+  where
+  boughtBy who = case _ of
+    Traded t | t.entity == who && t.quantity > Q.zero -> Just t.quantity
+    _ -> Nothing
 
 -- | Every collective procedure in the run: per round, its Proposal, the members who signed, the
 -- | support against the threshold, and whether it executed or lapsed.
@@ -70,15 +62,8 @@ procedures :: StoredRun -> Table
 procedures r =
   { title: "Collective procedures"
   , columns: [ "Round", "Proposal", "Members who signed", "Support", "Threshold", "Outcome" ]
-  , rows: concatMap
-      ( \rec -> concatMap
-          ( case _ of
-              ProcedureOutcome o -> [ [ show rec.round, show o.proposal, signedBy rec o.proposal, ratio o.support, ratio o.threshold, if o.executed then "executed" else "lapsed" ] ]
-              _ -> []
-          )
-          rec.events
-      )
-      r.records
+  , rows: map row (proceduresOf r)
   }
   where
-  signedBy rec pid = joinComma (concatMap (\s -> if s.proposal.id == pid then map show s.signatures else []) rec.inputs)
+  row :: Procedure -> Array String
+  row p = [ show p.round, show p.proposal, joinComma (map show p.signers), ratio p.support, ratio p.threshold, if p.executed then "executed" else "lapsed" ]

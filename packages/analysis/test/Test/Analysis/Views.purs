@@ -13,18 +13,20 @@ import Data.Array (all, filter, find, index, length, mapWithIndex)
 import Data.Map as Map
 import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..), isLeft)
-import Data.Foldable (for_)
+import Data.Foldable (any, for_)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Exception (error)
-import Analysis.Experiments (Outcome(..), evaluateObjectives)
+import Board.Gameboard.Schema (Outcome(..))
+import Analysis.Objectives (evaluateObjectives)
 import Simulator.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, resolve, simulate)
 import Analysis.Views.Balances (balances, events)
-import Analysis.Views.Common (StoredRun, Table, defaultMetricSpec, quantity)
+import Testkit.Meridian (seats)
+import Analysis.Views.Common (StoredRun, Table, defaultMetricSpec, final, quantity)
 import Analysis.Views.Balance (measures)
-import Analysis.Views.Compare (balanceBars, compatible, keyValues, netWorthCharts, standingsBars)
+import Analysis.Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Analysis.Views.Entity (entityHistory)
 import Analysis.Views.Standings (standings)
 import Analysis.Views.Overview (overview, runList)
@@ -32,11 +34,8 @@ import Analysis.Views.Representation (representation)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
-seatIds :: Array String
-seatIds = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
-
 everySeat :: String -> Int -> SimulationSpec
-everySeat preset rounds = { seats: presetSeats (const preset) (map Id seatIds), playerSeed: Seed 1, overrides: [], rounds: Just rounds }
+everySeat preset rounds = { seats: presetSeats (const preset) (map Id seats), playerSeed: Seed 1, overrides: [], rounds: Just rounds }
 
 conservative :: Int -> SimulationSpec
 conservative = everySeat "Conservative"
@@ -67,7 +66,7 @@ cell row i = fromMaybe "" (index row i)
 
 play :: Context -> SimulationSpec -> Aff Run
 play ctx s = case simulate ctx s of
-  Left e -> throwError (error e)
+  Left e -> throwError (error (show e))
   Right r -> pure r
 
 spec :: Aff Context -> Spec Unit
@@ -75,14 +74,14 @@ spec context = describe "Views and error paths" do
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
-    case simulate ctx base { seats = presetSeats (const "NoSuchPreset") (map Id seatIds) } of
-      Left e -> e `shouldSatisfy` contains (Pattern "unknown preset NoSuchPreset")
+    case simulate ctx base { seats = presetSeats (const "NoSuchPreset") (map Id seats) } of
+      Left e -> show e `shouldSatisfy` contains (Pattern "unknown preset NoSuchPreset")
       Right _ -> fail "an unknown preset ran"
     case resolve ctx base { overrides = [ Parameter "no-such-parameter" (Q.fromInt 1) ] } of
-      Left e -> e `shouldSatisfy` contains (Pattern "unknown parameter no-such-parameter")
+      Left e -> show e `shouldSatisfy` contains (Pattern "unknown parameter no-such-parameter")
       Right _ -> fail "an unknown parameter was applied"
     case resolve ctx base { overrides = [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] } of
-      Left e -> e `shouldSatisfy` contains (Pattern "unknown scheme")
+      Left e -> show e `shouldSatisfy` contains (Pattern "unknown scheme")
       Right _ -> fail "an unknown scheme was applied"
 
   it "the cross-run key values have one column per run, and their values are the views' own (§10.2)" do
@@ -114,6 +113,21 @@ spec context = describe "Views and error paths" do
     length bars.categories `shouldEqual` length (standings r1).rows
     map _.name bars.series `shouldEqual` [ "run-1", "run-2" ]
     (balanceBars runs).gini.categories `shouldEqual` [ "Gini" ]
+
+  it "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" do
+    ctx <- context
+    r <- play ctx (conservative 3)
+    let
+      base = toStored "base" r
+      e = Id "US"
+      money = base.manifest.initial.numeraire
+      held = holding (final base) e money
+      -- the other run's every round has no Money account for US, so it lacks what the baseline holds
+      dropped w = w { entities = Map.update (\en -> Just en { accounts = Map.delete money en.accounts }) e w.entities }
+      other = base { id = "other", snapshots = map dropped base.snapshots }
+      rows = (baselineDiff base [ other ]).rows
+    (held == Q.zero) `shouldEqual` false
+    any (\row -> row == [ "other", show e, show money, quantity (Q.neg held) ]) rows `shouldEqual` true
 
   it "a round outside the run is rejected, never shown as the initial state (§9.2)" do
     ctx <- context

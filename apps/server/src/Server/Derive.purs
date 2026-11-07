@@ -131,7 +131,7 @@ resumeRun ctx store id body = case readJson body :: Either String Resume of
                         Left ex -> do
                           runStore store (failRun id ("exception: " <> message ex))
                           throwException ex
-                        Right (Left e) -> failWith 400 e
+                        Right (Left e) -> failWith 400 (show e)
                         Right (Right r) -> do
                           runStore store (finish id r)
                           either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r

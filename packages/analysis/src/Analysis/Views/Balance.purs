@@ -8,21 +8,26 @@ module Analysis.Views.Balance
   , seedStat
   , spread
   , gini
+  , Measures
+  , measuresOf
   , measures
+  , Completion
+  , completionOf
   , completion
   , seedVariation
   ) where
 
 import Prelude
 
-import Board.Gameboard.Schema (Gameboard)
+import Board.Gameboard.Schema (Gameboard, Outcome(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
+import Core.Types (EntityId)
+import Data.Array (any, catMaybes, filter, fromFoldable, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Data.Tuple (snd)
-import Analysis.Experiments (Outcome(..), evaluateObjectives)
+import Analysis.Objectives (evaluateObjectives)
 import Analysis.Views.Common (Statistic, StoredRun, Table, final, quantity, ratio, roundResults)
 import Analysis.Views.Standings (netWorths)
 
@@ -80,35 +85,50 @@ giniOf xs = do
   equal <- Q.divMaybe (Q.fromInt (n + 1)) (Q.fromInt n)
   pure (Q.sub share equal)
 
+-- | The final net worths of a run, one per Actor.
+finalValues :: StoredRun -> Array Q
+finalValues r = fromFoldable (Map.values (netWorths (final r)))
+
+-- | The spread and the Gini coefficient over a run's final net worths; Nothing where undefined.
+type Measures = { spread :: Maybe Q, gini :: Maybe Q }
+
+measuresOf :: StoredRun -> Measures
+measuresOf r = { spread: spread (finalValues r), gini: gini (finalValues r) }
+
 -- | The measures over a run's final net worths: the spread and the Gini coefficient.
 measures :: StoredRun -> Table
 measures r =
   { title: "Balance after round " <> show (length r.records)
   , columns: [ "Measure", "Value" ]
   , rows:
-      [ [ "Spread (M)", spreadCell (spread values) ]
-      , [ "Gini coefficient", giniCell (gini values) ]
+      [ [ "Spread (M)", maybe "n/a" quantity m.spread ]
+      , [ "Gini coefficient", maybe "n/a" ratio m.gini ]
       ]
   }
   where
-  values = map snd (netWorths (final r))
-  spreadCell = maybe "n/a" quantity
-  giniCell = maybe "n/a" ratio
+  m = measuresOf r
 
--- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
-completion :: Gameboard -> StoredRun -> Table
-completion gb r =
-  { title: "Objective completion by role"
-  , columns: [ "Role", "Objective", "Criteria", "Met", "Not met", "Not evaluated", "Outcome" ]
-  , rows: map row (evaluateObjectives gb (roundResults r))
-  }
+-- | One Actor's objective criteria over the run: how many were met, not met and not evaluated, and the
+-- | objective's outcome.
+type Completion = { actor :: EntityId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
+
+completionOf :: Gameboard -> StoredRun -> Array Completion
+completionOf gb r = map row (evaluateObjectives gb (roundResults r))
   where
   row o =
     let
       outcomes = map _.outcome o.criteria
       count x = length (filter (_ == x) outcomes)
     in
-      [ show o.actor, o.description, show (length outcomes), show (count Met), show (count NotMet), show (count NotEvaluated), show o.outcome ]
+      { actor: o.actor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
+
+-- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
+completion :: Gameboard -> StoredRun -> Table
+completion gb r =
+  { title: "Objective completion by role"
+  , columns: [ "Role", "Objective", "Criteria", "Met", "Not met", "Not evaluated", "Outcome" ]
+  , rows: map (\c -> [ show c.actor, c.description, show c.criteria, show c.met, show c.notMet, show c.notEvaluated, show c.outcome ]) (completionOf gb r)
+  }
 
 -- | The seed variation of runs of one specification: each run's final spread and Gini, then the
 -- | lowest, highest and range across the runs. With fewer than two runs it says so, and reports no range.
@@ -119,7 +139,7 @@ seedVariation runs =
   , rows: if length runs < 2 then [ [ "one run of this specification", "", "", "n/a", "n/a" ], [ "seed-to-seed variation needs more runs of this specification; none is reported", "", "", "n/a", "n/a" ] ] else perRun <> summary
   }
   where
-  measured = map (\r -> { run: r, spread: spread (map snd (netWorths (final r))), gini: gini (map snd (netWorths (final r))) }) runs
+  measured = map (\r -> { run: r, spread: spread (finalValues r), gini: gini (finalValues r) }) runs
   perRun = map (\m -> [ m.run.id, show m.run.manifest.initial.seed, m.run.playerSeed, spreadCell m.spread, giniCell m.gini ]) measured
   spreads = catMaybes (map _.spread measured)
   ginis = catMaybes (map _.gini measured)

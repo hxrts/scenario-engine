@@ -132,7 +132,7 @@ mergeRequirements = foldl add []
 
 -- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market,
 -- | because `$home` names it. An acting Entity with none is a startup error, named here, before any round.
-checkHomes :: (Entity -> Boolean) -> WorldState -> Either String Unit
+checkHomes :: (Entity -> Boolean) -> WorldState -> Either EntityId Unit
 checkHomes acts w = case find (\e -> acts e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
-  Just e -> Left ("entity " <> show e.id <> " acts but has no accessible market, so it has no home market")
+  Just e -> Left e.id
   Nothing -> Right unit

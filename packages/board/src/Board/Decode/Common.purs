@@ -7,6 +7,7 @@
 module Board.Decode.Common
   ( readJson
   , readJsonWith
+  , decodeError
   , unknownKind
   , oneKey
   , toMap
@@ -34,6 +35,10 @@ import Foreign.Object as Object
 -- | Parse and decode JSON text, with a readable error.
 readJson :: forall a. DecodeJson a => String -> Either String a
 readJson = lmap printJsonDecodeError <<< fromJsonString
+
+-- | A JSON decode error, as the text it prints.
+decodeError :: forall a. Either JsonDecodeError a -> Either String a
+decodeError = lmap printJsonDecodeError
 
 -- | Parse JSON text and decode it with a custom decoder.
 readJsonWith :: forall a. (Json -> Either JsonDecodeError a) -> String -> Either String a

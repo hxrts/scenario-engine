@@ -8,13 +8,13 @@ module Analysis.Views.Balances
 import Prelude
 
 import Core.Num as Q
-import Core.Query (holding)
+import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, ResourceId)
 import Core.World (WorldState)
 import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Analysis.Views.Common (StoredRun, Table, at, kindOf, outOfRange, quantity)
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
@@ -32,7 +32,7 @@ balances r n = case at r n of
     (resources w e)
 
   resources :: WorldState -> EntityId -> Array ResourceId
-  resources w e = nub (concatMap (\world -> fromFoldable (Map.keys (fromMaybe Map.empty (_.accounts <$> Map.lookup e world.entities)))) [ w0, w ])
+  resources w e = nub (concatMap (\world -> fromFoldable (Map.keys (accountsOf world e))) [ w0, w ])
 
 -- | A round's events in canonical phase order (the order the engine records them).
 events :: StoredRun -> Int -> Either String Table

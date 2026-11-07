@@ -14,6 +14,8 @@ const allowed = {
   adapters: ["core", "board", "policy", "effects", "handlers"],
   simulator: ["core", "board", "policy", "effects", "handlers"],
   analysis: ["core", "board", "simulator"],
+  // test support only (the shared fixtures of the analysis and simulator suites); no suite's source imports it
+  testkit: ["core", "board", "policy", "scenarios", "adapters", "simulator"],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
 // workspace dependencies a package's test suite may not take, beyond its `allowed` set

@@ -13,15 +13,14 @@ import Prelude
 
 import Core.Num (Kind(..))
 import Core.Num as Q
-import Core.Query (holding)
+import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, ResourceId)
 import Core.World (WorldState)
 import Data.Array (any, concatMap, cons, filter, fromFoldable, length, nub, range, sort)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..))
-import Analysis.Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series)
+import Analysis.Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series, unitOf)
 import Analysis.Views.Standings (netWorth)
 
 -- | Every Entity in the run's initial World State, in Entity order: the names `entityHistory` accepts.
@@ -45,13 +44,13 @@ entityHistory r e
             { title: "Holdings of " <> show e
             , unit: "each Resource in its own unit"
             , kind: Quantity
-            , series: series r "holdings" (\w -> map (\res -> Tuple (show res) (holding w e res)) held) exact
+            , series: series r (\w -> map (\res -> Tuple (show res) (holding w e res)) held) exact
             }
         , netWorth:
             { title: "Net worth of " <> show e
-            , unit: "M"
+            , unit: unitOf r r.manifest.initial.numeraire
             , kind: Quantity
-            , series: series r "net worth" (\w -> [ Tuple "Net worth" (netWorth w e) ]) exact
+            , series: series r (\w -> [ Tuple "Net worth" (netWorth w e) ]) exact
             }
         }
       where
@@ -64,12 +63,10 @@ entityHistory r e
 
       -- the Resources the Entity holds at some round (a non-zero holding), in Resource order
       held :: Array ResourceId
-      held = sort (nub (filter (\res -> any (\w -> holding w e res /= Q.zero) worlds) (concatMap accountsOf worlds)))
+      held = sort (nub (filter (\res -> any (\w -> holding w e res /= Q.zero) worlds) (concatMap (\w -> fromFoldable (Map.keys (accountsOf w e))) worlds)))
 
       -- the Resources held or quoted by a Market at some round: the table's rows
       resources :: Array ResourceId
       resources = sort (nub (held <> concatMap (\w -> concatMap (\m -> [ m.base, m.quote ]) (fromFoldable (Map.values w.markets))) worlds))
 
-      accountsOf :: WorldState -> Array ResourceId
-      accountsOf w = maybe [] (\en -> fromFoldable (Map.keys en.accounts)) (Map.lookup e w.entities)
       resourceRow res = cons (show res) (map (\w -> quantity (holding w e res)) worlds)

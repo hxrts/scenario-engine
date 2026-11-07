@@ -34,8 +34,8 @@ import Simulator.Simulate (SeatPolicy(..), simulate, simulateWith)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
-orThrow :: forall a. Either String a -> Aff a
-orThrow = either (throwError <<< error) pure
+orThrow :: forall e a. Show e => Either e a -> Aff a
+orThrow = either (throwError <<< error <<< show) pure
 
 capstone :: Aff Capstone
 capstone = do
