@@ -7,8 +7,10 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
+import Core.Query (holding)
 import Core.Types (Id(..))
-import Data.Array (all, filter, index, length)
+import Data.Array (all, filter, index, length, mapWithIndex)
+import Data.Map as Map
 import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..), isLeft)
 import Data.Foldable (for_)
@@ -20,8 +22,10 @@ import Effect.Exception (error)
 import Harness.Analysis (Outcome(..), evaluateObjectives)
 import Harness.Simulate (Context, Override(..), Run, SimulationSpec, presetSeats, resolve, simulate)
 import Harness.Views.Balances (balances, events)
-import Harness.Views.Common (StoredRun, Table, defaultMetricSpec)
+import Harness.Views.Common (StoredRun, Table, defaultMetricSpec, q)
 import Harness.Views.Compare (compatible)
+import Harness.Views.Entity (entityHistory)
+import Harness.Views.Standings (standings)
 import Harness.Views.Overview (overview, runList)
 import Harness.Views.Representation (representation)
 import Test.Spec (Spec, describe, it)
@@ -135,6 +139,34 @@ spec context = describe "Views and error paths" do
       t = runList [ Right (summary (toStored "run-1" r)), Left { id: "run-2", name: "broken", reason: "manifest: bad json" } ]
     map (\row -> cell row 6) t.rows `shouldEqual` [ "completed", "unreadable" ]
     map (\row -> cell row 8) t.rows `shouldEqual` [ "", "manifest: bad json" ]
+
+  it "an Entity's history shows each round's holding, and its net worth matches the standings (§9.2)" do
+    ctx <- context
+    r <- play ctx (conservative 3)
+    let
+      s = toStored "run-1" r
+      e = Id "US"
+      money = s.manifest.initial.numeraire
+      -- the round-2 snapshot (index 1) holds a known amount of Money for US; the others are unchanged
+      setMoney w = w { entities = Map.update (\en -> Just en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) e w.entities }
+      known = s { snapshots = mapWithIndex (\i w -> if i == 1 then setMoney w else w) s.snapshots }
+      moneyRow h = filter (\row -> index row 0 == Just (show money)) h.table.rows
+    case entityHistory known e of
+      Left err -> fail err
+      Right h -> do
+        h.table.columns `shouldEqual` [ "Resource", "Round 0", "Round 1", "Round 2", "Round 3" ]
+        for_ (moneyRow h) \row -> do
+          cell row 3 `shouldEqual` q (Q.fromInt 777)
+          cell row 1 `shouldEqual` q (holding s.manifest.initial e money)
+        h.chart.series `shouldSatisfy` \ss -> length (filter (\x -> x.name == show money) ss) == 1
+    case entityHistory s e of
+      Left err -> fail err
+      Right h -> do
+        -- the net-worth row's final column is the Entity's net worth in the standings
+        let finalNw = fromMaybe "" (map (\row -> cell row 4) (index (filter (\row -> index row 0 == Just "Net worth (M)") h.table.rows) 0))
+        let standing = filter (\row -> index row 0 == Just "US") (standings s).rows
+        map (\row -> cell row 1) standing `shouldEqual` [ finalNw ]
+    isLeft (entityHistory s (Id "NoSuchEntity")) `shouldEqual` true
 
   it "the overview labels procurement from the metric spec" do
     ctx <- context
