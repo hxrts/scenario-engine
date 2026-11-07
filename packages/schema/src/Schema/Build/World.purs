@@ -26,16 +26,13 @@ module Schema.Build.World
   , collective
   ) where
 
-import Prelude
-
 import Core.Num (Q)
 import Core.Types (Capability, Transferability(..))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Schema.Build.Base (Keyed)
+import Schema.Build.Base (Keyed, cumulative, everyRound, final, shortfallOf)
 import Schema.Build.Quantity (q)
-import Schema.Gameboard (Fallback, Measure, Span(..))
-import Schema.Build.Base (cumulative, everyRound, final, shortfallOf)
+import Schema.Gameboard (Fallback, Measure, Span)
 import Schema.Premise.Actor (DefinitionDoc, CriterionDoc, MetricDoc, BoundDoc, ObjectiveDoc)
 import Schema.Premise.World (AggregateDoc, EntityDoc, FacilityDoc, ProcedureDoc, ResourceDoc)
 

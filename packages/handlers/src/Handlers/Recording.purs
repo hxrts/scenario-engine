@@ -1,6 +1,6 @@
 -- | The recording of typed model exchanges (docs/08_coverage.md). `Handlers.Llm` reports each call
 -- | that completes as an `Exchange`: its effect, its typed request as JSON, and its typed reply as
--- | JSON. The capstone generator (`apps/cli`, `Transcript`, run by `just _scenarios`) keeps them and
+-- | JSON. The capstone generator (`apps/cli`, `Transcript`, run by `just _premises`) keeps them and
 -- | writes them as the recording file. Reading the file back and replaying it are test support.
 module Handlers.Recording
   ( Exchange

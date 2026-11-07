@@ -37,10 +37,10 @@ import Prelude (map, negate, ($), (<>))
 import Premises.Names as N
 
 import Core.Num (Q)
-import Core.Shape (encodeWith)
+import Core.Shape (encodeWith, Format(..))
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Array (elem, filter)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Premises.Meridian.Entities (entities)
@@ -52,9 +52,7 @@ import Schema.Build.Quantity (q)
 import Schema.Build.World (noFacility, noResource)
 import Schema.Premise.Gameboard (ConfigDoc, GameboardDoc, configShape, gameboardShape)
 import Schema.Premise.World (CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
-import Core.Shape (Format(..))
 import Core.Types (Transferability(..))
-import Data.Maybe (Maybe(..))
 
 -- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
 -- | in-world seed; fixtures and golden tests use it too.

@@ -5,8 +5,8 @@ module Test.Experiments.Experiments (spec) where
 
 import Prelude
 
-import Testkit.Meridian (orThrow)
-import Checks.Objectives (evaluateObjectives)
+import Testkit.Meridian (orThrow, seats)
+import Checks.Objectives (evaluateObjectives, Outcome(..))
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
@@ -18,7 +18,7 @@ import Data.Array (concatMap, elem, filter, fromFoldable, last, length, range)
 import Data.Either (Either(..))
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (fromMaybe, maybe)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -28,8 +28,6 @@ import Effect.Now (now)
 import Data.DateTime.Instant (unInstant)
 import Data.Newtype (unwrap)
 import Experiments.Agency (agency)
-import Testkit.Meridian (seats)
-import Checks.Objectives (Outcome(..))
 import Simulator.Simulate (SimRun)
 import Game.Assemble (assemble, presetBindings)
 import Game.Override (Override(..))

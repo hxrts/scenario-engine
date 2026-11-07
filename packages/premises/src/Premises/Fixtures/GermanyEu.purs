@@ -3,7 +3,7 @@
 -- | B1 to B4 and B4-unsigned.
 module Premises.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4) where
 
-import Prelude (negate, (<>))
+import Prelude (negate)
 import Premises.Names as N
 
 import Core.Num (Q)

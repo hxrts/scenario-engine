@@ -2,31 +2,32 @@
 
 This audit maps each feature of the game to the tests that exercise it, and records whether the
 capstone run exercises it. The capstone is a test-only, eight-round game on the shipped Meridian
-scenario. It is authored in the scenario DSL (`packages/scenarios/src/Scenarios/Capstone.purs`),
-compiled to `packages/scenarios/capstone/run.json`, and decoded through the Policy and Board
+premise. It is authored in the premise DSL (`packages/premises/src/Premises/Capstone.purs`),
+compiled to `packages/premises/capstone/run.json`, and decoded through the Policy and Schema
 decoders.
 
 Status values: **covered** (a named test checks it end to end or at unit level), **partial**
 (unit level only, hand-built data, or no direct assertion), **gap** (no test). The capstone column:
 **yes** (the run exercises it and a capstone test checks it), **partial**, **no**, or **n/a**.
 
-Test references are `file :: test name`, relative to the repository root.
+Test references are `file :: test name`, relative to the repository root. Test modules are
+`Test.<Pkg>.*`, and each package's `test/Main.purs` holds the suite's main.
 
 ## Language and data
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| DSL record builders, `:=`, `q` quantities | `packages/scenarios/test/Main.purs` :: "Scenario DSL builders" | covered | yes (every seat strategy and expectation) |
-| DSL withholding and access-ban enactments decode | `packages/scenarios/test/Main.purs` :: "a withholding rule and an enactment of one decode…" | covered | yes |
-| DSL capability tags match the decoder | `packages/scenarios/test/Main.purs` :: "every capability the DSL writes is a tag the Gameboard decoder reads" | covered | yes |
-| DSL `deal` decodes, with transforms | `packages/scenarios/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
-| Scenario loader: duplicate keys, bad sections, bad policy refs | `packages/scenarios/test/Main.purs` :: "Scenario loader: files and policies fail at load time" | covered | n/a |
-| Circulation flow amounts are non-negative at decode, so a negative flow is a typed error and never reaches the `allocate` guard | `packages/board/test/Main.purs` :: "Circulation flows": "a negative flow amount is a typed validation error at decode", "a zero flow amount is valid", "a decoded Gameboard never carries a negative flow…" | covered | n/a |
-| Production list is derived from the capacities the Entities hold, not restated | `packages/scenarios/test/Main.purs` :: "the production list states exactly the energy capacity the Entities hold" | covered | n/a |
+| Premise format round trips: each builder's output decodes and encodes back | `packages/schema/test/Main.purs` :: "Round trips: decode (encode x) == x for each premise shape" | covered | yes (every seat strategy and expectation) |
+| DSL withholding and access-ban enactments decode | `packages/premises/test/Main.purs` :: "a withholding rule and an enactment of one decode to the Withholding rule", "enactAccessBanI decodes to an AccessBan enactment" | covered | yes |
+| DSL capability tags match the decoder | `packages/premises/test/Main.purs` :: "every capability the DSL writes is a tag the Gameboard decoder reads" | covered | yes |
+| DSL `deal` decodes, with transforms | `packages/premises/test/Main.purs` :: "a deal decodes, and the parties and Resource it names are reported" | covered | yes |
+| Premise loader: duplicate keys, bad sections, bad policy refs | `packages/premises/test/Main.purs` :: "a key that two section files both define is an error, not an overwrite", "a section that is not a JSON object is an error", "a policy that names an unknown market fails the load" | covered | n/a |
+| Circulation flow amounts are non-negative at decode, so a negative flow is a typed error and never reaches the `allocate` guard | `packages/schema/test/Main.purs` :: "Circulation flows": "a negative flow amount is a typed validation error at decode", "a zero flow amount is valid" | covered | n/a |
+| Production list is derived from the capacities the Entities hold, not restated | `packages/premises/test/Main.purs` :: "the production list states exactly the energy capacity the Entities hold" | covered | n/a |
 | Decoded Gameboard world carries no seed; only instantiation sets it | `packages/board/test/Main.purs` :: "a decoded Gameboard's world carries no seed; instantiation sets it" | covered | n/a |
-| Typed decode rejections (capability, rule, intent, round range) | `packages/board/test/Main.purs` :: "rejects an unknown rule key with a typed error", "rejects an unknown capability kind", "rejects an intent with two keys" | covered | n/a |
-| Gameboard validation (each `ValidationError`) | `packages/scenarios/test/Main.purs` :: "Gameboard validation…" | covered | n/a |
-| Board decoding of run file, expectations, rules, fixtures | `packages/simulator/src/Simulator/Capstone.purs` (`decodeCapstone`). `packages/board/test/Main.purs` | covered | yes |
+| Typed decode rejections (capability, rule, intent, round range) | `packages/schema/test/Main.purs` :: "rejects an unknown rule key with a typed error", "rejects an unknown capability kind", "rejects an intent with two keys" | covered | n/a |
+| Gameboard validation (each `ValidationError`) | `packages/premises/test/Main.purs` :: "validates, and its shipped presets resolve against it", "ResolutionInconsistent: an implicit Actor whose authority its Aggregate would not keep" | covered | n/a |
+| Capstone expectations and fixtures, as typed values | `packages/simulator/test/Test/Simulator/Capstone.purs` :: "every round's DSL expectations hold". `packages/testkit/src/Testkit/Capstone.purs` reads them from `Premises.Capstone` | covered | yes |
 
 ## Policies and strategies
 
@@ -45,7 +46,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Sign rule `signIf` (conditional signing) | `packages/policy/test/Main.purs` :: "signIf signs a Proposal only while its conditions hold" | covered | yes (Germany, rounds 4 and 5) |
 | Conditions `restrictionInForce`, `transformedLastRound` | `packages/policy/test/Main.purs` | covered | yes (EU tariff, China's procurement) |
 | Condition `restrictedLastRound` | `packages/policy/test/Main.purs` :: "restrictedLastRound holds only…" | covered | no |
-| Presets (eleven, incl. Deployer) | `packages/simulator/test/Main.purs` :: "Every preset plays 8 rounds…". "7c Deployer" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
+| Presets (eleven, incl. Deployer) | `packages/simulator/test/Main.purs` :: "Every preset plays 8 rounds…". "7c Deployer". `packages/premises/test/Main.purs` :: "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
 | Market access rules | `packages/core/test/Main.purs` :: "rejects a Trade by an Entity outside the Market's access" | covered | partial (access is set by the shipped Markets, no rejection in the run) |
 
 ## Engine: markets, facilities, capacity
@@ -65,12 +66,12 @@ Test references are `file :: test name`, relative to the repository root.
 |---|---|---|---|
 | Collective procedure passes only above threshold | `packages/simulator/test/Main.purs` :: "5 Germany and EU" (Fixture B pair) | covered | yes: solidarity lapses in round 4 (support 0.4) and executes in round 5 (support 0.6) |
 | Major shock flips preset behaviour. Disruption offers never below zero | `packages/simulator/test/Test/Simulator/Shock.purs` :: "Major shock (docs/05 §13.6)" | covered | no |
-| Solidarity pool: Germany's transfer in, and the pool drawn first by the EU's procedure | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "Golden fixtures" runs each fixture of `packages/scenarios/src/Scenarios/Fixtures/GermanyEu.purs`, named "B1" and "B2-pool" (Fixture B) | covered | no (pool stays empty in the capstone) |
+| Solidarity pool: Germany's transfer in, and the pool drawn first by the EU's procedure | `packages/premises/test/Test/Premises/Golden.purs` :: "Golden fixtures" runs each fixture of `packages/premises/src/Premises/Fixtures/GermanyEu.purs`, named "B1" and "B2-pool" (Fixture B) | covered | no (pool stays empty in the capstone) |
 | Tariff enactment and in-force condition | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
 | Access ban enacted by a seat's strategy | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
-| Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
+| Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
 | Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
-| Withholding changes capacity | decode only (`packages/scenarios/test/Main.purs`) | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
+| Withholding changes capacity | decode only (`packages/premises/test/Main.purs` :: "a withholding rule and an enactment of one decode…") | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
 
 ## Deals and signed Proposals
 
@@ -87,7 +88,7 @@ Test references are `file :: test name`, relative to the repository root.
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Estimator, shrinkage, one-round lag | `packages/simulator/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES factor moves from 0.9358 (round 1) to 0.9406 (round 8) |
-| Seeded noise spread | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
+| Seeded noise spread | `packages/premises/test/Test/Premises/Golden.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
 | Representation moves an aggregate's policy in a run | Fixture C only | partial | yes (SME's purchases feed the estimate, which scales GLOBAL_SMES' Atlantic orders) |
 
 ## Shortfalls and penalties
@@ -101,29 +102,28 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Objective outcomes computed | `packages/analysis/test/Test/Analysis/Mandatory.purs` :: "14 Agency…" (count only) | partial | yes |
-| Explicit met / not met / not evaluated. None met by default | `packages/analysis/test/Test/Analysis/Views.purs` :: "a run with no rounds…" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
-| Objective outcomes decode from the DSL's spelling (`met`, `notMet`, `notEvaluated`) to the typed `Outcome` | `packages/simulator/test/Test/Simulator/Capstone.purs` :: "objective outcomes decode from the DSL's spelling, and the spelling with a space is rejected" | covered | yes (the capstone's objective expectations are decoded this way) |
+| Objective outcomes computed | `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "14 Agency: every role is analysed and its objectives reported" (count only) | partial | yes |
+| Explicit met / not met / not evaluated. None met by default | `packages/views/test/Test/Views/Views.purs` :: "a run with no rounds: every objective is not evaluated, never met (§10.5)". `packages/views/test/Test/Views/Capstone.purs` :: "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
 | Objective met in one case, missed in another | capstone only | covered | yes: the US objective is met without the deployment and missed with it |
 
 ## Invariants
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied in `packages/simulator/test/Main.purs` :: "1 Full game" and `packages/simulator/test/Test/Simulator/Capstone.purs` | covered | yes ("invariants hold in every round") |
+| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied through `checkRun` in `packages/simulator/test/Main.purs` :: "1 Full game" and `packages/simulator/test/Test/Simulator/Capstone.purs` :: "the checked invariants hold in every round" | covered | yes |
 | Other INV-xx in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) | no predicate in `Core.Invariants`. The rows above and the tests named there | partial | partial |
-| A tampered result trips INV-05 | `packages/scenarios/test/Test/Scenarios/Golden.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
+| A tampered result trips INV-05 | `packages/premises/test/Test/Premises/Golden.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
 
 ## Simulation: replay, store, counterfactual, resume, archive
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Replay from records | `packages/simulator/test/Main.purs` :: "2 Replay…" | covered | yes ("replays byte-identically from its records") |
-| Store round-trip (save, reload, replay) | `packages/adapters/test/Main.purs` :: "13 Persistence…" | covered | yes ("the capstone run round-trips through the store…") |
+| Replay from records | `packages/simulator/test/Main.purs` :: "2 Replay…". `packages/simulator/test/Test/Simulator/Capstone.purs` :: "replays byte-identically from its records" | covered | yes |
+| Store round-trip (save, reload, replay) | `packages/adapters/test/Main.purs` :: "13 Persistence: save, reload byte-identically, and replay from stored records". `packages/adapters/test/Test/Adapters/Capstone.purs` :: "the capstone run round-trips through the store…" | covered | yes |
 | Store backend carries typed values; a stored value that does not read back is reported in its own field, and the other runs stay readable | `packages/adapters/test/Main.purs` :: "a stored spec that does not read back…" | covered | no |
 | Store migration, busy timeout, failing running runs at startup (`failRunning`) | `packages/adapters/test/Main.purs` | covered | n/a |
-| Counterfactual (a deployment removed, measured) | `packages/analysis/test/Test/Analysis/Mandatory.purs` :: "7 NPC response…" | covered | yes ("the counterfactual without the deployment changes US Mil…") |
-| Resume from snapshot matches uninterrupted | `packages/simulator/test/Main.purs` :: "a run resumed from its third snapshot…". `apps/server/test` | covered | yes ("a run resumed from round 4's snapshot…") |
+| Counterfactual (a deployment removed, measured) | `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "7 NPC response: Fixture D as a pair, with and without the deployment" | covered | yes ("the counterfactual without the deployment changes US Mil…") |
+| Resume from snapshot matches uninterrupted | `packages/simulator/test/Main.purs` :: "a run resumed from its third snapshot…". `packages/simulator/test/Test/Simulator/Capstone.purs` :: "a run resumed from round 4's snapshot matches the uninterrupted run" | covered | yes |
 | Archive and delete | `apps/server/test/Main.purs` :: "archive hides a run…" | covered | no |
 | Derive kinds (duplicate, rerun, variant, counterfactual) | `apps/server/test/Main.purs` :: "derive: duplicate, rerun, variant…" | covered | no |
 
@@ -131,25 +131,25 @@ Test references are `file :: test name`, relative to the repository root.
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| View models: overview, balances, events, facilities, pressure, economy, representation, procedures, objectives, final state, markets | `packages/analysis/test/Test/Analysis/Views.purs` (edge cases only) | partial | yes ("every dashboard view model is non-empty for the run") |
-| Trajectories, baseline and config diffs, compatibility, agency table | `packages/analysis/test/Test/Analysis/Views.purs` | partial | no |
-| Baseline diff reports a resource the baseline holds and the other run lacks | `packages/analysis/test/Test/Analysis/Views.purs` :: "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" | covered | no |
+| View models: overview, balances, events, facilities, pressure, economy, representation, procedures, objectives, final state, markets | `packages/views/test/Test/Views/Views.purs` (edge cases only) | partial | yes (`packages/views/test/Test/Views/Capstone.purs` :: "every dashboard view model is non-empty for the run") |
+| Trajectories, baseline and config diffs, compatibility, agency table | `packages/views/test/Test/Views/Views.purs` | partial | no |
+| Baseline diff reports a resource the baseline holds and the other run lacks | `packages/views/test/Test/Views/Views.purs` :: "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" | covered | no |
 | Dashboard tabs (UI) | `apps/dashboard/test/Main.purs`. Playwright smoke in `apps/dashboard` | partial | no |
 
 ## Live and AI seats
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/handlers/test/Test/Handlers/Llm.purs` :: "two transcripts describing one deal…", "a one-sided description…". `packages/handlers/test/Test/Handlers/Live.purs` :: "an undecodable joint reply submits nothing…" | covered | yes: the capstone's recording (`packages/scenarios/capstone/transcript.json`, generated by `just _scenarios`) replayed through a stub backend ("each recorded line maps…") |
-| Recorded model calls replay from their typed requests; a request the recording does not hold is an error, never a model call | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a recorded exchange replays…" | covered | yes: "a transcript the recording does not hold…" (`Test.Handlers.Capstone`) |
-| Capstone recording is generated: each DSL exchange's Intents are checked against the DSL before the file is written | `apps/cli/src/Transcript.purs` (run by `just _scenarios`) | covered | yes |
+| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/handlers/test/Test/Handlers/Llm.purs` :: "two transcripts describing one deal reconcile into one Proposal with both as signers", "a one-sided description keeps only its author as signer". `packages/handlers/test/Test/Handlers/Live.purs` :: "an undecodable joint reply submits nothing…" | covered | yes: the capstone's recording (`packages/premises/capstone/transcript.json`, generated by `just _premises`) replayed through a stub backend (`Test.Handlers.Capstone` :: "each recorded line, in its recorded order, maps to the canonical Intents it records (replayed)") |
+| Recorded model calls replay from their typed requests; a request the recording does not hold is an error, never a model call | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a recorded exchange replays…". `packages/handlers/test/Test/Handlers/Capstone.purs` :: "a call the recording does not hold in its next place is an error, never a model call" | covered | yes |
+| Capstone recording is generated: each DSL exchange's Intents are checked against the DSL before the file is written | `apps/cli/src/Transcript.purs` (run by `just _premises`) | covered | yes |
 | Prompts, reply decoding, and evidence, with no model | `packages/handlers/test/Test/Handlers/Llm.purs` :: "Prompts", "Reply decoding", "Evidence and recording" | covered | no |
-| The `pi` process boundary, with no model (a fake `pi` on the PATH); seed, clock, and scenario reads | `packages/adapters/test/Test/Adapters/Pi.purs`, `packages/adapters/test/Test/Adapters/Primitives.purs` | covered | no |
-| Round's one-sided deal lapses through the signature rule; a matched deal is signed by both | `Live.purs` :: "a one-sided deal lapses; a deal both sides describe is signed by both" | covered | no |
+| The `pi` process boundary, with no model (a fake `pi` on the PATH); seed, clock, and premise reads | `packages/adapters/test/Test/Adapters/Pi.purs`, `packages/adapters/test/Test/Adapters/Primitives.purs` | covered | no |
+| Round's one-sided deal lapses through the signature rule; a matched deal is signed by both | `packages/handlers/test/Test/Handlers/Live.purs` :: "a one-sided deal lapses; a deal both sides describe is signed by both" | covered | no |
 | Joint pass against the real model (billed, one-off) | `packages/adapters/test/Test/Adapters/LiveInterpret.purs`, run by `just live-interpret` | manual (not in any suite) | no |
 | Audio submission and transcription | none yet | gap: not implemented | no |
-| Backend failure is a run failure | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a backend failure is fatal to the call…". `packages/handlers/test/Test/Handlers/Capstone.purs` :: "a recorded backend failure is a run failure…" | covered | yes |
-| Scripted live session replays exactly | `Live.purs` :: "a scripted live session equals replaying…" | covered | no |
+| Backend failure is a run failure | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a backend failure is fatal to the call: the error propagates with its cause". `packages/handlers/test/Test/Handlers/Capstone.purs` :: "a recorded backend failure is a run failure, naming the model and its cause" | covered | yes |
+| Scripted live session replays exactly | `packages/handlers/test/Test/Handlers/Live.purs` :: "a scripted live session equals replaying…" | covered | no |
 
 ## CLI and server API
 
@@ -178,7 +178,7 @@ Test references are `file :: test name`, relative to the repository root.
 5. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
    shipped preset is exercised only by its own test.
 6. **Agency.** The capstone does not compute the agency table. That stays in
-   `Test.Analysis.Mandatory` :: "14 Agency…".
+   `Test.Experiments.Mandatory` :: "14 Agency…".
 7. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
    [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
    tests named in their rows.
@@ -194,5 +194,5 @@ This repo expects the following to exist.
 ## Expected numbers
 
 The capstone's expectations are a snapshot of the current run. Each value is explained by its
-mechanism in `packages/scenarios/src/Scenarios/Capstone.purs`. A change to the shipped economics or
+mechanism in `packages/premises/src/Premises/Capstone.purs`. A change to the shipped economics or
 to the engine requires regenerating them.

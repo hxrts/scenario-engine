@@ -5,7 +5,7 @@ module Test.Experiments.Mandatory (spec) where
 
 import Prelude
 
-import Testkit.Meridian (presetGame)
+import Testkit.Meridian (presetGame, seats)
 
 import Testkit.Fixture (checkLiteral)
 import Control.Monad.Error.Class (throwError)
@@ -28,7 +28,6 @@ import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Experiments.Agency (agency, counterfactual, playerSeedRuns)
 import Checks.Objectives (evaluateObjectives)
-import Testkit.Meridian (seats)
 import Premises.Load (loadLiteral)
 import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)

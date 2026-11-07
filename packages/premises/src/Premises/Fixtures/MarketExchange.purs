@@ -3,7 +3,7 @@
 -- | Markets of §3.1 with the other families through `Premises.Fixtures.Common`.
 module Premises.Fixtures.MarketExchange (fixtureA, fixtureA2) where
 
-import Prelude (negate, (<>))
+import Prelude (negate)
 import Premises.Names as N
 
 import Data.Argonaut.Core (Json)

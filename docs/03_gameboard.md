@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-The Gameboard defines a reusable economic and strategic scenario: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It defines the **persistent conditions and tensions** of a scenario, not the outcomes of any playthrough. One Gameboard supports many games.
+The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a premise ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.
 
 Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type System [§2.5](02_type_system.md#25-glossary)) and must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)). Terms, invariants, and numerics are defined in the Type System ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). The Gameboard is declarative: it holds no player assignments, Intents, or evolving state, and its checks run before any game starts ([§12](#12-validation-and-compilation)).
 
@@ -18,11 +18,11 @@ Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type S
 
 ## 2. Gameboard Structure
 
-A scenario is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian scenario uses these files under `packages/scenarios/meridian/v0/`:
+A premise is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian premise uses these files under `packages/premises/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
 
 | File | Sections | Keys |
 |---|---|---|
-| `scenario.json` | Scenario (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
+| `premise.json` | Premise header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
 | `resources.json` | Resources (§5.1) | `resources` |
 | `markets.json` | Markets, transport, jurisdiction (§5.2, §5.5) | `markets`, `transport`, `jurisdiction` |
 | `transformations.json` | Facilities (§5.3) | `transformations` |
@@ -33,13 +33,13 @@ A scenario is a directory of JSON section files. The loader merges every file ex
 | `policies.json` | Policy catalog (§8) | `policies` |
 | `instantiation.json` | Instantiation Configuration | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `presets.json` holds the seat-policy presets shared by all scenarios ([06 §4.2](06_simulator.md#42-presets)). `fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)).
+Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all premises ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)).
 
 In a section, `rounds` is a list of fixture rounds (`proposals`, `expect`), not the round count. A `representations` key in a section is the instantiated shape. Gameboards declare schemes under `schemes`. The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
-## 3. Scenario
+## 3. Premise
 
-`scenario.json` defines:
+`premise.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
 - `numeraire`: the Resource in which Facility costs are paid (Meridian: `M`).
@@ -47,7 +47,7 @@ In a section, `rounds` is a list of fixture rounds (`proposals`, `expect`), not 
 - `roundRange`: `[min, max]`, the supported round counts, with `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
 
-The Scenario says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's is in [05 §6](05_test_instance.md#6-scenario-meridian).
+The premise says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's is in [05 §6](05_test_instance.md#6-premise-meridian).
 
 ### 3.1 Strategic tensions
 
@@ -184,7 +184,7 @@ The three are not interchangeable: a government's regulatory authority never mov
 
 ## 7. Structural Relationships
 
-The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `jurisdiction`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the scenario report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
+The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `jurisdiction`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the premise report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
 
 ## 8. Policy Catalog
 
@@ -259,7 +259,7 @@ Gameboard `parameters` are fixed for a Gameboard. A simulation may override them
 
 ### 12.1 Load pipeline
 
-`Scenarios.Load` runs these steps for every scenario, in order:
+`Premises.Load` decodes a premise's files. `Game.Premise.checkPremise` runs the checks, in order:
 
 1. Decode `instantiation.json` as the configuration.
 2. Merge the other sections (a duplicate key fails).
@@ -278,7 +278,7 @@ Validation is always against one configuration. The Gameboard has no separate "v
 
 ### 12.2 Checks implemented
 
-`ValidationError` (`Board.Gameboard.Schema`) enumerates each check:
+`ValidationError` (`Board.Error`) enumerates each check:
 
 | Constructor | Fails when |
 |---|---|
@@ -319,7 +319,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-`just _scenarios` compiles the DSL in `packages/scenarios/src` through `Scenarios.Compile` into the Meridian files, presets, fixtures, and capstone run file; then `apps/cli`'s `Transcript` regenerates the capstone recording (`capstone/transcript.json`) with no model call. Before anything is written, each is decoded and checked. The outputs are gitignored and generated: edit the DSL, not the JSON.
+Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which encodes them through their `Shape` codecs into the Meridian files, presets, fixtures, and capstone run file; then `Transcript` regenerates the capstone recording (`packages/premises/capstone/transcript.json`) with no model call. Before anything is written, each file is decoded and checked. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
 
 ## 13. Provenance and Versioning
 

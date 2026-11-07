@@ -1,8 +1,8 @@
 # Reference Instance: Meridian
 
 **Version:** 0.2  
-**Status:** Experimental configuration. All scenario choices and numerical parameters are provisional  
-**Scenario ID:** `meridian`, version `v0` (Gameboard `meridian@v0`)  
+**Status:** Experimental configuration. All premise choices and numerical parameters are provisional  
+**Premise ID:** `meridian`, version `v0` (Gameboard `meridian@v0`)  
 **Implementation language:** PureScript
 
 ---
@@ -153,11 +153,11 @@ Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-
 
 Part II lists Meridian's Verticals, Actors, Aggregates, Policies, and rules. Gameboard configuration is in [Gameboard](03_gameboard.md). Instance initialization is in [Instantiated Game](04_instantiated_game.md).
 
-## 6. Scenario: Meridian
+## 6. Premise: Meridian
 
 ### 6.1 Setting
 
-A hypothetical near-future economy of intensifying competition between the United States and China, divided regional energy markets, and unequal access to industrial and military capability. Europe must coordinate while keeping national priorities. The scenario asks whether participants can preserve cooperation under conditions that reward competition.
+A hypothetical near-future economy of intensifying competition between the United States and China, divided regional energy markets, and unequal access to industrial and military capability. Europe must coordinate while keeping national priorities. The premise asks whether participants can preserve cooperation under conditions that reward competition.
 
 ### 6.2 Time horizon
 
@@ -375,7 +375,7 @@ Policies are declarative strategies ([Type System §4](02_type_system.md#4-polic
 1. If the US ran `major-military-action` of at least `major-action-threshold` (12 Mil in the reference game) in the previous round, order 4 Mil from the procurement facility.
 2. If the beginning-of-round `energy-asia` price exceeds 3.2 M/E, offer up to 12 E on that node.
 3. If a US restriction targeting China was enacted in the previous round, enact the reciprocal restriction, effective at the next round boundary.
-4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant exceeds it, the engine scales China's actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)). A priority order would be a scenario-level addition.
+4. China's budget covers procurement and its discretionary Energy trades in the reference game. If a variant exceeds it, the engine scales China's actions pro rata ([Type System §5.5](02_type_system.md#55-simultaneous-clearing)). A priority order would be a premise-level addition.
 
 The NPC does not improvise outside its declared Policy.
 
@@ -462,7 +462,7 @@ The stored factor replaces the next round's baseline exactly once. Round r uses 
 
 The owner knows their choice moves the Aggregate, so it is a strategic choice, not an independent sample. That is intended: shrinkage and the clamp keep influence explicit and bounded, and shrinkage is a balancing parameter, not a population estimate. The simulator reports the **Representation influence ratio**: next-round Aggregate change attributable to the owner, divided by the owner's executed purchase. In the noise-free 4 E case, 2 E against 4 E gives 0.5. Across ε it ranges from 0.25 to 0.75.
 
-## 13. Scenario Rules
+## 13. Premise Rules
 
 ### 13.1 Round resolution
 
@@ -494,7 +494,7 @@ Out-of-band deals enter as Proposals whose signers are every party. Fixture G sh
 
 The only scheduled event: at the Prepare phase of Round 3, a logistics disruption cuts `ENERGY_SUPPLIERS`' maximum offer by 20 E (12 Atlantic, 8 Asia). A cut never takes the offer below zero, so a cut at or above the offer removes it and never turns it into a purchase. Production continues. Unreleased output accumulates in its holdings. It is predeclared configuration, not an AI intervention.
 
-**Major shock (designed test case).** `Scenarios.Meridian.majorShock` is the reference disruption moved to Round 1 with both cuts at or above the offers: Atlantic 60, Asia 40. Each region's supply is zero that round. It is not the default game. It flips the Atlantic price across 3.0 in both directions, and four presets' Atlantic actions with it. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and shocked 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, Accumulator, Trader, and Deployer change their proposals in Rounds 2, 3, and 5, and Opportunistic in Rounds 2 to 4. The EU's solidarity Proposal is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so CrisisResponse does not flip. [Test 8b](06_simulator.md#14-mandatory-tests) pins the flip.
+**Major shock (designed test case).** `Premises.Meridian.majorShock` is the reference disruption moved to Round 1 with both cuts at or above the offers: Atlantic 60, Asia 40. Each region's supply is zero that round. It is not the default game. It flips the Atlantic price across 3.0 in both directions, and four presets' Atlantic actions with it. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and shocked 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, Accumulator, Trader, and Deployer change their proposals in Rounds 2, 3, and 5, and Opportunistic in Rounds 2 to 4. The EU's solidarity Proposal is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so CrisisResponse does not flip. [Test 8b](06_simulator.md#14-mandatory-tests) pins the flip.
 
 ### 13.7 Evaluation
 
@@ -615,6 +615,8 @@ The canonical phases are defined in [Type System §8.1](02_type_system.md#81-can
 ---
 
 # Part IV: Playtest Fixtures
+
+Each fixture is a `Premise`: a literal premise (`LiteralPremise`) that writes its World State out in full. Each seat that proposes or signs in its rounds is bound to a `Script` of those answers, and an `Expect` gives the values each round is checked against. The expected values are literals taken from the worked examples below, never computed. The families are in `packages/premises/src/Premises/Fixtures/`, and each compiles to `packages/premises/fixtures/<name>.json`.
 
 Unless stated otherwise, fixtures disable circulation, production, and operating requirements to isolate the mechanism under test. Amounts are exact at the precision of Type System [§9.1](02_type_system.md#91-numerics-and-randomness).
 
@@ -763,7 +765,7 @@ Verifies signature completeness, lapsing, atomic settlement of bundled Intents, 
 
 Vary one parameter at a time from the baseline before combining changes.
 
-**Baseline simulation results.** The variant experiments ([Simulator §11](06_simulator.md#11-experiments), `packages/analysis/test/Test/Analysis/Experiments.purs`) leave these parameters unchanged. They pass every invariant in every variant, and bear on [§29](#29-gameplay-questions) as follows:
+**Baseline simulation results.** The variant experiments ([Simulator §11](06_simulator.md#11-experiments), `packages/experiments/test/Test/Experiments/Experiments.purs`) leave these parameters unchanged. They pass every invariant in every variant, and bear on [§29](#29-gameplay-questions) as follows:
 
 - *Seat presets.* `Conservative` only buys below 2.5 M/E while holding under 30 E. Prices pass 2.5 by Round 2, so twelve of the fifteen seats never act under it and are unmeasurable against `Passive`. Against an active baseline (`RandomValid`), every seat has a measurable effect, so agency is analysed against that baseline.
 - *Small players (Q1).* LABOR, SME, and AID move prices and other Actors' holdings measurably. The SME Representation is weak at these values: the shrinkage sweep 0–0.5 moves the final Atlantic price by at most 0.0001 M/E, and game seeds 1–3 give results identical to 4 dp. Reference, shrinkage, and bound are the levers to raise its influence.
@@ -805,13 +807,13 @@ Recorded each round. Dashboard metrics are versioned projections of snapshots an
 
 ## 31. Configuration Package
 
-The instance is a versioned configuration package with no new foundational types. Its files are compiled from the DSL by `just _scenarios`:
+The instance is a versioned configuration package with no new foundational types. Its files are compiled from the DSL by `just _premises`:
 
 ```text
-packages/scenarios/
-  meridian/v0/   scenario  resources  markets  transformations  circulation
+packages/premises/
+  meridian/v0/   premise  resources  markets  transformations  circulation
                         entities  representations  game-rules  policies  instantiation
-  presets.json          the seat presets, shared by every scenario (docs/06 §4.2)
+  presets.json          the seat presets, shared by every premise (docs/06 §4.2)
   fixtures/             the golden fixtures of Part IV (generated, not committed)
 ```
 
@@ -825,20 +827,20 @@ Each section file is one JSON object, merged into the Gameboard. `instantiation.
 
 The first complete test succeeds when the engine can:
 
-1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* scenarios: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
-2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* scenarios: *reconciles Germany explicit against Germany implicit (§14.2)*. Simulator: *12 Resolution consistency*.
+1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* premises: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
+2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* premises: *reconciles Germany explicit against Germany implicit (§14.2)*. Simulator: *12 Resolution consistency*.
 3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden). Simulator: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
-4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Analysis: *7 NPC response*.
+4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Experiments: *7 NPC response*.
 5. Treat deployment as a reservation that competes with a Military Market sale, with declared attrition on major actions. *Proved by:* Fixtures R, R-alone, D and D-minor (golden). Simulator: *7b Reservation*, *7c Deployer*.
 6. Produce, spend, and decay Soft Power. *Proved by:* simulator: *Soft Power is produced, spent, and decays*.
 7. Run the circulation cycle and pass reconciliation every round. *Proved by:* Fixture *circulation* (golden). Simulator: *1 Full game*, *8 Scarcity*. INV-05 asserted every round.
-8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* scenarios: *china-strategic-v0 procures after a major US action*. Analysis: *7 NPC response*.
+8. Generate China's conditional behavior and baseline Aggregate behavior. *Proved by:* premises: *china-strategic-v0 procures after a major US action*. Experiments: *7 NPC response*.
 9. Execute EU procedure Proposals in the round they are published when weighted signatures exceed the threshold, without transferring EU authority. *Proved by:* Fixtures B1–B4 (golden). Simulator: *5 Germany and EU*.
 10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test). Simulator: *6 SME Representation*.
 11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden). Simulator: *10 Signed Proposals*.
 12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*. Simulator: *3 Submission order*.
 13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* simulator: *2 Replay*. Adapters: *13 Persistence*, *a scripted live session equals replaying…*.
-14. Evaluate every Actor's objective criteria from the records. *Proved by:* analysis: *14 Agency*.
+14. Evaluate every Actor's objective criteria from the records. *Proved by:* experiments: *14 Agency*.
 
 The test does not need realistic macroeconomic forecasting. Its objective is coherent, consequential, explainable interaction.
 

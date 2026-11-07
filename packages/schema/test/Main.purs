@@ -1,23 +1,22 @@
 module Test.Schema.Main where
 
-import Prelude
+import Prelude hiding (eq, mul, sub)
 
 import Data.Map as Map
 
-import Core.Types (proposalId)
+import Core.Types (proposalId, Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
-import Core.Shape (Format(..), decodeWith, encodeWith)
+import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
 import Data.Foldable (for_)
 import Schema.Build.Decision (asTemplate, choose, deal, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, signAll, signFacility, signIf, signProcedures, sub, transformedLastRound)
 import Schema.Build.Decision as D
 import Schema.Build.Intent (enactAccessBan, enactTariff, enactWithholding, repeal, route, trade, transfer, transform)
-import Schema.Premise.Intent (capabilityShape, intentShape)
+import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
-import Core.Types (Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
@@ -27,11 +26,7 @@ import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Schema.Premise.Fixture (roundShape, toRound)
 import Schema.Round (Expect)
-import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
-import Schema.Premise.Intent (ruleShape)
-import Core.Shape (decodeJsonWith)
-import Data.Argonaut.Core (fromString)
-import Schema.Premise.Strategy (decodeStrategy)
+import Schema.Premise.Gameboard (decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -235,7 +230,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a negative flow amount is a typed validation error at decode" do
       case decodeGameboard (json (withFlow "\"-1\"")) of
         Left _ -> pure unit
-        Left e -> fail ("expected a flow amount error, got " <> show e)
         Right _ -> fail "a negative flow decoded"
     it "a zero flow amount is valid" do
       case decodeGameboard (json (withFlow "\"0\"")) of

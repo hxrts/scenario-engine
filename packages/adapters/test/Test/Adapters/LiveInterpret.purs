@@ -9,8 +9,6 @@ module Test.Adapters.LiveInterpret (main) where
 import Prelude
 
 import Adapters.Pi (defaultModel, pi)
-import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (Transcript)
 import Core.Types (Id(..))

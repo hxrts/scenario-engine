@@ -2,14 +2,13 @@ module Test.Handlers.Main where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
-import Core.Query (homeMarket, priceOf)
+import Core.Query (priceOf)
 import Schema.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
-import Core.World (Event(..), RoundResult, WorldState)
+import Core.World (Event(..), RoundResult)
 import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -22,9 +21,6 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (error)
-import Policy.InWorld (inWorldOf)
-import Core.Strategy (InWorld)
 import Effects.Round (runGame)
 import Foreign.Object as Object
 import Test.Handlers.Run (meridian, runTest)
@@ -39,7 +35,7 @@ import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
 import Schema.Premise.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readRootFile, readPremise)
+import Premises.Tree (readRootFile)
 import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)

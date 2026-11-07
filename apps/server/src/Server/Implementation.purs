@@ -6,7 +6,6 @@ module Server.Implementation (implement) where
 import Prelude
 
 import Data.Either (either)
-import Effect (Effect)
 import Game.Premise (GameboardParts)
 import Effects.Api (ApiRequest(..))
 import Handlers.Api.Route (Implementation)

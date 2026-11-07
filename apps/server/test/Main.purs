@@ -4,7 +4,7 @@ import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
 import Effects.Observe (readManifest, readRounds)
-import Handlers.Store (runStore, runObserve)
+import Handlers.Store (runObserve)
 import Schema.Decode.Common (readJson)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)

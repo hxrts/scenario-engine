@@ -15,11 +15,10 @@ import Data.Either (Either(..))
 import Data.Foldable (any)
 import Effect.Aff (Aff)
 import Views.Difference (Difference, differenceOfWorlds)
-import Testkit.Capstone (load, runOf)
+import Testkit.Capstone (load, runOf, ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)
-import Testkit.Capstone (ObjectiveExpect)
 import Views.Balances as Balances
 import Views.Common as Common
 import Views.Compare as Compare
@@ -65,7 +64,7 @@ spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
     checkObjectives ctx cf cap.counterfactualObjectives
 
   it "the counterfactual without the deployment changes US Mil at the end of the run" do
-    ctx <- context
+    _ <- context
     cap <- load
     base <- runOf cap.playerSeed cap.game
     cf <- runOf cap.playerSeed cap.counterfactual

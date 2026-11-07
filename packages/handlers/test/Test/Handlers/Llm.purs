@@ -5,13 +5,12 @@ module Test.Handlers.Llm (spec) where
 
 import Prelude
 
-import Adapters.Filesystem (fileOps)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposalBodyShape, proposedDealShape)
 import Core.Engine.Prepare (observe)
 import Core.Types (Id(..), intentShape)
-import Core.World (RoundResult, WorldState)
+import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
 import Data.Array (length)
 import Data.Either (Either(..), either, isLeft)
@@ -25,18 +24,14 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Foreign.Object (Object)
 import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
 import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplyShape, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
-import Policy.InWorld (inWorldOf)
-import Core.Strategy (InWorld)
 import Test.Handlers.Run (meridian, runTest)
 import Game.Types (Game)
 import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-import Core.Num (Q)
 import Core.Shape (Format(..), encodeWith, prose)
 
 setup :: Aff Game

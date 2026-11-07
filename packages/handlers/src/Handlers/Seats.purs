@@ -65,6 +65,7 @@ signFor env bs e v = case Map.lookup e bs of
   Just Human -> []
   Nothing -> []
 
+inputsOf :: forall t a r. Eq a => Array { inputs :: Array t, round :: a | r } -> a -> Array t
 inputsOf records r = maybe [] _.inputs (find (\x -> x.round == r) records)
 
 -- | The Recorded bindings of every Entity a set of round records mentions, as authors or signers.

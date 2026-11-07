@@ -28,18 +28,16 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, contramapRec, fieldOf, intShape, iso, keyedAlways, listOf, object, optionalOf, pairOf, qShape, refined, stringShape)
+import Core.Shape (RecF, Shape, contramapRec, fieldOf, intShape, iso, keyedAlways, listOf, object, optionalOf, pairOf, qShape, refined, stringShape, Format(..), decodeJsonWith)
 import Core.Strategy (Strategy)
 import Core.Types (Id(..))
 import Data.Array as Array
 import Data.Map as Map
 import Data.Either (Either)
-import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe, fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Schema.Gameboard (Fallback, Gameboard, InstantiationConfig)
-import Core.Shape (Format(..), decodeJsonWith)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Schema.Premise.Actor (definitionToCore, fallbackShape)

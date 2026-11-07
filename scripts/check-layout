@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Named concept rules that imports cannot express (docs/design-4 §12.7 item 2; work/4.md). Each rule
+// Named concept rules that imports cannot express (docs/07 §5; the rule set is work/4.md §12.7 item 2). Each rule
 // names where its concept may live today. A rule with a transitional home says so, and is tightened
 // when that home is created (the phase that creates it is named in the rule).
 const fs = require("fs");

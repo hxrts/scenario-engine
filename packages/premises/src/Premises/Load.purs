@@ -14,10 +14,10 @@ module Premises.Load
 
 import Prelude
 
-import Core.Shape (decodeJsonWith)
+import Core.Shape (decodeJsonWith, Format(..))
 import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, (.:))
+import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, find, foldl)
 import Data.Bifunctor (lmap)
@@ -33,7 +33,6 @@ import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Premise.Strategy (presetsShape)
-import Core.Shape (Format(..))
 import Data.Maybe (Maybe(..))
 
 -- | Why a premise, its presets, or a fixture does not decode.

@@ -1,5 +1,5 @@
--- | `just _scenarios`: compiles the scenario DSL (`Premises.Compile`) and writes the JSON files
--- | under the scenario root (`SCENARIOS_DIR`, default `packages/scenarios`). An invalid scenario
+-- | `just _premises`: compiles the premise DSL (`Premises.Compile`) and writes the JSON files
+-- | under the premise root (`PREMISES_DIR`, default `packages/premises`). An invalid premise
 -- | exits 1 and writes nothing.
 module Compile (main) where
 

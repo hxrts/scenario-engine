@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3), if a pure
 // package depends on an effectful library, or if a source file imports a module its layer may not
-// import (docs/design-4 §12.7 item 1; work/4.md). Declared dependencies come from spago.yaml; the
+// import (docs/07 §3 and §5; the rule set is work/4.md §12.7 item 1). Declared dependencies come from spago.yaml; the
 // import rules read the `import` lines of each package's src/ tree.
 const fs = require("fs");
 const path = require("path");

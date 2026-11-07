@@ -3,24 +3,19 @@
 -- | family modules, as a literal from docs/05_test_instance.md; nothing here computes one.
 module Premises.Fixtures.Common (FixtureSpec, defaultFixture, fixture, holder, energy, energyAt, facilities) where
 
-import Prelude
 import Premises.Names as N
 
 import Core.Num (Q)
-import Core.Shape (encodeWith)
-import Core.Types (Capability)
+import Core.Shape (encodeWith, Format(..))
+import Core.Types (Capability, RuleF)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Build.Base (Keyed, keyed, (:=))
+import Schema.Build.Base (Keyed, keyed)
 import Schema.Build.World (noEntity)
-import Schema.Gameboard (Gameboard)
 import Schema.Premise.Fixture (ExpectDoc, FixtureDoc, ProposalDoc, RoundDoc, fixtureShape)
 import Schema.Premise.World (CirculationDoc, EntityDoc, FacilityDoc, MarketDoc, RepresentationDoc, ResourceDoc)
-import Core.Types (RuleF)
 import Data.Argonaut.Core (Json)
 import Premises.Meridian (asiaMarket, atlanticMarket, atlanticTerms, defenseProcurementFacility, energyShipping, gameSeed, resources, transport, market)
-import Schema.Build.Base as B
-import Core.Shape (Format(..))
 
 -- | What a fixture gives. The Gameboard's sections (resources, markets, facilities, transport,
 -- | rules, Entities) are always written; the rounds and the circulation are written when given.

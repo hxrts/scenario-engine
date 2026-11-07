@@ -10,7 +10,6 @@ import Prelude
 import Testkit.Meridian (unseated)
 import Data.Array as Array
 import Data.Tuple (Tuple(..))
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
 import Core.World (Event(..), RoundResult, WorldState, renderReason)
@@ -21,7 +20,6 @@ import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (error)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (NarrateF(..))
@@ -30,18 +28,13 @@ import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
 import Core.Proposal (ProposedDeal)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
-import Game.Assemble (assemble)
-import Game.Premise (Premise(..))
 import Game.Types (Game, SeatBinding(..))
 import Handlers.Replay (runReplay)
 import Partial.Unsafe (unsafeCrashWith)
-import Policy.InWorld (inWorldOf)
-import Core.Strategy (InWorld)
 import Test.Handlers.Stub (answering, dealOf, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Core.Num as Q
-import Foreign.Object (Object)
 
 setup :: Aff Game
 setup = unseated

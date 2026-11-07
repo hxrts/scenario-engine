@@ -1,4 +1,4 @@
-# Scenario Game Overview
+# Game Overview
 
 ## 1. Concept
 
@@ -36,9 +36,11 @@ Each round runs in five steps. The engine's sequence within a round is in [02 §
 
 **Type System.** The reusable economic machinery: what entities exist, how resources are owned and priced, how decisions are expressed, and how explicit participants interact with the implicit economy. It prescribes no particular countries, resources, or conflicts.
 
-**Gameboard.** A particular scenario: the larger economic world from which any game is drawn. It establishes sectors, populations, institutions, relationships, and persistent tensions, such as US–China competition or class conflict. Vertical reports, research documents on individual sectors, ground its configuration ([03](03_gameboard.md)).
+**Gameboard.** The world a premise describes ([02 §2.5](02_type_system.md#25-glossary)), from which any game is drawn. It establishes sectors, populations, institutions, relationships, and persistent tensions, such as US–China competition or class conflict. Vertical reports, research documents on individual sectors, ground its configuration ([03](03_gameboard.md)).
 
 **Instantiated Game.** One playthrough. It chooses the world's **resolution**: which parts are explicit Actors, which Actors are player **seats** and which are NPCs, and which parts remain aggregate. For example, the EU might be human-controlled in one game, an NPC in another, and implicit in a third. Every Actor that isn't selected falls back to a declared alternative ([04](04_instantiated_game.md)).
+
+The three layers apply to the world and to its policies alike. In-world Strategies (NPC and Aggregate Policies) are declared in the Gameboard and belong to the Instantiated Game, which binds them; seat Policies come from outside. Simulation and live play run the same `Game`, assembled from a premise.
 
 ## 4. Core Types
 
@@ -83,7 +85,7 @@ The engine takes the World State and a round's Intents and produces the next Wor
 
 Strategies are reproducible from their seed. AI agents and humans are reproducible from their recorded Intents ([02 §4](02_type_system.md#4-policies), [INV-13](02_type_system.md#inv-13)).
 
-An NPC's Policy is part of the scenario, such as a government that retaliates against tariffs. A seat's Policy comes from outside, so the simulator can replace a human with an agent or strategy without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes. A player who changes a rule changes the conditions the Policies respond to, never the Policies themselves.
+An NPC's Policy is part of the premise, such as a government that retaliates against tariffs. A seat's Policy comes from outside, so the simulator can replace a human with an agent or strategy without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes. A player who changes a rule changes the conditions the Policies respond to, never the Policies themselves.
 
 **Negotiation is propose, then sign.** Each round, every Policy publishes Proposals and then signs the ones that name it and that it endorses. Publishing implies the author's signature. A deal is a Proposal that also needs the counterparty's signature, so the two sides cannot disagree about terms. An unsigned deal lapses, and a counteroffer is a new Proposal for the next round ([02 §3.3](02_type_system.md#33-proposals-and-signatures)).
 
@@ -108,13 +110,13 @@ The engine, not the language model, decides what happens. AI then writes a ficti
 
 ## 11. Evaluation
 
-There is no single winner. Each Actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of Energy, and the scenario defines system-level measures ([03 §10.5](03_gameboard.md#105-evaluation)). Objectives are evaluated from the recorded game and never affect the economy. Outcomes are not reduced to Money. Military capacity, influence, and resource security matter through these objectives.
+There is no single winner. Each Actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of Energy, and the premise defines system-level measures ([03 §10.5](03_gameboard.md#105-evaluation)). Objectives are evaluated from the recorded game and never affect the economy. Outcomes are not reduced to Money. Military capacity, influence, and resource security matter through these objectives.
 
 Every role should have a meaningful capability, a dependency that others can provide or withhold, and an objective others can help or obstruct. A small-business owner doesn't need the resources of the United States, but their choices should materially alter some part of the economy.
 
 ## 12. Design Principles
 
-- **One world, many scales.** Players, NPCs, and the implicit economy share one economy. A scenario can be played at any resolution, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_type_system.md#inv-14)).
+- **One world, many scales.** Players, NPCs, and the implicit economy share one economy. A premise can be played at any resolution, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_type_system.md#inv-14)).
 - **Same rules for everyone.** Every participant, human or not, acts through the same kinds of decision under the same rules. No seat gets special mechanics ([INV-01](02_type_system.md#inv-01)).
 - **Diplomacy is free. Deals are binding.** Players negotiate, persuade, and bluff however they like. Only what is proposed and signed by every party takes effect, and every deal must be paid for.
 - **Unequal but interdependent.** Power, resources, and authority are deliberately unequal, yet every role has a capability, a dependency others control, and an objective others can help or obstruct (§11).
@@ -129,9 +131,9 @@ Every role should have a meaningful capability, a dependency that others can pro
 | Document | Contents |
 |---|---|
 | [`02_type_system.md`](02_type_system.md) | Types, Intents and Proposals, Policies, markets, Representation, round sequence, glossary, invariants, numerics |
-| [`03_gameboard.md`](03_gameboard.md) | How a scenario is configured |
+| [`03_gameboard.md`](03_gameboard.md) | How a premise is configured |
 | [`04_instantiated_game.md`](04_instantiated_game.md) | How a game is initialized and run |
-| [`05_test_instance.md`](05_test_instance.md) | Meridian reference scenario and fixtures A–G |
+| [`05_test_instance.md`](05_test_instance.md) | Meridian reference premise and fixtures A–G |
 | [`06_simulator.md`](06_simulator.md) | Simulator (seat Policies, replay, experiments), run store, dashboard, and mandatory tests |
 | [`07_architecture.md`](07_architecture.md) | Codebase layout, module boundaries, and key interfaces |
 | [`08_coverage.md`](08_coverage.md) | Audit of which tests exercise each feature, and the capstone run |

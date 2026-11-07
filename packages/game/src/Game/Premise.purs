@@ -8,7 +8,7 @@ import Prelude
 
 import Board.Error (RefKind(..))
 import Board.Gameboard.Validate (validateGameboard)
-import Core.Strategy (Strategy)
+import Core.Strategy (Strategy, homeMarketName)
 import Core.Types (Id(..))
 import Core.World (WorldState)
 import Data.Array (filter, head)
@@ -22,7 +22,6 @@ import Foreign.Object as Object
 import Game.Error (GameError(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
-import Core.Strategy (homeMarketName)
 
 -- | A Gameboard premise's parts: the Gameboard, its instantiation configuration, and the shared seat presets.
 type GameboardParts = { gameboard :: Gameboard, config :: InstantiationConfig, presets :: Object Strategy }

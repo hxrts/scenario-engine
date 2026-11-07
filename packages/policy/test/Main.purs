@@ -20,7 +20,7 @@ import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyParams, strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
-import Test.Spec.Assertions (fail, shouldEqual)
+import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 

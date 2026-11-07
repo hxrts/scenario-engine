@@ -20,7 +20,7 @@ module Premises.Capstone
   , jointLineFor
   ) where
 
-import Prelude ((==), map, ($), (<<<), (<>))
+import Prelude (map, ($), (<<<), (==))
 import Premises.Names as N
 import Game.Types (Bindings, SeatBinding(..))
 import Data.Map as Map
@@ -39,10 +39,9 @@ import Schema.Build.Quantity (q)
 import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
 import Schema.Build.Intent (enactAccessBan, enactWithholding, repeal, trade, transfer, transform)
 import Schema.Premise.Strategy (presetsShape)
-import Core.Shape (encodeWith)
+import Core.Shape (encodeWith, Format(..))
 import Schema.Build.Fixture (noExpect, refAt)
 import Schema.Premise.Fixture (ExpectDoc, expectShape)
-import Core.Shape (Format(..))
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int

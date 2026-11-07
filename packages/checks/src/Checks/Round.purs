@@ -15,7 +15,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Query (holding, reserveOf)
-import Core.Types (BehaviorDomain, EntityId, MarketId, ProposalId, ResourceId)
+import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
 import Core.World (Event(..), RoundResult, Target(..))
 import Data.Array (concat, concatMap, sort, sortWith)
 import Data.Identity (Identity(..))

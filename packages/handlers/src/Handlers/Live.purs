@@ -11,9 +11,8 @@ import Prelude
 import Core.Draw (Seed)
 import Core.Proposal (Transcript)
 import Core.Types (EntityId, RoundIndex)
-import Core.World (RoundResult, View)
+import Core.World (RoundResult, View, WorldState)
 import Core.Engine.Commit (EngineError)
-import Core.World (WorldState)
 import Data.Map as Map
 import Data.Array (elem)
 import Data.Either (Either(..), isLeft)
@@ -25,13 +24,12 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Signatures (Deadline(..), INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects.Signatures (Deadline(..), InterpretF(..), NarrateF(..), RecordF(..), SeatInputF(..))
 import Game.Types (Game, SeatBinding(..))
 import Handlers.Seats (proposeFor, seatEnv, signFor)
 import Effects.Round (runGame)
-import Run (Run, case_, on, run)
+import Run (case_, on, run)
 import Type.Proxy (Proxy(..))
-import Type.Row (type (+))
 
 -- | The live session's devices and callbacks, supplied by the composition root: the player seed (the
 -- | machine seats draw from it), a line of input, the window's wait, output, the model calls, and the

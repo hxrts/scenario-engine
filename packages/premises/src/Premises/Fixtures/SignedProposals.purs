@@ -4,7 +4,6 @@
 -- | Fixtures G1, G2, G3-ban, G3, G4, G5-unsigned and G5.
 module Premises.Fixtures.SignedProposals (fixtureG1, fixtureG2, fixtureG3Ban, fixtureG3, fixtureG4, fixtureG5Unsigned, fixtureG5) where
 
-import Prelude (negate, (<>))
 import Premises.Names as N
 
 import Data.Argonaut.Core (Json)

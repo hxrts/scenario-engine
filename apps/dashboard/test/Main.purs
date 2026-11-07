@@ -12,7 +12,7 @@ import Dashboard.RunForms (requiredRounds, rounds)
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Effects.Api as Api
 import Handlers.Api.Route (wire)
-import Data.Argonaut.Core (stringify, toNumber, toString)
+import Data.Argonaut.Core (toNumber, toString)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Bifunctor (lmap)

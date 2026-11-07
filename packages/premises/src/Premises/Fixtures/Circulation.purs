@@ -3,7 +3,6 @@
 -- | rounds of nothing but circulation. Fixture `circulation`.
 module Premises.Fixtures.Circulation (fixtureCirculation) where
 
-import Prelude (negate, (<>))
 import Premises.Names as N
 
 import Data.Argonaut.Core (Json)

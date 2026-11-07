@@ -2,10 +2,9 @@ module Test.Premises.Main where
 
 import Prelude
 
-import Schema.Decode.Common as BD
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.Actor (boundShape, metricShape)
-import Core.Shape (Format(..), decodeWith, encodeWith)
+import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
 import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
@@ -37,16 +36,15 @@ import Policy.Interpret (Env, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape, presetsShape)
-import Core.Shape (Format(..), encodeWith)
 import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
-import Schema.Build.Base (keyed, mayTrade, mayTransfer, mayTransform, mayEnactTariff, mayEnactAccessBan, mayEnactWithholding, holdingOf)
-import Schema.Build.World (atLeast, matching, own)
+import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
+import Schema.Build.World (matching, own)
 import Schema.Build.Decision (asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
-import Schema.Premise.Fixture (decodeLiteral)
+import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
 import Premises.Tree (readPremise)
 import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
@@ -55,8 +53,6 @@ import Data.Bifunctor (lmap)
 import Premises.Meridian (files, gameboard)
 import Premises.Fixtures (fixtures)
 import Schema.Premise.Gameboard (gameboardShape)
-import Schema.Premise.Fixture (fixtureShape)
-import Core.Shape (decodeJsonWith)
 import Premises.Meridian.Policies (policies)
 import Premises.Presets as Presets
 import Test.Premises.Golden (failWith, fixture, golden)
@@ -215,7 +211,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
-          Just s -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
+          Just _ -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
         p = strategy

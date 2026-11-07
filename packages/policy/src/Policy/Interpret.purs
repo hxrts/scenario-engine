@@ -10,7 +10,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
-import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
+import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName, homeMarketName)
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, Rule, RuleChangeF(..), RuleF(..))
 import Core.World (View)
 import Data.Array (all, any, filter, foldl, index, length, mapMaybe, null)
@@ -21,7 +21,6 @@ import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Core.Strategy (selfName, homeMarketName)
 
 -- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every

@@ -9,13 +9,10 @@ module Dashboard.RunForms
 
 import Prelude
 
-import Data.Argonaut.Core (Json, fromObject)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
 import Data.String (trim)
-import Foreign.Object as Object
 
 -- | The rounds a form accepts: a minimum, and a maximum when the scenario bounds it.
 type RoundBounds = { min :: Int, max :: Maybe Int }
@@ -34,6 +31,3 @@ rounds b s = case Int.fromString (trim s) of
 -- | Rounds that are required (a resume target): the rule with no upper bound, so a blank is an error.
 requiredRounds :: String -> Either String Int
 requiredRounds = rounds { min: 1, max: Nothing }
-
-resumeBody :: Int -> Json
-resumeBody n = fromObject (Object.singleton "rounds" (encodeJson n))

@@ -19,12 +19,12 @@ Terms, invariants, and the round sequence are defined in the Type System specifi
 
 ## 2. Instantiation Configuration
 
-The configuration is a JSON object, `instantiation.json` in a scenario directory, decoded by `decodeConfig`. It supplies only the choices that the Gameboard leaves open ([03 §11](03_gameboard.md#11-initialization-constraints)).
+The configuration is a JSON object, `instantiation.json` in a premise directory, decoded by `decodeConfig`. It supplies only the choices that the Gameboard leaves open ([03 §11](03_gameboard.md#11-initialization-constraints)).
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
 | `seed` | integer | yes | The game seed. Becomes the World State's `seed`. Every in-world random draw uses it ([§7.3](#73-seeds-and-randomness)). |
-| `rounds` | integer | yes | Rounds to play. Must lie in the Gameboard's `roundRange` ([03 §3](03_gameboard.md#3-scenario)). |
+| `rounds` | integer | yes | Rounds to play. Must lie in the Gameboard's `roundRange` ([03 §3](03_gameboard.md#3-premise)). |
 | `seats` | object: Actor → seat id | no | Actors controlled by a seat, such as `"US": "seat-1"`. |
 | `npcs` | object: Actor → Policy id | no | Actors controlled by an in-world NPC Policy, such as `"CN": "china-strategic-v0"`. |
 | `fallbacks` | object: Actor → fallback tag | no | Overrides the declared fallback of an unselected Actor ([§3.2](#32-fallback-resolution)). |
@@ -48,7 +48,7 @@ Each selected Actor has exactly one controller ([INV-23](02_type_system.md#inv-2
 data Controller = Seat SeatId | NPC PolicyId
 ```
 
-- **Seat.** Permitted only if the definition's `seat` is true (the default). The Policy that drives a seat is bound outside the scenario: a human's text in a live session, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-policies)). Swapping that Policy never changes the Actor's definition or makes it an NPC ([INV-30](02_type_system.md#inv-30)). The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
+- **Seat.** Permitted only if the definition's `seat` is true (the default). The Policy that drives a seat is bound outside the premise: a human's text in a live session, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-policies)). Swapping that Policy never changes the Actor's definition or makes it an NPC ([INV-30](02_type_system.md#inv-30)). The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
 - **NPC.** Permitted only if the Policy id is in the definition's `npc` list. The Policy is in-world ([03 §8](03_gameboard.md#8-policy-catalog)).
 - **Required.** A `required` Actor must be selected (`RequiredNotSelected`).
 - **CLI session.** `session --humans` lists the Actors played by humans. Every other seat is an AI agent ([apps/cli](../apps/cli/src/Session.purs)).
@@ -159,7 +159,7 @@ Mechanics take no random draws by default. Nothing in the initial state is resam
 
 ## 8. Time and Session
 
-The schedule is the round count (`rounds`, within `roundRange`). Every round has the same length, and `horizon` gives the total in years ([03 §3](03_gameboard.md#3-scenario)). Per-round intervals, and scaling annual rates to round length ([INV-28](02_type_system.md#inv-28)), are planned. Rates are per round.
+The schedule is the round count (`rounds`, within `roundRange`). Every round has the same length, and `horizon` gives the total in years ([03 §3](03_gameboard.md#3-premise)). Per-round intervals, and scaling annual rates to round length ([INV-28](02_type_system.md#inv-28)), are planned. Rates are per round.
 
 In live play, each round has two windows, closed by the clock (the live handler, [Handlers.Live](../packages/handlers/src/Handlers/Live.purs), waits out each one with `Adapters.Clock.delayMs`): a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
 
@@ -171,7 +171,7 @@ A run's state is:
 - the appended **round records**, one per round ([§11](#11-round-execution)).
 - the **manifest**.
 
-`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). No separate instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset strategies in the simulator), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
+`runGame` folds the round runner over the World State for the configured number of rounds (`Effects.Round`). The instance a runner plays is the `Game` that `assemble` builds from the premise and the seat bindings ([07 §4](07_architecture.md#4-key-interfaces)); no other instance type exists. The same `runRound` runs under three handler sets: **Live** (human text, AI agents, and the clock), **Sim** (preset strategies in the simulator), and **Replay** (recorded seat inputs). Effects and handlers are defined in Type System [§8.4](02_type_system.md#84-effects-and-handlers).
 
 The **manifest** is immutable and holds:
 
@@ -206,6 +206,8 @@ Any error returns the full error list, and no world is produced. The simulator i
 
 ## 11. Round Execution
 
+Live round execution runs a `Game` through `runLive` (`Handlers.Live`). Each seat's `SeatBinding` answers it: a `Human` seat's transcript is taken in the propose window, an `Agent` seat speaks through its own model call, and any other binding (`Strategy`, `Script`, `Recorded`) is answered by `Handlers.Seats`.
+
 Each round follows the canonical sequence ([Type System §8.1](02_type_system.md#81-canonical-resolution-sequence)). The round runner (`Effects.Round`) runs phase 3 for every Entity at once and calls the engine's `resolveRound` for the remaining phases. In code order:
 
 1. **Prepare (phase 1).** Deliveries due by this round are applied, clamped at zero. Rule changes scheduled at the last boundary take effect, and scheduled repeals are removed. Each change is recorded as an event.
@@ -233,7 +235,7 @@ Events record executed quantities, so a partial fill appears as a smaller `Trade
 
 - **Human players.** One audio submission per player per round, then no further input. Transcription and joint interpretation run once per round over all submissions. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, and the player is told why ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they get no confirmation.
-- **Preset seats** play their bound strategy.
+- **Strategy seats** play their bound strategy.
 
 Admissibility is enforced by the engine at screening (step 5), whichever source produced a Proposal ([Type System §3.1](02_type_system.md#31-intent-validation)).
 

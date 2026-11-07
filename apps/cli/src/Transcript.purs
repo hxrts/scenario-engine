@@ -1,4 +1,4 @@
--- | `just _scenarios` (after `Compile`): writes the capstone's joint-pass recording,
+-- | `just _premises` (after `Compile`): writes the capstone's joint-pass recording,
 -- | `capstone/transcript.json` under the scenario root. Each exchange the DSL defines
 -- | (`Premises.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
 -- | stub model that answers with the DSL's reply text (`jointLineFor`); the handler reports each exchange, which is kept. Each Intent set is

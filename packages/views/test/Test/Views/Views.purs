@@ -5,7 +5,7 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
-import Checks.Objectives (evaluateObjectives)
+import Checks.Objectives (evaluateObjectives, Outcome(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
@@ -19,7 +19,6 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Checks.Objectives (Outcome(..))
 import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)

@@ -3,7 +3,6 @@
 -- | a round later (§12.2). Fixtures C1, C2, C3 and C5; C5 checks only the seeded noise.
 module Premises.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
 
-import Prelude (negate, (<>))
 import Premises.Names as N
 
 import Core.Num (Q)
@@ -15,7 +14,7 @@ import Premises.Meridian.Holdings (pickAccounts)
 import Premises.Meridian.Entities.Aggregates (globalSmesAggregate)
 import Schema.Build.Base (Keyed, keyed, (:=), mayTrade)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (aggregate, noEntity)
+import Schema.Build.World (noEntity)
 import Schema.Build.Fixture (noExpect, proposal, ref)
 import Schema.Build.Intent (trade)
 import Schema.Premise.World (EntityDoc, RepresentationDoc)

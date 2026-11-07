@@ -6,7 +6,6 @@ import Prelude ((<>))
 import Premises.Names as N
 
 import Data.Tuple (Tuple(..))
-import Core.Num as Q
 import Schema.Build.Base (keyed, (:=), mayEnactTariff, mayTrade, mayTransfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, aggregateWith, collective)

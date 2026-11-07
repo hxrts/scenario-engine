@@ -21,7 +21,6 @@ import Data.Array as Array
 import Foreign.Object as Object
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
-import Data.Foldable (all)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 

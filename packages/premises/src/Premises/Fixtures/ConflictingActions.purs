@@ -3,7 +3,6 @@
 -- | and the semiconductor capacity allocate what they can. Fixture F.
 module Premises.Fixtures.ConflictingActions (fixtureF) where
 
-import Prelude (negate, (<>))
 import Premises.Names as N
 
 import Data.Argonaut.Core (Json)

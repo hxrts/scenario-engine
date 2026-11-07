@@ -7,7 +7,6 @@ import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
 import Views.Metrics (metricsVersion, roundMetrics)
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
@@ -19,7 +18,6 @@ import Data.Set as Set
 import Data.Traversable (for, traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (error)
 import Effects.Round (runGame)
 import Effects.Store (createRun)
 import Effects.Observe (readMetric, readRounds)

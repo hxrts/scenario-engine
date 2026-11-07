@@ -7,7 +7,7 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (Id(..), IntentF(..))
+import Core.Types (IntentF(..))
 import Data.Array (concatMap, elem, filter, index, length, nub, range)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -16,7 +16,6 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Game.Override (Override(..))
 import Game.Premise (GameboardParts)
-import Game.Types (Game)
 import Premises.Meridian (majorShock)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)

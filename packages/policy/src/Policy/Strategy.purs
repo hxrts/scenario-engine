@@ -9,12 +9,10 @@ module Policy.Strategy
 
 import Prelude
 
-import Core.Strategy (Clause, Cond(..), Expr(..), Strategy, SignRule(..), Template(..))
+import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
-import Data.Array (concat, concatMap, find, mapMaybe)
+import Data.Array (concatMap, mapMaybe)
 import Data.Maybe (Maybe(..), maybe)
-import Data.Tuple (Tuple(..))
-import Core.Strategy (selfName)
 
 -- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` and
 -- | `$home` are not listed: the interpreter resolves them at every position they can appear.

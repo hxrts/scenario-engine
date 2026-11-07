@@ -30,13 +30,12 @@ module Effects.Signatures
 import Prelude
 
 import Core.Invariants (Failure)
-import Core.Proposal (JointProposal, Transcript)
+import Core.Proposal (JointProposal, Transcript, ProposalBody)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Foreign.Object (Object)
-import Core.Proposal (ProposalBody)
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
 -- | Speak (the seat's words, read by the round's joint pass; Nothing when it says nothing).

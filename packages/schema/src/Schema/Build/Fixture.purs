@@ -14,8 +14,6 @@ module Schema.Build.Fixture
   , withholdingRule
   ) where
 
-import Prelude
-
 import Core.Num (Q)
 import Core.Types (Id(..), IntentF, RuleF(..))
 import Schema.Premise.Fixture (ExpectDoc, ProposalDoc, ProposalRefDoc, RoundDoc)

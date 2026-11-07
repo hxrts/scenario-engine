@@ -12,7 +12,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Shape (Format(..), PCtor, Shape, TagForm(..), Desc(..), bare, decodeWith, encodeWith, fieldOf, kindArg, object, oneKey, premiseSum, qShape)
 import Core.Types (Capability(..), Id(..), IntentF(..), RuleChangeF(..), RuleF(..), RuleKind(..), idShape)
-import Data.Argonaut.Core (Json, fromObject, fromString, isNull, jsonNull, toObject)
+import Data.Argonaut.Core (fromObject, fromString, isNull, jsonNull, toObject)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))

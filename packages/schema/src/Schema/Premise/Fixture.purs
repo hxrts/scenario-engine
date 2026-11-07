@@ -29,8 +29,8 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.Num (Q)
-import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
-import Core.Types (BehaviorDomain, EntityId, Id(..), IntentF, MarketId, ProposalId, ResourceId, RoundIndex, SignedProposal, proposalId)
+import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape, Format(..), decodeJsonWith)
+import Core.Types (Id(..), IntentF, ProposalId, RoundIndex, SignedProposal, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, groupBy, mapWithIndex, sortWith)
 import Data.Array.NonEmpty (toArray)
@@ -42,7 +42,6 @@ import Schema.Premise.Intent (intentShape)
 import Schema.Premise.World (Keyed, WorldDoc, worldRec, worldToCore)
 import Schema.Round (Delivery, Expect, ProcedureOutcome)
 import Data.Map as Map
-import Core.Shape (Format(..), decodeJsonWith)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 

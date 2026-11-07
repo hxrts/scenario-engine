@@ -3,7 +3,7 @@
 -- | shorter D-minor carries the major action alone. Fixtures D and D-minor.
 module Premises.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
-import Prelude (negate, (<>))
+import Prelude ((<>))
 import Premises.Names as N
 
 import Data.Argonaut.Core (Json)

@@ -32,7 +32,6 @@ import Foreign.Object as Object
 import Experiments.Agency (agency)
 import Game.Assemble (assemblePreset, configuredSeats)
 import Game.Premise (GameboardParts)
-import Core.Draw (Seed(..))
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
