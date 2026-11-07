@@ -6,6 +6,10 @@ module Core.Proposal
   ( ProposalBody
   , Transcript
   , JointProposal
+  , ProposedDeal
+  , transcriptShape
+  , jointProposalShape
+  , proposedDealShape
   , proposalsOf
   , proposalAt
   , numberJoint
@@ -20,7 +24,7 @@ module Core.Proposal
 import Prelude
 
 import Core.Query (isAggregate)
-import Core.Shape (Shape, arrayOf, field, optionalOf, rec3)
+import Core.Shape (Shape, arrayOf, field, optionalOf, rec2, rec3, rec4, stringShape)
 import Core.Types (Entity, EntityId, Intent, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
 import Core.Num (Q)
 import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null)
@@ -46,10 +50,36 @@ proposalBodyShape = rec3 "ProposalBody"
 -- | One seat's transcript of a round: its id and what it said.
 type Transcript = { seat :: EntityId, text :: String }
 
+transcriptShape :: Shape Transcript
+transcriptShape = rec2 "Transcript"
+  (field "seat" "seat" "the seat that spoke" idShape _.seat)
+  (field "text" "text" "what it said" stringShape _.text)
+  (\s t -> { seat: s, text: t })
+
 -- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the deal
 -- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for
 -- | `signed` (and the author) and lapses the Proposal when a signer is missing.
 type JointProposal = { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId }
+
+jointProposalShape :: Shape JointProposal
+jointProposalShape = rec3 "JointProposal"
+  (field "author" "author" "the Entity that submitted it" idShape _.author)
+  (field "draft" "draft" "the Intents and signers the joint pass reconciled" proposalBodyShape _.draft)
+  (field "signed" "signed" "the Entities that signed it" (arrayOf idShape) _.signed)
+  (\a d s -> { author: a, draft: d, signed: s })
+
+-- | One Proposal as the model states it in a joint pass's reply, before the engine's checks: its
+-- | author, its Intents, the other signers the deal asks for, and the seats whose transcripts describe
+-- | it. `jointProposals` reconciles these into JointProposals.
+type ProposedDeal = { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId }
+
+proposedDealShape :: Shape ProposedDeal
+proposedDealShape = rec4 "ProposedDeal"
+  (field "author" "author" "the seat that submits it" idShape _.author)
+  (field "intents" "intents" "the Intents" (arrayOf intentShape) _.intents)
+  (field "signers" "signers" "the other Entities the deal asks for" (arrayOf idShape) _.signers)
+  (field "agreed" "agreed" "the seats whose transcripts describe it" (arrayOf idShape) _.agreed)
+  (\a i s g -> { author: a, intents: i, signers: s, agreed: g })
 
 -- | The Proposals of one author in a round. Each takes the id of its index in the author's
 -- | submission, so the same drafts always get the same ids (replay depends on this).

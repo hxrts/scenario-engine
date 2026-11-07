@@ -30,6 +30,10 @@ module Core.Shape
   , rec3
   , rec4
   , rec5
+  , rec6
+  , rec7
+  , mapOf
+  , requiredOf
   , ctorOf
   , sumOf
   , PCtor
@@ -82,6 +86,8 @@ import Data.String (Pattern(..), indexOf)
 import Data.String.CodeUnits (drop, take)
 import Data.String.CodeUnits as SCU
 import Data.Foldable (foldl)
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Traversable (traverse)
 import Foreign.Object as Object
 
@@ -287,6 +293,16 @@ rec4 name f1 f2 f3 f4 mk = recordOf name [ dField f1, dField f2, dField f3, dFie
   (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x)
   (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o)
 
+rec6 :: forall a b1 b2 b3 b4 b5 b6. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> a) -> Shape a
+rec6 name f1 f2 f3 f4 f5 f6 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6 ]
+  (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x <> encField fmt f5 x <> encField fmt f6 x)
+  (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o <*> decField fmt f5 o <*> decField fmt f6 o)
+
+rec7 :: forall a b1 b2 b3 b4 b5 b6 b7. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> Field a b7 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> b7 -> a) -> Shape a
+rec7 name f1 f2 f3 f4 f5 f6 f7 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6, dField f7 ]
+  (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x <> encField fmt f5 x <> encField fmt f6 x <> encField fmt f7 x)
+  (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o <*> decField fmt f5 o <*> decField fmt f6 o <*> decField fmt f7 o)
+
 rec5 :: forall a b1 b2 b3 b4 b5. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> (b1 -> b2 -> b3 -> b4 -> b5 -> a) -> Shape a
 rec5 name f1 f2 f3 f4 f5 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5 ]
   (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x <> encField fmt f5 x)
@@ -309,13 +325,16 @@ ctorOf t s proj inj =
 -- | snapshot list gives the generic tags. Both lists project and inject the same Haskell value.
 sumOf :: forall a. String -> TagForm -> Array (Ctor a) -> Array (Ctor a) -> Shape a
 sumOf name form scen snap =
-  { desc: DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form }) scen)
+  { desc: DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form }) described)
   , codec: \fmt -> { enc: encSum fmt, dec: decSum fmt }
   , absent: const false
   , missing: Nothing
   }
   where
   ctorsOf fmt = if fmt == Premise then scen else snap
+
+  -- the description names the premise constructors, or the snapshot's when the sum has no premise form
+  described = if Array.null scen then snap else scen
 
   encSum fmt x = case Array.foldl (pick fmt x) Nothing (ctorsOf fmt) of
     Just (Tuple c j) -> wrap fmt c j
@@ -537,15 +556,24 @@ object name (RecF r) =
 pairOf :: forall a b. Shape a -> Shape b -> Shape (Tuple a b)
 pairOf sa sb =
   { desc: DTuple sa.desc sb.desc
-  , codec: \_ ->
-      { enc: \(Tuple a b) -> fromArray [ (pay sa).enc a, (pay sb).enc b ]
+  , codec: \fmt ->
+      { enc: \(Tuple a b) -> fromArray [ (sa.codec fmt).enc a, (sb.codec fmt).enc b ]
       , dec: \j -> case toArray j of
-          Just [ x, y ] -> Tuple <$> (pay sa).dec x <*> (pay sb).dec y
+          Just [ x, y ] -> Tuple <$> (sa.codec fmt).dec x <*> (sb.codec fmt).dec y
           _ -> Left "expected a two-element array"
       }
   , absent: const false
   , missing: Nothing
   }
+
+-- | A value that must be present: a missing key is a decode error, where a list or an optional would
+-- | default. A model reply's fields are required, so a reply that omits one does not decode.
+requiredOf :: forall a. Shape a -> Shape a
+requiredOf s = s { missing = Nothing }
+
+-- | A Map: the snapshot writes it as its key and value pairs, in key order (the stored runs' form).
+mapOf :: forall k v. Ord k => Shape k -> Shape v -> Shape (Map k v)
+mapOf ks vs = iso Map.fromFoldable (Map.toUnfoldable :: Map k v -> Array (Tuple k v)) (arrayOf (pairOf ks vs))
 
 -- | One of two forms. The first that reads wins; a Left value is written in the first form.
 eitherOf :: forall a b. Shape a -> Shape b -> Shape (Either a b)

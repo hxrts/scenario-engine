@@ -55,19 +55,22 @@ check e out = map (\j -> stringify (encodeJson j.draft.intents)) out `shouldEqua
 
 spec :: Spec Unit
 spec = describe "Capstone: recorded transcript through the joint pass" do
-  it "each recorded line maps to the canonical Intents it records (replayed)" do
+  it "each recorded line, in its recorded order, maps to the canonical Intents it records (replayed)" do
     g <- setup
     rec <- recording
+    replay <- liftEffect (replayCall rec)
     for_ jointLines \e -> do
-      out <- jointAs g e.text (backendOf (replayCall rec))
+      out <- jointAs g e.text (backendOf replay)
       case out of
         Right js -> check e js
         Left why -> fail ("the recorded reply should decode: " <> why)
 
-  it "the recorded line for a trade interprets to one Proposal" do
+  it "the recorded trade line interprets to one Proposal, once the line before it is replayed" do
     g <- setup
     rec <- recording
-    ok <- jointAs g "buy ten energy" (backendOf (replayCall rec))
+    replay <- liftEffect (replayCall rec)
+    _ <- jointAs g "ban shipments into India" (backendOf replay)
+    ok <- jointAs g "buy ten energy" (backendOf replay)
     case ok of
       Right js | length js == 1 -> pure unit
       _ -> fail "replayed line should interpret"
@@ -82,16 +85,24 @@ spec = describe "Capstone: recorded transcript through the joint pass" do
     case out of
       Left e -> (contains (Pattern "language model backend failed") (message e)) `shouldEqual` true
       Right _ -> fail "a failed backend must fail the call"
-    -- the same line, replayed, still interprets: the failure was the backend's, not the transcript's
-    ok <- jointAs g "buy ten energy" (backendOf (replayCall rec))
+    -- the same call, replayed from the start, still interprets: the failure was the backend's, not the recording's
+    replay <- liftEffect (replayCall rec)
+    ok <- jointAs g "ban shipments into India" (backendOf replay)
     case ok of
       Right _ -> pure unit
       Left _ -> fail "replayed line should interpret"
 
-  it "a transcript the recording does not hold is an error, never a model call" do
+  it "a call the recording does not hold in its next place is an error, never a model call" do
     g <- setup
     rec <- recording
-    out <- attempt (jointAs g "buy some energy" (backendOf (replayCall rec)))
+    replay <- liftEffect (replayCall rec)
+    out <- attempt (interpreter (backendOf replay) g.world (Interpret 2 [ { seat: Id "US", text: "buy ten energy" } ] identity))
     case out of
       Left e -> (contains (Pattern "no recorded call matches this request") (message e)) `shouldEqual` true
-      Right _ -> fail "an unrecorded request must not be answered"
+      Right _ -> fail "an unrecorded round must not be answered"
+    -- a spent recording answers nothing either
+    for_ jointLines \e -> jointAs g e.text (backendOf replay)
+    spent <- attempt (jointAs g "buy ten energy" (backendOf replay))
+    case spent of
+      Left e -> (contains (Pattern "no recorded call matches this request") (message e)) `shouldEqual` true
+      Right _ -> fail "a spent recording must not answer"

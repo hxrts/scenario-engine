@@ -53,6 +53,11 @@ const rules = [
     bad: (line) => /\bSeed 0\b/.test(line),
   },
   {
+    name: "the model handler holds no hand-written action list or reply decoder: prompts render from the shapes and replies decode through them (work/4.md §13 Phase 5)",
+    files: (f) => f.startsWith("packages/handlers/src/Handlers/Llm"),
+    bad: (line) => /"(Trade|Route|Transfer|Transform|ChangeRule|Tariff|AccessBan|Withholding)"/.test(line) || /\b(decodeJson|readJson|jsonParser|toObject|toArray|toString)\b/.test(line),
+  },
+  {
     name: "handlers hold no economic arithmetic: no Number, parseFloat, or toFixed (economic values go through Core.Num)",
     files: (f) => f.startsWith("packages/handlers/src/"),
     bad: (line) => /\bparseFloat\b|\btoFixed\b|\bNumber\b/.test(line),

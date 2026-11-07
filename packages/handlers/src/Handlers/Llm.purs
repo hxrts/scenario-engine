@@ -1,9 +1,9 @@
 -- | The language-model handler (docs/04_instantiated_game.md §11, docs/01_overview.md §10): the joint
 -- | pass, the narrator, and the AI-agent seats, interpreted over a typed `Backend`. A backend is the
 -- | raw call (one prompt and one JSON payload in, the reply text out) plus the sinks for evidence and
--- | for the typed exchange. The handler owns the rest: the request payloads, the prompt for each
--- | request (`Handlers.Llm.Wire`), decoding, the fallbacks, the joint pass's reconciliation, and the
--- | evidence digests. A reply that does not decode is a `Left` (the joint pass and the narrator
+-- | for the typed exchange. The handler owns the rest: the request payloads (their shapes), the prompt
+-- | for each request (`Handlers.Llm.Wire`), decoding, the fallbacks, the joint pass's reconciliation,
+-- | and the evidence digests. A reply that does not decode is a `Left` (the joint pass and the narrator
 -- | fall back as documented below). A failed call is an Aff error, which the run treats as fatal.
 -- | Model output is only a candidate: the engine checks authority, signatures, and balances when it
 -- | resolves the round.
@@ -19,11 +19,11 @@ module Handlers.Llm
 
 import Prelude
 
-import Core.Proposal (jointProposals)
-import Core.Types (EntityId, MarketId)
+import Core.Proposal (jointProposals, proposedDealShape)
+import Core.Shape (Format(..), Shape, arrayOf, encodeWith, stringShape)
+import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
-import Data.Argonaut.Core (Json, stringify)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Core (stringify)
 import Data.Array (fromFoldable, null)
 import Data.Either (Either, either)
 import Data.Map as Map
@@ -32,7 +32,7 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
 foreign import sha256 :: String -> String
@@ -49,16 +49,24 @@ type Evidence = { effect :: String, model :: String, template :: String, input :
 -- | sinks for each call's evidence and its typed exchange (the recording, when one is kept).
 type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
 
--- | One call: the payload is encoded, the prompt and the payload go to the backend, the reply
--- | decodes, and the call's evidence and typed exchange are kept. A failed call is not kept.
-ask :: forall a. EncodeJson a => Backend -> String -> String -> Json -> (String -> Either String a) -> Aff (Either String a)
-ask b effect template payload decode = do
-  let input = stringify payload
+-- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
+type Key = { round :: Int, seats :: Array String }
+
+seatText :: EntityId -> String
+seatText (Id s) = s
+
+-- | One call: the payload is encoded through its shape, the prompt and the payload go to the backend,
+-- | the reply decodes, and the call's evidence and typed exchange are kept. A failed call is not kept.
+ask :: forall p a. Backend -> String -> Key -> String -> Shape p -> p -> Shape a -> (String -> Either String a) -> Aff (Either String a)
+ask b effect key template requestShape payload replyShape decode = do
+  let
+    request = encodeWith Snapshot requestShape payload
+    input = stringify request
   out <- b.call template input
   let decoded = decode out.text
   liftEffect do
     b.evidence { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
-    b.exchange { effect, request: payload, reply: encodeReply decoded }
+    b.exchange { effect, round: key.round, seats: key.seats, request, reply: encodeReply replyShape decoded }
   pure decoded
 
 -- | The round's transcripts to Proposals, one joint call. A reply that does not decode is a
@@ -69,7 +77,8 @@ interpreter b w (Interpret round transcripts k) = k <$> do
   let
     request :: JointRequest
     request = { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets w }
-  r <- ask b "interpret" interpretPrompt (encodeJson request) decodeJoint
+    key = { round, seats: map (\t -> seatText t.seat) transcripts }
+  r <- ask b "interpret" key interpretPrompt jointRequestShape request (arrayOf proposedDealShape) decodeJoint
   pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
 
 markets :: WorldState -> Array MarketId
@@ -85,7 +94,8 @@ narrator b jointFailed (Narrate r k) = k <$>
     let
       request :: NarrateRequest
       request = { round: r.record.round, events: r.record.events }
-    either (const (listing r)) identity <$> ask b "narrate" narratePrompt (encodeJson request) decodeText
+      key = { round: r.record.round, seats: [] }
+    either (const (listing r)) identity <$> ask b "narrate" key narratePrompt narrateRequestShape request stringShape decodeText
 
 -- | The round's events, one per line, with no interpretation.
 listing :: RoundResult -> String
@@ -101,5 +111,6 @@ agents b briefing =
       let
         request :: SpeakRequest
         request = { actor: e, briefing: briefing e, view: v }
-      either (const "") identity <$> ask b "seat:speak" speakPrompt (encodeJson request) decodeText
+        key = { round: v.round, seats: [ seatText e ] }
+      either (const "") identity <$> ask b "seat:speak" key speakPrompt speakRequestShape request stringShape decodeText
   }

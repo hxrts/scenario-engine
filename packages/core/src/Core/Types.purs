@@ -5,12 +5,10 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q)
-import Core.Shape (class Described, Format(..), Shape, TagForm(..), ctorOf, decodeJsonWith, encodeJsonWith, field, optionalOf, prim, qShape, rec2, rec3, rec4, sumOf)
+import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, ctorOf, decodeJsonWith, encodeJsonWith, field, mapOf, optionalOf, prim, qShape, rec2, rec3, rec4, rec5, sumOf, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
-import Data.Argonaut.Decode.Generic (genericDecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
-import Data.Argonaut.Encode.Generic (genericEncodeJson)
 import Data.Either (note)
 import Data.Foldable (class Foldable)
 import Data.Traversable (class Traversable)
@@ -313,36 +311,6 @@ instance Show v => Show (RuleF v) where
 instance Show v => Show (RuleChangeF v) where
   show = genericShow
 
-instance EncodeJson EntityKind where
-  encodeJson = genericEncodeJson
-
-instance DecodeJson EntityKind where
-  decodeJson = genericDecodeJson
-
-instance EncodeJson Controller where
-  encodeJson = genericEncodeJson
-
-instance DecodeJson Controller where
-  decodeJson = genericDecodeJson
-
-instance EncodeJson Transferability where
-  encodeJson = genericEncodeJson
-
-instance DecodeJson Transferability where
-  decodeJson = genericDecodeJson
-
-instance EncodeJson Capability where
-  encodeJson = genericEncodeJson
-
-instance DecodeJson Capability where
-  decodeJson = genericDecodeJson
-
-instance EncodeJson RuleKind where
-  encodeJson = genericEncodeJson
-
-instance DecodeJson RuleKind where
-  decodeJson = genericDecodeJson
-
 -- Described shapes (design 4, §5.3). The engine's Intents, Rules and rule changes are described once
 -- here. Their JSON codecs are the snapshot codec of the shape, so no second codec exists for them.
 -- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the premise-format tags of
@@ -449,6 +417,167 @@ intentShape = sumOf "Intent" OneKey [] [ trade, route, transfer, transform, chan
     (field "transformation" "transformation" "the transformation" idShape _.transformation)
     (field "quantity" "quantity" "the quantity run" qShape _.quantity)
     (\b t q -> { by: b, transformation: t, quantity: q })
+
+-- The entity, capability, and proposal shapes (design 4, §5.3). The closure of a View is described
+-- here, so the model's requests and the Run Store's records encode through these shapes.
+
+-- | A sum of constructors with no payload, written as its tag alone.
+enumShape :: forall a. Eq a => String -> Array { tag :: String, value :: a } -> Shape a
+enumShape name ctors = sumOf name OneKey [] (map nullary ctors)
+  where
+  nullary c = ctorOf { tag: c.tag, desc: "" } unitShape (\x -> if x == c.value then Just unit else Nothing) (const c.value)
+
+transferabilityShape :: Shape Transferability
+transferabilityShape = enumShape "Transferability"
+  [ { tag: "Free", value: Free }, { tag: "Restricted", value: Restricted }, { tag: "NonTransferable", value: NonTransferable } ]
+
+ruleKindShape :: Shape RuleKind
+ruleKindShape = enumShape "RuleKind"
+  [ { tag: "TariffRule", value: TariffRule }, { tag: "AccessBanRule", value: AccessBanRule }, { tag: "WithholdingRule", value: WithholdingRule } ]
+
+capabilityShape :: Shape Capability
+capabilityShape = sumOf "Capability" OneKey []
+  [ ctorOf { tag: "MayTrade", desc: "a Market the Entity may trade in" } idShape
+      ( \c -> case c of
+          MayTrade m -> Just m
+          _ -> Nothing
+      )
+      MayTrade
+  , ctorOf { tag: "MayTransfer", desc: "a Resource the Entity may transfer" } idShape
+      ( \c -> case c of
+          MayTransfer r -> Just r
+          _ -> Nothing
+      )
+      MayTransfer
+  , ctorOf { tag: "MayTransform", desc: "a Transformation the Entity may run" } idShape
+      ( \c -> case c of
+          MayTransform t -> Just t
+          _ -> Nothing
+      )
+      MayTransform
+  , ctorOf { tag: "MayEnact", desc: "a kind of Rule the Entity may enact" } ruleKindShape
+      ( \c -> case c of
+          MayEnact k -> Just k
+          _ -> Nothing
+      )
+      MayEnact
+  ]
+
+controllerShape :: Shape Controller
+controllerShape = sumOf "Controller" OneKey []
+  [ ctorOf { tag: "Seat", desc: "a seat of the game" } idShape
+      ( \c -> case c of
+          Seat s -> Just s
+          _ -> Nothing
+      )
+      Seat
+  , ctorOf { tag: "NPC", desc: "a Policy" } idShape
+      ( \c -> case c of
+          NPC p -> Just p
+          _ -> Nothing
+      )
+      NPC
+  ]
+
+collectiveProcedureShape :: Shape CollectiveProcedure
+collectiveProcedureShape = rec4 "CollectiveProcedure"
+  (field "weights" "weights" "the weight of each member" (mapOf idShape qShape) _.weights)
+  (field "residualWeight" "residualWeight" "the weight of the residual" qShape _.residualWeight)
+  (field "threshold" "threshold" "the support needed" qShape _.threshold)
+  (field "authorizes" "authorizes" "the Capabilities the procedure authorizes" (arrayOf capabilityShape) _.authorizes)
+  (\w r t a -> { weights: w, residualWeight: r, threshold: t, authorizes: a })
+
+aggregateShape :: Shape Aggregate
+aggregateShape = rec3 "Aggregate"
+  (field "policy" "policy" "the Policy that decides for it" idShape _.policy)
+  (field "members" "members" "the Entities it is made of" (arrayOf idShape) _.members)
+  (field "procedures" "procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape) _.procedures)
+  (\p m pr -> { policy: p, members: m, procedures: pr })
+
+entityKindShape :: Shape EntityKind
+entityKindShape = sumOf "EntityKind" OneKey []
+  [ ctorOf { tag: "Actor", desc: "an Entity a Controller acts for" } controllerShape
+      ( \k -> case k of
+          Actor c -> Just c
+          _ -> Nothing
+      )
+      Actor
+  , ctorOf { tag: "Aggregate", desc: "an Entity made of members" } aggregateShape
+      ( \k -> case k of
+          Aggregate a -> Just a
+          _ -> Nothing
+      )
+      Aggregate
+  ]
+
+entityShape :: Shape Entity
+entityShape = rec5 "Entity"
+  (field "id" "id" "the Entity's id" idShape _.id)
+  (field "accounts" "accounts" "its holdings of each Resource" (mapOf idShape qShape) _.accounts)
+  (field "capacities" "capacities" "its capacities" (mapOf idShape qShape) _.capacities)
+  (field "capabilities" "capabilities" "what it may do" (arrayOf capabilityShape) _.capabilities)
+  (field "kind" "kind" "an Actor or an Aggregate" entityKindShape _.kind)
+  (\i a c cs k -> { id: i, accounts: a, capacities: c, capabilities: cs, kind: k })
+
+proposalShape :: Shape Proposal
+proposalShape = rec5 "Proposal"
+  (field "id" "id" "the Proposal's id" idShape _.id)
+  (field "author" "author" "the Entity that submitted it" idShape _.author)
+  (field "intents" "intents" "the Intents" (arrayOf intentShape) _.intents)
+  (field "signers" "signers" "the Entities asked to sign" (arrayOf idShape) _.signers)
+  (field "procedure" "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure)
+  (\i a is ss p -> { id: i, author: a, intents: is, signers: ss, procedure: p })
+
+signedProposalShape :: Shape SignedProposal
+signedProposalShape = rec2 "SignedProposal"
+  (field "proposal" "proposal" "the Proposal" proposalShape _.proposal)
+  (field "signatures" "signatures" "the Entities that signed it" (arrayOf idShape) _.signatures)
+  (\p s -> { proposal: p, signatures: s })
+
+instance Described Transferability where
+  shape = transferabilityShape
+
+instance Described RuleKind where
+  shape = ruleKindShape
+
+instance Described Capability where
+  shape = capabilityShape
+
+instance Described Controller where
+  shape = controllerShape
+
+instance Described EntityKind where
+  shape = entityKindShape
+
+instance EncodeJson Transferability where
+  encodeJson = encodeJsonWith Snapshot transferabilityShape
+
+instance DecodeJson Transferability where
+  decodeJson = decodeJsonWith Snapshot transferabilityShape
+
+instance EncodeJson RuleKind where
+  encodeJson = encodeJsonWith Snapshot ruleKindShape
+
+instance DecodeJson RuleKind where
+  decodeJson = decodeJsonWith Snapshot ruleKindShape
+
+instance EncodeJson Capability where
+  encodeJson = encodeJsonWith Snapshot capabilityShape
+
+instance DecodeJson Capability where
+  decodeJson = decodeJsonWith Snapshot capabilityShape
+
+instance EncodeJson Controller where
+  encodeJson = encodeJsonWith Snapshot controllerShape
+
+instance DecodeJson Controller where
+  decodeJson = decodeJsonWith Snapshot controllerShape
+
+instance EncodeJson EntityKind where
+  encodeJson = encodeJsonWith Snapshot entityKindShape
+
+instance DecodeJson EntityKind where
+  decodeJson = decodeJsonWith Snapshot entityKindShape
 
 instance EncodeJson (RuleF Q) where
   encodeJson = encodeJsonWith Snapshot ruleShape

@@ -9,12 +9,11 @@ import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Proposal (JointProposal, Transcript)
+import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposalBodyShape, proposedDealShape)
 import Core.Engine.Prepare (observe)
-import Core.Types (Id(..))
+import Core.Types (Id(..), intentShape)
 import Core.World (RoundResult, WorldState)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
 import Data.Either (Either(..), either, isLeft)
 import Data.Map as Map
@@ -29,7 +28,7 @@ import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Foreign.Object (Object)
 import Handlers.Llm (Backend, agents, interpreter, listing, narrator)
-import Handlers.Llm.Wire (ProposedDeal, decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
+import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplyShape, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Policy.InWorld (inWorldOf)
 import Core.Strategy (InWorld)
@@ -39,6 +38,7 @@ import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replay
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Num (Q)
+import Core.Shape (Format(..), encodeWith, prose)
 
 setup :: Aff Game
 setup = meridian
@@ -83,12 +83,15 @@ spec = do
       contains (Pattern "one to three sentences") speakPrompt `shouldEqual` true
       contains (Pattern "Never invent quantities") narratePrompt `shouldEqual` true
 
-    it "the joint pass's reply schema names every field of a Proposal" do
-      contains (Pattern "{\"proposals\":[{\"author\":EntityId,\"intents\":[Intent],\"signers\":[EntityId],\"agreed\":[EntityId]}]}") interpretPrompt `shouldEqual` true
+    it "the joint pass's prompt renders its action list and its reply schema from the shapes" do
+      contains (Pattern (prose intentShape.desc)) interpretPrompt `shouldEqual` true
+      contains (Pattern (prose proposalBodyShape.desc)) interpretPrompt `shouldEqual` true
+      contains (Pattern (prose jointReplyShape.desc)) interpretPrompt `shouldEqual` true
+      contains (Pattern "agreed") interpretPrompt `shouldEqual` true
 
   describe "Reply decoding" do
     it "a joint reply decodes into its Proposals, as the model states them" do
-      case decodeJoint ("{\"proposals\":[" <> stringify (encodeJson sample) <> "]}") of
+      case decodeJoint ("{\"proposals\":[" <> stringify (encodeWith Snapshot proposedDealShape sample) <> "]}") of
         Right [ d ] -> do
           d.author `shouldEqual` Id "US"
           d.signers `shouldEqual` [ Id "DE" ]
@@ -193,7 +196,8 @@ spec = do
       rec <- liftEffect (Ref.read exchanges)
       length rec `shouldEqual` 1
       back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (decodeRecording (encodeRecording rec))
-      j2 <- single =<< jointWith g (backendOf (replayCall back)) [ tr "US" "buy ten energy" ]
+      replay <- liftEffect (replayCall back)
+      j2 <- single =<< jointWith g (backendOf replay) [ tr "US" "buy ten energy" ]
       j2.signed `shouldEqual` j1.signed
       j2.author `shouldEqual` j1.author
 
