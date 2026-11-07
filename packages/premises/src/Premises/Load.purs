@@ -46,7 +46,8 @@ import Core.Draw (Seed(..))
 import Core.Strategy (Strategy)
 import Core.World (seeded)
 import Policy.Strategy (strategyRefs)
-import Schema.Decode.Strategy (decodeStrategy)
+import Core.Shape (Format(..), decodeJsonWith)
+import Schema.Premise.Strategy (presetsShape)
 import Schema.Tags as T
 import Premises.Names (instantiationFile, presetsFile)
 import Premises.Tree (Premise, Section)
@@ -90,8 +91,8 @@ decodePresets j = lmap show (presetsFrom j)
 
 presetsFrom :: Json -> Either LoadError (Object Strategy)
 presetsFrom j = do
-  o <- note (NotAnObject presetsFile) (toObject j)
-  lmap (Undecodable presetsFile) (traverseWithIndex (const decodeStrategy) o)
+  pairs <- lmap (Undecodable presetsFile) (decodeJsonWith Premise presetsShape j)
+  pure (Object.fromFoldable pairs)
 
 -- | The presets file's section, parsed and decoded.
 presetsOf :: Section -> Either LoadError (Object Strategy)

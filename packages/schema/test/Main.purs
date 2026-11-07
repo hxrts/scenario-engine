@@ -4,19 +4,28 @@ import Prelude
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
+import Core.Shape (Format(..), decodeWith, encodeWith)
+import Data.Foldable (for_)
+import Schema.Build.Decision (asTemplate, choose, deal, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, signAll, signFacility, signIf, signProcedures, sub, transformedLastRound)
+import Schema.Build.Decision as D
+import Schema.Build.Intent (enactAccessBan, enactTariff, enactWithholding, repeal, route, trade, transfer, transform)
+import Schema.Premise.Intent (capabilityShape, intentShape)
+import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
+import Core.Num (Q)
 import Core.Types (Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Schema.Decode.Common (capability)
 import Schema.Decode.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Decode.Intents (intent, rule)
 import Schema.Decode.Rounds (Expect, decodeRound)
-import Schema.Decode.Strategy (decodeStrategy)
+import Schema.Premise.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -52,6 +61,10 @@ strategy text = case decodeText text of
   Left e -> unsafeCrashWith ("strategy does not decode: " <> show e)
   Right p -> p
 
+-- | A premise shape reports a failed form as text: the message names the sum that failed.
+isTemplateError :: String -> Boolean
+isTemplateError m = contains (Pattern "Template form") m
+
 -- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
 outcome :: Either JsonDecodeError Strategy -> String
 outcome = case _ of
@@ -60,8 +73,77 @@ outcome = case _ of
 
 -- | Two Choose blocks, each with two options of different size.
 
+-- | A quantity literal in a test value.
+qv :: String -> Q
+qv t = fromMaybe (Q.fromInt 0) (Q.parse t)
+
+-- | One Strategy per form the premise format writes, so every constructor of the AST round-trips.
+roundTripStrategies :: Array Strategy
+roundTripStrategies =
+  [ D.strategy { rules: [ D.rule [] [ asTemplate (trade { market: "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+  , D.strategy
+      { rules:
+          [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (round) (lit 3), eq (factor "d") (lit 0) ]
+              [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: Just (lit 2) })
+              , asTemplate (transform { by: "self", transformation: "t", quantity: mul (lit 2) (max' (lit 1) (sub (lit 4) (lit 3))) })
+              , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
+              , asTemplate (enactTariff { jurisdiction: "self", origin: "CN", rate: lit "0.5" })
+              , asTemplate (enactAccessBan { jurisdiction: "self", target: "CN" })
+              , asTemplate (enactWithholding { capacity: "c", units: lit 2 })
+              , asTemplate (repeal { rule: "r2/US/0/rule-0" })
+              ]
+          , D.rule [ not' (eq (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
+              [ reciprocate { target: "US" }
+              , choose [ noAction, asTemplate (trade { market: "m", quantity: lit 1, limit: Just (lit 3) }) ]
+              ]
+          ]
+      , sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
+      }
+  , D.strategy
+      { rules:
+          [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
+          , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, transform { by: "self", transformation: "t", quantity: lit 1 } ] } ]
+          ]
+      , sign: []
+      }
+  ]
+
+-- | One Intent of each kind, with explicit entities, in the fixture format (the premise tags).
+roundTripIntents :: Array (IntentF Q)
+roundTripIntents =
+  [ Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Nothing }
+  , Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Just (qv "2.5") }
+  , Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt (-3), limitPrice: Nothing }
+  , Transfer { from: Id "US", to: Id "CN", resource: Id "E", quantity: Q.fromInt 2 }
+  , Transform { by: Id "US", transformation: Id "t", quantity: Q.fromInt 1 }
+  , ChangeRule (Enact (Tariff { jurisdiction: Id "US", origin: Id "CN", rate: qv "0.25" }))
+  , ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "IN" }))
+  , ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 5 }))
+  ]
+
+roundTripCapabilities :: Array Capability
+roundTripCapabilities =
+  [ MayTrade (Id "m")
+  , MayTransfer (Id "E")
+  , MayTransform (Id "t")
+  , MayEnact TariffRule
+  , MayEnact AccessBanRule
+  , MayEnact WithholdingRule
+  ]
+
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "Round trips: decode (encode x) == x for each premise shape" do
+    it "every Strategy form, in the premise format" do
+      for_ roundTripStrategies \p ->
+        (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
+    it "every Intent kind, in the fixture format" do
+      for_ roundTripIntents \i ->
+        (decodeWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
+    it "every Capability, in the premise format" do
+      for_ roundTripCapabilities \c ->
+        (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
+
   describe "Capability tags" do
     it "decodes each capability kind" do
       capability "trade:energy-atlantic" `shouldEqual` Right (MayTrade (Id "energy-atlantic"))
@@ -151,20 +233,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Decoding" do
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
+        Left (TypeMismatch m) | isTemplateError m -> pure unit
         other -> fail ("expected a multi-key template error, got " <> outcome other)
       case decodeText """{ "rules": [ { "propose": [ {} ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
+        Left (TypeMismatch m) | isTemplateError m -> pure unit
         other -> fail ("expected an empty template error, got " <> outcome other)
     it "an expression with two keys is rejected" do
       isLeft (decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": { "round": null, "param": "x" } } } ] } ] }""")
         `shouldEqual` true
     it "an unknown tag is a typed error naming its kind" do
       case decodeText """{ "rules": [ { "propose": [ { "bogus": {} } ] } ] }""" of
-        Left (Named "template" (UnexpectedValue _)) -> pure unit
+        Left (TypeMismatch m) | isTemplateError m -> pure unit
         other -> fail ("expected a template error, got " <> outcome other)
       case decodeText """{ "rules": [ { "when": [ { "bogus": [] } ], "propose": [] } ] }""" of
-        Left (Named "condition" (UnexpectedValue _)) -> pure unit
+        Left (TypeMismatch m) | contains (Pattern "Cond form") m -> pure unit
         other -> fail ("expected a condition error, got " <> outcome other)
     it "a well-formed strategy decodes" do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")

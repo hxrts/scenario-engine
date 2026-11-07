@@ -28,7 +28,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Core.Strategy (Strategy)
-import Schema.Decode.Strategy (decodeStrategy)
+import Schema.Premise.Strategy (decodeStrategy)
 
 type RoundExpect = { round :: Int, expect :: Expect }
 

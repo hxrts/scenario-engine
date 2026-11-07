@@ -5,16 +5,18 @@ module Premises.Meridian.Policies (policies) where
 
 import Prelude (negate, (<>))
 
+import Data.Maybe (Maybe(..))
+
+import Core.Strategy (Clause, Expr, Strategy, Template)
 import Data.Tuple (Tuple(..))
-import Schema.Build.Base (Built, Keyed, keyed)
-import Schema.Build.Decision (Clause, enactTariffT, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, procedureT, strategy, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, sub, tradeT, transferT, transformT, transformedLastRound)
-import Schema.Tags as T
+import Schema.Build.Decision (asTemplate, procedure, deal, reciprocate, restrictedLastRound, restrictionInForce, round, rule, signFacility, strategy, transformedLastRound, selfEntity, homeMarket, eq, factor, ge, gt, holding, le, lit, max', mul, not', param, price, sub)
+import Schema.Build.Intent (enactTariff, trade, transfer, transform)
 import Premises.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Premises.Names as N
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
-policies :: Keyed (Built "strategy")
-policies = keyed
+policies :: Array (Tuple String Strategy)
+policies =
   [ Tuple N.policyChinaStrategic chinaStrategic
   , Tuple N.policyEuCoordination euCoordination
   , Tuple N.policyGlobalSmes globalSmes
@@ -27,61 +29,68 @@ policies = keyed
   , Tuple N.policySolidarityPool solidarityPool
   ]
 
-chinaStrategic :: Built "strategy"
+-- | A market order with no limit price.
+order :: String -> Expr -> Template
+order m quantity = asTemplate (trade { market: m, quantity, limit: Nothing })
+
+chinaStrategic :: Strategy
 chinaStrategic = strategy
   { rules:
       [ rule [ transformedLastRound { by: N.us, transformation: N.majorMilitaryAction, atLeast: param majorActionThreshold } ]
-          [ transformT { transformation: N.defenseProcurementCn, quantity: (lit 4) } ]
+          [ asTemplate (transform { by: selfEntity, transformation: N.defenseProcurementCn, quantity: lit 4 }) ]
       , rule [ gt (price N.energyAsia) (lit "3.2") ]
-          [ tradeT { market: N.energyAsia, quantity: (lit (-12)) } ]
+          [ order N.energyAsia (lit (-12)) ]
       , rule [ restrictedLastRound { by: N.us, target: N.cn } ]
           [ reciprocate { target: N.us } ]
       ]
+  , sign: []
   }
 
-euCoordination :: Built "strategy"
+euCoordination :: Strategy
 euCoordination = strategy
   { rules:
       banded N.energyAtlantic 3 8 4
         <>
           [ rule [ gt (price N.energyAtlantic) (lit 3), ge (holding N.energy) (lit 8) ]
-              [ procedureT { id: N.euSolidarity, signers: [ N.de ], intents: [ transferT { from: N.euPool, to: N.eu, resource: N.energy, quantity: (lit 8) }, tradeT { market: N.energyAtlantic, quantity: (lit (-8)) } ] } ]
+              [ procedure { id: N.euSolidarity, signers: [ N.de ], intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: lit 8 }, trade { market: N.energyAtlantic, quantity: lit (-8), limit: Nothing } ] } ]
           , tariffMatch N.us
           , tariffMatch N.cn
           ]
+  , sign: []
   }
 
 -- | The EU matches a rival's restriction with a tariff of its own, unless it already has one in force.
 tariffMatch :: String -> Clause
 tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: N.eu }) ]
-  [ procedureT { id: N.euTrade, signers: [ N.de ], intents: [ enactTariffT { origin: origin, rate: (param euMatchingTariff) } ] } ]
+  [ procedure { id: N.euTrade, signers: [ N.de ], intents: [ enactTariff { jurisdiction: selfEntity, origin, rate: param euMatchingTariff } ] } ]
 
 -- | A price band: trade `below` while the Market's price is at or below `threshold`, and `above`
 -- | while it is above. Every band in the catalog is this shape.
 banded :: String -> Int -> Int -> Int -> Array Clause
 banded m threshold below above =
-  [ rule [ le (price m) (lit threshold) ] [ tradeT { market: m, quantity: lit below } ]
-  , rule [ gt (price m) (lit threshold) ] [ tradeT { market: m, quantity: lit above } ]
+  [ rule [ le (price m) (lit threshold) ] [ order m (lit below) ]
+  , rule [ gt (price m) (lit threshold) ] [ order m (lit above) ]
   ]
 
-globalSmes :: Built "strategy"
+globalSmes :: Strategy
 globalSmes = strategy
   { rules:
       [ rule [ le (price N.energyAtlantic) (lit "3.5") ]
-          [ tradeT { market: N.energyAtlantic, quantity: (mul (lit 40) (factor N.energy)) } ]
+          [ order N.energyAtlantic (mul (lit 40) (factor N.energy)) ]
       , rule [ gt (price N.energyAtlantic) (lit "3.5") ]
-          [ tradeT { market: N.energyAtlantic, quantity: (mul (lit 32) (factor N.energy)) } ]
+          [ order N.energyAtlantic (mul (lit 32) (factor N.energy)) ]
       ]
+  , sign: []
   }
 
-cnPrivate :: Built "strategy"
-cnPrivate = strategy { rules: banded N.energyAsia 3 12 9 }
+cnPrivate :: Strategy
+cnPrivate = strategy { rules: banded N.energyAsia 3 12 9, sign: [] }
 
-usWorkers :: Built "strategy"
-usWorkers = strategy { rules: banded N.energyAtlantic 3 8 6 }
+usWorkers :: Strategy
+usWorkers = strategy { rules: banded N.energyAtlantic 3 8 6, sign: [] }
 
-worldHouseholds :: Built "strategy"
-worldHouseholds = strategy { rules: banded N.energyAsia 3 12 9 }
+worldHouseholds :: Strategy
+worldHouseholds = strategy { rules: banded N.energyAsia 3 12 9, sign: [] }
 
 -- | The Energy suppliers' offers in one Market, from the Market and the supplier parameters that
 -- | the Market's suffix names (`Parameters.supplierAtlantic` and `supplierAsia`). Below the high
@@ -100,24 +109,24 @@ supplierOffers m names =
   notDisruption = not' disruption
   low = not' (ge (price m) (param supplierHighPrice))
   high = ge (price m) (param supplierHighPrice)
-  offer quantity = tradeT { market: m, quantity: quantity }
+  offer quantity = order m quantity
 
-energySuppliers :: Built "strategy"
+energySuppliers :: Strategy
 energySuppliers = strategy
-  { rules: supplierOffers N.energyAtlantic supplierAtlantic.names <> supplierOffers N.energyAsia supplierAsia.names }
+  { rules: supplierOffers N.energyAtlantic supplierAtlantic.names <> supplierOffers N.energyAsia supplierAsia.names, sign: [] }
 
-governmentDefault :: Built "strategy"
-governmentDefault = strategy {}
+governmentDefault :: Strategy
+governmentDefault = strategy { rules: [], sign: [] }
 
 -- | The solidarity pool has no policy: it only gives Energy when the EU's procedure draws on it.
-solidarityPool :: Built "strategy"
-solidarityPool = strategy {}
+solidarityPool :: Strategy
+solidarityPool = strategy { rules: [], sign: [] }
 
-firmDefault :: Built "strategy"
+firmDefault :: Strategy
 firmDefault = strategy
   { rules:
       [ rule [ gt (holding N.energy) (lit 30) ]
-          [ tradeT { market: T.homeMarket, quantity: (sub (lit 30) (holding N.energy)) } ]
+          [ order homeMarket (sub (lit 30) (holding N.energy)) ]
       ]
   , sign: [ signFacility N.energyShipping ]
   }

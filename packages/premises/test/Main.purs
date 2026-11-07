@@ -33,10 +33,12 @@ import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
-import Schema.Decode.Strategy (decodeStrategy)
+import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape, presetsShape)
+import Core.Shape (Format(..), encodeWith)
+import Schema.Build.Intent as I
 import Schema.Build.Base (q, keyed, builtJson, trade, transfer, transform, enactTariff, enactAccessBan, enactWithholding, holdingOf)
 import Schema.Build.World (atLeast, own)
-import Schema.Build.Decision (deal, lit, max', param, strategy, rule, signProcedures, tradeT, transformT)
+import Schema.Build.Decision (asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
 import Schema.Build.Fixture (enactAccessBanI, enactWithholdingI, intentJson, tariffRule, withholdingRule)
 import Adapters.Filesystem (fileOps)
 import Premises.Load (decodeFixture)
@@ -96,7 +98,7 @@ withSection name json = map (\s -> if s.name == name then s { json = json } else
 
 -- | The shipped seat presets, decoded.
 shippedPresets :: Either String (Object Strategy)
-shippedPresets = decodePresets (encodeJson Presets.presets)
+shippedPresets = decodePresets (encodeWith Premise presetsShape Presets.presets)
 
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
 chinaView :: View
@@ -161,12 +163,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "max' and signProcedures compile to a strategy the decoder accepts" do
       let
         p = strategy
-          { rules: [ rule [] [ transformT { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) } ] ]
+          { rules: [ rule [] [ asTemplate (I.transform { by: "self", transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) }) ] ]
           , sign: [ signProcedures [ "EU" ] ]
           }
-      case decodeStrategy (builtJson p) of
+      case decodeStrategy (encodeStrategy p) of
         Left e -> fail (show e)
         Right prog -> do
+          (prog == p) `shouldEqual` true
           length prog.rules `shouldEqual` 1
           case prog.sign of
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
@@ -198,10 +201,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
         p = strategy
-          { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ] }
-      case decodeStrategy (builtJson p) of
+          { rules: [ rule [] [ deal { signers: [ "DE" ], intents: [ I.transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ], sign: [] }
+      case decodeStrategy (encodeStrategy p) of
         Left e -> fail (show e)
         Right prog -> do
+          (prog == p) `shouldEqual` true
           let refs = strategyRefs prog
           refs.resources `shouldEqual` [ "E" ]
           refs.entities `shouldEqual` [ "DE", "DE" ]
@@ -410,7 +414,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       responds 6 `shouldEqual` procures
       responds 24 `shouldEqual` []
     it "RandomValid's choose picks an option by its own seeded draw" do
-      case decodePresets (encodeJson Presets.presets) of
+      case decodePresets (encodeWith Premise presetsShape Presets.presets) of
         Left e -> fail e
         Right ps -> case Object.lookup "RandomValid" ps of
           Nothing -> fail "no RandomValid preset"
@@ -432,7 +436,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Map.isEmpty t.inputs `shouldEqual` true
           Map.isEmpty t.outputs `shouldEqual` true
     it "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" do
-      case decodePresets (encodeJson Presets.presets) of
+      case decodePresets (encodeWith Premise presetsShape Presets.presets) of
         Left e -> fail e
         Right ps -> case Object.lookup "Deployer" ps of
           Nothing -> fail "no Deployer preset"
@@ -456,20 +460,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (NotAnObject "premise.json")
     it "a policy that names an unknown market fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ tradeT { market: "energy-nowhere", quantity: lit 1 } ] ] }
-        catalog = policies <> keyed [ Tuple "bad-v0" bad ]
-      outcome (fromFiles (withSection "policies.json" (encodeJson { policies: catalog })))
+        bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+        catalog = policies <> [ Tuple "bad-v0" bad ]
+      outcome (fromFiles (withSection "policies.json" (encodeWith Premise policiesShape catalog)))
         `shouldEqual` Left (Unresolved "policy bad-v0" MarketRef "energy-nowhere")
     it "a policy that reads an unknown parameter fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ tradeT { market: "energy-atlantic", quantity: param "no-such-parameter" } ] ] }
-        catalog = policies <> keyed [ Tuple "bad-v0" bad ]
-      outcome (fromFiles (withSection "policies.json" (encodeJson { policies: catalog })))
+        bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
+        catalog = policies <> [ Tuple "bad-v0" bad ]
+      outcome (fromFiles (withSection "policies.json" (encodeWith Premise policiesShape catalog)))
         `shouldEqual` Left (Unresolved "policy bad-v0" ParameterRef "no-such-parameter")
     it "a preset that names an unknown transformation fails the check" do
       { gameboard } <- loaded
-      let bad = strategy { rules: [ rule [] [ transformT { transformation: "no-such-facility", quantity: lit 1 } ] ] }
-      case decodeStrategy (builtJson bad) of
+      let bad = strategy { rules: [ rule [] [ asTemplate (I.transform { by: "self", transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
+      case decodeStrategy (encodeStrategy bad) of
         Left e -> fail (show e)
         Right p -> checkPresets gameboard (Object.singleton "Bad" p)
           `shouldEqual` Left (Unresolved "preset Bad" TransformationRef "no-such-facility")

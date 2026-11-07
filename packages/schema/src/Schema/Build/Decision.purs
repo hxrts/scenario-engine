@@ -1,9 +1,8 @@
--- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions,
--- | Proposal templates, sign rules and clauses from which a Policy's Strategy is built. The
--- | builders emit the JSON that the `policy` interpreter reads.
+-- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions, Proposal
+-- | templates, sign rules, clauses and Strategies a Policy runs. The builders return the
+-- | `Core.Strategy` values directly; `Schema.Premise.Strategy` writes them in the premise format.
 module Schema.Build.Decision
-  ( Expr
-  , lit
+  ( lit
   , param
   , round
   , price
@@ -12,7 +11,6 @@ module Schema.Build.Decision
   , mul
   , sub
   , max'
-  , Cond
   , gt
   , ge
   , le
@@ -21,262 +19,142 @@ module Schema.Build.Decision
   , transformedLastRound
   , restrictedLastRound
   , restrictionInForce
-  , Template
-  , tradeT
-  , routeT
-  , transformT
-  , transferT
-  , procedureT
-  , enactTariffT
+  , asTemplate
+  , procedure
   , deal
   , reciprocate
   , choose
   , noAction
-  , SignRule
   , signProcedures
   , signFacility
   , signAll
   , signIf
-  , enactAccessBanT
-  , enactWithholdingT
-  , repealT
-  , Clause
   , rule
   , strategy
+  , selfEntity
+  , homeMarket
   ) where
 
 import Prelude
 
-import Schema.Build.Base (Built, class ToQty, build, q, tag)
-import Data.Argonaut.Core (Json, fromArray, fromString, jsonNull)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Schema.Tags as T
-import Prim.Row (class Union)
+import Data.Maybe (Maybe(..))
 
--- | A Transfer's fields: the agent `from` gives `quantity` of `resource` to `to`.
-type TransferRow = (from :: String, to :: String, resource :: String, quantity :: Expr)
+import Core.Strategy (Clause, Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
+import Core.Strategy as S
+import Core.Types (Id(..), IntentF)
+import Schema.Build.Quantity (class ToQty, q)
 
-newtype Expr = Expr Json
+-- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
+selfEntity :: String
+selfEntity = S.selfName
 
-instance EncodeJson Expr where
-  encodeJson (Expr j) = j
+-- | The Market a Strategy names by `$home`: the Entity's home Market.
+homeMarket :: String
+homeMarket = S.homeMarketName
+
+-- Expressions ----------------------------------------------------------------------------
 
 -- | A literal: `lit 12`, `lit "3.2"`.
 lit :: forall a. ToQty a => a -> Expr
-lit = Expr <<< encodeJson <<< q
+lit = Lit <<< q
 
 param :: String -> Expr
-param = Expr <<< tag T.paramTag <<< fromString
+param = Param
 
 round :: Expr
-round = Expr (tag T.roundTag jsonNull)
+round = Round
 
 price :: String -> Expr
-price = Expr <<< tag T.priceTag <<< fromString
+price = Price <<< Id
 
 holding :: String -> Expr
-holding = Expr <<< tag T.holdingTag <<< fromString
+holding = Holding <<< Id
 
 factor :: String -> Expr
-factor = Expr <<< tag T.factorTag <<< fromString
-
-binary :: String -> Expr -> Expr -> Json
-binary k (Expr a) (Expr b) = tag k (fromArray [ a, b ])
+factor = Factor <<< Id
 
 mul :: Expr -> Expr -> Expr
-mul a b = Expr (binary "mul" a b)
+mul = Mul
 
 sub :: Expr -> Expr -> Expr
-sub a b = Expr (binary "sub" a b)
+sub = Sub
 
 max' :: Expr -> Expr -> Expr
-max' a b = Expr (binary "max" a b)
+max' = Max
 
-newtype Cond = Cond Json
-
-instance EncodeJson Cond where
-  encodeJson (Cond j) = j
+-- Conditions -----------------------------------------------------------------------------
 
 gt :: Expr -> Expr -> Cond
-gt a b = Cond (binary "gt" a b)
+gt = Gt
 
 ge :: Expr -> Expr -> Cond
-ge a b = Cond (binary "ge" a b)
+ge = Ge
 
 le :: Expr -> Expr -> Cond
-le a b = Cond (binary "le" a b)
+le = Le
 
 eq :: Expr -> Expr -> Cond
-eq a b = Cond (binary "eq" a b)
+eq = Eq
 
 not' :: Cond -> Cond
-not' (Cond c) = Cond (tag T.notTag c)
+not' = Not
 
 -- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
-transformedLastRound
-  :: forall r rest
-   . Union r rest (by :: String, transformation :: String, atLeast :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Cond
-transformedLastRound = Cond <<< tag T.transformedLastRoundTag <<< encodeJson
+transformedLastRound :: { by :: String, transformation :: String, atLeast :: Expr } -> Cond
+transformedLastRound r = TransformedLastRound { by: Id r.by, transformation: Id r.transformation, atLeast: r.atLeast }
 
-restrictedLastRound
-  :: forall r rest
-   . Union r rest (by :: String, target :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Cond
-restrictedLastRound = Cond <<< tag T.restrictedLastRoundTag <<< encodeJson
+restrictedLastRound :: { by :: String, target :: String } -> Cond
+restrictedLastRound r = RestrictedLastRound { by: Id r.by, target: Id r.target }
 
-restrictionInForce
-  :: forall r rest
-   . Union r rest (by :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Cond
-restrictionInForce = Cond <<< tag T.restrictionInForceTag <<< encodeJson
+restrictionInForce :: { by :: String } -> Cond
+restrictionInForce r = RestrictionInForce { by: Id r.by }
 
-newtype Template = Template Json
+-- Templates ------------------------------------------------------------------------------
 
-instance EncodeJson Template where
-  encodeJson (Template j) = j
+-- | One Intent, with its quantities as expressions, as a template.
+asTemplate :: IntentF Expr -> Template
+asTemplate = IntentT
 
--- | An order on a Market; `limit` is optional.
-tradeT
-  :: forall r rest
-   . Union r rest (market :: String, quantity :: Expr, limit :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-tradeT = Template <<< tag T.tradeTag <<< encodeJson
+-- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
+-- | the collective procedure the Proposal runs under).
+procedure :: { id :: String, signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
 
--- | A routed order (docs/02 §5.2): no Market is named, so `base` and `quote` give the pair and
--- | the engine routes the order across the Markets for it. `limit` is required.
-routeT
-  :: forall r rest
-   . Union r rest (base :: String, quote :: String, quantity :: Expr, limit :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-routeT = Template <<< tag T.routeTag <<< encodeJson
+-- | A Deal: a Proposal with no procedure. Its transfers come first, then its transforms.
+deal :: { signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+deal r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Nothing }
 
-transformT
-  :: forall r rest
-   . Union r rest (transformation :: String, quantity :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-transformT = Template <<< tag T.transformTag <<< encodeJson
-
--- | A Transfer, for a procedure to carry (docs/05 §12.1): the agent `from` gives `quantity` to `to`.
-transferT
-  :: forall r rest
-   . Union r rest TransferRow
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-transferT = Template <<< tag T.transferTag <<< encodeJson
-
--- | An Aggregate's own procedure Proposal, for its members to sign.
-procedureT
-  :: forall r rest
-   . Union r rest (id :: String, signers :: Array String, intents :: Array Template)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-procedureT = Template <<< tag T.procedureTag <<< encodeJson
-
-enactTariffT
-  :: forall r rest
-   . Union r rest (origin :: String, rate :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-enactTariffT = Template <<< tag T.enactTariffTag <<< encodeJson
-
-deal
-  :: forall r rest
-   . Union r rest (signers :: Array String, transfers :: Array (Record TransferRow), transforms :: Array { transformation :: String, quantity :: Expr })
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-deal = Template <<< tag T.dealTag <<< encodeJson
-
-reciprocate
-  :: forall r rest
-   . Union r rest (target :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-reciprocate = Template <<< tag T.reciprocateTag <<< encodeJson
-
--- | Ban shipments from the author's jurisdiction into `target` (docs/02 §3, AccessBan).
-enactAccessBanT
-  :: forall r rest
-   . Union r rest (target :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-enactAccessBanT = Template <<< tag T.enactAccessBanTag <<< encodeJson
-
--- | Withhold `units` of a capacity the author owns, per round (docs/02 §3, Withholding).
-enactWithholdingT
-  :: forall r rest
-   . Union r rest (capacity :: String, units :: Expr)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-enactWithholdingT = Template <<< tag T.enactWithholdingTag <<< encodeJson
-
--- | Repeal a Rule the author governs, by the id the engine gave it: `<proposal id>/rule-<index>`.
-repealT
-  :: forall r rest
-   . Union r rest (rule :: String)
-  => EncodeJson (Record r)
-  => Record r
-  -> Template
-repealT = Template <<< tag T.repealTag <<< encodeJson
+-- | Enact the restriction `target` enacted against this Entity last round.
+reciprocate :: { target :: String } -> Template
+reciprocate r = ReciprocateLastRound { target: Id r.target }
 
 choose :: Array Template -> Template
-choose = Template <<< tag T.chooseTag <<< encodeJson
+choose = Choose
 
 -- | Propose nothing: an option for `choose`, or a clause's whole proposal.
 noAction :: Template
-noAction = Template (tag T.noActionTag jsonNull)
+noAction = NoAction
 
-newtype SignRule = SignRule Json
-
-instance EncodeJson SignRule where
-  encodeJson (SignRule j) = j
+-- Sign rules -----------------------------------------------------------------------------
 
 signProcedures :: Array String -> SignRule
-signProcedures = SignRule <<< tag T.proceduresTag <<< encodeJson
+signProcedures xs = SignProcedures (map Id xs)
 
 signFacility :: String -> SignRule
-signFacility = SignRule <<< tag T.facilityTag <<< fromString
+signFacility = SignFacility <<< Id
 
 signAll :: SignRule
-signAll = SignRule (tag T.allTag jsonNull)
+signAll = SignAll
 
 -- | The inner sign rule, while every condition holds.
 signIf :: Array Cond -> SignRule -> SignRule
-signIf when inner = SignRule (tag T.signIfTag (encodeJson { when, rule: inner }))
+signIf when inner = SignIf { when, rule: inner }
 
--- | One clause of a Strategy: when every condition holds, propose the templates.
-newtype Clause = Clause Json
-
-instance EncodeJson Clause where
-  encodeJson (Clause j) = j
+-- Clauses and Strategies -----------------------------------------------------------------
 
 -- | When every condition holds, propose the templates. `when` may be empty.
 rule :: Array Cond -> Array Template -> Clause
-rule when propose = Clause (encodeJson { when, propose })
+rule when propose = { when, propose }
 
-strategy
-  :: forall r rest
-   . Union r rest (rules :: Array Clause, sign :: Array SignRule)
-  => EncodeJson (Record r)
-  => Record r
-  -> Built "strategy"
-strategy = build
+strategy :: { rules :: Array Clause, sign :: Array SignRule } -> Strategy
+strategy r = { rules: r.rules, sign: r.sign }

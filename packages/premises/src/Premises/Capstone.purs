@@ -11,12 +11,16 @@ import Premises.Names as N
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (find)
-import Data.Maybe (Maybe)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Schema.Build.Base (Built, Keyed, (:=), keyed, q)
-import Schema.Build.Decision (deal, enactAccessBanT, enactWithholdingT, eq, ge, gt, lit, price, strategy, repealT, round, rule, signAll, signFacility, signIf, signProcedures, tradeT, transformT)
+import Core.Strategy (Strategy)
+import Data.Maybe (Maybe(..))
+import Schema.Build.Base (Built, (:=), keyed, q)
+import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
+import Schema.Build.Intent (enactAccessBan, enactWithholding, repeal, trade, transfer, transform)
+import Schema.Premise.Strategy (presetsShape)
+import Core.Shape (Format(..), encodeWith)
 import Schema.Build.Fixture (expect, procedureOutcome, refAt)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
@@ -31,93 +35,100 @@ playerSeed = 7
 -- | round 6. Its first Proposal in round 2 is the ban, so the Rule's id is `r2/US/0/rule-0`.
 -- | Whenever the Atlantic price is above 3 it reserves 60 Mil for a deployment and orders a
 -- | 40-unit major action (the shipped Deployer clause).
-us :: Built "strategy"
+us :: Strategy
 us = strategy
   { rules:
-      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
-      , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
+      [ rule [ eq round (lit 2) ] [ asTemplate (enactAccessBan { jurisdiction: selfEntity, target: N.india }) ]
+      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
       , rule [ gt (price N.energyAtlantic) (lit 3) ]
-          [ transformT { transformation: N.militaryDeployment, quantity: lit 60 }
-          , transformT { transformation: N.majorMilitaryAction, quantity: lit 40 }
+          [ asTemplate (transform { by: selfEntity, transformation: N.militaryDeployment, quantity: lit 60 })
+          , asTemplate (transform { by: selfEntity, transformation: N.majorMilitaryAction, quantity: lit 40 })
           ]
       ]
+  , sign: []
   }
 
 -- | The US without the deployment: the counterfactual's US seat keeps its ban and repeal only.
-usWithoutDeployment :: Built "strategy"
+usWithoutDeployment :: Strategy
 usWithoutDeployment = strategy
   { rules:
-      [ rule [ eq round (lit 2) ] [ enactAccessBanT { target: N.india } ]
-      , rule [ eq round (lit 6) ] [ repealT { rule: "r2/US/0/rule-0" } ]
+      [ rule [ eq round (lit 2) ] [ asTemplate (enactAccessBan { jurisdiction: selfEntity, target: N.india }) ]
+      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
       ]
+  , sign: []
   }
 
 -- | Germany signs the EU's solidarity Proposal from round 5 only. The EU's own policy proposes that
 -- | procedure when the Atlantic price is above 3: round 4 starts above 3, Germany does not sign,
 -- | and the procedure lapses; round 5 starts above 3 again, Germany signs, and it executes.
-de :: Built "strategy"
-de = strategy { sign: [ signIf [ ge round (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
+de :: Strategy
+de = strategy { rules: [], sign: [ signIf [ ge round (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
 
 -- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then
 -- | (its requirement takes 8 a round), so the deal is funded.
-jp :: Built "strategy"
+jp :: Strategy
 jp = strategy
   { rules:
       [ rule [ eq round (lit 3) ]
-          [ deal { signers: [ N.jp, N.india ], transfers: [ { from: "self", to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
+          [ deal { signers: [ N.jp, N.india ], intents: [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
       ]
+  , sign: []
   }
 
 -- | Enco ships Energy into India across regions in rounds 4 and 7: a transport order (its own
 -- | energy-shipping facility, which SHIP signs) and a deal that India signs. The US ban on
 -- | shipments into India blocks round 4; the repeal in round 6 lets round 7 through.
-enco :: Built "strategy"
+enco :: Strategy
 enco = strategy
   { rules:
-      [ rule [ eq round (lit 4) ] (shipment)
-      , rule [ eq round (lit 7) ] (shipment)
+      [ rule [ eq round (lit 4) ] shipment
+      , rule [ eq round (lit 7) ] shipment
       ]
+  , sign: []
   }
   where
   shipment =
     [ deal
         { signers: [ N.enco, N.india, N.ship ]
-        , transfers: [ { from: "self", to: N.india, resource: N.energy, quantity: lit 5 } ]
-        , transforms: [ { transformation: N.energyShipping, quantity: lit 5 } ]
+        , intents:
+            [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 5 }
+            , transform { by: selfEntity, transformation: N.energyShipping, quantity: lit 5 }
+            ]
         }
     ]
 
 -- | SME buys 4 Energy in the Atlantic market every round. Its orders are the observation its
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
-sme :: Built "strategy"
-sme = strategy { rules: [ rule [] [ tradeT { market: N.energyAtlantic, quantity: lit 4 } ] ] }
+sme :: Strategy
+sme = strategy { rules: [ rule [] [ asTemplate (trade { market: N.energyAtlantic, quantity: lit 4, limit: Nothing }) ] ], sign: [] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
-shipping :: Built "strategy"
-shipping = strategy { sign: [ signFacility N.energyShipping ] }
+shipping :: Strategy
+shipping = strategy { rules: [], sign: [ signFacility N.energyShipping ] }
 
 -- | India signs every Proposal addressed to it.
-india :: Built "strategy"
-india = strategy { sign: [ signAll ] }
+india :: Strategy
+india = strategy { rules: [], sign: [ signAll ] }
 
 -- | Chip owner: withholds 5 units of semiconductor capacity from round 4, and repeals the
 -- | withholding in round 6 (its first Proposal in round 4, `r4/CHIP/0/rule-0`).
-chip :: Built "strategy"
+chip :: Strategy
 chip = strategy
   { rules:
-      [ rule [ eq round (lit 4) ] [ enactWithholdingT { capacity: N.semiconductors, units: lit 5 } ]
-      , rule [ eq round (lit 6) ] [ repealT { rule: "r4/CHIP/0/rule-0" } ]
+      [ rule [ eq round (lit 4) ] [ asTemplate (enactWithholding { capacity: N.semiconductors, units: lit 5 }) ]
+      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
       ]
+  , sign: []
   }
 
-passive :: Built "strategy"
-passive = strategy {}
+passive :: Strategy
+passive = strategy { rules: [], sign: [] }
 
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
-seats :: Built "strategy" -> Keyed (Built "strategy")
-seats usStrategy = keyed
+seats :: Strategy -> Array (Tuple String Strategy)
+seats usStrategy =
   [ Tuple N.us usStrategy
   , Tuple N.de de
   , Tuple N.india india
@@ -190,8 +201,8 @@ file = encodeJson
   { label: "capstone"
   , rounds
   , playerSeed
-  , seats: seats us
-  , counterfactual: keyed [ Tuple N.us usWithoutDeployment ]
+  , seats: encodeWith Premise presetsShape (seats us)
+  , counterfactual: encodeWith Premise presetsShape [ Tuple N.us usWithoutDeployment ]
   , expectations
   , objectives: baseObjectives
   , counterfactualObjectives

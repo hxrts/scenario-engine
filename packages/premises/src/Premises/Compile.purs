@@ -13,7 +13,8 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
-import Schema.Build.Base (Keyed, Built)
+import Core.Shape (Format(..), encodeWith)
+import Schema.Premise.Strategy (policiesShape, presetsShape)
 import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
@@ -35,7 +36,7 @@ compile = do
 outputs :: Array (Tuple String Json)
 outputs =
   map (\(Tuple name j) -> Tuple ("meridian/v0/" <> name) j) Meridian.files
-    <> [ Tuple presetsFile (encodeJson (Presets.presets :: Keyed (Built "strategy"))) ]
+    <> [ Tuple presetsFile (encodeWith Premise presetsShape Presets.presets) ]
     <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
     <> [ Tuple "capstone/run.json" Capstone.file ]
 
@@ -44,7 +45,7 @@ outputs =
 validate :: Either String Unit
 validate = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) Meridian.files))
-  presets <- decodePresets (encodeJson Presets.presets)
+  presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
   lmap show (checkPresets loaded.gameboard presets)
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeFixture j)
 

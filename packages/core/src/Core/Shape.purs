@@ -19,6 +19,9 @@ module Core.Shape
   , prim
   , qShape
   , unitShape
+  , intShape
+  , stringShape
+  , boolShape
   , arrayOf
   , optionalOf
   , field
@@ -29,6 +32,24 @@ module Core.Shape
   , rec5
   , ctorOf
   , sumOf
+  , PCtor
+  , oneKey
+  , kindArg
+  , bare
+  , literal
+  , embedded
+  , premiseSum
+  , RecF
+  , fieldOf
+  , object
+  , pairOf
+  , eitherOf
+  , keyedOf
+  , recursive
+  , iso
+  , refined
+  , omittedWhen
+  , orDefault
   , encodeWith
   , decodeWith
   , jsonSchema
@@ -41,12 +62,14 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromObject, fromString, isNull, jsonNull, toArray, toObject, toString)
+import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Decode.Error as J
 import Data.Bifunctor (lmap)
 import Data.Codec.Argonaut (JsonCodec)
 import Data.Codec.Argonaut as CA
 import Data.Array as Array
+import Data.Int as Int
+import Partial.Unsafe (unsafeCrashWith)
 import Data.Array (sortBy)
 import Data.Tuple (Tuple(..), fst)
 import Data.Either (Either(..), either, note)
@@ -66,7 +89,7 @@ data Format = Premise | Snapshot
 derive instance Eq Format
 
 -- | How a sum is written in the premise format. Snapshot always uses the generic form.
-data TagForm = OneKey | KindArg | Bare
+data TagForm = OneKey | KindArg | Bare | Literal | Mixed
 
 derive instance Eq TagForm
 
@@ -79,12 +102,16 @@ data Desc
   | DOpt Desc
   | DRec String (Array DField)
   | DSum String TagForm (Array DCtor)
+  | DKeyed Desc -- an object whose keys name its entries (a Map, an Entity catalog)
+  | DTuple Desc Desc -- a two-element array
+  | DOr Desc Desc -- either of two forms (a string or an object)
+  | DRef String -- a recursive description, named where it is defined
 
 derive instance Eq Desc
 
 type DField = { scen :: String, snap :: String, desc :: String, shape :: Desc }
 
-type DCtor = { tag :: String, desc :: String, payload :: Desc }
+type DCtor = { tag :: String, desc :: String, payload :: Desc, form :: TagForm }
 
 -- | A shape of `a`: its description, its codec in each format, whether a value is omitted from
 -- | the premise format when absent, and what a missing key decodes to (if anything).
@@ -151,6 +178,15 @@ minimal s = case indexOf (Pattern ".") s of
   trimZeros t = if endsWith "0" t then trimZeros (take (SCU.length t - 1) t) else t
   trimPoint t = if endsWith "." t then take (SCU.length t - 1) t else t
   endsWith suffix t = take 1 (drop (SCU.length t - 1) t) == suffix
+
+intShape :: Shape Int
+intShape = prim "Int" (\n -> fromNumber (Int.toNumber n)) (\j -> note "expected an integer" (toNumber j >>= Int.fromNumber))
+
+stringShape :: Shape String
+stringShape = prim "String" fromString (note "expected a string" <<< toString)
+
+boolShape :: Shape Boolean
+boolShape = prim "Boolean" fromBoolean (note "expected a boolean" <<< toBoolean)
 
 unitShape :: Shape Unit
 unitShape = prim "null" (const jsonNull) (\j -> if isNull j then Right unit else Left "expected null")
@@ -269,7 +305,7 @@ ctorOf t s proj inj =
 -- | snapshot list gives the generic tags. Both lists project and inject the same Haskell value.
 sumOf :: forall a. String -> TagForm -> Array (Ctor a) -> Array (Ctor a) -> Shape a
 sumOf name form scen snap =
-  { desc: DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload }) scen)
+  { desc: DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form }) scen)
   , codec: \fmt -> { enc: encSum fmt, dec: decSum fmt }
   , absent: const false
   , missing: Nothing
@@ -294,6 +330,7 @@ sumOf name form scen snap =
     OneKey -> fromObject (Object.singleton c.tag j)
     KindArg -> fromString (c.tag <> ":" <> fromMaybe "" (toString j))
     Bare -> fromString c.tag
+    _ -> unsafeCrashWith "sumOf: a premise-only tag form"
 
   decSum fmt j = case fmt of
     Snapshot -> do
@@ -324,10 +361,244 @@ sumOf name form scen snap =
         s <- note "expected a tag string" (toString j)
         pickRight ("no constructor " <> s)
           (map (\c -> c.inject fmt jsonNull) (Array.filter (\c -> c.tag == s) (ctorsOf fmt)))
+      _ -> Left "sumOf: a premise-only tag form"
 
   pickRight err xs = case Array.find (either (const false) (const true)) xs of
     Just r -> r
     Nothing -> Left err
+
+-- Premise-format combinators ---------------------------------------------------------------
+--
+-- The premise format is written and read only in `Premise`, so these combinators ignore the format
+-- argument: a premise shape has no snapshot form. They cover what the snapshot combinators do not:
+-- a sum whose constructors mix one-key objects, `kind:argument` strings, bare strings and bare
+-- quantities; records built with an applicative, so any number of fields works; recursive
+-- descriptions; and isomorphisms, refinements and defaults.
+
+-- | One constructor of a premise sum: its tag, how it is written, a projection (Nothing when the value
+-- | is another constructor), and an injection (Nothing when the JSON is another constructor's form).
+type PCtor a =
+  { tag :: String
+  , desc :: String
+  , payload :: Desc
+  , form :: TagForm
+  , project :: a -> Maybe Json
+  , inject :: Json -> Maybe (Either String a)
+  }
+
+pay :: forall b. Shape b -> { enc :: b -> Json, dec :: Json -> Either String b }
+pay s = s.codec Premise
+
+-- | `{ "tag": payload }`: a one-key object.
+oneKey :: forall a b. { tag :: String, desc :: String } -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
+oneKey t s proj inj =
+  { tag: t.tag
+  , desc: t.desc
+  , payload: s.desc
+  , form: OneKey
+  , project: \x -> map (\b -> fromObject (Object.singleton t.tag ((pay s).enc b))) (proj x)
+  , inject: \j -> case toObject j of
+      Just o -> case Object.toUnfoldable o of
+        [ Tuple k body ] | k == t.tag -> Just (map inj ((pay s).dec body))
+        _ -> Nothing
+      Nothing -> Nothing
+  }
+
+-- | `"tag:argument"`: a string whose argument is the payload's own string.
+kindArg :: forall a b. { tag :: String, desc :: String } -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
+kindArg t s proj inj =
+  { tag: t.tag
+  , desc: t.desc
+  , payload: s.desc
+  , form: KindArg
+  , project: \x -> map (\b -> fromString (prefix <> fromMaybe "" (toString ((pay s).enc b)))) (proj x)
+  , inject: \j -> case toString j >>= stripPrefix of
+      Just rest -> Just (map inj ((pay s).dec (fromString rest)))
+      Nothing -> Nothing
+  }
+  where
+  prefix = t.tag <> ":"
+  stripPrefix str = if take (SCU.length prefix) str == prefix then Just (drop (SCU.length prefix) str) else Nothing
+
+-- | A bare string that names one value, such as `"Free"`.
+bare :: forall a. { tag :: String, desc :: String } -> a -> (a -> Boolean) -> PCtor a
+bare t value is =
+  { tag: t.tag
+  , desc: t.desc
+  , payload: DPrim "null"
+  , form: Bare
+  , project: \x -> if is x then Just (fromString t.tag) else Nothing
+  , inject: \j -> if toString j == Just t.tag then Just (Right value) else Nothing
+  }
+
+-- | A bare value with no tag, such as an expression's quantity literal. Written and read as its payload.
+literal :: forall a b. Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
+literal s proj inj =
+  { tag: ""
+  , desc: "a literal value, written without a tag"
+  , payload: s.desc
+  , form: Literal
+  , project: \x -> map (pay s).enc (proj x)
+  , inject: \j -> case (pay s).dec j of
+      Right b -> Just (Right (inj b))
+      Left _ -> Nothing
+  }
+
+-- | A constructor written as another shape's value, with no tag of its own: the value is the
+-- | sub-shape's form (a Deal's transfers are written as plain Transfer objects). It reads whenever the
+-- | sub-shape reads, so it belongs after the tagged constructors of its sum.
+embedded :: forall a b. Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
+embedded s proj inj =
+  { tag: ""
+  , desc: "a value in its own form"
+  , payload: s.desc
+  , form: Mixed
+  , project: \x -> map (pay s).enc (proj x)
+  , inject: \j -> case (pay s).dec j of
+      Right b -> Just (Right (inj b))
+      Left _ -> Nothing
+  }
+
+-- | A sum of premise constructors. The first constructor that reads a JSON value wins; the first
+-- | that projects a value writes it. The list must be total for the type: an unmatched value is a
+-- | programming error, so encoding it crashes.
+premiseSum :: forall a. String -> Array (PCtor a) -> Shape a
+premiseSum name ctors =
+  { desc: DSum name Mixed (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form }) ctors)
+  , codec: \_ ->
+      { enc: \x -> case Array.findMap (\c -> c.project x) ctors of
+          Just j -> j
+          Nothing -> unsafeCrashWith ("premise " <> name <> ": no constructor for a value")
+      , dec: \j -> case Array.findMap (\c -> c.inject j) ctors of
+          Just r -> r
+          Nothing -> Left ("no " <> name <> " form for " <> stringify j)
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+
+-- | The fields of a premise record, as an applicative over the value it builds.
+newtype RecF a b = RecF
+  { fields :: Array DField
+  , enc :: a -> Array (Tuple String Json)
+  , dec :: Object.Object Json -> Either String b
+  }
+
+instance Functor (RecF a) where
+  map f (RecF r) = RecF r { dec = \o -> map f (r.dec o) }
+
+instance Apply (RecF a) where
+  apply (RecF f) (RecF x) = RecF
+    { fields: f.fields <> x.fields
+    , enc: \a -> f.enc a <> x.enc a
+    , dec: \o -> f.dec o <*> x.dec o
+    }
+
+instance Applicative (RecF a) where
+  pure b = RecF { fields: [], enc: const [], dec: const (Right b) }
+
+-- | A field of a premise record: its key, a note, its shape, and its getter. An absent value (per the
+-- | shape's `absent`) is not written; a missing key reads as the shape's `missing`, or fails.
+fieldOf :: forall a b. String -> String -> Shape b -> (a -> b) -> RecF a b
+fieldOf key desc s get = RecF
+  { fields: [ { scen: key, snap: key, desc, shape: s.desc } ]
+  , enc: \x -> let b = get x in if s.absent b then [] else [ Tuple key ((pay s).enc b) ]
+  , dec: \o -> case Object.lookup key o of
+      Just j -> (pay s).dec j
+      Nothing -> note ("missing key " <> key) s.missing
+  }
+
+-- | A premise object built from its fields.
+object :: forall a. String -> RecF a a -> Shape a
+object name (RecF r) =
+  { desc: DRec name r.fields
+  , codec: \_ ->
+      { enc: \x -> objectOf Premise (r.enc x)
+      , dec: \j -> note "expected an object" (toObject j) >>= r.dec
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+
+-- | A two-element array.
+pairOf :: forall a b. Shape a -> Shape b -> Shape (Tuple a b)
+pairOf sa sb =
+  { desc: DTuple sa.desc sb.desc
+  , codec: \_ ->
+      { enc: \(Tuple a b) -> fromArray [ (pay sa).enc a, (pay sb).enc b ]
+      , dec: \j -> case toArray j of
+          Just [ x, y ] -> Tuple <$> (pay sa).dec x <*> (pay sb).dec y
+          _ -> Left "expected a two-element array"
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+
+-- | One of two forms. The first that reads wins; a Left value is written in the first form.
+eitherOf :: forall a b. Shape a -> Shape b -> Shape (Either a b)
+eitherOf sa sb =
+  { desc: DOr sa.desc sb.desc
+  , codec: \_ ->
+      { enc: either (pay sa).enc (pay sb).enc
+      , dec: \j -> case (pay sa).dec j of
+          Right a -> Right (Left a)
+          Left _ -> map Right ((pay sb).dec j)
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+
+-- | An object whose keys name its entries, as the ordered list of its pairs.
+keyedOf :: forall a. Shape a -> Shape (Array (Tuple String a))
+keyedOf s =
+  { desc: DKeyed s.desc
+  , codec: \_ ->
+      { enc: \kvs -> objectOf Premise (map (\(Tuple k v) -> Tuple k ((pay s).enc v)) kvs)
+      , dec: \j -> do
+          o <- note "expected an object" (toObject j)
+          traverse (\(Tuple k v) -> map (Tuple k) ((pay s).dec v)) (Object.toUnfoldable o)
+      }
+  , absent: Array.null
+  , missing: Just []
+  }
+
+-- | A recursive description. `f` receives the description it defines; its codec reaches back into
+-- | it only when a value is read or written, so a recursive form is finite.
+recursive :: forall a. String -> (Shape a -> Shape a) -> Shape a
+recursive name f = mk unit
+  where
+  mk :: Unit -> Shape a
+  mk _ =
+    { desc: DRef name
+    , codec: \fmt -> (f (mk unit)).codec fmt
+    , absent: \x -> (f (mk unit)).absent x
+    , missing: Nothing
+    }
+
+-- | The same values under another type, through a bijection: `fwd` reads, `back` writes.
+iso :: forall a b. (a -> b) -> (b -> a) -> Shape a -> Shape b
+iso fwd back s =
+  { desc: s.desc
+  , codec: \fmt ->
+      let
+        c = s.codec fmt
+      in
+        { enc: c.enc <<< back, dec: map fwd <<< c.dec }
+  , absent: s.absent <<< back
+  , missing: map fwd s.missing
+  }
+
+-- | Values that satisfy `p`; a value that fails it is a decode error with the message given.
+refined :: forall a. String -> (a -> Boolean) -> Shape a -> Shape a
+refined msg p s = s { codec = \fmt -> let c = s.codec fmt in c { dec = \j -> c.dec j >>= \x -> if p x then Right x else Left msg } }
+
+-- | Omit the value from the premise format when `p` holds (an empty list, a default).
+omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a
+omittedWhen p s = s { absent = p }
+
+-- | The value a missing key reads as.
+orDefault :: forall a. a -> Shape a -> Shape a
+orDefault d s = s { missing = Just d }
 
 -- Interpretation ------------------------------------------------------------------------------
 
@@ -351,14 +622,22 @@ encodeWith fmt s = (s.codec fmt).enc
 decodeWith :: forall a. Format -> Shape a -> Json -> Either String a
 decodeWith fmt s = (s.codec fmt).dec
 
--- | A JSON Schema (draft 2020-12 subset) interpreted from the description.
+-- | A JSON Schema (draft 2020-12 subset) interpreted from the description. A recursive reference
+-- | is a `$ref` to its name.
 jsonSchema :: Desc -> Json
 jsonSchema = case _ of
   DPrim "Q" -> obj [ Tuple "type" (fromString "string"), Tuple "pattern" (fromString "^-?[0-9]+(\\.[0-9]{1,4})?$") ]
   DPrim "Id" -> obj [ Tuple "type" (fromString "string") ]
+  DPrim "String" -> obj [ Tuple "type" (fromString "string") ]
+  DPrim "Int" -> obj [ Tuple "type" (fromString "integer") ]
+  DPrim "Boolean" -> obj [ Tuple "type" (fromString "boolean") ]
   DPrim _ -> obj [ Tuple "type" (fromString "null") ]
   DArray d -> obj [ Tuple "type" (fromString "array"), Tuple "items" (jsonSchema d) ]
   DOpt d -> obj [ Tuple "anyOf" (fromArray [ jsonSchema d, obj [ Tuple "type" (fromString "null") ] ]) ]
+  DKeyed d -> obj [ Tuple "type" (fromString "object"), Tuple "additionalProperties" (jsonSchema d) ]
+  DTuple a b -> obj [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ jsonSchema a, jsonSchema b ]), Tuple "minItems" (fromNumber 2.0), Tuple "maxItems" (fromNumber 2.0) ]
+  DOr a b -> obj [ Tuple "anyOf" (fromArray [ jsonSchema a, jsonSchema b ]) ]
+  DRef name -> obj [ Tuple "$ref" (fromString ("#/" <> name)) ]
   DRec name fields -> obj
     [ Tuple "type" (fromString "object")
     , Tuple "title" (fromString name)
@@ -368,7 +647,7 @@ jsonSchema = case _ of
     ]
   DSum name OneKey ctors -> obj
     [ Tuple "title" (fromString name)
-    , Tuple "oneOf" (fromArray (map oneKey ctors))
+    , Tuple "oneOf" (fromArray (map oneKeySchema ctors))
     ]
   DSum name KindArg ctors -> obj
     [ Tuple "title" (fromString name)
@@ -378,13 +657,27 @@ jsonSchema = case _ of
     [ Tuple "title" (fromString name)
     , Tuple "enum" (fromArray (map (\c -> fromString c.tag) ctors))
     ]
+  DSum name Literal ctors -> obj
+    [ Tuple "title" (fromString name)
+    , Tuple "oneOf" (fromArray (map (\c -> jsonSchema c.payload) ctors))
+    ]
+  DSum name Mixed ctors -> obj
+    [ Tuple "title" (fromString name)
+    , Tuple "oneOf" (fromArray (map mixed ctors))
+    ]
   where
-  oneKey c = obj
+  oneKeySchema c = obj
     [ Tuple "type" (fromString "object")
     , Tuple "required" (fromArray [ fromString c.tag ])
     , Tuple "properties" (fromObject (Object.singleton c.tag (jsonSchema c.payload)))
     , Tuple "additionalProperties" (fromBoolean false)
     ]
+  mixed c = case c.form of
+    OneKey -> oneKeySchema c
+    KindArg -> obj [ Tuple "type" (fromString "string"), Tuple "pattern" (fromString ("^" <> c.tag <> ":")) ]
+    Bare -> obj [ Tuple "const" (fromString c.tag) ]
+    Literal -> jsonSchema c.payload
+    Mixed -> obj []
   obj = fromObject <<< Object.fromFoldable
   optionalDesc = case _ of
     DOpt _ -> true
@@ -400,12 +693,18 @@ prose = go 0
     DPrim name -> name
     DArray d -> "list of " <> go n d
     DOpt d -> "optional " <> go n d
+    DKeyed d -> "object of " <> go n d
+    DTuple a b -> "pair of " <> go n a <> " and " <> go n b
+    DOr a b -> go n a <> " or " <> go n b
+    DRef name -> name
     DRec name fields -> name <> " { " <> joinWith ", " (map (\f -> f.scen <> ": " <> go n f.shape <> noteOf f.desc) fields) <> " }"
-    DSum name form ctors -> name <> " (" <> show form <> "): " <> joinWith " | " (map (\c -> tagOf form c <> " " <> go n c.payload <> noteOf c.desc) ctors)
+    DSum name form ctors -> name <> " (" <> show form <> "): " <> joinWith " | " (map (\c -> tagOf c.form c <> " " <> go n c.payload <> noteOf c.desc) ctors)
     where
     tagOf OneKey c = "{\"" <> c.tag <> "\": ...}"
     tagOf KindArg c = "\"" <> c.tag <> ":<arg>\""
     tagOf Bare c = "\"" <> c.tag <> "\""
+    tagOf Literal _ = "<literal>"
+    tagOf Mixed c = c.tag
   noteOf "" = ""
   noteOf s = " - " <> s
   joinWith sep xs = foldl (\acc x -> if acc == "" then x else acc <> sep <> x) "" xs
@@ -414,6 +713,8 @@ instance showTagForm :: Show TagForm where
   show OneKey = "one-key"
   show KindArg = "kind:argument"
   show Bare = "bare string"
+  show Literal = "literal"
+  show Mixed = "mixed"
 
 -- | A type with a description. Instances sit beside their types.
 class Described a where

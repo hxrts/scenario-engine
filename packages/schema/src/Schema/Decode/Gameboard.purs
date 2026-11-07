@@ -22,7 +22,7 @@ import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Schema.Decode.Common (decodeEstimator, toMap)
-import Schema.Decode.Strategy (decodeStrategy)
+import Schema.Premise.Strategy (decodeStrategy)
 import Schema.Decode.World (decodeWorld)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig, Objective, Criterion, MetricRef, Measure(..), Span(..), Bound(..), Scheme)
 import Schema.Tags (argOf, capacityKind, cumulativeKind, coverageKind, everyRoundKind, finalKind, holdingKind, isBare, omissionKind, payeeReceiptsKind, policyKind, shortfallKind, shortfallRoundsKind, volumeKind)

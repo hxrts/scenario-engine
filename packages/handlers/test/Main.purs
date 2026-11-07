@@ -36,7 +36,7 @@ import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
-import Schema.Decode.Strategy (decodeStrategy)
+import Schema.Premise.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
 import Premises.Load (load, loadPresets)

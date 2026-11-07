@@ -9,12 +9,24 @@ module Core.Strategy
   , Template(..)
   , SignRule(..)
   , InWorld
+  , selfName
+  , homeMarketName
   ) where
+
+import Prelude
 
 import Core.Num (Q)
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
 import Data.Map (Map)
 import Foreign.Object (Object)
+
+-- | The sentinel names a Strategy uses: `self` names the acting Entity in an entity position, and
+-- | `$home` the Entity's home Market. The interpreter resolves them (`Policy.Interpret`).
+selfName :: String
+selfName = "self"
+
+homeMarketName :: String
+homeMarketName = "$home"
 
 -- | Clauses propose; sign rules choose which addressed Proposals to sign.
 type Strategy = { rules :: Array Clause, sign :: Array SignRule }
@@ -63,3 +75,7 @@ data SignRule
   | SignAll
   | SignIf { when :: Array Cond, rule :: SignRule } -- the inner rule, while every condition holds
 
+derive instance Eq Expr
+derive instance Eq Cond
+derive instance Eq Template
+derive instance Eq SignRule

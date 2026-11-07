@@ -38,6 +38,8 @@ import Data.Argonaut.Encode (encodeJson)
 import Data.Tuple (Tuple(..))
 import Record (union)
 import Schema.Build.Base (Qty, q, Keyed, keyed, (:=), Built, free, restricted, nonTransferable, sales, payee)
+import Core.Shape (Format(..), encodeWith)
+import Schema.Premise.Strategy (policiesShape)
 import Schema.Build.World (assignment, cost, effect, estimator, facility, flow, market, production, requirement, resource, scheme, share)
 import Premises.Meridian.Entities (entities)
 import Premises.Meridian.Holdings (capacityHolders)
@@ -69,7 +71,7 @@ files =
   , Tuple N.entitiesFile (encodeJson { entities })
   , Tuple N.representationsFile (encodeJson { schemes })
   , Tuple N.gameRulesFile (encodeJson { parameters, rules: ([] :: Array Json) })
-  , Tuple N.policiesFile (encodeJson { policies })
+  , Tuple N.policiesFile (encodeWith Premise policiesShape policies)
   , Tuple N.instantiationFile (encodeJson instantiation)
   ]
 
