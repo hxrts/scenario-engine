@@ -31,6 +31,6 @@ route ctx db req = case req.method, filter (_ /= "") (split (Pattern "/") req.pa
   "DELETE", [ "api", "runs", id ] -> deleteOne db id (param req.query "confirm" "")
   "GET", [ "api", "runs", id, "entity", entity ] -> entityView db id entity
   "GET", [ "api", "runs", id, view ] -> getView ctx db req.query id view
-  "GET", [ "api", "compare" ] -> compareView db req.query
+  "GET", [ "api", "compare" ] -> compareView ctx db req.query
   "GET", [ "api", "agency" ] -> agencyView ctx req.query
   _, _ -> failWith 404 req.path
