@@ -180,7 +180,7 @@ fillsOf who r = concatMap
 
 -- | The quantity an Entity filled in one Market.
 fillIn :: String -> String -> Either EngineError RoundResult -> Q
-fillIn market who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == market) (fillsOf who r)))
+fillIn marketId who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == marketId) (fillsOf who r)))
 
 -- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
 market :: Array String -> Market
