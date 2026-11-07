@@ -132,10 +132,10 @@ test("#/runs/:id opens the Runs page with that run selected and its actions bene
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
 });
 
-test("the top bar has Runs, Prepare and Compare, and no View item", async ({ page }) => {
+test("the top bar has Prepare, Runs and Compare, and no View item", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   const nav = page.getByRole("navigation");
-  await expect(nav.getByRole("link")).toHaveText(["Runs", "Prepare", "Compare"]);
+  await expect(nav.getByRole("link")).toHaveText(["Prepare", "Runs", "Compare"]);
   await expect(nav.getByText("View", { exact: true })).toHaveCount(0);
 });
 

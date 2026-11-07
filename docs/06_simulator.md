@@ -313,7 +313,7 @@ The available actions are:
 
 - **Run** (on Prepare, [§9.3](#93-prepare)): launches a run of the scenario.
 - **Inspect** and **Compare:** implemented.
-- **Archive** and **Unarchive**, and **Delete**: Delete asks for the run's id, typed exactly, before it deletes the run.
+- **Archive** and **Unarchive**, and **Delete**: Delete removes the run in one click. The request names the run in its `confirm` parameter, so the server's check is met by the run itself.
 - **Resume:** on the run's page, while the run has fewer rounds than its target.
 
 Duplicate, rerun, variant and counterfactual are derive operations (`POST /api/runs/:id/derive`, [§10.4](#104-counterfactual-experiments)). They are API-only: the Dashboard has no control for them, on Prepare or on a run's page.

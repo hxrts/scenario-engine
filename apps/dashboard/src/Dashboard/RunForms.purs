@@ -3,7 +3,6 @@
 -- | the server (`POST /api/runs/:id/resume`, `DELETE /api/runs/:id`).
 module Dashboard.RunForms
   ( requiredRounds
-  , deleteConfirmed
   , resumeBody
   ) where
 
@@ -22,10 +21,6 @@ requiredRounds :: String -> Either String Int
 requiredRounds s = case Int.fromString (trim s) of
   Just n | n >= 1 -> Right n
   _ -> Left "Rounds must be a whole number of at least 1."
-
--- | Delete is confirmed only when the typed text is exactly the run's id.
-deleteConfirmed :: String -> String -> Boolean
-deleteConfirmed id typed = id /= "" && typed == id
 
 resumeBody :: Int -> Json
 resumeBody n = fromObject (Object.singleton "rounds" (encodeJson n))

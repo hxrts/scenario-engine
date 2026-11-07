@@ -41,7 +41,7 @@ test("resume posts the rounds to run to, and is offered only while the run is sh
   await expect.poll(() => body).toEqual({ rounds: 5 });
 });
 
-test("delete needs the exact run id, then removes the run and returns to the list", async ({ page }) => {
+test("delete removes the run in one click and returns to the list", async ({ page }) => {
   let deleted = null;
   await mockReads(page);
   await page.route(isPath("/api/runs/run-1"), async (route) => {
@@ -51,16 +51,6 @@ test("delete needs the exact run id, then removes the run and returns to the lis
   });
   await page.goto("/#/runs/run-1");
   await page.getByRole("button", { name: "Delete run", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  const confirm = dialog.getByRole("button", { name: "Delete", exact: true });
-  await expect(confirm).toBeDisabled();
-  await dialog.getByLabel("Run id").fill("run-");
-  await expect(confirm).toBeDisabled();
-  await dialog.getByLabel("Run id").fill("RUN-1");
-  await expect(confirm).toBeDisabled();
-  await dialog.getByLabel("Run id").fill("run-1");
-  await expect(confirm).toBeEnabled();
-  await confirm.click();
   await expect(page).toHaveURL(/#\/runs$/);
   expect(deleted).toContain("/api/runs/run-1?confirm=run-1");
 });

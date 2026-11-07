@@ -87,7 +87,7 @@ metricChart c = D.div
                       , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind) }
                       , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
                       , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                      ] <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
+                      ] <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColor i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
                   }
               ]
           }
@@ -114,7 +114,7 @@ stackedBars c = D.div
                       , element UI.yAxis { allowDecimals: false }
                       , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
                       , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                      ] <> map (\k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: "var(--color-" <> k.key <> ")", isAnimationActive: false }) c.kinds
+                      ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: seriesColor i, isAnimationActive: false }) c.kinds
                   }
               ]
           }
@@ -162,7 +162,7 @@ overlayChart ids c = plotFrame c.title $ element UI.chartContainer
               , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
               , element UI.chartLegend { content: element UI.chartLegendContent {} }
               ]
-                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: "var(--color-" <> s.name <> ")", strokeWidth: if index ids 0 == Just s.name then 3 else 2, dot: false, isAnimationActive: false }) c.series
+                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: colourOf ids s.name, strokeWidth: if index ids 0 == Just s.name then 3 else 2, dot: false, isAnimationActive: false }) c.series
           }
       ]
   }
@@ -183,7 +183,7 @@ groupedBars ids xLabel b = plotFrame b.title $ element UI.chartContainer
               , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
               , element UI.chartLegend { content: element UI.chartLegendContent {} }
               ]
-                <> map (\s -> element UI.groupedBar { key: s.name, dataKey: s.name, fill: "var(--color-" <> s.name <> ")", isAnimationActive: false }) b.series
+                <> map (\s -> element UI.groupedBar { key: s.name, dataKey: s.name, fill: colourOf ids s.name, isAnimationActive: false }) b.series
           }
       ]
   }

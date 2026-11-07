@@ -8,7 +8,7 @@ import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (RoundRange, Scenario, emptyForm, nextRunName, roundChoices, roundValue, summary, validate)
 import Dashboard.Presets (presetNames)
 import Dashboard.Route (Route(..), route)
-import Dashboard.RunForms (deleteConfirmed, requiredRounds, resumeBody)
+import Dashboard.RunForms (requiredRounds, resumeBody)
 import Dashboard.Runs (derivedFrom, mergeRuns, readableIds, runInfo, sourceRow)
 import Data.Argonaut.Core (stringify, toNumber, toObject, toString)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
@@ -139,12 +139,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       requiredRounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
       requiredRounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
       requiredRounds " 5 " `shouldEqual` Right 5
-    it "delete is confirmed only by the exact run id" do
-      deleteConfirmed "run-1" "run-1" `shouldEqual` true
-      deleteConfirmed "run-1" "run-" `shouldEqual` false
-      deleteConfirmed "run-1" "RUN-1" `shouldEqual` false
-      deleteConfirmed "run-1" " run-1" `shouldEqual` false
-      deleteConfirmed "" "" `shouldEqual` false
   describe "Run actions: request bodies" do
     it "a resume body is the rounds" do
       stringify (resumeBody 4) `shouldEqual` "{\"rounds\":4}"

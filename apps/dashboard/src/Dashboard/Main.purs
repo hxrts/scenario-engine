@@ -543,8 +543,8 @@ shell current compareSet themeButton page = D.div
                       , D.nav
                           { className: "flex flex-wrap items-center gap-4 text-sm"
                           , children:
-                              [ navLink "Runs" Runs (isRuns current)
-                              , navLink "Prepare" Prepare (current == Prepare)
+                              [ navLink "Prepare" Prepare (current == Prepare)
+                              , navLink "Runs" Runs (isRuns current)
                               , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (Array.length compareSet) <> ")") (Compare compareSet) (isCompare current)
                               ]
                           }

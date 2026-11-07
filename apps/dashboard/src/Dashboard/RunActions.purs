@@ -8,7 +8,7 @@ module Dashboard.RunActions (Props, mkRunActions) where
 import Prelude
 
 import Dashboard.Api (command, encode, remove, post, runPath)
-import Dashboard.RunForms (deleteConfirmed, requiredRounds, resumeBody)
+import Dashboard.RunForms (requiredRounds, resumeBody)
 import Dashboard.Route (Route(..), route)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
@@ -33,7 +33,6 @@ type Props = { id :: String, archived :: Boolean, rounds :: Maybe Int, target ::
 mkRunActions :: Component Props
 mkRunActions = component "RunActions" \p -> React.do
   resumeRounds /\ setResumeRounds <- useState' ""
-  typed /\ setTyped <- useState' ""
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
   let
     -- A bad form is shown without a request. A rejected request keeps the panel and shows the
@@ -53,7 +52,8 @@ mkRunActions = component "RunActions" \p -> React.do
       setResumeRounds ""
       p.onChanged
 
-    delete = submit (if deleteConfirmed p.id typed then Right unit else Left "Type the run id exactly to delete this run.") (\_ -> remove (runPath p.id <> "?confirm=" <> encode p.id)) \(_ :: Json) ->
+    -- one click deletes: the request names the run it deletes, which is the server's own check
+    delete = submit (Right unit) (\_ -> remove (runPath p.id <> "?confirm=" <> encode p.id)) \(_ :: Json) ->
       p.onChanged *> setHash (print route Runs)
 
     canResume = case p.rounds, p.target of
@@ -80,24 +80,7 @@ mkRunActions = component "RunActions" \p -> React.do
                 { className: "flex flex-wrap gap-2"
                 , children:
                     [ element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
-                    , element UI.sheet
-                        { children:
-                            [ element UI.sheetTrigger { asChild: true, children: [ element UI.button { children: [ D.text "Delete run" ] } ] }
-                            , element UI.sheetContent
-                                { children:
-                                    [ element UI.sheetHeader { children: [ element UI.sheetTitle { children: [ D.text "Delete run" ] } ] }
-                                    , D.div
-                                        { className: "flex flex-col gap-4 p-4"
-                                        , children:
-                                            [ D.p { className: "text-sm", children: [ D.text "This removes the run and its records. Type its id to confirm." ] }
-                                            , field "Run id" typed setTyped
-                                            , element UI.button { disabled: not (deleteConfirmed p.id typed), onClick: handler_ delete, children: [ D.text "Delete" ] }
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
+                    , element UI.button { onClick: handler_ delete, children: [ D.text "Delete run" ] }
                     ]
                 }
             , failureText
