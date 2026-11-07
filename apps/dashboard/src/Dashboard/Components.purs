@@ -75,7 +75,7 @@ metricChart c = D.div
       [ D.p { className: "text-sm font-medium", children: [ D.text (c.title <> " (" <> c.unit <> ")") ] }
       , element UI.chartContainer
           { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.series)
-          , className: "h-64 w-full"
+          , className: "h-96 w-full"
           , children:
               [ element UI.lineChart
                   { data: chartRows c.series
@@ -102,7 +102,7 @@ stackedBars c = D.div
       , D.p { className: "text-sm text-muted-foreground", children: [ D.text c.purpose ] }
       , element UI.chartContainer
           { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: "var(--chart-" <> show (i `mod` 5 + 1) <> ")" }) c.kinds)
-          , className: "h-80 w-full"
+          , className: "h-96 w-full"
           , children:
               [ element UI.barChart
                   { data: map bar c.bars
