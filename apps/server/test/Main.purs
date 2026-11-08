@@ -159,12 +159,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "meridian/meridian-test-01")
         Left e -> fail e
-    it "the scenario is served with its round range, default round count and game seed; the overview names the preset" do
+    it "the premise is served with its round range, default round count and game seed; the overview names the preset" do
       map Right premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route (implement ctx (sqliteBackend db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          scen <- api "GET" "/api/scenario" [] ""
+          scen <- api "GET" "/api/premise" [] ""
           scen.status `shouldEqual` 200
           scen.body `shouldSatisfy` contains (Pattern "\"default\":5")
           scen.body `shouldSatisfy` contains (Pattern "\"min\":4")
@@ -174,16 +174,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "[\"Preset\",\"Conservative\"]")
         Left e -> fail e
-    it "the typed fields the dashboard reads: the scenario's default name and presets, the overview's rounds and target, the run flags, the entities and the glossary" do
+    it "the typed fields the dashboard reads: the premise's default name and presets, the overview's rounds and target, the run flags, the entities and the glossary" do
       map Right premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           let api method path query body = liftEffect (route (implement ctx (sqliteBackend db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          scen <- api "GET" "/api/scenario" [] ""
+          scen <- api "GET" "/api/premise" [] ""
           scen.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-1\"")
           scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Passive\",\"Conservative\"")
           _ <- api "POST" "/api/runs" [] "{\"name\":\"t\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
-          scen2 <- api "GET" "/api/scenario" [] ""
+          scen2 <- api "GET" "/api/premise" [] ""
           scen2.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-2\"")
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
           overview.body `shouldSatisfy` contains (Pattern "\"rounds\":2")

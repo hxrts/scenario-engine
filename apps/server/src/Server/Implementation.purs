@@ -14,14 +14,14 @@ import Views.Glossary (glossary)
 import Views.Overview as Overview
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
-import Server.Launch (launch, scenarioInfo)
+import Server.Launch (launch, premiseInfo)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
 -- | The implementation of every operation over one premise and one store.
 implement :: GameboardParts -> StoreBackend -> Implementation
 implement ctx store = case _ of
   ListRuns { archived } -> runSummaries archived store >>= ok <<< Overview.runList
-  Scenario -> scenarioInfo ctx store >>= ok
+  Premise -> premiseInfo ctx store >>= ok
   Glossary -> ok glossary
   LaunchRun l -> launch ctx store l >>= either (failWith 400) ok
   Entities id -> entitiesView store id

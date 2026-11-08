@@ -6,8 +6,8 @@ module Server.Launch
   , launch
   , start
   , failInterrupted
-  , Scenario
-  , scenarioInfo
+  , Premise
+  , premiseInfo
   ) where
 
 import Prelude
@@ -95,10 +95,10 @@ nextRunId store = do
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
 
--- | `GET /api/scenario`: the scenario the launch form runs. Its supported round counts (`min`, `max`)
--- | and the round count a launch without `rounds` plays (`default`); the game seed the scenario fixes;
--- | the default run name (the next run id); and the presets every seat may play, in the scenario's order.
-type Scenario =
+-- | `GET /api/premise`: the premise the launch form runs. Its supported round counts (`min`, `max`)
+-- | and the round count a launch without `rounds` plays (`default`); the game seed the premise fixes;
+-- | the default run name (the next run id); and the presets every seat may play, in the premise's order.
+type Premise =
   { name :: String
   , version :: String
   , rounds :: { min :: Int, max :: Int, default :: Int }
@@ -107,8 +107,8 @@ type Scenario =
   , presets :: Array String
   }
 
-scenarioInfo :: GameboardParts -> StoreBackend -> Effect Scenario
-scenarioInfo p store = do
+premiseInfo :: GameboardParts -> StoreBackend -> Effect Premise
+premiseInfo p store = do
   next <- nextRunId store
   pure
     { name: p.gameboard.id

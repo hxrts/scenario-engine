@@ -24,7 +24,7 @@ The world has two parts: explicitly represented participants, and an implicit ec
 | Input | Out-of-band negotiation, oral announcements, and AI-interpreted actions |
 | Output | Economic outcomes, balance sheets, and a fictional financial-news front page |
 
-Each round runs in five steps. The engine's sequence within a round is in [02 §8.1](02_type_system.md#81-canonical-resolution-sequence). The session procedure is in [04 §11](04_instantiated_game.md#11-round-execution).
+Each round runs the engine's canonical resolution sequence, defined once in [02 §8.1](02_type_system.md#81-canonical-resolution-sequence). The session procedure is in [04 §11](04_instantiated_game.md#11-round-execution). The list below is the player's view of a round, not the engine's steps.
 
 1. **Briefing.** Players receive the current state of the world.
 2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band. The system has no negotiation protocol.

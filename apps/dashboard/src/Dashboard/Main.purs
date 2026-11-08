@@ -1,6 +1,6 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results, lineage and actions), Prepare (launch a run of the scenario), and Compare (runs side by
+-- | results, lineage and actions), Prepare (launch a run of the premise), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
 -- | glossary once, before any page renders.
 module Dashboard.Main (main) where
@@ -14,7 +14,7 @@ import Dashboard.Client as Client
 import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, overlayChart, placeholderFrame, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
-import Dashboard.Launch (LaunchForm, LaunchRequest, Scenario, emptyForm, roundChoices, roundValue, summary, validate)
+import Dashboard.Launch (LaunchForm, LaunchRequest, Premise, emptyForm, roundChoices, roundValue, summary, validate)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
@@ -106,11 +106,11 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's view: the form, the scenario it launches, the failure message, and the Run action.
+-- | The launch form's view: the form, the premise it launches, the failure message, and the Run action.
 type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
-  , scenario :: Scenario
+  , premise :: Premise
   , defaultName :: String
   , failure :: Maybe String
   , launch :: Effect Unit
@@ -121,40 +121,40 @@ launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.scenario.rounds v.form) ] }
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.premise.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose "Required: Preset and Scenario. Every other field has a default, so Run needs no edits."
+      , Layout.purpose "Required: Preset and Premise. Every other field has a default, so Run needs no edits."
       ]
   }
 
 -- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
 -- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
--- | come from the scenario.
+-- | come from the premise.
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.scenario.presets (\x f -> f { preset = x })
-      , selectField { label: "Scenario", required: true, note: "required, the one scenario the server runs" } scenarioName [ scenarioName ] (\_ f -> f)
+      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
+      , selectField { label: "Premise", required: true, note: "required, the one premise the server runs" } premiseName [ premiseName ] (\_ f -> f)
       , selectField
-          { label: "Rounds", required: false, note: "optional, defaults to " <> show v.scenario.rounds.default <> " rounds; allowed " <> show v.scenario.rounds.min <> " to " <> show v.scenario.rounds.max }
-          (show (roundValue v.scenario.rounds v.form.rounds))
-          (map show (roundChoices v.scenario.rounds))
+          { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
+          (show (roundValue v.premise.rounds v.form.rounds))
+          (map show (roundChoices v.premise.rounds))
           (\x f -> f { rounds = x })
       , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
       , D.div
           { className: "flex flex-col gap-1 text-sm"
           , children:
-              [ fieldHeading { label: "Game seed", required: false, note: "default: the scenario's seed. Read-only, because the server takes no game seed at launch" }
-              , D.span { className: "font-mono", children: [ D.text (show v.scenario.gameSeed) ] }
+              [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
+              , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
               ]
           }
       ]
   }
   where
-  scenarioName = v.scenario.name <> "@" <> v.scenario.version
+  premiseName = v.premise.name <> "@" <> v.premise.version
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -172,28 +172,28 @@ launchFields v = D.div
         ]
     }
 
--- | Prepare: launch a run of the scenario. The form starts with its defaults (the scenario's next run name,
--- | the preset Conservative, the scenario's round count, a drawn player seed), so Run needs no edits. A
+-- | Prepare: launch a run of the premise. The form starts with its defaults (the premise's next run name,
+-- | the preset Conservative, the premise's round count, a drawn player seed), so Run needs no edits. A
 -- | launch the server accepts opens the new run.
 mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  loaded <- useLoad unit Client.scenario
+  loaded <- useLoad unit Client.premise
   let
-    scenario = case loaded.value of
+    premise = case loaded.value of
       Just (Right s) -> Just s
       _ -> Nothing
-    -- the default name is known once the scenario is; until then it is "run"
-    loadedName = maybe "" _.defaultName scenario
+    -- the default name is known once the premise is; until then it is "run"
+    loadedName = maybe "" _.defaultName premise
     defaultName = if loadedName == "" then "run" else loadedName
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
-    launch = case scenario of
+    launch = case premise of
       Just s -> case validate s form of
         Left e -> setFailure (Just e)
         Right req -> setFailure Nothing *> launchAff_ (submit req)
-      Nothing -> setFailure (Just "The scenario has not loaded, so the run cannot be launched.")
+      Nothing -> setFailure (Just "The premise has not loaded, so the run cannot be launched.")
 
     submit :: LaunchRequest -> Aff Unit
     submit req = do
@@ -207,16 +207,16 @@ mkPrepare = component "Prepare" \_ -> React.do
     pure (pure unit)
   pure $ Layout.page
     { title: "Prepare a run"
-    , purpose: "Launch a run of the scenario from a preset. Every field has a default, so Run needs no edits."
+    , purpose: "Launch a run of the premise from a preset. Every field has a default, so Run needs no edits."
     , children:
         [ Layout.grid
             [ Layout.panel
                 { span: 6
                 , title: "Options"
-                , purpose: "Each option's default is shown beside it. Only Preset and Scenario are required."
+                , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
                 , children:
-                    [ case scenario of
-                        Just s -> launchFields { form, setForm, scenario: s, defaultName, failure, launch }
+                    [ case premise of
+                        Just s -> launchFields { form, setForm, premise: s, defaultName, failure, launch }
                         Nothing -> status (loadError loaded.value)
                     ]
                 }
@@ -225,8 +225,8 @@ mkPrepare = component "Prepare" \_ -> React.do
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ case scenario of
-                        Just s -> launchAction { form, setForm, scenario: s, defaultName, failure, launch }
+                    [ case premise of
+                        Just s -> launchAction { form, setForm, premise: s, defaultName, failure, launch }
                         Nothing -> status (loadError loaded.value)
                     ]
                 }
@@ -234,7 +234,7 @@ mkPrepare = component "Prepare" \_ -> React.do
         ]
     }
   where
-  -- the scenario's failure, or nothing while it loads
+  -- the premise's failure, or nothing while it loads
   loadError = case _ of
     Just (Left e) -> Just e
     _ -> Nothing
@@ -325,8 +325,8 @@ mkCompare grid = do
   component "Compare" \ids -> React.do
     everyRun <- useRunList 0
     pure $ Layout.page
-      { title: "Compare runs"
-      , purpose: "Runs side by side: prices, net worth and standings on shared axes, then the key values in one table."
+      { title: "Compare a scenario set"
+      , purpose: "Runs of one scenario set side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
           [ case everyRun.value of
               Just (Right t) -> choices t ids
@@ -400,7 +400,7 @@ plots grid fetch ids shown picked setPicked = D.div
       ]
   }
   where
-  message = if null ids then "Tick runs in the list above to compare them." else "Loading the comparison…"
+  message = if null ids then "Tick runs in the list above to compare them as a scenario set." else "Loading the comparison…"
   waiting = placeholderFrame message
 
   -- the loaded comparison's content; until one is loaded, the waiting content of the same size shows
@@ -459,7 +459,7 @@ plots grid fetch ids shown picked setPicked = D.div
 choices :: RunList -> Array String -> JSX
 choices t ids = Layout.section
   { title: "Choose runs"
-  , purpose: "Every readable run. Tick a run to compare it; untick it to remove it. The first run ticked is the baseline."
+  , purpose: "Every readable run. Tick the runs of a scenario set to compare them; untick one to remove it. The first run ticked is the baseline."
   , children:
       [ D.div
           { className: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"

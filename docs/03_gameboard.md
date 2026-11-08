@@ -46,6 +46,8 @@ A `representations` key in a Gameboard section is decoded but ignored: instantia
 - `horizon`: simulated years.
 - `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
+- `name` (optional): the premise's name, decoded from the merged Gameboard (`nameF`, `Schema.Premise.World`). It may sit in any section file, since the loader merges them; the Meridian premise sets neither `name` nor `round`, so its name comes from `id`.
+- `round` (optional, default 1): the starting round, the index the first round of a game is numbered from (`roundF`, `Schema.Premise.World`).
 
 The premise says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's values are in [05 §6](05_test_instance.md#6-premise-meridian).
 
@@ -78,7 +80,7 @@ The engine attaches no behavior to a Resource's name. Its effects come from the 
 - `base`, `quote`: the traded Resources.
 - `cost`: a linear CostFunction `{ base, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
 - `reserves`: the initial reserves by Resource. Reserves are the only liquidity. There is no separate liquidity parameter.
-- `access`: the Entity ids allowed to trade.
+- `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. EU_POOL is the only one in the reference premise, and its authority comes from the EU's procedure ([05 §10](05_test_instance.md#10-aggregate-catalog)).
 - `position` (default `0`): the initial position on the cost curve.
 
 Limit-price orders and clearing are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
@@ -217,7 +219,7 @@ Aggregates do not sign Proposals in the round runner. Procedure Proposals are si
 
 The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). Rule changes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round. Rates are per round.
 
-The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration. Scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Scenario shocks are named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)).
+The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration. Scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Shocks are named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)).
 
 ### 10.3 Information visibility
 

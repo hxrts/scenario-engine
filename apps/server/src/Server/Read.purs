@@ -190,7 +190,7 @@ compareView ctx store { runs: ids, market } = do
         , skipped
         }
 
--- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the scenario's
+-- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.
 agencyView :: GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Response
 agencyView ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of

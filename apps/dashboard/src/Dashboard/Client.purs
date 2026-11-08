@@ -6,7 +6,7 @@ module Dashboard.Client
   , History
   , runs
   , launch
-  , scenario
+  , premise
   , glossary
   , overview
   , entities
@@ -22,7 +22,7 @@ module Dashboard.Client
 import Prelude
 
 import Dashboard.Api (fetch)
-import Dashboard.Launch (LaunchRequest, Scenario)
+import Dashboard.Launch (LaunchRequest, Premise)
 import Effects.Api (ApiRequest(..), call)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode.Common (readJson)
@@ -67,9 +67,9 @@ runs archived = typed (ListRuns { archived })
 launch :: LaunchRequest -> Aff (Either String { id :: String })
 launch = typed <<< LaunchRun
 
--- | The scenario the launch form runs, with its rounds, seed, default run name and presets.
-scenario :: Aff (Either String Scenario)
-scenario = typed Scenario
+-- | The premise the launch form runs, with its rounds, seed, default run name and presets.
+premise :: Aff (Either String Premise)
+premise = typed Premise
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)

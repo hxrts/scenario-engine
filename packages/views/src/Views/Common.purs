@@ -73,8 +73,8 @@ type StoredRun =
   , assertions :: Array (Array Failure)
   }
 
--- | The scenario-specific names the metric views use. The default is the reference scenario
--- | (docs/05_test_instance.md); a caller passes its own to view another scenario.
+-- | The premise-specific names the metric views use. The default is the reference premise
+-- | (docs/05_test_instance.md); a caller passes its own to view another premise.
 type MetricSpec =
   { procurement :: Array String -- transformations counted as procurement of the military
   , procurementLabel :: String -- the overview's label for that procurement

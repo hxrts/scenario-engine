@@ -45,7 +45,7 @@ orThrow = case _ of
   Left e -> throwError (error (show e))
   Right a -> pure a
 
--- | The initial manifest of the reference scenario, for runs created by hand.
+-- | The initial manifest of the reference premise, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
   g <- presetSeats [] "Passive" Nothing

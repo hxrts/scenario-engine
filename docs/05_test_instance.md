@@ -346,13 +346,16 @@ Military and Soft Power matter through these objectives (US, CN, JP, UK, LABOR, 
 | ID | Aggregate | Residual accounts | Region | Baseline responsibility |
 |---|---|---|---|---|
 | EU | European Union | Non-explicit member economies and bloc accounts | Atlantic | Energy purchasing. Collective decisions |
+| EU_POOL | EU Solidarity Pool | The energy the `eu-solidarity` procedure draws on first | Atlantic | None. Acts only through the EU's procedure |
 | CN_PRIVATE | Chinese Private Economy | Chinese activity outside the government | Asia | Industrial demand. Chinese defense production |
 | US_WORKERS | US Workforce | Residual worker accounts | Atlantic | Household demand |
 | GLOBAL_SMES | Global Small Businesses | Small businesses outside explicit ones | Atlantic | Energy demand. Investment supply |
 | ENERGY_SUPPLIERS | Other Energy Producers | Production not held by explicit Actors | Both | Energy supply |
 | WORLD_HOUSEHOLDS | Other World Households | Residual household activity | Asia | Household demand. Media and relief payee |
 
-Each Aggregate's members, accounts, and collective procedures are defined separately ([Type System §2.2](02_type_system.md#22-three-projections-of-an-entity)). No account has two owners ([INV-08](02_type_system.md#inv-08)).
+Each Aggregate's members, accounts, and collective procedures are defined separately ([Type System §2.2](02_type_system.md#22-three-projections-of-an-entity)). No account has two owners ([INV-08](02_type_system.md#inv-08)). The catalog has seven Aggregates: the six above and EU_POOL.
+
+**EU_POOL is an account, not an Actor, and it has no capabilities by design.** It is the one Entity with Atlantic market access and no `trade` capability. Its access lets the pool-to-EU transfer count as a same-region transfer (both ends in the Market's access list). Its authority comes from the EU's `eu-solidarity` procedure, which `authorizes` the transfer and the trade; the pool's own policy (`solidarity-pool-v0`) has no rules and no signatures. Fixture B2-pool exercises the pool-to-EU transfer, so the access-without-capability case is tested there.
 
 ### 10.1 Germany and the EU
 
@@ -508,7 +511,7 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 |---|---|
 | Game ID | `meridian/meridian-test-01`: the Gameboard id, then the test-instance label. Every run records it in its spec. |
 | Gameboard | `meridian`, version `v0` |
-| Seats / NPC Actors / Aggregates | 15 / 1 (China) / 6 |
+| Seats / NPC Actors / Aggregates | 15 / 1 (China) / 7 |
 | Horizon and rounds | 5 years. 5 rounds of 1 year ([§6.2](#62-time-horizon)) |
 | Real-world session | About 6 hours ([§19](#19-session-structure)) |
 | Game seed | `26021` (the only in-world seed, its only use in v0 is SME sampling noise) |
@@ -825,7 +828,7 @@ Each section file is one JSON object, merged into the Gameboard. `instantiation.
 
 The first complete test succeeds when the engine can:
 
-1. Initialize fifteen seats, the China NPC, and six Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* premises: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
+1. Initialize fifteen seats, the China NPC, and seven Aggregates with consistent ownership, capabilities, and fallbacks. *Proved by:* premises: *validates*, *instantiates with the initial holdings of §15*, *instantiates the market and capacity state of §16*.
 2. Keep Germany explicit and an EU member without duplication, and reconcile against the Germany-implicit configuration. *Proved by:* premises: *reconciles Germany explicit against Germany implicit (§14.2)*. Simulator: *12 Resolution consistency*.
 3. Trade on both nodes with limit prices and partial fills, and ship across regions under tariffs and bans. *Proved by:* Fixtures A, A2, F (golden). Simulator: *4 Market exchange*, *9 Conflicting actions*, *11 Trade restriction*.
 4. Run procurement as a facility with Energy and semiconductor inputs, delayed delivery, and payment to payees. *Proved by:* Fixture D (golden). Handlers: *Fixture D end to end*. Experiments: *7 NPC response*.
@@ -844,4 +847,4 @@ The test does not need realistic macroeconomic forecasting. Its objective is coh
 
 ## 33. Summary
 
-*Meridian* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources, two regional Energy Markets, three facilities, a balanced circulation schedule, fifteen seats, one NPC (China), and six Aggregates. Germany influences EU decisions by signing procedure Proposals that execute in the same round, while German households and firms remain in the EU residual. The small-business owner influences Global SME demand through a bounded Representation applied in the following round. Scarcity comes from the scheduled disruption and player choices, not from incomplete accounting. Every parameter here should be changeable while the same Type System, Gameboard machinery, and runtime continue to be used.
+*Meridian* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources, two regional Energy Markets, three facilities, a balanced circulation schedule, fifteen seats, one NPC (China), and seven Aggregates. Germany influences EU decisions by signing procedure Proposals that execute in the same round, while German households and firms remain in the EU residual. The small-business owner influences Global SME demand through a bounded Representation applied in the following round. Scarcity comes from the scheduled disruption and player choices, not from incomplete accounting. Every parameter here should be changeable while the same Type System, Gameboard machinery, and runtime continue to be used.

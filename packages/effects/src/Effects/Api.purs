@@ -34,7 +34,7 @@ type Reply = { status :: Int, body :: String }
 -- | data where the body is a fixed record (`Launch`, a resume's round count).
 data ApiRequest
   = ListRuns { archived :: Boolean }
-  | Scenario
+  | Premise
   | Glossary
   | LaunchRun Launch
   | Entities String

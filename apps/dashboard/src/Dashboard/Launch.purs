@@ -1,13 +1,13 @@
 -- | The launch form (docs/06_simulator.md §9): its fields, their defaults, validation, the summary line,
 -- | and the request `POST /api/runs` accepts (apps/server Launch). Every field has a default, so a launch
--- | with no edits is valid. The scenario (`GET /api/scenario`) supplies the round range, the default
+-- | with no edits is valid. The premise (`GET /api/premise`) supplies the round range, the default
 -- | round count, the default run name, the presets and the game seed; the request carries no game seed,
 -- | because the server takes none. Pure, so the rules are tested without the DOM.
 module Dashboard.Launch
   ( LaunchForm
   , LaunchRequest
   , RoundRange
-  , Scenario
+  , Premise
   , emptyForm
   , validate
   , summary
@@ -35,9 +35,9 @@ type LaunchRequest = { name :: String, preset :: String, playerSeed :: Maybe Int
 -- | The supported round counts, and the count a launch without `rounds` plays.
 type RoundRange = { min :: Int, max :: Int, default :: Int }
 
--- | The scenario the form launches (`GET /api/scenario`): its name and version, the round range, the game
+-- | The premise the form launches (`GET /api/premise`): its name and version, the round range, the game
 -- | seed, the default run name, and the presets a seat may play.
-type Scenario =
+type Premise =
   { name :: String
   , version :: String
   , rounds :: RoundRange
@@ -50,9 +50,9 @@ type Scenario =
 emptyForm :: LaunchForm
 emptyForm = { name: "", preset: "Conservative", playerSeed: "", rounds: "" }
 
--- | The first problem with the form, or the request it describes. A blank name is the scenario's
--- | default name; a blank rounds is the scenario's default rounds (sent as null).
-validate :: Scenario -> LaunchForm -> Either String LaunchRequest
+-- | The first problem with the form, or the request it describes. A blank name is the premise's
+-- | default name; a blank rounds is the premise's default rounds (sent as null).
+validate :: Premise -> LaunchForm -> Either String LaunchRequest
 validate s f = do
   let
     name = case trim f.name of
@@ -67,7 +67,7 @@ validate s f = do
     t -> Just <$> rounds { min: s.rounds.min, max: Just s.rounds.max } t
   pure { name, preset: f.preset, playerSeed, rounds: roundCount }
 
--- | The round count a form shows and plays: its rounds, or the scenario's default when blank.
+-- | The round count a form shows and plays: its rounds, or the premise's default when blank.
 roundValue :: RoundRange -> String -> Int
 roundValue r s = case trim s of
   "" -> r.default

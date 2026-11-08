@@ -46,10 +46,10 @@ import Game.Premise (Premise(..))
 import Premises.Load (loadPremise)
 import Premises.Tree (readPremise)
 
-type Options = { scenario :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
+type Options = { premise :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 session :: Options -> Effect Unit
-session o = map (_ >>= loadPremise) (readPremise fileOps (o.scenario <> "/v0")) >>= case _ of
+session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >>= case _ of
   Left e -> writeLine e *> exit' 1
   Right parts -> case assemble (GameboardPremise parts) (liveBindings humans parts.config) [] of
     Left e -> writeLine (show e) *> exit' 1

@@ -73,7 +73,7 @@ const firstPrice = (page) => page.getByRole("figure", { name: /^Price, / }).firs
 test("ticking a run does not move the page heading or the first plot", async ({ page }) => {
   await page.goto("/#/compare");
   await expect(choice(page, "run-a")).toBeVisible();
-  const heading = page.getByRole("heading", { name: "Compare runs", exact: true });
+  const heading = page.getByRole("heading", { name: "Compare a scenario set", exact: true });
   const first = page.getByRole("figure").first();
   await expect(first).toBeVisible();
   const headingBefore = await heading.boundingBox();

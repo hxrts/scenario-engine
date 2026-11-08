@@ -1,4 +1,4 @@
--- | Command line. `run <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
+-- | Command line. `run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
 -- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
@@ -41,13 +41,13 @@ main = do
   args <- drop 2 <$> argv
   case uncons args of
     Just { head: "run", tail: rest } -> case uncons rest of
-      Just { head: scenario, tail: flags } -> case parseFlags [ "--preset", "--rounds", "--seed" ] flags >>= runOptions of
+      Just { head: premise, tail: flags } -> case parseFlags [ "--preset", "--rounds", "--seed" ] flags >>= runOptions of
         Left e -> usage e
-        Right o -> runScenario scenario o.preset o.rounds o.seed
-      Nothing -> usage "run needs a scenario, e.g. run meridian"
+        Right o -> runPremise premise o.preset o.rounds o.seed
+      Nothing -> usage "run needs a premise, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
-      Just { head: scenario, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions scenario)
-      Nothing -> usage "session needs a scenario, e.g. session meridian"
+      Just { head: premise, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions premise)
+      Nothing -> usage "session needs a premise, e.g. session meridian"
     _ -> usage "expected a command: run or session"
 
 runOptions :: Object String -> Either String { preset :: String, rounds :: Int, seed :: Maybe Seed }
@@ -68,13 +68,13 @@ sessionFlags :: Array String
 sessionFlags = [ "--humans", "--model", "--rounds", "--window", "--id", "--db", "--seed" ]
 
 sessionOptions :: String -> Object String -> Either String Options
-sessionOptions scenario fs = do
+sessionOptions premise fs = do
   rounds <- number "--rounds" 5 fs
   window <- numberFrom 0 "--window" 0 fs
   let id = flagOr "--id" "session-1" fs
   if validRunId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
   seed <- seedFlag fs
-  pure { scenario, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
+  pure { premise, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
 
 -- | A whole-number flag of at least one, with its default.
 number :: String -> Int -> Object String -> Either String Int
@@ -90,14 +90,14 @@ numberFrom lowest name d fs = case Object.lookup name fs of
 usage :: String -> Effect Unit
 usage why = do
   log ("error: " <> why)
-  log "usage: run <scenario> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  log "usage: run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
   log "  e.g. run meridian --preset Conservative --rounds 5"
-  log "       session <scenario> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
+  log "       session <premise> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
   exit' 1
 
-runScenario :: String -> String -> Int -> Maybe Seed -> Effect Unit
-runScenario scenario presetName rounds given = do
-  loaded <- map (_ >>= loadPremise) (readPremise fileOps (scenario <> "/v0"))
+runPremise :: String -> String -> Int -> Maybe Seed -> Effect Unit
+runPremise premise presetName rounds given = do
+  loaded <- map (_ >>= loadPremise) (readPremise fileOps (premise <> "/v0"))
   case loaded of
     Left e -> fail e
     Right parts -> case assemblePreset parts presetName [] (Just rounds) of

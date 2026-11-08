@@ -116,7 +116,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
-The Dashboard's launch form offers the same names: `GET /api/scenario` sends them (`Premises.Presets.presetNames`, in the order written).
+The Dashboard's launch form offers the same names: `GET /api/premise` sends them (`Premises.Presets.presetNames`, in the order written).
 
 ### 4.3 Coverage
 
@@ -300,7 +300,7 @@ The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Rout
 
 | Method and path | Purpose | Replies |
 |---|---|---|
-| `GET /api/scenario` | The launch form's premise: name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
+| `GET /api/premise` | The launch form's premise: name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
 | `GET /api/runs[?archived=true]` | The run list: a `Table` plus `runs`, the typed flags of each run in the table's order (`id`, `archived`, `readable`; a run that cannot be decoded is not readable). Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat. Body: `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch |
 | `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is a `Table` plus `rounds` and `target` (completed and target rounds), `facts` (the header's label and value pairs: Name, Scenario, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
@@ -310,7 +310,7 @@ The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Rout
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200 `{deleted}`. 400 without a matching `confirm`. 404 |
-| `GET /api/compare?runs=a,b[&market=m]` | Compare runs. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's column). | 200. 400 when no run is valid or `market` is unknown |
+| `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's column). | 200. 400 when no run is valid or `market` is unknown |
 | `GET /api/glossary` | The glossary the dashboard shows: `definitions` and `reasons` by column or field name, `unnamed` (the text for a name with no entry, with `{name}`), and `price` (the prefix and text of the overview's `Final price` fields, with `{market}`). Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency[?playerSeed=n&preset=p&alternative=a]` | Agency analysis: every seat plays `preset` (default `Conservative`), then each Actor in turn plays `alternative` (default `Aggressive`). `playerSeed` defaults to 1. | 200. 400 for a bad seed or an unknown preset |
 
@@ -320,6 +320,7 @@ Operation rules:
 - **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `Simulator.Records.recordsEqual`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
+- **Premise route.** `GET /api/premise` was `GET /api/scenario` until the premise naming (work/4.md §9). It is an API change: no alias is kept, and the reply bytes are unchanged.
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
@@ -383,13 +384,13 @@ Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of t
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | Name | optional | `defaultName`, the next run id (`run-N`) | A label. The server names the default, and the dashboard fills a blank name with it. The API requires a `name`. |
-| Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/scenario` sends. |
-| Premise (labelled Scenario) | required | `meridian@v0` | The one premise the server serves. |
+| Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/premise` sends. |
+| Premise | required | `meridian@v0` | The one premise the server serves. |
 | Rounds | optional | the premise's default (5) | A select of the premise's supported counts (4 to 8). Resume takes a whole number above the run's completed rounds, with no upper bound (§8.1). |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
 | Game seed | read-only | the premise's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
 
-A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, game seed, default name, and presets come from `GET /api/scenario`.
+A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, game seed, default name, and presets come from `GET /api/premise`.
 
 ### 9.4 Compare
 

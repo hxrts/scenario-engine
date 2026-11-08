@@ -20,7 +20,7 @@ import Compile.Render (compile)
 
 main :: Effect Unit
 main = case compile of
-  Left e -> log ("invalid scenario: " <> e) *> exit' 1
+  Left e -> log ("invalid premise: " <> e) *> exit' 1
   Right files -> do
     root <- premiseRoot fileOps
     for_ [ "meridian/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }

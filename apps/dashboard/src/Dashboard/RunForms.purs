@@ -13,7 +13,7 @@ import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
 import Data.String (trim)
 
--- | The rounds a form accepts: a minimum, and a maximum when the scenario bounds it.
+-- | The rounds a form accepts: a minimum, and a maximum when the premise bounds it.
 type RoundBounds = { min :: Int, max :: Maybe Int }
 
 -- | The round-count rule: a whole number within the bounds, read after trimming the text. The text

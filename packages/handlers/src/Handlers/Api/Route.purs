@@ -57,7 +57,7 @@ route impl req = either pure impl (parse req)
 parse :: Request -> Either Reply ApiRequest
 parse req = case req.method, segments of
   "GET", [ "api", "runs" ] -> Right (ListRuns { archived: param "archived" "" == "true" })
-  "GET", [ "api", "scenario" ] -> Right Scenario
+  "GET", [ "api", "premise" ] -> Right Premise
   "GET", [ "api", "glossary" ] -> Right Glossary
   "POST", [ "api", "runs" ] -> map LaunchRun (decodeBody req.body :: Either Reply Launch)
   "POST", [ "api", "runs", id, "derive" ] -> Right (Derive { id, body: req.body })
@@ -83,7 +83,7 @@ decodeBody text = either (\e -> Left (failWith 400 e)) Right (readJson text)
 wire :: ApiRequest -> Wire
 wire = case _ of
   ListRuns { archived } -> get ("/api/runs" <> query (if archived then [ "archived=true" ] else []))
-  Scenario -> get "/api/scenario"
+  Premise -> get "/api/premise"
   Glossary -> get "/api/glossary"
   LaunchRun l -> post "/api/runs" (stringify (encodeJson l))
   Entities id -> get (run id <> "/entities")
