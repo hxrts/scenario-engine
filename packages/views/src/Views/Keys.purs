@@ -34,9 +34,19 @@ module Views.Keys
   , compare
   ) where
 
+import Prelude
+
+import Core.Num (Kind, kindShape)
+import Core.Shape (Shape, RecF, boolShape, fieldOf, intShape, listOf, object, objectValuesOf, optionalOf, stringShape)
 import Data.Maybe (Maybe)
-import Core.Num (kindShape)
-import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, optionalOf, recordShape, stringShape)
+import Data.Symbol (class IsSymbol, reflectSymbol)
+import Foreign.Object (Object)
+import Prim.Row as Row
+import Prim.RowList as RL
+import Record as Record
+import Record.Builder (Builder)
+import Record.Builder as Builder
+import Type.Proxy (Proxy(..))
 import Schema.View (View(..))
 import Views.Actions (ActionsChart, ActionsView)
 import Views.Balance (BalanceView)
@@ -51,129 +61,111 @@ import Schema.Run (DeriveKind, deriveKindShape)
 -- | A view of a stored run, and the shape of its reply.
 type ViewKey a = { view :: View, shape :: Shape a }
 
-strings :: Shape (Array String)
-strings = listOf stringShape
+-- | The shape of a view model, derived from its type. A view model is built of text, numbers, flags, arrays,
+-- | records, optional values, and Kinds, and holds no Quantity, no Id, and no sum, so every one of its types has
+-- | one shape. Field names are the keys, in both formats.
+class ViewShape a where
+  viewShape :: Shape a
+
+instance ViewShape String where
+  viewShape = stringShape
+
+instance ViewShape Int where
+  viewShape = intShape
+
+instance ViewShape Boolean where
+  viewShape = boolShape
+
+instance ViewShape Kind where
+  viewShape = kindShape
+
+instance ViewShape DeriveKind where
+  viewShape = deriveKindShape
+
+instance ViewShape a => ViewShape (Array a) where
+  viewShape = listOf viewShape
+
+instance ViewShape a => ViewShape (Maybe a) where
+  viewShape = optionalOf viewShape
+
+instance ViewShape a => ViewShape (Object a) where
+  viewShape = objectValuesOf viewShape
+
+instance (RL.RowToList r rl, ViewFields rl r r) => ViewShape (Record r) where
+  viewShape = object "view" (map (\b -> Builder.build b {}) (viewFields (Proxy :: Proxy rl)))
+
+-- | The fields of a view model's record, in sorted key order, as `Core.Shape.recordShape` describes them.
+class ViewFields :: RL.RowList Type -> Row Type -> Row Type -> Constraint
+class ViewFields rl whole built | rl -> built where
+  viewFields :: Proxy rl -> RecF (Record whole) (Builder (Record ()) (Record built))
+
+instance ViewFields RL.Nil whole () where
+  viewFields _ = pure identity
+
+instance
+  ( IsSymbol key
+  , ViewShape a
+  , Row.Cons key a _w whole
+  , Row.Cons key a tail built
+  , Row.Lacks key tail
+  , ViewFields rest whole tail
+  ) =>
+  ViewFields (RL.Cons key a rest) whole built where
+  viewFields _ =
+    (\value tail -> Builder.insert field value <<< tail)
+      <$> fieldOf (reflectSymbol field) "" viewShape (Record.get field)
+      <*> viewFields (Proxy :: Proxy rest)
+    where
+    field = Proxy :: Proxy key
 
 table :: Shape Table
-table = recordShape "Table" { title: stringShape, columns: strings, rows: listOf strings }
-
-point :: Shape Point
-point = recordShape "Point" { round: intShape, value: stringShape }
+table = viewShape
 
 chart :: Shape Chart
-chart = recordShape "Chart"
-  { title: stringShape
-  , unit: stringShape
-  , kind: kindShape
-  , series: listOf (recordShape "Series" { name: stringShape, points: listOf point })
-  }
+chart = viewShape
 
 bars :: Shape Bars
-bars = recordShape "Bars"
-  { title: stringShape
-  , unit: stringShape
-  , kind: kindShape
-  , categories: strings
-  , series: listOf (recordShape "BarSeries" { name: stringShape, values: strings })
-  }
-
-actionsChart :: Shape ActionsChart
-actionsChart = recordShape "ActionsChart"
-  { title: stringShape
-  , purpose: stringShape
-  , kinds: listOf (recordShape "ActionKind" { key: stringShape, label: stringShape })
-  , bars: listOf
-      ( recordShape "ActionBar"
-          { player: stringShape
-          , total: intShape
-          , counts: listOf (recordShape "ActionCount" { key: stringShape, count: intShape })
-          }
-      )
-  }
+bars = viewShape
 
 actionsView :: Shape ActionsView
-actionsView = recordShape "ActionsView" { chart: actionsChart, totals: table, byRound: table }
+actionsView = viewShape
 
 balanceView :: Shape BalanceView
-balanceView = recordShape "BalanceView" { measures: table, completion: table }
+balanceView = viewShape
 
 economyView :: Shape { totals :: Chart, flows :: Table, pressure :: Table }
-economyView = recordShape "Economy" { totals: chart, flows: table, pressure: table }
-
-fact :: Shape Fact
-fact = recordShape "Fact" { label: stringShape, value: stringShape }
+economyView = viewShape
 
 runOverview :: Shape RunOverview
-runOverview = recordShape "RunOverview"
-  { id: stringShape
-  , rounds: intShape
-  , target: intShape
-  , resumable: boolShape
-  , facts: listOf fact
-  }
+runOverview = viewShape
 
 runFlags :: Shape RunFlags
-runFlags = recordShape "RunFlags" { id: stringShape, archived: boolShape, readable: boolShape, source: optionalOf stringShape }
+runFlags = viewShape
 
 runList :: Shape RunList
-runList = recordShape "RunList" { title: stringShape, columns: strings, rows: listOf strings, runs: listOf runFlags }
-
-roundRange :: Shape RoundRange
-roundRange = recordShape "RoundRange" { min: intShape, max: intShape, default: intShape }
+runList = viewShape
 
 -- | `GET /api/setting`: the settings the launch form offers.
 settings :: Shape (Array Setting)
-settings = listOf setting
+settings = viewShape
 
 setting :: Shape Setting
-setting = recordShape "Setting"
-  { name: stringShape
-  , version: stringShape
-  , rounds: roundRange
-  , gameSeed: intShape
-  , defaultName: stringShape
-  , presets: strings
-  }
-
-reason :: Shape Reason
-reason = recordShape "Reason" { label: stringShape, reason: stringShape }
+setting = viewShape
 
 glossary :: Shape Glossary
-glossary = recordShape "Glossary"
-  { definitions: objectValuesOf stringShape
-  , reasons: objectValuesOf reason
-  , unnamed: recordShape "Unnamed" { definition: stringShape, reason }
-  , round: recordShape "RoundEntry" { prefix: stringShape, definition: stringShape }
-  }
-
-entityChoice :: Shape EntityChoice
-entityChoice = recordShape "EntityChoice" { id: stringShape, seat: boolShape }
+glossary = viewShape
 
 entityList :: Shape EntityList
-entityList = recordShape "EntityList" { default: stringShape, entities: listOf entityChoice }
+entityList = viewShape
 
 history :: Shape History
-history = recordShape "History" { table, chart, netWorth: chart }
+history = viewShape
 
 marked :: Shape Marked
-marked = recordShape "Marked" { table, marked: listOf (listOf boolShape) }
+marked = viewShape
 
 compare :: Shape CompareView
-compare = recordShape "CompareView"
-  { compatibility: table
-  , trajectory: optionalOf chart
-  , markets: listOf chart
-  , netWorth: listOf (recordShape "PlayerChart" { player: stringShape, chart })
-  , standings: bars
-  , balance: recordShape "BalanceBars" { spread: bars, gini: bars, unit: stringShape }
-  , keyValues: table
-  , final: marked
-  , baseline: stringShape
-  , diff: table
-  , config: marked
-  , seeds: table
-  , skipped: strings
-  }
+compare = viewShape
 
 key :: forall a. View -> Shape a -> ViewKey a
 key view shape = { view, shape }
@@ -223,21 +215,21 @@ events = key Events table
 -- Reply shapes of the write endpoints ------------------------------------------------------------
 
 launched :: Shape { id :: String, playerSeed :: Int }
-launched = recordShape "Launched" { id: stringShape, playerSeed: intShape }
+launched = viewShape
 
 -- | One run of a batch: its Setting and its run.
 batched :: Shape { setting :: String, id :: String, playerSeed :: Int }
-batched = recordShape "Batched" { setting: stringShape, id: stringShape, playerSeed: intShape }
+batched = viewShape
 
 resumed :: Shape { id :: String, rounds :: Int }
-resumed = recordShape "Resumed" { id: stringShape, rounds: intShape }
+resumed = viewShape
 
 archived :: Shape { id :: String, archived :: Boolean }
-archived = recordShape "Archived" { id: stringShape, archived: boolShape }
+archived = viewShape
 
 deleted :: Shape { deleted :: String }
-deleted = recordShape "Deleted" { deleted: stringShape }
+deleted = viewShape
 
 -- | The reply to a derive; `recordsMatch` only for a rerun.
 derived :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
-derived = recordShape "Derived" { id: stringShape, source: stringShape, kind: deriveKindShape, recordsMatch: optionalOf boolShape }
+derived = viewShape
