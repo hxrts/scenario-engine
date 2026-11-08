@@ -22,7 +22,6 @@ module Effects.Signatures
   , ObserveF(..)
   , STORE
   , StoreF(..)
-  , Spec
   , Stored
   , RunError(..)
   , NewRun
@@ -36,7 +35,7 @@ import Prelude
 
 import Core.Invariants (Failure)
 import Core.Proposal (JointProposal, Transcript, ProposalBody)
-import Core.Run (DeriveKind, RunStatus)
+import Core.Run (DeriveKind, RunStatus, Spec)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
@@ -78,10 +77,6 @@ data NarrateF a = Narrate RoundResult (String -> a)
 derive instance Functor NarrateF
 
 type NARRATE r = (narrate :: NarrateF | r)
-
--- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
--- | the overrides, and the source it was derived from). Each producer writes its own fields.
-type Spec = Object String
 
 -- | A stored value: the value, or why the stored text does not read back.
 type Stored a = Either String a

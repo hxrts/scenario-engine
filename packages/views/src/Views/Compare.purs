@@ -26,15 +26,16 @@ import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)
 import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, mapMaybe, nub, notElem, sortWith, uncons)
 import Data.Either (hush)
-import Data.Foldable (any, sum)
+import Core.Run (Spec, specKey, specPairs)
+import Data.Foldable (any, lookup, sum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
 import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniCell, measuresOf, spreadCell)
-import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, ratioUnit, specKeys, specValue, unitOf)
+import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, ratioUnit, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -86,7 +87,7 @@ marketsField = { name: "Market definitions", same: \a b -> markets a == markets 
   markets r = r.manifest.initial.markets
 
 actorsField :: Field
-actorsField = { name: "Actor selection", same: \a b -> specValue a.spec specKeys.preset == specValue b.spec specKeys.preset }
+actorsField = { name: "Actor selection", same: \a b -> a.spec.preset == b.spec.preset }
 
 -- | The fields a comparison checks, in the order the verdict names them.
 fields :: Array Field
@@ -102,7 +103,7 @@ compatible runs =
   , rows: map (\r -> row (fromMaybe r (index runs 0)) r) runs
   }
   where
-  row first r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (completed r), sameCell first unitsField r, sameCell first marketsField r, fromMaybe "—" (specValue r.spec specKeys.preset), verdict first r ]
+  row first r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (completed r), sameCell first unitsField r, sameCell first marketsField r, fromMaybe "—" r.spec.preset, verdict first r ]
   sameCell first f r = if f.same first r then "same" else "differs"
   verdict first r = case map _.name (filter (\f -> not (f.same first r)) fields) of
     [] -> "yes"
@@ -201,8 +202,8 @@ categoryLabel = case _ of
 
 categoryOf :: String -> Category
 categoryOf k
-  | k `elem` [ specKeys.gameId, "gameboard", "engine" ] = Version
-  | k == specKeys.preset = SeatPolicy
+  | k `elem` [ specKey.gameId, "gameboard", "engine" ] = Version
+  | k == specKey.preset = SeatPolicy
   | k `elem` [ "game seed", "player seed" ] = Seeds
   | otherwise = Other
 
@@ -223,13 +224,14 @@ configDiff base others =
   -- a parameter differs when some run's value is not the baseline's
   differs k = any (\r -> value r k /= value base k) allRuns
   -- the player seed is its own row, so the specification's copy of it is not listed again
-  keys = filter (_ /= specKeys.playerSeed) (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ]))
+  listed r = specPairs (r.spec { playerSeed = Nothing })
+  keys = nub (concatMap (\r -> map fst (listed r)) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ])
   value r k
     | k == "gameboard" = r.manifest.gameboard
     | k == "engine" = r.manifest.engine
     | k == "game seed" = show r.manifest.initial.seed
     | k == "player seed" = r.playerSeed
-    | otherwise = fromMaybe "—" (specValue r.spec k)
+    | otherwise = fromMaybe "—" (lookup k (listed r))
 
 -- | The runs of the first run's specification: the same settings, whatever their seeds. Their
 -- | differences are seed-to-seed variation (§10.2); the bookkeeping keys (the seed, the derivation)
@@ -239,7 +241,8 @@ sameSpecification runs = case uncons runs of
   Nothing -> []
   Just { head: first } -> filter (\r -> specOf r == specOf first) runs
   where
-  specOf r = filter (\(Tuple k _) -> notElem k [ specKeys.playerSeed, specKeys.source, specKeys.kind ]) r.spec
+  specOf :: StoredRun -> Spec
+  specOf r = r.spec { playerSeed = Nothing, source = Nothing, kind = Nothing }
 
 agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =

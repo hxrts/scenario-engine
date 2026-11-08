@@ -17,7 +17,8 @@ import Prelude
 import Core.Run (RunStatus(..))
 import Data.Either (Either, either)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (NewRun, STORE, Spec, StoreF(..), _store)
+import Core.Run (Spec)
+import Effects.Signatures (NewRun, STORE, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
 

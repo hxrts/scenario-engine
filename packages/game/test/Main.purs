@@ -22,6 +22,11 @@ import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings,
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
 import Game.Premise (Premise(..))
+import Core.Run (specShape)
+import Core.Shape as Shape
+import Data.Argonaut.Decode (printJsonDecodeError)
+import Data.Bifunctor (bimap)
+import Data.String (Pattern(..), contains)
 import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
@@ -134,8 +139,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (map (const unit)) (jsonParser stored >>= decodeOverrides) `shouldEqual` Right (map (const unit) overrides)
     it "a stored spec keeps reading: an old default round count, and a present non-integer fails" do
       let
-        spec rounds = Object.fromFoldable ([ Tuple "preset" "Passive", Tuple "playerSeed" "1" ] <> rounds)
-      map _.rounds (decodeSpec (spec [ Tuple "rounds" "default" ])) `shouldEqual` Right Nothing
-      map _.rounds (decodeSpec (spec [])) `shouldEqual` Right Nothing
-      map _.rounds (decodeSpec (spec [ Tuple "rounds" "3" ])) `shouldEqual` Right (Just 3)
-      map _.rounds (decodeSpec (spec [ Tuple "rounds" "lots" ])) `shouldEqual` Left "the stored spec's rounds is not an integer: lots"
+        -- the stored text, through the one shape; the format is pinned here (S8)
+        spec rounds = bimap printJsonDecodeError identity (Shape.parse Shape.Premise specShape ("{\"preset\":\"Passive\",\"playerSeed\":\"1\"" <> rounds <> "}")) >>= decodeSpec
+      map _.rounds (spec ",\"rounds\":\"default\"") `shouldEqual` Right Nothing
+      map _.rounds (spec "") `shouldEqual` Right Nothing
+      map _.rounds (spec ",\"rounds\":\"3\"") `shouldEqual` Right (Just 3)
+      (lmapContains (map _.rounds (spec ",\"rounds\":\"lots\""))) `shouldEqual` true
+
+-- | The stored rounds decode failure names the value and the field.
+lmapContains :: forall a. Either String a -> Boolean
+lmapContains = case _ of
+  Left e -> contains (Pattern "the stored spec's rounds is not an integer: lots") e
+  Right _ -> false

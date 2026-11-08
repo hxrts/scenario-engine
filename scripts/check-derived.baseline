@@ -16,7 +16,7 @@ hand-json packages/premises/src/Premises/Capstone.purs 1
 hand-json packages/schema/src/Schema/Premise/Tags.purs 1
 implicit-codec apps/cli/src/Session.purs 2
 implicit-codec apps/server/test/Main.purs 10
-implicit-codec packages/adapters/src/Adapters/SQLite.purs 5
+implicit-codec packages/adapters/src/Adapters/SQLite.purs 3
 implicit-codec packages/adapters/test/Test/Adapters/Pi.purs 1
 implicit-codec packages/handlers/src/Handlers/Api/Route.purs 1
 implicit-codec packages/handlers/src/Handlers/Recording.purs 2
@@ -30,7 +30,6 @@ name-literal apps/dashboard/e2e/mocks.js 1
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
 name-literal apps/server/src/Server/Read.purs 1
 name-literal packages/schema/src/Schema/Premise/Fixture.purs 1
-name-literal packages/views/src/Views/Common.purs 1
 name-literal packages/views/src/Views/Drivers.purs 1
 repeated-idiom packages/board/src/Board/Gameboard/Instantiate.purs 3
 repeated-idiom packages/board/src/Board/Gameboard/Validate.purs 6

@@ -18,10 +18,9 @@ import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effects.Api (DeriveRequest, Reply)
-import Effects.Signatures (RunError(..), Spec, Stored, StoredRound)
+import Effects.Signatures (RunError(..), Stored, StoredRound)
 import Effects.Observe (readManifest, readRounds)
 import Effects.Store (deleteRun, setArchived, setSpec, setStatus)
-import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
 import Server.Errors (describe, failWith, ok)
@@ -30,10 +29,10 @@ import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset)
 import Game.Premise (GameboardParts)
-import Core.Run (DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Core.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
 import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
 import Handlers.Api.Route as Route
-import Game.Recipe (Recipe, decodeSpec, deriveRecipe, specKeys)
+import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Simulator.Records (recordsEqual)
 import Views.Common (records)
 import Simulator.Simulate (resumeWith)
@@ -117,7 +116,7 @@ resumeRun premise store id rounds =
                       Right game -> do
                         attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
                           runStore store (setStatus id Running Nothing)
-                          runStore store (setSpec id (Object.insert specKeys.rounds (show rounds) p.spec))
+                          runStore store (setSpec id p.spec { rounds = Just rounds })
                           recorder store roundMetrics id p.snapshot
                         case attempt of
                           Left e -> failWith 400 e

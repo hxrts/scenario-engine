@@ -5,8 +5,6 @@
 module Game.Recipe
   ( Recipe
   , Derivation
-  , specKeys
-  , specRounds
   , encodeSpec
   , decodeSpec
   , deriveRecipe
@@ -15,22 +13,15 @@ module Game.Recipe
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Run (DeriveKind(..), deriveKindName)
+import Core.Run (DeriveKind(..), Spec, deriveKindName, specKey)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, null)
 import Data.Either (Either(..), note)
-import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
-import Data.Tuple (Tuple(..))
-import Foreign.Object (Object)
-import Foreign.Object as Object
 import Game.Override (Override, decodeOverrides, encodeOverrides)
-
--- | A stored specification: every value is a string.
-type Spec = Object String
 
 -- | What a new run is played from: its preset, player seed (Nothing draws one), round count
 -- | (Nothing is the configuration's), and overrides. It is what a run's stored spec records.
@@ -39,38 +30,20 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 -- | The run a derived run came from, and how it was derived.
 type Derivation = { source :: String, kind :: DeriveKind }
 
--- | The keys of a stored specification.
-specKeys
-  :: { gameId :: String, preset :: String, playerSeed :: String, rounds :: String, overrides :: String, source :: String, kind :: String, model :: String, humans :: String }
-specKeys =
-  { gameId: "gameId"
-  , preset: "preset"
-  , playerSeed: "playerSeed"
-  , rounds: "rounds"
-  , overrides: "overrides"
-  , source: "source"
-  , kind: "kind"
-  , model: "model"
-  , humans: "humans"
-  }
-
--- | The round count a stored specification records, if it is a number.
-specRounds :: Spec -> Maybe Int
-specRounds s = Object.lookup specKeys.rounds s >>= Int.fromString
-
 -- | The stored specification of a run: its Gameboard, the player seed it was resolved to, its recipe,
--- | the run it was derived from, if any, and, for a live session, its model and human seats. Every
--- | value is a string.
+-- | the run it was derived from, if any, and, for a live session, its model and human seats.
 encodeSpec :: { gameId :: String, playerSeed :: Seed, preset :: String, rounds :: Maybe Int, overrides :: Array Override, derivation :: Maybe Derivation, model :: Maybe String, humans :: Maybe String } -> Spec
-encodeSpec r = Object.fromFoldable $
-  [ Tuple specKeys.gameId r.gameId
-  , Tuple specKeys.preset r.preset
-  , Tuple specKeys.playerSeed (show (unwrap r.playerSeed))
-  , Tuple specKeys.overrides (stringify (encodeOverrides r.overrides))
-  ] <> maybe [] (pure <<< Tuple specKeys.rounds <<< show) r.rounds
-    <> maybe [] (\d -> [ Tuple specKeys.source d.source, Tuple specKeys.kind (deriveKindName d.kind) ]) r.derivation
-    <> maybe [] (pure <<< Tuple specKeys.model) r.model
-    <> maybe [] (pure <<< Tuple specKeys.humans) r.humans
+encodeSpec r =
+  { gameId: Just r.gameId
+  , preset: Just r.preset
+  , playerSeed: Just (unwrap r.playerSeed)
+  , overrides: Just (stringify (encodeOverrides r.overrides))
+  , rounds: r.rounds
+  , source: map _.source r.derivation
+  , kind: map _.kind r.derivation
+  , model: r.model
+  , humans: r.humans
+  }
 
 -- | The recipe a derived run is played from, given the request's fields (`Effects.Api.DeriveRequest`;
 -- | the request's kind is parsed before this is called). Absent fields keep the source's values.
@@ -99,10 +72,10 @@ deriveRecipe kind body base = case kind of
     if null given then Left "a counterfactual needs at least one override" else pure unit
     pure base { overrides = base.overrides <> given }
   where
-  preset = { name: specKeys.preset, given: isJust body.preset }
-  seed = { name: specKeys.playerSeed, given: isJust body.playerSeed }
-  rounds = { name: specKeys.rounds, given: isJust body.rounds }
-  overrides = { name: specKeys.overrides, given: isJust body.overrides }
+  preset = { name: specKey.preset, given: isJust body.preset }
+  seed = { name: specKey.playerSeed, given: isJust body.playerSeed }
+  rounds = { name: specKey.rounds, given: isJust body.rounds }
+  overrides = { name: specKey.overrides, given: isJust body.overrides }
 
   -- a field the kind does not take is an error, not a silent no-op
   unchanged :: Array { name :: String, given :: Boolean } -> Either String Unit
@@ -111,16 +84,11 @@ deriveRecipe kind body base = case kind of
     xs -> Left (deriveKindName kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
 
 -- | The recipe a stored specification was played with.
-decodeSpec :: Object String -> Either String Recipe
+decodeSpec :: Spec -> Either String Recipe
 decodeSpec s = do
-  preset <- note "the stored spec has no preset" (Object.lookup specKeys.preset s)
-  playerSeed <- note "the stored spec has no player seed" (Object.lookup specKeys.playerSeed s >>= Int.fromString)
-  overrides <- case Object.lookup specKeys.overrides s of
+  preset <- note "the stored spec has no preset" s.preset
+  playerSeed <- note "the stored spec has no player seed" s.playerSeed
+  overrides <- case s.overrides of
     Nothing -> Right []
     Just text -> jsonParser text >>= decodeOverrides
-  -- rows written before the key was omitted hold "default" for a configured round count
-  rounds <- case Object.lookup specKeys.rounds s of
-    Nothing -> Right Nothing
-    Just "default" -> Right Nothing
-    Just text -> Just <$> note ("the stored spec's rounds is not an integer: " <> text) (Int.fromString text)
-  pure { preset, playerSeed: Just playerSeed, rounds, overrides }
+  pure { preset, playerSeed: Just playerSeed, rounds: s.rounds, overrides }

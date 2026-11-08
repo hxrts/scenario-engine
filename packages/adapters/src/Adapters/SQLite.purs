@@ -21,7 +21,7 @@ import Prelude
 import Data.Argonaut.Decode (fromJsonString, class DecodeJson, printJsonDecodeError)
 import Schema.Decode.Common (decodeError)
 import Data.Argonaut.Core (fromString, stringify)
-import Core.Run (RunStatus, deriveKindName, runStatusName, runStatusShape)
+import Core.Run (RunStatus, Spec, deriveKindName, runStatusName, runStatusShape, specShape)
 import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
@@ -111,6 +111,14 @@ shapeText s = stringify <<< encodeWith Snapshot s
 fromShape :: forall a. Shape a -> String -> String -> Stored a
 fromShape s what text = lmap (\e -> what <> ": " <> printJsonDecodeError e) (parse Snapshot s text)
 
+-- | A stored specification to its text, in the premise form: an absent field is not written.
+specText :: Spec -> String
+specText = stringify <<< encodeWith Premise specShape
+
+-- | A stored specification's text, read through its shape.
+specOf :: String -> Stored Spec
+specOf text = lmap (\e -> "spec: " <> printJsonDecodeError e) (parse Premise specShape text)
+
 -- | A row's status text as the type the program reads. Only this module writes the column, so text
 -- | outside the set is a damaged store: an exception, not a guess.
 statusOf :: String -> String -> Effect RunStatus
@@ -120,11 +128,11 @@ statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeE
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (deriveKindName <$> r.kind)) r.owner
+  { createRun: \r -> runFn9 createRunImpl db r.id r.name (specText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (deriveKindName <$> r.kind)) r.owner
   , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (shapeText roundRecordShape r.record) (shapeText worldStateShape r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
   , setStatus: \id status reason -> runFn4 setStatusImpl db id (runStatusName status) (toNullable reason)
   , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
-  , setSpec: \id spec -> runFn3 setSpecImpl db id (toText spec)
+  , setSpec: \id spec -> runFn3 setSpecImpl db id (specText spec)
   , setArchived: \id archived -> runFn3 setArchivedImpl db id archived
   , deleteRun: \id -> runFn2 deleteRunImpl db id
   , listRuns: runFn1 listRunsImpl db >>= traverse runInfo
@@ -143,7 +151,7 @@ sqliteBackend db =
     , status
     , created: r.created
     , reason: toMaybe r.reason
-    , spec: fromText "spec" r.spec
+    , spec: specOf r.spec
     , manifest: fromShape manifestShape "manifest" r.manifest
     , archived: r.archived
     , source: toMaybe r.source
@@ -151,7 +159,7 @@ sqliteBackend db =
     }
 
   manifestOf :: ManifestRow -> StoredManifest
-  manifestOf r = { spec: fromText "spec" r.spec, manifest: fromShape manifestShape "manifest" r.manifest }
+  manifestOf r = { spec: specOf r.spec, manifest: fromShape manifestShape "manifest" r.manifest }
 
   roundOf :: RoundRow -> StoredRound
   roundOf r =

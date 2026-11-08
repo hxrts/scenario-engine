@@ -147,8 +147,7 @@ function loadContext() {
   // the literal segments of the endpoint table's paths
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
-  const recipe = read("packages/game/src/Game/Recipe.purs");
-  const specKeys = need("spec keys in Game.Recipe", [...(/^specKeys =\n([\s\S]*?)\n\n/m.exec(recipe) || ["", ""])[1].matchAll(/: "(\w+)"/g)].map((m) => m[1]));
+  const specKeys = need("spec keys in Core.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
   const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/Tuple "(\w+)"/g)].map((m) => m[1]));
 
   const columns = new Set();
@@ -163,7 +162,7 @@ function loadContext() {
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
 const viewFile = "packages/core/src/Core/View.purs";
 const presetsFile = "packages/premises/src/Premises/Presets.purs";
-const recipeFile = "packages/game/src/Game/Recipe.purs";
+const specFile = "packages/core/src/Core/Run.purs";
 
 // Rules ----------------------------------------------------------------------------------------------
 
@@ -183,7 +182,7 @@ const fixes = {
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
   "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check-derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
-  "name-literal": "use the name's one source (Core.View.viewName, specKeys, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
+  "name-literal": "use the name's one source (Core.View.viewName, Core.Run.specKey, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Market (entries, sumInto, marketPrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",
@@ -297,8 +296,7 @@ function scan(file, text, ctx) {
       // a route segment: a path built from them, outside the endpoint table
       if (file === routeFile && sym !== "endpoints" && sym !== "apiPrefix" && s.value.includes("/") && s.value.split("/").filter(Boolean).every((p) => p === "api" || ctx.routeSegments.includes(p)) && s.value.split("/").filter(Boolean).length > 0) hit("route", i);
       // a spec key, outside Game.Recipe's one table
-      if (ctx.specKeys.includes(s.value) && !keyed && file !== recipeFile && file !== routeFile) hit("spec", i);
-      if (file === "packages/views/src/Views/Common.purs" && sym === "specKeys" && ctx.specKeys.includes(s.value)) hit("spec", i);
+      if (ctx.specKeys.includes(s.value) && !keyed && file !== specFile && file !== routeFile) hit("spec", i);
       // a preset
       if (ctx.presets.includes(s.value) && file !== presetsFile) hit("preset", i);
       // a column: a table heading is a Column, so a literal in a `columns:` list repeats it

@@ -27,6 +27,7 @@ import Server.Cache (newCache)
 import Server.Implementation (implement)
 import Test.Server.Api as Api
 import Test.Server.Http as HttpDevice
+import Core.Run (DeriveKind(Counterfactual))
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -142,7 +143,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           case drawnRun, explicitRun of
             Just d, Just e -> do
               case d.spec of
-                Right s -> Object.lookup "playerSeed" s `shouldEqual` Just (show seed)
+                Right s -> s.playerSeed `shouldEqual` Just seed
                 Left why -> fail ("the drawn run's spec should read back: " <> why)
               d.spec `shouldEqual` e.spec
               map (stringify <<< encodeJson) d.manifest `shouldEqual` map (stringify <<< encodeJson) e.manifest
@@ -162,7 +163,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           stored <- liftEffect (runObserve (sqliteBackend db) (readManifest "run-1"))
           case stored of
             Just m -> case m.spec of
-              Right s -> Object.lookup "gameId" s `shouldEqual` Just "meridian/meridian-test-01"
+              Right s -> s.gameId `shouldEqual` Just "meridian/meridian-test-01"
               Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "no stored spec"
           overview <- api "GET" "/api/runs/run-1/overview" [] ""
@@ -244,7 +245,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           rerunMan <- liftEffect (runObserve store (readManifest rerunReply.id))
           case rerunMan of
             Just m -> case m.spec of
-              Right s -> Object.lookup "source" s `shouldEqual` Just "run-1"
+              Right s -> s.source `shouldEqual` Just "run-1"
               Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "the rerun has no stored spec"
           -- a variant replaces the preset; a counterfactual adds an override
@@ -256,7 +257,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           counterMan <- liftEffect (runObserve store (readManifest counterReply.id))
           case counterMan of
             Just m -> case m.spec of
-              Right s -> Object.lookup "kind" s `shouldEqual` Just "counterfactual"
+              Right s -> s.kind `shouldEqual` Just Counterfactual
               Left why -> fail ("the stored spec should read back: " <> why)
             Nothing -> fail "the counterfactual has no stored spec"
           -- the counterfactual's override is in its manifest: the game seed changed

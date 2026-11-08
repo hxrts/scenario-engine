@@ -21,7 +21,7 @@ import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Checks.Objectives (evaluateObjectives)
-import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, joinComma, names, ofCount, quantity, roundResults, specKeys, specValue, target)
+import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, joinComma, names, ofCount, quantity, roundResults, target)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
@@ -131,11 +131,11 @@ overview r =
   , resumable: r.status == Completed
   , facts:
       [ fact col.name r.name
-      , fact presetColumn (fromMaybe "" (specValue r.spec specKeys.preset))
+      , fact presetColumn (fromMaybe "" r.spec.preset)
       , fact premiseColumn r.manifest.gameboard
       , fact col.status (runStatusName r.status)
       , fact roundsCompleted (ofCount rounds launched)
-      , fact gameIdColumn (fromMaybe "" (specValue r.spec specKeys.gameId))
+      , fact gameIdColumn (fromMaybe "" r.spec.gameId)
       ]
   }
   where

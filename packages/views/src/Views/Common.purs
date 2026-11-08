@@ -40,8 +40,6 @@ module Views.Common
   , outOfRange
   , kindOf
   , series
-  , specValue
-  , specKeys
   , outcomeLabel
   , Procedure
   , asProcedure
@@ -58,12 +56,11 @@ import Core.Num (Kind, Q)
 import Core.Num as Q
 import Core.Query (isAggregate)
 import Core.Slice (event, select)
-import Core.Run (RunStatus)
+import Core.Run (RunStatus, Spec)
 import Core.Types (EntityId, ProposalId, ResourceId)
 import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
 import Data.Foldable (lookup)
-import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
@@ -159,7 +156,7 @@ type RunHeader =
   , status :: RunStatus
   , manifest :: Manifest
   , playerSeed :: String
-  , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
+  , spec :: Spec
   , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
   }
 
@@ -171,7 +168,7 @@ type StoredRun =
   , status :: RunStatus
   , manifest :: Manifest
   , playerSeed :: String
-  , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
+  , spec :: Spec
   , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
   , rounds :: Array RoundResult
   , assertions :: Array (Array Failure)
@@ -200,7 +197,7 @@ completed r = length r.rounds
 
 -- | The rounds the run was launched for; a run whose spec does not say is at its completed rounds.
 target :: StoredRun -> Int
-target r = fromMaybe (completed r) (specValue r.spec specKeys.rounds >>= Int.fromString)
+target r = fromMaybe (completed r) r.spec.rounds
 
 -- | The premise-specific names the metric views use. The default is the reference premise
 -- | (docs/05_test_instance.md); a caller passes its own to view another premise.
@@ -280,15 +277,6 @@ pointsOf r f = mapMaybe (\(Tuple i w) -> { round: i, value: _ } <$> f w) (mapWit
 -- | A point per round record of the run (the first round is 1).
 recordPoints :: StoredRun -> (RoundRecord -> String) -> Array Point
 recordPoints r f = mapWithIndex (\i rec -> { round: i + 1, value: f rec }) (records r)
-
--- | The value of a key in a flattened specification.
-specValue :: Array (Tuple String String) -> String -> Maybe String
-specValue spec k = lookup k spec
-
--- | The keys of a stored specification, as `Game.Recipe` writes them (views may not import `game`; the
--- | views suite pins the two together).
-specKeys :: { gameId :: String, preset :: String, playerSeed :: String, rounds :: String, source :: String, kind :: String }
-specKeys = { gameId: "gameId", preset: "preset", playerSeed: "playerSeed", rounds: "rounds", source: "source", kind: "kind" }
 
 -- | A collective procedure's outcome, as the views and the glossary word it.
 outcomeLabel :: Boolean -> String

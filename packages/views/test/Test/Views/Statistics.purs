@@ -24,6 +24,7 @@ import Testkit.Capstone (runOf)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
 import Views.Common (StoredRun, Table, players)
+import Core.Run (emptySpec)
 import Views.Compare (sameSpecification)
 import Views.Standings (netWorth, standings)
 import Test.Spec (Spec, describe, it)
@@ -47,7 +48,7 @@ baseRun :: GameboardParts -> Aff StoredRun
 baseRun p = do
   g <- presetGame p "Conservative" [] (Just 2)
   r <- runOf (Seed 1) g
-  pure (toStoredWith [ Tuple "preset" "Conservative", Tuple "playerSeed" "1" ] "base" r)
+  pure (toStoredWith (emptySpec { preset = Just "Conservative", playerSeed = Just 1 }) "base" r)
 
 -- | A holding set to an amount in one Entity's account.
 setHolding :: WorldState -> EntityId -> ResourceId -> Q -> WorldState
@@ -169,6 +170,6 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       ctx <- context
       base <- baseRun ctx
       let
-        seeded = base { id = "b", spec = [ Tuple "preset" "Conservative", Tuple "playerSeed" "2" ] }
-        other = base { id = "c", spec = [ Tuple "preset" "Aggressive", Tuple "playerSeed" "1" ] }
+        seeded = base { id = "b", spec = emptySpec { preset = Just "Conservative", playerSeed = Just 2 } }
+        other = base { id = "c", spec = emptySpec { preset = Just "Aggressive", playerSeed = Just 1 } }
       map _.id (sameSpecification [ base, seeded, other ]) `shouldEqual` [ "base", "b" ]

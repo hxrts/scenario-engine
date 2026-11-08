@@ -18,6 +18,7 @@ import Prelude
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Core.View (View(..))
 import Effects.Api (Reply)
+import Core.Run (Spec)
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
 import Handlers.Store (StoreBackend, runObserve)
 import Server.Cache (Cache, cached, cachedAgency)
@@ -32,12 +33,9 @@ import Data.String (joinWith)
 import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Foreign.Object (Object)
-import Foreign.Object as Object
 import Experiments.Agency (agency)
 import Game.Assemble (assemblePreset, configuredSeats)
 import Game.Premise (GameboardParts)
-import Game.Recipe (specKeys)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
@@ -89,10 +87,8 @@ decodeSummary ids row = do
 
 -- | What a run's list row and its full read take from the stored spec: the player seed, the source
 -- | it was derived from, and whether the store still holds that source.
-specFields :: Array String -> Object String -> { playerSeed :: String, source :: Maybe String, sourceDeleted :: Boolean }
-specFields ids s = { playerSeed: fromMaybe "" (Object.lookup specKeys.playerSeed s), source, sourceDeleted: maybe false (\src -> notElem src ids) source }
-  where
-  source = Object.lookup specKeys.source s
+specFields :: Array String -> Spec -> { playerSeed :: String, source :: Maybe String, sourceDeleted :: Boolean }
+specFields ids s = { playerSeed: maybe "" show s.playerSeed, source: s.source, sourceDeleted: maybe false (\src -> notElem src ids) s.source }
 
 -- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
 -- | assertion set. Any stored text that fails to decode makes the whole run unreadable. A finished
@@ -122,7 +118,7 @@ loadRun cache store id = cached cache id do
       , status: i.status
       , manifest: man
       , playerSeed: f.playerSeed
-      , spec: Object.toUnfoldable s
+      , spec: s
       , sourceDeleted: f.sourceDeleted
       }
       (zipWith (\record world -> { record, world }) records snapshots)

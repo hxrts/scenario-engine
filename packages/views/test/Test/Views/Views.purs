@@ -7,7 +7,7 @@ import Prelude
 
 import Test.Views.Support (toStored)
 
-import Core.Run (DeriveKind(..), RunStatus(..), runStatusName)
+import Core.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
@@ -27,12 +27,13 @@ import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)
 import Game.Premise (GameboardParts)
+import Core.Run (specPairs)
 import Game.Recipe (encodeSpec)
 import Foreign.Object as Object
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (orThrow)
 import Views.Balances (balances, events)
-import Views.Common (Table, completed, final, quantity, specKeys, specValue)
+import Views.Common (Table, completed, final, quantity)
 import Views.Balance (measures)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Entity (entityHistory)
@@ -66,15 +67,15 @@ play ctx s = do
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Views and error paths" do
-  it "the views read the specification keys Game.Recipe writes" do
-    let
-      written = Object.toUnfoldable (encodeSpec { gameId: "g", playerSeed: Seed 7, preset: "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }) :: Array (Tuple String String)
-    specValue written specKeys.gameId `shouldEqual` Just "g"
-    specValue written specKeys.preset `shouldEqual` Just "P"
-    specValue written specKeys.playerSeed `shouldEqual` Just "7"
-    specValue written specKeys.rounds `shouldEqual` Just "3"
-    specValue written specKeys.source `shouldEqual` Just "run-1"
-    specValue written specKeys.kind `shouldEqual` Just "variant"
+  it "the stored specification is typed: what Game.Recipe writes is what the views read" do
+    let written = encodeSpec { gameId: "g", playerSeed: Seed 7, preset: "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
+    written.gameId `shouldEqual` Just "g"
+    written.preset `shouldEqual` Just "P"
+    written.playerSeed `shouldEqual` Just 7
+    written.rounds `shouldEqual` Just 3
+    written.source `shouldEqual` Just "run-1"
+    written.kind `shouldEqual` Just Variant
+    specPairs written `shouldEqual` [ Tuple "gameId" "g", Tuple "preset" "P", Tuple "playerSeed" "7", Tuple "overrides" "[]", Tuple "rounds" "3", Tuple "source" "run-1", Tuple "kind" "variant" ]
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
@@ -167,7 +168,7 @@ spec context = describe "Views and error paths" do
       b = toStored "b" r
       engine = b { manifest = b.manifest { engine = "engine-other" } }
       markets = b { manifest = b.manifest { initial = b.manifest.initial { markets = map (\m -> m { position = Q.fromInt 999 }) b.manifest.initial.markets } } }
-      actors = b { spec = [ Tuple "preset" "Passive" ] }
+      actors = b { spec = emptySpec { preset = Just "Passive" } }
       fewer = toStored "c" (r { records = [] })
     verdicts (compatible [ a, a ]) `shouldEqual` [ "yes", "yes" ]
     verdicts (compatible [ a, engine ]) `shouldEqual` [ "yes", "no: flagged, not combined (engine)" ]

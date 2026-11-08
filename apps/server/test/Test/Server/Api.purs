@@ -3,7 +3,7 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
-import Core.Run (RunStatus(..))
+import Core.Run (emptySpec, RunStatus(..))
 import Adapters.SQLite (Db, open, sqliteBackend)
 import Core.Draw (Seed(..))
 import Data.Either (Either(..), isLeft)
@@ -118,7 +118,7 @@ spec = describe "API status rules, startup and cache" do
     stored <- liftEffect (runObserve env.store (readManifest "run-1"))
     case stored of
       Just m -> case m.spec of
-        Right s -> Object.lookup "rounds" s `shouldEqual` Just "5"
+        Right s -> s.rounds `shouldEqual` Just 5
         Left why -> fail why
       Nothing -> fail "no stored spec"
     overview <- env.api "GET" "/api/runs/run-1/overview" ""
@@ -130,7 +130,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     let
-      new id owner = createRun { id, name: id, created: "2026-01-01T00:00:00Z", spec: Object.empty, manifest, source: Nothing, kind: Nothing, owner }
+      new id owner = createRun { id, name: id, created: "2026-01-01T00:00:00Z", spec: emptySpec, manifest, source: Nothing, kind: Nothing, owner }
     liftEffect do
       runStore env.store (new "left" "server:1:0")
       runStore env.store (new "session-1" "session:1:0")

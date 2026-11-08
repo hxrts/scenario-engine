@@ -33,7 +33,8 @@ import Effect (Effect)
 import Effect.Exception (Error, message)
 import Effect.Ref as Ref
 import Effects.Store (failRun, finish)
-import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, _observe, _store)
+import Core.Run (Spec)
+import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
 import Type.Row (type (+))
 

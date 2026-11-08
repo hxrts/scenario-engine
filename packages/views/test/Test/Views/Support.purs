@@ -4,17 +4,16 @@ module Test.Views.Support (toStored, toStoredWith) where
 import Prelude
 
 import Core.Draw (Seed(..))
-import Core.Run (RunStatus(..))
-import Data.Tuple (Tuple)
+import Core.Run (RunStatus(..), Spec, emptySpec)
 import Simulator.Simulate (SimRun)
 import Views.Common (StoredRun, storedRun)
 
 -- | The same records and snapshots, with no spec fields.
 toStored :: String -> SimRun -> StoredRun
-toStored = toStoredWith []
+toStored = toStoredWith emptySpec
 
 -- | The same records and snapshots, under the spec fields given.
-toStoredWith :: Array (Tuple String String) -> String -> SimRun -> StoredRun
+toStoredWith :: Spec -> String -> SimRun -> StoredRun
 toStoredWith spec id r = storedRun
   { id
   , name: id
