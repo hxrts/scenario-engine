@@ -128,6 +128,14 @@ serve *args:
     @scripts/free-port.sh "$@"
     spago run -p sp-server -- "$@"
 
+# A production build of one composition: only its compiled files, under build/premises/<id>, with no
+# fixtures and no capstone. Serve it with PREMISES_DIR=build/premises/<id> (docs/06 §8.1).
+[positional-arguments]
+build-prod composition: _ui _dashboard
+    rm -rf build/premises/{{composition}}
+    mkdir -p build/premises/{{composition}}
+    PREMISES_DIR=build/premises/{{composition}} spago run -p sp-cli --main Compile -- --only {{composition}}
+
 # One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.
 live-interpret:
     #!/usr/bin/env bash
