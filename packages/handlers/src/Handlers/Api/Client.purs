@@ -1,4 +1,4 @@
--- | The client of the `API` row (work/4.md §7.4): answers each operation over a fetch device, text in and
+-- | The client of the `API` row: answers each operation over a fetch device, text in and
 -- | text out. The device is the composition root's (the dashboard's `fetch` FFI); this module names no
 -- | URL except through `Handlers.Api.Route`, and its closure has no Node module, so it runs in a browser.
 module Handlers.Api.Client

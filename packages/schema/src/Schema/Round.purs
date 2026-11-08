@@ -1,4 +1,4 @@
--- | The checks a round makes (work/4.md §5.2, §13 Phase 6): `RoundF f`, one record of what a round
+-- | The checks a round makes (§13 Phase 6): `RoundF f`, one record of what a round
 -- | holds, with the filling at the leaves. `Observed = RoundF Identity` is what the engine's round
 -- | produced (`Checks.Round.observe`); `Expect = RoundF Maybe` is what a premise asserts, with sparse
 -- | maps (an absent key or a `Nothing` leaf asserts nothing) and a `Nothing` field asserting nothing.

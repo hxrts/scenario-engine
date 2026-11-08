@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Named concept rules that imports cannot express (docs/07 §5; the rule set is work/4.md §12.7 item 2). Each rule
+// Named concept rules that imports cannot express (docs/07 §5; the rule set is). Each rule
 // names where its concept may live today. A rule with a transitional home says so, and is tightened
 // when that home is created (the phase that creates it is named in the rule).
 const fs = require("fs");
@@ -28,22 +28,22 @@ const rules = [
     bad: (line) => /^(interpret|on|handler|handlers)\s*(::|=)/.test(line) || /^type\s+\w*Handler\w*\s*=/.test(line),
   },
   {
-    name: "no \"/api\" path string outside the route table: the paths are Handlers.Api.Route's alone (work/4.md §13 Phase 8)",
+    name: "no \"/api\" path string outside the route table: the paths are Handlers.Api.Route's alone",
     files: (f) => f.includes("/src/") && f !== "packages/handlers/src/Handlers/Api/Route.purs",
     bad: (line) => /"\/api/.test(line),
   },
   {
-    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only (work/4.md §13 Phase 3)",
+    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only",
     files: (f) => f.includes("/src/") && !f.startsWith("packages/schema/src/"),
     bad: (line) => tagKinds.some((k) => line.includes(`"${k}:`)),
   },
   {
-    name: "one seat vocabulary: a seat's binding is SeatBinding in game (work/4.md §7.3); no SeatSource, and no second Seat type",
+    name: "one seat vocabulary: a seat's binding is SeatBinding in game; no SeatSource, and no second Seat type",
     files: (f) => f.includes("/src/"),
     bad: (line) => /\bSeatSource\b/.test(line) || /^(data|type|newtype) Seat\b/.test(line),
   },
   {
-    name: "apps assemble through game: no instantiation call in an app (game.assemble and startOf, work/4.md §12.4)",
+    name: "apps assemble through game: no instantiation call in an app (game.assemble and startOf)",
     files: (f) => f.startsWith("apps/") && f.includes("/src/"),
     bad: (line) => /\binstantiate\b/.test(line),
   },
@@ -53,17 +53,17 @@ const rules = [
     bad: (line) => /\bSeed 0\b/.test(line),
   },
   {
-    name: "the model handler holds no hand-written action list or reply decoder: prompts render from the shapes and replies decode through them (work/4.md §13 Phase 5)",
+    name: "the model handler holds no hand-written action list or reply decoder: prompts render from the shapes and replies decode through them",
     files: (f) => f.startsWith("packages/handlers/src/Handlers/Llm"),
     bad: (line) => /"(Trade|Route|Transfer|Transform|ChangeRule|Tariff|AccessBan|Withholding)"/.test(line) || /\b(decodeJson|readJson|jsonParser|toObject|toArray|toString)\b/.test(line),
   },
   {
-    name: "a read program requests OBSERVE, not STORE: the server's read operations name no write row (work/4.md §13 Phase 8)",
+    name: "a read program requests OBSERVE, not STORE: the server's read operations name no write row",
     files: (f) => f === "apps/server/src/Server/Read.purs",
     bad: (line) => /\bEffects\.Store\b/.test(line) || /\brunStore\b/.test(line),
   },
   {
-    name: "the adapters hold no route or view type: a device knows no API operation or view model (work/4.md §13 Phase 8)",
+    name: "the adapters hold no route or view type: a device knows no API operation or view model",
     files: (f) => f.startsWith("packages/adapters/src/"),
     bad: (line) => /^import\s+(Views|Effects\.Api|Handlers\.Api)(\.|\s|$)/.test(line),
   },

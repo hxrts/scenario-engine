@@ -96,7 +96,7 @@ ruleShape = premiseSum "Rule"
     mk2 c u = { capacity: c, units: u }
 
 -- | An Intent. A `trade` with a null market is a routed order (docs/02 §5.2): it names its pair by
--- | `base` and `quote`. A Repeal has no premise tag (work/4.md §9, Phase 2), so it does not encode.
+-- | `base` and `quote`. A Repeal has no premise tag (Phase 2), so it does not encode.
 intentShape :: Shape (IntentF Q)
 intentShape = premiseSum "Intent"
   [ tradeCtor

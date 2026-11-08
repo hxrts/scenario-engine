@@ -1,6 +1,6 @@
--- | A premise: the authored input a game is assembled from (work/4.md §8.1). A Gameboard premise is the
+-- | A premise: the authored input a game is assembled from. A Gameboard premise is the
 -- | Gameboard, its instantiation configuration, and the shared seat presets; a literal premise is a
--- | World State written out in full (fixtures, work/4.md §6). `checkPremise` is the one place a decoded
+-- | World State written out in full (fixtures). `checkPremise` is the one place a decoded
 -- | Gameboard is validated against its configuration and against every Strategy it names.
 module Game.Premise (GameboardParts, Premise(..), checkPremise) where
 

@@ -1,4 +1,4 @@
--- | The SEAT_INPUT interpreter (work/4.md §7.3): one generic handler over a Game's seat bindings. A
+-- | The SEAT_INPUT interpreter: one generic handler over a Game's seat bindings. A
 -- | Strategy binding calls the pure `policy` interpreter; a Script answers from its rounds, with no
 -- | eligibility filter; a Recorded binding answers from stored round records. Agent and Human bindings
 -- | are answered by live play (`Handlers.Live`), never here: this handler gives them no answer, and the

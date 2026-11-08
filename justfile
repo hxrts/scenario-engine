@@ -34,7 +34,7 @@ _fmt-check:
 _deps:
     node scripts/check-deps
 
-# Check the named layout rules (docs/07 §3; work/4.md §12.7)
+# Check the named layout rules (docs/07 §3)
 _layout:
     node scripts/check-layout
 

@@ -1,4 +1,4 @@
--- | The server's implementation of the `API` row (docs/06_simulator.md §8–§10, work/4.md §7.4): what each
+-- | The server's implementation of the `API` row (docs/06_simulator.md §8–§10): what each
 -- | operation does. The paths, methods, and body decoding are `Handlers.Api.Route`'s; this module supplies
 -- | only each operation's semantics, from `Server.Read`, `Server.Launch`, and `Server.Derive`.
 module Server.Implementation (implement) where

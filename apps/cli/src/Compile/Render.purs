@@ -1,4 +1,4 @@
--- | The premise compiler's rendering (docs/07 §3; work/4.md §12.3): the DSL premises, validated
+-- | The premise compiler's rendering (docs/07 §3): the DSL premises, validated
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
 -- | module writes the files under the premise root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.

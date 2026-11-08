@@ -1,4 +1,4 @@
--- | Assembly: a premise, the seat bindings, and the overrides become one `Game` (work/4.md §8.1). This is
+-- | Assembly: a premise, the seat bindings, and the overrides become one `Game`. This is
 -- | the only place a Gameboard is instantiated and its seats are bound; every runner (simulator, live
 -- | play, the server's derive and launch) assembles through `assemble`.
 module Game.Assemble

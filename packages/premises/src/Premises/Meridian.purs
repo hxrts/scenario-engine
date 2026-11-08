@@ -1,7 +1,7 @@
 -- | *Meridian* (docs/05_test_instance.md), authored in the premise DSL.
 -- | `just premises` compiles it to `packages/premises/meridian/v0/*.json`.
 --
--- | NPC list decision (work/3.md, Packet F): the instantiation `npcs` is written by hand, and it is
+-- | NPC list decision (Packet F): the instantiation `npcs` is written by hand, and it is
 -- | the one place that names who starts as an NPC. Seat Covers do not derive it: `NpcOnly` is the
 -- | only Cover that runs with no fallback, and only CN holds it today, so one entry is clearer than
 -- | a derivation over the seats. The holdings each Entity starts with are in `Meridian.Holdings`.

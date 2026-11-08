@@ -1,4 +1,4 @@
--- | The round checker (work/4.md §5.2, §13 Phase 6). `observe` reads what a resolved round holds into
+-- | The round checker (§13 Phase 6). `observe` reads what a resolved round holds into
 -- | `Observed`, filled at every leaf the world has. `check` compares an `Expect` with an `Observed`,
 -- | field by field: a `Just` leaf asserts a value, a `Nothing` leaf or an absent key asserts nothing.
 -- | The Expect's values come from the premise; the Observed values come from the engine's world, so

@@ -1,9 +1,9 @@
--- | The `API` row (docs/06_simulator.md §8–§10, work/4.md §7.4): one operation per route of the
+-- | The `API` row (docs/06_simulator.md §8–§10): one operation per route of the
 -- | dashboard's HTTP API. A request is a value of `ApiRequest`: its path segments, query, and body, as
 -- | typed fields. A reply is the status and the body text the route answers with. `Handlers.Api.Route`
 -- | maps each operation to its method and path and decodes the reply's status; `Handlers.Api.Client`
 -- | answers it over a fetch device. The reply's body is the JSON of a view model the producer encodes.
--- | Those view models live in `views`, which `effects` may not import (work/4.md §9), so the body stays
+-- | Those view models live in `views`, which `effects` may not import, so the body stays
 -- | text here and each consumer decodes it.
 module Effects.Api
   ( ApiRequest(..)

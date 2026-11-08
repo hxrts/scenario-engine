@@ -23,7 +23,7 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "Seat confinement (docs/02 §8.4, work/4.md §7.2)" do
+  describe "Seat confinement (docs/02 §8.4)" do
     it "a ProposalBody has no author: proposalAt assigns the seat that was asked" do
       let body = { intents: [], signers: [], procedure: Nothing }
       (proposalAt 2 (Id "US") 0 body).author `shouldEqual` Id "US"

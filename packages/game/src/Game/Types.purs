@@ -1,4 +1,4 @@
--- | One run's assembled state (docs/04 §8, work/4.md §8.1): the Game a runner plays. A Game is data:
+-- | One run's assembled state (docs/04 §8): the Game a runner plays. A Game is data:
 -- | the initial World State, the in-world Strategies, the rounds still to play, and one SeatBinding per
 -- | seat. Every runner (the simulator, live play) reads the same Game.
 module Game.Types
