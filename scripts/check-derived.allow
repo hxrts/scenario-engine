@@ -41,3 +41,4 @@ intent-walk packages/core/src/Core/Types.purs dealIntent which Intents a Deal ma
 sum-projection packages/schema/src/Schema/Premise/Intent.purs intentShape a trade and a route share one premise form, and enact and repeal are separate tags over ChangeRule
 sum-projection packages/schema/src/Schema/Premise/Strategy.purs intentTemplateShape self is implicit, so a Transform or an enactment by another Entity has no premise form
 sum-projection packages/schema/src/Schema/Premise/Strategy.purs templateShape a Deal and a Procedure share one Template constructor, split by their procedure and shape
+banned-word packages/core/src/Core/View.purs View the view's name is the API route segment `facilities`; a rename changes the API (docs/06 §8.1)

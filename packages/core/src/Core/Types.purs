@@ -326,7 +326,7 @@ type Proposal =
 
 type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
 
--- Markets and facilities (§5) ------------------------------------------------
+-- Markets and Transformations (§5) ------------------------------------------------
 
 type CostFunction =
   { base :: Price
@@ -360,7 +360,7 @@ type Transformation =
   , effects :: Array CapacityEffect -- capacity changes after the delay
   }
 
--- | A per-unit change to a capacity, applied after the facility's delay. `holder` defaults
+-- | A per-unit change to a capacity, applied after the Transformation's delay. `holder` defaults
 -- | to the ordering Entity; `rounds` limits how long the change lasts.
 type CapacityEffect =
   { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }

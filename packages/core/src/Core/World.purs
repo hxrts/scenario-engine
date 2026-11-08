@@ -33,7 +33,7 @@ type WorldFields r =
   , markets :: Map MarketId Market
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
-  , numeraire :: ResourceId -- the Resource facility costs are paid in
+  , numeraire :: ResourceId -- the Resource Transformation costs are paid in
   , transferConditions :: Map ResourceId TransferCondition -- what a Transfer of a Resource must be bundled with
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
@@ -242,7 +242,7 @@ type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 -- | matches on the specific failure. `renderReason` gives the text the record stores and the
 -- | dashboard shows; it is the only place that text is written.
 data RejectReason
-  = FacilityCapacityExceeded
+  = CapacityExceeded
   | LimitPriceNotMet
   | MarketCannotPaySellers
   | InputsNotHeld TransformationId
@@ -283,7 +283,7 @@ instance Show RejectReason where
 -- | The text of a rejection reason.
 renderReason :: RejectReason -> String
 renderReason = case _ of
-  FacilityCapacityExceeded -> "facility capacity exceeded"
+  CapacityExceeded -> "capacity exceeded"
   LimitPriceNotMet -> "limit price not met"
   MarketCannotPaySellers -> "the market cannot pay its sellers"
   InputsNotHeld t -> show t <> ": inputs are not held"
@@ -389,7 +389,7 @@ rejectReasonShape = prim "RejectReason" (fromString <<< renderReason) (\j -> map
 targetShape :: Shape Target
 targetShape = genericSum "Target"
   { "Holding": atTagged "a Resource held" idShape
-  , "CapacityOf": atTagged "a capacity of a facility" idShape
+  , "CapacityOf": atTagged "a capacity of a Transformation" idShape
   }
 
 endpointShape :: Shape Endpoint

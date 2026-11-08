@@ -1,5 +1,5 @@
 -- | Read-only queries over a World State, shared by the engine, invariants, analysis views,
--- | and tests. Absent entries read as zero. Also here: the capacity and facility-pool helpers
+-- | and tests. Absent entries read as zero. Also here: the capacity and Transformation-pool helpers
 -- | that Fund prices and Settle allocates against, and the Intent selectors.
 module Core.Query
   ( lookupQ
@@ -10,7 +10,7 @@ module Core.Query
   , entitiesOf
   , marketsOf
   , rulesOf
-  , facilitiesOf
+  , transformationsOf
   , priceOf
   , totalHolding
   , reserveOf
@@ -18,7 +18,7 @@ module Core.Query
   , isAggregate
   , owner
   , capacityOf
-  , facilityPrice
+  , conversionPrice
   , poolOf
   , poolCeiling
   , tradesOf
@@ -71,8 +71,8 @@ rulesOf :: WorldState -> Array Rule
 rulesOf = values <<< _.rules
 
 -- | Every Transformation, in id order.
-facilitiesOf :: WorldState -> Array Transformation
-facilitiesOf = values <<< _.transformations
+transformationsOf :: WorldState -> Array Transformation
+transformationsOf = values <<< _.transformations
 
 -- | What an Entity may do; nothing for an Entity the World State does not have.
 capabilitiesOf :: WorldState -> EntityId -> Array Capability
@@ -127,34 +127,34 @@ capacityOf w ref =
   in
     max Q.zero (Q.sub held withheld)
 
--- | A facility's uniform price at a total of `q` units: its cost function's average price, or
--- | zero for a facility with no cost function.
-facilityPrice :: Transformation -> Q -> Q
-facilityPrice tr q = maybe Q.zero (\c -> averagePrice c Q.zero q) tr.cost
+-- | A Transformation's uniform price at a total of `q` units: its cost function's average price, or
+-- | zero for a Transformation with no cost function.
+conversionPrice :: Transformation -> Q -> Q
+conversionPrice tr q = maybe Q.zero (\c -> averagePrice c Q.zero q) tr.cost
 
--- | The pool a facility's fills draw on: the shared capacity if it is capped, else the facility
--- | alone. Facilities in one pool are allocated together and priced at one uniform price.
+-- | The pool a Transformation's fills draw on: the shared capacity if it is capped, else the Transformation
+-- | alone. Allocation in one pool are allocated together and priced at one uniform price.
 poolOf :: TransformationId -> Transformation -> Either TransformationId CapacityRef
 poolOf tid tr = case tr.capacity of
   Just ref | tr.capacityUse > Q.zero -> Right ref
   _ -> Left tid
 
--- | The most units a facility's pool can fill in total, its ceiling, which escrow prices at in full
--- | and settlement never exceeds (§5.3). The pool is every facility drawing on the same capped
+-- | The most units a Transformation's pool can fill in total, its ceiling, which escrow prices at in full
+-- | and settlement never exceeds (§5.3). The pool is every Transformation drawing on the same capped
 -- | capacity, so its fills together draw on that capacity: a total of q units uses at least
 -- | q × (smallest `capacityUse` in the pool). The ceiling is therefore the capacity divided by that
 -- | smallest use, rounded down, and every member of the pool escrows at it, whatever its own use.
--- | An uncapped facility's ceiling is the domain top of its cost function. Nothing means no
--- | ceiling, which only a facility with no cost function has, and that one is priced at zero.
+-- | An uncapped Transformation's ceiling is the domain top of its cost function. Nothing means no
+-- | ceiling, which only a Transformation with no cost function has, and that one is priced at zero.
 poolCeiling :: WorldState -> Transformation -> Maybe Q
 poolCeiling w tr = case tr.capacity of
   Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
   _ -> (\c -> c.domain.hi) <$> tr.cost
 
--- | The smallest `capacityUse` among the capped facilities on `ref`, starting from `use` (the
--- | facility's own, so the result is never above it).
+-- | The smallest `capacityUse` among the capped Transformations on `ref`, starting from `use` (the
+-- | Transformation's own, so the result is never above it).
 smallestUse :: WorldState -> CapacityRef -> Q -> Q
-smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (facilitiesOf w)))
+smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (transformationsOf w)))
   where
   drawsOn x = x.capacity == Just ref && x.capacityUse > Q.zero
 

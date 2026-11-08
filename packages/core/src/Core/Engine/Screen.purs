@@ -88,7 +88,7 @@ validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either Rejec
 validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> conditioned w p
 
 -- | One Intent: its executor must exist and sign, it must be valid (`validIntent` over the World State), and
--- | an owner-signed facility's owner must sign. `signers` are the Entities whose signatures count.
+-- | an owner-signed Transformation's owner must sign. `signers` are the Entities whose signatures count.
 checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either RejectReason Unit
 checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left (UnknownEntity who)
@@ -135,10 +135,10 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
 -- | Conditioned Transfers must be bundled with matching orders by the sender, and are subject to the
 -- | flows Rules between their groups. Parties who share a Market for the Resource are exempt.
 conditioned :: WorldState -> Proposal -> Either RejectReason (Array Levy)
-conditioned w p = concat <$> traverse check shipments
+conditioned w p = concat <$> traverse check crossing
   where
   bundledFor r = _.bundled <$> Map.lookup r w.transferConditions
-  shipments = filter crosses (transfersOf p.intents)
+  crossing = filter crosses (transfersOf p.intents)
   crosses t = isJust (bundledFor t.resource) && not (shareMarket t)
   shareMarket t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (marketsOf w)
   check t = case bundledFor t.resource of
@@ -146,8 +146,8 @@ conditioned w p = concat <$> traverse check shipments
     Just tid -> do
       let
         carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
-        -- everything this sender moves on this facility, so one order cannot carry two Transfers
-        moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) shipments))
+        -- everything this sender moves on this Transformation, so one order cannot carry two Transfers
+        moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) crossing))
         a = groupOf w t.from
         b = groupOf w t.to
         applicable = filter (covers a b) (rulesOf w)

@@ -168,6 +168,7 @@ const specFile = "packages/core/src/Core/Run.purs";
 
 const inTest = (f) => /\/test\//.test(f);
 const inSrc = (f) => /\/src\//.test(f);
+const bannedWords = /\b(tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|meridian)/i;
 const enginePath = "packages/core/src/Core/Engine/";
 const shapeFile = "packages/core/src/Core/Shape.purs";
 const header = "(header)";
@@ -187,6 +188,7 @@ const fixes = {
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",
   "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check-derived.allow",
+  "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/07 §3)",
 };
 
 const ruleIds = Object.keys(fixes);
@@ -210,6 +212,9 @@ function scan(file, text, ctx) {
   const eventAlt = ctx.eventKinds.join("|");
   const eventArm = new RegExp(`^\\s*(?:\\(\\s*)?(?:\\w+\\.)?(?:${eventAlt})\\b.*(?:->|\\|)|\\\\\\s*\\(?(?:\\w+\\.)?(?:${eventAlt})\\b`);
   const signature = /^\s*[a-z_][\w']*\s*::/;
+
+  // banned-word: scenario language in Core, in code and comments alike
+  if (file.startsWith("packages/core/src/")) raw.forEach((l, i) => { if (bannedWords.test(l)) add("banned-word", i); });
 
   bare.forEach((l, i) => {
     const sym = symbols[i];

@@ -77,7 +77,7 @@ sign strategy env = map _.id (filter (\p -> any (matches p) strategy.sign) env.v
   where
   matches p = case _ of
     SignProcedures ids -> maybe false (_ `elem` ids) p.procedure
-    SignFacility t -> any
+    SignConversion t -> any
       ( case _ of
           Transform x -> x.transformation == t
           _ -> false

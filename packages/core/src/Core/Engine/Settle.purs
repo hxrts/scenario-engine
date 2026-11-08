@@ -1,5 +1,5 @@
 -- | Engine phase 6, first half (docs/02_type_system.md §8.1, §8.2): settle the funded batch
--- | against the prepared snapshot. Markets clear at uniform prices, facility fills are allocated
+-- | against the prepared snapshot. Markets clear at uniform prices, Transformation fills are allocated
 -- | per pool and paid, and Transfers, levies, and Rule changes apply. Every payment goes through
 -- | `pay`, which caps it at what the payer holds, so an Account cannot go negative. Settlement
 -- | accumulates a ledger of net changes; nothing is written to World State until Commit.
@@ -25,7 +25,7 @@ import Core.Engine.Route as Route
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityOf, facilityPrice, holding, lookupQ, poolCeiling, poolOf)
+import Core.Query (capacityOf, conversionPrice, holding, lookupQ, poolCeiling, poolOf)
 import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RoundIndex, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
 import Core.World (Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), Target(..), WorldState, coupled, orderRemoved, rejection)
 import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
@@ -75,42 +75,42 @@ type Settlement =
 settle :: WorldState -> Array Scaled -> Settlement
 settle w scaled0 =
   let
-    facility = facilities w scaled0
-    afterPools = filter (\s -> s.item.proposal.id `notElem` facility.rejected) scaled0
+    allocation = allocate w scaled0
+    afterPools = filter (\s -> s.item.proposal.id `notElem` allocation.rejected) scaled0
     -- a deal settles as a unit (docs/02 §3.3), so its inputs are checked before any leg moves
-    { yes: short, no: scaled } = partition (dealShort w facility) afterPools
-    shortEvents = concatMap (\s -> map (rejection w.round s.item.proposal.id <<< InputsNotHeld) (shortInputs w facility s)) short
-    start = { ledger: Map.empty, positions: Map.empty, deliveries: [], scheduled: Map.empty, events: facility.events <> shortEvents }
+    { yes: short, no: scaled } = partition (dealShort w allocation) afterPools
+    shortEvents = concatMap (\s -> map (rejection w.round s.item.proposal.id <<< InputsNotHeld) (shortInputs w allocation s)) short
+    start = { ledger: Map.empty, positions: Map.empty, deliveries: [], scheduled: Map.empty, events: allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
       [ markets w scaled
-      , \acc -> foldl (settleFacilities w facility) acc scaled
+      , \acc -> foldl (settleConversions w allocation) acc scaled
       , \acc -> foldl (transfersAndRules w) acc scaled
       ]
 
--- | The facilities whose inputs a deal's filled Transforms need and its executors do not hold.
+-- | The Transformations whose inputs a deal's filled Transforms need and its executors do not hold.
 -- | Escrow funds a deal's inputs, so this is a backstop.
-shortInputs :: WorldState -> Facilities -> Scaled -> Array TransformationId
-shortInputs w facility s = concat (mapWithIndex one s.item.proposal.intents)
+shortInputs :: WorldState -> Allocation -> Scaled -> Array TransformationId
+shortInputs w allocation s = concat (mapWithIndex one s.item.proposal.intents)
   where
   one i = case _ of
     Transform t
-      | Just q <- Map.lookup (Tuple s.item.proposal.id i) facility.fills
+      | Just q <- Map.lookup (Tuple s.item.proposal.id i) allocation.fills
       , Just tr <- Map.lookup t.transformation w.transformations
       , any (\(Tuple r u) -> holding w t.by r < Q.mul u q) (entries tr.inputs) -> [ t.transformation ]
     _ -> []
 
-dealShort :: WorldState -> Facilities -> Scaled -> Boolean
-dealShort w facility s = s.item.deal && not (null (shortInputs w facility s))
+dealShort :: WorldState -> Allocation -> Scaled -> Boolean
+dealShort w allocation s = s.item.deal && not (null (shortInputs w allocation s))
 
--- | Facility fills per pool. Deals that would exceed a pool are rejected as a unit; single-author
+-- | Transformation fills per pool. Deals that would exceed a pool are rejected as a unit; single-author
 -- | orders share what remains pro rata.
-facilities :: WorldState -> Array Scaled -> Facilities
-facilities w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (entries groups)
+allocate :: WorldState -> Array Scaled -> Allocation
+allocate w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (entries groups)
   where
-  groups = groupBy _.group (facilityOrders w scaled)
+  groups = groupBy _.group (conversionOrders w scaled)
 
-type FacilityOrder =
+type ConversionOrder =
   { key :: Tuple ProposalId Int
   , deal :: Boolean
   , quantity :: Q
@@ -120,8 +120,8 @@ type FacilityOrder =
   }
 
 -- | Every Transform, scaled by its Proposal's funding.
-facilityOrders :: WorldState -> Array Scaled -> Array FacilityOrder
-facilityOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposal.intents)
+conversionOrders :: WorldState -> Array Scaled -> Array ConversionOrder
+conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposal.intents)
   where
   order s i = case _ of
     Transform t | Just tr <- Map.lookup t.transformation w.transformations ->
@@ -137,14 +137,14 @@ facilityOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposa
 -- | One pool: deals fill in full or are rejected as a unit; single orders share the remaining
 -- | capacity pro rata, in whole units of capacity. Each order's quantity is its share divided by
 -- | its `use`, floored to the 0.0001 grid, so an order never draws more than its share. The
--- | sub-grid remainder stays unfilled. A capped pool's capacity is its cap; an uncapped facility's
+-- | sub-grid remainder stays unfilled. A capped pool's capacity is its cap; an uncapped Transformation's
 -- | cap is its ceiling, so its fills never exceed the quantity escrow priced.
-allocateGroup :: WorldState -> Facilities -> Tuple (Either TransformationId CapacityRef) (Array FacilityOrder) -> Facilities
+allocateGroup :: WorldState -> Allocation -> Tuple (Either TransformationId CapacityRef) (Array ConversionOrder) -> Allocation
 allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
   , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
   , rejected: acc.rejected <> rejectedDeals
-  , events: acc.events <> map (\pid -> rejection w.round pid FacilityCapacityExceeded) rejectedDeals
+  , events: acc.events <> map (\pid -> rejection w.round pid CapacityExceeded) rejectedDeals
   }
   where
   cap = case group of
@@ -161,9 +161,9 @@ allocateGroup w acc (Tuple group os) =
     | otherwise = map _.quantity singles
   fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) deals) <> zipWith (\o q -> Tuple o.key q) singles singleFills
 
-type Facilities =
+type Allocation =
   { fills :: Map (Tuple ProposalId Int) Q
-  , totals :: Map TransformationId Q -- filled quantity per facility
+  , totals :: Map TransformationId Q -- filled quantity per Transformation
   , rejected :: Array ProposalId
   , events :: Array Event
   }
@@ -198,7 +198,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
     )
     scaled
   -- Trade fills are not capped by `pay`: clearing bounds them by the Market's domain and reserves,
-  -- and escrow funds them (docs/02 §8.2). Their money is escrowed at the limit or the domain ceiling.
+  -- and escrow funds them (docs/02 §8.2). Their quote leg is escrowed at the limit or the domain ceiling.
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.entity o.pid) (filter (\o -> o.market == id) orders)
@@ -206,8 +206,8 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
       cleared = Market.clear m.cost m.position bounds os
       -- A Market pays its sellers in quote from its reserves. If the batch would overdraw them,
       -- the sell side is rejected and the batch clears on buys alone, which pay out nothing.
-      moneyIn c = Q.sumQ (map (\f -> Q.mul c.price f.quantity) c.fills)
-      solvent c = Q.add (lookupQ m.quote m.reserves) (moneyIn c) >= Q.zero
+      quoteIn c = Q.sumQ (map (\f -> Q.mul c.price f.quantity) c.fills)
+      solvent c = Q.add (lookupQ m.quote m.reserves) (quoteIn c) >= Q.zero
       r = if solvent cleared then cleared else Market.clear m.cost m.position bounds (filter (\o -> o.quantity > Q.zero) os)
       unpaid = if solvent cleared then [] else filter (\o -> o.quantity < Q.zero) os
       fill a f =
@@ -241,18 +241,18 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
                 <> map (\o -> orderRemoved w.round o.pid MarketCannotPaySellers) unpaid
             }
 
--- | Settle one Proposal's filled Transforms: pay the facility's payee, consume inputs, produce
+-- | Settle one Proposal's filled Transforms: pay the Transformation's payee, consume inputs, produce
 -- | outputs, and schedule capacity effects.
-settleFacilities :: WorldState -> Facilities -> Settlement -> Scaled -> Settlement
-settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
+settleConversions :: WorldState -> Allocation -> Settlement -> Scaled -> Settlement
+settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
   where
   pid = s.item.proposal.id
-  -- facilities in one pool with one cost function share one uniform price
+  -- Transformations in one pool with one cost function share one uniform price
   pricedTotal tid tr = Q.sumQ
     ( map (\(Tuple _ q) -> q)
         ( filter
             (\(Tuple other _) -> maybe false (\x -> poolOf other x == poolOf tid tr && x.cost == tr.cost) (Map.lookup other w.transformations))
-            (entries facility.totals)
+            (entries allocation.totals)
         )
     )
   -- Capacity effects land on the same boundary as outputs: an output with delay d is visible from
@@ -268,10 +268,10 @@ settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.pro
     )
     tr.effects
   one a (Tuple i intent) = case intent of
-    Transform t -> case Tuple (Map.lookup (Tuple pid i) facility.fills) (Map.lookup t.transformation w.transformations) of
+    Transform t -> case Tuple (Map.lookup (Tuple pid i) allocation.fills) (Map.lookup t.transformation w.transformations) of
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
-          owed = Q.mul (facilityPrice tr (pricedTotal t.transformation tr)) q
+          owed = Q.mul (conversionPrice tr (pricedTotal t.transformation tr)) q
           -- escrow funds inputs, so a shortfall here is a backstop: the Transform is rejected, not overdrawn
           inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (entries tr.inputs)
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (entries tr.inputs)

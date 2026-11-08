@@ -103,10 +103,10 @@ routeMarkets facts who caps pair = map _.id (filter usable facts.venues)
   usable m = m.base == pair.base && m.quote == pair.quote && facts.access who m.id && MayTrade m.id `elem` caps
 
 -- | Whether `who` may execute the Intent as far as the Facts can tell: it names known references, states a
--- | routed order's limit, is authorized, respects Market access, transferability, Rule scope, and the facility's
+-- | routed order's limit, is authorized, respects Market access, transferability, Rule scope, and the Transformation's
 -- | bounds. The one validity rule: screening checks an Intent with it, over the World State, and the Strategy
 -- | interpreter filters what it drafts with it, over the View. What a View cannot answer (signatures,
--- | funding, capacity, shipping) stays in the engine.
+-- | funding, capacity, the bundled order of a conditioned Transfer) stays in the engine.
 validIntent :: Facts -> Array Capability -> EntityId -> Intent -> Either RejectReason Unit
 validIntent facts caps who i = known *> limited *> authority *> access *> transferable *> scope *> withinBounds
   where

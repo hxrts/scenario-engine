@@ -129,7 +129,7 @@ foldSign cond alg = go
   where
   go = case _ of
     SignProcedures xs -> alg.procedures xs
-    SignFacility t -> alg.facility t
+    SignConversion t -> alg.facility t
     SignAll -> alg.all
     SignIf x -> alg.signIf { when: map cond x.when, rule: go x.rule }
 

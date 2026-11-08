@@ -90,7 +90,7 @@ type InWorld = { strategies :: Map PolicyId Strategy, params :: Object Q }
 
 data SignRule
   = SignProcedures (Array CollectiveProcedureId)
-  | SignFacility TransformationId -- Proposals ordering this facility (e.g. shipments)
+  | SignConversion TransformationId -- Proposals ordering this Transformation
   | SignAll
   | SignIf { when :: Array Cond, rule :: SignRule } -- the inner rule, while every condition holds
 

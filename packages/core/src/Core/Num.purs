@@ -272,7 +272,7 @@ display = case _ of
   Price -> displayPrice
   Ratio -> displayRatio
 
--- | Counts of units (Money, Resources): a whole number shows no decimals; otherwise at most two,
+-- | Counts of units (the numeraire, Resources): a whole number shows no decimals; otherwise at most two,
 -- | with trailing zeros trimmed (12, 12.5, 12.25). A value that would round to zero but is not
 -- | zero shows as "<0.01" (or "-<0.01").
 displayQuantity :: Q -> String

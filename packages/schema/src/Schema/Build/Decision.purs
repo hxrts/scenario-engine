@@ -192,7 +192,7 @@ signProcedures :: Array String -> SignRule
 signProcedures xs = SignProcedures (map Id xs)
 
 signFacility :: String -> SignRule
-signFacility = SignFacility <<< Id
+signFacility = SignConversion <<< Id
 
 signAll :: SignRule
 signAll = SignAll

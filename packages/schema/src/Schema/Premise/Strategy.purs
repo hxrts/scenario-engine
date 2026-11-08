@@ -256,7 +256,7 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
 signRuleShape :: Shape SignRule
 signRuleShape = recursive "SignRule" \s -> genericPremiseSum "SignRule"
   { "SignProcedures": atOneKey "procedures" "the collective procedures this Entity signs under" (arrayOf idShape)
-  , "SignFacility": atOneKey "facility" "Proposals ordering this facility" idShape
+  , "SignConversion": atOneKey "facility" "Proposals ordering this Transformation" idShape
   , "SignAll": atOneKey "all" "every addressed Proposal" unitShape
   , "SignIf": atOneKey "signIf" "the inner rule, while every condition holds" (signIfBody s)
   }

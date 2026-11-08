@@ -1,6 +1,6 @@
 -- | Engine phase 4–5 funding (docs/02_type_system.md §3.2, §8.2): every screened Item escrows its
 -- | claims from opening holdings at full requested size. Deals a party cannot fund are rejected
--- | as a unit, and single-author Items are scaled pro rata to what their author can fund. Facility
+-- | as a unit, and single-author Items are scaled pro rata to what their author can fund. Transformation
 -- | prices and pools are in Core.Query, which Fund and Settle share.
 module Core.Engine.Fund
   ( Scaled
@@ -16,7 +16,7 @@ import Core.Engine.Screen (Item)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (facilityPrice, holding, lookupQ, poolCeiling)
+import Core.Query (conversionPrice, holding, lookupQ, poolCeiling)
 import Core.Types (EntityId, IntentF(..), ResourceId, Transformation)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
@@ -89,7 +89,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.reserves)
     ChangeRule _ -> []
 
--- | A facility's uniform price at its full ceiling, used for escrow.
+-- | A Transformation's uniform price at its full ceiling, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q
-fullPrice w tr = facilityPrice tr (fromMaybe Q.zero (poolCeiling w tr))
+fullPrice w tr = conversionPrice tr (fromMaybe Q.zero (poolCeiling w tr))
 

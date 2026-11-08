@@ -317,7 +317,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         plainP = { id: proposalId 3 (Id "A") 2, author: Id "A", intents: [], signers: [], procedure: Nothing }
         signedBy rules = sign { rules: [], sign: rules } env { view = seat { toSign = [ procP, facP, plainP ] } }
       signedBy [ SignProcedures [ Id "eu-trade" ] ] `shouldEqual` [ procP.id ]
-      signedBy [ SignFacility (Id "energy-shipping") ] `shouldEqual` [ facP.id ]
+      signedBy [ SignConversion (Id "energy-shipping") ] `shouldEqual` [ facP.id ]
       signedBy [ SignAll ] `shouldEqual` [ procP.id, facP.id, plainP.id ]
       signedBy [] `shouldEqual` []
 

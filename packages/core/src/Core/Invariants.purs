@@ -17,7 +17,7 @@ import Core.Map (entries, sumInto, sumMaps)
 import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, facilitiesOf, marketsOf)
+import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, transformationsOf, marketsOf)
 import Core.Types (IntentF(..), SignedProposal)
 import Core.Slice (conversions, event, foldEvents, ignore, select)
 import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
@@ -202,7 +202,7 @@ inv05 before r = concatMap one resources
     Map.empty
     r.record.events
 
--- | INV-06 Market solvency: positions stay within the cost function's domain, and facility fills
+-- | INV-06 Market solvency: positions stay within the cost function's domain, and Transformation fills
 -- | stay within their pool's capacity and their ceiling.
 inv06 :: WorldState -> RoundResult -> Array Failure
 inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (entries used) <> concatMap overCeiling (entries filled)
@@ -221,9 +221,9 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (
     Just c | q > c -> [ failure INV06 (show tid <> " filled " <> show q <> ", above its ceiling") ]
     _ -> []
 
--- | INV-08 Account partition: a capacity a facility draws on has at most one positive holder.
+-- | INV-08 Account partition: a capacity a Transformation draws on has at most one positive holder.
 inv08 :: WorldState -> RoundResult -> Array Failure
-inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (facilitiesOf (r.world))))
+inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (transformationsOf (r.world))))
   where
   entities = entitiesOf (r.world)
   one ref = if length (filter (\e -> lookupQ ref e.capacities > Q.zero) entities) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
