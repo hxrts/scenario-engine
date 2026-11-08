@@ -44,8 +44,8 @@ marketPrices w = map (\(Tuple id m) -> { market: id, price: marketPrice m }) (Ma
 
 markets :: StoredRun -> Array Chart
 markets r =
-  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r focus.resource, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.market) p.price) (marketPrices w)) exact }
-  , { title: focus.label <> " reserves", unit: unitOf r focus.resource, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) exact }
+  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r focus.resource, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.market) p.price) (marketPrices w)) }
+  , { title: focus.label <> " reserves", unit: unitOf r focus.resource, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) }
   , { title: "Traded volume", unit: unitOf r focus.resource, kind: Quantity, series: volume }
   ]
   where
@@ -83,7 +83,7 @@ resourceTotals r =
   { title: "Resource totals across all accounts"
   , unit: ""
   , kind: Quantity
-  , series: series r (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources))) exact
+  , series: series r (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources)))
   }
 
 -- | The numeraire moved between categories of Entity (Actor or Aggregate) over the run.

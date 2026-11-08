@@ -29,8 +29,5 @@ foreign import bar :: C
 foreign import xAxis :: C
 foreign import yAxis :: C
 foreign import cartesianGrid :: C
--- Grouped bars (the Compare page): a bar chart, and one bar series per run.
-foreign import groupedBarChart :: C
-foreign import groupedBar :: C
 -- | A labelled region (a `section` element), for panels a screen reader can name.
 foreign import region :: C

@@ -101,5 +101,5 @@ netWorthChart r =
   { title: "Net worth by player"
   , unit: unitOf r r.manifest.initial.numeraire
   , kind: Quantity
-  , series: series r (\w -> map (\(Tuple e v) -> Tuple (show e) v) (Map.toUnfoldable (netWorths w))) exact
+  , series: series r (\w -> map (\(Tuple e v) -> Tuple (show e) v) (Map.toUnfoldable (netWorths w)))
   }

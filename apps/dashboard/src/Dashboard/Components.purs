@@ -20,6 +20,8 @@ module Dashboard.Components
   , statistic
   ) where
 
+import Core.Num (Kind)
+import Data.Argonaut.Core (Json)
 import Prelude
 
 import Core.Num (displayTick)
@@ -115,24 +117,65 @@ diffTable grid m = D.div
   marks = zip m.table.rows m.marked
   mark row i = fromMaybe false (find (\(Tuple r _) -> r == row) marks >>= \(Tuple _ flags) -> index flags i)
 
+-- | A chart's pieces: the data, the axes and the tooltip, and one mark per series.
+type ChartParts =
+  { config :: Object.Object { label :: String, color :: String }
+  , className :: String
+  , rows :: Array (Object.Object Json)
+  , xAxis :: JSX
+  , yAxis :: JSX
+  , tooltip :: JSX
+  , marks :: Array JSX
+  }
+
+-- | A chart of one Recharts kind from its pieces: the frame every chart shares.
+chartOf :: UI.C -> ChartParts -> JSX
+chartOf kind p = element UI.chartContainer
+  { config: p.config
+  , className: p.className
+  , children:
+      [ element kind
+          { data: p.rows
+          , children:
+              [ element UI.cartesianGrid { vertical: false }
+              , p.xAxis
+              , p.yAxis
+              , p.tooltip
+              , element UI.chartLegend { content: element UI.chartLegendContent {} }
+              ] <> p.marks
+          }
+      ]
+  }
+
+-- | A line chart from its pieces.
+lineChartOf :: ChartParts -> JSX
+lineChartOf = chartOf UI.lineChart
+
+-- | A bar chart from its pieces.
+barChartOf :: ChartParts -> JSX
+barChartOf = chartOf UI.barChart
+
+-- | A chart's tooltip, showing each value as displayed.
+valueTooltip :: JSX
+valueTooltip = element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
+
+-- | The y-axis under a display kind, with the unit named when there is one.
+axisOf :: Kind -> Maybe String -> JSX
+axisOf kind = case _ of
+  Nothing -> element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick kind) }
+  Just u -> element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick kind), label: { value: u, angle: -90, position: "insideLeft" } }
+
 -- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
 metricChart :: Chart -> JSX
 metricChart c = Layout.captioned (c.title <> " (" <> c.unit <> ")")
-  [ element UI.chartContainer
+  [ lineChartOf
       { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
       , className: "h-96 w-full"
-      , children:
-          [ element UI.lineChart
-              { data: chartRows c.kind c.series
-              , children:
-                  [ element UI.cartesianGrid { vertical: false }
-                  , element UI.xAxis { dataKey: "round" }
-                  , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind) }
-                  , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
-                  , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                  ] <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
-              }
-          ]
+      , rows: chartRows c.kind c.series
+      , xAxis: element UI.xAxis { dataKey: "round" }
+      , yAxis: axisOf c.kind Nothing
+      , tooltip: valueTooltip
+      , marks: mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
       }
   ]
 
@@ -141,21 +184,14 @@ metricChart c = Layout.captioned (c.title <> " (" <> c.unit <> ")")
 stackedBars :: ActionsChart -> JSX
 stackedBars c = Layout.captioned c.title
   [ Layout.purpose c.purpose
-  , element UI.chartContainer
+  , barChartOf
       { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: seriesColour i }) c.kinds)
       , className: "h-96 w-full"
-      , children:
-          [ element UI.barChart
-              { data: map bar c.bars
-              , children:
-                  [ element UI.cartesianGrid { vertical: false }
-                  , element UI.xAxis { dataKey: "player" }
-                  , element UI.yAxis { allowDecimals: false }
-                  , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
-                  , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                  ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "stacked", fill: seriesColour i, isAnimationActive: false }) c.kinds
-              }
-          ]
+      , rows: map bar c.bars
+      , xAxis: element UI.xAxis { dataKey: "player" }
+      , yAxis: element UI.yAxis { allowDecimals: false }
+      , tooltip: element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+      , marks: mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "stacked", fill: seriesColour i, isAnimationActive: false }) c.kinds
       }
   ]
   where
@@ -183,43 +219,27 @@ placeholderFrame message = element UI.region
 -- | Runs on the same axes: one line per run, each in its run's colour and named in the legend. The
 -- | baseline (`CompareView.baseline`) is drawn thicker. The axes name the round and the unit.
 overlayChart :: Array String -> String -> Chart -> JSX
-overlayChart ids baseline c = plotFrame c.title $ element UI.chartContainer
+overlayChart ids baseline c = plotFrame c.title $ lineChartOf
   { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) c.series)
   , className: "h-full w-full"
-  , children:
-      [ element UI.lineChart
-          { data: chartRows c.kind c.series
-          , children:
-              [ element UI.cartesianGrid { vertical: false }
-              , element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
-              , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind), label: { value: c.unit, angle: -90, position: "insideLeft" } }
-              , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
-              , element UI.chartLegend { content: element UI.chartLegendContent {} }
-              ]
-                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: runColour ids s.name, strokeWidth: if s.name == baseline then 3 else 2, dot: false, isAnimationActive: false }) c.series
-          }
-      ]
+  , rows: chartRows c.kind c.series
+  , xAxis: element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
+  , yAxis: axisOf c.kind (Just c.unit)
+  , tooltip: valueTooltip
+  , marks: map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: runColour ids s.name, strokeWidth: if s.name == baseline then 3 else 2, dot: false, isAnimationActive: false }) c.series
   }
 
 -- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
 -- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
 groupedBars :: Array String -> String -> String -> Bars -> JSX
-groupedBars ids baseline xLabel b = plotFrame b.title $ element UI.chartContainer
+groupedBars ids baseline xLabel b = plotFrame b.title $ barChartOf
   { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) b.series)
   , className: "h-full w-full"
-  , children:
-      [ element UI.groupedBarChart
-          { data: barRows b
-          , children:
-              [ element UI.cartesianGrid { vertical: false }
-              , element UI.xAxis { dataKey: "category", label: { value: xLabel, position: "insideBottom", offset: -4 } }
-              , element UI.yAxis { tickFormatter: unsafeCoerce (displayTick b.kind), label: { value: b.unit, angle: -90, position: "insideLeft" } }
-              , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
-              , element UI.chartLegend { content: element UI.chartLegendContent {} }
-              ]
-                <> map (\s -> element UI.groupedBar { key: s.name, dataKey: s.name, fill: runColour ids s.name, isAnimationActive: false }) b.series
-          }
-      ]
+  , rows: barRows b
+  , xAxis: element UI.xAxis { dataKey: "category", label: { value: xLabel, position: "insideBottom", offset: -4 } }
+  , yAxis: element UI.yAxis { tickFormatter: unsafeCoerce (displayTick b.kind), label: { value: b.unit, angle: -90, position: "insideLeft" } }
+  , tooltip: valueTooltip
+  , marks: map (\s -> element UI.bar { key: s.name, dataKey: s.name, fill: runColour ids s.name, isAnimationActive: false }) b.series
   }
 
 -- | Fetch a view (`load`, keyed by `key`) and render it. The last loaded view stays on screen, dimmed,

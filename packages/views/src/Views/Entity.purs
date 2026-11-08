@@ -71,13 +71,13 @@ entityHistory r e
             { title: "Holdings of " <> show e
             , unit: "each Resource in its own unit"
             , kind: Quantity
-            , series: series r (\w -> map (\res -> Tuple (show res) (holding w e res)) held) exact
+            , series: series r (\w -> map (\res -> Tuple (show res) (holding w e res)) held)
             }
         , netWorth:
             { title: "Net worth of " <> show e
             , unit: unitOf r r.manifest.initial.numeraire
             , kind: Quantity
-            , series: series r (\w -> [ Tuple "Net worth" (netWorth w e) ]) exact
+            , series: series r (\w -> [ Tuple "Net worth" (netWorth w e) ])
             }
         }
       where

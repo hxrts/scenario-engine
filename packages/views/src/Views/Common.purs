@@ -269,8 +269,8 @@ kindOf w e
 
 -- | One named series per key of `f` over the initial state and every snapshot, each point the
 -- | value of that key at a round (0 = initial).
-series :: forall a. StoredRun -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array Point }
-series r f g = map (\name -> { name, points: pointsOf r (\w -> g <$> lookup name (f w)) }) seriesNames
+series :: StoredRun -> (WorldState -> Array (Tuple String Q)) -> Array { name :: String, points :: Array Point }
+series r f = map (\name -> { name, points: pointsOf r (\w -> exact <$> lookup name (f w)) }) seriesNames
   where
   seriesNames = nub (concatMap (map fst <<< f) (worlds r))
 
