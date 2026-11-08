@@ -36,6 +36,7 @@ import Prelude
 
 import Core.Invariants (Failure)
 import Core.Proposal (JointProposal, Transcript, ProposalBody)
+import Core.Run (DeriveKind, RunStatus)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
@@ -96,19 +97,19 @@ type NewRun =
   , spec :: Spec
   , manifest :: Manifest
   , source :: Maybe String
-  , kind :: Maybe String
+  , kind :: Maybe DeriveKind
   , owner :: String -- the process that created the run (`Adapters.SQLite.processOwner`): role, process id, start time
   }
 
 -- | A run's row for the run list: its status, and why it failed if it did.
-type RunInfo = { id :: String, name :: String, status :: String, created :: String, reason :: Maybe String }
+type RunInfo = { id :: String, name :: String, status :: RunStatus, created :: String, reason :: Maybe String }
 
 -- | A run's list row: its stored manifest and specification, and the assertion sets of its rounds.
 -- | No records or snapshots. `source` is the run it was derived from, if any.
 type RunSummary =
   { id :: String
   , name :: String
-  , status :: String
+  , status :: RunStatus
   , created :: String
   , reason :: Maybe String
   , spec :: Stored Spec
@@ -134,8 +135,7 @@ type StoredRound =
 -- | make. Each round's own write is `RECORD`. Each write is one transaction.
 data StoreF a
   = CreateRun NewRun (Unit -> a)
-  | SetStatus String String (Unit -> a)
-  | FailRun String String (Unit -> a)
+  | SetStatus String RunStatus (Maybe String) (Unit -> a) -- the run, its new status, and why it failed if it did
   | FailRunning { role :: String, reason :: String } (Int -> a)
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)

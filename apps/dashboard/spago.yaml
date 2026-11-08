@@ -13,7 +13,6 @@ package:
     - foreign-object
     - functions
     - integers
-    - js-uri
     - maybe
     - parallel
     - react-basic
@@ -29,7 +28,6 @@ package:
     - sp-core
     - sp-schema
     - sp-views
-    - sp-board
     - sp-effects
     - sp-handlers
   test:
@@ -43,7 +41,4 @@ package:
       - routing-duplex
       - argonaut-core
       - foreign-object
-      - node-fs
-      - arrays
       - maybe
-      - numbers

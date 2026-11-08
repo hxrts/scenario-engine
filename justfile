@@ -1,6 +1,6 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
-packages := "core board policy game premises schema effects handlers adapters simulator views experiments flags cli server dashboard"
+packages := "core schema checks board policy game premises effects handlers adapters simulator views experiments testkit flags cli server dashboard"
 
 _default:
     @just --list
@@ -44,7 +44,7 @@ _premises:
     spago run -p sp-cli --main Transcript
 
 # fmt-check, deps, layout, build, test
-check: _fmt-check _deps _layout build test
+check: _fmt-check build _deps _layout test
 
 # check + dashboard smoke test
 all: check dashboard-test
@@ -93,7 +93,7 @@ _ui:
     set -euo pipefail
     if [ ! -d apps/dashboard/ui ]; then just _ui-generate; fi
     if ! scripts/ui-checksums.sh check; then
-      echo "apps/dashboard/ui does not match apps/dashboard/ui.sha256. If the upstream change is intended, run 'just ui-accept'. Otherwise run 'rm -rf apps/dashboard/ui' and 'just ui'."
+      echo "apps/dashboard/ui does not match apps/dashboard/ui.sha256. If the upstream change is intended, run 'just ui-accept'. Otherwise run 'rm -rf apps/dashboard/ui' and 'just _ui'."
       exit 1
     fi
 

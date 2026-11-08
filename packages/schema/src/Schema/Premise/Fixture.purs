@@ -29,8 +29,8 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.Num (Q)
-import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape, Format(..), decodeJsonWith)
-import Core.Types (Id(..), CollectiveProcedureId, EntityId, Id, Intent, ProposalId, ResourceId, RoundIndex, SignedProposal, idShape, proposalId)
+import Core.Shape (Format(..), RecF, Shape, boolShape, contramapRec, decodeJsonWith, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape)
+import Core.Types (CollectiveProcedureId, EntityId, Id, Intent, ProposalId, ResourceId, RoundIndex, SignedProposal, idShape, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, elem, find, groupBy, length, mapWithIndex, nub, range, sortWith)
 import Data.Array.NonEmpty (toArray)

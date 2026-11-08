@@ -50,6 +50,7 @@ import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
 import Core.Num as Q
 import Core.Query (eventsOf, isAggregate)
+import Core.Run (RunStatus)
 import Core.Types (EntityId, ProposalId, ResourceId)
 import Core.World (Event(..), Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
@@ -84,7 +85,7 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 type RunHeader =
   { id :: String
   , name :: String
-  , status :: String
+  , status :: RunStatus
   , manifest :: Manifest
   , playerSeed :: String
   , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
@@ -96,7 +97,7 @@ type RunHeader =
 type StoredRun =
   { id :: String
   , name :: String
-  , status :: String
+  , status :: RunStatus
   , manifest :: Manifest
   , playerSeed :: String
   , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs

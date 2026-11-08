@@ -5,6 +5,7 @@ package:
     - arrays
     - either
     - foreign-object
+    - integers
     - maybe
   test:
     main: Test.Flags.Main

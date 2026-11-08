@@ -16,7 +16,6 @@ import Data.Argonaut.Encode (encodeJson)
 import Data.Array (last, length, null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
-import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effects.Api (DeriveRequest, Reply)
@@ -32,7 +31,8 @@ import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset)
 import Game.Premise (GameboardParts)
-import Game.Recipe (Kind(..), Recipe, allKinds, decodeSpec, deriveRecipe, kindName, parseKind, specKeys)
+import Core.Run (DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Game.Recipe (Recipe, decodeSpec, deriveRecipe, specKeys)
 import Simulator.Records (recordsEqual)
 import Views.Common (records)
 import Simulator.Simulate (resumeWith)
@@ -47,49 +47,48 @@ import Simulator.Simulate (resumeWith)
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
 deriveRun :: Cache -> GameboardParts -> StoreBackend -> String -> DeriveRequest -> Effect Reply
-deriveRun cache premise store sourceId body = case parseKind body.kind of
-  Nothing -> failWith 400 ("kind must be one of " <> joinWith ", " (map kindName allKinds))
-  Just kind -> do
-    runInfo store sourceId >>= case _ of
-      Nothing -> failWith 404 ("no run " <> sourceId)
-      Just info -> do
-        -- a rerun is judged against the source's stored records, so they are read before it starts
-        source <- if kind == Rerun then Just <$> loadRun cache store sourceId else pure Nothing
-        case source of
-          Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
-          Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
-          Just (Right src)
-            | info.status /= "completed" -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> info.status <> ", not completed")
-            | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
-          _ -> do
-            stored <- runObserve store (readManifest sourceId)
-            case stored <#> \m -> m.spec >>= decodeSpec of
-              Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
-              Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
-              Just (Right base) -> case deriveRecipe kind body base of
-                Left e -> failWith 400 e
-                Right recipe -> do
-                  let name = fromMaybe (info.name <> " (" <> kindName kind <> ")") body.name
-                  started <- start premise store
-                    { name
-                    , preset: recipe.preset
-                    , playerSeed: recipe.playerSeed
-                    , rounds: recipe.rounds
-                    , overrides: recipe.overrides
-                    , derivation: Just { source: sourceId, kind }
-                    }
-                  case started, source of
-                    Left e, _ -> failWith 400 e
-                    Right l, Just (Right src) -> do
-                      -- the new run's records are read back from the store, as the source's are
-                      new <- loadRun cache store l.id
-                      case new of
-                        Right n -> replied l.id [ Tuple "recordsMatch" (encodeJson (recordsEqual (records src) (records n))) ]
-                        Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
-                    Right l, _ -> replied l.id []
+deriveRun cache premise store sourceId body = do
+  let kind = body.kind
+  runInfo store sourceId >>= case _ of
+    Nothing -> failWith 404 ("no run " <> sourceId)
+    Just info -> do
+      -- a rerun is judged against the source's stored records, so they are read before it starts
+      source <- if kind == Rerun then Just <$> loadRun cache store sourceId else pure Nothing
+      case source of
+        Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
+        Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
+        Just (Right src)
+          | info.status /= Completed -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> runStatusName info.status <> ", not completed")
+          | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
+        _ -> do
+          stored <- runObserve store (readManifest sourceId)
+          case stored <#> \m -> m.spec >>= decodeSpec of
+            Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
+            Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
+            Just (Right base) -> case deriveRecipe kind body base of
+              Left e -> failWith 400 e
+              Right recipe -> do
+                let name = fromMaybe (info.name <> " (" <> deriveKindName kind <> ")") body.name
+                started <- start premise store
+                  { name
+                  , preset: recipe.preset
+                  , playerSeed: recipe.playerSeed
+                  , rounds: recipe.rounds
+                  , overrides: recipe.overrides
+                  , derivation: Just { source: sourceId, kind }
+                  }
+                case started, source of
+                  Left e, _ -> failWith 400 e
+                  Right l, Just (Right src) -> do
+                    -- the new run's records are read back from the store, as the source's are
+                    new <- loadRun cache store l.id
+                    case new of
+                      Right n -> replied l.id [ Tuple "recordsMatch" (encodeJson (recordsEqual (records src) (records n))) ]
+                      Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
+                  Right l, _ -> replied l.id []
   where
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
-  replied id extras = json 201 (Object.fromFoldable ([ Tuple "id" (encodeJson id), Tuple "source" (encodeJson sourceId), Tuple "kind" (encodeJson body.kind) ] <> extras))
+  replied id extras = json 201 (Object.fromFoldable ([ Tuple "id" (encodeJson id), Tuple "source" (encodeJson sourceId), Tuple "kind" (encodeJson (deriveKindName body.kind)) ] <> extras))
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
@@ -98,7 +97,7 @@ resumeRun premise store id rounds =
   runInfo store id >>= case _ of
     Nothing -> failWith 404 ("no run " <> id)
     Just info
-      | info.status /= "completed" -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> info.status)
+      | info.status /= Completed -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> runStatusName info.status)
       | otherwise -> do
           stored <- runObserve store (readManifest id)
           rows <- runObserve store (readRounds id)
@@ -112,7 +111,7 @@ resumeRun premise store id rounds =
                       Left e -> failWith 400 (show e)
                       Right game -> do
                         attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
-                          runStore store (setStatus id "running")
+                          runStore store (setStatus id Running Nothing)
                           runStore store (setSpec id (Object.insert specKeys.rounds (show rounds) p.spec))
                           recorder store roundMetrics id p.snapshot
                         case attempt of

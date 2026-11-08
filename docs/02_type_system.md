@@ -660,7 +660,7 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 | `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text, requested after each round. Adds no facts |
 | `RECORD` | `Record` | Append a round result, with the transcripts its joint pass read, to the run's records. Each round's write is `RECORD` |
 | `OBSERVE` | `ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds` | Run Store reads. A read program names only this row, so it cannot write. Unreadable stored fields come back as `Left` |
-| `STORE` | `CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun` | Run Store lifecycle writes only ([`Effects.Store`](07_architecture.md#4-key-interfaces)). Round writes stay `RECORD` |
+| `STORE` | `CreateRun`, `SetStatus`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun` | Run Store lifecycle writes only ([`Effects.Store`](07_architecture.md#4-key-interfaces)). Round writes stay `RECORD` |
 | `API` | `Call` (an `ApiRequest`, answered by a `Reply`) | Every route of the dashboard's HTTP API. Its paths and codecs are in `Handlers.Api.Route`, and the server supplies what each operation does ([07 §4](07_architecture.md#4-key-interfaces)) |
 
 Operation payloads are plain records in `effects` today. Where a payload's type is an engine or premise-format type, its description is a `Shape` in `core` or `schema`, which gives its codec and JSON Schema from one declaration.

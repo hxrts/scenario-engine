@@ -17,6 +17,7 @@ import Prelude
 import Schema.Gameboard (Gameboard)
 import Core.Num as Q
 import Core.Query (eventsOf)
+import Core.Run (RunStatus(..), runStatusName)
 import Core.World (Event(..))
 import Data.Array (concat, concatMap, length, mapWithIndex)
 import Data.Either (Either(..))
@@ -33,7 +34,7 @@ import Views.Markets (marketPrices)
 type ListedRun =
   { id :: String
   , name :: String
-  , status :: String
+  , status :: RunStatus
   , reason :: Maybe String
   , gameboard :: String
   , gameSeed :: String
@@ -66,7 +67,7 @@ runList rows =
   -- an unreadable run's archive flag and source are not decoded, so they show as unknown
   row = case _ of
     Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason, "—", "—" ]
-    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
+    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, runStatusName s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
   flags = case _ of
     Left u -> { id: u.id, archived: false, readable: false }
     Right s -> { id: s.id, archived: s.archived, readable: true }
@@ -95,7 +96,7 @@ overview spec r =
   , rows: map (\f -> [ f.label, f.value ]) tableFacts
   , rounds
   , target: launched
-  , resumable: r.status == "completed"
+  , resumable: r.status == Completed
   , facts: [ name, premise, status, roundsCompleted, gameId ]
   }
   where
@@ -104,7 +105,7 @@ overview spec r =
   name = { label: "Name", value: r.name }
   gameId = { label: "Game ID", value: fromMaybe "" (specValue r.spec specKeys.gameId) }
   premise = { label: "Premise", value: r.manifest.gameboard }
-  status = { label: "Status", value: r.status }
+  status = { label: "Status", value: runStatusName r.status }
   roundsCompleted = { label: "Rounds completed", value: ofCount rounds launched }
   source = specValue r.spec specKeys.source
   sourceStatus = case source of

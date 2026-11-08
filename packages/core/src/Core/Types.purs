@@ -143,8 +143,8 @@ type ResourceDefinition =
 
 data Transferability = Free | Restricted | NonTransferable
 
--- | Fraction of a held Resource lost per round. Instances scale annual rates to their round
--- | length (INV-28), so a yearly rate is converted before it is declared.
+-- | Fraction of a held Resource lost per round. Scaling annual rates to round length (INV-28) is
+-- | Planned (docs/03 §10.2): the rate is taken as declared.
 type DecayRule = { rate :: Ratio }
 
 data Capability

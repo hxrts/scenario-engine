@@ -28,7 +28,6 @@ package:
     - sp-flags
     - aff
     - refs
-    - integers
     - exceptions
   test:
     main: Test.Cli.Main
@@ -36,8 +35,6 @@ package:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck
       - foreign-object
       - tuples
       - sp-core

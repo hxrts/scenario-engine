@@ -3,9 +3,10 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
+import Core.Run (RunStatus(..))
 import Adapters.SQLite (Db, open, sqliteBackend)
 import Core.Draw (Seed(..))
-import Data.Either (Either(..))
+import Data.Either (Either(..), isLeft)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
@@ -23,7 +24,7 @@ import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
 import Server.Cache (Cache, cached, cachedAgency, clear, newCache)
 import Server.Implementation (implement)
-import Server.Launch (failInterrupted)
+import Server.Launch (checkRunId, failInterrupted)
 import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
@@ -53,6 +54,9 @@ launch env rounds = void (env.api "POST" "/api/runs" ("{\"name\":\"r\",\"preset\
 
 spec :: Spec Unit
 spec = describe "API status rules, startup and cache" do
+  it "a run id the server mints passes the run-id rule; one that could escape runs/ does not" do
+    checkRunId "run-1" `shouldEqual` Right "run-1"
+    checkRunId "../etc" `shouldSatisfy` isLeft
   it "every view of a run answers 200" do
     env <- setup
     launch env 3
@@ -136,7 +140,7 @@ spec = describe "API status rules, startup and cache" do
     n `shouldEqual` 2
     runs <- liftEffect (runObserve env.store listRuns)
     map (\r -> { id: r.id, status: r.status }) runs `shouldEqual`
-      [ { id: "run-1", status: "completed" }, { id: "left", status: "failed" }, { id: "session-1", status: "running" }, { id: "old", status: "failed" } ]
+      [ { id: "run-1", status: Completed }, { id: "left", status: Failed }, { id: "session-1", status: Running }, { id: "old", status: Failed } ]
   it "the run cache keeps a finished run until a write, and never keeps a running one" do
     env <- setup
     launch env 2
@@ -149,8 +153,8 @@ spec = describe "API status rules, startup and cache" do
       load r = Ref.modify_ (_ + 1) loads *> pure (Right r)
       read r = void (liftEffect (cached c "x" (load r)))
       count = liftEffect (Ref.read loads)
-    read run { status = "running" }
-    read run { status = "running" }
+    read run { status = Running }
+    read run { status = Running }
     count >>= (_ `shouldEqual` 2)
     read run
     read run

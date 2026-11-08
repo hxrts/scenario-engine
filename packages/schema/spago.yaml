@@ -13,17 +13,12 @@ package:
     - maybe
     - ordered-collections
     - partial
-    - strings
     - tuples
-    - record
   test:
     main: Test.Schema.Main
     dependencies:
       - sp-testkit
       - effect
       - partial
-      - unsafe-coerce
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck

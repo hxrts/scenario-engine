@@ -19,6 +19,7 @@ module Effects.Api
 
 import Prelude
 
+import Core.Run (DeriveKind)
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -34,7 +35,7 @@ type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, round
 -- | source's seed, and an explicit null draws a new one. `overrides` stays JSON because the override
 -- | shape belongs to `game`, which this package may not import; `Game.Recipe` decodes it.
 type DeriveRequest =
-  { kind :: String
+  { kind :: DeriveKind
   , name :: Maybe String
   , preset :: Maybe String
   , playerSeed :: Maybe (Maybe Int)

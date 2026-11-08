@@ -22,6 +22,7 @@ module Handlers.Api.Route
 
 import Prelude
 
+import Core.Run (deriveKindShape)
 import Core.Shape as Shape
 import Core.Shape (Shape, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
@@ -150,7 +151,7 @@ seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Ju
 -- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Game.Recipe`).
 deriveShape :: Shape DeriveRequest
 deriveShape = object "DeriveRequest" ado
-  kind <- fieldOf "kind" "how the run is derived" stringShape _.kind
+  kind <- fieldOf "kind" "how the run is derived" deriveKindShape _.kind
   name <- fieldOf "name" "the new run's name" (optionalOf stringShape) _.name
   preset <- fieldOf "preset" "a variant's preset" (optionalOf stringShape) _.preset
   playerSeed <- fieldOf "playerSeed" "a variant's player seed" seedChoiceShape _.playerSeed

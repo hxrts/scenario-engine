@@ -29,10 +29,10 @@ import Handlers.Llm (interpreter, backend)
 import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
-import Node.Process (exit')
 import Premises.Capstone (game, jointLineFor, jointLines, matchesExpect)
 import Premises.Load (loadFrom)
 import Premises.Names (capstoneTranscriptFile, meridianDir)
+import Exit (fail)
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }
@@ -41,7 +41,7 @@ answer _ input = case jointLineFor input of
   Nothing -> throwError (error ("the capstone defines no reply for: " <> input))
 
 main :: Effect Unit
-main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
+main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure unit))) do
   parts <- liftEffect (loadFrom fileOps meridianDir) >>= either (throwError <<< error) pure
   g <- either (throwError <<< error <<< show) pure (game parts)
   let w = g.world

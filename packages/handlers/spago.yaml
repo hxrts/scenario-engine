@@ -6,7 +6,6 @@ package:
     - run
     - sp-core
     - sp-schema
-    - sp-board
     - sp-policy
     - sp-game
     - sp-effects
@@ -18,7 +17,6 @@ package:
     - maybe
     - ordered-collections
     - tuples
-    - type-equality
     - typelevel-prelude
     - aff
     - arrays
@@ -41,5 +39,3 @@ package:
       - argonaut-codecs
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck

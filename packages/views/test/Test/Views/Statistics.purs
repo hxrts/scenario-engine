@@ -5,6 +5,7 @@ module Test.Views.Statistics (spec) where
 
 import Prelude
 
+import Core.Run (RunStatus(..))
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
@@ -52,7 +53,7 @@ baseRun p = do
   toStored r = storedRun
     { id: "base"
     , name: "base"
-    , status: "completed"
+    , status: Completed
     , manifest: r.manifest
     , playerSeed: "1"
     , spec: [ Tuple "preset" "Conservative", Tuple "playerSeed" "1" ]

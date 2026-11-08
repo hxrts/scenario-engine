@@ -14,7 +14,6 @@ package:
     - foreign-object
     - maybe
     - ordered-collections
-    - transformers
   test:
     main: Test.Experiments.Main
     dependencies:
@@ -24,10 +23,8 @@ package:
       - exceptions
       - sp-testkit
       - sp-checks
-      - sp-views
       - sp-game
       - sp-simulator
-      - argonaut-core
       - spec
       - spec-node
       - now

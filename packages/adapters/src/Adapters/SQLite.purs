@@ -19,15 +19,19 @@ module Adapters.SQLite
 import Prelude
 
 import Schema.Decode.Common (readJson)
-import Data.Argonaut.Core (stringify)
-import Core.Shape (Format(..), Shape, encodeWith, parse)
+import Data.Argonaut.Core (fromString, stringify)
+import Core.Run (RunStatus, deriveKindName, runStatusName, runStatusShape)
+import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Decode (class DecodeJson, printJsonDecodeError)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn8, Fn9, runFn1, runFn2, runFn3, runFn8, runFn9)
+import Data.Either (either)
+import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, Fn9, runFn1, runFn2, runFn3, runFn4, runFn8, runFn9)
 import Data.Nullable (Nullable, toMaybe, toNullable)
+import Data.Traversable (traverse)
 import Effect (Effect)
+import Effect.Exception (throw)
 import Effects.Signatures (RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
 import Handlers.Store (Metric, StoreBackend)
 
@@ -82,8 +86,7 @@ foreign import setArchivedImpl :: Fn3 Db String Boolean (Effect Unit)
 foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
 foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
 foreign import appendRoundImpl :: Fn8 Db String Int String String String String (Array Metric) (Effect Unit)
-foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
-foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
+foreign import setStatusImpl :: Fn4 Db String String (Nullable String) (Effect Unit)
 foreign import failRunningImpl :: Fn3 Db String String (Effect Int)
 foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfoRow))
 foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummaryRow))
@@ -108,32 +111,36 @@ shapeText s = stringify <<< encodeWith Snapshot s
 fromShape :: forall a. Shape a -> String -> String -> Stored a
 fromShape s what text = lmap (\e -> what <> ": " <> printJsonDecodeError e) (parse Snapshot s text)
 
+-- | A row's status text as the type the program reads. Only this module writes the column, so text
+-- | outside the set is a damaged store: an exception, not a guess.
+statusOf :: String -> String -> Effect RunStatus
+statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeError e)) pure (decodeJsonWith Snapshot runStatusShape (fromString text))
+
 -- | The Run Store's primitives over one connection: each is one SQLite statement or transaction,
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable r.kind) r.owner
+  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (deriveKindName <$> r.kind)) r.owner
   , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (shapeText roundRecordShape r.record) (shapeText worldStateShape r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
-  , setStatus: \id status -> runFn3 setStatusImpl db id status
-  , failRun: \id reason -> runFn3 failRunImpl db id reason
+  , setStatus: \id status reason -> runFn4 setStatusImpl db id (runStatusName status) (toNullable reason)
   , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
   , setSpec: \id spec -> runFn3 setSpecImpl db id (toText spec)
   , setArchived: \id archived -> runFn3 setArchivedImpl db id archived
   , deleteRun: \id -> runFn2 deleteRunImpl db id
-  , listRuns: map (map runInfo) (runFn1 listRunsImpl db)
-  , listSummaries: map (map runSummary) (runFn1 summariesImpl db)
+  , listRuns: runFn1 listRunsImpl db >>= traverse runInfo
+  , listSummaries: runFn1 summariesImpl db >>= traverse runSummary
   , readManifest: \id -> map (map manifestOf <<< toMaybe) (runFn2 manifestImpl db id)
   , readRounds: \id -> map (map roundOf) (runFn2 roundsImpl db id)
   }
   where
-  runInfo :: RunInfoRow -> RunInfo
-  runInfo r = { id: r.id, name: r.name, status: r.status, created: r.created, reason: toMaybe r.reason }
+  runInfo :: RunInfoRow -> Effect RunInfo
+  runInfo r = statusOf r.id r.status <#> \status -> { id: r.id, name: r.name, status, created: r.created, reason: toMaybe r.reason }
 
-  runSummary :: RunSummaryRow -> RunSummary
-  runSummary r =
+  runSummary :: RunSummaryRow -> Effect RunSummary
+  runSummary r = statusOf r.id r.status <#> \status ->
     { id: r.id
     , name: r.name
-    , status: r.status
+    , status
     , created: r.created
     , reason: toMaybe r.reason
     , spec: fromText "spec" r.spec

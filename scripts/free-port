@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Frees the port a `just serve` is about to use. The port is the value of `--port` in the arguments
-# (default 8787, the server's default). A listener that is this repository's server is stopped; any
+# Frees the port a `just serve` is about to use. The port is the value of `--port` in the arguments,
+# else API_PORT from apps/dashboard/ports.mjs, the same default as apps/server/src/Server.purs. A listener that is this repository's server is stopped; any
 # other process on the port is reported and nothing is killed.
 set -euo pipefail
 
-port=8787
+port=$(node --input-type=module -e 'import { API_PORT } from "./apps/dashboard/ports.mjs"; console.log(API_PORT)')
 prev=""
 for arg in "$@"; do
   if [ "$prev" = "--port" ]; then port="$arg"; fi

@@ -16,7 +16,7 @@ module Premises.Load
 
 import Prelude
 
-import Core.Shape (decodeJsonWith, Format(..))
+import Core.Shape (decodeJsonWith, Format(..), encodeWith)
 import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
@@ -28,7 +28,6 @@ import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
-import Core.Shape (encodeWith)
 import Premises.Names (instantiationFile, presetsFile)
 import Premises.Presets as Presets
 import Premises.Tree as Tree

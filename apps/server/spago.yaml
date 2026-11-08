@@ -6,7 +6,6 @@ package:
     - console
     - node-process
     - argonaut-codecs
-    - argonaut-core
     - arrays
     - either
     - foldable-traversable
@@ -30,7 +29,6 @@ package:
     - sp-flags
     - sp-experiments
     - exceptions
-    - nullable
     - newtype
   run:
     main: Server
@@ -41,6 +39,4 @@ package:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck
       - sp-testkit

@@ -17,7 +17,7 @@ import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Simulator.Simulate (Snapshot, resumeFrom)
+import Simulator.Simulate (Checkpoint, resumeFrom)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Capstone (load, runOf)
@@ -65,7 +65,7 @@ spec = describe "Capstone (DSL-authored run)" do
     case index full.records 3 of
       Nothing -> fail "rounds"
       Just r4 -> do
-        let snap = { world: r4.world, done: 4 } :: Snapshot
+        let snap = { world: r4.world, done: 4 } :: Checkpoint
         case resumeFrom cap.playerSeed cap.game snap of
           Left e -> fail (show e)
           Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 4 full.records)
