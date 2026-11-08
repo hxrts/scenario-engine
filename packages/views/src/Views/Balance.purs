@@ -9,9 +9,10 @@ module Views.Balance
   , Measures
   , measuresOf
   , measures
-  , spreadCell
-  , giniCell
-  , giniUnit
+  , Measure
+  , runMeasures
+  , spreadMeasure
+  , giniMeasure
   , BalanceView
   , balanceView
   , completionOf
@@ -25,11 +26,12 @@ import Prelude
 import Schema.Gameboard (Gameboard, Outcome(..))
 import Checks.Objectives (evaluateObjectives)
 import Core.Map as CoreMap
-import Core.Num (Q)
+import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Types (EntityId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
+import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..), maybe)
 import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, col, column, names)
 import Views.Standings (netWorths)
@@ -115,22 +117,39 @@ giniColumn = column "Gini" "The Gini coefficient of final net worth, from 0 (eve
 giniUnit :: String
 giniUnit = "index, 0 to 1 − 1/n"
 
+-- | One measure over a run's final net worths: its row names (the key values and the measures table), its
+-- | short name as a chart category, its column in the seed variation, and how it is read and shown. Each
+-- | is computed once in `measuresOf`.
+type Measure =
+  { label :: String
+  , short :: String
+  , name :: String
+  , column :: Column
+  , kind :: Kind
+  , unit :: String -> String -- its unit, given the numeraire's
+  , read :: Measures -> Maybe Q
+  , cell :: Maybe Q -> String
+  }
+
+spreadMeasure :: Measure
+spreadMeasure =
+  { label: "Spread of final net worth", short: "Spread", name: col.spread.name, column: col.spread, kind: Quantity, unit: identity, read: _.spread, cell: spreadCell }
+
+giniMeasure :: Measure
+giniMeasure =
+  { label: "Gini of final net worth", short: "Gini", name: "Gini coefficient", column: giniColumn, kind: Ratio, unit: const giniUnit, read: _.gini, cell: giniCell }
+
+-- | The measures every balance view folds over, in display order.
+runMeasures :: Array Measure
+runMeasures = [ spreadMeasure, giniMeasure ]
+
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ valueColumn ] <> columnsOf completionFields <> [ giniColumn ]
+columns = [ valueColumn ] <> columnsOf completionFields <> map _.column runMeasures
 
 -- | The measures over a run's final net worths: the spread and the Gini coefficient.
 measures :: StoredRun -> Table
-measures r =
-  { title: "Balance after round " <> show (completed r)
-  , columns: names [ col.measure, valueColumn ]
-  , rows:
-      [ [ col.spread.name, spreadCell m.spread ]
-      , [ "Gini coefficient", giniCell m.gini ]
-      ]
-  }
-  where
-  m = measuresOf r
+measures r = tableOf ("Balance after round " <> show (completed r)) [ cellOf col.measure _.name, cellOf valueColumn (\m -> m.cell (m.read (measuresOf r))) ] runMeasures
 
 -- | One Actor's objective criteria over the run: how many were met, not met and not evaluated, and the
 -- | objective's outcome.
@@ -172,16 +191,11 @@ balanceView gb r = { measures: measures r, completion: completion gb r }
 seedVariation :: Array StoredRun -> Table
 seedVariation runs =
   { title: "Seed-to-seed variation"
-  , columns: names [ col.run, col.gameSeed, col.playerSeed, col.spread, giniColumn ]
-  , rows: if length runs < 2 then [ [ "one run of this specification", "", "", "n/a", "n/a" ], [ "seed-to-seed variation needs more runs of this specification; none is reported", "", "", "n/a", "n/a" ] ] else perRun <> summary
+  , columns: names ([ col.run, col.gameSeed, col.playerSeed ] <> map _.column runMeasures)
+  , rows: if length runs < 2 then map (\text -> [ text, "", "" ] <> map (\_ -> "n/a") runMeasures) [ "one run of this specification", "seed-to-seed variation needs more runs of this specification; none is reported" ] else perRun <> summary
   }
   where
-  measured = map (\r -> let m = measuresOf r in { run: r, spread: m.spread, gini: m.gini }) runs
-  perRun = map (\m -> [ m.run.id, show m.run.manifest.initial.seed, m.run.playerSeed, spreadCell m.spread, giniCell m.gini ]) measured
-  spreads = catMaybes (map _.spread measured)
-  ginis = catMaybes (map _.gini measured)
-  summary =
-    [ [ "lowest", "", "", spreadCell (minimum spreads), giniCell (minimum ginis) ]
-    , [ "highest", "", "", spreadCell (maximum spreads), giniCell (maximum ginis) ]
-    , [ "range", "", "", spreadCell (spread spreads), giniCell (spread ginis) ]
-    ]
+  measured = map (\r -> Tuple r (measuresOf r)) runs
+  perRun = map (\(Tuple r m) -> [ r.id, show r.manifest.initial.seed, r.playerSeed ] <> map (\x -> x.cell (x.read m)) runMeasures) measured
+  summaryRow label f = [ label, "", "" ] <> map (\x -> x.cell (f (catMaybes (map (\(Tuple _ m) -> x.read m) measured)))) runMeasures
+  summary = [ summaryRow "lowest" minimum, summaryRow "highest" maximum, summaryRow "range" spread ]

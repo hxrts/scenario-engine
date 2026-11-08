@@ -35,7 +35,7 @@ import Data.Tuple (Tuple(..), fst)
 import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
-import Views.Balance (completionOf, giniCell, giniUnit, measuresOf, spreadCell)
+import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
 import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
@@ -273,7 +273,7 @@ keyValues :: (StoredRun -> Maybe Gameboard) -> Array StoredRun -> Table
 keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs
-  , rows: concat [ perPlayer, [ spreadRow, giniRow ], objectiveRows, [ rejectedRow ], priceRows ]
+  , rows: concat [ perPlayer, measureRows, objectiveRows, [ rejectedRow ], priceRows ]
   }
   where
   -- each run's values, read once, so a row's cells only look up
@@ -291,8 +291,8 @@ keyValues boardOf runs =
   row = perRunRow perRun
 
   playerRow p label unit f = row [ label <> ", " <> show p, unit ] (maybe "—" f <<< find (\s -> s.player == p) <<< _.standings)
-  countsRow p = row [ "Actions taken, " <> show p, "count (trades, transforms, transfers)" ]
-    (maybe "—" (\c -> show (c.counts.trades + c.counts.transforms + c.counts.transfers)) <<< find (\c -> c.player == p) <<< _.actions)
+  countsRow p = row [ "Actions taken, " <> show p, "count (all five kinds of action)" ]
+    (maybe "—" (\c -> show c.total) <<< find (\c -> c.player == p) <<< _.actions)
   perPlayer = concatMap
     ( \p ->
         [ playerRow p "Final net worth" (numeraireUnit runs) (quantity <<< _.netWorth)
@@ -303,8 +303,7 @@ keyValues boardOf runs =
     )
     (playerIds runs)
 
-  spreadRow = row [ "Spread of final net worth", numeraireUnit runs ] (spreadCell <<< _.spread <<< _.measures)
-  giniRow = row [ "Gini of final net worth", giniUnit ] (giniCell <<< _.gini <<< _.measures)
+  measureRows = map (\m -> row [ m.label, m.unit (numeraireUnit runs) ] (\v -> m.cell (m.read v.measures))) runMeasures
 
   objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
   roles = nub (concatMap (map _.actor <<< _.completion) perRun)
@@ -346,8 +345,8 @@ standingsBars runs =
 balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars, unit :: String }
 balanceBars runs =
   { unit: numeraireUnit runs
-  , spread:
-      { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (measuresOf r).spread ] }) runs }
-  , gini:
-      { title: "Gini of final net worth", unit: giniUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (measuresOf r).gini ] }) runs }
+  , spread: barsOf spreadMeasure
+  , gini: barsOf giniMeasure
   }
+  where
+  barsOf m = { title: m.label, unit: m.unit (numeraireUnit runs), kind: m.kind, categories: [ m.short ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (m.read (measuresOf r)) ] }) runs }
