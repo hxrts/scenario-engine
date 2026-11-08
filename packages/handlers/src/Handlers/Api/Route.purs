@@ -13,6 +13,7 @@ module Handlers.Api.Route
   , parse
   , wire
   , reply
+  , replyIn
   , failWith
   , endpointNames
   , errorShape
@@ -27,7 +28,6 @@ import Core.Shape as Shape
 import Core.Shape (class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Argonaut.Decode (decodeJson)
-import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (catMaybes, filter, findMap, length, zipWith)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
@@ -62,9 +62,13 @@ type Implementation = ApiRequest -> Effect Reply
 -- | A request as the client sends it: method, URL (with its query), and body text.
 type Wire = { method :: String, url :: String, body :: String }
 
--- | A reply: the status, and the body as JSON.
-reply :: forall a. EncodeJson a => Int -> a -> Reply
-reply status a = { status, body: stringify (encodeJson a) }
+-- | A reply: the status, and the body through its shape, in the Snapshot form the replies are written in.
+reply :: forall a. Shape a -> Int -> a -> Reply
+reply = replyIn Shape.Snapshot
+
+-- | A reply in a given format. The premise format leaves an absent optional field out.
+replyIn :: forall a. Shape.Format -> Shape a -> Int -> a -> Reply
+replyIn format s status a = { status, body: stringify (encodeWith format s a) }
 
 -- | An error reply: the status, and the message in the body's `error` field.
 failWith :: Int -> String -> Reply

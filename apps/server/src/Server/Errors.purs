@@ -3,7 +3,6 @@
 -- | and the decode error that names what failed.
 module Server.Errors
   ( describe
-  , json
   , ok
   , failWith
   , viewOr
@@ -12,7 +11,7 @@ module Server.Errors
 
 import Prelude
 
-import Data.Argonaut.Encode (class EncodeJson)
+import Core.Shape (Shape)
 import Data.Either (Either(..), either)
 import Effect (Effect)
 import Effects.Api (Reply)
@@ -24,18 +23,16 @@ describe = case _ of
   Missing -> "not found"
   Unreadable why -> why
 
-json :: forall a. EncodeJson a => Int -> a -> Effect Reply
-json status = pure <<< Route.reply status
-
-ok :: forall a. EncodeJson a => a -> Effect Reply
-ok = json 200
+-- | A 200 reply through the reply's shape.
+ok :: forall a. Shape a -> a -> Effect Reply
+ok s = pure <<< Route.reply s 200
 
 failWith :: Int -> String -> Effect Reply
 failWith status = pure <<< Route.failWith status
 
 -- | A view, or a 400 with the reason it cannot be given (for example an out-of-range round).
-viewOr :: forall a. EncodeJson a => Either String a -> Effect Reply
-viewOr = either (failWith 400) ok
+viewOr :: forall a. Shape a -> Either String a -> Effect Reply
+viewOr s = either (failWith 400) (ok s)
 
 -- | A run's reply, or a 404 for a run that is missing and a 500 for one that cannot be read.
 replyOr :: forall a. String -> (a -> Effect Reply) -> Either RunError a -> Effect Reply

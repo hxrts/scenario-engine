@@ -5,7 +5,6 @@ package:
     - effect
     - console
     - node-process
-    - argonaut-codecs
     - arrays
     - either
     - foldable-traversable
@@ -35,6 +34,7 @@ package:
   test:
     main: Test.Server.Main
     dependencies:
+      - argonaut-codecs
       - aff-promise
       - effect
       - spec

@@ -12,20 +12,21 @@ import Effects.Api (ApiRequest(..))
 import Handlers.Api.Route (Implementation)
 import Handlers.Store (StoreBackend)
 import Views.Glossary (glossary)
+import Views.Keys as Keys
 import Views.Overview as Overview
 import Server.Cache (Cache, clear)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
-import Server.Launch (launch, premiseInfo)
+import Server.Launch (launch, launchedShape, premiseInfo)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
 -- | The implementation of every operation over one premise, one store, and the store's run cache.
 implement :: GameboardParts -> StoreBackend -> Cache -> Implementation
 implement ctx store cache = case _ of
-  ListRuns { archived } -> runSummaries archived store >>= ok <<< Overview.runList
-  Premise -> premiseInfo ctx store >>= ok
-  Glossary -> ok glossary
-  LaunchRun l -> writing (launch ctx store l >>= either (failWith 400) ok)
+  ListRuns { archived } -> runSummaries archived store >>= ok Keys.runList <<< Overview.runList
+  Premise -> premiseInfo ctx store >>= ok Keys.premise
+  Glossary -> ok Keys.glossary glossary
+  LaunchRun l -> writing (launch ctx store l >>= either (failWith 400) (ok launchedShape))
   Entities id -> entitiesView cache store id
   Entity id entity -> entityView cache store id entity
   RunView r -> getView cache ctx store r

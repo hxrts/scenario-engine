@@ -5,7 +5,6 @@ package:
     - effect
     - aff
     - aff-promise
-    - argonaut-codecs
     - argonaut-core
     - arrays
     - either
@@ -33,6 +32,7 @@ package:
   test:
     main: Test.Dashboard.Main
     dependencies:
+      - argonaut-codecs
       - effect
       - spec
       - spec-node

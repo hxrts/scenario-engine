@@ -10,7 +10,7 @@ import Prelude
 
 import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
-import Dashboard.Components (as, fetched, loaded, metricChart, stackedBars, stale, statistic, tableOf)
+import Dashboard.Components (fetched, loaded, metricChart, stackedBars, stale, statistic, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
 import Dashboard.Glossary (Lookup, emptyValue, glossaryContext)
@@ -18,10 +18,12 @@ import Dashboard.Layout as Layout
 import Data.Array (index)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), maybe)
-import Core.View (View(..), viewName)
-import Views.Actions (ActionsView, actionsStat)
-import Views.Balance (BalanceView, giniStat, spreadStat)
-import Views.Common (Chart, Table)
+import Core.View (viewName)
+import Views.Actions (actionsStat)
+import Views.Balance (giniStat, spreadStat)
+import Views.Common (Table)
+import Views.Keys (ViewKey)
+import Views.Keys as Keys
 import Views.Drivers (driversStat)
 import Views.Overview (Fact, RunOverview)
 import Views.Standings (netWorthStat)
@@ -79,7 +81,9 @@ mkBody :: DataTable -> Component BodyProps
 mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResultsBody" \b -> React.do
   let
     keyed path = b.id <> "/" <> path <> "@" <> show b.version
-    view name render = fetch { key: keyed (viewName name), load: runView b.id name Nothing, render }
+
+    view :: forall a. ViewKey a -> (a -> JSX) -> JSX
+    view key render = fetch { key: keyed (viewName key.view), load: map render <$> runView key b.id Nothing }
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-section"
     , children:
@@ -91,42 +95,42 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
         , Layout.section
             { title: "Marginal prices"
             , purpose: "What moves prices: the marginal price of each Market after every round, in quote units per base unit."
-            , children: [ view Markets (as \(cs :: Array Chart) -> maybe (D.span_ []) metricChart (index cs 0)) ]
+            , children: [ view Keys.markets (\cs -> maybe (D.span_ []) metricChart (index cs 0)) ]
             }
         , Layout.section
             { title: "Standings"
             , purpose: "How well each player is doing against the others: net worth after the final round, its change from the start, and its rank."
-            , children: [ view Standings (as \(t :: Table) -> titled grid t) ]
+            , children: [ view Keys.standings (titled grid) ]
             }
         , Layout.section
             { title: "Net worth over time"
             , purpose: "One line per player: net worth from the start (round 0) to the final round."
-            , children: [ view NetWorth (as \(c :: Chart) -> metricChart c) ]
+            , children: [ view Keys.netWorth metricChart ]
             }
         , Layout.section
             { title: "Actions"
             , purpose: "What each player does over the whole run, by kind of action: one bar per player, and the table gives the exact counts."
-            , children: [ view Actions (as \(a :: ActionsView) -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ stackedBars a.chart, titled grid a.totals ] }) ]
+            , children: [ view Keys.actions \a -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ stackedBars a.chart, titled grid a.totals ] } ]
             }
         , Layout.section
             { title: "Drivers"
             , purpose: "What forces drive gameplay, by round: the rules enacted and repealed, the collective procedure outcomes, and the shortfalls per Resource."
-            , children: [ view Drivers (as \(t :: Table) -> titled grid t) ]
+            , children: [ view Keys.drivers (titled grid) ]
             }
         , Layout.section
             { title: "Balance measures"
             , purpose: "How evenly final net worth is spread among the players: the spread and the Gini coefficient."
-            , children: [ view Balance (as \(bal :: BalanceView) -> titled grid bal.measures) ]
+            , children: [ view Keys.balance (titled grid <<< _.measures) ]
             }
         , Layout.section
             { title: "Objectives"
             , purpose: "Each Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
-            , children: [ view Objectives (as \(t :: Table) -> titled grid t) ]
+            , children: [ view Keys.objectives (titled grid) ]
             }
         , Layout.section
             { title: "Final balance sheet"
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
-            , children: [ view Balances (as \(t :: Table) -> titled grid t) ]
+            , children: [ view Keys.balances (titled grid) ]
             }
         , entity { id: b.id, version: b.version }
         ]

@@ -1,6 +1,6 @@
 -- | The dashboard's operations (docs/06_simulator.md §8): one function per request the dashboard makes.
 -- | Each sends an `API` operation through `Handlers.Api.Client` over the dashboard's fetch device and
--- | decodes the reply's JSON as the view it names. The paths are `Handlers.Api.Route`'s.
+-- | decodes the reply through the shape it names (`Views.Keys`). The paths are `Handlers.Api.Route`'s.
 module Dashboard.Client
   ( runs
   , launch
@@ -20,74 +20,81 @@ module Dashboard.Client
 import Prelude
 
 import Dashboard.Api (fetch)
-import Core.View (View(..))
+import Core.Shape (Format(Snapshot), Shape, parse, prim, recordShape, stringShape)
 import Effects.Api (ApiRequest(..), Launch, call)
 import Handlers.Api.Client (replyText, runApi)
-import Data.Argonaut.Decode (fromJsonString, class DecodeJson)
 import Schema.Decode.Common (decodeError)
+import Views.Common (Table)
 import Views.Compare (CompareView)
 import Views.Entity (EntityList, History)
 import Views.Glossary (Glossary)
+import Views.Keys (ViewKey)
+import Views.Keys as Keys
 import Views.Overview (RunList, RunOverview)
 import Views.Premise (Premise)
-import Data.Argonaut.Core (Json)
-import Data.Either (Either)
+import Data.Argonaut.Core (jsonNull)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 
--- | One operation: its reply's body, decoded as the typed value it names.
-typed :: forall a. DecodeJson a => ApiRequest -> Aff (Either String a)
-typed req = (\reply -> replyText reply >>= decodeError <<< fromJsonString) <$> runApi fetch (call req)
+-- | One operation: its reply's body, decoded through the shape it names.
+typed :: forall a. Shape a -> ApiRequest -> Aff (Either String a)
+typed shape req = (\reply -> replyText reply >>= decodeError <<< parse Snapshot shape) <$> runApi fetch (call req)
+
+-- | A reply whose body the dashboard does not read: only whether it succeeded.
+unread :: Shape Unit
+unread = prim "unread" (const jsonNull) (const (Right unit))
 
 -- | The run list. `archived` adds the archived runs (every run, the default list without them).
 runs :: Boolean -> Aff (Either String RunList)
-runs archived = typed (ListRuns { archived })
+runs archived = typed Keys.runList (ListRuns { archived })
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
 launch :: Launch -> Aff (Either String { id :: String })
-launch = typed <<< LaunchRun
+launch = typed launchedShape <<< LaunchRun
+  where
+  launchedShape = recordShape "Launched" { id: stringShape }
 
 -- | The premise the launch form runs, with its rounds, seed, default run name and presets.
 premise :: Aff (Either String Premise)
-premise = typed Premise
+premise = typed Keys.premise Premise
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)
-glossary = typed Glossary
+glossary = typed Keys.glossary Glossary
 
 -- | A run's overview: its rounds, target and header facts.
 overview :: String -> Aff (Either String RunOverview)
-overview id = typed (RunView { id, view: Overview, round: Nothing })
+overview id = runView Keys.overview id Nothing
 
 -- | A run's Entities, each flagged as a seat, and the default one.
 entities :: String -> Aff (Either String EntityList)
-entities = typed <<< Entities
+entities = typed Keys.entityList <<< Entities
 
 -- | One Entity's history.
 entity :: String -> String -> Aff (Either String History)
-entity id e = typed (Entity id e)
+entity id e = typed Keys.history (Entity id e)
 
--- | One view of a run, as JSON; `balances` at a round takes the
--- | round as well.
-runView :: String -> View -> Maybe Int -> Aff (Either String Json)
-runView id view round = typed (RunView { id, view, round: show <$> round })
+-- | One view of a run, decoded through its key; `balances` and `events` at a round take the round as well.
+runView :: forall a. ViewKey a -> String -> Maybe Int -> Aff (Either String a)
+runView key id round = typed key.shape (RunView { id, view: key.view, round: show <$> round })
 
 -- | The comparison of the runs, the first being the baseline.
 compare :: Array String -> Aff (Either String CompareView)
-compare ids = typed (Compare { runs: ids, market: Nothing })
+compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
 
--- | The agency analysis against the fixed baseline, as JSON.
-agency :: Aff (Either String Json)
-agency = typed (Agency { playerSeed: Nothing, preset: Nothing, alternative: Nothing })
+-- | The agency analysis against the fixed baseline.
+agency :: Aff (Either String Table)
+agency = typed Keys.table (Agency { playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | Archive a run, or unarchive it.
-archive :: String -> Boolean -> Aff (Either String Json)
-archive id archived = typed (if archived then Unarchive id else Archive id)
+archive :: String -> Boolean -> Aff (Either String Unit)
+archive id archived = typed unread (if archived then Unarchive id else Archive id)
 
 -- | Resume a run to a round count.
-resume :: String -> Int -> Aff (Either String Json)
-resume id rounds = typed (Resume { id, rounds })
+resume :: String -> Int -> Aff (Either String Unit)
+resume id rounds = typed unread (Resume { id, rounds })
 
 -- | Delete a run; the request names the run it deletes.
-delete :: String -> Aff (Either String Json)
-delete id = typed (Delete { id, confirm: id })
+delete :: String -> Aff (Either String Unit)
+delete id = typed unread (Delete { id, confirm: id })

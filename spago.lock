@@ -176,7 +176,6 @@
           "dependencies": [
             "aff",
             "aff-promise",
-            "argonaut-codecs",
             "argonaut-core",
             "arrays",
             "effect",
@@ -207,6 +206,7 @@
         },
         "test": {
           "dependencies": [
+            "argonaut-codecs",
             "argonaut-core",
             "effect",
             "either",
@@ -482,7 +482,6 @@
         "path": "apps/server",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
             "arrays",
             "console",
             "effect",
@@ -516,6 +515,7 @@
         "test": {
           "dependencies": [
             "aff-promise",
+            "argonaut-codecs",
             "effect",
             "sp-testkit",
             "spec",
@@ -606,6 +606,7 @@
         "test": {
           "dependencies": [
             "aff",
+            "argonaut-codecs",
             "effect",
             "sp-checks",
             "sp-testkit",

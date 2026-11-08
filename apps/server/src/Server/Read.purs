@@ -43,6 +43,8 @@ import Views.Balance as Balance
 import Views.Balances as Balances
 import Views.Common (StoredRun, completed, defaultMetricSpec, storedRun)
 import Views.Compare as Compare
+import Views.Keys (ViewKey)
+import Views.Keys as Keys
 import Views.Drivers as Drivers
 import Views.Entity as Entity
 import Views.Markets as Markets
@@ -139,6 +141,13 @@ runInfo store id = find (\r -> r.id == id) <$> runObserve store listRuns
 getView :: Cache -> GameboardParts -> StoreBackend -> { id :: String, view :: View, round :: Maybe String } -> Effect Reply
 getView cache ctx store { id, view, round } = withRun cache store id runView
   where
+  -- each view's reply goes through its key's shape, the one the dashboard decodes with
+  answer :: forall a. ViewKey a -> a -> Effect Reply
+  answer k = ok k.shape
+
+  answerOr :: forall a. ViewKey a -> Either String a -> Effect Reply
+  answerOr k = viewOr k.shape
+
   -- an optional round parameter; the view checks that the round exists
   roundParam :: Int -> Either String Int
   roundParam d = case round of
@@ -146,29 +155,29 @@ getView cache ctx store { id, view, round } = withRun cache store id runView
     Just s -> maybe (Left ("round must be an integer, got " <> s)) Right (Int.fromString s)
 
   runView r = case view of
-    Overview -> ok (Overview.overview defaultMetricSpec r)
-    Balances -> viewOr (roundParam (completed r) >>= Balances.balances r)
-    Markets -> ok (Markets.markets r)
-    Facilities -> ok (Markets.facilities r)
-    Economy -> ok (Markets.economy r)
-    Representation -> ok (Representation.representation r)
-    Procedures -> ok (Representation.procedures r)
-    Objectives -> ok (Overview.objectives ctx.gameboard r)
-    Standings -> ok (Standings.standings r)
-    NetWorth -> ok (Standings.netWorthChart r)
-    Actions -> ok (Actions.actions r)
-    Drivers -> ok (Drivers.drivers r)
-    Balance -> ok (Balance.balanceView ctx.gameboard r)
-    Events -> viewOr (roundParam 1 >>= Balances.events r)
+    Overview -> answer Keys.overview (Overview.overview defaultMetricSpec r)
+    Balances -> answerOr Keys.balances (roundParam (completed r) >>= Balances.balances r)
+    Markets -> answer Keys.markets (Markets.markets r)
+    Facilities -> answer Keys.facilities (Markets.facilities r)
+    Economy -> answer Keys.economy (Markets.economy r)
+    Representation -> answer Keys.representation (Representation.representation r)
+    Procedures -> answer Keys.procedures (Representation.procedures r)
+    Objectives -> answer Keys.objectives (Overview.objectives ctx.gameboard r)
+    Standings -> answer Keys.standings (Standings.standings r)
+    NetWorth -> answer Keys.netWorth (Standings.netWorthChart r)
+    Actions -> answer Keys.actions (Actions.actions r)
+    Drivers -> answer Keys.drivers (Drivers.drivers r)
+    Balance -> answer Keys.balance (Balance.balanceView ctx.gameboard r)
+    Events -> answerOr Keys.events (roundParam 1 >>= Balances.events r)
 
 -- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
 entitiesView :: Cache -> StoreBackend -> String -> Effect Reply
-entitiesView cache store id = withRun cache store id (ok <<< Entity.entityList)
+entitiesView cache store id = withRun cache store id (ok Keys.entityList <<< Entity.entityList)
 
 -- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
 entityView :: Cache -> StoreBackend -> String -> String -> Effect Reply
-entityView cache store id entity = withRun cache store id (\r -> viewOr (Entity.entityHistory r (Id entity)))
+entityView cache store id entity = withRun cache store id (\r -> viewOr Keys.history (Entity.entityHistory r (Id entity)))
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
@@ -182,7 +191,7 @@ compareView cache ctx store { runs: ids, market } = do
     Nothing -> failWith 400 (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
     Just { head: base, tail: others } -> case Markets.trajectories good (fromMaybe defaultMetricSpec.market market) of
       Left e -> failWith 400 e
-      Right trajectory -> ok
+      Right trajectory -> ok Keys.compare
         ( { compatibility: Compare.compatible good
           , trajectory
           , markets: Markets.marketCharts good
@@ -204,4 +213,4 @@ compareView cache ctx store { runs: ids, market } = do
 agencyView :: Cache -> GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Reply
 agencyView cache ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe "Conservative" preset, fromMaybe "Aggressive" alternative ]) $ viewOr (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))
+  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe "Conservative" preset, fromMaybe "Aggressive" alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))

@@ -18,8 +18,6 @@ module Dashboard.Components
   , labelled
   , textInput
   , statistic
-  , Render
-  , as
   ) where
 
 import Prelude
@@ -31,8 +29,7 @@ import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runColour, runLabel, seriesColour)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (Json, fromNumber, fromString)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut.Core (fromNumber, fromString)
 import Data.Array (cons, find, index, mapWithIndex, zip)
 import Data.Either (Either(..))
 import Data.Int (toNumber)
@@ -50,8 +47,6 @@ import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler)
 import React.Basic.Hooks (Component, JSX, component, element)
 import React.Basic.Hooks as React
-
-type Render = Json -> JSX
 
 -- | A key figure: its name, the question it answers, its definition and its formula.
 statistic :: Statistic -> JSX
@@ -227,18 +222,12 @@ groupedBars ids xLabel b = plotFrame b.title $ element UI.chartContainer
       ]
   }
 
--- | Decode a view model and render it, or show the decoding error.
-as :: forall a. DecodeJson a => (a -> JSX) -> Render
-as f j = case decodeJson j of
-  Right a -> f a
-  Left e -> D.pre_ [ D.text (printJsonDecodeError e) ]
-
 -- | Fetch a view (`load`, keyed by `key`) and render it. The last loaded view stays on screen, dimmed,
 -- | while a new one loads.
-fetched :: Component { key :: String, load :: Aff (Either String Json), render :: Render }
+fetched :: Component { key :: String, load :: Aff (Either String JSX) }
 fetched = component "Fetched" \p -> React.do
   view <- useLoad p.key p.load
-  pure $ stale view.busy (loaded view.value p.render)
+  pure $ stale view.busy (loaded view.value identity)
 
 -- | Dims content that is the previous selection while its replacement loads. The wrapper is always
 -- | present, so toggling it never remounts the content (a remount would detach it for a frame).

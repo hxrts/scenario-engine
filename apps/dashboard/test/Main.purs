@@ -14,8 +14,10 @@ import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRun
 import Effects.Api as Api
 import Handlers.Api.Route (wire)
 import Data.Argonaut.Core (toNumber, toString)
-import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
-import Data.Argonaut.Parser (jsonParser)
+import Core.Shape (Format(Snapshot))
+import Core.Shape as Shape
+import Data.Argonaut.Decode (printJsonDecodeError)
+import Views.Keys as Keys
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
@@ -167,4 +169,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   premise = { name: "meridian", version: "v0", rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
 
   decodePremise :: String -> Either String Premise
-  decodePremise s = jsonParser s >>= \j -> lmap printJsonDecodeError (decodeJson j)
+  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot Keys.premise

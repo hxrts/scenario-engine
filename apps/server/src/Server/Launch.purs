@@ -3,6 +3,7 @@
 -- | and the play-to-completion that persists every round. Derived runs start through `start` too.
 module Server.Launch
   ( Launched
+  , launchedShape
   , launch
   , start
   , checkRunId
@@ -18,6 +19,7 @@ import Adapters.Random (resolveSeed)
 import Adapters.SQLite (processOwner)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
+import Core.Shape (Shape, intShape, recordShape, stringShape)
 import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
 import Data.Bifunctor (lmap)
@@ -44,6 +46,9 @@ import Simulator.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
+
+launchedShape :: Shape Launched
+launchedShape = recordShape "Launched" { id: stringShape, playerSeed: intShape }
 
 -- | A run to start: its name, what it is played from, and, when it is derived, its source and kind.
 type Start =

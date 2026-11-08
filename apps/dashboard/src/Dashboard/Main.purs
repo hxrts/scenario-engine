@@ -10,7 +10,7 @@ import Prelude
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
+import Dashboard.Components (diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
 import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, summary, validate)
@@ -22,7 +22,6 @@ import Dashboard.RunActions as Actions
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (Json)
 import Data.Array (elem, filter, find, findIndex, index, length, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -36,7 +35,6 @@ import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
 import Views.Compare (CompareView)
-import Views.Common (Table)
 import Views.Overview (RunList, RunOverview)
 import Views.Premise (Premise)
 import Effects.Api (Launch)
@@ -56,8 +54,8 @@ import Web.HTML.Window (document)
 -- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
 type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
 
--- | A fetched view: its key, its request, and how it renders (`Fetched` in `Dashboard.Components`).
-type Fetch = { key :: String, load :: Aff (Either String Json), render :: Render } -> JSX
+-- | A fetched view: its key, and its load, which renders what it reads (`Fetched` in `Dashboard.Components`).
+type Fetch = { key :: String, load :: Aff (Either String JSX) } -> JSX
 
 -- | The run list's id column: a run's id is its first cell, and a click on it selects the run.
 runKeyColumn :: Int
@@ -369,7 +367,7 @@ plots grid fetch ids shown picked setPicked = D.div
                   , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
-                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: Client.agency, render: as \(t :: Table) -> tableOf grid t } }
+                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: map (tableOf grid) <$> Client.agency } }
                   ]
               ]
           }

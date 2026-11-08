@@ -12,7 +12,6 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (last, length, null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
@@ -25,13 +24,15 @@ import Effects.Store (deleteRun, setArchived, setSpec, setStatus)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
-import Server.Errors (describe, failWith, json, ok)
+import Server.Errors (describe, failWith, ok)
 import Server.Launch (play, start)
 import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset)
 import Game.Premise (GameboardParts)
-import Core.Run (DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Core.Run (DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
+import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe, specKeys)
 import Simulator.Records (recordsEqual)
 import Views.Common (records)
@@ -83,12 +84,16 @@ deriveRun cache premise store sourceId body = do
                     -- the new run's records are read back from the store, as the source's are
                     new <- loadRun cache store l.id
                     case new of
-                      Right n -> replied l.id [ Tuple "recordsMatch" (encodeJson (recordsEqual (records src) (records n))) ]
+                      Right n -> replied l.id (Just (recordsEqual (records src) (records n)))
                       Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
-                  Right l, _ -> replied l.id []
+                  Right l, _ -> replied l.id Nothing
   where
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
-  replied id extras = json 201 (Object.fromFoldable ([ Tuple "id" (encodeJson id), Tuple "source" (encodeJson sourceId), Tuple "kind" (encodeJson (deriveKindName body.kind)) ] <> extras))
+  replied id recordsMatch = pure (Route.replyIn Premise derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch })
+
+-- | The reply to a derive; `recordsMatch` only for a rerun. The premise format leaves it out otherwise.
+derivedShape :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
+derivedShape = recordShape "Derived" { id: stringShape, source: stringShape, kind: deriveKindShape, recordsMatch: optionalOf boolShape }
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
@@ -116,7 +121,7 @@ resumeRun premise store id rounds =
                           recorder store roundMetrics id p.snapshot
                         case attempt of
                           Left e -> failWith 400 e
-                          Right r -> either (\e -> failWith 500 ("run " <> id <> " failed: " <> e)) (const (ok { id, rounds })) r
+                          Right r -> either (\e -> failWith 500 ("run " <> id <> " failed: " <> e)) (const (ok resumedShape { id, rounds })) r
             _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
@@ -135,7 +140,7 @@ setArchive store id archived = do
   if not present then failWith 404 ("no run " <> id)
   else do
     runStore store (setArchived id archived)
-    ok { id, archived }
+    ok archivedShape { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
@@ -144,7 +149,16 @@ deleteOne store id confirm
   | confirm /= id = failWith 400 ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
       n <- runStore store (deleteRun id)
-      if n == 0 then failWith 404 ("no run " <> id) else ok { deleted: id }
+      if n == 0 then failWith 404 ("no run " <> id) else ok deletedShape { deleted: id }
+
+resumedShape :: Shape { id :: String, rounds :: Int }
+resumedShape = recordShape "Resumed" { id: stringShape, rounds: intShape }
+
+archivedShape :: Shape { id :: String, archived :: Boolean }
+archivedShape = recordShape "Archived" { id: stringShape, archived: boolShape }
+
+deletedShape :: Shape { deleted :: String }
+deletedShape = recordShape "Deleted" { deleted: stringShape }
 
 hasRun :: StoreBackend -> String -> Effect Boolean
 hasRun store id = isJust <$> runInfo store id

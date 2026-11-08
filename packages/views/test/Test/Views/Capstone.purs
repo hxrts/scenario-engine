@@ -10,10 +10,12 @@ import Prelude
 import Test.Views.Support (toStored)
 
 import Core.Num as Q
+import Core.Shape (Format(Snapshot), Shape, encodeWith, parse, prettyJson)
 import Core.Types (Id(..))
 import Data.Array (length, sortWith)
 import Data.Array as Array
-import Data.Either (Either(..))
+import Data.Argonaut.Decode (printJsonDecodeError)
+import Data.Either (Either(..), either)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
@@ -23,13 +25,18 @@ import Premises.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)
+import Views.Actions as Actions
+import Views.Balance as Balance
 import Views.Balances as Balances
 import Views.Common as Common
 import Views.Drivers as Drivers
 import Views.Compare as Compare
+import Views.Glossary (glossary)
+import Views.Keys as Keys
 import Views.Markets as Markets
 import Views.Overview as Overview
 import Views.Representation as Representation
+import Views.Standings as Standings
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -92,6 +99,39 @@ spec context = describe "Capstone (DSL-authored run)" do
     table "final state" (Compare.finalState [ sr ]).table
     (length (Markets.markets sr) > 0) `shouldEqual` true
     (length (Markets.economy sr).totals.series > 0) `shouldEqual` true
+
+  it "every view reply reads back through its key's shape, unchanged" do
+    ctx <- context
+    cap <- load
+    r <- runOf cap.playerSeed cap.game
+    let
+      sr = toStored "capstone" r
+
+      same :: forall a. Keys.ViewKey a -> a -> _
+      same k v = reads k.shape v
+
+      reads :: forall a. Shape a -> a -> _
+      reads s v = case parse Snapshot s (encoded s v) of
+        Left e -> fail (printJsonDecodeError e)
+        Right back -> encoded s back `shouldEqual` encoded s v
+
+      encoded :: forall a. Shape a -> a -> String
+      encoded s = prettyJson <<< encodeWith Snapshot s
+    same Keys.overview (Overview.overview Common.defaultMetricSpec sr)
+    either fail (same Keys.balances) (Balances.balances sr 1)
+    same Keys.markets (Markets.markets sr)
+    same Keys.facilities (Markets.facilities sr)
+    same Keys.economy (Markets.economy sr)
+    same Keys.representation (Representation.representation sr)
+    same Keys.procedures (Representation.procedures sr)
+    same Keys.objectives (Overview.objectives ctx.gameboard sr)
+    same Keys.standings (Standings.standings sr)
+    same Keys.netWorth (Standings.netWorthChart sr)
+    same Keys.actions (Actions.actions sr)
+    same Keys.drivers (Drivers.drivers sr)
+    same Keys.balance (Balance.balanceView ctx.gameboard sr)
+    either fail (same Keys.events) (Balances.events sr 1)
+    reads Keys.glossary glossary
 
 -- | The holdings and prices that differ between two finished runs (none when one did not finish).
 differenceOf :: SimRun -> SimRun -> Difference

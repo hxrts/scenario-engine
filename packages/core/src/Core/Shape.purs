@@ -22,6 +22,7 @@ module Core.Shape
   , arrayOf
   , optionalOf
   , mapOf
+  , objectValuesOf
   , requiredOf
   , requiredMaybe
   , PCtor
@@ -702,6 +703,21 @@ requiredMaybe s =
 -- | A Map: the snapshot writes it as its key and value pairs, in key order (the stored runs' form).
 mapOf :: forall k v. Ord k => Shape k -> Shape v -> Shape (Map k v)
 mapOf ks vs = iso Map.fromFoldable (Map.toUnfoldable :: Map k v -> Array (Tuple k v)) (arrayOf (pairOf ks vs))
+
+-- | A `Foreign.Object`: its entries in the object's own order, each value through its shape.
+objectValuesOf :: forall a. Shape a -> Shape (Object.Object a)
+objectValuesOf s =
+  { desc: DKeyed s.desc
+  , codec: \fmt ->
+      let
+        c = s.codec fmt
+      in
+        { enc: fromObject <<< map c.enc
+        , dec: \j -> note "expected an object" (toObject j) >>= traverse c.dec
+        }
+  , absent: const false
+  , missing: Nothing
+  }
 
 -- | An object whose keys name its entries, as the ordered list of its pairs.
 keyedOf :: forall a. Shape a -> Shape (Array (Tuple String a))

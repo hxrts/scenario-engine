@@ -12,7 +12,6 @@ import Dashboard.Components (errorBlock, labelled, textInput)
 import Dashboard.Route (Route(..), navigate)
 import Dashboard.RunForms (requiredRounds)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (Json)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
@@ -43,14 +42,14 @@ mkRunActions = component "RunActions" \p -> React.do
           Left e -> setFailure (Just e)
           Right b -> setFailure Nothing *> done b
 
-    archive = submit (Right unit) (\_ -> Client.archive p.id p.archived) \(_ :: Json) -> p.onChanged
+    archive = submit (Right unit) (\_ -> Client.archive p.id p.archived) \_ -> p.onChanged
 
-    resume = submit (requiredRounds resumeRounds) (\n -> Client.resume p.id n) \(_ :: Json) -> do
+    resume = submit (requiredRounds resumeRounds) (\n -> Client.resume p.id n) \_ -> do
       setResumeRounds ""
       p.onChanged
 
     -- one click deletes: the request names the run it deletes, which is the server's own check
-    delete = submit (Right unit) (\_ -> Client.delete p.id) \(_ :: Json) ->
+    delete = submit (Right unit) (\_ -> Client.delete p.id) \_ ->
       p.onChanged *> navigate Runs
 
   pure $ D.div_
