@@ -19,6 +19,7 @@ import Data.Array (concatMap, filter, foldl, fromFoldable, zipWith)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | The recurring cycle, evaluated on the round's batch result: production (delivered next
@@ -102,7 +103,9 @@ fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.fr
 decay :: WorldState -> Settlement -> Settlement
 decay w st0 = foldl lose st0 holdings
   where
-  holdings = concatMap (\e -> map (Tuple e.id) (fromFoldable (Map.keys e.accounts))) (fromFoldable (Map.values w.entities))
+  -- every Resource the Entity has an account for or came to hold this round
+  holdings = concatMap (\e -> map (Tuple e.id) (fromFoldable (Set.union (Map.keys e.accounts) (acquired e.id)))) (fromFoldable (Map.values w.entities))
+  acquired e = Set.mapMaybe (\(Tuple a r) -> if a == Ent e then Just r else Nothing) (Map.keys st0.ledger)
   lose acc (Tuple e r) = case Map.lookup r w.resources >>= _.decay of
     Just d ->
       let

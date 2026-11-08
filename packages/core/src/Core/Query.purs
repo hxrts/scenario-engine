@@ -27,6 +27,8 @@ module Core.Query
 
 import Prelude
 
+import Control.Alt ((<|>))
+
 import Core.Market (averagePrice, marginal)
 import Core.Num (Q)
 import Core.Num as Q
@@ -89,9 +91,13 @@ aggregateOf e = case e.kind of
 isAggregate :: Entity -> Boolean
 isAggregate = isJust <<< aggregateOf
 
--- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
+-- | The capacity's owner: the Entity with a positive holding of it, else the first with an account
+-- | for it (an owner run down to zero still owns it). INV-08 keeps a positive holder unique.
+-- | Withholding and capacity lookups both use this.
 owner :: WorldState -> CapacityRef -> Maybe EntityId
-owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
+owner w ref = _.id <$> (find (\e -> lookupQ ref e.capacities > Q.zero) entities <|> find (\e -> Map.member ref e.capacities) entities)
+  where
+  entities = fromFoldable (Map.values w.entities)
 
 -- | Effective capacity: the owner's capacity less withheld units.
 capacityOf :: WorldState -> CapacityRef -> Q

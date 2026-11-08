@@ -19,9 +19,9 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (submissionOrder)
 import Core.Represent as Represent
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, SignedProposal)
-import Core.World (Event, RoundResult, WorldState)
-import Data.Array (concatMap, find, sortWith)
+import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, SignedProposal)
+import Core.World (Event(..), RoundResult, WorldState)
+import Data.Array (concatMap, filter, find, sortWith)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -32,16 +32,31 @@ import Data.Tuple (Tuple(..))
 data EngineError
   = NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
   | NegativeReserve MarketId ResourceId -- likewise, for Market reserves
+  | NegativeFlow EntityId EntityId -- a fixed flow with a negative amount: a World State the premise codec would refuse
 
 derive instance Eq EngineError
 instance Show EngineError where
   show (NegativeBalance e r) = "negative balance: " <> show e <> " " <> show r
   show (NegativeReserve m r) = "negative reserve: " <> show m <> " " <> show r
+  show (NegativeFlow from to) = "negative fixed flow: " <> show from <> " to " <> show to
 
 -- | Resolve one round. The World State is prepared first (Phase 1), so the caller passes it in
 -- | either prepared or not; the result is the same.
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
-resolveRound w0 inputs0 =
+resolveRound w0 inputs0 = case find (\f -> f.amount < Q.zero) w0.circulation.flows of
+  Just f -> Left (NegativeFlow f.from f.to)
+  Nothing -> resolveValid w0 inputs0
+
+-- | The event kinds Prepare writes, in the round being resolved.
+prepared :: RoundIndex -> Event -> Boolean
+prepared round = case _ of
+  Delivered d -> d.round == round
+  Enacted e -> e.round == round
+  Repealed e -> e.round == round
+  _ -> false
+
+resolveValid :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
+resolveValid w0 inputs0 =
   let
     w = prepareRound w0
     inputs = sortWith submissionOrder inputs0
@@ -62,6 +77,7 @@ commit w inputs screenEvents factors st = do
   marketList <- traverse (applyMarket st byAccount) (Map.toUnfoldable w.markets :: Array _)
   let
     events = screenEvents <> st.events
+    -- Prepare's events are already in the world's history; the round's record carries them too (docs/04 §11.1)
     world = w
       { round = w.round + 1
       , entities = entities
@@ -71,7 +87,7 @@ commit w inputs screenEvents factors st = do
       , factors = factors
       , events = w.events <> events
       }
-  pure { world, record: { round: w.round, inputs, events } }
+  pure { world, record: { round: w.round, inputs, events: filter (prepared w.round) w.events <> events } }
 
 -- | An Entity with the Settlement's net change to its holdings applied, if none goes negative.
 applyEntity :: Map Account (Map ResourceId Q) -> Entity -> Either EngineError Entity

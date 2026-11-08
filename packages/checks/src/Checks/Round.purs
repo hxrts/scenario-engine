@@ -93,6 +93,7 @@ observe r =
     _ -> []
   rejectedOf = case _ of
     Rejected x -> [ x.proposal ]
+    OrderRemoved x -> [ x.proposal ]
     _ -> []
   lapsedOf = case _ of
     Lapsed x -> [ x.proposal ]

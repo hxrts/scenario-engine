@@ -180,17 +180,23 @@ instance DecodeJson RejectReason where
 rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
 rejection round proposal reason = Rejected { round, proposal, reason }
 
+-- | An OrderRemoved event for one order of a Proposal dropped at settlement in `round`.
+orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event
+orderRemoved round proposal reason = OrderRemoved { round, proposal, reason }
+
 -- | Everything the engine records. The round record is the list of a round's events.
 data Event
   = Lapsed { round :: RoundIndex, proposal :: ProposalId }
   | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
+  -- one order of a Proposal removed at settlement; the Proposal's other Intents still settle
+  | OrderRemoved { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
   | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
   | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  | Tariffed { round :: RoundIndex, from :: EntityId, to :: EntityId, amount :: Quantity }
   | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }
   | Delivered { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
-  | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, delta :: Quantity }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
   | Consumed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   -- an amount owed but not delivered: an unpaid payment (Transfer, tariff, facility payment),
@@ -273,6 +279,18 @@ eventShape = sumOf "Event" OneKey []
           _ -> Nothing
       )
       Rejected
+  , ctorOf { tag: "OrderRemoved", desc: "one order of a Proposal removed at settlement" } orderRemovedShape
+      ( \e -> case e of
+          OrderRemoved r -> Just r
+          _ -> Nothing
+      )
+      OrderRemoved
+  , ctorOf { tag: "Tariffed", desc: "a tariff paid on a shipment" } tariffedShape
+      ( \e -> case e of
+          Tariffed r -> Just r
+          _ -> Nothing
+      )
+      Tariffed
   , ctorOf { tag: "Traded", desc: "a Market order filled" } tradedShape
       ( \e -> case e of
           Traded r -> Just r
@@ -309,12 +327,6 @@ eventShape = sumOf "Event" OneKey []
           _ -> Nothing
       )
       Repealed
-  , ctorOf { tag: "CapacityChanged", desc: "a capacity changed" } capacityChangedShape
-      ( \e -> case e of
-          CapacityChanged r -> Just r
-          _ -> Nothing
-      )
-      CapacityChanged
   , ctorOf { tag: "Estimated", desc: "a representation's factor estimated" } estimatedShape
       ( \e -> case e of
           Estimated r -> Just r
@@ -356,6 +368,17 @@ eventShape = sumOf "Event" OneKey []
     (field "proposal" "proposal" "" idShape _.proposal)
     (field "reason" "reason" "" rejectReasonShape _.reason)
     (\r p x -> { round: r, proposal: p, reason: x })
+  orderRemovedShape = rec3 "OrderRemoved"
+    (field "round" "round" "" intShape _.round)
+    (field "proposal" "proposal" "" idShape _.proposal)
+    (field "reason" "reason" "" rejectReasonShape _.reason)
+    (\r p x -> { round: r, proposal: p, reason: x })
+  tariffedShape = rec4 "Tariffed"
+    (field "round" "round" "" intShape _.round)
+    (field "from" "from" "" idShape _.from)
+    (field "to" "to" "" idShape _.to)
+    (field "amount" "amount" "" qShape _.amount)
+    (\r f t a -> { round: r, from: f, to: t, amount: a })
   tradedShape = rec5 "Traded"
     (field "round" "round" "" intShape _.round)
     (field "market" "market" "" idShape _.market)
@@ -392,12 +415,6 @@ eventShape = sumOf "Event" OneKey []
     (field "round" "round" "" intShape _.round)
     (field "id" "id" "" idShape _.id)
     (\r i -> { round: r, id: i })
-  capacityChangedShape = rec4 "CapacityChanged"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "capacity" "capacity" "" idShape _.capacity)
-    (field "delta" "delta" "" qShape _.delta)
-    (\r e c d -> { round: r, entity: e, capacity: c, delta: d })
   estimatedShape = rec4 "Estimated"
     (field "round" "round" "" intShape _.round)
     (field "aggregate" "aggregate" "" idShape _.aggregate)
@@ -454,7 +471,7 @@ venueShape = rec3 "Venue"
 roundRecordShape :: Shape RoundRecord
 roundRecordShape = rec3 "RoundRecord"
   (field "round" "round" "the round" intShape _.round)
-  (field "inputs" "inputs" "the signed Proposals of the round" (arrayOf signedProposalShape) _.inputs)
+  (field "inputs" "inputs" "every Proposal submitted in the round, with its signatures" (arrayOf signedProposalShape) _.inputs)
   (field "events" "events" "the round's events" (arrayOf eventShape) _.events)
   (\r i e -> { round: r, inputs: i, events: e })
 

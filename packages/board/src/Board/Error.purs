@@ -54,6 +54,7 @@ data ValidationError
   | CoverageNotAggregate EntityId EntityId -- an Actor's coverage fallback names a non-Aggregate
   | SchemeTargetNotAggregate String EntityId -- a Representation scheme's target is not an Aggregate
   | RoundsOutOfRange { rounds :: Int, min :: Int, max :: Int }
+  | NegativeDelay TransformationId
 
 derive instance Eq ValidationError
 
@@ -73,6 +74,7 @@ instance Show ValidationError where
     ResolutionInconsistent e ds -> "making " <> show e <> " implicit changes the economy: " <> show ds
     CoverageNotAggregate a agg -> "coverage fallback of " <> show a <> " names " <> show agg <> ", which is not an Aggregate"
     SchemeTargetNotAggregate s t -> "scheme " <> s <> " targets " <> show t <> ", which is not an Aggregate"
+    NegativeDelay t -> "facility " <> show t <> " has a negative delay"
     RoundsOutOfRange r -> "configured " <> show r.rounds <> " rounds is outside the supported range " <> show r.min <> " to " <> show r.max
 
 -- | A difference between two instantiations of the same economy (§14.2).

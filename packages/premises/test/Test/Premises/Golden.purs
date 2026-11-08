@@ -60,7 +60,7 @@ golden = describe "Golden fixtures" do
       Left e -> failWith (show e)
       Right r -> do
         let tampered = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) (Id "US") r.world.entities } }
-        map _.invariant (check f.world tampered) `shouldEqual` [ "INV-05" ]
+        map _.invariant (check f.world tampered) `shouldEqual` [ "INV-04", "INV-05" ]
   it "C4: the stored factor replaces the next round's baseline" do
     adjustedTarget (Q.fromInt 32) (q "0.95") `shouldEqual` q "30.4"
   it "C5: seeded noise stays in range, replays, and varies with the seed" do

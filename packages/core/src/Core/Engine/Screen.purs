@@ -176,14 +176,18 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
 -- | Cross-region Transfers must be bundled with a matching transport order signed by the
 -- | transport capacity's owner, and are subject to access bans and tariffs.
 shipping :: WorldState -> Proposal -> Either RejectReason (Array { from :: EntityId, to :: EntityId, amount :: Q })
-shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
+shipping w p = traverse ship shipments
   where
+  shipments = filter crossRegion (transfersOf p.intents)
   crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
   sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
   ship t = do
     tid <- note NoTransportFacility (Map.lookup t.resource w.transport)
-    let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
-    when (carried /= t.quantity) (Left CrossRegionNeedsTransport)
+    let
+      carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
+      -- everything this sender ships on this facility, so one order cannot carry two shipments
+      shipped = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && Map.lookup x.resource w.transport == Just tid) shipments))
+    when (carried /= shipped) (Left CrossRegionNeedsTransport)
     let
       jf = jur w t.from
       jt = jur w t.to

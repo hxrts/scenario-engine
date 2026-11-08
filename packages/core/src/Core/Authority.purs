@@ -13,7 +13,7 @@ module Core.Authority
 import Prelude
 
 import Core.Query (owner)
-import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), Transferability(..))
 import Core.World (WorldState)
 import Data.Array (any, elem)
 import Data.Maybe (Maybe(..), maybe)
@@ -46,9 +46,11 @@ authorized caps who = case _ of
 -- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
 -- | repeals. An unknown Rule is not authorized to be repealed.
 authorizedIn :: WorldState -> Array Capability -> EntityId -> Intent -> Boolean
-authorizedIn w caps who i = authorized caps who i && case i of
-  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
-  _ -> true
+authorizedIn w caps who i = case i of
+  -- only a Restricted Resource's transfer is authority-gated (§2.3)
+  Transfer t | (_.transferability <$> Map.lookup t.resource w.resources) == Just Free -> t.from == who
+  ChangeRule (Repeal id) -> authorized caps who i && maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
+  _ -> authorized caps who i
 
 kindOf :: Rule -> RuleKind
 kindOf = case _ of

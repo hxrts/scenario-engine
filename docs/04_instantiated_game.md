@@ -208,8 +208,8 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 A round record contains:
 
 - `round`: the round index.
-- `inputs`: the accepted signed Proposals, each with its signatures.
-- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (with its reason), `Traded`, `Transferred`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `CapacityChanged`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
+- `inputs`: every submitted signed Proposal, each with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
+- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Traded`, `Transferred`, `Tariffed`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
 Events record executed quantities, so a partial fill appears as a smaller `Traded` quantity, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
 

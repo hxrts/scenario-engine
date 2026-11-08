@@ -11,8 +11,10 @@ import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Types (Id(..))
 import Data.Array (length, sortWith)
+import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (any)
+import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load, runOf)
@@ -22,6 +24,7 @@ import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)
 import Views.Balances as Balances
 import Views.Common as Common
+import Views.Drivers as Drivers
 import Views.Compare as Compare
 import Views.Markets as Markets
 import Views.Overview as Overview
@@ -71,6 +74,12 @@ spec context = describe "Capstone (DSL-authored run, )" do
     cf <- runOf cap.playerSeed cap.counterfactual
     let d = differenceOf base cf
     any (\x -> x.entity == Id "US" && x.resource == Id "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
+
+  it "a Rule enacted in the run reaches the Drivers view through its round record" do
+    _ <- context
+    cap <- load
+    r <- runOf cap.playerSeed cap.game
+    any (\row -> Array.index row 1 == Just "Rule enacted") (Drivers.drivers (toStored "capstone" r)).rows `shouldEqual` true
 
   it "every dashboard view model is non-empty for the run" do
     ctx <- context

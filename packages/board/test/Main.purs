@@ -2,7 +2,7 @@ module Test.Board.Main where
 
 import Prelude
 
-import Board.Error (ValidationError(..))
+import Board.Error (RefKind(..), ValidationError(..))
 import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
@@ -158,6 +158,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case validateGameboard gb config of
         Left es -> (SchemeTargetNotAggregate "s" (Id "US") `elem` es) `shouldEqual` true
         Right _ -> fail "expected a scheme-target error"
+
+    it "an institutional fallback naming no catalog Policy is an unknown reference" do
+      let gb = coverageGameboard { actors = map (_ { fallback = Just (InstitutionalPolicy (Id "nope")) }) coverageGameboard.actors }
+      case validateGameboard gb config of
+        Left es -> (UnknownReference PolicyRef "nope" `elem` es) `shouldEqual` true
+        Right _ -> fail "expected an unknown policy"
+    it "a configured fallback override naming no catalog Policy is an unknown reference" do
+      case validateGameboard coverageGameboard (config { fallbacks = Map.singleton (Id "US") (InstitutionalPolicy (Id "nope")) }) of
+        Left es -> (UnknownReference PolicyRef "nope" `elem` es) `shouldEqual` true
+        Right _ -> fail "expected an unknown policy"
+    it "a facility with a negative delay is a validation error" do
+      let gb = coverageGameboard { world = coverageGameboard.world { transformations = map (_ { delay = -1 }) coverageGameboard.world.transformations } }
+      case validateGameboard gb config of
+        Left es ->
+          ( mapMaybe
+              ( \e -> case e of
+                  NegativeDelay t -> Just t
+                  _ -> Nothing
+              )
+              es /= []
+          ) `shouldEqual` true
+        Right _ -> fail "expected a negative delay"
 
   describe "Instantiation" do
     it "a decoded Gameboard's world carries no seed; instantiation sets it" do

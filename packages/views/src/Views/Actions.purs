@@ -26,7 +26,7 @@ actionsStat =
   { name: "Actions"
   , question: "What do players do over the run?"
   , definition: "Per player, over the whole run: market trades (buys and sells), production and procurement, payments to other players, deals signed, and proposals rejected."
-  , formula: "trades = Traded events with the Actor; transforms = Transformed events by the Actor; transfers = Transferred events the Actor pays (from); deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = Rejected events on the Actor's own Proposals."
+  , formula: "trades = Traded events with the Actor; transforms = Transformed events by the Actor; transfers = Transferred events the Actor pays (from); deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = Rejected and OrderRemoved events on the Actor's own Proposals."
   }
 
 -- | One Actor's counts of each kind of action, over a round or a whole run.
@@ -60,12 +60,13 @@ type ActionsView = { chart :: ActionsChart, totals :: Table, byRound :: Table }
 -- | A player's counts over the whole run, and their total.
 type PlayerCounts = { player :: EntityId, counts :: Counts, total :: Int }
 
--- | Every Rejected event in a round: the number the Overview reports.
+-- | Every Rejected or OrderRemoved event in a round: the number the Overview reports.
 rejectionCount :: RoundRecord -> Int
 rejectionCount rec = countEvents isRejected rec.events
   where
   isRejected = case _ of
     Rejected _ -> true
+    OrderRemoved _ -> true
     _ -> false
 
 -- | The Proposal a round's inputs carry, by id.
@@ -117,8 +118,10 @@ countsOf rec e =
   where
   signedDeal s = elem e s.signatures && isDeal s.proposal && not (settledOff rec s.proposal.id)
   rejectedOwn = case _ of
-    Rejected x -> maybe false (\p -> p.author == e) (proposalOf rec x.proposal)
+    Rejected x -> ownProposal x.proposal
+    OrderRemoved x -> ownProposal x.proposal
     _ -> false
+  ownProposal pid = maybe false (\p -> p.author == e) (proposalOf rec pid)
 
 zeroCounts :: Counts
 zeroCounts = { trades: 0, transforms: 0, transfers: 0, deals: 0, rejected: 0 }
