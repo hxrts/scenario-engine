@@ -8,7 +8,7 @@ module Server.Cache (Cache, newCache, cached, cachedAgency, clear) where
 
 import Prelude
 
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Schema.Run (RunStatus(..))
@@ -16,11 +16,11 @@ import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Api (Reply)
+import Server.Errors (Answer)
 import Effects.Signatures (RunError)
 import Views.Common (StoredRun)
 
-type Cache = { runs :: Ref (Map String StoredRun), agency :: Ref (Map String Reply) }
+type Cache = { runs :: Ref (Map String StoredRun), agency :: Ref (Map String Answer) }
 
 newCache :: Effect Cache
 newCache = { runs: _, agency: _ } <$> Ref.new Map.empty <*> Ref.new Map.empty
@@ -37,12 +37,12 @@ cached c id load = Map.lookup id <$> Ref.read c.runs >>= case _ of
     pure r
 
 -- | The agency reply for a query, computed once. A reply that is an error is not kept.
-cachedAgency :: Cache -> String -> Effect Reply -> Effect Reply
+cachedAgency :: Cache -> String -> Effect Answer -> Effect Answer
 cachedAgency c key load = Map.lookup key <$> Ref.read c.agency >>= case _ of
   Just reply -> pure reply
   Nothing -> do
     reply <- load
-    when (reply.status == 200) (Ref.modify_ (Map.insert key reply) c.agency)
+    when (either (const false) (\r -> r.status == 200) reply) (Ref.modify_ (Map.insert key reply) c.agency)
     pure reply
 
 -- | Forget every run: called before each write operation. The agency replies stay: no write changes them.

@@ -214,7 +214,7 @@ spec = describe "API status rules, startup and cache" do
     loads <- liftEffect (Ref.new 0)
     let
       answer status = Ref.modify_ (_ + 1) loads *> pure { status, body: "" }
-      read key status = void (liftEffect (cachedAgency c key (answer status)))
+      read key status = void (liftEffect (cachedAgency c key (map Right (answer status))))
       count = liftEffect (Ref.read loads)
     read "bad" 400
     read "bad" 400
