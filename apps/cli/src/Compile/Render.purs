@@ -10,20 +10,19 @@ import Prelude
 
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull)
 import Data.Argonaut.Decode (printJsonDecodeError)
-import Data.Array (sortWith)
+import Data.Array (concatMap, sortWith)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
-import Data.Foldable (for_)
+import Data.Foldable (foldMap, for_)
 import Data.Tuple (Tuple(..), fst)
-import Core.Shape (Format(..), encodeWith, prettyJson)
-import Schema.Premise.Strategy (presetsShape)
+import Core.Shape (prettyJson)
 import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
-import Premises.Meridian as Meridian
+import Premises.Catalog (compositions)
+import Premises.Compose (directory, files, parts, presetsJson)
 import Schema.Premise.Fixture (decodeLiteral)
-import Premises.Names (capstoneRunFile, fixturePath, meridianDir, presetsFile)
-import Premises.Presets as Presets
+import Premises.Names (capstoneRunFile, fixturePath, presetsFile)
 
 -- | A compiled file: its path under the premise root, and its text.
 type Output = { path :: String, text :: String }
@@ -37,8 +36,8 @@ compile = do
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  map (\(Tuple name j) -> Tuple (meridianDir <> "/" <> name) j) Meridian.files
-    <> [ Tuple presetsFile (encodeWith Premise presetsShape Presets.presets) ]
+  concatMap (\c -> map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c)) compositions
+    <> foldMap (\c -> [ Tuple presetsFile (presetsJson c) ]) compositions
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
     <> [ Tuple capstoneRunFile Capstone.file ]
 
@@ -46,7 +45,7 @@ outputs =
 -- | Policies, the presets against the Gameboard (`checkPremise`), and every fixture.
 validate :: Either String Unit
 validate = do
-  _ <- Meridian.parts
+  for_ compositions parts
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

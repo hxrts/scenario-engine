@@ -6,8 +6,7 @@
 -- | only Cover that runs with no fallback, and only CN holds it today, so one entry is clearer than
 -- | a derivation over the seats. The holdings each Entity starts with are in `Meridian.Holdings`.
 module Premises.Meridian
-  ( files
-  , parts
+  ( meridian
   , gameSeed
   , resources
   , coreResources
@@ -33,21 +32,16 @@ module Premises.Meridian
   , market
   ) where
 
-import Prelude (bind, map, negate, show, ($), (+), (<>))
+import Prelude (map, negate, show, (+), (<>))
 
 import Core.World (FlowGate)
 import Premises.Names as N
 import Premises.Rules (ruleKinds)
 
 import Core.Num (Q)
-import Core.Shape (encodeWith, Format(..))
-import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Array (elem, filter, mapWithIndex)
-import Data.Bifunctor (lmap)
-import Data.Either (Either)
-import Data.Maybe (fromMaybe, Maybe(..))
+import Data.Array (mapWithIndex)
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
 import Data.Map as Map
 import Premises.Meridian.Entities (actors, entities)
 import Premises.Meridian.Holdings (capacityHolders)
@@ -56,9 +50,8 @@ import Premises.Meridian.Policies (policies)
 import Schema.Build.Base (keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey, emptyWorld, noFacility, noMarket, noResource, resourcesOf)
-import Game.Premise (GameboardParts, checkPremise)
-import Premises.Load (fromFiles, shippedPresets)
-import Schema.Premise.Gameboard (configShape, gameboardShape)
+import Premises.Compose (Composition)
+import Premises.Presets as Presets
 import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
 import Core.Draw (Seed(..))
 import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
@@ -105,31 +98,9 @@ gameboard =
       }
   }
 
--- | One JSON file per section, as the loader reads them: each section is the keys it owns
--- | in the Gameboard's encoding, and the instantiation configuration is its own file.
-files :: Array (Tuple String Json)
-files =
-  [ section N.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
-  , section N.resourcesFile [ "resources" ]
-  , section N.marketsFile [ "markets", "flowGates", "groups", "ruleKinds" ]
-  , section N.transformationsFile [ "transformations" ]
-  , section N.circulationFile [ "circulation" ]
-  , section N.entitiesFile [ "entities" ]
-  , section N.representationsFile [ "schemes" ]
-  , section N.gameRulesFile [ "parameters", "rules" ]
-  , section N.policiesFile [ "policies" ]
-  , Tuple N.instantiationFile (encodeWith Premise configShape instantiation)
-  ]
-  where
-  whole = fromMaybe Object.empty (toObject (encodeWith Premise gameboardShape gameboard))
-  section name keysOf = Tuple name (fromObject (Object.fromFoldable (filter (\(Tuple k _) -> elem k keysOf) (Object.toUnfoldable whole))))
-
--- | The compiled premise, decoded and checked as the loader reads it.
-parts :: Either String GameboardParts
-parts = do
-  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) files))
-  presets <- shippedPresets
-  lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
+-- | The reference premise as a composition.
+meridian :: Composition
+meridian = { id: gameboard.id, version: gameboard.version, gameboard, config: instantiation, presets: Presets.presets }
 
 resources :: Map ResourceId ResourceDefinition
 resources = Map.union (coreResources) (resourcesOf [ Tuple N.softPower (noResource { transferability = NonTransferable }) ])

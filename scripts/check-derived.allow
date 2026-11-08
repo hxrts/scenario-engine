@@ -18,7 +18,7 @@ hand-instance packages/schema/src/Schema/Gameboard.purs instance-Show-Outcome th
 # JSON handled as JSON, not a payload with a type behind it.
 hand-json apps/cli/src/Compile/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
 hand-json packages/premises/src/Premises/Load.purs merge merges premise files as JSON objects before decoding
-hand-json packages/premises/src/Premises/Meridian.purs files splits a compiled document into its premise files by key
+hand-json packages/premises/src/Premises/Compose.purs files splits a compiled document into its premise files by key
 # Not renames: each fixes a type or names a DSL word.
 alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
 alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it

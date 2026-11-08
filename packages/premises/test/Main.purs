@@ -50,10 +50,12 @@ import Premises.Load (fromFiles, loadFrom, shippedPresets)
 import Premises.Names (meridianDir)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
-import Premises.Meridian (files, gameboard)
+import Premises.Compose as Compose
+import Premises.Meridian (gameboard, meridian)
 import Premises.Fixtures (fixtures)
 import Schema.Premise.Gameboard (gameboardShape)
 import Premises.Meridian.Policies (policies)
+import Test.Premises.Compose as Compose
 import Test.Premises.Flows as Flows
 import Test.Premises.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
@@ -103,7 +105,7 @@ loaded = do
 
 -- | The reference instance's Meridian files, as name-and-JSON sections.
 sections :: Array { name :: String, json :: Json }
-sections = map (\(Tuple name json) -> { name, json }) files
+sections = map (\(Tuple name json) -> { name, json }) (Compose.files meridian)
 
 -- | The sections with one replaced.
 withSection :: String -> Json -> Array { name :: String, json :: Json }
@@ -184,6 +186,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   golden
   Flows.spec
+  Compose.spec
 
   describe "Premise DSL builders" do
     it "max' and signProcedures compile to a strategy the decoder accepts" do
