@@ -6,20 +6,14 @@ package:
     - sp-schema
     - arrays
     - either
-    - foldable-traversable
-    - foreign-object
     - maybe
     - ordered-collections
-    - strings
     - tuples
   test:
     main: Test.Board.Main
     dependencies:
       - sp-testkit
       - effect
-      - partial
       - unsafe-coerce
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck

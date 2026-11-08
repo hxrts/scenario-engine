@@ -10,3 +10,10 @@ package:
     - maybe
     - ordered-collections
     - tuples
+  test:
+    main: Test.Checks.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - sp-testkit

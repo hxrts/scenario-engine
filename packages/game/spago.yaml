@@ -23,8 +23,6 @@ package:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck
       - sp-testkit
       - sp-simulator
       - sp-board

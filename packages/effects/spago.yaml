@@ -5,7 +5,6 @@ package:
     - run
     - sp-core
     - sp-policy
-    - argonaut-codecs
     - arrays
     - either
     - foldable-traversable
@@ -13,7 +12,6 @@ package:
     - maybe
     - ordered-collections
     - tuples
-    - type-equality
     - typelevel-prelude
   test:
     main: Test.Effects.Main
@@ -21,8 +19,6 @@ package:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck
       - either
       - arrays
       - sp-handlers

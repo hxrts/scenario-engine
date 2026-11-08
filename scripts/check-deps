@@ -2,9 +2,11 @@
 // Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3), if a pure
 // package depends on an effectful library, or if a source file imports a module its layer may not
 // import (docs/07 §3 and §5; the rule set is). Declared dependencies come from spago.yaml; the
-// import rules read the `import` lines of each package's src/ tree.
+// import rules read the `import` lines of each package's src/ tree. A declared dependency no module of
+// its section imports is an error, read through the installed sources under .spago/p (so build first).
 const fs = require("fs");
 const path = require("path");
+const { walk } = require("./lib/walk");
 
 const allowed = {
   core: [],
@@ -40,6 +42,8 @@ const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node
 const IMPURE_MODULE = /^(Effect(\.|$)|Run(\.|$)|Node\.|Adapters\.|Handlers\.|Effects\.)/;
 // Adapters import only these named backend record types from handlers (docs/07 §4).
 const ADAPTER_HANDLER_IMPORTS = { "Handlers.Store": ["Metric", "StoreBackend"] };
+// From effects, adapters import types only: the rows and operations are a handler's to interpret (docs/07 §4).
+const isTypeImport = (n) => /^[A-Z]/.test(n) && !n.includes("..");
 
 // Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
 const rules = [
@@ -103,22 +107,64 @@ function listedNames(names) {
   return names.split(/,(?![^()]*\))/).map((s) => s.trim().replace(/\(.*$/s, "").trim()).filter((s) => s !== "");
 }
 
-function pursFiles(dir) {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = path.join(dir, e.name);
-    return e.isDirectory() ? pursFiles(p) : e.name.endsWith(".purs") ? [p] : [];
+const isPurs = (n) => n.endsWith(".purs");
+const pursFiles = (dir) => walk(dir, isPurs);
+
+// The names under a package's `dependencies:` and its `test: dependencies:`, read separately.
+function declared(text) {
+  const [src, test = ""] = text.split(/^\s*test:\s*$/m);
+  const list = (part) => {
+    const m = part.match(/^(\s*)dependencies:\s*$\n((?:\1\s+- .*\n?)*)/m);
+    return m ? [...m[2].matchAll(/- (\S+)/g)].map((x) => x[1]) : [];
+  };
+  return { src: list(src), test: list(test) };
+}
+
+// The modules a package provides: a workspace package's src/ tree, or its installed source.
+const modulesCache = new Map();
+function modulesOf(dep) {
+  if (modulesCache.has(dep)) return modulesCache.get(dep);
+  const installed = path.join(root, ".spago", "p");
+  const trees = dep.startsWith("sp-")
+    ? dirs.filter((d) => { const f = path.join(d, "spago.yaml"); return fs.existsSync(f) && new RegExp(`name:\\s*${dep}\\s`).test(fs.readFileSync(f, "utf8")); }).map((d) => path.join(d, "src"))
+    : (fs.existsSync(installed) ? fs.readdirSync(installed) : []).filter((d) => d.replace(/-\d+\.\d+\.\d+$/, "") === dep).map((d) => path.join(installed, d, "src"));
+  const mods = new Set(trees.flatMap(pursFiles).map((f) => (fs.readFileSync(f, "utf8").match(/^module\s+([\w.]+)/m) || [])[1]));
+  modulesCache.set(dep, trees.length ? mods : null);
+  return modulesCache.get(dep);
+}
+
+// A dependency no file of the tree imports. A package not installed is reported, so the check cannot pass unread.
+function unused(pkg, section, deps, tree) {
+  const imported = new Set(pursFiles(tree).flatMap((f) => importsOf(fs.readFileSync(f, "utf8")).map((i) => i.module)));
+  return deps.flatMap((d) => {
+    const mods = modulesOf(d);
+    if (mods === null) return [`${pkg}: dependency ${d} is not installed under .spago/p: run spago build first`];
+    return [...mods].some((m) => imported.has(m)) ? [] : [`${pkg}: ${section} dependency ${d} is declared but no module imports it`];
   });
 }
 
 let errors = [];
+
+// The package list is written twice: `allowed` here and `packages` in the justfile. They must agree.
+const justPackages = (fs.readFileSync(path.join(root, "justfile"), "utf8").match(/^packages := "([^"]*)"/m) || [])[1];
+if (justPackages === undefined) errors.push("justfile: no `packages :=` line");
+else {
+  const listed = new Set(justPackages.split(/\s+/));
+  const table = Object.keys(allowed);
+  for (const p of table) if (!listed.has(p)) errors.push(`justfile: packages omits ${p}, which the allowed-dependency table lists`);
+  for (const p of listed) if (!table.includes(p)) errors.push(`justfile: packages lists ${p}, which the allowed-dependency table does not`);
+}
+
 for (const dir of dirs) {
   const file = path.join(dir, "spago.yaml");
   if (!fs.existsSync(file)) continue;
   const text = fs.readFileSync(file, "utf8");
   const name = text.match(/name:\s*sp-(\S+)/)[1];
-  // the declared src dependencies are checked against the table; a test section may take any workspace package
-  const deps = [...text.split(/\n\s*test:/)[0].matchAll(/^\s+- (\S+)/gm)].map((m) => m[1]);
+  // the src dependencies are checked against the table; a test section may take any workspace package, and is the only home of sp-testkit
+  const { src: deps, test: testDeps } = declared(text);
+  for (const e of unused(name, "src", deps, path.join(dir, "src"))) errors.push(e);
+  for (const e of unused(name, "test", testDeps, path.join(dir, "test"))) errors.push(e);
+  if (deps.includes("sp-testkit")) errors.push(`${name}: sp-testkit is test support: it belongs under test.dependencies`);
   if (!(name in allowed)) { errors.push(`${name}: not in the allowed-dependency table`); continue; }
   for (const d of deps) {
     if (d.startsWith("sp-")) {
@@ -150,6 +196,11 @@ for (const dir of dirs) {
         const got = names === null ? [] : listedNames(names);
         if (!ok) errors.push(`${path.relative(root, f)}: imports ${mod}; adapters may import only the backend record types of handlers`);
         else if (got.some((n) => !ok.includes(n))) errors.push(`${path.relative(root, f)}: imports ${got.filter((n) => !ok.includes(n)).join(", ")} from ${mod}; adapters may import only ${ok.join(", ")}`);
+      }
+      if (name === "adapters" && /^Effects(\.|$)/.test(mod)) {
+        const raw = names === null ? [] : names.split(",").map((s) => s.trim()).filter((s) => s !== "");
+        const bad = names === null ? ["(the whole module)"] : raw.filter((n) => !isTypeImport(n.replace(/^type\s+/, "")));
+        if (bad.length) errors.push(`${path.relative(root, f)}: imports ${bad.join(", ")} from ${mod}; adapters may import only types from effects, by name`);
       }
     }
   }

@@ -2,23 +2,18 @@ package:
   name: sp-adapters
   dependencies:
     - prelude
-    - run
     - sp-core
     - sp-schema
-    - sp-board
-    - sp-policy
     - sp-effects
     - sp-handlers
     - argonaut-codecs
     - argonaut-core
-    - arrays
     - effect
     - either
     - foldable-traversable
     - functions
     - maybe
     - nullable
-    - refs
     - aff
     - bifunctors
     - exceptions
@@ -29,19 +24,15 @@ package:
   test:
     main: Test.Adapters.Main
     dependencies:
+      - console
       - sp-views
       - sp-testkit
       - aff
       - effect
       - exceptions
-      - ordered-collections
       - sp-simulator
       - sp-premises
       - strings
-      - refs
-      - partial
       - argonaut-core
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck

@@ -4,21 +4,23 @@
 // when that home is created (the phase that creates it is named in the rule).
 const fs = require("fs");
 const path = require("path");
+const { walk } = require("./lib/walk");
 
 const root = path.join(__dirname, "..");
 
-// The rules are checked on PureScript source (src/ trees; tests are not held to them).
+// The rules are checked on PureScript source: its src/ trees, and its test/ trees for a rule that says so
+// (each rule's `files` predicate names its scope). A rule with `js: true` also reads the JavaScript beside it.
 // Tag kinds of the premise format: each Shape module keeps its tags as private constants (`tradeTag = "trade"`),
 // so a kind with its separator is written only in packages/schema/src (docs/03 §3).
 const schemaSrc = path.join(root, "packages/schema/src");
-const tagKinds = [];
-(function collect(dir) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) collect(p);
-    else if (e.name.endsWith(".purs")) for (const m of fs.readFileSync(p, "utf8").matchAll(/^\w+Tag = "(\w+)"/gm)) tagKinds.push(m[1]);
-  }
-})(schemaSrc);
+const isPurs = (n) => n.endsWith(".purs");
+const tagKinds = walk(schemaSrc, isPurs).flatMap((p) =>
+  [...fs.readFileSync(p, "utf8").matchAll(/^\w+Tag = "(\w+)"/gm)].map((m) => m[1]));
+
+// The API's view names: the one table of them is `viewName` in the route table.
+const routeTable = "packages/handlers/src/Handlers/Api/Route.purs";
+const viewNames = [...fs.readFileSync(path.join(root, routeTable), "utf8").split(/^viewName = case _ of$/m)[1].split(/\n\n/)[0].matchAll(/-> "(\w+)"/g)].map((m) => m[1]);
+if (viewNames.length === 0) { console.error(`${routeTable}: no view names found in viewName`); process.exit(1); }
 
 const rules = [
   {
@@ -29,8 +31,20 @@ const rules = [
   },
   {
     name: "no \"/api\" path string outside the route table: the paths are Handlers.Api.Route's alone",
-    files: (f) => f.includes("/src/") && f !== "packages/handlers/src/Handlers/Api/Route.purs",
-    bad: (line) => /"\/api/.test(line),
+    files: (f) => f.includes("/src/") && f !== routeTable,
+    js: true,
+    bad: (line) => /["'`]\/api/.test(line),
+  },
+  {
+    name: "the dashboard names a view by its constructor (Effects.Api.View): a view name literal belongs to Handlers.Api.Route's viewName",
+    files: (f) => f.startsWith("apps/dashboard/src/"),
+    js: true,
+    bad: (line) => viewNames.some((v) => line.includes(`"${v}"`)),
+  },
+  {
+    name: "a run's status is Core.Run.RunStatus: its text is spelled in Core.Run and at the store boundary (Adapters.SQLite) only",
+    files: (f) => f !== "packages/core/src/Core/Run.purs" && f !== "packages/adapters/src/Adapters/SQLite.purs",
+    bad: (line) => /"(running|completed|failed)"/.test(line),
   },
   {
     name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only",
@@ -54,7 +68,7 @@ const rules = [
   },
   {
     name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",
-    files: () => true,
+    files: (f) => f.includes("/src/"),
     bad: (line) => /\bSeed 0\b/.test(line),
   },
   {
@@ -79,39 +93,24 @@ const rules = [
   },
 ];
 
-function purs(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = path.join(dir, e.name);
-    return e.isDirectory() ? purs(p) : e.name.endsWith(".purs") ? [p] : [];
-  });
-}
-
+const isJs = (n) => /\.(js|mjs|cjs)$/.test(n);
 const files = ["packages", "apps"].flatMap((d) =>
-  fs.readdirSync(path.join(root, d)).flatMap((n) => {
-    const src = path.join(root, d, n, "src");
-    return fs.existsSync(src) ? purs(src) : [];
-  }))
+  fs.readdirSync(path.join(root, d)).flatMap((n) =>
+    ["src", "test"].flatMap((t) => walk(path.join(root, d, n, t), (name) => isPurs(name) || isJs(name)))))
   .map((f) => path.relative(root, f));
 
 const errors = [];
-// FFI is a device (docs/07 §1): a `.js` file beside a module lives only in adapters or an app. Every other
+// FFI is a device (docs/07 §1): a `.js`, `.mjs` or `.cjs` file beside a module lives only in adapters or an app. Every other
 // package is PureScript alone, so no package binds itself to Node, or to any platform, without saying so in its spago.yaml.
 const ffiHomes = (f) => f.startsWith("packages/adapters/src/") || f.startsWith("apps/");
-(function js(dir) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name !== "node_modules") js(p); }
-    else if (e.name.endsWith(".js") && p.includes(`${path.sep}src${path.sep}`)) {
-      const f = path.relative(root, p);
-      if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/07 §1)`);
-    }
-  }
-})(path.join(root, "packages"));
+for (const f of files.filter((f) => isJs(f) && f.startsWith("packages/") && f.includes("/src/"))) {
+  if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/07 §1)`);
+}
 for (const rule of rules) {
-  for (const f of files.filter(rule.files)) {
+  for (const f of files.filter((f) => (isPurs(f) || (rule.js && isJs(f))) && rule.files(f))) {
     fs.readFileSync(path.join(root, f), "utf8").split("\n").forEach((line, i) => {
       // comments may name a concept; only code is checked
-      if (line.trimStart().startsWith("--")) return;
+      if (/^\s*(--|\/\/)/.test(line)) return;
       if (rule.bad(line)) errors.push(`${f}:${i + 1}: ${rule.name}`);
     });
   }

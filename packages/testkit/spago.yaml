@@ -8,7 +8,6 @@ package:
     - argonaut-core
     - argonaut-codecs
     - arrays
-    - foldable-traversable
     - maybe
     - ordered-collections
     - transformers
@@ -21,3 +20,7 @@ package:
     - sp-adapters
     - spec
     - partial
+  test:
+    main: Test.Testkit.Main
+    dependencies:
+      - spec-node
