@@ -7,7 +7,9 @@ recipe=$1
 shift
 
 premises="meridian"
-presets=$(grep -o 'Tuple "[A-Za-z]*"' packages/premises/src/Premises/Presets.purs | cut -d'"' -f2 | tr '\n' ' ')
+# The preset names come from the CLI itself (`presets`) through the built program, so this list cannot
+# drift from `Premises.Presets`. Before the first build there is no program; the CLI validates then.
+presets=$(node --input-type=module -e 'import("./output/Main/index.js").then((m) => m.main())' - presets 2>/dev/null | tr '\n' ' ' || true)
 packages=$(just --evaluate packages)
 
 case $recipe in
@@ -51,15 +53,19 @@ if [ -n "$positional" ]; then
   shift
 fi
 
+seen=""
 while [ $# -gt 0 ]; do
   flag=$1
   one_of "$flag" "$flags" || fail "unknown option '$flag'"
+  one_of "$flag" "$seen" && fail "$flag given twice"
+  seen="$seen $flag"
   [ $# -ge 2 ] || fail "$flag needs a value"
   value=$2
   case $flag in
     --rounds|--port) [[ "$value" =~ ^[1-9][0-9]*$ ]] || fail "$flag must be a whole number of at least 1, got '$value'" ;;
-    --window|--seed) [[ "$value" =~ ^[0-9]+$ ]] || fail "$flag must be a whole number, got '$value'" ;;
-    --preset)        one_of "$value" "$presets" || fail "unknown preset '$value'" ;;
+    --window)        [[ "$value" =~ ^[0-9]+$ ]] || fail "$flag must be a whole number, got '$value'" ;;
+    --seed)          [[ "$value" =~ ^-?[0-9]+$ ]] || fail "$flag must be a whole number, got '$value'" ;;
+    --preset)        [ -z "${presets// /}" ] || one_of "$value" "$presets" || fail "unknown preset '$value'" ;;
   esac
   shift 2
 done

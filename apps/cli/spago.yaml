@@ -39,3 +39,6 @@ package:
       - spec-node
       - quickcheck
       - spec-quickcheck
+      - foreign-object
+      - tuples
+      - sp-core

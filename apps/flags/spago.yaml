@@ -6,3 +6,9 @@ package:
     - either
     - foreign-object
     - maybe
+  test:
+    main: Test.Flags.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node

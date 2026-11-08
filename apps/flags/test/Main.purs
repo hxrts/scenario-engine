@@ -1,0 +1,32 @@
+module Test.Flags.Main where
+
+import Prelude
+
+import Data.Either (Either(..))
+import Effect (Effect)
+import Flags (flagOr, parseFlags)
+import Data.Tuple (Tuple(..))
+import Foreign.Object as Object
+import Test.Spec (describe, it)
+import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Reporter.Console (consoleReporter)
+import Test.Spec.Runner.Node (runSpecAndExitProcess)
+
+main :: Effect Unit
+main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "parseFlags" do
+    it "reads --name value pairs" do
+      map Object.toUnfoldable (parseFlags [ "--a", "--b" ] [ "--a", "1", "--b", "2" ]) `shouldEqual` Right [ pair "--a" "1", pair "--b" "2" ]
+    it "an unknown flag is an error" do
+      (parseFlags [ "--a" ] [ "--z", "1" ] $> unit) `shouldEqual` Left "unknown option --z"
+    it "a flag with no value is an error" do
+      (parseFlags [ "--a" ] [ "--a" ] $> unit) `shouldEqual` Left "missing value for --a"
+    it "a flag given twice is an error, not last-wins" do
+      (parseFlags [ "--a" ] [ "--a", "1", "--a", "2" ] $> unit) `shouldEqual` Left "duplicate option --a"
+  describe "flagOr" do
+    it "reads the flag, or the default when absent" do
+      let flags = Object.singleton "--a" "1"
+      flagOr "--a" "x" flags `shouldEqual` "1"
+      flagOr "--b" "x" flags `shouldEqual` "x"
+  where
+  pair k v = Tuple k v

@@ -2,14 +2,13 @@
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
 -- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
--- | errors (exit status 1).
+-- | errors (exit status 1). `presets` prints the shipped preset names, one per line (`scripts/validate` reads them).
 module Main (main) where
 
 import Prelude
 
-import Adapters.Pi (defaultModel)
 import Adapters.Random (resolveSeed)
-import Core.Draw (Seed(..))
+import Core.Draw (Seed)
 import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (check)
 import Core.World (RoundResult, WorldState)
@@ -17,15 +16,12 @@ import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Data.Foldable (foldM)
-import Data.Int (fromString)
+import Data.Foldable (foldM, for_)
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
-import Foreign.Object (Object)
-import Foreign.Object as Object
 import Game.Assemble (assemblePreset)
-import Flags (flagOr, parseFlags)
+import Flags (parseFlags)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
@@ -33,59 +29,24 @@ import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
 import Premises.Load (loadPremise)
-import Handlers.Store (validRunId)
-import Session (Options, session)
+import Options (runFlags, runOptions, sessionFlags, sessionOptions)
+import Premises.Presets (presetNames)
+import Session (session)
 
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
   case uncons args of
     Just { head: "run", tail: rest } -> case uncons rest of
-      Just { head: premise, tail: flags } -> case parseFlags [ "--preset", "--rounds", "--seed" ] flags >>= runOptions of
+      Just { head: premise, tail: flags } -> case parseFlags runFlags flags >>= runOptions of
         Left e -> usage e
         Right o -> runPremise premise o.preset o.rounds o.seed
       Nothing -> usage "run needs a premise, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: premise, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions premise)
       Nothing -> usage "session needs a premise, e.g. session meridian"
-    _ -> usage "expected a command: run or session"
-
-runOptions :: Object String -> Either String { preset :: String, rounds :: Int, seed :: Maybe Seed }
-runOptions fs = do
-  rounds <- number "--rounds" 5 fs
-  seed <- seedFlag fs
-  pure { preset: flagOr "--preset" "Passive" fs, rounds, seed }
-
--- | The player seed flag: absent means draw one at start; given, it must be a whole number.
-seedFlag :: Object String -> Either String (Maybe Seed)
-seedFlag fs = case Object.lookup "--seed" fs of
-  Nothing -> Right Nothing
-  Just s -> case fromString s of
-    Just n -> Right (Just (Seed n))
-    Nothing -> Left ("--seed must be a whole number, got " <> s)
-
-sessionFlags :: Array String
-sessionFlags = [ "--humans", "--model", "--rounds", "--window", "--id", "--db", "--seed" ]
-
-sessionOptions :: String -> Object String -> Either String Options
-sessionOptions premise fs = do
-  rounds <- number "--rounds" 5 fs
-  window <- numberFrom 0 "--window" 0 fs
-  let id = flagOr "--id" "session-1" fs
-  if validRunId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
-  seed <- seedFlag fs
-  pure { premise, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
-
--- | A whole-number flag of at least one, with its default.
-number :: String -> Int -> Object String -> Either String Int
-number = numberFrom 1
-
-numberFrom :: Int -> String -> Int -> Object String -> Either String Int
-numberFrom lowest name d fs = case Object.lookup name fs of
-  Nothing -> Right d
-  Just s -> case fromString s of
-    Just n | n >= lowest -> Right n
-    _ -> Left (name <> " must be a whole number of at least " <> show lowest <> ", got " <> s)
+    Just { head: "presets" } -> for_ presetNames log
+    _ -> usage "expected a command: run, session or presets"
 
 usage :: String -> Effect Unit
 usage why = do
