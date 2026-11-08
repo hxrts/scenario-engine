@@ -3,17 +3,28 @@
 module Game.Patch
   ( setCapacity
   , setCurve
+  , setAccount
+  , setCapabilities
+  , setPosition
+  , setRules
+  , setRepresentations
+  , withCirculation
+  , engineOnly
   ) where
 
 import Prelude
 
 import Board.Error (ValidationError(..))
 import Core.Num (Q)
-import Core.Types (CapacityRef, CostFunction, EntityId, MarketId, RefKind(..), idText)
+import Core.Types (Capability, CapacityRef, CostFunction, EntityId, MarketId, RefKind(..), Representation, ResourceId, RuleF, idText)
 import Data.Either (Either(..))
 import Data.Map as Map
+import Foreign.Object as Object
 import Game.Error (GameError(..), Stage(..))
+import Game.Premise (GameboardParts)
 import Schema.Gameboard (Gameboard)
+import Schema.Premise.World (rulesFromList)
+import Schema.Recurring (Circulation, compileIn)
 
 -- | Set what an Entity holds of a capacity.
 setCapacity :: EntityId -> CapacityRef -> Q -> Gameboard -> Either GameError Gameboard
@@ -26,3 +37,46 @@ setCurve :: MarketId -> CostFunction -> Gameboard -> Either GameError Gameboard
 setCurve m cost gb
   | Map.member m gb.world.markets = Right gb { world { markets = Map.update (\x -> pure x { cost = cost }) m gb.world.markets } }
   | otherwise = Left (Invalid AfterOverrides [ UnknownReference Market (idText m) ])
+
+-- | Set what an Entity holds of a Resource.
+setAccount :: EntityId -> ResourceId -> Q -> Gameboard -> Either GameError Gameboard
+setAccount e r q gb
+  | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { accounts = Map.insert r q x.accounts }) e gb.world.entities } }
+  | otherwise = Left (Invalid AfterOverrides [ UnknownReference EntityRef (idText e) ])
+
+-- | Replace an Entity's capabilities.
+setCapabilities :: EntityId -> Array Capability -> Gameboard -> Either GameError Gameboard
+setCapabilities e capabilities gb
+  | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { capabilities = capabilities }) e gb.world.entities } }
+  | otherwise = Left (Invalid AfterOverrides [ UnknownReference EntityRef (idText e) ])
+
+-- | Set a Market's starting position.
+setPosition :: MarketId -> Q -> Gameboard -> Either GameError Gameboard
+setPosition m q gb
+  | Map.member m gb.world.markets = Right gb { world { markets = Map.update (\x -> pure x { position = q }) m gb.world.markets } }
+  | otherwise = Left (Invalid AfterOverrides [ UnknownReference Market (idText m) ])
+
+-- | The Rules in force at the start. The check after filtering rejects one naming what the premise lacks.
+setRules :: Array (RuleF Q) -> Gameboard -> Either GameError Gameboard
+setRules rs gb = Right gb { world { rules = rulesFromList rs } }
+
+-- | The Representations bound at the start.
+setRepresentations :: Array Representation -> Gameboard -> Either GameError Gameboard
+setRepresentations rs gb = Right gb { world { representations = rs } }
+
+-- | Replace the recurring flows a premise authors; its decays stay.
+withCirculation :: Circulation -> Gameboard -> Gameboard
+withCirculation c gb = gb
+  { authored { circulation = c }
+  , world { recurring = compileIn gb.world.numeraire c gb.authored.decays }
+  }
+
+-- | The premise with no one deciding: no Actor definitions, schemes, seats or presets, and each Policy
+-- | left with nothing to do. The Aggregates keep their Policies' names. A fixture's decisions are its
+-- | Proposals, so what a Policy reads does not constrain what the fixture keeps.
+engineOnly :: GameboardParts -> GameboardParts
+engineOnly p = p
+  { gameboard = p.gameboard { actors = Map.empty, schemes = [], policies = map (const { rules: [], sign: [] }) p.gameboard.policies }
+  , config = p.config { seats = Map.empty, npcs = Map.empty, fallbacks = Map.empty, representations = [] }
+  , presets = Object.empty
+  }

@@ -15,6 +15,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Game.Error (GameError(..))
+import Game.Patch (engineOnly)
 import Game.Restrict (everything, restrict)
 import Premises.Load (fromFiles)
 import Premises.Compose as Setting
@@ -84,6 +85,15 @@ spec = do
             Left (Invalid _ es) -> (UnknownReference EntityRef n.aid `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a kept Aggregate's dropped member should not pass"
+
+    it "a flow gate goes with the Transformation that carries it" do
+      withPremise \p ->
+        let
+          s = (everything p.gameboard) { transformations = filter (_ /= Id n.energyShipping) (everything p.gameboard).transformations }
+        in
+          case restrict s (engineOnly p) of
+            Left e -> fail (show e)
+            Right r -> r.gameboard.world.flowGates `shouldEqual` []
 
     it "a name the premise does not have is an error" do
       withPremise \p ->

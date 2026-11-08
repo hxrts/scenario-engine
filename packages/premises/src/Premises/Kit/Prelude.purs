@@ -10,7 +10,6 @@ module Premises.Kit.Prelude
   , module Schema.Build.Fixture
   , module Schema.Build.Intent
   , module Schema.Build.Quantity
-  , module Schema.Build.World
   ) where
 
 import Core.Num (Q)
@@ -23,4 +22,3 @@ import Schema.Build.Base (keyed, mayTrade, mayTransfer, mayTransform, (:=))
 import Schema.Build.Fixture (balances, noExpect, noRound, procedureOutcome, proposal, ref)
 import Schema.Build.Intent (trade, transfer, transform)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, entitiesOf, noEntity)

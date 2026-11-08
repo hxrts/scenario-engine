@@ -11,23 +11,9 @@ module Premises.Meridian
   , defaultDials
   , premises
   , gameSeed
-  , resources
-  , coreResources
-  , atlanticTerms
-  , flowGates
-  , reservable
-  , decays
   , productionCapacity
-  , atlanticMarket
-  , asiaMarket
-  , defenseProcurementFacility
   , flows
   , requirements
-  , procurement
-  , energyShipping
-  , deployment
-  , majorMilitaryAction
-  , defenceTerms
   , smeSample
   , majorShock
   , gameboard

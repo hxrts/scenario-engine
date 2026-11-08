@@ -3,9 +3,9 @@
 -- | `Entities.Aggregates`) take their accounts and capacities from here, and the fixtures take
 -- | the accounts they need from here, so no Entity's holdings are copied. Expected values in the
 -- | fixtures stay literal; only the inputs are shared.
-module Premises.Meridian.Holdings (holdings, accountsOf, capacitiesOf, pickAccounts, capacityHolders) where
+module Premises.Meridian.Holdings (holdings, accountsOf, capacitiesOf, capacityHolders) where
 
-import Premises.Kit (HoldingTable, accountsIn, capacitiesIn, capacityHoldersIn, pickAccountsIn)
+import Premises.Kit (HoldingTable, accountsIn, capacitiesIn, capacityHoldersIn)
 import Premises.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
@@ -47,10 +47,6 @@ accountsOf = accountsIn holdings
 -- | An Entity's capacities, as the Entity declares them.
 capacitiesOf :: String -> Capacities
 capacitiesOf = capacitiesIn holdings
-
--- | Some of an Entity's accounts: a fixture's inputs are a subset of the Entity's accounts.
-pickAccounts :: String -> Array String -> Holdings
-pickAccounts = pickAccountsIn holdings
 
 -- | The Entities that hold a capacity, in catalog order.
 capacityHolders :: String -> Array String

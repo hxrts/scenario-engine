@@ -83,6 +83,8 @@ filtered s p = p
   recurring = filter keptFlow old.world.recurring
   keptFlow r = keptResource r.resource && all keptEntity (flowParties r) && all keptResource (flowResources r)
   -- a capacity is kept while a kept Transformation or production still draws on it
+  -- a gate goes with its Resource, and with the Transformation that carries it
+  keptGate g = keptResource g.resource && maybe true (_ `elem` s.transformations) g.bundled
   drawn = nub (mapMaybe _.capacity (values transformations) <> foldMap (map _.capacity <<< _.effects) (values transformations) <> mapMaybe producedFrom recurring)
   keptAccount e r = keptResource r && maybe true (elem r) (Map.lookup e s.accounts)
   keptCapability = case _ of
@@ -106,7 +108,7 @@ filtered s p = p
         , markets = map (\m -> m { access = filter keptEntity m.access }) (Map.filterKeys (_ `elem` s.markets) old.world.markets)
         , transformations = transformations
         , representations = filter (\r -> keptEntity r.actor && keptEntity r.aggregate) old.world.representations
-        , flowGates = filter (keptResource <<< _.resource) old.world.flowGates
+        , flowGates = filter keptGate old.world.flowGates
         , groups = Map.filterWithKey (\k v -> keptEntity k && keptEntity v) old.world.groups
         , rules = Map.filter keptRule old.world.rules
         , recurring = recurring

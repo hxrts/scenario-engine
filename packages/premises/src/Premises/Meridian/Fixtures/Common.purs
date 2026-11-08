@@ -1,62 +1,63 @@
--- | The world pieces every golden fixture family shares: the fixture spec and its builder, and the
--- | Energy Markets and Facilities that the families build on. Every expected value stays in the
--- | family modules, as a literal from docs/05_test_instance.md; nothing here computes one.
+-- | What every golden fixture family shares: the premise each is filtered from, and the default cut.
+-- | Every world is a `restrict` of Meridian plus named patches (`Game.Patch`). Every expected value stays in
+-- | the family modules, as a literal from docs/05_test_instance.md; nothing here computes one.
 module Premises.Meridian.Fixtures.Common
-  ( defaultFixture
+  ( cut
+  , defaultFixture
   , fixture
   , holding
-  , energy
-  , energyAt
-  , facilities
+  , keeping
+  , allResources
+  , money
   ) where
 
 import Prelude
 
 import Premises.Kit.Prelude
 
-import Premises.Meridian.Names (n)
-import Premises.Meridian.Rules (ruleKinds)
-
-import Data.Map as Map
-import Premises.Kit (FixtureSpec, market)
+import Foreign.Object as Object
+import Game.Premise (GameboardParts)
+import Premises.Kit (Cut, FixtureSpec, KeptEntity)
 import Premises.Kit as Kit
-import Premises.Meridian (asiaMarket, atlanticTerms, coreResources, defenseProcurementFacility, energyShipping, gameSeed, flowGates, reservable, decays)
-import Premises.Meridian.Holdings (pickAccounts)
+import Premises.Meridian (defaultDials, gameSeed, meridian)
+import Premises.Meridian.Names (n)
+import Schema.Build.World (emptyCirculation)
 
--- | Every fixture shares these; each fixture gives the rest and may override these.
-defaultFixture :: FixtureSpec
-defaultFixture =
-  { round: 1
-  , numeraire: Id n.money
-  , resources: coreResources
-  , markets: energy [ n.us, n.de, n.uk ] [ n.sa, n.jp ]
-  , transformations: facilities
-  , transport: flowGates
-  , rules: []
-  , entities: Map.empty
-  , representations: Nothing
-  , circulation: Nothing
-  , proposals: Nothing
-  , expect: Nothing
-  , rounds: Nothing
+-- | Money and Energy, the two accounts most fixtures keep.
+money :: Array String
+money = [ n.money, n.energy ]
+
+-- | Every Resource of the premise.
+allResources :: Array String
+allResources = [ n.money, n.energy, n.mil, n.softPower ]
+
+-- | The default cut: Money, Energy and Military, both Energy Markets, no Transformations, no recurring
+-- | flows. Each fixture names the Entities it keeps and what else it needs.
+cut :: Cut
+cut =
+  { entities: []
+  , resources: [ n.money, n.energy, n.mil ]
+  , markets: [ n.energyAtlantic, n.energyAsia ]
+  , transformations: []
+  , circulation: emptyCirculation
+  , patches: []
   }
 
--- | The fixture's JSON, named `name`, under Meridian's seed and Rule kinds.
+-- | Every fixture shares these; each gives its cut, inputs and checks.
+defaultFixture :: FixtureSpec
+defaultFixture = { cut, proposals: Nothing, expect: Nothing, rounds: Nothing }
+
+base :: GameboardParts
+base = { gameboard: (meridian defaultDials).gameboard, config: (meridian defaultDials).config, presets: Object.empty }
+
+-- | The fixture's JSON, named `name`, filtered from Meridian under its seed.
 fixture :: String -> FixtureSpec -> Tuple String Json
-fixture = Kit.fixture { seed: gameSeed, ruleKinds, reservable, decays }
+fixture = Kit.fixture { seed: gameSeed, base }
 
--- | An Entity with its starting holdings of these Resources and these capabilities, and nothing else.
-holding :: String -> Array String -> Array Capability -> Entity
-holding e accounts capabilities = noEntity { accounts = pickAccounts e accounts, capabilities = capabilities }
+-- | An Entity with these accounts, its starting amounts from the premise, and exactly these capabilities.
+holding :: String -> Array String -> Array Capability -> KeptEntity
+holding key accounts capabilities = { key, accounts: Just accounts, capabilities: Just capabilities }
 
--- | Both regional Energy Markets with the given access lists.
-energy :: Array String -> Array String -> Map MarketId Market
-energy = energyAt (q 0)
-
--- | As `energy`, with the Atlantic Market starting at a position, when given.
-energyAt :: Q -> Array String -> Array String -> Map MarketId Market
-energyAt position atlantic asia = byKey [ Tuple n.energyAtlantic ((market atlanticTerms atlantic) { position = position }), Tuple n.energyAsia (asiaMarket asia) ]
-
--- | Procurement and shipping, as the premise defines them; fixtures add others as needed.
-facilities :: Map TransformationId Transformation
-facilities = byKey [ Tuple n.defenseProcurement defenseProcurementFacility, Tuple n.energyShipping energyShipping ]
+-- | An Entity with these accounts and its own capabilities: an Aggregate whose procedures need them.
+keeping :: String -> Array String -> KeptEntity
+keeping key accounts = { key, accounts: Just accounts, capabilities: Nothing }

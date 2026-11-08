@@ -617,7 +617,7 @@ The canonical phases are defined in [Type System §8.1](02_type_system.md#81-can
 
 # Part IV: Playtest Fixtures
 
-**Planned:** fixtures are filtered from the reference premise with `restrict` ([03 §12a](03_gameboard.md#12a-how-premises-are-made)). Today each is assembled by hand from the reference premise's definitions.
+Every fixture is filtered from the reference premise with `restrict` ([03 §12a](03_gameboard.md#12a-how-premises-are-made)) plus named patches: an Entity's capabilities, a stated account or Market position, the fixture's Rules and Representations. Its decisions are its Proposals, so a fixture keeps no Actors, Policies or seats. Expected values stay literal.
 
 Each fixture is a `Premise`: a literal premise (`LiteralPremise`) that writes its World State out in full. Each seat that proposes or signs in its rounds is bound to a `Script` of those answers, and an `Expect` gives the values each round is checked against. The expected values are literals taken from the worked examples below, never computed. The families are in `packages/premises/src/Premises/Fixtures/`, and each compiles to `packages/premises/fixtures/<name>.json`. The file has three parts: `premise` (the seed and the World), `bindings` (one per round, in order, each with its Proposals), and `expectations` (each naming its round and giving its `expect`).
 

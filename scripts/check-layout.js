@@ -25,6 +25,11 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
+    name: "a fixture's world is a restrict of its premise plus named patches: no fixture module builds an Entity, Market, Transformation, or World",
+    files: (f) => f.startsWith("packages/premises/src/Premises/Meridian/Fixtures"),
+    bad: (line) => /\b(noEntity|noMarket|noFacility|emptyWorld|byKey|entitiesOf|pickAccounts|Map\.(union|fromFoldable))\b/.test(line),
+  },
+  {
     name: "the server loads what the premise root contains: it imports no setting, Kit, or Catalog",
     files: (f) => f.startsWith("apps/server/src/"),
     bad: (line) => /^import Premises\.(Meridian|Kit|Catalog)\b/.test(line),

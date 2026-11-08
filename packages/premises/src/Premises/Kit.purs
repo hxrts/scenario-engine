@@ -9,7 +9,6 @@ module Premises.Kit
   , holdingOf
   , accountsIn
   , capacitiesIn
-  , pickAccountsIn
   , capacityHoldersIn
   , MarketTerms
   , market
@@ -35,6 +34,9 @@ module Premises.Kit
   , premise
   , assemble
   , FixtureContext
+  , KeptEntity
+  , Cut
+  , cutOf
   , FixtureSpec
   , fixture
   ) where
@@ -52,17 +54,21 @@ import Data.Array as Array
 import Data.Foldable (any)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
+import Data.Foldable (foldM)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst)
 import Partial.Unsafe (unsafeCrashWith)
+import Game.Error (GameError, renderGameError)
+import Game.Patch (engineOnly, setCapabilities, withCirculation)
+import Game.Premise (GameboardParts)
+import Game.Restrict (restrict)
 import Schema.Build.Base (coverage, institutional, keyed, mayEnact, (:=))
 import Schema.Build.Decision (eqQ, ge, gt, le, lit, max', named, not', orderAt, param, priceAt, roundQ, rule, selfEnact, subQ)
 import Schema.Build.World (definition, emptyCirculation, emptyWorld, noEntity, noMarket, objective)
-import Schema.Gameboard (ActorDefinition, Criterion, Fallback)
+import Schema.Gameboard (ActorDefinition, Criterion, Fallback, Gameboard)
 import Schema.Premise.Fixture (Fixture, RoundSpec, fixtureShape)
-import Schema.Premise.World (rulesFromList)
 import Schema.Recurring (Circulation, Decay, Flow, Requirement, compileIn)
 import Schema.Round (Authored)
 
@@ -162,15 +168,6 @@ accountsIn table name = keyed (holdingOf table name).accounts
 -- | An Entity's capacities, as the table declares them.
 capacitiesIn :: HoldingTable -> String -> Capacities
 capacitiesIn table name = keyed (holdingOf table name).capacities
-
--- | Some of an Entity's accounts, in the order given. A name the Entity does not hold is a
--- | programming error.
-pickAccountsIn :: HoldingTable -> String -> Array String -> Holdings
-pickAccountsIn table name wanted = keyed (map pick wanted)
-  where
-  pick k = case find (\(Tuple n _) -> n == k) (holdingOf table name).accounts of
-    Just kv -> kv
-    Nothing -> unsafeCrashWith ("Entity " <> name <> " holds no account " <> k)
 
 -- | The Entities that hold a capacity, in table order.
 capacityHoldersIn :: HoldingTable -> String -> Array String
@@ -350,62 +347,70 @@ assemble (Pieces p) = p
 
 -- Fixtures --------------------------------------------------------------------------------------
 
--- | What every fixture of a premise shares: the seed, the Rule kinds, and which Resources may be
--- | reserved or decay.
+-- | What every fixture of a premise shares: the seed and the premise it is filtered from.
 type FixtureContext =
   { seed :: Int
-  , ruleKinds :: Map RuleKindId RuleKindDecl
-  , reservable :: Array ResourceId
-  , decays :: Array Decay
+  , base :: GameboardParts
   }
 
--- | What a fixture gives. The Gameboard's sections are always written; the rounds and the circulation
--- | are written when given.
+-- | One Entity a cut keeps: the accounts it keeps (`Nothing`, all of them) and, when given, the
+-- | capabilities that replace its own.
+type KeptEntity =
+  { key :: String
+  , accounts :: Maybe (Array String)
+  , capabilities :: Maybe (Array Capability)
+  }
+
+-- | A premise cut down to one fixture's world: what to keep, the recurring flows, and named patches.
+type Cut =
+  { entities :: Array KeptEntity
+  , resources :: Array String
+  , markets :: Array String
+  , transformations :: Array String
+  , circulation :: Circulation
+  , patches :: Array (Gameboard -> Either GameError Gameboard)
+  }
+
+-- | Filter the base by the Cut, under its patches. A fixture's decisions are its Proposals.
+cutOf :: GameboardParts -> Cut -> GameboardParts
+cutOf base c = either (unsafeCrashWith <<< renderGameError) identity do
+  gameboard <- foldM (#) (withCirculation c.circulation base.gameboard) (map capabilitiesOf c.entities <> c.patches)
+  restrict selection (engineOnly base { gameboard = gameboard })
+  where
+  capabilitiesOf e = maybe Right (setCapabilities (Id e.key)) e.capabilities
+  selection =
+    { entities: map (Id <<< _.key) c.entities
+    , resources: map Id c.resources
+    , markets: map Id c.markets
+    , transformations: map Id c.transformations
+    , accounts: Map.fromFoldable (Array.mapMaybe (\e -> map (Tuple (Id e.key) <<< map Id) e.accounts) c.entities)
+    }
+
+-- | What a fixture gives: its cut of the premise, and one round's inputs and checks, or several rounds'.
 type FixtureSpec =
-  { round :: Int
-  , numeraire :: ResourceId
-  , resources :: Map ResourceId ResourceDefinition
-  , markets :: Map MarketId Market
-  , transformations :: Map TransformationId Transformation
-  , transport :: Array FlowGate
-  , rules :: Array (RuleF Q)
-  , entities :: Map EntityId Entity
-  , representations :: Maybe (Array Representation)
-  , circulation :: Maybe Circulation
+  { cut :: Cut
   , proposals :: Maybe (Array SignedProposal)
   , expect :: Maybe Authored
   , rounds :: Maybe (Array RoundSpec)
   }
 
--- | The fixture's JSON, named `name`: its premise, its bindings (one per round, in order from the
--- | World's round), and its expectations (each round's checks, named by its round). The rounds are the
--- | list given, or the one round written at the top level.
+-- | The fixture's JSON, named `name`: its world, filtered from the premise, its bindings (one per round,
+-- | in order from the World's round), and its expectations (each round's checks, named by its round). The
+-- | rounds are the list given, or the one round written at the top level.
 fixture :: FixtureContext -> String -> FixtureSpec -> Tuple String Json
 fixture ctx name s = Tuple name (encodeWith Premise fixtureShape doc)
   where
   rounds' :: Array RoundSpec
   rounds' = fromMaybe [ { proposals: s.proposals, expect: s.expect } ] s.rounds
 
-  decays = filter (\d -> Map.member d.resource s.resources) ctx.decays
+  cut = (cutOf ctx.base s.cut).gameboard
 
   doc :: Fixture
   doc =
     { seed: ctx.seed
     , name
-    , premiseAuthored: { circulation: fromMaybe emptyCirculation s.circulation, reservable: filter (\r -> Map.member r s.resources) ctx.reservable, decays }
-    , world: emptyWorld
-        { round = s.round
-        , numeraire = s.numeraire
-        , resources = s.resources
-        , markets = s.markets
-        , transformations = s.transformations
-        , flowGates = s.transport
-        , ruleKinds = ctx.ruleKinds
-        , entities = s.entities
-        , rules = rulesFromList s.rules
-        , representations = fromMaybe [] s.representations
-        , recurring = compileIn s.numeraire (fromMaybe emptyCirculation s.circulation) decays
-        }
+    , premiseAuthored: cut.authored
+    , world: cut.world
     , bindings: map (\r -> { proposals: fromMaybe [] r.proposals }) rounds'
-    , expectations: Array.catMaybes (mapWithIndex (\k r -> map (\e -> { round: s.round + k, expect: e }) r.expect) rounds')
+    , expectations: Array.catMaybes (mapWithIndex (\k r -> map (\e -> { round: cut.world.round + k, expect: e }) r.expect) rounds')
     }
