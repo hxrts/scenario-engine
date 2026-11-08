@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
-import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -303,7 +303,7 @@ renderReason = case _ of
   NoMarketAccess e m -> show e <> " has no access to " <> show m
   NoRouteAccess e base quote -> show e <> " has no accessible market for " <> show base <> "/" <> show quote
   NotTransferable r -> show r <> " is not transferable"
-  OutOfScope r -> "a Rule of kind " <> show r.kind <> " applies only to its governing Entity or owner, and only in its declared form"
+  OutOfScope r -> "a Rule of kind " <> show (ruleKind r) <> " applies only to its governing Entity or owner, and only in its declared form"
   OnlyGoverningRepeal -> "only the governing authority may repeal a Rule"
   BelowMinimum t -> show t <> " order below its minimum"
   AboveMaximum t -> show t <> " order above its maximum"

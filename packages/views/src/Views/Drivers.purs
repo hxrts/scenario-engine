@@ -15,7 +15,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Slice (Slice, describeSlice, foldEvents, groupBy, ignore, read, runSlice, shortfalls, total)
-import Core.Types (EffectF(..), EntityId, ResourceId, Rule, Scope(..))
+import Core.Types (FlowEffect(..), EntityId, ResourceId, Rule, RuleF(..), ruleKind)
 import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, length, nub)
 import Data.Map as Map
@@ -52,18 +52,18 @@ shortfallsOf rec = map perResource (runSlice shortfallsByResource rec.events)
 
 -- | A Rule as its declared kind writes it.
 ruleText :: WorldState -> Rule -> String
-ruleText w r = case Map.lookup r.kind w.ruleKinds of
-  Nothing -> show r.kind
+ruleText w r = case Map.lookup (ruleKind r) w.ruleKinds of
+  Nothing -> show (ruleKind r)
   Just d -> fill "amount" amount (scopeFill d.text)
   where
   fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
-  amount = case r.effect of
-    Levy x -> ratio x
-    Reduce x -> quantity x
-    Block -> ""
-  scopeFill t = case r.scope of
-    Flows f -> fill "governor" (show f.governor) (fill "counterparty" (show f.counterparty) t)
-    OnCapacity c -> fill "capacity" (show c) t
+  amount = case r of
+    FlowRule { effect: Levy x } -> ratio x
+    FlowRule { effect: Block } -> ""
+    CapacityRule x -> quantity x.reduce
+  scopeFill t = case r of
+    FlowRule x -> fill "governor" (show x.scope.governor) (fill "counterparty" (show x.scope.counterparty) t)
+    CapacityRule x -> fill "capacity" (show x.capacity) t
 
 -- | A procedure's row in the drivers table: its outcome and the support against the threshold.
 procedureRow :: Procedure -> Array String

@@ -19,7 +19,7 @@ import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, In
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Scope(..), Transformation, TransformationId, domainResource, idText)
+import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, domainResource, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -99,9 +99,9 @@ validateGameboard gb config =
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.escrowPerUnit)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
-  ruleRefs r = (if Map.member r.kind w.ruleKinds then [] else unknownKind r.kind) <> case r.scope of
-    Flows f -> unknownEntity [ f.governor, f.counterparty ]
-    OnCapacity c -> unknownCapacity [ c ]
+  ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
+    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ]
+    CapacityRule x -> unknownCapacity [ x.capacity ]
   unknownKind k = [ UnknownReference RuleKindRef (show k) ]
   -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind
   capabilityRefs = case _ of

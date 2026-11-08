@@ -16,7 +16,7 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Direction(..), EffectF(..), Scope(..), RuleF, CapacityTag, EntityTag)
+import Core.Types (Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), ShareBasis(..), UnseededWorld, View, coupled)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, shareRule)
@@ -203,14 +203,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "enactAccessBanI decodes to an AccessBan enactment" do
       case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
-        Right (ChangeRule (Enact { scope: Flows a })) -> do
+        Right (ChangeRule (Enact (FlowRule { scope: a }))) -> do
           a.governor `shouldEqual` Id "US"
           a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
       case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
-        Right { scope: Flows t } -> do
+        Right (FlowRule { scope: t }) -> do
           t.governor `shouldEqual` Id "US"
           t.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
@@ -577,11 +577,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
+holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
 

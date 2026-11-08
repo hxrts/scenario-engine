@@ -7,7 +7,7 @@ import Core.Draw (Seed(..))
 import Core.Map (values)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Engine.Screen (screen)
-import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
+import Core.Types (CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (EntityId, Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleChangeF(..), proposalId, samePositions, traverseIntent)
 import Core.Slice (event, pickOf)
 import Core.World (Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
@@ -326,10 +326,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
     it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "kind": "accessBan", "scope": { "flows": { "counterparty": "CN", "direction": "eitherWay" } }, "effect": "block" } } ] } ] }""" (enacting [ MayEnact (Id "accessBan") ]))
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "flows": { "kind": "accessBan", "scope": { "counterparty": "CN", "direction": "eitherWay" }, "effect": "block" } } } ] } ] }""" (enacting [ MayEnact (Id "accessBan") ]))
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "kind": "withholding", "scope": { "capacity": "semiconductors" }, "effect": { "reduce": "5" } } } ] } ] }""" (enacting [ MayEnact (Id "withholding") ]))
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "5" } } } ] } ] }""" (enacting [ MayEnact (Id "withholding") ]))
         `shouldEqual` [ [ ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 5 })) ] ]
     it "repeal drafts a repeal of the named rule, and needs enactment authority" do
       let text = """{ "rules": [ { "propose": [ { "repeal": { "rule": "r2/US/0/rule-0" } } ] } ] }"""
@@ -364,17 +364,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
+holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
 
 testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
 testKinds = Map.fromFoldable
-  [ Tuple (Id "tariff") { effect: LevyEffect, scope: InboundFlows, text: "" }
-  , Tuple (Id "accessBan") { effect: BlockEffect, scope: EitherWayFlows, text: "" }
-  , Tuple (Id "withholding") { effect: ReduceEffect, scope: CapacityScope, text: "" }
+  [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
+  , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
+  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
   ]

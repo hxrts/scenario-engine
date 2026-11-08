@@ -12,7 +12,7 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, recordShape, requiredOf)
-import Core.Types (Capability, Direction(..), EffectF, EntityId, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, Scope, idShape, transferBody)
+import Core.Types (Capability, Direction(..), EntityId, FlowEffect, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
 import Schema.Premise.Tags (capabilityTags)
@@ -35,32 +35,27 @@ repealTag = "repeal"
 
 -- | A Rule's direction, written by name.
 directionShape :: Shape Direction
-directionShape = nameShape "Direction" "direction: inbound or eitherWay" dirName [ Inbound, EitherWay ]
+directionShape = nameShape "Direction" "direction: inbound, outbound or eitherWay" dirName [ Inbound, Outbound, EitherWay ]
   where
   dirName = case _ of
     Inbound -> "inbound"
+    Outbound -> "outbound"
     EitherWay -> "eitherWay"
 
--- | What a Rule covers. `governor` is how the governor is written: templates default it to the acting Entity.
-scopeShapeWith :: Shape EntityId -> Shape Scope
-scopeShapeWith governor = genericPremiseSum "Scope"
-  { "Flows": atOneKey "flows" "Transfers between two groups" flows
-  , "OnCapacity": atOneKey "capacity" "one capacity" idShape
-  }
-  where
-  flows = recordShape "Flows" { governor, counterparty: idShape, direction: directionShape }
-
--- | What a Rule does, over its filling.
-effectShapeOf :: forall v. Shape v -> Shape (EffectF v)
-effectShapeOf v = genericPremiseSum "Effect"
+-- | What a flows Rule does, over its filling.
+effectShapeOf :: forall v. Shape v -> Shape (FlowEffect v)
+effectShapeOf v = genericPremiseSum "FlowEffect"
   { "Levy": atOneKey "levy" "a levy at this rate of the flow" v
   , "Block": atBare { tag: "block", desc: "the flow is refused" }
-  , "Reduce": atOneKey "reduce" "the capacity is reduced by these units" v
   }
 
--- | A Rule, under `enact`.
+-- | A Rule, under `enact`. `governor` is how the governor is written: templates default it to the acting Entity.
 ruleBody :: forall v. Shape EntityId -> Shape v -> Shape (RuleF v)
-ruleBody governor v = recordShape "Rule" { kind: idShape, scope: scopeShapeWith governor, effect: effectShapeOf v }
+ruleBody governor v = genericPremiseSum "Rule"
+  { "FlowRule": atOneKey "flows" "a Rule on Transfers between two groups"
+      (recordShape "FlowRule" { kind: idShape, scope: recordShape "FlowScope" { governor, counterparty: idShape, direction: directionShape }, effect: effectShapeOf v })
+  , "CapacityRule": atOneKey "capacity" "a Rule reducing one capacity" (recordShape "CapacityRule" { kind: idShape, capacity: idShape, reduce: v })
+  }
 
 ruleShape :: Shape (RuleF Q)
 ruleShape = ruleBody idShape qShape

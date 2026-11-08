@@ -42,47 +42,43 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 
 | Package | May depend on | Owns | Must not own |
 |---|---|---|---|
-| `core` | nothing | The engine (`resolveRound`); World types; `IntentF`/`ProposalF`; the Strategy language and `InWorld`; `Shape`, its codecs, and the engine's `Described` instances; `Num`, `Draw`, `Authority`, `Proposal`, `Invariants.check` | Premise knowledge, authoring JSON, operations, runs, a second codec for a described type |
-| `schema` | `core` | Premise-format shapes (Gameboard sections, instantiation config, objectives, presets, `RoundF`: `Observed`, `Expect`), the run vocabulary (`Schema.Run`, `Schema.View`), the joint pass's values (`Schema.Joint`), and the authoring builders (`Schema.Build.*`) | Realization logic, validation errors, operations, behaviour |
-| `board` | `core`, `schema` | World realization: `instantiate`, `validate`, `reconcile`; `ValidationError`, `Difference` | JSON, fixtures, seat binding, policy concepts |
-| `policy` | `core`, `schema` | The Strategy interpreter: pure `propose` and `sign` over an `Env`; `inWorldOf` | `run` or any effect library; codecs; World State access |
-| `game` | `core`, `schema`, `board`, `policy` | `Premise`, `assemble`, `Game`, `SeatBinding`, `Override`, `Recipe` (the stored spec and derive rules), `GameError`. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
-| `premises` | `core`, `schema`, `game` | Meridian and its presets, the fixtures (`Premises.Fixtures.*`), the capstone's authored DSL, the premise file tree and loader; all as typed values | IO, compiling, decoders, computed expected values |
-| `checks` | `core`, `schema` | `Expect` against `Observed` (`observe`, `check`, `checkRound`); `checkRun`; objective evaluation (`evaluateObjectives`, `ObjectiveResult`) | Effects, running games |
-| `effects` | `core`, `schema`, `board`, `policy` | The operation rows (`SEAT_INPUT`, `INTERPRET`, `NARRATE`, `RECORD`, `OBSERVE`, `STORE`, `API`) and the programs over them (`runRound`, `runGame`, `finish`) | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | `Seats`, `Live` (`runLive`), `Llm`, `Store`, `Recording`, `Replay`; `Api.Route` and `Api.Client` | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
-| `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices: `Pi`, `SQLite`, `Clock`, `Random`, `Digest`, `Console`, `Filesystem`; every FFI (`.js`) module outside the apps | Games, runs, prompts, premises, any handler function |
-| `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game` (`Simulator.Simulate`) and the round records (`Simulator.Records`) | `board` or `policy` imports; premises, views, experiments |
-| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to `Table`, `Chart`, `Bars`, `Statistic` | Effects; `simulator`, `game`, `experiments`, or `premises` imports; objective evaluation of their own |
-| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `simulator` | Counterfactuals, agency, and seed batches (`Experiments.Agency`), over the pure `simulate` | Effects; persistence; `board` or `policy` imports |
+| `core` | nothing | The engine; World, Intent, and Proposal types; the Strategy language; the description algebra (`Shape`); numerics, draws, authority, and per-round invariants | Premise knowledge, authoring JSON, operations, runs, a second codec for a described type |
+| `schema` | `core` | The premise format, the authoring DSL, the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
+| `board` | `core`, `schema` | World realization and validation, and their errors | JSON, fixtures, seat binding, policy concepts |
+| `policy` | `core`, `schema` | The pure Strategy interpreter | `run` or any effect library; codecs; World State access |
+| `game` | `core`, `schema`, `board`, `policy` | Assembling a premise into a `Game`; seat bindings, overrides, and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
+| `premises` | `core`, `schema`, `game` | Authored premises, presets, fixtures, and the premise file tree, as typed values | IO, compiling, decoders, computed expected values |
+| `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
+| `effects` | `core`, `schema`, `board`, `policy` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
+| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
+| `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, premises, any handler function |
+| `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game` and its round records | `board` or `policy` imports; premises, views, experiments |
+| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `simulator`, `game`, `experiments`, or `premises` imports; objective evaluation of their own |
+| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `simulator` | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
 | `testkit` | `core`, `schema`, `premises`, `game`, `adapters`, `simulator`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
-| `flags` (`apps/flags`) | nothing | The `--name value` parser (`parseFlags`, `flagOr`) that `cli` and `server` read their arguments with | Any workspace or effect import |
-| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli`: `run`, `session`, `Compile`, `Transcript`. `server`: `Http`, and the `API` operation semantics (`Server.Implementation`). `dashboard`: renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
+| `flags` (`apps/flags`) | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
+| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli` runs games and compiles premises; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
 Two deliberate exceptions to the layering: `testkit` depends on `adapters`, because it reads the premise files through the filesystem device. `handlers` does not list `checks`, so a handler never reaches the checkers.
 
-Module map: every `src` module, one line per package, from `find packages apps -name '*.purs'` (test modules, `Test.<Pkg>.*` under each `test/`, are not listed):
+Module map, by layer. This names what each layer is for, not its files; the table above gives each package's contents, and `find packages apps -name '*.purs'` gives the current modules:
 
 ```text
-packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Digest, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
-packages/board:      Board.Error, Board.Gameboard.Instantiate, Board.Gameboard.Reconcile, Board.Gameboard.Validate
-packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
-packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Core.World
-packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
-packages/experiments: Experiments.Agency
-packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
-packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Handlers.Llm, Handlers.Llm.Wire, Handlers.Recording, Handlers.Replay, Handlers.Seats, Handlers.Store
-packages/policy:     Policy.Interpret, Policy.InWorld, Policy.Strategy
-packages/premises:   Premises.Capstone, Premises.Fixtures, Premises.Fixtures.Circulation, Premises.Fixtures.Common, Premises.Fixtures.ConflictingActions, Premises.Fixtures.GermanyEu, Premises.Fixtures.MarketExchange, Premises.Fixtures.NpcResponse, Premises.Fixtures.Reservation, Premises.Fixtures.SignedProposals, Premises.Fixtures.SmeRepresentation, Premises.Literal, Premises.Load, Premises.Meridian, Premises.Meridian.Entities, Premises.Meridian.Entities.Aggregates, Premises.Meridian.Entities.Capabilities, Premises.Meridian.Entities.Seats, Premises.Meridian.Holdings, Premises.Meridian.Parameters, Premises.Meridian.Policies, Premises.Names, Premises.Presets, Premises.Rules, Premises.Tree
-packages/schema:     Schema.Build.Base, Schema.Build.Decision, Schema.Build.Fixture, Schema.Build.Intent, Schema.Build.Quantity, Schema.Build.World, Schema.Decode.Common, Schema.Gameboard, Schema.Joint, Schema.Premise.Actor, Schema.Premise.Fixture, Schema.Premise.Gameboard, Schema.Premise.Tags, Schema.Premise.Intent, Schema.Premise.Strategy, Schema.Premise.World, Schema.Round, Schema.Run, Schema.View
-packages/simulator:  Simulator.Records, Simulator.Simulate
-packages/testkit:    Testkit.Capstone, Testkit.Fixture, Testkit.Gameboard, Testkit.Json, Testkit.Meridian
-packages/views:      Views.Actions, Views.Agency, Views.Balance, Views.Balances, Views.Common, Views.Compare, Views.Difference, Views.Drivers, Views.Entity, Views.Glossary, Views.Markets, Views.Metrics, Views.Overview, Views.Representation, Views.Standings
-apps/cli:            Compile, Compile.Render, Exit, Main, Options, Session, Transcript
-apps/flags:          Flags (shared by apps/cli and apps/server)
-apps/dashboard:      Dashboard.Api, Dashboard.Chart, Dashboard.Client, Dashboard.Components, Dashboard.DataTable, Dashboard.Entity, Dashboard.Glossary, Dashboard.Launch, Dashboard.Layout, Dashboard.Main, Dashboard.Palette, Dashboard.Results, Dashboard.Route, Dashboard.RunActions, Dashboard.RunForms, Dashboard.Runs, Dashboard.Theme, Dashboard.UI
-apps/server:         Http, Server, Server.Cache, Server.Derive, Server.Errors, Server.Implementation, Server.Launch, Server.Read
+pure domain     core                    the engine and the types it reads
+                schema                  the premise format, the authoring DSL, the run vocabulary
+                board, policy           realizing a world; interpreting a Strategy
+                game                    assembling a premise into a playable Game
+                premises                authored content and fixtures, as typed values
+                checks, views           predicates and projections over records
+impure seams    effects                 the operations a program may request
+                handlers                the program logic over those operations
+                adapters                raw devices
+runners         simulator, experiments  folds over a Game
+entry points    apps/cli, apps/server, apps/dashboard (apps/flags parses their arguments)
+test support    testkit
 ```
+
+A module is one concept, named `<Package>.<Concept>`. `Core.Engine.*` holds the engine's round phases, `Schema.Build.*` the authoring builders, and `Schema.Premise.*` the premise-format shapes.
 
 Compiled premise files (`packages/premises/meridian/`, `packages/premises/presets.json`, `packages/premises/fixtures/`, and `packages/premises/capstone/run.json`) are gitignored build output. `packages/premises/capstone/transcript.json` is generated by `just _premises` (`apps/cli`'s `Transcript`) and is gitignored with the rest of `packages/premises/capstone/`: the capstone's joint-pass recording, with no model call. The shadcn/ui components in `apps/dashboard/ui` are generated, not committed.
 
@@ -159,13 +155,10 @@ runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 
 ```purescript
 simulate   :: Seed -> Game -> Either GameError SimRun
-simulateWith :: Seed -> Game -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
-resumeFrom :: Seed -> Game -> Checkpoint -> Either GameError SimRun
-resumeWith :: Seed -> Game -> Checkpoint -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
 -- SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 ```
 
-`simulateWith` and `resumeWith` take the per-round sink, so the server writes each round as it completes. `resumeFrom` is the pure form.
+Variants take a per-round sink, so the server writes each round as it completes, or a checkpoint to resume from.
 
 **Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, live play, views, and experiments:
 
@@ -189,23 +182,17 @@ runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
 
 `Implementation` is supplied by `apps/server` (`Server.Implementation.implement`). Its reads come from `OBSERVE` and `views`, and its launch, derive, and resume from `game` and `simulator`. The dashboard's `Dashboard.Client` runs its operations through `Handlers.Api.Client` over its `fetch` device. The browser closure of `Handlers.Api.Client` imports no Node module.
 
-**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle) is in the handler, so a backend carries only primitives. Prompt text lives only in `Handlers.Llm.Wire`; adapters never hold prompts. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
+**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle) is in the handler, so a backend carries only primitives. Prompt text lives only in the model handler; adapters never hold prompts. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
 
-```purescript
-type Call = String -> String -> Aff { text :: String, raw :: String }  -- Handlers.Llm: system prompt and payload in, reply text out
-type Backend = { model :: String, call :: Call, digest :: String -> String, timeoutMs :: Int, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }  -- Handlers.Llm: the call, the digest device, and the evidence and recording sinks
-type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendRound -> Effect Unit, readRounds :: String -> Effect (Array StoredRound), ... }  -- Handlers.Store: one primitive per operation
-```
+Each adapter implements one backend's primitives: a model call, a digest, the store's SQL and JSON text. Test stubs and the capstone's recording replay answer the same interfaces, and neither is production code.
 
-`Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Digest.sha256` is the `digest`, which the handler applies to each call's template and payload for its evidence. `Adapters.SQLite` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `packages/premises/capstone/transcript.json`; neither is production code.
+**Primitive flows** (`core`). Every settlement is one event of legs with a structural cause, so the record states what moved and what produced it. The types are in the [Type System](02_type_system.md).
 
-**Primitive flows** (`core`, `Core.World`, `Core.Slice`). Every settlement is one `Coupled` event of legs (`Flow`: endpoints, a Resource, `owed` and `moved`), an exact `rate` when it has one, and a structural `Cause`. A premise's recurring cycle and decay compile through `Schema.Recurring` into one `RecurringFlow` rule. `check-derived`'s `banned-word` rule keeps scenario language out of `packages/core/src`.
+**Premise-neutral Core.** A premise declares its own kinds of Rule, its conditions on flows, and its recurring flows in the DSL. Core names none of them, and does nothing when a premise declares none. The `banned-word` rule of `check-derived` keeps scenario language out of `core`.
 
-**Premise-neutral Core.** Rules are `{ kind, scope, effect }` over declared kinds, Transfers are conditioned by declared `transferConditions`, and flows Rules read a generic Entity grouping (`groups`). A premise declares its own kinds (`Premises.Rules` for Meridian); Core names none, and does nothing when a premise declares none. This changed the record format (`Levied`, `Blocked`) once; `capstone/transcript.json` is regenerated.
+**Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only at the adapter boundary. Server startup fails `running` rows it can tell were interrupted.
 
-**Round records and run rows.** `Schema.Run` holds `RunStatus` and `DeriveKind`; the store's text is converted only at the `Adapters.SQLite` boundary. A round record's events include `OrderRemoved` for one order removed at settlement and `Coupled` for every settlement. The `runs` table's `owner` column names the role, process, and start time that created a row, and server startup fails `running` rows of the `server` role, with no owner, or whose process has gone. `Core.Map` holds the shared Map helpers; `Game.Bindings` builds seat bindings; `Shape.parse` is the one text-to-value entry point for a described type.
-
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. A status is `Schema.Run.RunStatus` everywhere but the store's text, which `Adapters.SQLite` converts; a derivation's kind is `Schema.Run.DeriveKind`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

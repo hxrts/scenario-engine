@@ -38,7 +38,7 @@ import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, nameShape, recordShape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
 import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
-import Core.Types (EffectKind(..), RuleKindDecl, ScopeKind(..))
+import Core.Types (FlowGovernance(..), RuleForm, RuleKindDecl)
 import Core.Types as Types
 import Core.World (RecurringFlow, UnseededWorld)
 import Data.Array (mapMaybe, mapWithIndex)
@@ -377,20 +377,21 @@ ruleKindsF :: RecF WorldDoc (Maybe (Keyed RuleKindDecl))
 ruleKindsF = fieldOf "ruleKinds" "the kinds of Rule the premise declares" (optionalOf (keyedAlways ruleKindDecl)) _.ruleKinds
 
 ruleKindDecl :: Shape RuleKindDecl
-ruleKindDecl = recordShape "RuleKindDecl"
-  { effect: nameShape "EffectKind" "effect: levy, block or reduce" effectName [ LevyEffect, BlockEffect, ReduceEffect ]
-  , scope: nameShape "ScopeKind" "scope: inbound, eitherWay or capacity" scopeName [ InboundFlows, EitherWayFlows, CapacityScope ]
-  , text: stringShape
+ruleKindDecl = recordShape "RuleKindDecl" { form: ruleForm, text: stringShape }
+
+-- | A kind's form, written `levy:destination`, `block:either`, or `reduce`.
+ruleForm :: Shape RuleForm
+ruleForm = genericPremiseSum "RuleForm"
+  { "LevyFlows": atKindArg { tag: "levy", desc: "a levy on flows" } governance
+  , "BlockFlows": atKindArg { tag: "block", desc: "a block on flows" } governance
+  , "ReduceCapacity": atBare { tag: "reduce", desc: "a reduction of a capacity, governed by its owner" }
   }
   where
-  effectName = case _ of
-    LevyEffect -> "levy"
-    BlockEffect -> "block"
-    ReduceEffect -> "reduce"
-  scopeName = case _ of
-    InboundFlows -> "inbound"
-    EitherWayFlows -> "eitherWay"
-    CapacityScope -> "capacity"
+  governance = nameShape "FlowGovernance" "who governs: destination, origin or either" governed [ GovernedByDestination, GovernedBySource, GovernedByEither ]
+  governed = case _ of
+    GovernedByDestination -> "destination"
+    GovernedBySource -> "origin"
+    GovernedByEither -> "either"
 
 entitiesF :: RecF WorldDoc (Keyed EntityDoc)
 entitiesF = fieldOf "entities" "the Entities" (keyedAlways entityShape) _.entities

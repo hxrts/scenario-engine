@@ -16,7 +16,7 @@ module Core.Authority
 import Prelude
 
 import Core.Query (owner, marketsOf)
-import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, Rule, RuleChangeF(..), RuleId, RuleKindDecl, RuleKindId, Scope(..), Transferability(..), conforms, TransformationId)
+import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
 import Core.World (Bounds, RejectReason(..), Venue, View, WorldState)
 import Data.Array (any, elem, filter, null)
 import Data.Either (Either(..))
@@ -81,9 +81,9 @@ authorized facts caps who = case _ of
   -- only a Restricted Resource's transfer is authority-gated (§2.3)
   Transfer t -> t.from == who && (facts.transferability t.resource == Just Free || MayTransfer t.resource `elem` caps)
   Transform t -> MayTransform t.transformation `elem` caps && t.by == who
-  ChangeRule (Enact r) -> MayEnact r.kind `elem` caps
+  ChangeRule (Enact r) -> MayEnact (ruleKind r) `elem` caps
   -- an unknown Rule is not authorized to be repealed
-  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact r.kind `elem` caps) (facts.rule id)
+  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (ruleKind r) `elem` caps) (facts.rule id)
   where
   isTrade (MayTrade _) = true
   isTrade _ = false
@@ -91,9 +91,9 @@ authorized facts caps who = case _ of
 -- | Whether an Entity governs a Rule: the governor of its flows, or the owner of its capacity. Enacting
 -- | and repealing both require it.
 governs :: Facts -> EntityId -> Rule -> Boolean
-governs facts who r = case r.scope of
-  Flows f -> f.governor == who
-  OnCapacity c -> facts.capacityOwner c == Just who
+governs facts who = case _ of
+  FlowRule r -> r.scope.governor == who
+  CapacityRule r -> facts.capacityOwner r.capacity == Just who
 
 -- | The Markets a routed order for `pair` may use: those whose base and quote match, to which `who` has
 -- | access, and for which `caps` hold the trade capability. In MarketId order.
@@ -134,7 +134,7 @@ validIntent facts caps who i = known *> limited *> authority *> access *> transf
     Transfer t | Just NonTransferable <- facts.transferability t.resource -> Left (NotTransferable t.resource)
     _ -> Right unit
   scope = case i of
-    ChangeRule (Enact r) | not (maybe false (_ `conforms` r) (facts.ruleKind r.kind) && governs facts who r) -> Left (OutOfScope r)
+    ChangeRule (Enact r) | not (maybe false (_ `conforms` r) (facts.ruleKind (ruleKind r)) && governs facts who r) -> Left (OutOfScope r)
     ChangeRule (Repeal id) | Just r <- facts.rule id, not (governs facts who r) -> Left OnlyGoverningRepeal
     _ -> Right unit
   withinBounds = case i of

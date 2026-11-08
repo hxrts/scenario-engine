@@ -18,7 +18,7 @@ module Premises.Rules
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, Direction(..), EffectF(..), EffectKind(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF, RuleKindDecl, Scope(..), ScopeKind(..))
+import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (Keyed, keyed, mayEnact)
 import Schema.Build.Decision (selfEnact)
@@ -35,9 +35,9 @@ withholdingKind = "withholding"
 -- | The declarations.
 ruleKinds :: Keyed RuleKindDecl
 ruleKinds = keyed
-  [ Tuple tariffKind { effect: LevyEffect, scope: InboundFlows, text: "tariff on {counterparty} goods into {governor}, rate {amount}" }
-  , Tuple accessBanKind { effect: BlockEffect, scope: EitherWayFlows, text: "access ban: {governor} bars {counterparty}" }
-  , Tuple withholdingKind { effect: ReduceEffect, scope: CapacityScope, text: "withholding of {amount} from {capacity}" }
+  [ Tuple tariffKind { form: LevyFlows GovernedByDestination, text: "tariff on {counterparty} goods into {governor}, rate {amount}" }
+  , Tuple accessBanKind { form: BlockFlows GovernedByEither, text: "access ban: {governor} bars {counterparty}" }
+  , Tuple withholdingKind { form: ReduceCapacity, text: "withholding of {amount} from {capacity}" }
   ]
 
 mayEnactTariff :: Capability
@@ -50,13 +50,13 @@ mayEnactWithholding :: Capability
 mayEnactWithholding = mayEnact withholdingKind
 
 tariffOf :: forall v. String -> String -> v -> RuleF v
-tariffOf jurisdiction origin rate = { kind: Id tariffKind, scope: Flows { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound }, effect: Levy rate }
+tariffOf jurisdiction origin rate = FlowRule { kind: Id tariffKind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound }, effect: Levy rate }
 
 banOf :: forall v. String -> String -> RuleF v
-banOf jurisdiction target = { kind: Id accessBanKind, scope: Flows { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay }, effect: Block }
+banOf jurisdiction target = FlowRule { kind: Id accessBanKind, scope: { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay }, effect: Block }
 
 withholdingOf :: forall v. String -> v -> RuleF v
-withholdingOf capacity units = { kind: Id withholdingKind, scope: OnCapacity (Id capacity), effect: Reduce units }
+withholdingOf capacity units = CapacityRule { kind: Id withholdingKind, capacity: Id capacity, reduce: units }
 
 tariffRule :: { jurisdiction :: String, origin :: String, rate :: Q } -> RuleF Q
 tariffRule r = tariffOf r.jurisdiction r.origin r.rate
@@ -78,8 +78,8 @@ enactWithholding r = ChangeRule (Enact (withholdingOf r.capacity r.units))
 
 -- | Enact a tariff as the acting Entity.
 selfTariff :: { origin :: String, rate :: Expr } -> IntentTemplate
-selfTariff r = selfEnact { kind: tariffKind, scope: Flows { governor: Id selfName, counterparty: Id r.origin, direction: Inbound }, effect: Levy r.rate }
+selfTariff r = selfEnact (tariffOf selfName r.origin r.rate)
 
 -- | Enact an access ban as the acting Entity.
 selfAccessBan :: { target :: String } -> IntentTemplate
-selfAccessBan r = selfEnact { kind: accessBanKind, scope: Flows { governor: Id selfName, counterparty: Id r.target, direction: EitherWay }, effect: Block }
+selfAccessBan r = selfEnact (banOf selfName r.target)

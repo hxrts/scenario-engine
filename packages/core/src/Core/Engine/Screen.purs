@@ -16,9 +16,9 @@ import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleKindId, Scope(..), Direction(..), EffectF(..), SignedProposal, jointIntent)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), SignedProposal, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, filter, find, length, nub)
+import Data.Array (all, any, concat, elem, filter, find, length, mapMaybe, nub)
 import Data.Foldable (for_)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -150,22 +150,27 @@ conditioned w p = concat <$> traverse check crossing
         moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) crossing))
         a = groupOf w t.from
         b = groupOf w t.to
-        applicable = filter (covers a b) (rulesOf w)
+        applicable = filter (covers a b) flowRules
       when (carried /= moved) (Left MissingBundledOrder)
       for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
       pure (map (levyOf t.from b t.quantity applicable) (nub (map _.kind (filter isLevy applicable))))
+  flowRules = mapMaybe flowOf (rulesOf w)
+  flowOf = case _ of
+    FlowRule r -> Just r
+    CapacityRule _ -> Nothing
   isBlock r = r.effect == Block
   isLevy r = case r.effect of
     Levy _ -> true
     _ -> false
-  covers from to r = case r.scope of
-    Flows f | f.direction == Inbound -> f.governor == to && f.counterparty == from
-    Flows f -> (f.governor == from && f.counterparty == to) || (f.governor == to && f.counterparty == from)
-    OnCapacity _ -> false
+  covers from to r = case r.scope.direction of
+    Inbound -> intoGovernor from to r
+    Outbound -> intoGovernor to from r
+    EitherWay -> intoGovernor from to r || intoGovernor to from r
+  intoGovernor from to r = r.scope.governor == to && r.scope.counterparty == from
   levyOf from to q rules kind = { kind, from, to, amount: Q.sumQ (map (rate q) (filter (\r -> r.kind == kind) rules)) }
   rate q r = case r.effect of
     Levy x -> Q.mul x q
-    _ -> Q.zero
+    Block -> Q.zero
 
 -- | The group an Entity counts as: itself, unless the premise says otherwise.
 groupOf :: WorldState -> EntityId -> EntityId

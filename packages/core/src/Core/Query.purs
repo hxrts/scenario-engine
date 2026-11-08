@@ -36,7 +36,7 @@ import Core.Map (values)
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, Scope(..), EffectF(..), Transformation, TransformationId)
+import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
 import Core.World (Event, WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
@@ -118,9 +118,9 @@ capacityOf w ref =
     held = maybe Q.zero (\o -> capacityHeld w o ref) (owner w ref)
     reduced = Q.sumQ
       ( map
-          ( \r -> case r.scope, r.effect of
-              OnCapacity c, Reduce units | c == ref -> units
-              _, _ -> Q.zero
+          ( case _ of
+              CapacityRule r | r.capacity == ref -> r.reduce
+              _ -> Q.zero
           )
           (rulesOf w)
       )
@@ -191,6 +191,6 @@ enactedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enact
   where
   rulesOf' e
     | e.round /= round = []
-    | otherwise = case e.rule.scope of
-        Flows f | f.governor == by && f.counterparty == target -> [ e.rule ]
+    | otherwise = case e.rule of
+        FlowRule r | r.scope.governor == by && r.scope.counterparty == target -> [ e.rule ]
         _ -> []

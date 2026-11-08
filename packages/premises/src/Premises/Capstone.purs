@@ -357,10 +357,12 @@ proposalReply author i = obj
 banIntent :: Json
 banIntent = intent "ChangeRule"
   [ intent "Enact"
-      [ obj
-          [ Tuple "scope" (intent "Flows" [ obj [ Tuple "governor" (fromString N.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString N.india) ] ])
-          , Tuple "kind" (fromString "accessBan")
-          , Tuple "effect" (intent "Block" [])
+      [ intent "FlowRule"
+          [ obj
+              [ Tuple "scope" (obj [ Tuple "governor" (fromString N.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString N.india) ])
+              , Tuple "kind" (fromString "accessBan")
+              , Tuple "effect" (intent "Block" [])
+              ]
           ]
       ]
   ]

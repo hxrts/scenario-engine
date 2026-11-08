@@ -9,7 +9,7 @@ import Core.Engine.Commit (resolveRound)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
-import Core.Types (Capability(..), Direction(..), EffectF(..), EffectKind(..), Id(..), Intent, IntentF(..), ScopeKind(..), Scope(..), Transferability(..), proposalId)
+import Core.Types (Capability(..), Direction(..), FlowEffect(..), RuleForm(..), Id(..), Intent, IntentF(..), FlowGovernance(..), RuleF(..), Transferability(..), proposalId)
 import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -44,7 +44,7 @@ world =
   , transformations: [ Tuple "ship" noFacility ]
   , transferConditions: Just [ Tuple "E" { bundled: Id "ship" } ]
   , groups: Nothing
-  , ruleKinds: Just [ Tuple "toll" { effect: LevyEffect, scope: InboundFlows, text: "" } ]
+  , ruleKinds: Just [ Tuple "toll" { form: LevyFlows GovernedByDestination, text: "" } ]
   , entities:
       [ Tuple "A" (noEntity { accounts = [ Tuple "M" (Q.fromInt 100), Tuple "E" (Q.fromInt 20) ], capabilities = [ MayTransfer (Id "E"), MayTransform (Id "ship") ] })
       , Tuple "B" (noEntity { accounts = [ Tuple "M" (Q.fromInt 100) ], capabilities = [ MayTrade (Id "m") ] })
@@ -52,7 +52,7 @@ world =
       , Tuple "Emp" (noEntity { accounts = [ Tuple "M" (Q.fromInt 8) ] })
       , Tuple "Wrk" noEntity
       ]
-  , rules: Just [ { kind: Id "toll", scope: Flows { governor: Id "C", counterparty: Id "A", direction: Inbound }, effect: Levy (Q.div (Q.fromInt 1) (Q.fromInt 10)) } ]
+  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound }, effect: Levy (Q.div (Q.fromInt 1) (Q.fromInt 10)) } ]
   , representations: Nothing
   , circulation: Just { production: Nothing, flows: Just [ { from: Id "Emp", to: Id "Wrk", resource: Id "M", amount: Q.fromInt 10 } ], shares: Nothing, requirements: Nothing }
   }

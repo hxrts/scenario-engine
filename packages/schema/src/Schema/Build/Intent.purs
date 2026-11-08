@@ -14,7 +14,7 @@ module Schema.Build.Intent
   ) where
 
 import Core.Num (Q)
-import Core.Types (EffectF, Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), Scope)
+import Core.Types (Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), RuleF)
 import Data.Maybe (Maybe(..))
 
 -- | An order on a Market, by id; `limit` is the optional limit price. A Strategy that picks its Market
@@ -34,8 +34,8 @@ transform :: { by :: String, transformation :: String, quantity :: Q } -> Intent
 transform r = Transform { by: Id r.by, transformation: Id r.transformation, quantity: r.quantity }
 
 -- | Enact a Rule of a declared kind.
-enactRule :: forall m v. { kind :: String, scope :: Scope, effect :: EffectF v } -> IntentF m v
-enactRule r = ChangeRule (Enact { kind: Id r.kind, scope: r.scope, effect: r.effect })
+enactRule :: forall m v. RuleF v -> IntentF m v
+enactRule r = ChangeRule (Enact r)
 
 -- | Repeal a Rule by the id the engine assigned it.
 repeal :: forall m v. { rule :: String } -> IntentF m v

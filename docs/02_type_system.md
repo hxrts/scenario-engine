@@ -156,7 +156,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers no ownership, and agency only in procedures the member holds no weight in (§2.2). |
 | **Collective procedure** | An Aggregate's weighted-signature rule for Proposals made in its name ([§2.2](#22-three-projections-of-an-entity)). |
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
-| **Rule** | An institutional condition the engine interprets: `{ kind, scope, effect }`. The `kind` names a declared Rule kind; the engine reads only the `scope` (flows between two groups, or one capacity) and the `effect` (`Levy`, `Block`, or `Reduce`) ([§3](#3-intents-and-economic-actions)). A premise that declares no kinds has no Rules. |
+| **Rule** | An institutional condition the engine interprets: a flows Rule (`{ kind, scope, effect }`, its effect `Levy` or `Block`) or a capacity Rule (`{ kind, capacity, reduce }`). The `kind` names a declared Rule kind, which fixes the form and who governs; the engine reads the rest, never the kind ([§3](#3-intents-and-economic-actions)). A premise that declares no kinds has no Rules. |
 | **Group** | The Entity another Entity counts as when a flows Rule is applied, when not itself. A flows Rule names a group as its governor; a capacity Rule is governed by the capacity's owner ([§2.4](#24-capability)). |
 | **Transfer condition** | What a Transfer of a Resource must be bundled with, between parties who share no Market for it. A premise with none has no such check. |
 | **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a joint Proposal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
@@ -252,13 +252,17 @@ data Intent
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
   | ChangeRule RuleChange
 
-type Rule = { kind :: RuleKindId, scope :: Scope, effect :: Effect }
+data Rule
+  = FlowRule { kind :: RuleKindId, scope :: FlowScope, effect :: FlowEffect }
+  | CapacityRule { kind :: RuleKindId, capacity :: CapacityRef, reduce :: Quantity }
 
-data Scope
-  = Flows { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | EitherWay }
-  | OnCapacity CapacityRef
+type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | Outbound | EitherWay }
 
-data Effect = Levy Ratio | Block | Reduce Quantity
+data FlowEffect = Levy Ratio | Block
+
+-- a declared kind: who governs fixes a flows Rule's direction; a capacity Rule is governed by the owner
+type RuleKindDecl = { form :: LevyFlows Governance | BlockFlows Governance | ReduceCapacity, text :: String }
+data Governance = GovernedByDestination | GovernedBySource | GovernedByEither
 
 data RuleChange
   = Enact Rule

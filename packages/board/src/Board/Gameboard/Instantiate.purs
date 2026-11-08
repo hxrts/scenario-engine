@@ -16,7 +16,7 @@ import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), Scope(..))
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), RuleF(..))
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, seeded)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, nubByEq, null)
 import Data.Either (Either(..))
@@ -131,10 +131,9 @@ mergeInto agg e w = case Map.lookup e w.entities of
     , effects = map (\ef -> ef { holder = map retarget ef.holder }) t.effects
     }
   -- a flows Rule's Entities pass to the Aggregate
-  rule r = r { scope = scopeRetarget r.scope }
-  scopeRetarget = case _ of
-    Flows f -> Flows (f { governor = retarget f.governor, counterparty = retarget f.counterparty })
-    s -> s
+  rule = case _ of
+    FlowRule x -> FlowRule x { scope = x.scope { governor = retarget x.scope.governor, counterparty = retarget x.scope.counterparty } }
+    r -> r
   -- the Actor's membership and procedure weight pass to the Aggregate in every Aggregate's lists;
   -- an Aggregate is never its own member (lists that do not name the Actor are left as written)
   membership x = case x.kind of

@@ -22,7 +22,7 @@ import Core.Query (lookupQ, enactedAtBoundary)
 import Core.Slice (conversions, select)
 import Core.Strategy (RecordQuery(..))
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (Scope(..), governorOf, EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
+import Core.Types (governorOf, EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
@@ -234,9 +234,9 @@ intentsOf env = case _ of
   where
   keep i = if zeroQuantity i then [] else [ i ]
   -- the restriction, turned back on the Entity that enacted it; a capacity Rule has no mirror
-  mirror r = case r.scope of
-    Flows f -> Just r { scope = Flows f { governor = env.view.self.id, counterparty = f.governor } }
-    OnCapacity _ -> Nothing
+  mirror = case _ of
+    FlowRule r -> Just (FlowRule r { scope = r.scope { governor = env.view.self.id, counterparty = r.scope.governor } })
+    CapacityRule _ -> Nothing
 
 -- | A Proposal template, evaluated. A Procedure's Intents drop zero quantities, as its single Intents
 -- | do; a joint Proposal's do not (docs/02 §3).

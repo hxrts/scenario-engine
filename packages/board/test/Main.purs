@@ -9,7 +9,7 @@ import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
+import Core.Types (CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (RecurringAmount(..), UnseededWorld)
 import Schema.Recurring (requirementRule)
@@ -120,7 +120,7 @@ worldEntityRefs w =
 
   ruleEntities :: Maybe Rule -> Array EntityId
   ruleEntities = case _ of
-    Just { scope: Flows f } -> [ f.governor, f.counterparty ]
+    Just (FlowRule { scope: f }) -> [ f.governor, f.counterparty ]
     _ -> []
 
 main :: Effect Unit
@@ -228,17 +228,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
+holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
 
 testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
 testKinds = Map.fromFoldable
-  [ Tuple (Id "tariff") { effect: LevyEffect, scope: InboundFlows, text: "" }
-  , Tuple (Id "accessBan") { effect: BlockEffect, scope: EitherWayFlows, text: "" }
-  , Tuple (Id "withholding") { effect: ReduceEffect, scope: CapacityScope, text: "" }
+  [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
+  , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
+  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
   ]

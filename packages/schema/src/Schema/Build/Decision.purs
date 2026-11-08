@@ -48,7 +48,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
-import Core.Types (EffectF, Id(..), IntentF(..), RuleChangeF(..), Scope)
+import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF)
 import Schema.Build.Quantity (class ToQty, q)
 
 -- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
@@ -152,8 +152,8 @@ selfTransform :: { transformation :: String, quantity :: Expr } -> IntentTemplat
 selfTransform r = Transform { by: Id S.selfName, transformation: Id r.transformation, quantity: r.quantity }
 
 -- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or owner (a capacity).
-selfEnact :: { kind :: String, scope :: Scope, effect :: EffectF Expr } -> IntentTemplate
-selfEnact r = ChangeRule (Enact { kind: Id r.kind, scope: r.scope, effect: r.effect })
+selfEnact :: RuleF Expr -> IntentTemplate
+selfEnact r = ChangeRule (Enact r)
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).
