@@ -18,6 +18,7 @@ module Effects.Signatures
   , StoreF(..)
   , Spec
   , Stored
+  , RunError(..)
   , NewRun
   , RunInfo
   , RunSummary
@@ -77,6 +78,9 @@ type Spec = Object String
 
 -- | A stored value: the value, or why the stored text does not read back.
 type Stored a = Either String a
+
+-- | Why a stored run cannot be served: it is not in the store, or it is there but unreadable.
+data RunError = Missing | Unreadable String
 
 -- | A run registered before Round 1. `source` and `kind` are set for a run derived from another.
 type NewRun =

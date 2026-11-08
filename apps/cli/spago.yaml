@@ -4,7 +4,6 @@ package:
     - prelude
     - effect
     - console
-    - node-buffer
     - node-fs
     - node-process
     - arrays
@@ -37,5 +36,3 @@ package:
       - effect
       - spec
       - spec-node
-      - quickcheck
-      - spec-quickcheck

@@ -13,18 +13,19 @@ module Views.Standings
 
 import Prelude
 
-import Core.Market (marginal)
+import Core.Map as CoreMap
+import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (EntityId)
 import Core.World (WorldState)
-import Data.Array (filter, fromFoldable, length, nub, sortBy)
+import Data.Array (filter, length, nub, sortBy)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, Statistic, StoredRun, Table, exact, final, players, quantity, series, unitOf)
+import Views.Common (Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf)
 
 netWorthStat :: Statistic
 netWorthStat =
@@ -40,12 +41,12 @@ netWorthStat =
 netWorth :: WorldState -> EntityId -> Q
 netWorth w e = Q.sumQ ([ holding w e w.numeraire ] <> map valued bases)
   where
-  priced = filter (\m -> m.quote == w.numeraire) (fromFoldable (Map.values w.markets))
+  priced = filter (\m -> m.quote == w.numeraire) (CoreMap.values w.markets)
   bases = nub (map _.base priced)
   valued b = Q.mul (holding w e b) (priceOf b)
   priceOf b =
     let
-      prices = map (\m -> marginal m.cost m.position) (filter (\m -> m.base == b) priced)
+      prices = map marketPrice (filter (\m -> m.base == b) priced)
     in
       Q.div (Q.sumQ prices) (Q.fromInt (length prices))
 
@@ -70,7 +71,7 @@ standingsOf r = map standing ranked
 -- | The standings table: the net worth, its change from the start, and the rank of each Actor.
 standings :: StoredRun -> Table
 standings r =
-  { title: "Standings after round " <> show (length r.records)
+  { title: "Standings after round " <> show (completed r)
   , columns: [ "Player", "Net worth (M)", "Change from start (M)", "Rank" ]
   , rows: map (\s -> [ show s.player, quantity s.netWorth, quantity s.change, show s.rank ]) (standingsOf r)
   }

@@ -13,29 +13,29 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (elem, filter, find, last, length, null)
+import Data.Array (last, length, null)
 import Data.Either (Either(..), either, note)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Exception (message, throwException, try)
 import Effects.Api (DeriveRequest)
-import Effects.Signatures (Spec, Stored, StoredRound)
-import Effects.Observe (listRuns, readManifest, readRounds)
-import Effects.Store (deleteRun, failRun, finish, setArchived, setSpec, setStatus)
+import Effects.Api (Reply)
+import Effects.Signatures (RunError(..), Spec, Stored, StoredRound)
+import Effects.Observe (readManifest, readRounds)
+import Effects.Store (deleteRun, setArchived, setSpec, setStatus)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
-import Http (Response)
-import Server.Errors (LoadError(..), describe, failWith, json, ok)
-import Server.Launch (start)
+import Server.Errors (describe, failWith, json, ok)
+import Server.Launch (play, start)
 import Server.Cache (Cache)
-import Server.Read (loadRun)
+import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset)
 import Game.Premise (GameboardParts)
-import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
+import Game.Recipe (Kind(..), Recipe, allKinds, decodeSpec, deriveRecipe, kindName, parseKind, specKeys)
 import Simulator.Records (recordsEqual)
+import Views.Common (records)
 import Simulator.Simulate (resumeWith)
 
 -- | `POST /api/runs/:id/derive`. The body's kind decides what may change:
@@ -47,30 +47,30 @@ import Simulator.Simulate (resumeWith)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Cache -> GameboardParts -> StoreBackend -> String -> DeriveRequest -> Effect Response
-deriveRun cache premise store sourceId body = case body.kind of
-  kind | kind `elem` kinds -> do
-    runs <- runObserve store listRuns
-    case find (\r -> r.id == sourceId) runs of
+deriveRun :: Cache -> GameboardParts -> StoreBackend -> String -> DeriveRequest -> Effect Reply
+deriveRun cache premise store sourceId body = case parseKind body.kind of
+  Nothing -> failWith 400 ("kind must be one of " <> joinWith ", " (map kindName allKinds))
+  Just kind -> do
+    runInfo store sourceId >>= case _ of
       Nothing -> failWith 404 ("no run " <> sourceId)
       Just info -> do
         -- a rerun is judged against the source's stored records, so they are read before it starts
-        source <- if kind == "rerun" then Just <$> loadRun cache store sourceId else pure Nothing
+        source <- if kind == Rerun then Just <$> loadRun cache store sourceId else pure Nothing
         case source of
           Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
           Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
           Just (Right src)
             | info.status /= "completed" -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> info.status <> ", not completed")
-            | null src.records -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
+            | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
           _ -> do
             stored <- runObserve store (readManifest sourceId)
             case stored <#> \m -> m.spec >>= decodeSpec of
               Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
               Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
-              Just (Right base) -> case deriveRecipe body base of
+              Just (Right base) -> case deriveRecipe kind body base of
                 Left e -> failWith 400 e
                 Right recipe -> do
-                  let name = fromMaybe (info.name <> " (" <> kind <> ")") body.name
+                  let name = fromMaybe (info.name <> " (" <> kindName kind <> ")") body.name
                   started <- start premise store
                     { name
                     , preset: recipe.preset
@@ -85,26 +85,18 @@ deriveRun cache premise store sourceId body = case body.kind of
                       -- the new run's records are read back from the store, as the source's are
                       new <- loadRun cache store l.id
                       case new of
-                        Right n -> json 201
-                          ( Object.fromFoldable
-                              [ Tuple "id" (encodeJson l.id)
-                              , Tuple "source" (encodeJson sourceId)
-                              , Tuple "kind" (encodeJson kind)
-                              , Tuple "recordsMatch" (encodeJson (recordsEqual src.records n.records))
-                              ]
-                          )
+                        Right n -> replied l.id [ Tuple "recordsMatch" (encodeJson (recordsEqual (records src) (records n))) ]
                         Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
-                    Right l, _ -> json 201 { id: l.id, source: sourceId, kind }
-  _ -> failWith 400 ("kind must be one of " <> joinWith ", " kinds)
+                    Right l, _ -> replied l.id []
   where
-  kinds = [ "duplicate", "rerun", "variant", "counterfactual" ]
+  -- the reply to a derive: the new run, its source and kind, and anything the kind adds
+  replied id extras = json 201 (Object.fromFoldable ([ Tuple "id" (encodeJson id), Tuple "source" (encodeJson sourceId), Tuple "kind" (encodeJson body.kind) ] <> extras))
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: GameboardParts -> StoreBackend -> String -> Int -> Effect Response
-resumeRun premise store id rounds = do
-  runs <- runObserve store listRuns
-  case find (\r -> r.id == id) runs of
+resumeRun :: GameboardParts -> StoreBackend -> String -> Int -> Effect Reply
+resumeRun premise store id rounds =
+  runInfo store id >>= case _ of
     Nothing -> failWith 404 ("no run " <> id)
     Just info
       | info.status /= "completed" -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> info.status)
@@ -120,18 +112,13 @@ resumeRun premise store id rounds = do
                     case assemblePreset premise p.base.preset p.base.overrides (Just rounds) of
                       Left e -> failWith 400 (show e)
                       Right game -> do
-                        attempt <- try $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
+                        attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
                           runStore store (setStatus id "running")
-                          runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
+                          runStore store (setSpec id (Object.insert specKeys.rounds (show rounds) p.spec))
                           recorder store roundMetrics id p.snapshot
                         case attempt of
-                          Left ex -> do
-                            runStore store (failRun id ("exception: " <> message ex))
-                            throwException ex
-                          Right (Left e) -> failWith 400 (show e)
-                          Right (Right r) -> do
-                            runStore store (finish id r)
-                            either (\e -> failWith 500 ("run " <> id <> " failed: " <> show e)) (const (ok { id, rounds })) r
+                          Left e -> failWith 400 e
+                          Right r -> either (\e -> failWith 500 ("run " <> id <> " failed: " <> e)) (const (ok { id, rounds })) r
             _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
@@ -144,7 +131,7 @@ resumeRun premise store id rounds = do
     pure { spec, base, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
-setArchive :: StoreBackend -> String -> Boolean -> Effect Response
+setArchive :: StoreBackend -> String -> Boolean -> Effect Reply
 setArchive store id archived = do
   present <- hasRun store id
   if not present then failWith 404 ("no run " <> id)
@@ -154,7 +141,7 @@ setArchive store id archived = do
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
-deleteOne :: StoreBackend -> String -> String -> Effect Response
+deleteOne :: StoreBackend -> String -> String -> Effect Reply
 deleteOne store id confirm
   | confirm /= id = failWith 400 ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
@@ -162,4 +149,4 @@ deleteOne store id confirm
       if n == 0 then failWith 404 ("no run " <> id) else ok { deleted: id }
 
 hasRun :: StoreBackend -> String -> Effect Boolean
-hasRun store id = (\runs -> length (filter (\r -> r.id == id) runs) > 0) <$> runObserve store listRuns
+hasRun store id = isJust <$> runInfo store id

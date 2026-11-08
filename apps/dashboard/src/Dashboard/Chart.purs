@@ -2,8 +2,7 @@
 -- | is plotted at full precision (`Q.toDisplayNumber`); its axis ticks and tooltips show the value
 -- | under its display kind (docs/02 §9.1), which the row carries beside the plotted number.
 module Dashboard.Chart
-  ( pair
-  , chartRows
+  ( chartRows
   , barRows
   , shownKey
   , tooltipFormatter

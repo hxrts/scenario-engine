@@ -71,7 +71,7 @@ session *args:
 # generated files import `cn` from the npm package `cn` (a dependency in package.json), not from
 # @/lib/utils, and the only alias the output uses is `@/ui`. The aliases stay because the shadcn CLI
 # expects them; they are not references to files in this repo.
-ui_components := "theme-neutral card tabs checkbox button input chart sheet sidebar separator skeleton tooltip"
+ui_components := "theme-neutral card tabs checkbox button input chart"
 
 # Generate ui/ from the pinned shadcn CLI in a scratch directory, so the repo's package.json is untouched.
 # The lock file is copied too, so the CLI resolves the same dependency versions every time.

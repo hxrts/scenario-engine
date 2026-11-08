@@ -43,7 +43,7 @@ checkObjectives ctx r expected = do
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
 toStored :: String -> SimRun -> Common.StoredRun
-toStored id r =
+toStored id r = Common.storedRun
   { id
   , name: id
   , status: "completed"
@@ -51,11 +51,10 @@ toStored id r =
   , playerSeed: case r.playerSeed of
       Seed n -> show n
   , spec: []
-  , records: map _.record r.records
-  , snapshots: map _.world r.records
-  , assertions: map (const []) r.records
   , sourceDeleted: false
   }
+  r.records
+  (map (const []) r.records)
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run, )" do

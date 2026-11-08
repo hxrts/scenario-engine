@@ -23,7 +23,7 @@ import Schema.Gameboard (Gameboard)
 import Core.Num (Kind(..))
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)
-import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, length, mapMaybe, mapWithIndex, nub, notElem, sortWith, uncons)
+import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, mapMaybe, nub, notElem, sortWith, uncons)
 import Data.Either (hush)
 import Data.Foldable (any, sum)
 import Data.Map as Map
@@ -31,11 +31,11 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
-import Views.Actions (PlayerCounts, actionTotals)
-import Views.Balance (completionOf, measuresOf)
-import Views.Common (Bars, Chart, StoredRun, Table, exact, final, joinComma, ofCount, players, price, quantity, ratio, ratioUnit, specValue, unitOf)
+import Views.Actions (actionTotals)
+import Views.Balance (completionOf, giniCell, measuresOf, spreadCell)
+import Views.Common (Bars, Chart, StoredRun, Table, completed, exact, final, joinComma, ofCount, players, pointsOf, price, quantity, ratioUnit, records, specKeys, specValue, unitOf)
 import Views.Markets (marketPrices, marketUnit)
-import Views.Standings (Standing, netWorths, standingsOf)
+import Views.Standings (netWorths, standingsOf)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -70,7 +70,7 @@ engineField :: Field
 engineField = { name: "engine", same: \a b -> a.manifest.engine == b.manifest.engine }
 
 roundCountField :: Field
-roundCountField = { name: "round count", same: \a b -> length a.records == length b.records }
+roundCountField = { name: "round count", same: \a b -> completed a == completed b }
 
 unitsField :: Field
 unitsField = { name: "units", same: \a b -> units a == units b }
@@ -85,7 +85,7 @@ marketsField = { name: "Market definitions", same: \a b -> markets a == markets 
   markets r = r.manifest.initial.markets
 
 actorsField :: Field
-actorsField = { name: "Actor selection", same: \a b -> specValue a.spec "preset" == specValue b.spec "preset" }
+actorsField = { name: "Actor selection", same: \a b -> specValue a.spec specKeys.preset == specValue b.spec specKeys.preset }
 
 -- | The fields a comparison checks, in the order the verdict names them.
 fields :: Array Field
@@ -101,7 +101,7 @@ compatible runs =
   , rows: map (\r -> row (fromMaybe r (index runs 0)) r) runs
   }
   where
-  row first r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (length r.records), sameCell first unitsField r, sameCell first marketsField r, fromMaybe "—" (specValue r.spec "preset"), verdict first r ]
+  row first r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (completed r), sameCell first unitsField r, sameCell first marketsField r, fromMaybe "—" (specValue r.spec specKeys.preset), verdict first r ]
   sameCell first f r = if f.same first r then "same" else "differs"
   verdict first r = case map _.name (filter (\f -> not (f.same first r)) fields) of
     [] -> "yes"
@@ -109,7 +109,7 @@ compatible runs =
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.
-perRunRow :: Array StoredRun -> Array String -> (StoredRun -> String) -> Array String
+perRunRow :: forall run. Array run -> Array String -> (run -> String) -> Array String
 perRunRow runs leading cell = leading <> map cell runs
 
 -- | Every run's final holdings, one column per run, for each Entity and Resource account. A cell is
@@ -158,8 +158,8 @@ categoryLabel = case _ of
 
 categoryOf :: String -> Category
 categoryOf k
-  | k `elem` [ "gameId", "gameboard", "engine" ] = Version
-  | k == "preset" = SeatPolicy
+  | k `elem` [ specKeys.gameId, "gameboard", "engine" ] = Version
+  | k == specKeys.preset = SeatPolicy
   | k `elem` [ "game seed", "player seed" ] = Seeds
   | otherwise = Other
 
@@ -180,7 +180,7 @@ configDiff base others =
   -- a parameter differs when some run's value is not the baseline's
   differs k = any (\r -> value r k /= value base k) allRuns
   -- the player seed is its own row, so the specification's copy of it is not listed again
-  keys = filter (_ /= "playerSeed") (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ]))
+  keys = filter (_ /= specKeys.playerSeed) (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ]))
   value r k
     | k == "gameboard" = r.manifest.gameboard
     | k == "engine" = r.manifest.engine
@@ -196,7 +196,7 @@ sameSpecification runs = case uncons runs of
   Nothing -> []
   Just { head: first } -> filter (\r -> specOf r == specOf first) runs
   where
-  specOf r = filter (\(Tuple k _) -> notElem k [ "playerSeed", "source", "kind" ]) r.spec
+  specOf r = filter (\(Tuple k _) -> notElem k [ specKeys.playerSeed, specKeys.source, specKeys.kind ]) r.spec
 
 agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =
@@ -215,14 +215,6 @@ runHeader r
 playerIds :: Array StoredRun -> Array EntityId
 playerIds runs = nub (concatMap (\r -> players (final r)) runs)
 
--- | A Player's standing in a run, when the run has it.
-standingOf :: EntityId -> StoredRun -> Maybe Standing
-standingOf p r = find (\s -> s.player == p) (standingsOf r)
-
--- | A Player's counts in a run, when the run has it.
-countsOf :: EntityId -> StoredRun -> Maybe PlayerCounts
-countsOf p r = find (\c -> c.player == p) (actionTotals r)
-
 -- | The unit of net worth, which is the numeraire's unit in the first run's manifest.
 numeraireUnit :: Array StoredRun -> String
 numeraireUnit runs = maybe "" (\r -> unitOf r r.manifest.initial.numeraire) (head runs)
@@ -237,33 +229,51 @@ keyValues gb runs =
   , rows: concat [ perPlayer, [ spreadRow, giniRow ], objectiveRows, [ rejectedRow ], priceRows ]
   }
   where
+  -- each run's values, read once, so a row's cells only look up
+  read r =
+    { run: r
+    , standings: standingsOf r
+    , measures: measuresOf r
+    , completion: completionOf gb r
+    , actions: actionTotals r
+    , prices: marketPrices (final r)
+    }
+  perRun = map read runs
+
+  row :: Array String -> _ -> Array String
+  row = perRunRow perRun
+
+  playerRow p label unit f = row [ label <> ", " <> show p, unit ] (maybe "—" f <<< find (\s -> s.player == p) <<< _.standings)
+  countsRow p = row [ "Actions taken, " <> show p, "count (trades, transforms, transfers)" ]
+    (maybe "—" (\c -> show (c.counts.trades + c.counts.transforms + c.counts.transfers)) <<< find (\c -> c.player == p) <<< _.actions)
   perPlayer = concatMap
     ( \p ->
-        [ perRunRow runs [ "Final net worth, " <> show p, numeraireUnit runs ] (\r -> maybe "—" (quantity <<< _.netWorth) (standingOf p r))
-        , perRunRow runs [ "Change from start, " <> show p, numeraireUnit runs ] (\r -> maybe "—" (quantity <<< _.change) (standingOf p r))
-        , perRunRow runs [ "Rank, " <> show p, "place (1 is highest)" ] (\r -> maybe "—" (show <<< _.rank) (standingOf p r))
-        , perRunRow runs [ "Actions taken, " <> show p, "count (trades, transforms, transfers)" ] (\r -> maybe "—" (\c -> show (c.counts.trades + c.counts.transforms + c.counts.transfers)) (countsOf p r))
+        [ playerRow p "Final net worth" (numeraireUnit runs) (quantity <<< _.netWorth)
+        , playerRow p "Change from start" (numeraireUnit runs) (quantity <<< _.change)
+        , playerRow p "Rank" "place (1 is highest)" (show <<< _.rank)
+        , countsRow p
         ]
     )
     (playerIds runs)
 
-  spreadRow = perRunRow runs [ "Spread of final net worth", numeraireUnit runs ] (\r -> maybe "n/a" quantity (measuresOf r).spread)
-  giniRow = perRunRow runs [ "Gini of final net worth", ratioUnit ] (\r -> maybe "n/a" ratio (measuresOf r).gini)
+  spreadRow = row [ "Spread of final net worth", numeraireUnit runs ] (spreadCell <<< _.spread <<< _.measures)
+  giniRow = row [ "Gini of final net worth", ratioUnit ] (giniCell <<< _.gini <<< _.measures)
 
-  objectiveRows = map (\role -> perRunRow runs [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
-  roles = nub (concatMap (\r -> map _.actor (completionOf gb r)) runs)
-  roleCell role r = case find (\c -> c.actor == role) (completionOf gb r) of
+  objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
+  roles = nub (concatMap (map _.actor <<< _.completion) perRun)
+  roleCell role v = case find (\c -> c.actor == role) v.completion of
     Nothing -> "—"
     Just c -> ofCount c.met c.criteria
 
-  rejectedRow = perRunRow runs [ "Proposals rejected, all players", "count" ] (\r -> show (sum (map (\c -> c.counts.rejected) (actionTotals r))))
+  rejectedRow = row [ "Proposals rejected, all players", "count" ] (\v -> show (sum (map (\c -> c.counts.rejected) v.actions)))
 
-  markets = nub (concatMap (\r -> map _.market (marketPrices (final r))) runs)
-  priceRows = map (\m -> perRunRow runs [ "Final price, " <> show m, marketUnitOf m ] (priceIn m)) markets
+  markets = nub (concatMap (map _.market <<< _.prices) perRun)
+  priceRows = map (\m -> row [ "Final price, " <> show m, marketUnitOf m ] (priceIn m)) markets
   marketUnitOf m = fromMaybe "" (head (mapMaybe (\r -> hush (marketUnit m r)) runs))
-  priceIn m r = maybe "—" (price <<< _.price) (find (\p -> p.market == m) (marketPrices (final r)))
+  priceIn m v = maybe "—" (price <<< _.price) (find (\p -> p.market == m) v.prices)
 
 -- | One chart per Player: its net worth in each run, one line per run, from round 0 to the final round.
+-- | A round where a run has no such Player has no point (docs/06_simulator.md §10.2).
 -- | The Player is the record's key, so a view can show one Player's chart.
 netWorthCharts :: Array StoredRun -> Array { player :: String, chart :: Chart }
 netWorthCharts runs = map chartOf (playerIds runs)
@@ -274,13 +284,13 @@ netWorthCharts runs = map chartOf (playerIds runs)
     }
   seriesOf p r =
     { name: r.id
-    , points: mapWithIndex (\i w -> { round: i, value: maybe "" exact (Map.lookup p (netWorths w)) }) ([ r.manifest.initial ] <> r.snapshots)
+    , points: pointsOf r (\w -> exact <$> Map.lookup p (netWorths w))
     }
 
 -- | Final net worth by Player: one group per Player, one bar per run.
 standingsBars :: Array StoredRun -> Bars
 standingsBars runs =
-  { title: "Final net worth by player", unit: numeraireUnit runs, kind: Quantity, categories: map show ps, series: map (\r -> { name: r.id, values: map (\p -> maybe "" (quantity <<< _.netWorth) (standingOf p r)) ps }) runs }
+  { title: "Final net worth by player", unit: numeraireUnit runs, kind: Quantity, categories: map show ps, series: map (\r -> let ss = standingsOf r in { name: r.id, values: map (\p -> maybe "" (quantity <<< _.netWorth) (find (\s -> s.player == p) ss)) ps }) runs }
   where
   ps = playerIds runs
 
@@ -290,7 +300,7 @@ balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars, unit :: String
 balanceBars runs =
   { unit: numeraireUnit runs
   , spread:
-      { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" quantity (measuresOf r).spread ] }) runs }
+      { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ spreadCell (measuresOf r).spread ] }) runs }
   , gini:
-      { title: "Gini of final net worth", unit: ratioUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" ratio (measuresOf r).gini ] }) runs }
+      { title: "Gini of final net worth", unit: ratioUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ giniCell (measuresOf r).gini ] }) runs }
   }

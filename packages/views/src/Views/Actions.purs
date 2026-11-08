@@ -10,16 +10,17 @@ module Views.Actions
   , actionTotals
   , actions
   , ActionsChart
+  , ActionsView
   ) where
 
 import Prelude
 
-import Core.Query (countEvents)
+import Core.Query (countEvents, droppedProposals)
 import Core.Types (EntityId, IntentF(..), Proposal, ProposalId)
 import Core.World (Event(..), RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
-import Views.Common (Statistic, StoredRun, Table, players)
+import Views.Common (Statistic, StoredRun, Table, players, records)
 
 actionsStat :: Statistic
 actionsStat =
@@ -73,16 +74,6 @@ rejectionCount rec = countEvents isRejected rec.events
 proposalOf :: RoundRecord -> ProposalId -> Maybe Proposal
 proposalOf rec pid = map _.proposal (find (\s -> s.proposal.id == pid) rec.inputs)
 
--- | Whether a Proposal was rejected or lapsed in the round.
-settledOff :: RoundRecord -> ProposalId -> Boolean
-settledOff rec pid = any
-  ( \ev -> case ev of
-      Rejected x -> x.proposal == pid
-      Lapsed x -> x.proposal == pid
-      _ -> false
-  )
-  rec.events
-
 -- | A deal: a Proposal with several signers that moves Money, Resources or goods.
 isDeal :: Proposal -> Boolean
 isDeal p = length p.signers >= 2 && any movesStuff p.intents
@@ -116,7 +107,8 @@ countsOf rec e =
   , rejected: countEvents rejectedOwn rec.events
   }
   where
-  signedDeal s = elem e s.signatures && isDeal s.proposal && not (settledOff rec s.proposal.id)
+  signedDeal s = elem e s.signatures && isDeal s.proposal && not (elem s.proposal.id dropped)
+  dropped = droppedProposals rec.events
   rejectedOwn = case _ of
     Rejected x -> ownProposal x.proposal
     OrderRemoved x -> ownProposal x.proposal
@@ -145,7 +137,7 @@ actionTotals r = map totalsOf (players r.manifest.initial)
   where
   totalsOf e =
     let
-      counts = foldl addCounts zeroCounts (map (\rec -> countsOf rec e) r.records)
+      counts = foldl addCounts zeroCounts (map (\rec -> countsOf rec e) (records r))
     in
       { player: e, counts, total: totalOf counts }
 
@@ -158,7 +150,7 @@ actions r = { chart, totals, byRound }
   byRound =
     { title: "Actions by round"
     , columns: [ "Round", "Player" ] <> map _.short actionKinds
-    , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) r.records
+    , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) (records r)
     }
   totals =
     { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a deal that is also a payment is counted in both."

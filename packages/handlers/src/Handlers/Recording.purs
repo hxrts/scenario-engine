@@ -11,8 +11,8 @@ module Handlers.Recording
 
 import Prelude
 
-import Core.Shape (Format(..), Shape, encodeWith)
-import Data.Argonaut.Core (Json, stringifyWithIndent)
+import Core.Shape (Format(..), Shape, encodeWith, prettyJson)
+import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -35,4 +35,4 @@ encodeReply s r = encodeJson $ case r of
 
 -- | The recording file's text: indented JSON, with a final newline.
 encodeRecording :: Recording -> String
-encodeRecording rec = stringifyWithIndent 1 (encodeJson rec) <> "\n"
+encodeRecording rec = prettyJson (encodeJson rec)

@@ -16,7 +16,7 @@ import Core.Types (EntityId, ResourceId, Rule, RuleF(..))
 import Data.Maybe (Maybe(..))
 import Core.World (Event(..), RoundRecord)
 import Data.Array (concatMap, filter, length, nub)
-import Views.Common (Procedure, Statistic, StoredRun, Table, asProcedure, quantity, ratio, supportThreshold)
+import Views.Common (Procedure, Statistic, StoredRun, Table, asProcedure, outcomeLabel, quantity, ratio, records, supportThreshold)
 
 driversStat :: Statistic
 driversStat =
@@ -61,9 +61,7 @@ ruleText = case _ of
 
 -- | A procedure's row in the drivers table: its outcome and the support against the threshold.
 procedureRow :: Procedure -> Array String
-procedureRow p = [ show p.round, "Collective procedure", show p.proposal, "", outcome p.executed <> ": " <> supportThreshold p.support p.threshold ]
-  where
-  outcome e = if e then "executed" else "lapsed"
+procedureRow p = [ show p.round, "Collective procedure", show p.proposal, "", outcomeLabel p.executed <> ": " <> supportThreshold p.support p.threshold ]
 
 -- | The drivers table: each round's enacted and repealed rules and procedure outcomes in the order the
 -- | engine recorded them, then that round's shortfalls per Resource.
@@ -71,7 +69,7 @@ drivers :: StoredRun -> Table
 drivers r =
   { title: "Drivers by round"
   , columns: [ "Round", "Driver", "Subject", "Amount", "Outcome" ]
-  , rows: concatMap roundRows r.records
+  , rows: concatMap roundRows (records r)
   }
   where
   roundRows rec =

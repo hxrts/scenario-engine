@@ -22,7 +22,7 @@ import Testkit.Meridian (presetGame)
 import Testkit.Capstone (runOf)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
-import Views.Common (StoredRun, Table, players)
+import Views.Common (StoredRun, Table, players, storedRun)
 import Views.Compare (sameSpecification)
 import Views.Standings (netWorth, standings)
 import Test.Spec (Spec, describe, it)
@@ -49,7 +49,7 @@ baseRun p = do
   pure (toStored r)
   where
   toStored :: SimRun -> StoredRun
-  toStored r =
+  toStored r = storedRun
     { id: "base"
     , name: "base"
     , status: "completed"
@@ -57,10 +57,9 @@ baseRun p = do
     , playerSeed: "1"
     , spec: [ Tuple "preset" "Conservative", Tuple "playerSeed" "1" ]
     , sourceDeleted: false
-    , records: map _.record r.records
-    , snapshots: map _.world r.records
-    , assertions: map (const []) r.records
     }
+    r.records
+    (map (const []) r.records)
 
 -- | A holding set to an amount in one Entity's account.
 setHolding :: WorldState -> EntityId -> ResourceId -> Q -> WorldState
@@ -78,8 +77,7 @@ blank w0 = w { markets = map (\m -> m { position = Q.zero }) w.markets }
 runWith :: StoredRun -> WorldState -> WorldState -> StoredRun
 runWith base initial final = base
   { manifest = (base.manifest) { initial = initial }
-  , records = [ { round: 1, inputs: [], events: [] } ]
-  , snapshots = [ final ]
+  , rounds = [ { record: { round: 1, inputs: [], events: [] }, world: final } ]
   }
 
 -- | The Table's row whose first cell is the given name.
@@ -150,7 +148,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
               , rejection 1 p1 PartyCannotFund
               ]
           }
-        run = base { records = [ round ], snapshots = [ base.manifest.initial ] }
+        run = base { rounds = [ { record: round, world: base.manifest.initial } ] }
         view = actions run
         totals = view.totals
       rowOf totals "US" `shouldEqual` Just [ "US", "2", "1", "1", "1", "1", "6" ]

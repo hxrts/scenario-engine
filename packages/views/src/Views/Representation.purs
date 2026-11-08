@@ -16,7 +16,7 @@ import Core.World (Event(..), RoundRecord)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Procedure, StoredRun, Table, joinComma, proceduresOf, quantity, ratio)
+import Views.Common (Procedure, StoredRun, Table, joinComma, outcomeLabel, proceduresOf, quantity, ratio, records)
 
 -- | The four-stage record: observation and estimate in round r, the Aggregate's adjusted
 -- | purchase and its execution in round r+1, and the influence ratio. The last round has no
@@ -25,9 +25,10 @@ representation :: StoredRun -> Table
 representation r =
   { title: "Representation"
   , columns: [ "Round", "Representative", "Aggregate", "Domain", "Observation (proposed)", "Executed (own)", "Weight", "Reference", "Shrinkage", "Noise spread", "Stored factor", "Aggregate purchase (r+1)", "Influence ratio" ]
-  , rows: concatMap rows (mapWithIndex Tuple r.records)
+  , rows: concatMap rows (mapWithIndex Tuple recs)
   }
   where
+  recs = records r
   rows (Tuple i rec) = concat (eventsOf (estimate i rec) rec.events)
   estimate i rec = case _ of
     Estimated est -> Just (map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations))
@@ -36,7 +37,7 @@ representation r =
     let
       observed = proposedPurchases rep.actor rec
       own = bought rep.actor rec
-      next = bought rep.aggregate <$> index r.records (i + 1)
+      next = bought rep.aggregate <$> index recs (i + 1)
       induced nx = if factor == Q.zero then Q.zero else Q.sub nx (Q.div nx factor)
       influence = case next of
         Just nx | own /= Q.zero -> ratio (Q.div (induced nx) own)
@@ -66,4 +67,4 @@ procedures r =
   }
   where
   row :: Procedure -> Array String
-  row p = [ show p.round, show p.proposal, joinComma (map show p.signers), ratio p.support, ratio p.threshold, if p.executed then "executed" else "lapsed" ]
+  row p = [ show p.round, show p.proposal, joinComma (map show p.signers), ratio p.support, ratio p.threshold, outcomeLabel p.executed ]

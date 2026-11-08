@@ -1,7 +1,7 @@
 -- | The run list and the per-run overview: identity, versions, seeds, rounds, assertions, the
 -- | summary metrics, and the Objectives table (docs/06_simulator.md §9.1, §9.2). Pure.
 module Views.Overview
-  ( RunSummary
+  ( ListedRun
   , Unreadable
   , RunFlags
   , RunList
@@ -21,17 +21,16 @@ import Core.World (Event(..))
 import Data.Array (concat, concatMap, length, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Foldable (any, sum)
-import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Checks.Objectives (evaluateObjectives)
 import Views.Actions (rejectionCount)
-import Views.Common (MetricSpec, StoredRun, Table, final, joinComma, ofCount, price, quantity, roundResults, specValue)
+import Views.Common (MetricSpec, StoredRun, Table, TableRow, completed, final, joinComma, ofCount, price, quantity, records, roundResults, specKeys, specValue, target)
 import Views.Markets (marketPrices)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
-type RunSummary =
+type ListedRun =
   { id :: String
   , name :: String
   , status :: String
@@ -54,9 +53,9 @@ type Unreadable = { id :: String, name :: String, reason :: String }
 type RunFlags = { id :: String, archived :: Boolean, readable :: Boolean }
 
 -- | The run list (`GET /api/runs`): the table the list shows, and the flags of each run in the same order.
-type RunList = { title :: String, columns :: Array String, rows :: Array (Array String), runs :: Array RunFlags }
+type RunList = Record (TableRow (runs :: Array RunFlags))
 
-runList :: Array (Either Unreadable RunSummary) -> RunList
+runList :: Array (Either Unreadable ListedRun) -> RunList
 runList rows =
   { title: "Simulation runs"
   , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason", "Archived", "Source" ]
@@ -86,53 +85,55 @@ type Fact = { label :: String, value :: String }
 -- | `rounds` is the completed rounds, `target` the rounds the run was launched for, and `resumable`
 -- | whether Resume may be offered (docs/06_simulator.md §9.1: only a completed run can be extended);
 -- | `facts` is the header's fields in order. The table is the same overview as a table, with a row per field.
-type RunOverview = { id :: String, title :: String, columns :: Array String, rows :: Array (Array String), rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact }
+type RunOverview = Record (TableRow (id :: String, rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact))
 
 overview :: MetricSpec -> StoredRun -> RunOverview
 overview spec r =
   { id: r.id
   , title: "Overview"
   , columns: [ "Field", "Value" ]
-  , rows:
-      [ [ "Run", r.id ]
-      , [ "Name", r.name ]
-      , [ "Preset", fromMaybe "" (specValue r.spec "preset") ]
-      , [ "Game ID", gameId ]
-      , [ "Derived from", fromMaybe "" (specValue r.spec "source") ]
-      , [ "Kind", fromMaybe "" (specValue r.spec "kind") ]
-      , [ "Source", sourceStatus ]
-      , [ "Gameboard", r.manifest.gameboard ]
-      , [ "Engine", r.manifest.engine ]
-      , [ "Draws", r.manifest.draw ]
-      , [ "Game seed", show r.manifest.initial.seed ]
-      , [ "Player seed", r.playerSeed ]
-      , [ "Rounds", show rounds ]
-      -- the round count the run was launched for
-      , [ "Rounds target", show target ]
-      , [ "Assertions failing", show (length (concat r.assertions)) ]
-      , [ "Rejected Proposals", show (sum (map rejectionCount r.records)) ]
-      , [ spec.procurementLabel <> " procured", quantity (Q.sumQ (concatMap (\rec -> eventsOf procured rec.events) r.records)) ]
-      ] <> map (\p -> [ "Final price " <> show p.market, price p.price ]) (marketPrices (final r))
+  , rows: map (\f -> [ f.label, f.value ]) tableFacts
   , rounds
-  , target
+  , target: launched
   , resumable: r.status == "completed"
-  , facts:
-      [ { label: "Name", value: r.name }
-      , { label: "Scenario", value: r.manifest.gameboard }
-      , { label: "Status", value: r.status }
-      , { label: "Rounds completed", value: ofCount rounds target }
-      , { label: "Game ID", value: gameId }
-      ]
+  , facts: [ name, premise, status, roundsCompleted, gameId ]
   }
   where
-  rounds = length r.records
-  target = fromMaybe rounds (specValue r.spec "rounds" >>= Int.fromString)
-  gameId = fromMaybe "" (specValue r.spec "gameId")
-  sourceStatus = case specValue r.spec "source" of
+  rounds = completed r
+  launched = target r
+  name = { label: "Name", value: r.name }
+  gameId = { label: "Game ID", value: fromMaybe "" (specValue r.spec specKeys.gameId) }
+  premise = { label: "Premise", value: r.manifest.gameboard }
+  status = { label: "Status", value: r.status }
+  roundsCompleted = { label: "Rounds completed", value: ofCount rounds launched }
+  source = specValue r.spec specKeys.source
+  sourceStatus = case source of
     Nothing -> ""
     Just _
       | r.sourceDeleted -> "deleted"
       | otherwise -> "present"
+  field label value = { label, value }
+  -- the overview table, a row per field; the header's facts are named above and shared with it
+  tableFacts =
+    [ field "Run" r.id
+    , name
+    , field "Preset" (fromMaybe "" (specValue r.spec specKeys.preset))
+    , gameId
+    , field "Derived from" (fromMaybe "" source)
+    , field "Kind" (fromMaybe "" (specValue r.spec specKeys.kind))
+    , field "Source" sourceStatus
+    , field "Gameboard" r.manifest.gameboard
+    , field "Engine" r.manifest.engine
+    , field "Draws" r.manifest.draw
+    , field "Game seed" (show r.manifest.initial.seed)
+    , field "Player seed" r.playerSeed
+    , field "Rounds" (show rounds)
+    -- the round count the run was launched for
+    , field "Rounds target" (show launched)
+    , field "Assertions failing" (show (length (concat r.assertions)))
+    , field "Rejected Proposals" (show (sum (map rejectionCount (records r))))
+    , field (spec.procurementLabel <> " procured") (quantity (Q.sumQ (concatMap (\rec -> eventsOf procured rec.events) (records r))))
+    ] <> map (\p -> field ("Final price " <> show p.market) (price p.price)) (marketPrices (final r))
   procured = case _ of
     Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> Just t.quantity
     _ -> Nothing

@@ -3,10 +3,21 @@
 -- | names, round scoping, and cell formatting. Pure.
 module Views.Common
   ( Table
+  , TableRow
   , Chart
+  , Point
   , Bars
   , Statistic
   , StoredRun
+  , RunHeader
+  , storedRun
+  , records
+  , snapshots
+  , worlds
+  , completed
+  , target
+  , pointsOf
+  , recordPoints
   , MetricSpec
   , defaultMetricSpec
   , quantity
@@ -23,6 +34,8 @@ module Views.Common
   , kindOf
   , series
   , specValue
+  , specKeys
+  , outcomeLabel
   , Procedure
   , asProcedure
   , proceduresOf
@@ -37,19 +50,27 @@ import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
 import Core.Num as Q
 import Core.Query (eventsOf, isAggregate)
-import Core.Types (EntityId, EntityKind(..), ProposalId, ResourceId)
+import Core.Types (EntityId, ProposalId, ResourceId)
 import Core.World (Event(..), Manifest, RoundRecord, RoundResult, WorldState)
-import Data.Array (concatMap, filter, find, index, length, mapWithIndex, nub)
+import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
+import Data.Foldable (lookup)
+import Data.Int as Int
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 
-type Table = { title :: String, columns :: Array String, rows :: Array (Array String) }
+-- | The fields of a table, extended by the view models that are a table with more beside it.
+type TableRow r = (title :: String, columns :: Array String, rows :: Array (Array String) | r)
+
+type Table = Record (TableRow ())
 
 -- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
 -- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.
-type Chart = { title :: String, unit :: String, kind :: Kind, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
+type Chart = { title :: String, unit :: String, kind :: Kind, series :: Array { name :: String, points :: Array Point } }
+
+-- | A chart point: a round and its exact value.
+type Point = { round :: Int, value :: String }
 
 -- | Grouped bars: one group per category, one bar per series (a run). Each series' values line up with
 -- | `categories`; a missing value is the empty string. The bars' values are shown under their display `kind`.
@@ -59,7 +80,19 @@ type Bars = { title :: String, unit :: String, kind :: Kind, categories :: Array
 -- | formula. Each statistic is defined once, in the module that computes it; the dashboard renders it.
 type Statistic = { name :: String, question :: String, definition :: String, formula :: String }
 
--- | A run as read back from the Run Store, with its records and snapshots (single-run views).
+-- | A run's identity and specification, as read back from the Run Store.
+type RunHeader =
+  { id :: String
+  , name :: String
+  , status :: String
+  , manifest :: Manifest
+  , playerSeed :: String
+  , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
+  , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
+  }
+
+-- | A run as read back from the Run Store, with each round's record and the World State it left
+-- | (single-run views). `records`, `snapshots` and `worlds` read the rounds.
 type StoredRun =
   { id :: String
   , name :: String
@@ -68,10 +101,34 @@ type StoredRun =
   , playerSeed :: String
   , spec :: Array (Tuple String String) -- flattened specification, for configuration diffs
   , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
-  , records :: Array RoundRecord
-  , snapshots :: Array WorldState
+  , rounds :: Array RoundResult
   , assertions :: Array (Array Failure)
   }
+
+-- | A stored run from its header, its rounds, and each round's assertions.
+storedRun :: RunHeader -> Array RoundResult -> Array (Array Failure) -> StoredRun
+storedRun h rounds assertions =
+  { id: h.id, name: h.name, status: h.status, manifest: h.manifest, playerSeed: h.playerSeed, spec: h.spec, sourceDeleted: h.sourceDeleted, rounds, assertions }
+
+-- | The run's round records, in round order.
+records :: StoredRun -> Array RoundRecord
+records r = map _.record r.rounds
+
+-- | The World State after each completed round, in round order.
+snapshots :: StoredRun -> Array WorldState
+snapshots r = map _.world r.rounds
+
+-- | The World States of the run, indexed by round: the initial one, then one per completed round.
+worlds :: StoredRun -> Array WorldState
+worlds r = [ r.manifest.initial ] <> snapshots r
+
+-- | The rounds the run completed.
+completed :: StoredRun -> Int
+completed r = length r.rounds
+
+-- | The rounds the run was launched for; a run whose spec does not say is at its completed rounds.
+target :: StoredRun -> Int
+target r = fromMaybe (completed r) (specValue r.spec specKeys.rounds >>= Int.fromString)
 
 -- | The premise-specific names the metric views use. The default is the reference premise
 -- | (docs/05_test_instance.md); a caller passes its own to view another premise.
@@ -125,35 +182,49 @@ at :: StoredRun -> Int -> Maybe WorldState
 at r n
   | n < 0 = Nothing
   | n == 0 = Just r.manifest.initial
-  | otherwise = index r.snapshots (n - 1)
+  | otherwise = _.world <$> index r.rounds (n - 1)
 
 -- | The World State after the run's last completed round.
 final :: StoredRun -> WorldState
-final r = fromMaybe r.manifest.initial (at r (length r.snapshots))
+final r = fromMaybe r.manifest.initial (at r (completed r))
 
 -- | The error for a round outside `lo..` the run's completed rounds.
 outOfRange :: StoredRun -> Int -> Int -> String
-outOfRange r lo n = "round " <> show n <> " is out of range for run " <> r.id <> " (" <> show lo <> ".." <> show (length r.records) <> ")"
+outOfRange r lo n = "round " <> show n <> " is out of range for run " <> r.id <> " (" <> show lo <> ".." <> show (completed r) <> ")"
 
 -- | An Entity's kind as the views label it: an Aggregate is residual, every other Entity an Actor.
 kindOf :: WorldState -> EntityId -> String
-kindOf w e = case _.kind <$> Map.lookup e w.entities of
-  Just (Aggregate _) -> "Aggregate (residual)"
-  _ -> "Actor"
+kindOf w e
+  | maybe false isAggregate (Map.lookup e w.entities) = "Aggregate (residual)"
+  | otherwise = "Actor"
 
 -- | One named series per key of `f` over the initial state and every snapshot, each point the
 -- | value of that key at a round (0 = initial).
-series :: forall a. StoredRun -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array { round :: Int, value :: String } }
-series r f g =
-  let
-    states = mapWithIndex Tuple ([ r.manifest.initial ] <> r.snapshots)
-    names = nub (concatMap (\(Tuple _ w) -> map (\(Tuple n _) -> n) (f w)) states)
-  in
-    map (\name -> { name, points: concatMap (\(Tuple i w) -> map (\(Tuple _ v) -> { round: i, value: g v }) (filter (\(Tuple n _) -> n == name) (f w))) states }) names
+series :: forall a. StoredRun -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array Point }
+series r f g = map (\name -> { name, points: pointsOf r (\w -> g <$> lookup name (f w)) }) names
+  where
+  names = nub (concatMap (map fst <<< f) (worlds r))
+
+-- | A point per World State of the run (the index is the round) where `f` gives a value.
+pointsOf :: StoredRun -> (WorldState -> Maybe String) -> Array Point
+pointsOf r f = mapMaybe (\(Tuple i w) -> { round: i, value: _ } <$> f w) (mapWithIndex Tuple (worlds r))
+
+-- | A point per round record of the run (the first round is 1).
+recordPoints :: StoredRun -> (RoundRecord -> String) -> Array Point
+recordPoints r f = mapWithIndex (\i rec -> { round: i + 1, value: f rec }) (records r)
 
 -- | The value of a key in a flattened specification.
 specValue :: Array (Tuple String String) -> String -> Maybe String
-specValue spec k = map (\(Tuple _ v) -> v) (find (\(Tuple x _) -> x == k) spec)
+specValue spec k = lookup k spec
+
+-- | The keys of a stored specification, as `Game.Recipe` writes them (views may not import `game`; the
+-- | views suite pins the two together).
+specKeys :: { gameId :: String, preset :: String, playerSeed :: String, rounds :: String, source :: String, kind :: String }
+specKeys = { gameId: "gameId", preset: "preset", playerSeed: "playerSeed", rounds: "rounds", source: "source", kind: "kind" }
+
+-- | A collective procedure's outcome, as the views and the glossary word it.
+outcomeLabel :: Boolean -> String
+outcomeLabel executed = if executed then "executed" else "lapsed"
 
 joinComma :: Array String -> String
 joinComma = joinWith ", "
@@ -166,7 +237,7 @@ players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (Map.toUnfolda
 -- | Each record with the World State it leaves behind (round i+1 pairs with record i), as the
 -- | objectives are evaluated over a run.
 roundResults :: StoredRun -> Array RoundResult
-roundResults r = mapWithIndex (\i rec -> { world: fromMaybe r.manifest.initial (at r (i + 1)), record: rec }) r.records
+roundResults r = r.rounds
 
 -- | A collective procedure the run recorded: its Proposal, the members who signed it, and whether it
 -- | executed, with its support against its threshold. Drivers and Representation both render their
@@ -189,4 +260,4 @@ asProcedure rec = case _ of
 
 -- | Every procedure outcome in the run, in round order.
 proceduresOf :: StoredRun -> Array Procedure
-proceduresOf r = concatMap (\rec -> eventsOf (asProcedure rec) rec.events) r.records
+proceduresOf r = concatMap (\rec -> eventsOf (asProcedure rec) rec.events) (records r)

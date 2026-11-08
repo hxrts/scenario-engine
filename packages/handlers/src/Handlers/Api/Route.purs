@@ -12,7 +12,11 @@ module Handlers.Api.Route
   , route
   , parse
   , wire
+  , reply
   , failWith
+  , allViews
+  , viewName
+  , parseView
   ) where
 
 import Prelude
@@ -21,15 +25,15 @@ import Core.Shape as Shape
 import Core.Shape (Shape, decodeWith, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
-import Data.Argonaut.Encode (encodeJson)
-import Data.Array (catMaybes, filter)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Array (catMaybes, filter, find)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.String (Pattern(..), joinWith, split)
 import Effect (Effect)
-import Effects.Api (ApiRequest(..), DeriveRequest, Launch, Reply)
+import Effects.Api (ApiRequest(..), DeriveRequest, Launch, Reply, View(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -48,9 +52,39 @@ type Implementation = ApiRequest -> Effect Reply
 -- | A request as the client sends it: method, URL (with its query), and body text.
 type Wire = { method :: String, url :: String, body :: String }
 
+-- | A reply: the status, and the body as JSON.
+reply :: forall a. EncodeJson a => Int -> a -> Reply
+reply status a = { status, body: stringify (encodeJson a) }
+
 -- | An error reply: the status, and the message in the body's `error` field.
 failWith :: Int -> String -> Reply
-failWith status error = { status, body: stringify (encodeJson { error }) }
+failWith status error = reply status { error }
+
+-- | Every view of a stored run.
+allViews :: Array View
+allViews = [ Overview, Balances, Markets, Facilities, Economy, Representation, Procedures, Objectives, Standings, NetWorth, Actions, Drivers, Balance, Events ]
+
+-- | A view's path segment.
+viewName :: View -> String
+viewName = case _ of
+  Overview -> "overview"
+  Balances -> "balances"
+  Markets -> "markets"
+  Facilities -> "facilities"
+  Economy -> "economy"
+  Representation -> "representation"
+  Procedures -> "procedures"
+  Objectives -> "objectives"
+  Standings -> "standings"
+  NetWorth -> "networth"
+  Actions -> "actions"
+  Drivers -> "drivers"
+  Balance -> "balance"
+  Events -> "events"
+
+-- | The view a path segment names.
+parseView :: String -> Maybe View
+parseView s = find (\v -> viewName v == s) allViews
 
 -- | Answer a request: parse it (an error reply when it is not a route or its body does not decode),
 -- | then run the operation.
@@ -71,7 +105,9 @@ parse req = case req.method, segments of
   "DELETE", [ "api", "runs", id ] -> Right (Delete { id, confirm: param "confirm" "" })
   "GET", [ "api", "runs", id, "entities" ] -> Right (Entities id)
   "GET", [ "api", "runs", id, "entity", entity ] -> Right (Entity id entity)
-  "GET", [ "api", "runs", id, view ] -> Right (RunView { id, view, round: Object.lookup "round" req.query })
+  "GET", [ "api", "runs", id, view ] -> case parseView view of
+    Just v -> Right (RunView { id, view: v, round: Object.lookup "round" req.query })
+    Nothing -> Left (failWith 404 view)
   "GET", [ "api", "compare" ] -> Right (Compare { runs: filter (_ /= "") (split (Pattern ",") (param "runs" "")), market: Object.lookup "market" req.query })
   "GET", [ "api", "agency" ] -> Right (Agency { playerSeed: Object.lookup "playerSeed" req.query, preset: Object.lookup "preset" req.query, alternative: Object.lookup "alternative" req.query })
   _, _ -> Left (failWith 404 req.path)
@@ -117,7 +153,7 @@ wire = case _ of
   LaunchRun l -> post "/api/runs" (stringify (encodeJson l))
   Entities id -> get (run id <> "/entities")
   Entity id e -> get (run id <> "/entity/" <> enc e)
-  RunView { id, view, round } -> get (run id <> "/" <> view <> query (catMaybes [ optional "round" round ]))
+  RunView { id, view, round } -> get (run id <> "/" <> viewName view <> query (catMaybes [ optional "round" round ]))
   Compare { runs, market } -> get ("/api/compare" <> query ([ "runs=" <> joinWith "," (map enc runs) ] <> catMaybes [ optional "market" market ]))
   Agency { playerSeed, preset, alternative } -> get ("/api/agency" <> query (catMaybes [ optional "playerSeed" playerSeed, optional "preset" preset, optional "alternative" alternative ]))
   Derive { id, body } -> post (run id <> "/derive") (stringify (encodeWith Shape.Premise deriveShape body))

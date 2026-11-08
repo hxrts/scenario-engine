@@ -6,6 +6,7 @@
 module Core.Shape
   ( Format(..)
   , encodeJsonWith
+  , prettyJson
   , decodeJsonWith
   , Shape
   , Desc(..)
@@ -56,7 +57,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
+import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, stringifyWithIndent, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Decode.Error as J
 import Data.Bifunctor (lmap)
 import Data.Array as Array
@@ -474,6 +475,10 @@ omittedWhen p s = s { absent = p }
 -- Interpretation ------------------------------------------------------------------------------
 
 -- | The encoder of a shape in one format.
+-- | JSON as a file holds it: indented, with a final newline.
+prettyJson :: Json -> String
+prettyJson j = stringifyWithIndent 1 j <> "\n"
+
 encodeWith :: forall a. Format -> Shape a -> a -> Json
 encodeWith fmt s = (s.codec fmt).enc
 
