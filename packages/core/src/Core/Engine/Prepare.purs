@@ -9,11 +9,13 @@ module Core.Engine.Prepare
 
 import Prelude
 
+import Core.Map (entries)
+
 import Core.Num as Q
-import Core.Query (lookupQ, priceOf)
+import Core.Query (lookupQ, priceOf, marketsOf, rulesOf)
 import Core.Types (Entity, EntityId, RoundIndex)
 import Core.World (Delivery, Event(..), Target(..), View, WorldState)
-import Data.Array (elem, filter, foldl, fromFoldable, partition)
+import Data.Array (elem, filter, foldl, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -27,7 +29,7 @@ prepareRound w =
   let
     { yes: due, no: later } = partition (\d -> d.round <= w.round) w.deliveries
     applied = foldl (applyDelivery w.round) { entities: w.entities, events: [] } due
-    rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (Map.toUnfoldable w.scheduled :: Array _)
+    rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries w.scheduled)
     ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (Map.toUnfoldable w.scheduled)
   in
     w
@@ -70,9 +72,9 @@ observe w self =
   { round: w.round
   , self
   , prices: Map.mapMaybeWithKey (\id _ -> priceOf w id) w.markets
-  , rules: fromFoldable (Map.values w.rules)
+  , rules: rulesOf w
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
-  , markets: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (filter (\m -> self.id `elem` m.access) (fromFoldable (Map.values w.markets)))
+  , markets: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (filter (\m -> self.id `elem` m.access) (marketsOf w))
   }

@@ -12,7 +12,7 @@ import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
 import Data.Foldable (for_)
 import Schema.Build.Decision (asTemplate, choose, deal, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, signAll, signFacility, signIf, signProcedures, sub, transformedLastRound)
 import Schema.Build.Decision as D
-import Schema.Build.Intent (enactAccessBan, enactTariff, enactWithholding, repeal, route, trade, transfer, transform)
+import Schema.Build.Intent (enactAccessBan, enactTariff, enactWithholding, repeal, route, transfer, transform)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)

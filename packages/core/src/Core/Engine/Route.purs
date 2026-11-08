@@ -4,13 +4,15 @@
 -- | receives. The rule is documented in §5.2 ("Routing") and is deterministic: routed orders are
 -- | planned in canonical order and candidates in merit order, ties broken by MarketId.
 module Core.Engine.Route
-  ( bounds
+  ( Slice
+  , Routed
+  , bounds
   , plan
   ) where
 
 import Prelude
 
-import Core.Market (averagePrice, marginal)
+import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (lookupQ)
@@ -70,7 +72,7 @@ route w st r = { net: done.net, slices: done.slices }
   where
   done = foldl visit { net: st.net, slices: st.slices, left: Q.abs r.quantity } (zipWith Tuple ranked nexts)
   buy = r.quantity > Q.zero
-  candidates = mapMaybe (\id -> (\m -> { id, market: m, price: marginal m.cost m.position }) <$> Map.lookup id w.markets) r.candidates
+  candidates = mapMaybe (\id -> (\m -> { id, market: m, price: marketPrice m }) <$> Map.lookup id w.markets) r.candidates
   ranked = sortWith (\c -> Tuple (if buy then c.price else Q.neg c.price) c.id) candidates
   nexts = map Just (drop 1 ranked) <> [ Nothing ]
   visit acc (Tuple c next) =

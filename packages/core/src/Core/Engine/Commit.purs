@@ -10,6 +10,8 @@ module Core.Engine.Commit
 
 import Prelude
 
+import Core.Map (entries, sumMaps)
+
 import Core.Engine.Circulate (circulate)
 import Core.Engine.Fund (fund)
 import Core.Engine.Prepare (prepareRound)
@@ -74,7 +76,7 @@ commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map
 commit w inputs screenEvents factors st = do
   let byAccount = ledgerByAccount st.ledger
   entities <- traverse (applyEntity byAccount) w.entities
-  marketList <- traverse (applyMarket st byAccount) (Map.toUnfoldable w.markets :: Array _)
+  marketList <- traverse (applyMarket st byAccount) (entries w.markets)
   let
     events = screenEvents <> st.events
     -- Prepare's events are already in the world's history; the round's record carries them too (docs/04 §11.1)
@@ -102,12 +104,12 @@ applyMarket st byAccount (Tuple id m) = (\reserves -> Tuple id m { reserves = re
 
 -- | The holdings of one Account after the Settlement's ledger entries for it.
 applyHoldings :: Map Account (Map ResourceId Q) -> Account -> Map ResourceId Q -> Map ResourceId Q
-applyHoldings byAccount acct hs = Map.unionWith Q.add hs (fromMaybe Map.empty (Map.lookup acct byAccount))
+applyHoldings byAccount acct hs = sumMaps hs (fromMaybe Map.empty (Map.lookup acct byAccount))
 
 -- | Settlement caps every payment at what an account holds and escrow funds the rest, so no
 -- | account should go negative: the first negative holding fails the round.
 checkNonNegative :: Account -> Map ResourceId Q -> Either EngineError (Map ResourceId Q)
-checkNonNegative acct hs = case find (\(Tuple _ q) -> q < Q.zero) (Map.toUnfoldable hs :: Array _) of
+checkNonNegative acct hs = case find (\(Tuple _ q) -> q < Q.zero) (entries hs) of
   Just (Tuple r _) -> Left
     ( case acct of
         Ent e -> NegativeBalance e r

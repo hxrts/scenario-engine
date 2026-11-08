@@ -6,20 +6,24 @@
 module Core.Invariants
   ( Failure
   , check
+  , checkAfter
   , Invariant(..)
   ) where
 
 import Prelude
 
+import Core.Map (entries, sumInto, sumMaps)
+
 import Core.Authority (authorizedIn, executor)
+import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Core.Query (accountsOf, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding)
+import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, facilitiesOf, marketsOf)
 import Core.Types (IntentF(..), SignedProposal)
 import Core.World (Event(..), RoundResult, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, nub)
 import Data.Foldable (foldl)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
@@ -46,19 +50,17 @@ type Failure = { invariant :: String, detail :: String }
 check :: WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) [ inv01, inv02, inv03, inv04, inv05, inv06, inv08, inv09, inv10 ]
 
+-- | The checks of a round against the world it was played from, not yet prepared.
+checkAfter :: WorldState -> RoundResult -> Array Failure
+checkAfter = check <<< prepareRound
+
 failure :: Invariant -> String -> Failure
 failure inv detail = { invariant: show inv, detail }
 
 executed :: RoundResult -> Array SignedProposal
 executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
   where
-  dropped = concatMap
-    ( case _ of
-        Rejected x -> [ x.proposal ]
-        Lapsed x -> [ x.proposal ]
-        _ -> []
-    )
-    r.record.events
+  dropped = droppedProposals r.record.events
 
 -- | INV-02 Authority separation: every executed Intent was authorized for its executor.
 inv02 :: WorldState -> RoundResult -> Array Failure
@@ -71,7 +73,7 @@ inv02 w r = concatMap one (executed r)
       who = executor p i
       caps = case p.procedure of
         Just pid -> procedureAuthority pid p.author
-        Nothing -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
+        Nothing -> capabilitiesOf w who
     in
       if authorizedIn w caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
   procedureAuthority pid author = case Map.lookup author w.entities >>= aggregateOf of
@@ -81,7 +83,7 @@ inv02 w r = concatMap one (executed r)
 -- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
 -- | membership (its kind). Only holdings, capacities, and Rules move.
 inv03 :: WorldState -> RoundResult -> Array Failure
-inv03 before r = concatMap one (fromFoldable (Map.values r.world.entities))
+inv03 before r = concatMap one (entitiesOf (r.world))
   where
   one e = case Map.lookup e.id before.entities of
     Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
@@ -119,12 +121,12 @@ inv01 before r = concatMap one r.record.events
 inv04 :: WorldState -> RoundResult -> Array Failure
 inv04 before r =
   concatMap (\e -> negatives (show e.id) e.accounts) entities
-    <> concatMap (\m -> negatives (show m.id) m.reserves) (fromFoldable (Map.values r.world.markets))
+    <> concatMap (\m -> negatives (show m.id) m.reserves) (marketsOf (r.world))
     <> concatMap reconcile entities
   where
-  entities = fromFoldable (Map.values r.world.entities)
+  entities = entitiesOf (r.world)
   negatives who hs = concatMap (\(Tuple res q) -> if q < Q.zero then [ failure INV04 (who <> " holds " <> show q <> " " <> show res) ] else [])
-    (Map.toUnfoldable hs :: Array _)
+    (entries hs)
   reconcile e =
     let
       opening = accountsOf before e.id
@@ -133,7 +135,7 @@ inv04 before r =
       actual res = Q.sub (lookupQ res e.accounts) (lookupQ res opening)
     in
       concatMap (\res -> if actual res == expected res then [] else [ failure INV04 (show e.id <> " " <> show res <> " changed by " <> show (actual res) <> ", its events say " <> show (expected res)) ]) resources
-  add who res q = Map.insertWith Q.add (Tuple who res) q
+  add who res = sumInto (Tuple who res)
   changes = foldl change Map.empty r.record.events
   change acc = case _ of
     Traded t -> case Map.lookup t.market before.markets of
@@ -146,7 +148,7 @@ inv04 before r =
         let
           outputs = if tr.delay == 0 then Map.toUnfoldable tr.outputs else []
           moved = foldl (\a (Tuple res u) -> add t.by res (Q.mul u t.quantity) a) acc (outputs :: Array _)
-          consumed = foldl (\a (Tuple res u) -> add t.by res (Q.neg (Q.mul u t.quantity)) a) moved (Map.toUnfoldable tr.inputs :: Array _)
+          consumed = foldl (\a (Tuple res u) -> add t.by res (Q.neg (Q.mul u t.quantity)) a) moved (entries tr.inputs)
           paid = add t.by before.numeraire (Q.neg t.paid) consumed
         in
           maybe paid (\payee -> add payee before.numeraire t.paid paid) tr.payee
@@ -180,16 +182,16 @@ inv05 before r = concatMap one resources
           plus = map (Q.mul t.quantity) now
           minus = map (Q.mul t.quantity) tr.inputs
         in
-          Map.unionWith Q.add acc (Map.unionWith Q.add plus (map Q.neg (Map.unionWith Q.add minus burned)))
+          sumMaps acc (sumMaps plus (map Q.neg (sumMaps minus burned)))
       Nothing -> acc
-    Consumed c -> Map.insertWith Q.add c.resource (Q.neg c.quantity) acc
-    Decayed d -> Map.insertWith Q.add d.resource (Q.neg d.quantity) acc
+    Consumed c -> sumInto c.resource (Q.neg c.quantity) acc
+    Decayed d -> sumInto d.resource (Q.neg d.quantity) acc
     _ -> acc
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain, and facility fills
 -- | stay within their pool's capacity and their ceiling.
 inv06 :: WorldState -> RoundResult -> Array Failure
-inv06 before r = concatMap one (fromFoldable (Map.values r.world.markets)) <> concatMap overCapacity (Map.toUnfoldable used :: Array _) <> concatMap overCeiling (Map.toUnfoldable filled :: Array _)
+inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (entries used) <> concatMap overCeiling (entries filled)
   where
   one m =
     if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
@@ -200,10 +202,10 @@ inv06 before r = concatMap one (fromFoldable (Map.values r.world.markets)) <> co
         _ -> []
     )
     r.record.events
-  filled = foldl (\m t -> Map.insertWith Q.add t.transformation t.quantity m) Map.empty transforms
+  filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of
-    Just tr | Just ref <- tr.capacity, tr.capacityUse > Q.zero -> Map.insertWith Q.add ref (Q.mul tr.capacityUse t.quantity) m
+    Just tr | Just ref <- tr.capacity, tr.capacityUse > Q.zero -> sumInto ref (Q.mul tr.capacityUse t.quantity) m
     _ -> m
   overCapacity (Tuple ref q) = if q > capacityOf before ref then [ failure INV06 (show ref <> " drew " <> show q <> ", above its capacity") ] else []
   overCeiling (Tuple tid q) = case Map.lookup tid before.transformations >>= poolCeiling before of
@@ -212,9 +214,9 @@ inv06 before r = concatMap one (fromFoldable (Map.values r.world.markets)) <> co
 
 -- | INV-08 Account partition: a capacity a facility draws on has at most one positive holder.
 inv08 :: WorldState -> RoundResult -> Array Failure
-inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (fromFoldable (Map.values r.world.transformations))))
+inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (facilitiesOf (r.world))))
   where
-  entities = fromFoldable (Map.values r.world.entities)
+  entities = entitiesOf (r.world)
   one ref = if length (filter (\e -> lookupQ ref e.capacities > Q.zero) entities) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
 
 -- | INV-09 Representation consistency: a stored factor stays within its estimators' bounds.

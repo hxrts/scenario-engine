@@ -169,22 +169,12 @@ qShape :: Shape Q
 qShape =
   { desc: DPrim "Q"
   , codec: \fmt ->
-      { enc: \q -> fromString (if fmt == Premise then minimal (Q.format q) else Q.format q)
+      { enc: \q -> fromString (if fmt == Premise then Q.formatMinimal q else Q.format q)
       , dec: \j -> note "expected a decimal quantity string" (toString j >>= Q.parse)
       }
   , absent: \_ -> false
   , missing: Nothing
   }
-
--- | Strips trailing fraction zeros and a bare point: "2.0400" to "2.04", "-5.0000" to "-5".
-minimal :: String -> String
-minimal s = case indexOf (Pattern ".") s of
-  Nothing -> s
-  Just _ -> trimPoint (trimZeros s)
-  where
-  trimZeros t = if endsWith "0" t then trimZeros (take (SCU.length t - 1) t) else t
-  trimPoint t = if endsWith "." t then take (SCU.length t - 1) t else t
-  endsWith suffix t = take 1 (drop (SCU.length t - 1) t) == suffix
 
 intShape :: Shape Int
 intShape = prim "Int" (\n -> fromNumber (Int.toNumber n)) (\j -> note "expected an integer" (toNumber j >>= Int.fromNumber))

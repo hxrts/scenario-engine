@@ -10,6 +10,8 @@ module Core.Engine.Fund
 
 import Prelude
 
+import Core.Map (entries, sumInto)
+
 import Core.Engine.Screen (Item)
 import Core.Market as Market
 import Core.Num (Q)
@@ -17,7 +19,7 @@ import Core.Num as Q
 import Core.Query (facilityPrice, holding, lookupQ, poolCeiling)
 import Core.Types (EntityId, IntentF(..), ResourceId, Transformation)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
-import Data.Array (any, concatMap, elem, fromFoldable, partition)
+import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -40,7 +42,7 @@ fund :: WorldState -> Array Item -> { items :: Array Scaled, events :: Array Eve
 fund w items =
   let
     { yes: deals, no: singles } = partition _.deal items
-    total xs = Map.fromFoldableWith Q.add (map (\c -> Tuple (Tuple c.entity c.resource) c.amount) (concatMap (claims w) xs))
+    total xs = foldl (\m c -> sumInto (Tuple c.entity c.resource) c.amount m) Map.empty (concatMap (claims w) xs)
     dealDemand = total deals
     short (Tuple e r) amt = amt > holding w e r
     shortKeys = Map.keys (Map.filterWithKey short dealDemand)
@@ -51,7 +53,7 @@ fund w items =
     room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)
     -- rounded down, so scale × amt never exceeds the room (a half-even round-up could overdraw it)
     ratio key amt = if amt > room key then fromMaybe Q.zero (Q.divFloor (max Q.zero (room key)) amt) else Q.one
-    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (Map.toUnfoldable singleDemand :: Array _))
+    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (entries singleDemand))
   in
     -- keyed by the Entity whose claim it is, which for a procedure Proposal may not be its author
     { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: entityScale }) singles

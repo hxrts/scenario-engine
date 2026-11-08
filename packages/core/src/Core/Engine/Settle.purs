@@ -14,7 +14,6 @@ module Core.Engine.Settle
   , ledgerByAccount
   , transfer
   , minOwedHeld
-  , groupBy
   , shortfallOf
   , consumedOf
   , Ledger
@@ -23,6 +22,7 @@ module Core.Engine.Settle
 import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
+import Core.Map (entries, groupBy, sumInto)
 import Core.Engine.Route as Route
 import Core.Market as Market
 import Core.Num (Q)
@@ -36,7 +36,7 @@ import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
 
 data Account = Ent EntityId | Mkt MarketId
 
@@ -48,7 +48,7 @@ type Ledger = Map (Tuple Account ResourceId) Q
 
 -- | The ledger grouped by Account, in one pass: each Account's changes, keyed by Resource.
 ledgerByAccount :: Ledger -> Map Account (Map ResourceId Q)
-ledgerByAccount ledger = Map.fromFoldableWith Map.union (map (\(Tuple (Tuple a r) q) -> Tuple a (Map.singleton r q)) (Map.toUnfoldable ledger :: Array _))
+ledgerByAccount ledger = Map.fromFoldableWith Map.union (map (\(Tuple (Tuple a r) q) -> Tuple a (Map.singleton r q)) (entries ledger))
 
 -- | The Shortfall event: an amount owed but not delivered.
 shortfallOf :: RoundIndex -> EntityId -> ResourceId -> Q -> Event
@@ -62,7 +62,7 @@ move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
 move from to r q = adjust to r q <<< adjust from r (Q.neg q)
 
 adjust :: Account -> ResourceId -> Q -> Ledger -> Ledger
-adjust a r q = Map.insertWith Q.add (Tuple a r) q
+adjust a r = sumInto (Tuple a r)
 
 -- | The round's batch result: the ledger and Market positions, plus the deliveries, Rule changes,
 -- | and events it produces.
@@ -99,7 +99,7 @@ shortInputs w facility s = concat (mapWithIndex one s.item.proposal.intents)
     Transform t
       | Just q <- Map.lookup (Tuple s.item.proposal.id i) facility.fills
       , Just tr <- Map.lookup t.transformation w.transformations
-      , any (\(Tuple r u) -> holding w t.by r < Q.mul u q) (Map.toUnfoldable tr.inputs :: Array _) -> [ t.transformation ]
+      , any (\(Tuple r u) -> holding w t.by r < Q.mul u q) (entries tr.inputs) -> [ t.transformation ]
     _ -> []
 
 dealShort :: WorldState -> Facilities -> Scaled -> Boolean
@@ -108,14 +108,13 @@ dealShort w facility s = s.item.deal && not (null (shortInputs w facility s))
 -- | Facility fills per pool. Deals that would exceed a pool are rejected as a unit; single-author
 -- | orders share what remains pro rata.
 facilities :: WorldState -> Array Scaled -> Facilities
-facilities w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (Map.toUnfoldable groups :: Array _)
+facilities w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (entries groups)
   where
   groups = groupBy _.group (facilityOrders w scaled)
 
 type FacilityOrder =
   { key :: Tuple ProposalId Int
   , deal :: Boolean
-  , pid :: ProposalId
   , quantity :: Q
   , use :: Q -- capacity drawn per unit ordered: `capacityUse`, or one unit per unit of a pool of its own
   , group :: Either TransformationId CapacityRef
@@ -134,7 +133,7 @@ facilityOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposa
           Right _ -> tr.capacityUse
           Left _ -> Q.fromInt 1
       in
-        [ { key: Tuple s.item.proposal.id i, deal: s.item.deal, pid: s.item.proposal.id, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation } ]
+        [ { key: Tuple s.item.proposal.id i, deal: s.item.deal, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation } ]
     _ -> []
 
 -- | One pool: deals fill in full or are rejected as a unit; single orders share the remaining
@@ -145,7 +144,7 @@ facilityOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposa
 allocateGroup :: WorldState -> Facilities -> Tuple (Either TransformationId CapacityRef) (Array FacilityOrder) -> Facilities
 allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
-  , totals: foldl (\m (Tuple tid q) -> Map.insertWith Q.add tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
+  , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
   , rejected: acc.rejected <> rejectedDeals
   , events: acc.events <> map (\pid -> rejection w.round pid FacilityCapacityExceeded) rejectedDeals
   }
@@ -157,7 +156,7 @@ allocateGroup w acc (Tuple group os) =
   used o = Q.mul o.use o.quantity
   dealTotal = Q.sumQ (map used deals)
   overflow = dealTotal > cap
-  rejectedDeals = if overflow then nub (map _.pid deals) else []
+  rejectedDeals = if overflow then nub (map (fst <<< _.key) deals) else []
   room = if overflow then cap else Q.sub cap dealTotal
   singleFills
     | Q.sumQ (map used singles) > room = zipWith (\o u -> fromMaybe Q.zero (Q.divFloor u o.use)) singles (Q.proRataWhole room (map used singles))
@@ -172,8 +171,9 @@ type Facilities =
   }
 
 markets :: WorldState -> Array Scaled -> Settlement -> Settlement
-markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array _)
+markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
   where
+  explicit :: Array Route.Slice
   explicit = concatMap
     ( \s -> map
         (\o -> { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, quantity: Q.mul (scaleOf s s.item.proposal.author) o.quantity, limitPrice: o.limitPrice })
@@ -181,7 +181,9 @@ markets w scaled acc0 = foldl clearOne acc0 (Map.toUnfoldable w.markets :: Array
     )
     scaled
   -- routed Trades are split across their candidate Markets (docs/02 §5.2), against the net of the explicit Trades
-  orders = explicit <> Route.plan w (Map.fromFoldableWith Q.add (map (\o -> Tuple o.market o.quantity) explicit)) routed
+  orders = explicit <> Route.plan w (foldl (\m o -> sumInto o.market o.quantity m) Map.empty explicit) routed
+
+  routed :: Array Route.Routed
   routed = concatMap
     ( \s -> concat $ mapWithIndex
         ( \i intent -> case intent of
@@ -239,7 +241,7 @@ settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.pro
     ( map (\(Tuple _ q) -> q)
         ( filter
             (\(Tuple other _) -> maybe false (\x -> poolOf other x == poolOf tid tr && x.cost == tr.cost) (Map.lookup other w.transformations))
-            (Map.toUnfoldable facility.totals :: Array _)
+            (entries facility.totals)
         )
     )
   -- Capacity effects land on the same boundary as outputs: an output with delay d is visible from
@@ -260,9 +262,9 @@ settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.pro
         let
           owed = Q.mul (facilityPrice tr (pricedTotal t.transformation tr)) q
           -- escrow funds inputs, so a shortfall here is a backstop: the Transform is rejected, not overdrawn
-          inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (Map.toUnfoldable tr.inputs :: Array _)
-          consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (Map.toUnfoldable tr.inputs :: Array _)
-          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (Map.toUnfoldable tr.outputs :: Array _)
+          inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (entries tr.inputs)
+          consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (entries tr.inputs)
+          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q }) (entries tr.outputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
           produce l = foldl
             ( \l' d -> case d.target of
@@ -300,10 +302,6 @@ transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
     ChangeRule (Repeal id) -> a { scheduled = Map.insert id Nothing a.scheduled }
     _ -> a
   ruleId i = Id (show p.id <> "/rule-" <> show i)
-
--- | Group items into arrays by key, keeping their order.
-groupBy :: forall k a. Ord k => (a -> k) -> Array a -> Map k (Array a)
-groupBy key xs = Map.fromFoldableWith (flip (<>)) (map (\x -> Tuple (key x) [ x ]) xs)
 
 -- | What an Entity can pay or consume: what is owed, capped at what it holds.
 minOwedHeld :: Q -> Q -> Q

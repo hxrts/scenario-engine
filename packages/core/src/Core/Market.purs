@@ -1,7 +1,7 @@
 -- | Cost functions and uniform batch clearing (docs/02_type_system.md §5.1, §5.5).
 module Core.Market
   ( marginal
-  , cost
+  , marketPrice
   , averagePrice
   , clear
   ) where
@@ -9,7 +9,7 @@ module Core.Market
 import Prelude
 
 import Core.Num as Q
-import Core.Types (CostFunction, Price, Quantity)
+import Core.Types (Market, CostFunction, Price, Quantity)
 import Data.Array (filter, null, partition, zipWith)
 import Data.Maybe (Maybe, maybe)
 
@@ -18,8 +18,9 @@ marginal :: CostFunction -> Quantity -> Price
 marginal c q = Q.add c.base (Q.mul c.slope q)
 
 -- | C(q) = base·q + slope·q²/2
-cost :: CostFunction -> Quantity -> Quantity
-cost c q = Q.add (Q.mul c.base q) (Q.div (Q.mul c.slope (Q.mul q q)) (Q.fromInt 2))
+-- | A Market's current marginal price.
+marketPrice :: Market -> Price
+marketPrice m = marginal m.cost m.position
 
 -- | Average price of moving the position from `x0` by `d`; the marginal price when `d` is zero.
 -- | This is (C(x0 + d) − C(x0)) / d, which for a linear marginal price is exactly the marginal

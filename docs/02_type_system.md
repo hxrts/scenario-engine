@@ -461,7 +461,7 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 
 ### 5.5 Simultaneous clearing
 
-All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Tariffs do not enter clearing: they apply to shipped Transfers ([§5.4](#54-transport)).
+All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Tariffs do not enter clearing: they apply to shipped Transfers ([§5.4](#54-market-scope-and-geography)).
 
 For a given Market:
 

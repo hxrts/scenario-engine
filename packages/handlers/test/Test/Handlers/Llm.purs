@@ -21,7 +21,7 @@ import Data.String (Pattern(..), contains)
 import Data.String.CodeUnits as SCU
 import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
 import Effect.Class (liftEffect)
-import Effect.Exception (error, message, message)
+import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
@@ -30,7 +30,7 @@ import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplySh
 import Handlers.Recording (encodeRecording)
 import Test.Handlers.Run (meridian, runTest)
 import Game.Types (Game)
-import Test.Handlers.Stub (answering, backendOf, dealOf, digest, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
+import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), encodeWith, prose)

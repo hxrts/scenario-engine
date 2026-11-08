@@ -20,7 +20,7 @@ import Core.Types (EntityId)
 import Data.Array (elem, fromFoldable, null, filter)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)

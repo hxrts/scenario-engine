@@ -7,7 +7,7 @@ import Prelude
 import Core.Draw (Seed)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, boolShape, ctorOf, decodeJsonWith, encodeJsonWith, field, intShape, mapOf, prim, qShape, rec2, rec3, rec4, rec5, rec7, rec8, sumOf)
+import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, boolShape, ctorOf, decodeJsonWith, encodeJsonWith, field, intShape, mapOf, prim, qShape, rec2, rec3, rec4, rec5, rec8, sumOf)
 import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -179,6 +179,10 @@ instance DecodeJson RejectReason where
 -- | A Rejected event for a Proposal the engine turned down in `round`.
 rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
 rejection round proposal reason = Rejected { round, proposal, reason }
+
+-- | A Lapsed event for a Proposal whose signature rule was not met in `round`.
+lapse :: RoundIndex -> ProposalId -> Event
+lapse round proposal = Lapsed { round, proposal }
 
 -- | An OrderRemoved event for one order of a Proposal dropped at settlement in `round`.
 orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event

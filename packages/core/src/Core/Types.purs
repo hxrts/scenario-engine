@@ -133,28 +133,8 @@ derive instance Ord RuleKind
 
 -- Intents and Proposals (§3) -------------------------------------------------
 
-type Order =
-  { market :: MarketId
-  , quantity :: Quantity -- + buys, − sells the Market's base Resource
-  , limitPrice :: Maybe Price
-  }
-
 -- | A base and quote Resource pair, which a routed order names in place of a Market.
 type Pair = { base :: ResourceId, quote :: ResourceId }
-
--- | The Entity-facing best-execution order (docs/02 §5.2): the Trade with its market omitted. The
--- | engine routes it across the Markets for `pair` that the Entity has access to. It requires a limit.
-type RouteOrder =
-  { pair :: Pair
-  , quantity :: Quantity
-  , limitPrice :: Maybe Price
-  }
-
-type TransferSpec =
-  { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
-
-type TransformSpec =
-  { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
 
 -- | An Intent with its Market position in `m` and its quantities and limits in the filling `v`:
 -- | `MarketId` and `Q` for an Intent the engine settles (`Intent`), `MarketRef` and `Expr` for a

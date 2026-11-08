@@ -19,8 +19,7 @@ module Handlers.Store
 
 import Prelude
 
-import Core.Engine.Prepare (prepareRound)
-import Core.Invariants (Failure, check)
+import Core.Invariants (Failure, checkAfter)
 import Core.Proposal (Transcript)
 import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Array (all, any, length, uncons)
@@ -128,7 +127,7 @@ recorder b metricsOf id initial = do
       , round: r.record.round
       , record: r.record
       , snapshot: r.world
-      , assertions: check (prepareRound before) r
+      , assertions: checkAfter before r
       , transcripts
       , metrics: metricsOf r
       }
