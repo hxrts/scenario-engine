@@ -32,7 +32,7 @@ import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Strategy (CondAlg, ExprAlg, TemplateAlg, foldCond, foldExpr, foldTemplate)
+import Policy.Strategy (CondAlg, ExprAlg, TemplateAlg, foldCond, foldExpr, foldTemplate, monoidExpr)
 
 -- | `random` draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to
 -- | every Choose it meets.
@@ -128,17 +128,7 @@ selectors when propose = nub (filter isSelector (concatMap (foldCond refExpr ref
 
 -- | The Market references an expression, a condition or a template holds, in the order written.
 refExpr :: ExprAlg (Array MarketRef)
-refExpr =
-  { lit: const []
-  , param: const []
-  , round: []
-  , price: \m -> [ m ]
-  , holding: const []
-  , factor: const []
-  , mul: append
-  , sub: append
-  , max: append
-  }
+refExpr = monoidExpr { price = \m -> [ m ] }
 
 refCond :: CondAlg (Array MarketRef) (Array MarketRef)
 refCond =

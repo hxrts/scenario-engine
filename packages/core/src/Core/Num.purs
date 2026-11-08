@@ -38,7 +38,7 @@ module Core.Num
 import Prelude hiding (add, sub, mul, div, zero, one)
 import Prelude as P
 
-import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeJsonWith, prim)
+import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeJsonWith, nameShape, prim)
 
 import Data.Argonaut.Core (fromString, toString) as J
 import Data.Argonaut.Decode (class DecodeJson)
@@ -257,11 +257,7 @@ kindName = case _ of
 
 -- | A display kind, written as its name.
 kindShape :: Shape Kind
-kindShape = prim "Kind" (J.fromString <<< kindName) \j -> case J.toString j of
-  Just "quantity" -> Right Quantity
-  Just "price" -> Right Price
-  Just "ratio" -> Right Ratio
-  _ -> Left "display kind: quantity, price or ratio"
+kindShape = nameShape "Kind" "display kind: quantity, price or ratio" kindName [ Quantity, Price, Ratio ]
 
 instance EncodeJson Kind where
   encodeJson = encodeJsonWith Snapshot kindShape

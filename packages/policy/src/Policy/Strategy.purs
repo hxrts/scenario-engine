@@ -7,6 +7,7 @@ module Policy.Strategy
   , TemplateAlg
   , SignAlg
   , StrategyAlg
+  , monoidExpr
   , foldExpr
   , foldCond
   , foldTemplate
@@ -71,6 +72,21 @@ type StrategyAlg a c t s =
   , cond :: CondAlg a c
   , template :: TemplateAlg a t
   , sign :: SignAlg c s
+  }
+
+-- | An expression algebra that reads nothing and combines its operands: the walks over references
+-- | override the positions they read.
+monoidExpr :: forall a. Monoid a => ExprAlg a
+monoidExpr =
+  { lit: const mempty
+  , param: const mempty
+  , round: mempty
+  , price: const mempty
+  , holding: const mempty
+  , factor: const mempty
+  , mul: append
+  , sub: append
+  , max: append
   }
 
 foldExpr :: forall a. ExprAlg a -> Expr -> a
@@ -141,16 +157,11 @@ strategyRefs p = filter (\(Tuple kind name) -> not (kind == EntityRef && name ==
     p
 
 refsExpr :: ExprAlg (Array (Tuple RefKind String))
-refsExpr =
-  { lit: const []
-  , param: \name -> [ Tuple ParameterRef name ]
-  , round: []
-  , price: marketRefs
-  , holding: \r -> [ Tuple ResourceRef (idText r) ]
-  , factor: \d -> [ Tuple ResourceRef (idText d) ]
-  , mul: append
-  , sub: append
-  , max: append
+refsExpr = monoidExpr
+  { param = \name -> [ Tuple ParameterRef name ]
+  , price = marketRefs
+  , holding = \r -> [ Tuple ResourceRef (idText r) ]
+  , factor = \d -> [ Tuple ResourceRef (idText d) ]
   }
 
 refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
