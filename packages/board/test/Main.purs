@@ -82,7 +82,7 @@ coverageGameboard =
   world =
     { round: 0
     , entities: Map.fromFoldable [ Tuple us usEntity, Tuple eu euEntity ]
-    , resources: Map.singleton money { id: money, unit: "USD", transferability: Free, reservable: false }
+    , resources: Map.singleton money { id: money, unit: "USD", transferability: Free }
     , markets: Map.empty
     , transformations: Map.singleton (Id "fac") facility
     , representations: []

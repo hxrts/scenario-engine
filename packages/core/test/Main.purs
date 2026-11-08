@@ -138,7 +138,7 @@ baseWorld es =
   { round: 1
   , seed: Seed 1
   , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
-  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free, reservable: false }) [ "M", "E" ])
+  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free }) [ "M", "E" ])
   , markets: Map.empty
   , transformations: Map.empty
   , representations: []
@@ -618,7 +618,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Reservations (docs/02 §2.3, §8.2)" do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
       let
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free }
         dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
@@ -642,7 +642,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free }
         w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
       case resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ] ] of
         Left e -> show e `shouldEqual` "a round"

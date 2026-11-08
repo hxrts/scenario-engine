@@ -36,7 +36,7 @@ import Foreign.Object as Object
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> delays <> reservations <> capacities <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> delays <> capacities <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -97,9 +97,6 @@ validateGameboard gb config =
       <> unknownEntity
         (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)
       <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
-  -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
-  reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.escrowPerUnit)))) facilities
-  notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
   ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
     FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over <> levyRefs x.effect
     CapacityRule x -> unknownCapacity [ x.capacity ]

@@ -520,7 +520,7 @@ transformationShape :: Shape Transformation
 transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, escrowPerUnit: holdingsShape, payment: (optionalOf paymentShape), capacity: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
-resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, reservable: boolShape }
+resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape }
 
 estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }

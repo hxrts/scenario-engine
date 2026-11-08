@@ -98,11 +98,10 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: Unit
   , transferability :: Transferability   -- Free | Restricted | NonTransferable
-  , reservable :: Boolean
   }
 ```
 
-`Restricted` means authority-gated transfer: its Transfers need `MayTransfer`. A `Free` Resource moves on its holder's signature alone. A `reservable` Resource can be reserved, for example by a military deployment, without being consumed. A Transformation declares the quantity it reserves per unit ordered (`reserves`, empty by default). The Gameboard rejects a reservation of a Resource that is not `reservable`. A Resource that no Transformation produces or consumes is conserved. This follows from the declared Transformations, not from a separate declaration.
+`Restricted` means authority-gated transfer: its Transfers need `MayTransfer`. A `Free` Resource moves on its holder's signature alone. A Resource the premise marks `reservable` can be reserved, for example by a military deployment, without being consumed. A Transformation declares the quantity it reserves per unit ordered (`reserves`, empty by default). The Gameboard rejects a reservation of a Resource that is not `reservable`. A Resource that no Transformation produces or consumes is conserved. This follows from the declared Transformations, not from a separate declaration.
 
 A reservation lasts within one round, and its mechanics are given in [§8.2](#82-single-round-update-and-snapshot-discipline): the reserved quantity limits competing actions but is neither consumed nor transferred, and nothing stays reserved across a round boundary.
 

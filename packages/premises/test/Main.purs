@@ -377,9 +377,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "RoundsOutOfRange: a configured round count outside the supported range"
       (editConfig \c -> c { rounds = 9 })
       (RoundsOutOfRange { rounds: 9, min: 4, max: 8 })
-    rejects "ReservesNonReservable: a facility reserves Money, which is not reservable"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { escrowPerUnit = Map.insert (Id "M") (Q.fromInt 1) t.escrowPerUnit }) (Id "military-deployment") w.transformations })
-      (ReservesNonReservable (Id "military-deployment") (Id "M"))
     rejects "UnknownReference: a market's base is not a Resource"
       (editWorld \w -> w { markets = Map.update (\m -> Just m { base = Id "X" }) (Id "energy-atlantic") w.markets })
       (UnknownReference ResourceRef "X")

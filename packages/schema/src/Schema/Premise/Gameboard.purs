@@ -28,10 +28,11 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Schema.Gameboard (Fallback, Gameboard, InstantiationConfig)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError)
+import Data.Argonaut.Decode (JsonDecodeError(..))
+import Data.Bifunctor (lmap)
 import Schema.Premise.Actor (definitionToCore, fallbackShape)
 import Schema.Premise.Strategy (strategyShape)
-import Schema.Premise.World (AssignmentDoc, Keyed, keyedToMap, SchemeDoc, WorldDoc, assignmentShape, schemeShape, schemeToCore, worldRec, worldToCore)
+import Schema.Premise.World (AssignmentDoc, Keyed, keyedToMap, SchemeDoc, WorldDoc, assignmentShape, checkReservations, schemeShape, schemeToCore, worldRec, worldToCore)
 
 -- | A Gameboard as written: its header, its World, its schemes and parameters, and its Policy catalog.
 type GameboardDoc =
@@ -140,7 +141,10 @@ toConfig c =
 
 -- | A Gameboard, decoded from its merged sections, with its defaults filled in.
 decodeGameboard :: Json -> Either JsonDecodeError Gameboard
-decodeGameboard j = map toGameboard (decodeJsonWith Premise gameboardShape j)
+decodeGameboard j = do
+  doc <- decodeJsonWith Premise gameboardShape j
+  world <- lmap TypeMismatch (checkReservations doc.world)
+  pure (toGameboard doc { world = world })
 
 -- | The Instantiation Configuration, decoded from its file.
 decodeConfig :: Json -> Either JsonDecodeError InstantiationConfig

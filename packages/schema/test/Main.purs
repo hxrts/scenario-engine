@@ -148,6 +148,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "keeps as signers only known Entities other than the author" do
       map _.draft.signers (jointProposals known said [ joint { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
+  describe "Reservations are checked on the premise document" do
+    it "a facility may not escrow a Resource the document does not mark reservable" do
+      let
+        doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "markets": {}, "transformations": { "dep": { "escrowPerUnit": { "M": "1" } } }, "entities": {} }"""
+      isLeft (decodeGameboard (json (doc ""))) `shouldEqual` true
+      isLeft (decodeGameboard (json (doc """, "reservable": true"""))) `shouldEqual` false
+
   describe "Rule forms" do
     it "a combination that would do nothing has no form" do
       isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true

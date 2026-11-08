@@ -146,7 +146,6 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: String
   , transferability :: Transferability
-  , reservable :: Boolean
   }
 
 data Transferability = Free | Restricted | NonTransferable

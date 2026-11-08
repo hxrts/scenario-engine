@@ -28,6 +28,7 @@ module Schema.Premise.World
   , assignmentShape
   , schemeToCore
   , worldToCore
+  , checkReservations
   , EffectDoc
   , EstimatorDoc
   ) where
@@ -41,7 +42,10 @@ import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId,
 import Core.Types (FlowGovernance(..), RuleForm, RuleKindDecl)
 import Core.Types as Types
 import Core.World (FlowGate, RecurringFlow, UnseededWorld)
-import Data.Array (mapMaybe, mapWithIndex)
+import Data.Array (concatMap, filter, mapMaybe, mapWithIndex)
+import Data.Either (Either(..))
+import Data.Foldable (any)
+import Data.String (joinWith)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
@@ -432,6 +436,17 @@ schemeToCore s =
   , estimator: estimatorToCore s.estimator
   }
 
+-- | The premise document's reservation check: a facility may escrow only a Resource the document marks
+-- | `reservable`. It reads the document's own flags, which do not reach the World State. An unknown
+-- | Resource is reported by validation's reference check.
+checkReservations :: WorldDoc -> Either String WorldDoc
+checkReservations w = case concatMap offending w.transformations of
+  [] -> Right w
+  bad -> Left (joinWith "; " bad)
+  where
+  notReservable k = any (\(Tuple r d) -> r == k && d.reservable /= Just true) w.resources
+  offending (Tuple t f) = map (\(Tuple r _) -> "facility " <> t <> " reserves " <> r <> ", which is not reservable") (filter (\(Tuple r _) -> notReservable r) (fromMaybe [] f.escrowPerUnit))
+
 -- | The core World State of a World as written (unseeded), with every default filled in.
 worldToCore :: WorldDoc -> UnseededWorld
 worldToCore w =
@@ -461,7 +476,6 @@ resourceToCore k r =
   { id: Id k
   , unit: k
   , transferability: r.transferability
-  , reservable: fromMaybe false r.reservable
   }
 
 costToCore :: CostDoc -> { intercept :: Q, slope :: Q, domain :: Interval }
