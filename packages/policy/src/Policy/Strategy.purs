@@ -20,9 +20,10 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id(..), IntentF(..), ProposalF, ResourceId, RuleChangeF(..), RuleF(..), TransformationId)
-import Data.Array (concat, concatMap, mapMaybe)
-import Data.Maybe (Maybe(..), maybe)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF(..), ProposalF, RefKind(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idText)
+import Data.Array (concat, concatMap, filter)
+import Data.Maybe (maybe)
+import Data.Tuple (Tuple(..), fst, snd)
 
 -- | What each constructor of the Strategy AST becomes. Adding a constructor to `Expr`, `Cond`,
 -- | `Template` or `SignRule` changes one fold, and the compiler then names every algebra that lacks it.
@@ -129,124 +130,75 @@ foldStrategy alg p =
   where
   cond = foldCond alg.expr alg.cond
 
--- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` is not
--- | listed: the interpreter resolves it at every position it can appear. A Market selector names its
--- | Resource; the Markets it picks are the interpreter's.
-type Refs =
-  { entities :: Array String
-  , markets :: Array String
-  , resources :: Array String
-  , transformations :: Array String
-  , parameters :: Array String
-  }
-
--- | One name a Strategy refers to.
-data Ref
-  = EntityName String
-  | MarketName String
-  | ResourceName String
-  | TransformationName String
-  | ParamName String
-
-derive instance Eq Ref
-
-strategyRefs :: Strategy -> Refs
-strategyRefs p =
-  { entities: mapMaybe entityName refs
-  , markets: mapMaybe marketName refs
-  , resources: mapMaybe resourceName refs
-  , transformations: mapMaybe transformationName refs
-  , parameters: mapMaybe paramName refs
-  }
+-- | Every name a Strategy refers to, with its kind, for the load-time check against a Gameboard.
+-- | `self` is not listed: the interpreter resolves it at every position it can appear. A Market
+-- | selector names its Resource; the Markets it picks are the interpreter's.
+strategyRefs :: Strategy -> Array (Tuple RefKind String)
+strategyRefs p = filter (\(Tuple kind name) -> not (kind == EntityRef && name == selfName)) (concatMap (\r -> concat r.when <> concat r.propose) folded.rules <> concat folded.sign)
   where
   folded = foldStrategy
     { expr: refsExpr, cond: refsCond, template: refsTemplate, sign: refsSign }
     p
-  refs = concatMap (\r -> concat r.when <> concat r.propose) folded.rules <> concat folded.sign
 
-  -- `self` is never a name to check: every entity position resolves it to the acting Entity
-  entityName = case _ of
-    EntityName s | s /= selfName -> Just s
-    _ -> Nothing
-
-  marketName = case _ of
-    MarketName s -> Just s
-    _ -> Nothing
-
-  resourceName = case _ of
-    ResourceName s -> Just s
-    _ -> Nothing
-
-  transformationName = case _ of
-    TransformationName s -> Just s
-    _ -> Nothing
-
-  paramName = case _ of
-    ParamName s -> Just s
-    _ -> Nothing
-
-refsExpr :: ExprAlg (Array Ref)
+refsExpr :: ExprAlg (Array (Tuple RefKind String))
 refsExpr =
   { lit: const []
-  , param: \name -> [ ParamName name ]
+  , param: \name -> [ Tuple ParameterRef name ]
   , round: []
   , price: marketRefs
-  , holding: \r -> [ ResourceName (unwrapId r) ]
-  , factor: \d -> [ ResourceName (unwrapId d) ]
+  , holding: \r -> [ Tuple ResourceRef (idText r) ]
+  , factor: \d -> [ Tuple ResourceRef (idText d) ]
   , mul: append
   , sub: append
   , max: append
   }
 
-refsCond :: CondAlg (Array Ref) (Array Ref)
+refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsCond =
   { gt: append
   , ge: append
   , le: append
   , eq: append
   , not: identity
-  , transformedLastRound: \x -> [ EntityName (unwrapId x.by), TransformationName (unwrapId x.transformation) ] <> x.atLeast
-  , restrictedLastRound: \x -> [ EntityName (unwrapId x.by), EntityName (unwrapId x.target) ]
-  , restrictionInForce: \x -> [ EntityName (unwrapId x.by) ]
+  , transformedLastRound: \x -> [ Tuple EntityRef (idText x.by), Tuple TransformationRef (idText x.transformation) ] <> x.atLeast
+  , restrictedLastRound: \x -> [ Tuple EntityRef (idText x.by), Tuple EntityRef (idText x.target) ]
+  , restrictionInForce: \x -> [ Tuple EntityRef (idText x.by) ]
   }
 
-refsTemplate :: TemplateAlg (Array Ref) (Array Ref)
+refsTemplate :: TemplateAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsTemplate =
   { intent: intentRefs
-  , proposal: \x -> map (EntityName <<< unwrapId) x.signers <> concatMap intentRefs x.intents
-  , reciprocate: \x -> [ EntityName (unwrapId x.target) ]
+  , proposal: \x -> map (Tuple EntityRef <<< idText) x.signers <> concatMap intentRefs x.intents
+  , reciprocate: \x -> [ Tuple EntityRef (idText x.target) ]
   , choose: concat
   , noAction: []
   }
   where
   intentRefs = case _ of
     Trade x -> marketRefs x.market <> x.quantity <> maybe [] identity x.limitPrice
-    Route x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> x.quantity <> maybe [] identity x.limitPrice
-    Transform x -> [ TransformationName (unwrapId x.transformation) ] <> x.quantity
-    Transfer x -> [ ResourceName (unwrapId x.resource), EntityName (unwrapId x.from), EntityName (unwrapId x.to) ] <> x.quantity
-    ChangeRule (Enact (Tariff x)) -> [ EntityName (unwrapId x.origin) ] <> x.rate
-    ChangeRule (Enact (AccessBan x)) -> [ EntityName (unwrapId x.target) ]
+    Route x -> [ Tuple ResourceRef (idText x.pair.base), Tuple ResourceRef (idText x.pair.quote) ] <> x.quantity <> maybe [] identity x.limitPrice
+    Transform x -> [ Tuple TransformationRef (idText x.transformation) ] <> x.quantity
+    Transfer x -> [ Tuple ResourceRef (idText x.resource), Tuple EntityRef (idText x.from), Tuple EntityRef (idText x.to) ] <> x.quantity
+    ChangeRule (Enact (Tariff x)) -> [ Tuple EntityRef (idText x.origin) ] <> x.rate
+    ChangeRule (Enact (AccessBan x)) -> [ Tuple EntityRef (idText x.target) ]
     ChangeRule (Enact (Withholding x)) -> x.units
     ChangeRule (Repeal _) -> []
 
-refsSign :: SignAlg (Array Ref) (Array Ref)
+refsSign :: SignAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsSign =
   { procedures: const []
-  , facility: \t -> [ TransformationName (unwrapId t) ]
+  , facility: \t -> [ Tuple TransformationRef (idText t) ]
   , all: []
   , signIf: \x -> concat x.when <> x.rule
   }
 
-marketRefs :: MarketRef -> Array Ref
+marketRefs :: MarketRef -> Array (Tuple RefKind String)
 marketRefs = case _ of
-  Named m -> [ MarketName (unwrapId m) ]
-  Each r -> [ ResourceName (unwrapId r) ]
-  Cheapest r -> [ ResourceName (unwrapId r) ]
-  Costliest r -> [ ResourceName (unwrapId r) ]
-
-unwrapId :: forall t. Id t -> String
-unwrapId (Id s) = s
+  Named m -> [ Tuple Market (idText m) ]
+  Each r -> [ Tuple ResourceRef (idText r) ]
+  Cheapest r -> [ Tuple ResourceRef (idText r) ]
+  Costliest r -> [ Tuple ResourceRef (idText r) ]
 
 -- | The premise parameters a Strategy reads.
 strategyParams :: Strategy -> Array String
-strategyParams = _.parameters <<< strategyRefs
+strategyParams = map snd <<< filter ((_ == ParameterRef) <<< fst) <<< strategyRefs

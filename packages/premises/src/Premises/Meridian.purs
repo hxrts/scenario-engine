@@ -7,8 +7,8 @@
 -- | a derivation over the seats. The holdings each Entity starts with are in `Meridian.Holdings`.
 module Premises.Meridian
   ( files
+  , parts
   , gameSeed
-  , years
   , resources
   , coreResources
   , atlanticTerms
@@ -31,13 +31,15 @@ module Premises.Meridian
   , market
   ) where
 
-import Prelude (map, negate, ($), (<>))
+import Prelude (bind, map, negate, show, ($), (+), (<>))
 import Premises.Names as N
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Array (elem, filter)
+import Data.Array (elem, filter, mapWithIndex)
+import Data.Bifunctor (lmap)
+import Data.Either (Either)
 import Data.Maybe (fromMaybe, Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
@@ -48,8 +50,12 @@ import Premises.Meridian.Policies (policies)
 import Schema.Build.Base (Keyed, keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noFacility, noResource)
+import Game.Premise (GameboardParts, checkPremise)
+import Premises.Load (decodePresets, fromFiles)
+import Premises.Presets as Presets
+import Schema.Premise.Strategy (presetsShape)
 import Schema.Premise.Gameboard (ConfigDoc, GameboardDoc, configShape, gameboardShape)
-import Schema.Premise.World (CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
+import Schema.Premise.World (EstimatorDoc, CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
 import Core.Types (Transferability(..))
 
 -- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
@@ -111,6 +117,13 @@ files =
   where
   whole = fromMaybe Object.empty (toObject (encodeWith Premise gameboardShape gameboard))
   section name keysOf = Tuple name (fromObject (Object.fromFoldable (filter (\(Tuple k _) -> elem k keysOf) (Object.toUnfoldable whole))))
+
+-- | The compiled premise, decoded and checked as the loader reads it.
+parts :: Either String GameboardParts
+parts = do
+  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) files))
+  presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
+  lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
 
 resources :: Keyed ResourceDoc
 resources = coreResources <> keyed [ Tuple N.softPower (noResource { transferability = NonTransferable, decay = Just (q "0.1") }) ]
@@ -307,23 +320,19 @@ smeSample
      , actor :: String
      , aggregate :: String
      , domain :: String
-     , reference :: Q
-     , shrinkage :: Q
-     , bound :: Q
+     , estimator :: Q -> EstimatorDoc
      }
 smeSample =
   { id: "sme-energy-sample"
   , actor: N.sme
   , aggregate: N.globalSmes
   , domain: N.energy
-  , reference: q 5
-  , shrinkage: q "0.25"
-  , bound: q "0.5"
+  , estimator: \noise -> { reference: q 5, shrinkage: q "0.25", bound: Just (q "0.5"), noiseSpread: Just noise }
   }
 
 schemes :: Array SchemeDoc
 schemes =
-  [ { id: smeSample.id, eligibleActors: [ smeSample.actor ], target: smeSample.aggregate, domain: smeSample.domain, estimator: { reference: smeSample.reference, shrinkage: smeSample.shrinkage, bound: Just smeSample.bound, noiseSpread: Just (q "0.1") } }
+  [ { id: smeSample.id, eligibleActors: [ smeSample.actor ], target: smeSample.aggregate, domain: smeSample.domain, estimator: smeSample.estimator (q "0.1") }
   ]
 
 -- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's
@@ -343,23 +352,7 @@ instantiation :: ConfigDoc
 instantiation =
   { seed: gameSeed
   , rounds: years
-  , seats: Just $ keyed
-      [ Tuple N.us "seat-1"
-      , Tuple N.de "seat-2"
-      , Tuple N.india "seat-3"
-      , Tuple N.jp "seat-4"
-      , Tuple N.uk "seat-5"
-      , Tuple N.br "seat-6"
-      , Tuple N.sa "seat-7"
-      , Tuple N.ng "seat-8"
-      , Tuple N.enco "seat-9"
-      , Tuple N.chip "seat-10"
-      , Tuple N.ship "seat-11"
-      , Tuple N.def "seat-12"
-      , Tuple N.labor "seat-13"
-      , Tuple N.sme "seat-14"
-      , Tuple N.aid "seat-15"
-      ]
+  , seats: Just $ keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) N.seatActors)
   , npcs: Just $ keyed [ Tuple N.cn N.policyChinaStrategic ]
   , fallbacks: Nothing
   , representations: Just [ { scheme: smeSample.id, actor: smeSample.actor, weight: Just (q 1) } ]

@@ -4,7 +4,7 @@ module Core.World where
 
 import Prelude
 
-import Core.Draw (Seed(..))
+import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q)
 import Record as Record
 import Type.Proxy (Proxy(..))
@@ -248,6 +248,14 @@ type Manifest =
   , draw :: String
   , initial :: WorldState
   }
+
+-- | The engine's version, recorded in every Manifest beside `drawVersion`.
+engineVersion :: String
+engineVersion = "sp-engine/v1"
+
+-- | The Manifest of a game whose configuration is named `gameboard` and which starts at `initial`.
+manifestOf :: String -> WorldState -> Manifest
+manifestOf gameboard initial = { gameboard, engine: engineVersion, draw: drawVersion, initial }
 
 -- Shapes (design 4, §5.3). The rejection reason is stored as its text; the event, target and View
 -- shapes carry the closure the model and the Run Store encode.

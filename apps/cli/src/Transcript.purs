@@ -10,10 +10,9 @@ import Prelude
 
 import Adapters.Digest (sha256)
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise, premiseRoot)
+import Premises.Tree (premiseRoot)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
-import Core.World (WorldState)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
@@ -32,18 +31,9 @@ import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
 import Node.Process (exit')
-import Game.Assemble (assemble)
-import Game.Premise (Premise(..))
-import Premises.Capstone (jointLineFor, jointLines, seatBindings)
-import Premises.Load (loadPremise)
-
--- | The capstone's world: the shipped Meridian at its default configuration, assembled with the capstone's seats.
-worldOf :: Aff WorldState
-worldOf = do
-  parts <- liftEffect (readPremise fileOps "meridian/v0") >>= either (throwError <<< error) pure >>= (either (throwError <<< error) pure <<< loadPremise)
-  case assemble (GameboardPremise parts) seatBindings [] of
-    Right game -> pure game.world
-    Left e -> throwError (error (show e))
+import Premises.Capstone (game, jointLineFor, jointLines)
+import Premises.Load (loadFrom)
+import Premises.Names (capstoneTranscriptFile, meridianDir)
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }
@@ -53,7 +43,9 @@ answer _ input = case jointLineFor input of
 
 main :: Effect Unit
 main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
-  w <- worldOf
+  parts <- liftEffect (loadFrom fileOps meridianDir) >>= either (throwError <<< error) pure
+  g <- either (throwError <<< error <<< show) pure (game parts)
+  let w = g.world
   ref <- liftEffect (Ref.new [])
   let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) ref }
   for_ jointLines \l -> do
@@ -66,5 +58,5 @@ main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (con
   rec <- liftEffect (Ref.read ref)
   root <- liftEffect (premiseRoot fileOps)
   liftEffect do
-    writeTextFile UTF8 (root <> "capstone/transcript.json") (encodeRecording rec)
-    log ("wrote " <> show (length rec) <> " capstone exchanges to " <> root <> "capstone/transcript.json")
+    writeTextFile UTF8 (root <> capstoneTranscriptFile) (encodeRecording rec)
+    log ("wrote " <> show (length rec) <> " capstone exchanges to " <> root <> capstoneTranscriptFile)

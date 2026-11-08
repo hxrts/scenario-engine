@@ -38,9 +38,8 @@ import Data.Either (Either(..), either)
 import Data.Foldable (all)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..))
 import Schema.Premise.Intent (intentShape)
-import Schema.Premise.World (Keyed, WorldDoc, worldRec, worldToCore)
+import Schema.Premise.World (Keyed, WorldDoc, keyedToMap, worldRec, worldToCore)
 import Schema.Round (Delivery, Expect, ProcedureOutcome)
 import Data.Map as Map
 import Data.Argonaut.Core (Json)
@@ -65,8 +64,9 @@ type ProposalDoc =
 -- | position.
 type ProposalRefDoc = Either String { author :: String, index :: Maybe Int }
 
--- | A procedure's outcome as written: the Proposal it names, flattened with its support and result.
-type ProcedureDoc = { author :: String, index :: Maybe Int, support :: Q, executed :: Boolean }
+-- | A procedure's outcome as written: the Proposal it names (flattened with its support and result, so
+-- | it is written as an object even when it names the first Proposal), and its support and result.
+type ProcedureDoc = { proposal :: ProposalRefDoc, support :: Q, executed :: Boolean }
 
 -- | A delivery as written.
 type DeliveryDoc = { entity :: String, resource :: String, quantity :: Q }
@@ -118,12 +118,14 @@ proposalRefShape = premiseSum "ProposalRef"
   , embedded refObject (either (const Nothing) Just) Right
   ]
   where
-  refObject = object "ProposalAt"
-    ( mk <$> fieldOf "author" "the author" stringShape _.author
-        <*> fieldOf "index" "the position among the author's Proposals (default 0)" (optionalOf intShape) _.index
-    )
-    where
-    mk a i = { author: a, index: i }
+  refObject = object "ProposalAt" proposalAtRec
+
+-- | A Proposal by its author and its position among the author's Proposals.
+proposalAtRec :: RecF { author :: String, index :: Maybe Int } { author :: String, index :: Maybe Int }
+proposalAtRec = mk <$> fieldOf "author" "the author" stringShape _.author
+  <*> fieldOf "index" "the position among the author's Proposals (default 0)" (optionalOf intShape) _.index
+  where
+  mk a i = { author: a, index: i }
 
 proposalShape :: Shape ProposalDoc
 proposalShape = object "Proposal"
@@ -138,13 +140,13 @@ proposalShape = object "Proposal"
 
 procedureShape :: Shape ProcedureDoc
 procedureShape = object "ProcedureOutcome"
-  ( mk <$> fieldOf "author" "the author of the Proposal" stringShape _.author
-      <*> fieldOf "index" "the position among the author's Proposals (default 0)" (optionalOf intShape) _.index
+  ( mk <$> contramapRec (proposalAt <<< _.proposal) proposalAtRec
       <*> fieldOf "support" "the weight behind it" qShape _.support
       <*> fieldOf "executed" "whether it ran" boolShape _.executed
   )
   where
-  mk a i s e = { author: a, index: i, support: s, executed: e }
+  mk r s e = { proposal: Right r, support: s, executed: e }
+  proposalAt = either { author: _, index: Nothing } identity
 
 expectShape :: Shape ExpectDoc
 expectShape = object "Expect"
@@ -246,18 +248,16 @@ expectToCore round e =
   }
   where
   nested :: forall a b. Keyed (Keyed Q) -> Map (Id a) (Map (Id b) (Maybe Q))
-  nested kvs = Map.fromFoldable (map (\(Tuple k inner) -> Tuple (Id k) (Map.fromFoldable (map (\(Tuple k' v) -> Tuple (Id k') (Just v)) inner))) kvs)
+  nested kvs = map (map Just <<< keyedToMap) (keyedToMap kvs)
 
 refToId :: RoundIndex -> ProposalRefDoc -> ProposalId
-refToId round = case _ of
-  Left a -> proposalId round (Id a) 0
-  Right r -> proposalId round (Id r.author) (fromMaybe 0 r.index)
+refToId round = either (\a -> proposalId round (Id a) 0) (\r -> proposalId round (Id r.author) (fromMaybe 0 r.index))
 
 deliveryToCore :: DeliveryDoc -> Delivery
 deliveryToCore d = { entity: Id d.entity, resource: Id d.resource, quantity: d.quantity }
 
 procedureToCore :: RoundIndex -> ProcedureDoc -> ProcedureOutcome
-procedureToCore round p = { proposal: proposalId round (Id p.author) (fromMaybe 0 p.index), support: p.support, executed: p.executed }
+procedureToCore round p = { proposal: refToId round p.proposal, support: p.support, executed: p.executed }
 
 -- | A literal premise, decoded from its JSON (the fixture file's document).
 decodeLiteral :: Json -> Either JsonDecodeError Literal
@@ -269,7 +269,3 @@ decodeLiteral j = do
     bound = map (\k -> round + k) (range 0 (length f.bindings - 1))
   if all (\r -> elem r bound) named && length (nub named) == length named then pure (toLiteral f)
   else Left (TypeMismatch "an expectation names a round with no binding, or names one round twice")
-
--- | The checks of one round, decoded from their JSON (an `expect` object) for the round it checks.
-decodeExpect :: RoundIndex -> Json -> Either JsonDecodeError Expect
-decodeExpect round j = map (expectToCore round) (decodeJsonWith Premise expectShape j)

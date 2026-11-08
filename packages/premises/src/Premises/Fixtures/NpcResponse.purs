@@ -8,9 +8,9 @@ import Premises.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (defaultFixture, energy, facilities, fixture)
-import Premises.Meridian (majorMilitaryAction, procurement)
-import Premises.Meridian.Holdings (pickAccounts)
+import Premises.Fixtures.Common (holding, defaultFixture, facilities, fixture)
+import Premises.Meridian (majorMilitaryAction, procurement, resources)
+
 import Schema.Build.Base (keyed, (:=), mayTransform)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noEntity)
@@ -21,11 +21,11 @@ import Data.Maybe (Maybe(..))
 fixtureDMinor :: Tuple String Json
 fixtureDMinor = fixture "D-minor"
   ( defaultFixture
-      { markets = energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+      { resources = resources
       , transformations = facilities <> keyed [ Tuple N.majorMilitaryAction majorMilitaryAction ]
       , entities = keyed
           [ Tuple N.us
-              ( (noEntity { accounts = pickAccounts N.us [ N.money, N.energy, N.mil ], capabilities = [ mayTransform N.majorMilitaryAction ] })
+              ( (holding N.us [ N.money, N.energy, N.mil ] [ mayTransform N.majorMilitaryAction ])
               )
           ]
       , proposals = Just ([ proposal { author: N.us, intents: [ transform { by: N.us, transformation: N.majorMilitaryAction, quantity: q 8 } ] } ])
@@ -36,20 +36,20 @@ fixtureDMinor = fixture "D-minor"
 fixtureD :: Tuple String Json
 fixtureD = fixture "D"
   ( defaultFixture
-      { markets = energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+      { resources = resources
       , transformations = facilities <> keyed [ Tuple N.defenseProcurementCn (procurement N.cnPrivate), Tuple N.majorMilitaryAction majorMilitaryAction ]
       , entities = keyed
           [ Tuple N.us
-              ( (noEntity { accounts = pickAccounts N.us [ N.money, N.energy, N.mil ], capabilities = [ mayTransform N.majorMilitaryAction ] })
+              ( (holding N.us [ N.money, N.energy, N.mil ] [ mayTransform N.majorMilitaryAction ])
               )
           , Tuple N.cn
-              ( (noEntity { accounts = pickAccounts N.cn [ N.money, N.energy, N.mil ], capabilities = [ mayTransform N.defenseProcurementCn ] })
+              ( (holding N.cn [ N.money, N.energy, N.mil ] [ mayTransform N.defenseProcurementCn ])
               )
           , Tuple N.cnPrivate
-              ( (noEntity { accounts = pickAccounts N.cnPrivate [ N.money, N.energy ], capabilities = [] })
+              ( (holding N.cnPrivate [ N.money, N.energy ] [])
               )
           , Tuple N.def
-              ( (noEntity { accounts = pickAccounts N.def [ N.money, N.energy, N.mil ], capabilities = [], capacities = Just (keyed []) })
+              ( (holding N.def [ N.money, N.energy, N.mil ] [])
               )
           , Tuple N.chip
               ( (noEntity { accounts = keyed [], capabilities = [], capacities = Just (keyed [ N.semiconductors := 15 ]) })

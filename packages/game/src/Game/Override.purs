@@ -2,28 +2,26 @@
 -- | Gameboard's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.
-module Game.Override (Override(..), resolve, encodeOverrides, decodeOverrides) where
+module Game.Override (Override(..), overrideShape, resolve, encodeOverrides, decodeOverrides) where
 
 import Prelude
 
+import Board.Gameboard.Instantiate (withoutActor)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (CapacityRef, EntityId, Id(..))
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, (.:))
-import Data.Argonaut.Encode (encodeJson)
-import Data.Array (any, filter)
-import Data.Either (Either(..), either, note)
+import Core.Shape (Format(..), RecF, Shape, decodeWith, encodeWith, fieldOf, intShape, prim, stringShape, typedCtor, typedSum)
+import Core.Types (CapacityRef, EntityId, RefKind(..), idShape)
+import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
+import Data.Array (any)
+import Data.Either (Either(..), note)
 import Data.Foldable (foldM)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
-import Foreign.Object (Object)
+import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Foreign.Object as Object
 import Game.Error (GameError(..))
-import Schema.Decode.Common (decodeError)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
 data Override
@@ -44,51 +42,72 @@ resolve base overrides = foldM apply base overrides
     GameSeed s -> Right acc { config = acc.config { seed = Seed s } }
     Parameter name q
       | Object.member name acc.gameboard.parameters -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-      | otherwise -> Left (UnknownParameter name)
+      | otherwise -> Left (Unresolved "override" ParameterRef name)
     Capacity e ref q
       | Map.member e acc.gameboard.world.entities -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
-      | otherwise -> Left (UnknownEntity e)
+      | otherwise -> Left (Unresolved "override" EntityRef (show e))
     Shrinkage scheme q
       | any (\s -> s.id == scheme) acc.gameboard.schemes -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
-      | otherwise -> Left (UnknownScheme scheme)
-    Implicit e -> Right acc { config = acc.config { seats = Map.delete e acc.config.seats, npcs = Map.delete e acc.config.npcs, representations = filter (\r -> r.actor /= e) acc.config.representations } }
+      | otherwise -> Left (Unresolved "override" SchemeRef scheme)
+    Implicit e -> Right acc { config = withoutActor e acc.config }
 
--- | `[ { "type": ..., ... } ]`, one object per override:
---   gameSeed (seed: int), parameter (name, value), capacity (entity, capacity, value),
---   shrinkage (scheme, value), implicit (entity).
-encodeOverrides :: Array Override -> Json
-encodeOverrides = fromArray <<< map encode
-
-encode :: Override -> Json
-encode = case _ of
-  GameSeed s -> obj [ Tuple "type" (fromString "gameSeed"), Tuple "seed" (encodeJson s) ]
-  Parameter name q -> obj [ Tuple "type" (fromString "parameter"), Tuple "name" (fromString name), Tuple "value" (fromString (Q.format q)) ]
-  Capacity e ref q -> obj [ Tuple "type" (fromString "capacity"), Tuple "entity" (encodeJson e), Tuple "capacity" (encodeJson ref), Tuple "value" (fromString (Q.format q)) ]
-  Shrinkage scheme q -> obj [ Tuple "type" (fromString "shrinkage"), Tuple "scheme" (fromString scheme), Tuple "value" (fromString (Q.format q)) ]
-  Implicit e -> obj [ Tuple "type" (fromString "implicit"), Tuple "entity" (encodeJson e) ]
+-- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.
+overrideShape :: Shape Override
+overrideShape = typedSum "Override" "type" ("unknown override type " <> _)
+  [ typedCtor "GameSeed" "gameSeed" "reseed the game" (object1 "seed" "the game seed" intShape)
+      ( case _ of
+          GameSeed s -> Just s
+          _ -> Nothing
+      )
+      GameSeed
+  , typedCtor "Parameter" "parameter" "set a premise parameter"
+      (pair "name" "the parameter" stringShape "value" "its value" decimal)
+      ( case _ of
+          Parameter n q -> Just (Tuple n q)
+          _ -> Nothing
+      )
+      (uncurry Parameter)
+  , typedCtor "Capacity" "capacity" "set an Entity's capacity"
+      ( (\e c v -> Tuple e (Tuple c v))
+          <$> fieldOf "entity" "the Entity" idShape fst
+          <*> fieldOf "capacity" "the capacity" idShape (fst <<< snd)
+          <*> fieldOf "value" "its amount" decimal (snd <<< snd)
+      )
+      ( case _ of
+          Capacity e c v -> Just (Tuple e (Tuple c v))
+          _ -> Nothing
+      )
+      (\(Tuple e (Tuple c v)) -> Capacity e c v)
+  , typedCtor "Shrinkage" "shrinkage" "set a scheme's shrinkage"
+      (pair "scheme" "the scheme" stringShape "value" "its value" decimal)
+      ( case _ of
+          Shrinkage s q -> Just (Tuple s q)
+          _ -> Nothing
+      )
+      (uncurry Shrinkage)
+  , typedCtor "Implicit" "implicit" "make an Actor implicit" (object1 "entity" "the Actor" idShape)
+      ( case _ of
+          Implicit e -> Just e
+          _ -> Nothing
+      )
+      Implicit
+  ]
   where
-  obj = fromObject <<< Object.fromFoldable
+  object1 :: forall a. String -> String -> Shape a -> RecF a a
+  object1 key desc s = fieldOf key desc s identity
+
+  pair :: forall a b. String -> String -> Shape a -> String -> String -> Shape b -> RecF (Tuple a b) (Tuple a b)
+  pair k1 d1 s1 k2 d2 s2 = Tuple <$> fieldOf k1 d1 s1 fst <*> fieldOf k2 d2 s2 snd
+
+  -- a quantity in a stored spec: always its four-decimal form
+  decimal :: Shape Q
+  decimal = prim "Q" (fromString <<< Q.format) \j -> do
+    text <- note "expected a decimal quantity string" (toString j)
+    note ("override value is not a decimal number: " <> text) (Q.parse text)
+
+encodeOverrides :: Array Override -> Json
+encodeOverrides = fromArray <<< map (encodeWith Snapshot overrideShape)
 
 -- | The inverse of `encodeOverrides`. An unknown type or a malformed value is an error naming it.
 decodeOverrides :: Json -> Either String (Array Override)
-decodeOverrides j = do
-  items <- either (const (Left "overrides must be an array")) Right (decodeJson j :: Either JsonDecodeError (Array Json))
-  traverse decode items
-
-decode :: Json -> Either String Override
-decode j = do
-  o <- fromJson (decodeJson j :: Either JsonDecodeError (Object Json))
-  kind <- fromJson (o .: "type" :: Either JsonDecodeError String)
-  case kind of
-    "gameSeed" -> GameSeed <$> fromJson (o .: "seed")
-    "parameter" -> Parameter <$> fromJson (o .: "name") <*> (fromJson (o .: "value") >>= quantity)
-    "capacity" -> Capacity <$> (Id <$> fromJson (o .: "entity")) <*> (Id <$> fromJson (o .: "capacity")) <*> (fromJson (o .: "value") >>= quantity)
-    "shrinkage" -> Shrinkage <$> fromJson (o .: "scheme") <*> (fromJson (o .: "value") >>= quantity)
-    "implicit" -> Implicit <<< Id <$> fromJson (o .: "entity")
-    other -> Left ("unknown override type " <> other)
-  where
-  fromJson :: forall a. Either JsonDecodeError a -> Either String a
-  fromJson = decodeError
-
-  quantity :: String -> Either String Q.Q
-  quantity s = note ("override value is not a decimal number: " <> s) (Q.parse s)
+decodeOverrides j = note "overrides must be an array" (toArray j) >>= traverse (decodeWith Snapshot overrideShape)

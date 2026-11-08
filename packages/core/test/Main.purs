@@ -15,7 +15,7 @@ import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -636,10 +636,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       moneyAfter (penalised 8) `shouldEqual` q "104.5"
       -- nothing unmet: the flow arrives in full
       moneyAfter (penalised 10) `shouldEqual` Q.fromInt 105
+    it "a Proposal id gives back its author and its index" do
+      proposalAuthor (proposalId 3 (Id "US") 1) `shouldEqual` Just (Id "US")
+      submissionIndex (proposalId 3 (Id "US") 1) `shouldEqual` Just 1
+      proposalAuthor (Id "not-a-proposal-id") `shouldEqual` Nothing
     it "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" do
       let
         uk = (actor "UK" [ MayEnact WithholdingRule ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
-        ruleId = Id (show (proposalId 1 (Id "UK") 0) <> "/rule-0")
+        ruleId = ruleIdOf (proposalId 1 (Id "UK") 0) 0
         round1 = advance (baseWorld [ uk ]) [ submit "UK" 0 [ ChangeRule (Enact (Withholding { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
         round2 = advance round1 [ submit "UK" 0 [ ChangeRule (Repeal ruleId) ] ]
       -- scheduled in round 1 and in force from round 2, so the round-1 world reads its scheduled Rule as not yet applied

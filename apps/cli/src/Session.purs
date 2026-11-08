@@ -44,13 +44,12 @@ import Handlers.Store (recorder, runStore, startRun)
 import Node.Process (exit')
 import Game.Assemble (assemble, liveBindings, unknownSeats, withRounds)
 import Game.Premise (Premise(..))
-import Premises.Load (loadPremise)
-import Premises.Tree (readPremise)
+import Premises.Load (loadFrom)
 
 type Options = { premise :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 session :: Options -> Effect Unit
-session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >>= case _ of
+session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
   Left e -> writeLine e *> exit' 1
   Right parts | unknown <- unknownSeats humans parts.config, unknown /= [] ->
     writeLine ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown)) *> exit' 1

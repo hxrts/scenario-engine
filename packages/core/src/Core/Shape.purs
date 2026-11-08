@@ -33,6 +33,9 @@ module Core.Shape
   , literal
   , embedded
   , premiseSum
+  , TypedCtor
+  , typedCtor
+  , typedSum
   , RecF
   , fieldOf
   , contramapRec
@@ -43,6 +46,7 @@ module Core.Shape
   , keyedAlways
   , recursive
   , iso
+  , partialIso
   , refined
   , omittedWhen
   , encodeWith
@@ -64,7 +68,7 @@ import Data.Int as Int
 import Partial.Unsafe (unsafeCrashWith)
 import Data.Array (sortBy)
 import Data.Tuple (Tuple(..), fst)
-import Data.Either (Either(..), note)
+import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.String.CodeUnits (drop, take)
 import Data.String.CodeUnits as SCU
@@ -257,16 +261,16 @@ pay :: forall b. Shape b -> { enc :: b -> Json, dec :: Json -> Either String b }
 pay s = s.codec Premise
 
 -- | `{ "tag": payload }`: a one-key object.
-oneKey :: forall a b. { tag :: String, desc :: String } -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
-oneKey t s proj inj =
-  { tag: t.tag
-  , desc: t.desc
+oneKey :: forall a b. String -> String -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
+oneKey tag desc s proj inj =
+  { tag
+  , desc
   , payload: s.desc
   , form: OneKey
-  , project: \x -> map (\b -> fromObject (Object.singleton t.tag ((pay s).enc b))) (proj x)
+  , project: \x -> map (\b -> fromObject (Object.singleton tag ((pay s).enc b))) (proj x)
   , inject: \j -> case toObject j of
       Just o -> case Object.toUnfoldable o of
-        [ Tuple k body ] | k == t.tag -> Just (map inj ((pay s).dec body))
+        [ Tuple k body ] | k == tag -> Just (map inj ((pay s).dec body))
         _ -> Nothing
       Nothing -> Nothing
   }
@@ -288,13 +292,13 @@ kindArg t s proj inj =
   stripPrefix str = if take (SCU.length prefix) str == prefix then Just (drop (SCU.length prefix) str) else Nothing
 
 -- | A bare string that names one value, such as `"Free"`.
-bare :: forall a. { tag :: String, desc :: String } -> a -> (a -> Boolean) -> PCtor a
-bare t value is =
+bare :: forall a. Eq a => { tag :: String, desc :: String } -> a -> PCtor a
+bare t value =
   { tag: t.tag
   , desc: t.desc
   , payload: DPrim "null"
   , form: Bare
-  , project: \x -> if is x then Just (fromString t.tag) else Nothing
+  , project: \x -> if x == value then Just (fromString t.tag) else Nothing
   , inject: \j -> if toString j == Just t.tag then Just (Right value) else Nothing
   }
 
@@ -339,6 +343,46 @@ premiseSum name ctors =
       , dec: \j -> case Array.findMap (\c -> c.inject j) ctors of
           Just r -> r
           Nothing -> Left ("no " <> name <> " form for " <> stringify j)
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+
+-- | One constructor of a `typedSum`: its tag, a note, and its fields.
+type TypedCtor a =
+  { tag :: String
+  , desc :: String
+  , payload :: Desc
+  , project :: Format -> a -> Maybe (Array (Tuple String Json))
+  , inject :: Format -> Object.Object Json -> Either String a
+  }
+
+-- | A constructor of a `typedSum`, written as its tag and the fields of a record, in field order.
+typedCtor :: forall a b. String -> String -> String -> RecF b b -> (a -> Maybe b) -> (b -> a) -> TypedCtor a
+typedCtor name tag desc (RecF r) proj inj =
+  { tag
+  , desc
+  , payload: DRec name r.fields
+  , project: \fmt x -> map (r.enc fmt) (proj x)
+  , inject: \fmt o -> map inj (r.dec fmt o)
+  }
+
+-- | A sum written as one flat object: `key` holds the constructor's tag, followed by its fields in
+-- | the order declared (not sorted: this form is stored as written). The list must be total for the
+-- | type. A value's unknown tag is reported by `unknown`.
+typedSum :: forall a. String -> String -> (String -> String) -> Array (TypedCtor a) -> Shape a
+typedSum name key unknown ctors =
+  { desc: DSum name Mixed (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: Mixed }) ctors)
+  , codec: \fmt ->
+      { enc: \x -> case Array.findMap (\c -> map (Tuple c) (c.project fmt x)) ctors of
+          Just (Tuple c fields) -> fromObject (Object.fromFoldable ([ Tuple key (fromString c.tag) ] <> fields))
+          Nothing -> unsafeCrashWith ("sum " <> name <> ": no constructor for a value")
+      , dec: \j -> do
+          o <- note "expected an object" (toObject j)
+          tag <- note ("missing key " <> key) (Object.lookup key o >>= toString)
+          case Array.find (\c -> c.tag == tag) ctors of
+            Just c -> c.inject fmt o
+            Nothing -> Left (unknown tag)
       }
   , absent: const false
   , missing: Nothing
@@ -461,6 +505,20 @@ iso fwd back s =
         { enc: c.enc <<< back, dec: map fwd <<< c.dec }
   , absent: s.absent <<< back
   , missing: map fwd s.missing
+  }
+
+-- | The same values under another type, where reading can fail: `fwd` reads (a Left is a decode
+-- | error), `back` writes.
+partialIso :: forall a b. Shape b -> (b -> Either String a) -> (a -> b) -> Shape a
+partialIso s fwd back =
+  { desc: s.desc
+  , codec: \fmt ->
+      let
+        c = s.codec fmt
+      in
+        { enc: c.enc <<< back, dec: \j -> c.dec j >>= fwd }
+  , absent: s.absent <<< back
+  , missing: s.missing >>= either (const Nothing) Just <<< fwd
   }
 
 -- | Values that satisfy `p`; a value that fails it is a decode error with the message given.

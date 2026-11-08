@@ -6,6 +6,7 @@
 -- | `worldToCore` fills the defaults and produces the core World State (Core.World).
 module Schema.Premise.World
   ( Keyed
+  , keyedToMap
   , ResourceDoc
   , CostDoc
   , MarketDoc
@@ -36,7 +37,8 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, bare, boolShape, contramapRec, fieldOf, intShape, keyedAlways, kindArg, listOf, object, optionalOf, premiseSum, qShape, refined, stringShape)
-import Core.Types (Aggregate, Capability, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability(..), Transformation, idShape)
+import Core.Types (Aggregate, Capability, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, idShape)
+import Core.Types as Types
 import Core.World (Circulation, ShareSource(..), UnseededWorld)
 import Data.Array (mapWithIndex)
 import Data.Map as Map
@@ -45,6 +47,7 @@ import Data.Tuple (Tuple(..))
 import Schema.Gameboard (Scheme)
 import Schema.Premise.Actor (DefinitionDoc, definitionShape)
 import Schema.Premise.Intent (capabilityShape, ruleShape)
+import Schema.Premise.Tags (premiseEnum, transferabilityTags)
 
 -- | A keyed list as written: the object's pairs, in the order given.
 type Keyed a = Array (Tuple String a)
@@ -150,11 +153,7 @@ type WorldDoc =
 -- Shapes --------------------------------------------------------------------------------------
 
 transferabilityShape :: Shape Transferability
-transferabilityShape = premiseSum "Transferability"
-  [ bare { tag: "Free", desc: "tradable and transferable" } Free (_ == Free)
-  , bare { tag: "Restricted", desc: "held only by the Entities that may trade it" } Restricted (_ == Restricted)
-  , bare { tag: "NonTransferable", desc: "never moves between Entities" } NonTransferable (_ == NonTransferable)
-  ]
+transferabilityShape = premiseEnum "Transferability" Types.transferabilityShape transferabilityTags
 
 resourceShape :: Shape ResourceDoc
 resourceShape = object "Resource"
@@ -337,7 +336,7 @@ shareSourceShape = premiseSum "ShareSource"
           _ -> Nothing
       )
       SalesOf
-  , bare { tag: "payee", desc: "Money received as a facility payee" } PayeeReceipts (_ == PayeeReceipts)
+  , bare { tag: "payee", desc: "Money received as a facility payee" } PayeeReceipts
   ]
 
 requirementShape :: Shape RequirementDoc
@@ -396,8 +395,8 @@ worldRec = mk <$> nameF <*> roundF <*> numeraireF <*> resourcesF <*> marketsF <*
 -- Conversions ---------------------------------------------------------------------------------
 
 -- | A keyed list as holdings: the keys become typed ids.
-holdingsOf :: forall t a. Keyed a -> Map.Map (Id t) a
-holdingsOf = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
+keyedToMap :: forall t a. Keyed a -> Map.Map (Id t) a
+keyedToMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
 
 estimatorToCore :: EstimatorDoc -> Estimator
 estimatorToCore e =
@@ -426,8 +425,8 @@ worldToCore w =
   , transformations: Map.fromFoldable (map (\(Tuple k f) -> Tuple (Id k) (facilityToCore k f)) w.transformations)
   , representations: map representationToCore (fromMaybe [] w.representations)
   , numeraire: Id w.numeraire
-  , transport: map Id (holdingsOf (fromMaybe [] w.transport))
-  , jurisdiction: map Id (holdingsOf (fromMaybe [] w.jurisdiction))
+  , transport: map Id (keyedToMap (fromMaybe [] w.transport))
+  , jurisdiction: map Id (keyedToMap (fromMaybe [] w.jurisdiction))
   , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) (fromMaybe [] w.rules))
   , scheduled: Map.empty
   , deliveries: []
@@ -458,16 +457,16 @@ marketToCore k m =
   , quote: Id m.quote
   , cost: costToCore m.cost
   , position: fromMaybe Q.zero m.position
-  , reserves: holdingsOf m.reserves
+  , reserves: keyedToMap m.reserves
   , access: map Id m.access
   }
 
 facilityToCore :: String -> FacilityDoc -> Transformation
 facilityToCore k f =
   { id: Id k
-  , inputs: holdingsOf (fromMaybe [] f.inputs)
-  , outputs: holdingsOf (fromMaybe [] f.outputs)
-  , reserves: holdingsOf (fromMaybe [] f.reserves)
+  , inputs: keyedToMap (fromMaybe [] f.inputs)
+  , outputs: keyedToMap (fromMaybe [] f.outputs)
+  , reserves: keyedToMap (fromMaybe [] f.reserves)
   , cost: map costToCore f.cost
   , capacity: map Id f.capacity
   , payee: map Id f.payee
@@ -485,8 +484,8 @@ effectToCore e = { capacity: Id e.capacity, holder: map Id e.holder, perUnit: e.
 entityToCore :: String -> EntityDoc -> Entity
 entityToCore k e =
   { id: Id k
-  , accounts: holdingsOf e.accounts
-  , capacities: holdingsOf (fromMaybe [] e.capacities)
+  , accounts: keyedToMap e.accounts
+  , capacities: keyedToMap (fromMaybe [] e.capacities)
   , capabilities: e.capabilities
   , kind: maybe (Actor (Seat (Id k))) (\a -> Aggregate (aggregateToCore a)) e.aggregate
   }
@@ -500,7 +499,7 @@ aggregateToCore a =
 
 procedureToCore :: ProcedureDoc -> CollectiveProcedure
 procedureToCore p =
-  { weights: holdingsOf p.weights
+  { weights: keyedToMap p.weights
   , residualWeight: p.residualWeight
   , threshold: p.threshold
   , authorizes: p.authorizes

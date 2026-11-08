@@ -4,7 +4,7 @@
 module Premises.Fixtures.Common
   ( defaultFixture
   , fixture
-  , holder
+  , holding
   , energy
   , energyAt
   , facilities
@@ -25,7 +25,8 @@ import Schema.Build.World (noEntity)
 import Schema.Premise.Fixture (ExpectDoc, FixtureDoc, ProposalDoc, RoundDoc, fixtureShape)
 import Schema.Premise.World (CirculationDoc, EntityDoc, FacilityDoc, MarketDoc, RepresentationDoc, ResourceDoc)
 import Data.Argonaut.Core (Json)
-import Premises.Meridian (asiaMarket, atlanticMarket, atlanticTerms, defenseProcurementFacility, energyShipping, gameSeed, resources, transport, market)
+import Premises.Meridian (asiaMarket, atlanticTerms, coreResources, defenseProcurementFacility, energyShipping, gameSeed, transport, market)
+import Premises.Meridian.Holdings (pickAccounts)
 
 -- | What a fixture gives. The Gameboard's sections (resources, markets, facilities, transport,
 -- | rules, Entities) are always written; the rounds and the circulation are written when given.
@@ -50,8 +51,8 @@ defaultFixture :: FixtureSpec
 defaultFixture =
   { round: 1
   , numeraire: N.money
-  , resources
-  , markets: []
+  , resources: coreResources
+  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , transformations: facilities
   , transport
   , rules: []
@@ -95,17 +96,17 @@ fixture name s = Tuple name (encodeWith Premise fixtureShape doc)
     , expectations: Array.catMaybes (mapWithIndex (\k r -> map (\e -> { round: s.round + k, expect: e }) r.expect) rounds')
     }
 
--- | An Entity that holds these accounts and capabilities, and nothing else.
-holder :: Keyed Q -> Array Capability -> EntityDoc
-holder accounts capabilities = noEntity { accounts = accounts, capabilities = capabilities }
+-- | An Entity with its starting holdings of these Resources and these capabilities, and nothing else.
+holding :: String -> Array String -> Array Capability -> EntityDoc
+holding e accounts capabilities = noEntity { accounts = pickAccounts e accounts, capabilities = capabilities }
 
 -- | Both regional Energy Markets with the given access lists.
 energy :: Array String -> Array String -> Keyed MarketDoc
-energy atlantic asia = keyed [ Tuple N.energyAtlantic (atlanticMarket atlantic), Tuple N.energyAsia (asiaMarket asia) ]
+energy = energyAt Nothing
 
--- | As `energy`, with the Atlantic Market starting at a position.
-energyAt :: Q -> Array String -> Array String -> Keyed MarketDoc
-energyAt position atlantic asia = keyed [ Tuple N.energyAtlantic ((market atlanticTerms atlantic) { position = Just position }), Tuple N.energyAsia (asiaMarket asia) ]
+-- | As `energy`, with the Atlantic Market starting at a position, when given.
+energyAt :: Maybe Q -> Array String -> Array String -> Keyed MarketDoc
+energyAt position atlantic asia = keyed [ Tuple N.energyAtlantic ((market atlanticTerms atlantic) { position = position }), Tuple N.energyAsia (asiaMarket asia) ]
 
 -- | Procurement and shipping, as the premise defines them; fixtures add others as needed.
 facilities :: Keyed FacilityDoc

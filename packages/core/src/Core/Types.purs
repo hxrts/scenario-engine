@@ -5,13 +5,13 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q)
-import Core.Shape (Format(..), Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, qShape, sumOf, unitShape)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, qShape, sumOf, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Either (note)
 import Data.Foldable (class Foldable)
-import Data.Traversable (class Traversable)
+import Data.Traversable (class Traversable, traverse)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Array (last)
@@ -22,6 +22,10 @@ import Data.Show.Generic (genericShow)
 import Data.String (Pattern(..), split)
 
 -- Identifiers ----------------------------------------------------------------
+
+-- | An identifier's text.
+idText :: forall t. Id t -> String
+idText (Id s) = s
 
 -- | An identifier, tagged by what it names.
 newtype Id :: Type -> Type
@@ -34,6 +38,30 @@ derive newtype instance EncodeJson (Id tag)
 derive newtype instance DecodeJson (Id tag)
 instance Show (Id tag) where
   show (Id s) = s
+
+-- | The kind of thing a reference names, for a load-time check: the runtime twin of the tags below.
+data RefKind
+  = ResourceRef
+  | Market
+  | TransformationRef
+  | EntityRef
+  | CapacityName
+  | SchemeRef
+  | PolicyRef
+  | ParameterRef
+
+derive instance Eq RefKind
+
+instance Show RefKind where
+  show = case _ of
+    ResourceRef -> "resource"
+    Market -> "market"
+    TransformationRef -> "transformation"
+    EntityRef -> "entity"
+    CapacityName -> "capacity"
+    SchemeRef -> "scheme"
+    PolicyRef -> "policy"
+    ParameterRef -> "parameter"
 
 data EntityTag
 data ResourceTag
@@ -163,12 +191,24 @@ type Intent = IntentF MarketId Q
 -- | An Intent with its Market position resolved: `Nothing` when the position does not resolve. Only a
 -- | Trade names a Market; every other kind passes through unchanged.
 withMarket :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
-withMarket f = case _ of
-  Trade x -> (\m -> Trade { market: m, quantity: x.quantity, limitPrice: x.limitPrice }) <$> f x.market
-  Route x -> Just (Route x)
-  Transfer x -> Just (Transfer x)
-  Transform x -> Just (Transform x)
-  ChangeRule x -> Just (ChangeRule x)
+withMarket f = traverseIntent { market: f, entity: pure, value: pure }
+
+-- | Rebuild an Intent position by position: its Market, every Entity it names, and every filling.
+traverseIntent
+  :: forall f m n v w
+   . Applicative f
+  => { market :: m -> f n, entity :: EntityId -> f EntityId, value :: v -> f w }
+  -> IntentF m v
+  -> f (IntentF n w)
+traverseIntent t = case _ of
+  Trade x -> (\market quantity limitPrice -> Trade { market, quantity, limitPrice }) <$> t.market x.market <*> t.value x.quantity <*> traverse t.value x.limitPrice
+  Route x -> (\quantity limitPrice -> Route { pair: x.pair, quantity, limitPrice }) <$> t.value x.quantity <*> traverse t.value x.limitPrice
+  Transfer x -> (\from to quantity -> Transfer { from, to, resource: x.resource, quantity }) <$> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
+  Transform x -> (\by quantity -> Transform { by, transformation: x.transformation, quantity }) <$> t.entity x.by <*> t.value x.quantity
+  ChangeRule (Enact (Tariff x)) -> (\jurisdiction origin rate -> ChangeRule (Enact (Tariff { jurisdiction, origin, rate }))) <$> t.entity x.jurisdiction <*> t.entity x.origin <*> t.value x.rate
+  ChangeRule (Enact (AccessBan x)) -> (\jurisdiction target -> ChangeRule (Enact (AccessBan { jurisdiction, target }))) <$> t.entity x.jurisdiction <*> t.entity x.target
+  ChangeRule (Enact (Withholding x)) -> (\units -> ChangeRule (Enact (Withholding { capacity: x.capacity, units }))) <$> t.value x.units
+  ChangeRule (Repeal r) -> pure (ChangeRule (Repeal r))
 
 type Rule = RuleF Q
 type RuleChange = RuleChangeF Q
@@ -335,22 +375,61 @@ ruleShape = sumOf "Rule" [ tariff, accessBan, withholding ]
   projWithholding = case _ of
     Withholding x -> Just x
     _ -> Nothing
-  tariffShape = object "Tariff"
-    ( (\j o r -> { jurisdiction: j, origin: o, rate: r })
-        <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
-        <*> fieldOf "origin" "the Entity whose goods it taxes" idShape _.origin
-        <*> fieldOf "rate" "the rate" qShape _.rate
-    )
-  accessBanShape = object "AccessBan"
-    ( (\j t -> { jurisdiction: j, target: t })
-        <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
-        <*> fieldOf "target" "the Entity whose shipments are banned" idShape _.target
-    )
-  withholdingShape = object "Withholding"
-    ( (\c u -> { capacity: c, units: u })
-        <$> fieldOf "capacity" "the capacity withheld" idShape _.capacity
-        <*> fieldOf "units" "units withheld" qShape _.units
-    )
+  tariffShape = tariffBody qShape
+  accessBanShape = accessBanBody
+  withholdingShape = withholdingBody qShape
+
+-- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
+-- tag forms differ by format; these do not.
+
+-- | A Transfer.
+transferBody :: forall v. Shape v -> Shape { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
+transferBody v = object "Transfer"
+  ( (\f t r q -> { from: f, to: t, resource: r, quantity: q })
+      <$> fieldOf "from" "the giving Entity" idShape _.from
+      <*> fieldOf "to" "the receiving Entity" idShape _.to
+      <*> fieldOf "resource" "the Resource" idShape _.resource
+      <*> fieldOf "quantity" "the quantity" v _.quantity
+  )
+
+tariffBody :: forall v. Shape v -> Shape { jurisdiction :: EntityId, origin :: EntityId, rate :: v }
+tariffBody v = object "Tariff"
+  ( (\j o r -> { jurisdiction: j, origin: o, rate: r })
+      <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
+      <*> originF
+      <*> rateF v
+  )
+
+-- | A Tariff with its jurisdiction left implicit: the acting Entity's.
+ownTariffBody :: forall v. Shape v -> Shape { origin :: EntityId, rate :: v }
+ownTariffBody v = object "Tariff" ((\o r -> { origin: o, rate: r }) <$> originF <*> rateF v)
+
+originF :: forall r. RecF { origin :: EntityId | r } EntityId
+originF = fieldOf "origin" "the Entity whose goods it taxes" idShape _.origin
+
+rateF :: forall v r. Shape v -> RecF { rate :: v | r } v
+rateF v = fieldOf "rate" "the rate" v _.rate
+
+accessBanBody :: Shape { jurisdiction :: EntityId, target :: EntityId }
+accessBanBody = object "AccessBan"
+  ( (\j t -> { jurisdiction: j, target: t })
+      <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
+      <*> targetF
+  )
+
+-- | An AccessBan with its jurisdiction left implicit: the acting Entity's.
+ownAccessBanBody :: Shape { target :: EntityId }
+ownAccessBanBody = object "AccessBan" ((\t -> { target: t }) <$> targetF)
+
+targetF :: forall r. RecF { target :: EntityId | r } EntityId
+targetF = fieldOf "target" "the Entity whose shipments are banned" idShape _.target
+
+withholdingBody :: forall v. Shape v -> Shape { capacity :: CapacityRef, units :: v }
+withholdingBody v = object "Withholding"
+  ( (\c u -> { capacity: c, units: u })
+      <$> fieldOf "capacity" "the capacity withheld" idShape _.capacity
+      <*> fieldOf "units" "units withheld" v _.units
+  )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
 ruleChangeShape = sumOf "RuleChange" [ enact, repeal ]
@@ -404,13 +483,7 @@ intentShape = sumOf "Intent" [ trade, route, transfer, transform, changeRule ]
         <$> fieldOf "base" "the base Resource" idShape _.base
         <*> fieldOf "quote" "the quote Resource" idShape _.quote
     )
-  transferShape = object "Transfer"
-    ( (\f t r q -> { from: f, to: t, resource: r, quantity: q })
-        <$> fieldOf "from" "the giving Entity" idShape _.from
-        <*> fieldOf "to" "the receiving Entity" idShape _.to
-        <*> fieldOf "resource" "the Resource" idShape _.resource
-        <*> fieldOf "quantity" "the quantity" qShape _.quantity
-    )
+  transferShape = transferBody qShape
   transformShape = object "Transform"
     ( (\b t q -> { by: b, transformation: t, quantity: q })
         <$> fieldOf "by" "the Entity that runs it" idShape _.by
@@ -604,6 +677,17 @@ instance DecodeJson (IntentF MarketId Q) where
 
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
 proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
+
+-- | The author a Proposal id was built with: the segment before its index. Nothing for an id that
+-- | `proposalId` could not have made.
+proposalAuthor :: ProposalId -> Maybe EntityId
+proposalAuthor (Id s) = case split (Pattern "/") s of
+  [ _, author, _ ] -> Just (Id author)
+  _ -> Nothing
+
+-- | The id the engine gives the `i`th Rule a Proposal enacts.
+ruleIdOf :: ProposalId -> Int -> RuleId
+ruleIdOf p i = Id (show p <> "/rule-" <> show i)
 
 -- | The index a Proposal id was built with: the segment after its last "/". Nothing for an id
 -- | that `proposalId` could not have made.

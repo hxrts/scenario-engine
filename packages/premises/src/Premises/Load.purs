@@ -7,6 +7,7 @@ module Premises.Load
   ( LoadError(..)
   , fromFiles
   , loadPremise
+  , loadFrom
   , loadPresets
   , decodePresets
   , loadLiteral
@@ -72,6 +73,10 @@ loadPremise s = do
   lmap show (checkPremise { gameboard: decoded.gameboard, config: decoded.config, presets })
   where
   presetsOf p = lmap (Unreadable p.path) (jsonParser p.text) >>= presetsFrom
+
+-- | A premise directory read through the file operations given, decoded and checked.
+loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String GameboardParts)
+loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
 
 -- | A literal premise's file text, decoded and named `name`.
 loadLiteral :: String -> String -> Either String Literal

@@ -85,9 +85,15 @@ data Measure
   | PayeeReceipts
   | VolumeOf TransformationId
 
+derive instance Eq Measure
+
 data Span = Final | EveryRound | Cumulative
 
+derive instance Eq Span
+
 data Bound = Fixed Q | Of MetricRef
+
+derive instance Eq Bound
 
 type Scheme =
   { id :: String

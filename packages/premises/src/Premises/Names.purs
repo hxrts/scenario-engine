@@ -3,6 +3,8 @@
 -- | these constants, so a name is spelled once. Read qualified (`N.us`, `N.energyAtlantic`).
 module Premises.Names where
 
+import Prelude ((<>))
+
 -- Entities (docs/05_test_instance.md §9 and §10) ----------------------------------------
 
 us :: String
@@ -218,3 +220,30 @@ instantiationFile = "instantiation.json"
 
 presetsFile :: String
 presetsFile = "presets.json"
+
+-- Paths under the premise root ----------------------------------------------------------------
+
+meridianDir :: String
+meridianDir = "meridian/v0"
+
+fixturesDir :: String
+fixturesDir = "fixtures"
+
+capstoneDir :: String
+capstoneDir = "capstone"
+
+-- | A compiled fixture's path.
+fixturePath :: String -> String
+fixturePath name = fixturesDir <> "/" <> name <> ".json"
+
+capstoneRunFile :: String
+capstoneRunFile = capstoneDir <> "/run.json"
+
+capstoneTranscriptFile :: String
+capstoneTranscriptFile = capstoneDir <> "/transcript.json"
+
+-- Seats ---------------------------------------------------------------------------------------
+
+-- | The fifteen seat Actors, in catalog order: the one list every seat enumeration uses.
+seatActors :: Array String
+seatActors = [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ]

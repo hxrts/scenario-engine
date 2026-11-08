@@ -3,7 +3,7 @@ module Test.Policy.Main where
 import Prelude
 
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
+import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
 import Core.World (Event(..), View)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Argonaut.Parser (jsonParser)
@@ -15,7 +15,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
 import Core.Proposal (ProposalBody)
-import Policy.Interpret (Env, propose, sign)
+import Policy.Interpret (Env, nameOnly, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyParams, strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy)
@@ -56,7 +56,7 @@ twoMarkets = seat
 
 -- | Every draw is zero.
 env :: Env
-env = { view: seat, params: Object.empty, random: const Q.zero }
+env = { view: seat, params: Object.empty, random: const Q.zero, market: nameOnly }
 
 -- | Every draw except index 0 is 0.9.
 highDraws :: Int -> Q.Q
@@ -161,8 +161,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a one-Market selector draws as a named Market does" do
       let one = """{ "rules": [ { "propose": [ { "choose": [ { "noAction": null }, { "trade": { "market": MARKET, "quantity": "3" } } ] } ] } ] }"""
       drafts (replaceAll (Pattern "MARKET") (Replacement "{ \"each\": \"E\" }") one) env { random = highDraws } `shouldEqual` drafts (replaceAll (Pattern "MARKET") (Replacement "\"energy-atlantic\"") one) env { random = highDraws }
-    it "$home is no longer a Market: it is an unknown name" do
-      (strategyRefs (strategy """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""")).markets `shouldEqual` [ "$home" ]
+    it "an unknown Market id is a load-time name" do
+      strategyRefs (strategy """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""") `shouldEqual` [ Tuple Market "$home" ]
     it "a route drafts a routed Trade with its pair and limit" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
@@ -265,4 +265,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Load-time references" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
       strategyRefs (strategy """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
-        { entities: [ "bogus" ], markets: [], resources: [ "E" ], transformations: [], parameters: [] }
+        [ Tuple ResourceRef "E", Tuple EntityRef "bogus" ]

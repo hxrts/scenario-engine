@@ -3,16 +3,17 @@
 -- | the instantiation and reconciliation checks run as part of validation.
 module Board.Gameboard.Validate
   ( validateGameboard
+  , unknownNames
   ) where
 
 import Prelude
 
-import Board.Gameboard.Instantiate (instantiate)
+import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
-import Board.Error (RefKind(..), ValidationError(..))
+import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (EntityId, RuleF(..), domainResource)
+import Core.Types (EntityId, Id(..), MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, domainResource, idText)
 import Core.World (ShareSource(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -21,6 +22,8 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Tuple (Tuple(..))
+import Foreign.Object (Object)
+import Foreign.Object as Object
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
@@ -37,6 +40,7 @@ validateGameboard gb config =
   entities = fromFoldable (Map.values w.entities)
   markets = fromFoldable (Map.values w.markets)
   facilities = fromFoldable (Map.values w.transformations)
+  aggregates = mapMaybe (\e -> map { entity: e, aggregate: _ } (aggregateOf e)) entities
   -- whether the Entity with this id is an Aggregate (an unknown id is not)
   isAggregateId e = maybe false isAggregate (Map.lookup e w.entities)
   -- capacities an Entity holds, by name
@@ -49,11 +53,11 @@ validateGameboard gb config =
     )
 
   -- An unknown name in any position: one error per name.
-  missing :: forall k v. Ord k => (k -> String) -> RefKind -> Map k v -> Array k -> Array ValidationError
-  missing name kind m xs = map (UnknownReference kind <<< name) (filter (\x -> not (Map.member x m)) xs)
-  unknownEntity = missing show EntityRef w.entities
-  unknownResource = missing show ResourceRef w.resources
-  unknownTransformation = missing show TransformationRef w.transformations
+  unknown :: forall t. RefKind -> Array (Id t) -> Array ValidationError
+  unknown kind = unknownNames w gb.parameters <<< map (Tuple kind <<< idText)
+  unknownEntity = unknown EntityRef
+  unknownResource = unknown ResourceRef
+  unknownTransformation = unknown TransformationRef
   -- a capacity named by a facility, effect, rule, or production entry must be held by some Entity
   unknownCapacity xs = map (UnknownReference CapacityName <<< show) (filter (\c -> not (show c `elem` held)) xs)
 
@@ -89,13 +93,9 @@ validateGameboard gb config =
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
       <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
-      <> unknownEntity (concatMap (\e -> maybe [] _.members (aggregateOf e)) entities)
+      <> unknownEntity (concatMap _.aggregate.members aggregates)
       <> unknownEntity
-        ( concatMap
-            ( \e -> maybe [] (\a -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values a.procedures))) (aggregateOf e)
-            )
-            entities
-        )
+        (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values x.aggregate.procedures))) aggregates)
       <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors)) <> fallbackPolicies))
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
@@ -110,7 +110,7 @@ validateGameboard gb config =
   institutional = case _ of
     InstitutionalPolicy p -> [ p ]
     _ -> []
-  aggregatePolicies = concatMap (\e -> maybe [] (\a -> [ a.policy ]) (aggregateOf e)) entities
+  aggregatePolicies = map _.aggregate.policy aggregates
   capacities = concatMap productionHeld w.circulation.production
     <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
     <> concatMap schemeTarget gb.schemes
@@ -128,20 +128,33 @@ validateGameboard gb config =
   fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   procedures = concatMap
-    ( \e -> case aggregateOf e of
-        Just a | any (\p -> not (all (_ `elem` e.capabilities) p.authorizes)) (fromFoldable (Map.values a.procedures)) -> [ ProcedureExceedsAuthority e.id ]
-        _ -> []
-    )
-    entities
+    (\x -> if any (\p -> not (all (_ `elem` x.entity.capabilities) p.authorizes)) (fromFoldable (Map.values x.aggregate.procedures)) then [ ProcedureExceedsAuthority x.entity.id ] else [])
+    aggregates
   roundCount =
     if config.rounds < gb.rounds.min || config.rounds > gb.rounds.max then [ RoundsOutOfRange { rounds: config.rounds, min: gb.rounds.min, max: gb.rounds.max } ]
     else []
   consistent e = case Map.lookup e gb.actors of
     Just { fallback: Just (ImplicitCoverage _) } ->
-      let
-        without = config { seats = Map.delete e config.seats, npcs = Map.delete e config.npcs, representations = filter (\r -> r.actor /= e) config.representations }
-      in
-        case instantiate gb config, instantiate gb without of
-          Right a, Right b -> either (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
-          _, _ -> []
+      case instantiate gb config, instantiate gb (withoutActor e config) of
+        Right a, Right b -> either (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
+        _, _ -> []
     _ -> []
+
+-- | The names a world and its parameters lack: one error per unknown name of a kind this can check
+-- | (an Entity, Market, Resource, Transformation or parameter). Other kinds are checked where they
+-- | are held, so they pass here.
+unknownNames
+  :: forall e m r t p rest
+   . { entities :: Map EntityId e, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
+  -> Object p
+  -> Array (Tuple RefKind String)
+  -> Array ValidationError
+unknownNames w parameters = map (\(Tuple kind name) -> UnknownReference kind name) <<< filter (\(Tuple kind name) -> not (known kind name))
+  where
+  known kind name = case kind of
+    EntityRef -> Map.member (Id name) w.entities
+    Market -> Map.member (Id name) w.markets
+    ResourceRef -> Map.member (Id name) w.resources
+    TransformationRef -> Map.member (Id name) w.transformations
+    ParameterRef -> Object.member name parameters
+    _ -> true

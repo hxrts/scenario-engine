@@ -31,7 +31,7 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Schema.Premise.Actor (definitionToCore, fallbackShape)
 import Schema.Premise.Strategy (strategyShape)
-import Schema.Premise.World (AssignmentDoc, Keyed, SchemeDoc, WorldDoc, assignmentShape, schemeShape, schemeToCore, worldRec, worldToCore)
+import Schema.Premise.World (AssignmentDoc, Keyed, keyedToMap, SchemeDoc, WorldDoc, assignmentShape, schemeShape, schemeToCore, worldRec, worldToCore)
 
 -- | A Gameboard as written: its header, its World, its schemes and parameters, and its Policy catalog.
 type GameboardDoc =
@@ -122,7 +122,7 @@ toGameboard g =
   , horizon: g.horizon
   , rounds: g.roundRange
   , label: g.label
-  , policies: Map.fromFoldable (map (\(Tuple k s) -> Tuple (Id k) s) (fromMaybe [] g.policies))
+  , policies: keyedToMap (fromMaybe [] g.policies)
   }
   where
   actorOf (Tuple k e) = map (\d -> Tuple (Id k) (definitionToCore d)) e.definition
@@ -132,9 +132,9 @@ toConfig :: ConfigDoc -> InstantiationConfig
 toConfig c =
   { seed: Seed c.seed
   , rounds: c.rounds
-  , seats: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) v) (fromMaybe [] c.seats))
-  , npcs: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) (Id v)) (fromMaybe [] c.npcs))
-  , fallbacks: Map.fromFoldable (map (\(Tuple k v) -> Tuple (Id k) v) (fromMaybe [] c.fallbacks))
+  , seats: keyedToMap (fromMaybe [] c.seats)
+  , npcs: map Id (keyedToMap (fromMaybe [] c.npcs))
+  , fallbacks: keyedToMap (fromMaybe [] c.fallbacks)
   , representations: map (\a -> { scheme: a.scheme, actor: Id a.actor, weight: fromMaybe Q.one a.weight }) (fromMaybe [] c.representations)
   }
 

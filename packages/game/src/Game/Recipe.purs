@@ -43,9 +43,8 @@ encodeSpec r = Object.fromFoldable $
   [ Tuple "gameId" r.gameId
   , Tuple "preset" r.preset
   , Tuple "playerSeed" (show (unwrap r.playerSeed))
-  , Tuple "rounds" (maybe "default" show r.rounds)
   , Tuple "overrides" (stringify (encodeOverrides r.overrides))
-  ] <> maybe [] (\d -> [ Tuple "source" d.source, Tuple "kind" d.kind ]) r.derivation
+  ] <> maybe [] (\n -> [ Tuple "rounds" (show n) ]) r.rounds <> maybe [] (\d -> [ Tuple "source" d.source, Tuple "kind" d.kind ]) r.derivation
 
 -- | The recipe a derived run is played from, given the request's fields (`Effects.Api.DeriveRequest`;
 -- | `kind` is one of the four, checked before this is called). Absent fields keep the source's values.
@@ -92,4 +91,9 @@ decodeSpec s = do
   overrides <- case Object.lookup "overrides" s of
     Nothing -> Right []
     Just text -> jsonParser text >>= decodeOverrides
-  pure { preset, playerSeed: Just playerSeed, rounds: Object.lookup "rounds" s >>= Int.fromString, overrides }
+  -- rows written before the key was omitted hold "default" for a configured round count
+  rounds <- case Object.lookup "rounds" s of
+    Nothing -> Right Nothing
+    Just "default" -> Right Nothing
+    Just text -> Just <$> note ("the stored spec's rounds is not an integer: " <> text) (Int.fromString text)
+  pure { preset, playerSeed: Just playerSeed, rounds, overrides }

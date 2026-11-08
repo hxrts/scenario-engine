@@ -2,39 +2,14 @@
 -- | §14.2): the failed checks of `Board.Gameboard.Validate` and the differences between two
 -- | instantiations of one economy. Realization owns these; the premise format does not.
 module Board.Error
-  ( RefKind(..)
-  , ValidationError(..)
+  ( ValidationError(..)
   , Difference(..)
   ) where
 
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, ResourceId, TransformationId)
-
--- | The kind of thing a reference names, for `UnknownReference`.
-data RefKind
-  = ResourceRef
-  | Market
-  | TransformationRef
-  | EntityRef
-  | CapacityName
-  | SchemeRef
-  | PolicyRef
-  | ParameterRef
-
-derive instance Eq RefKind
-
-instance Show RefKind where
-  show = case _ of
-    ResourceRef -> "resource"
-    Market -> "market"
-    TransformationRef -> "transformation"
-    EntityRef -> "entity"
-    CapacityName -> "capacity"
-    SchemeRef -> "scheme"
-    PolicyRef -> "policy"
-    ParameterRef -> "parameter"
+import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, RefKind, ResourceId, TransformationId)
 
 -- | Every way a Gameboard, its configuration, or an instantiation can be wrong. Each
 -- | constructor names one check, so a caller and its tests match on the specific failure.

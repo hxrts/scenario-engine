@@ -8,19 +8,20 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Proposal (proposalAt)
-import Core.Types (Id(..))
+import Core.Types (Id(..), RefKind(..))
 import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Effect (Effect)
 import Foreign.Object as Object
-import Board.Error (RefKind(..))
 import Data.Tuple (Tuple(..))
 import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, unknownSeats)
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
 import Game.Premise (Premise(..))
+import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
 import Testkit.Meridian (premise)
@@ -87,7 +88,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right w -> map (const unit) (assemble (LiteralPremise { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
     it "an override naming an unknown Entity is an error" do
       p <- premise
-      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (UnknownEntity (Id "NOBODY"))
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
     it "an Agent or Human seat cannot be simulated" do
       p <- premise
       case assemble (GameboardPremise p) (Map.insert (Id "US") Agent (silent p)) [] of
@@ -109,3 +110,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeOverrides (encodeOverrides overrides) of
         Left e -> fail e
         Right back -> stringify (encodeOverrides back) `shouldEqual` stringify (encodeOverrides overrides)
+    it "the stored form is byte-identical to specs written before the shape" do
+      -- the literal is the output of the hand-written encoder this shape replaced
+      let
+        stored = """[{"type":"gameSeed","seed":3},{"type":"parameter","name":"tariff","value":"2.0000"},{"type":"capacity","entity":"ENCO","capacity":"energy","value":"7.0000"},{"type":"shrinkage","scheme":"sme-energy-sample","value":"1.0000"},{"type":"implicit","entity":"AID"}]"""
+        overrides =
+          [ GameSeed 3
+          , Parameter "tariff" (Q.fromInt 2)
+          , Capacity (Id "ENCO") (Id "energy") (Q.fromInt 7)
+          , Shrinkage "sme-energy-sample" (Q.fromInt 1)
+          , Implicit (Id "AID")
+          ]
+      stringify (encodeOverrides overrides) `shouldEqual` stored
+      map (map (const unit)) (jsonParser stored >>= decodeOverrides) `shouldEqual` Right (map (const unit) overrides)
+    it "a stored spec keeps reading: an old default round count, and a present non-integer fails" do
+      let
+        spec rounds = Object.fromFoldable ([ Tuple "preset" "Passive", Tuple "playerSeed" "1" ] <> rounds)
+      map _.rounds (decodeSpec (spec [ Tuple "rounds" "default" ])) `shouldEqual` Right Nothing
+      map _.rounds (decodeSpec (spec [])) `shouldEqual` Right Nothing
+      map _.rounds (decodeSpec (spec [ Tuple "rounds" "3" ])) `shouldEqual` Right (Just 3)
+      map _.rounds (decodeSpec (spec [ Tuple "rounds" "lots" ])) `shouldEqual` Left "the stored spec's rounds is not an integer: lots"

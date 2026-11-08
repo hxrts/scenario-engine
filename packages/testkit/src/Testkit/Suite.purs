@@ -25,6 +25,7 @@ import Effect.Class (liftEffect)
 import Game.Premise (GameboardParts)
 import Game.Types (Game)
 import Partial.Unsafe (unsafeCrashWith)
+import Premises.Names (fixturePath)
 import Premises.Load (loadLiteral)
 import Premises.Tree (readRootFile)
 import Schema.Premise.Strategy (decodeStrategy)
@@ -45,7 +46,7 @@ strategyOrThrow text = case jsonParser text of
 
 -- | A named fixture file, played through the shared checker: every expectation holds.
 fixture :: String -> Aff Unit
-fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
+fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps (fixturePath name))) >>= case _ of
   Left e -> fail (show e)
   Right f -> checkLiteral f `shouldEqual` []
 

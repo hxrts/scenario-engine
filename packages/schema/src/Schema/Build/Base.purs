@@ -3,7 +3,7 @@
 -- | a core value, so a premise is written with the same types the engine reads; nothing here builds
 -- | JSON (the shapes in `Schema.Premise.*` do).
 module Schema.Build.Base
-  ( Keyed
+  ( module Exports
   , keyed
   , (:=)
   , entry
@@ -38,9 +38,8 @@ import Core.World as W
 import Data.Tuple (Tuple(..))
 import Schema.Build.Quantity (class ToQty, q)
 import Schema.Gameboard (Fallback(..), Measure(..), Span(..))
-
--- | A keyed list, in the order written.
-type Keyed a = Array (Tuple String a)
+import Schema.Premise.World (Keyed) as Exports
+import Schema.Premise.World (Keyed)
 
 keyed :: forall a. Array (Tuple String a) -> Keyed a
 keyed = identity

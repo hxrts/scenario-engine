@@ -26,8 +26,7 @@ import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv, exit')
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise)
-import Premises.Load (loadPremise)
+import Premises.Load (loadFrom)
 import Options (runFlags, runOptions, sessionFlags, sessionOptions)
 import Premises.Presets (presetNames)
 import Session (session)
@@ -57,7 +56,7 @@ usage why = do
 
 runPremise :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runPremise premise presetName rounds given = do
-  loaded <- map (_ >>= loadPremise) (readPremise fileOps (premise <> "/v0"))
+  loaded <- loadFrom fileOps (premise <> "/v0")
   case loaded of
     Left e -> fail e
     Right parts -> case assemblePreset parts presetName [] (Just rounds) of

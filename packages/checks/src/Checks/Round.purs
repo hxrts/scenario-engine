@@ -110,11 +110,11 @@ check round ex ob =
     [ nested Balance ex.accounts ob.accounts
     , nested Reserve ex.reserves ob.reserves
     , nested Factor ex.factors ob.factors
-    , maybe [] (\ds -> whole Deliveries (sortWith show (unId ob.deliveries)) (sortWith show ds)) ex.deliveries
-    , maybe [] (\rs -> whole Rejections (unId ob.rejected) (sort rs)) ex.rejected
-    , maybe [] (\rs -> whole Lapses (unId ob.lapsed) (sort rs)) ex.lapsed
-    , maybe [] (\ps -> whole Outcomes (unId ob.procedures) ps) ex.procedures
-    , maybe [] (\n -> whole Scheduled (unId ob.scheduled) n) ex.scheduled
+    , maybe [] (\ds -> whole Deliveries (sortWith show (fromIdentity ob.deliveries)) (sortWith show ds)) ex.deliveries
+    , maybe [] (\rs -> whole Rejections (fromIdentity ob.rejected) (sort rs)) ex.rejected
+    , maybe [] (\rs -> whole Lapses (fromIdentity ob.lapsed) (sort rs)) ex.lapsed
+    , maybe [] (\ps -> whole Outcomes (fromIdentity ob.procedures) ps) ex.procedures
+    , maybe [] (\n -> whole Scheduled (fromIdentity ob.scheduled) n) ex.scheduled
     ]
   where
   nested :: forall k1 k2. Ord k1 => Ord k2 => Show k1 => Show k2 => (k1 -> k2 -> Field) -> Map.Map k1 (Map.Map k2 (Maybe Q)) -> Map.Map k1 (Map.Map k2 (Identity Q)) -> Array Failure
@@ -135,8 +135,8 @@ check round ex ob =
   whole field got want = if got == want then [] else [ Mismatch round field (show got) (show want) ]
 
 -- | The value of an Observed leaf or field.
-unId :: forall a. Identity a -> a
-unId (Identity a) = a
+fromIdentity :: forall a. Identity a -> a
+fromIdentity (Identity a) = a
 
 -- | The checks of one round's result against its Expect.
 checkRound :: Expect -> RoundResult -> Array Failure

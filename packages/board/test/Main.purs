@@ -2,12 +2,12 @@ module Test.Board.Main where
 
 import Prelude
 
-import Board.Error (RefKind(..), ValidationError(..))
+import Board.Error (ValidationError(..))
 import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), Rule, RuleF(..), RuleId, Transferability(..), Transformation, TransformationId)
+import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleF(..), RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (UnseededWorld)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Parser (jsonParser)

@@ -89,7 +89,7 @@ proposalAt r author index d =
 -- | The joint pass's Proposals, each numbered after the author's `own` Proposals of the round and
 -- | counted across the joint reply, ids assigned as `proposalsOf` assigns a seat's own, so that
 -- | replay assigns the same ids.
-numberJoint :: RoundIndex -> Map EntityId Int -> Array { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId } -> Array { proposal :: Proposal, signed :: Array EntityId }
+numberJoint :: RoundIndex -> Map EntityId Int -> Array JointProposal -> Array { proposal :: Proposal, signed :: Array EntityId }
 numberJoint r own joint = (mapAccumL step own joint).value
   where
   step seen j =
@@ -108,7 +108,7 @@ jointProposalsOf = either (const []) identity
 -- | Intents, are dropped. Signers are kept only when `known` says they are Entities of the World, and
 -- | the author is never its own signer. Only speakers can be recorded as signing: `signed` is the
 -- | author and those of the agreed Entities who spoke.
-jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId } -> Array JointProposal
+jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array ProposedDeal -> Array JointProposal
 jointProposals known transcripts = mapMaybe joint
   where
   speakers = map _.seat transcripts

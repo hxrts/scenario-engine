@@ -30,6 +30,7 @@ import Handlers.Seats (seatEnv)
 import Simulator.Simulate (Snapshot, resumeFrom)
 import Core.Strategy (Strategy)
 import Adapters.Filesystem (fileOps)
+import Premises.Names (fixturePath)
 import Premises.Tree (readRootFile)
 import Premises.Load (loadLiteral)
 import Game.Assemble (presetBindings, withRounds)
@@ -127,7 +128,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
-      liftEffect (map (_ >>= loadLiteral "C1") (readRootFile fileOps "fixtures/C1.json")) >>= case _ of
+      liftEffect (map (_ >>= loadLiteral "C1") (readRootFile fileOps (fixturePath "C1"))) >>= case _ of
         Left e -> fail (show e)
         Right f -> do
           let

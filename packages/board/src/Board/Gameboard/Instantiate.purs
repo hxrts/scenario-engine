@@ -3,19 +3,19 @@
 -- | weights, and Representations resolved.
 module Board.Gameboard.Instantiate
   ( instantiate
+  , withoutActor
   , mergeRequirements
   ) where
 
 import Prelude
 
 import Schema.Gameboard (Fallback(..), Gameboard, InitialWorld, InstantiationConfig)
-import Board.Error (RefKind(..), ValidationError(..))
-import Core.Draw (drawVersion)
+import Board.Error (ValidationError(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RuleF(..))
-import Core.World (Requirement, UnseededWorld, seeded)
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), RuleF(..))
+import Core.World (Requirement, UnseededWorld, manifestOf, seeded)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -35,7 +35,7 @@ instantiate gb config =
     if not (null errors) then Left errors
     else Right
       { world: final
-      , manifest: { gameboard: gb.id <> "@" <> gb.version, engine: "sp-engine/v1", draw: drawVersion, initial: final }
+      , manifest: manifestOf (gb.id <> "@" <> gb.version) final
       }
   where
   selected e = Map.member e config.seats || Map.member e config.npcs
@@ -71,6 +71,10 @@ instantiate gb config =
     Just seat, _ -> e { kind = Actor (Seat (Id seat)) }
     _, Just p -> e { kind = Actor (NPC p) }
     _, _ -> e
+
+-- | The configuration with the Actor not explicit: its seat, NPC binding and Representations removed.
+withoutActor :: EntityId -> InstantiationConfig -> InstantiationConfig
+withoutActor e config = config { seats = Map.delete e config.seats, npcs = Map.delete e config.npcs, representations = filter (\r -> r.actor /= e) config.representations }
 
 -- | Resolve one unselected Actor by its fallback.
 applyFallback :: UnseededWorld -> Tuple EntityId Fallback -> UnseededWorld

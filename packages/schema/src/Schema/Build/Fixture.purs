@@ -7,6 +7,8 @@ module Schema.Build.Fixture
   ( noExpect
   , proposal
   , ref
+  , refAt
+  , procedureDoc
   , noRound
   , accessBanRule
   , tariffRule
@@ -15,7 +17,7 @@ module Schema.Build.Fixture
 
 import Core.Num (Q)
 import Core.Types (Id(..), Intent, RuleF(..))
-import Schema.Premise.Fixture (ExpectDoc, ProposalDoc, ProposalRefDoc, RoundDoc)
+import Schema.Premise.Fixture (ExpectDoc, ProcedureDoc, ProposalDoc, ProposalRefDoc, RoundDoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 
@@ -34,6 +36,10 @@ ref author = Left author
 -- | The Proposal at a position among its author's Proposals in the round.
 refAt :: String -> Int -> ProposalRefDoc
 refAt author index = Right { author, index: Just index }
+
+-- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
+procedureDoc :: ProposalRefDoc -> Q -> Boolean -> ProcedureDoc
+procedureDoc named support executed = { proposal: named, support, executed }
 
 -- | A round that receives nothing and checks nothing. A round's keys are given by record update.
 noRound :: RoundDoc

@@ -7,9 +7,8 @@ import Premises.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (defaultFixture, energy, fixture)
-import Premises.Meridian (coreResources)
-import Premises.Meridian.Holdings (pickAccounts)
+import Premises.Fixtures.Common (holding, defaultFixture, fixture)
+
 import Schema.Build.Base (keyed, (:=), mayTransform)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noEntity)
@@ -20,20 +19,18 @@ import Data.Maybe (Maybe(..))
 fixtureF :: Tuple String Json
 fixtureF = fixture "F"
   ( defaultFixture
-      { resources = coreResources
-      , markets = energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
-      , entities = keyed
+      { entities = keyed
           [ Tuple N.us
-              ( (noEntity { accounts = pickAccounts N.us [ N.money, N.energy ], capabilities = [ mayTransform N.defenseProcurement ], capacities = Just (keyed []) })
+              ( (holding N.us [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
               )
           , Tuple N.uk
-              ( (noEntity { accounts = pickAccounts N.uk [ N.money, N.energy ], capabilities = [ mayTransform N.defenseProcurement ], capacities = Just (keyed []) })
+              ( (holding N.uk [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
               )
           , Tuple N.jp
-              ( (noEntity { accounts = pickAccounts N.jp [ N.money, N.energy ], capabilities = [ mayTransform N.defenseProcurement ], capacities = Just (keyed []) })
+              ( (holding N.jp [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
               )
           , Tuple N.def
-              ( (noEntity { accounts = pickAccounts N.def [ N.money, N.energy ], capabilities = [], capacities = Just (keyed []) })
+              ( (holding N.def [ N.money, N.energy ] [])
               )
           , Tuple N.chip
               ( (noEntity { accounts = keyed [], capabilities = [], capacities = Just (keyed [ N.semiconductors := 15 ]) })

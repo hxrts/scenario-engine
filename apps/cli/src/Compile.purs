@@ -17,12 +17,13 @@ import Node.FS.Perms (permsAll)
 import Node.FS.Sync (mkdir', writeTextFile)
 import Node.Process (exit')
 import Compile.Render (compile)
+import Premises.Names as N
 
 main :: Effect Unit
 main = case compile of
   Left e -> log ("invalid premise: " <> e) *> exit' 1
   Right files -> do
     root <- premiseRoot fileOps
-    for_ [ "meridian/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
+    for_ [ N.meridianDir, N.fixturesDir, N.capstoneDir ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
     log ("compiled " <> show (length files) <> " files")

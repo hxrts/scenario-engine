@@ -14,11 +14,12 @@ module Game.Assemble
 import Prelude
 
 import Board.Gameboard.Instantiate (instantiate)
-import Core.Draw (drawVersion)
 import Core.Strategy (InWorld, Strategy)
+import Core.World (manifestOf)
 import Core.Num (Q)
 import Core.Types (EntityId, MarketId, ResourceId, TransformationId)
 import Data.Array (elem, fromFoldable, null, filter)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Map (Map)
@@ -29,12 +30,12 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Game.Error (GameError(..))
+import Game.Error (GameError(..), Stage(..))
 import Game.Override (Override, resolve)
 import Game.Premise (GameboardParts, Premise(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.InWorld (inWorldOf)
-import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
+import Schema.Gameboard (InstantiationConfig)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
 -- | names something the baseline lacks, when the world does not instantiate, when the bindings are not
@@ -44,13 +45,13 @@ assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
 assemble premise bindings overrides = case premise of
   GameboardPremise p -> do
     resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
-    { initial, inWorld } <- startOf resolved.gameboard resolved.config
+    initial <- lmap (Invalid AfterOverrides) (instantiate resolved.gameboard resolved.config)
     checkSeats (configuredSeats resolved.config) bindings
     checkStrategies resolved.gameboard.world resolved.gameboard.parameters bindings
     pure
       { manifest: initial.manifest
       , world: initial.world
-      , inWorld
+      , inWorld: inWorldOf resolved.gameboard
       , rounds: resolved.config.rounds
       , parameters: resolved.gameboard.parameters
       , seats: bindings
@@ -61,7 +62,7 @@ assemble premise bindings overrides = case premise of
         -- a literal premise has no seat configuration: any Entity it writes answers may be bound
         checkStrategies p.world (Object.empty :: Object Q) bindings
         pure
-          { manifest: { gameboard: "literal", engine: "sp-engine/v1", draw: drawVersion, initial: p.world }
+          { manifest: manifestOf "literal" p.world
           , world: p.world
           , inWorld: { strategies: Map.empty, params: Object.empty } :: InWorld
           , rounds: p.rounds
@@ -89,13 +90,6 @@ checkStrategies world parameters bindings = traverse_ check (Map.toUnfoldable bi
   check (Tuple e binding) = case binding of
     Strategy s -> checkRefs ("seat " <> unwrap e) world parameters s
     _ -> Right unit
-
--- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
--- | world does not instantiate.
-startOf :: Gameboard -> InstantiationConfig -> Either GameError { initial :: InitialWorld, inWorld :: InWorld }
-startOf gameboard config = case instantiate gameboard config of
-  Left es -> Left (Instantiation es)
-  Right initial -> Right { initial, inWorld: inWorldOf gameboard }
 
 -- | The seats the configuration names, in order.
 configuredSeats :: InstantiationConfig -> Array EntityId

@@ -5,7 +5,6 @@ module Schema.Build.Decision
   ( lit
   , param
   , roundQ
-  , price
   , holding
   , factor
   , mulQ
@@ -32,7 +31,7 @@ module Schema.Build.Decision
   , signAll
   , signIf
   , rule
-  , strategy
+  , passive
   , selfEntity
   , named
   , each
@@ -90,10 +89,6 @@ param = Param
 
 roundQ :: Expr
 roundQ = Round
-
--- | The beginning-of-round price of a Market, by id.
-price :: String -> Expr
-price = Price <<< named
 
 -- | The beginning-of-round price of the Market a reference picks.
 priceAt :: MarketRef -> Expr
@@ -206,5 +201,6 @@ signIf when inner = SignIf { when, rule: inner }
 rule :: Array Cond -> Array Template -> Clause
 rule when propose = { when, propose }
 
-strategy :: { rules :: Array Clause, sign :: Array SignRule } -> Strategy
-strategy r = { rules: r.rules, sign: r.sign }
+-- | A Strategy that proposes nothing and signs nothing.
+passive :: Strategy
+passive = { rules: [], sign: [] }

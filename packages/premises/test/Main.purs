@@ -9,12 +9,12 @@ import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (Fallback(..), Gameboard, InstantiationConfig)
-import Board.Error (Difference(..), RefKind(..), ValidationError(..))
+import Board.Error (Difference(..), ValidationError(..))
 import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Parser (jsonParser)
@@ -25,14 +25,14 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (for_)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Partial.Unsafe (unsafeCrashWith)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Policy.Interpret (Env, propose)
+import Policy.Interpret (Env, nameOnly, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape, presetsShape)
@@ -40,14 +40,14 @@ import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
-import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, strategy, rule, signProcedures, tradeAt)
+import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, rule, signProcedures, tradeAt)
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Premises.Tree (readPremise)
-import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
+import Premises.Load (LoadError(..), decodePresets, fromFiles, loadFrom)
+import Premises.Names (meridianDir)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
 import Premises.Meridian (files, gameboard)
@@ -61,7 +61,11 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
--- | Initial holdings of the reference instance (docs/05_test_instance.md §15).
+namesOf :: RefKind -> Array (Tuple RefKind String) -> Array String
+namesOf kind = map snd <<< filter ((_ == kind) <<< fst)
+
+-- | Initial holdings of the reference instance (docs/05_test_instance.md §15): a deliberate cross-check
+-- | against the doc's table, written as literals rather than driven by `Holdings.holdings`.
 holdings :: Array { entity :: String, m :: Int, e :: Int, mil :: Int, s :: Int }
 holdings =
   [ { entity: "US", m: 260, e: 70, mil: 95, s: 60 }
@@ -91,7 +95,7 @@ holdings =
 -- | The reference instance's Gameboard and configuration, as the loader reads them.
 loaded :: Aff GameboardParts
 loaded = do
-  r <- liftEffect (map (_ >>= loadPremise) (readPremise fileOps "meridian/v0"))
+  r <- liftEffect (loadFrom fileOps meridianDir)
   case r of
     Left e -> failWith e
     Right x -> pure x
@@ -123,7 +127,7 @@ chinaView =
 
 -- | An environment whose every draw is `u`.
 envWith :: View -> Q -> Env
-envWith v u = { view: v, params: Object.empty, random: const u }
+envWith v u = { view: v, params: Object.empty, random: const u, market: nameOnly }
 
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Strategy
@@ -177,7 +181,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Premise DSL builders" do
     it "max' and signProcedures compile to a strategy the decoder accepts" do
       let
-        p = strategy
+        p =
           { rules: [ rule [] [ asTemplate (selfTransform { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) }) ] ]
           , sign: [ signProcedures [ "EU" ] ]
           }
@@ -215,15 +219,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Just _ -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
-        p = strategy
-          { rules: [ rule [] [ deal { signers: [ "DE" ], intents: [ I.transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ], sign: [] }
+        p = { rules: [ rule [] [ deal { signers: [ "DE" ], intents: [ I.transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ], sign: [] }
       case decodeStrategy (encodeStrategy p) of
         Left e -> fail (show e)
         Right prog -> do
           (prog == p) `shouldEqual` true
           let refs = strategyRefs prog
-          refs.resources `shouldEqual` [ "E" ]
-          refs.entities `shouldEqual` [ "DE", "DE" ]
+          namesOf ResourceRef refs `shouldEqual` [ "E" ]
+          namesOf EntityRef refs `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
       let m = own "CN" (holdingOf "Mil")
       stringify (encodeWith Premise boundShape (matching m)) `shouldEqual` stringify (encodeWith Premise metricShape m)
@@ -488,19 +491,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (NotAnObject "premise.json")
     it "a policy that names an unknown market fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+        bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" Market "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
+        bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
-      let bad = strategy { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
+      let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
       case decodeStrategy (encodeStrategy bad) of
         Left e -> fail (show e)
         Right p -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))

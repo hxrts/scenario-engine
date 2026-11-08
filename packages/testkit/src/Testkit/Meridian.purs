@@ -18,8 +18,8 @@ import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings,
 import Game.Override (Override)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game, SeatBinding(..))
-import Premises.Load (loadPremise)
-import Premises.Tree (readPremise)
+import Premises.Load (loadFrom)
+import Premises.Names (meridianDir, seatActors)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
 silent :: GameboardParts -> Bindings
@@ -28,7 +28,7 @@ silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.
 -- | The Meridian premise: its Gameboard, configuration and presets, checked.
 premise :: Aff GameboardParts
 premise = do
-  loaded <- liftEffect (map (_ >>= loadPremise) (readPremise fileOps "meridian/v0"))
+  loaded <- liftEffect (loadFrom fileOps meridianDir)
   orThrow loaded
 
 -- | The Meridian game with every seat bound to an empty script (silent).
@@ -39,7 +39,7 @@ unseated = do
 
 -- | The Meridian seats every test plays.
 seats :: Array String
-seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
+seats = seatActors
 
 -- | The Meridian premise assembled with every configured seat bound to one preset (see `assemblePreset`).
 presetGame :: GameboardParts -> String -> Array Override -> Maybe Int -> Aff Game

@@ -10,6 +10,7 @@ module Premises.Capstone
   , rounds
   , playerSeed
   , seatBindings
+  , game
   , counterfactualBindings
   , expectations
   , baseObjectives
@@ -21,30 +22,34 @@ module Premises.Capstone
   , jointLineFor
   ) where
 
-import Prelude (map, otherwise, ($), (<<<), (==))
+import Prelude (map, otherwise, ($), (<<<), (<>), (==))
 import Premises.Names as N
-import Game.Types (Bindings, SeatBinding(..))
+import Game.Assemble (assemble)
+import Game.Error (GameError)
+import Game.Premise (GameboardParts, Premise(..))
+import Game.Types (Bindings, Game, SeatBinding(..))
 import Data.Map as Map
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (find, mapMaybe)
+import Data.Array (find, mapMaybe, sort)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (BehaviorDomain, EntityId, Id(..), MarketId, ResourceId, proposalId)
-import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Core.Types (BehaviorDomain, EntityId, Id(..), MarketId, ResourceId, idText, proposalId)
+import Data.Either (Either)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (orderAt, selfAccessBan, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, price, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
+import Schema.Build.Decision (passive, orderAt, selfAccessBan, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
 import Schema.Build.Intent (enactWithholding, repeal, transfer)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
 import Core.Shape (encodeWith, Format(..))
+import Schema.Build.Fixture (procedureDoc, refAt)
 import Schema.Premise.Fixture (DeliveryDoc, ExpectDoc, ProcedureDoc, ProposalRefDoc, expectShape)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
@@ -60,21 +65,18 @@ playerSeed = 7
 -- | Whenever the Atlantic price is above 3 it reserves 60 Mil for a deployment and orders a
 -- | 40-unit major action (the shipped Deployer clause).
 us :: Strategy
-us = strategy
-  { rules:
-      [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfAccessBan { target: N.india }) ]
-      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
-      , rule [ gt (price N.energyAtlantic) (lit 3) ]
+us = usWithoutDeployment
+  { rules = usWithoutDeployment.rules <>
+      [ rule [ gt (priceAt (named N.energyAtlantic)) (lit 3) ]
           [ asTemplate (selfTransform { transformation: N.militaryDeployment, quantity: lit 60 })
           , asTemplate (selfTransform { transformation: N.majorMilitaryAction, quantity: lit 40 })
           ]
       ]
-  , sign: []
   }
 
 -- | The US without the deployment: the counterfactual's US seat keeps its ban and repeal only.
 usWithoutDeployment :: Strategy
-usWithoutDeployment = strategy
+usWithoutDeployment =
   { rules:
       [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfAccessBan { target: N.india }) ]
       , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
@@ -86,13 +88,13 @@ usWithoutDeployment = strategy
 -- | procedure when the Atlantic price is above 3: round 4 starts above 3, Germany does not sign,
 -- | and the procedure lapses; round 5 starts above 3 again, Germany signs, and it executes.
 de :: Strategy
-de = strategy { rules: [], sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
+de = { rules: [], sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
 
 -- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then
 -- | (its requirement takes 8 a round), so the deal is funded.
 jp :: Strategy
-jp = strategy
+jp =
   { rules:
       [ rule [ eqQ roundQ (lit 3) ]
           [ deal { signers: [ N.jp, N.india ], intents: [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
@@ -104,7 +106,7 @@ jp = strategy
 -- | energy-shipping facility, which SHIP signs) and a deal that India signs. The US ban on
 -- | shipments into India blocks round 4; the repeal in round 6 lets round 7 through.
 enco :: Strategy
-enco = strategy
+enco =
   { rules:
       [ rule [ eqQ roundQ (lit 4) ] shipment
       , rule [ eqQ roundQ (lit 7) ] shipment
@@ -126,20 +128,20 @@ enco = strategy
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
 sme :: Strategy
-sme = strategy { rules: [ rule [] [ orderAt (named N.energyAtlantic) (lit 4) Nothing ] ], sign: [] }
+sme = { rules: [ rule [] [ orderAt (named N.energyAtlantic) (lit 4) Nothing ] ], sign: [] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
 shipping :: Strategy
-shipping = strategy { rules: [], sign: [ signFacility N.energyShipping ] }
+shipping = { rules: [], sign: [ signFacility N.energyShipping ] }
 
 -- | India signs every Proposal addressed to it.
 india :: Strategy
-india = strategy { rules: [], sign: [ signAll ] }
+india = { rules: [], sign: [ signAll ] }
 
 -- | Chip owner: withholds 5 units of semiconductor capacity from round 4, and repeals the
 -- | withholding in round 6 (its first Proposal in round 4, `r4/CHIP/0/rule-0`).
 chip :: Strategy
-chip = strategy
+chip =
   { rules:
       [ rule [ eqQ roundQ (lit 4) ] [ asTemplate (enactWithholding { capacity: N.semiconductors, units: lit 5 }) ]
       , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
@@ -147,28 +149,20 @@ chip = strategy
   , sign: []
   }
 
-passive :: Strategy
-passive = strategy { rules: [], sign: [] }
-
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
 seats :: Strategy -> Array (Tuple String Strategy)
-seats usStrategy =
-  [ Tuple N.us usStrategy
-  , Tuple N.de de
-  , Tuple N.india india
-  , Tuple N.jp jp
-  , Tuple N.uk passive
-  , Tuple N.br passive
-  , Tuple N.sa passive
-  , Tuple N.ng passive
-  , Tuple N.enco enco
-  , Tuple N.chip chip
-  , Tuple N.ship shipping
-  , Tuple N.def passive
-  , Tuple N.labor passive
-  , Tuple N.sme sme
-  , Tuple N.aid passive
-  ]
+seats usStrategy = map (\e -> Tuple e (fromMaybe passive (Object.lookup e assigned))) N.seatActors
+  where
+  assigned = Object.fromFoldable
+    [ Tuple N.us usStrategy
+    , Tuple N.de de
+    , Tuple N.india india
+    , Tuple N.jp jp
+    , Tuple N.enco enco
+    , Tuple N.chip chip
+    , Tuple N.ship shipping
+    , Tuple N.sme sme
+    ]
 
 -- | One round's expectation: the round, and the checks it makes.
 type RoundExpect = { round :: Int, expect :: Expect }
@@ -252,7 +246,7 @@ objective e o = { entity: Id e, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
 allActors :: Array String
-allActors = [ N.aid, N.br, N.chip, N.cn, N.de, N.def, N.enco, N.india, N.jp, N.labor, N.ng, N.sa, N.ship, N.sme, N.uk, N.us ]
+allActors = sort (N.seatActors <> [ N.cn ])
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
@@ -263,6 +257,10 @@ baseObjectives = map (\e -> objective e NotMet) allActors
 -- | the outcomes.
 counterfactualObjectives :: Array ObjectiveExpect
 counterfactualObjectives = map (\e -> objective e (if e == N.us then Met else NotMet)) allActors
+
+-- | The capstone's game: the shipped Meridian at its default configuration, with the capstone's seats.
+game :: GameboardParts -> Either GameError Game
+game p = assemble (GameboardPremise p) seatBindings []
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
@@ -290,7 +288,7 @@ file = encodeJson
   }
   where
   roundJson r = encodeJson { round: r.round, expect: encodeWith Premise expectShape (expectDoc r.expect) }
-  objectiveJson o = { entity: unId o.entity, outcome: word o.outcome }
+  objectiveJson o = { entity: idText o.entity, outcome: word o.outcome }
   word = case _ of
     Met -> "met"
     NotMet -> "notMet"
@@ -306,7 +304,7 @@ expectDoc e =
   , lapsed: map (map refOf) e.lapsed
   , factors: keyedOf e.factors
   , scheduled: e.scheduled
-  , procedures: map (map procedureDoc) e.procedures
+  , procedures: map (map procedureOf) e.procedures
   }
 
 -- | A two-level map written as keyed objects; an empty map is an absent key.
@@ -318,16 +316,13 @@ keyedOf m
       leaf (Tuple (Id k) v) = map (Tuple k) v
 
 refOf :: AuthoredRef -> ProposalRefDoc
-refOf r = Right { author: r.author, index: Just r.position }
+refOf r = refAt r.author r.position
 
-procedureDoc :: { proposal :: AuthoredRef, support :: Q, executed :: Boolean } -> ProcedureDoc
-procedureDoc p = { author: p.proposal.author, index: Just p.proposal.position, support: p.support, executed: p.executed }
+procedureOf :: { proposal :: AuthoredRef, support :: Q, executed :: Boolean } -> ProcedureDoc
+procedureOf p = procedureDoc (refOf p.proposal) p.support p.executed
 
 deliveryDoc :: Delivery -> DeliveryDoc
-deliveryDoc d = { entity: unId d.entity, resource: unId d.resource, quantity: d.quantity }
-
-unId :: forall a. Id a -> String
-unId (Id s) = s
+deliveryDoc d = { entity: idText d.entity, resource: idText d.resource, quantity: d.quantity }
 
 -- Joint pass ------------------------------------------------------------------------------
 

@@ -8,9 +8,12 @@ import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), Rule
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
-import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
+import Core.Types as Types
+import Data.Array as Array
+import Schema.Premise.Tags as Tags
+import Core.Shape (Desc(..), Format(..), Shape, decodeWith, encodeWith, decodeJsonWith, prose)
 import Data.Foldable (for_)
-import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
+import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
 import Schema.Build.Intent (enactWithholding, repeal, route, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
@@ -85,32 +88,30 @@ qv t = fromMaybe (Q.fromInt 0) (Q.parse t)
 -- | One Strategy per form the premise format writes, so every constructor of the AST round-trips.
 roundTripStrategies :: Array Strategy
 roundTripStrategies =
-  [ D.strategy { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
-  , D.strategy
-      { rules:
-          [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
-              [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: Just (lit 2) })
-              , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
-              , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
-              , asTemplate (selfTariff { origin: "CN", rate: lit "0.5" })
-              , asTemplate (selfAccessBan { target: "CN" })
-              , asTemplate (enactWithholding { capacity: "c", units: lit 2 })
-              , asTemplate (repeal { rule: "r2/US/0/rule-0" })
-              ]
-          , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
-              [ reciprocate { target: "US" }
-              , choose [ noAction, asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Just (lit 3) }) ]
-              ]
-          ]
-      , sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
-      }
-  , D.strategy
-      { rules:
-          [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
-          , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, selfTransform { transformation: "t", quantity: lit 1 } ] } ]
-          ]
-      , sign: []
-      }
+  [ { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+  , { rules:
+        [ D.rule [ gt (priceAt (named "m")) (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
+            [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: Just (lit 2) })
+            , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
+            , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
+            , asTemplate (selfTariff { origin: "CN", rate: lit "0.5" })
+            , asTemplate (selfAccessBan { target: "CN" })
+            , asTemplate (enactWithholding { capacity: "c", units: lit 2 })
+            , asTemplate (repeal { rule: "r2/US/0/rule-0" })
+            ]
+        , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
+            [ reciprocate { target: "US" }
+            , choose [ noAction, asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Just (lit 3) }) ]
+            ]
+        ]
+    , sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
+    }
+  , { rules:
+        [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
+        , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, selfTransform { transformation: "t", quantity: lit 1 } ] } ]
+        ]
+    , sign: []
+    }
   ]
 
 -- | One Intent of each kind, with explicit entities, in the fixture format (the premise tags).
@@ -196,6 +197,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         other -> fail ("expected an intent error, got " <> show (map (const "an intent") other))
     it "rejects an unknown intent key" do
       isLeft (intent (json """{ "gift": {} }""")) `shouldEqual` true
+
+  describe "Premise tag pairs" do
+    it "every pair names a constructor of the snapshot shape, and every constructor has a pair" do
+      let
+        tagsOf :: forall a. Shape a -> Array String
+        tagsOf s = case s.desc of
+          DSum _ _ cs -> Array.sort (map _.tag cs)
+          _ -> []
+        pairs ps = Array.sort (map _.snapshot ps)
+      pairs Tags.transferabilityTags `shouldEqual` tagsOf Types.transferabilityShape
+      pairs Tags.ruleKindTags `shouldEqual` tagsOf Types.ruleKindShape
+      pairs [ Tags.capabilityTags.trade, Tags.capabilityTags.transfer, Tags.capabilityTags.transform, Tags.capabilityTags.enact ] `shouldEqual` tagsOf Types.capabilityShape
+      pairs [ Tags.ruleTags.tariff, Tags.ruleTags.accessBan, Tags.ruleTags.withholding ] `shouldEqual` tagsOf Types.ruleShape
+    it "a trade's description lists its body's fields" do
+      contains (Pattern "market") (prose intentShape.desc) `shouldEqual` true
+      contains (Pattern "quantity") (prose intentShape.desc) `shouldEqual` true
 
   describe "Round expectations" do
     it "an absent expectation is absent, and an empty list is a checked empty list" do

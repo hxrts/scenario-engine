@@ -20,6 +20,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Adapters.Filesystem (fileOps)
+import Premises.Names (fixturePath)
 import Premises.Tree (readRootFile)
 import Experiments.Agency (agency, counterfactual, playerSeedRuns)
 import Checks.Objectives (evaluateObjectives)
@@ -87,7 +88,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
         length (nubEq (map (map _.world <<< _.records) runs)) `shouldEqual` 10
         -- every in-world draw is unchanged by the player seed: Fixture C5's noisy Representation is the
         -- only draw in its game, its seats are scripted, and only the player seed differs between the runs
-        literal <- orThrow =<< liftEffect (map (_ >>= loadLiteral "C5") (readRootFile fileOps "fixtures/C5.json"))
+        literal <- orThrow =<< liftEffect (map (_ >>= loadLiteral "C5") (readRootFile fileOps (fixturePath "C5")))
         game <- orThrow (literalGame literal)
         c5 <- traverse (\s -> orThrow (simulate (Seed s) game)) [ 1, 2, 3 ]
         length (nubEq (map (map _.world <<< _.records) c5)) `shouldEqual` 1

@@ -18,7 +18,7 @@ module Schema.Premise.Actor
 import Prelude
 
 import Core.Num (Q)
-import Core.Shape (PCtor, Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
+import Core.Shape (Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
 import Core.Types (Id(..), idShape)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -147,10 +147,6 @@ fallbackShape = premiseSum "Fallback"
       )
       InstitutionalPolicy
   , bare { tag: omissionTag, desc: "the Actor's accounts are permitted to lapse" } PermittedOmission
-      ( case _ of
-          PermittedOmission -> true
-          _ -> false
-      )
   ]
 
 -- | A measure: a holding, a capacity, a shortfall, a count of shortfall rounds, payee receipts, or a volume.
@@ -181,10 +177,6 @@ measureShape = premiseSum "Measure"
       )
       ShortfallRounds
   , bare { tag: payeeReceiptsTag, desc: "Money received as a facility payee" } PayeeReceipts
-      ( case _ of
-          PayeeReceipts -> true
-          _ -> false
-      )
   , kindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
       ( case _ of
           VolumeOf t -> Just t
@@ -196,25 +188,10 @@ measureShape = premiseSum "Measure"
 -- | The span a criterion is evaluated over.
 spanShape :: Shape Span
 spanShape = premiseSum "Span"
-  [ spanCtor finalTag "the last round" Final
-      ( case _ of
-          Final -> true
-          _ -> false
-      )
-  , spanCtor everyRoundTag "every round" EveryRound
-      ( case _ of
-          EveryRound -> true
-          _ -> false
-      )
-  , spanCtor cumulativeTag "the whole game, summed" Cumulative
-      ( case _ of
-          Cumulative -> true
-          _ -> false
-      )
+  [ bare { tag: finalTag, desc: "the last round" } Final
+  , bare { tag: everyRoundTag, desc: "every round" } EveryRound
+  , bare { tag: cumulativeTag, desc: "the whole game, summed" } Cumulative
   ]
-  where
-  spanCtor :: String -> String -> Span -> (Span -> Boolean) -> PCtor Span
-  spanCtor tag desc value is = bare { tag, desc } value is
 
 -- Conversions ---------------------------------------------------------------------------------
 

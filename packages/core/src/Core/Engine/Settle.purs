@@ -28,7 +28,7 @@ import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityOf, facilityPrice, holding, lookupQ, poolCeiling, poolOf, tradesOf)
-import Core.Types (CapacityRef, EntityId, Id(..), IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, RoundIndex, TransformationId)
+import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RoundIndex, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
 import Core.World (Delivery, Event(..), RejectReason(..), Target(..), WorldState, orderRemoved, rejection)
 import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))
@@ -301,7 +301,7 @@ transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
     ChangeRule (Enact r) -> a { scheduled = Map.insert (ruleId i) (Just r) a.scheduled }
     ChangeRule (Repeal id) -> a { scheduled = Map.insert id Nothing a.scheduled }
     _ -> a
-  ruleId i = Id (show p.id <> "/rule-" <> show i)
+  ruleId = ruleIdOf p.id
 
 -- | What an Entity can pay or consume: what is owed, capped at what it holds.
 minOwedHeld :: Q -> Q -> Q

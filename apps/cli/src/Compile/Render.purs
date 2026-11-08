@@ -21,10 +21,8 @@ import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
 import Premises.Meridian as Meridian
-import Premises.Load (decodePresets, fromFiles)
 import Schema.Premise.Fixture (decodeLiteral)
-import Game.Premise (checkPremise)
-import Premises.Names (presetsFile)
+import Premises.Names (capstoneRunFile, fixturePath, meridianDir, presetsFile)
 import Premises.Presets as Presets
 
 -- | A compiled file: its path under the premise root, and its text.
@@ -39,18 +37,16 @@ compile = do
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  map (\(Tuple name j) -> Tuple ("meridian/v0/" <> name) j) Meridian.files
+  map (\(Tuple name j) -> Tuple (meridianDir <> "/" <> name) j) Meridian.files
     <> [ Tuple presetsFile (encodeWith Premise presetsShape Presets.presets) ]
-    <> map (\(Tuple name j) -> Tuple ("fixtures/" <> name <> ".json") j) Fixtures.fixtures
-    <> [ Tuple "capstone/run.json" Capstone.file ]
+    <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
+    <> [ Tuple capstoneRunFile Capstone.file ]
 
 -- | Decode and check the compiled premise exactly as the loader will read it: the Gameboard, the
 -- | Policies, the presets against the Gameboard (`checkPremise`), and every fixture.
 validate :: Either String Unit
 validate = do
-  loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) Meridian.files))
-  presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
-  _ <- lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
+  _ <- Meridian.parts
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.
