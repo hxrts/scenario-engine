@@ -9,14 +9,15 @@ module Views.Balances
 import Prelude
 
 import Core.Num as Q
+import Core.Num (Q)
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, ResourceId)
-import Core.World (WorldState)
+import Core.World (Event, WorldState)
 import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Views.Common (Column, StoredRun, Table, at, col, column, kindOf, names, outOfRange, quantity, records)
+import Views.Common (Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, at, col, column, kindOf, names, outOfRange, quantity, records)
 
 initialColumn :: Column
 initialColumn = column "Initial" "The holding before round 1."
@@ -32,27 +33,40 @@ eventColumn = column "Event" "One engine event, listed in the canonical phase or
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ initialColumn, currentColumn, changeColumn, eventColumn ]
+columns = columnsOf sheetFields <> columnsOf eventFields
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
 balances :: StoredRun -> Int -> Either String Table
 balances r n = case at r n of
   Nothing -> Left (outOfRange r 0 n)
   Just w -> Right
-    { title: "Balance sheets after round " <> show n
-    , columns: names [ col.entity, col.kind, col.resource, initialColumn, currentColumn, changeColumn ]
-    , rows: concatMap (sheet w) (fromFoldable (Map.keys w.entities))
-    }
+    (tableOf ("Balance sheets after round " <> show n) sheetFields (concatMap (sheet w) (fromFoldable (Map.keys w.entities))))
   where
   w0 = r.manifest.initial
-  sheet w e = map (\res -> [ show e, kindOf w e, show res, quantity (holding w0 e res), quantity (holding w e res), quantity (Q.sub (holding w e res) (holding w0 e res)) ])
-    (resources w e)
+  sheet w e = map (\res -> { entity: e, kind: kindOf w e, resource: res, initial: holding w0 e res, current: holding w e res }) (resources w e)
 
   resources :: WorldState -> EntityId -> Array ResourceId
   resources w e = nub (concatMap (\world -> fromFoldable (Map.keys (accountsOf world e))) [ w0, w ])
 
+-- | One row of a balance sheet.
+type SheetRow = { entity :: EntityId, kind :: String, resource :: ResourceId, initial :: Q, current :: Q }
+
+-- | The balance sheet's columns and cells.
+sheetFields :: Array (Field SheetRow)
+sheetFields =
+  [ cellOf col.entity (show <<< _.entity)
+  , cellOf col.kind _.kind
+  , cellOf col.resource (show <<< _.resource)
+  , cellOf initialColumn (quantity <<< _.initial)
+  , cellOf currentColumn (quantity <<< _.current)
+  , cellOf changeColumn (\x -> quantity (Q.sub x.current x.initial))
+  ]
+
+eventFields :: Array (Field Event)
+eventFields = [ cellOf eventColumn show ]
+
 -- | A round's events in canonical phase order (the order the engine records them).
 events :: StoredRun -> Int -> Either String Table
 events r n = case index (records r) (n - 1) of
-  Just rec | n >= 1 -> Right { title: "Events, round " <> show n, columns: names [ eventColumn ], rows: map (\e -> [ show e ]) rec.events }
+  Just rec | n >= 1 -> Right (tableOf ("Events, round " <> show n) eventFields rec.events)
   _ -> Left (outOfRange r 1 n)

@@ -23,7 +23,7 @@ import Core.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
 import Core.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
-import Views.Common (Column, Statistic, StoredRun, Table, col, column, names, players, records)
+import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Statistic, StoredRun, Table, col, column, players, records)
 
 actionsStat :: Statistic
 actionsStat =
@@ -152,9 +152,20 @@ shortColumn k = column k.short k.definition
 totalColumn :: Column
 totalColumn = column "Total" "The sum of the five kinds. A joint Proposal that is also a payment is counted in both."
 
+-- | A player's counts in one round.
+type RoundCounts = { round :: Int, player :: EntityId, counts :: Counts }
+
+-- | The per-round table's columns and cells: one per kind, under its short heading.
+byRoundFields :: Array (Field RoundCounts)
+byRoundFields = [ cellOf col.round (show <<< _.round), cellOf col.player (show <<< _.player) ] <> map (\k -> cellOf (shortColumn k) (\x -> show (k.count x.counts))) actionKinds
+
+-- | The run totals' columns and cells: one per kind, under its label, then the total.
+totalsFields :: Array (Field PlayerCounts)
+totalsFields = [ cellOf col.player (show <<< _.player) ] <> map (\k -> cellOf (labelColumn k) (\x -> show (k.count x.counts))) actionKinds <> [ cellOf totalColumn (show <<< _.total) ]
+
 -- | The columns this module defines.
 columns :: Array Column
-columns = map labelColumn actionKinds <> map shortColumn actionKinds <> [ totalColumn ]
+columns = columnsOf byRoundFields <> columnsOf totalsFields
 
 -- | The per-round table (every Actor in every round), the run totals per Actor, and the run chart.
 actions :: StoredRun -> ActionsView
@@ -162,16 +173,8 @@ actions r = { chart, totals, byRound }
   where
   ps = players r.manifest.initial
   totalsRows = actionTotals r
-  byRound =
-    { title: "Actions by round"
-    , columns: names ([ col.round, col.player ] <> map shortColumn actionKinds)
-    , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) (records r)
-    }
-  totals =
-    { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a joint Proposal that is also a payment is counted in both."
-    , columns: names ([ col.player ] <> map labelColumn actionKinds <> [ totalColumn ])
-    , rows: map (\x -> [ show x.player ] <> cellsOf x.counts <> [ show x.total ]) totalsRows
-    }
+  byRound = tableOf "Actions by round" byRoundFields (concatMap (\rec -> map (\e -> { round: rec.round, player: e, counts: countsOf rec e }) ps) (records r))
+  totals = tableOf "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a joint Proposal that is also a payment is counted in both." totalsFields totalsRows
   chart =
     { title: "Actions over the run, by player"
     , purpose: "A bar is one player. Each coloured segment is that player's count of actions of one kind over the whole run; the bar's height is the total of the segments. Players are ordered by total, highest first."
@@ -187,4 +190,3 @@ actions r = { chart, totals, byRound }
             totalsRows
         )
     }
-  cellsOf c = map (\k -> show (k.count c)) actionKinds

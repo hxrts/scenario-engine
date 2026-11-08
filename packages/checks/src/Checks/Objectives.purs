@@ -2,7 +2,9 @@
 -- | objective criteria measured over a run's round records, each met, not met, or not evaluated.
 -- | Pure, and never affects the economy.
 module Checks.Objectives
-  ( evaluateObjectives
+  ( CriterionResult
+  , ObjectiveResult
+  , evaluateObjectives
   ) where
 
 import Prelude

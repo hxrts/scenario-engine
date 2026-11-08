@@ -17,10 +17,10 @@ import Core.Slice (event, exchanges, read, runSlice, select, total, whereEq, whe
 import Core.Types (EntityId)
 import Core.World (RoundRecord)
 import Data.String (joinWith)
-import Data.Array (concat, concatMap, filter, index, mapWithIndex)
+import Data.Array (concat, concatMap, filter, index, mapWithIndex, zipWith)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Column, Procedure, StoredRun, Table, col, column, names, outcomeLabel, proceduresOf, quantity, ratio, records)
+import Views.Common (names, Field, cellOf, columnsOf, tableOf, Column, Procedure, StoredRun, Table, col, column, outcomeLabel, proceduresOf, quantity, ratio, records)
 
 -- | The four-stage record's columns after the round; the glossary reads them.
 columns :: Array Column
@@ -84,11 +84,7 @@ bought e rec = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (wh
 -- | Every collective procedure in the run: per round, its Proposal, the members who signed, the
 -- | support against the threshold, and whether it executed or lapsed.
 procedures :: StoredRun -> Table
-procedures r =
-  { title: "Collective procedures"
-  , columns: names ([ col.round ] <> procedureColumns <> [ col.outcome ])
-  , rows: map row (proceduresOf r)
-  }
-  where
-  row :: Procedure -> Array String
-  row p = [ show p.round, show p.proposal, joinWith ", " (map show p.signers), ratio p.support, ratio p.threshold, outcomeLabel p.executed ]
+procedures r = tableOf "Collective procedures" procedureFields (proceduresOf r)
+
+procedureFields :: Array (Field Procedure)
+procedureFields = [ cellOf col.round (show <<< _.round) ] <> zipWith cellOf procedureColumns [ show <<< _.proposal, \p -> joinWith ", " (map show p.signers), ratio <<< _.support, ratio <<< _.threshold ] <> [ cellOf col.outcome (outcomeLabel <<< _.executed) ]

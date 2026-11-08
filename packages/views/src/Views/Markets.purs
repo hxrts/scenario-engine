@@ -15,8 +15,8 @@ module Views.Markets
 
 import Prelude
 import Core.World (Focus, RoundRecord, WorldState)
-import Core.Types (idText, Market, MarketId, ResourceId)
-import Views.Common (focusOf, Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
+import Core.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
+import Views.Common (Field, cellOf, columnsOf, tableOf, focusOf, Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
 
 import Core.Map (sumInto)
 
@@ -32,7 +32,7 @@ import Data.Foldable (for_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (wrap)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Views.Actions (rejectionCount, rejections)
 import Views.Drivers (shortfallTotal, shortfallsColumn)
 
@@ -59,15 +59,21 @@ markets r =
     (Map.toUnfoldable r.manifest.initial.markets :: Array _)
 
 facilities :: StoredRun -> Table
-facilities r =
-  { title: "Facilities"
-  , columns: names [ col.round, facilityColumn, orderedBy, col.kind, quantityColumn, paidColumn ]
-  , rows: concatMap
-      ( \rec -> map (\t -> [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ])
-          (select conversions rec.events)
-      )
-      (records r)
-  }
+facilities r = tableOf "Facilities" facilityFields
+  (concatMap (\rec -> map (\t -> { round: rec.round, transformation: t.transformation, by: t.by, kind: kindOf r.manifest.initial t.by, quantity: t.quantity, paid: t.paid }) (select conversions rec.events)) (records r))
+
+-- | One order of the facilities table.
+type FacilityRow = { round :: Int, transformation :: TransformationId, by :: EntityId, kind :: String, quantity :: Q, paid :: Q }
+
+facilityFields :: Array (Field FacilityRow)
+facilityFields =
+  [ cellOf col.round (show <<< _.round)
+  , cellOf facilityColumn (show <<< _.transformation)
+  , cellOf orderedBy (show <<< _.by)
+  , cellOf col.kind _.kind
+  , cellOf quantityColumn (quantity <<< _.quantity)
+  , cellOf paidColumn (quantity <<< _.paid)
+  ]
 
 economy :: StoredRun -> { totals :: Chart, flows :: Table, pressure :: Table }
 economy r = { totals: resourceTotals r, flows: moneyFlows r, pressure: pressure r }
@@ -82,11 +88,7 @@ resourceTotals r =
 
 -- | Money moved between categories of Entity (Actor or Aggregate) over the run.
 moneyFlows :: StoredRun -> Table
-moneyFlows r =
-  { title: "Money circulation (from → to category)"
-  , columns: names [ fromColumn, toColumn, moneyColumn ]
-  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
-  }
+moneyFlows r = tableOf "Money circulation (from → to category)" moneyFlowFields (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
   where
   w0 = r.manifest.initial
   numeraireMoves = whereEq @"resource" w0.numeraire transfers
@@ -151,15 +153,28 @@ decayedColumn = column "Decayed" ("Quantity that decayed in the round. Computed 
 
 -- | The columns this module defines.
 columns :: Focus -> Array Column
-columns f = [ facilityColumn, orderedBy, quantityColumn, paidColumn, fromColumn, toColumn, moneyColumn, rejectedColumn, lapsedColumn, consumedColumn f, decayedColumn ]
+columns f = columnsOf facilityFields <> columnsOf moneyFlowFields <> columnsOf (pressureFields f)
 
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table
-pressure r =
-  { title: "Pressure"
-  , columns: names [ col.round, shortfallsColumn (focusOf r), rejectedColumn, lapsedColumn, consumedColumn (focusOf r), decayedColumn ]
-  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) (records r)
-  }
+pressure r = tableOf "Pressure" (pressureFields (focusOf r)) (map (\rec -> Tuple rec.round (roundPressure rec)) (records r))
+
+pressureFields :: Focus -> Array (Field (Tuple Int Pressure))
+pressureFields f =
+  [ cellOf col.round (show <<< fst)
+  , cellOf (shortfallsColumn f) (quantity <<< _.shortfall <<< snd)
+  , cellOf rejectedColumn (show <<< _.rejected <<< snd)
+  , cellOf lapsedColumn (show <<< _.lapsed <<< snd)
+  , cellOf (consumedColumn f) (quantity <<< _.consumed <<< snd)
+  , cellOf decayedColumn (quantity <<< _.decayed <<< snd)
+  ]
+
+moneyFlowFields :: Array (Field (Tuple (Tuple String String) Q))
+moneyFlowFields =
+  [ cellOf fromColumn (\(Tuple (Tuple a _) _) -> a)
+  , cellOf toColumn (\(Tuple (Tuple _ b) _) -> b)
+  , cellOf moneyColumn (\(Tuple _ m) -> quantity m)
+  ]
 
 -- | The Market a name stands for, checked once against every run: a run without it is an error that
 -- | names the run. Everything after this takes the typed id.

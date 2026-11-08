@@ -31,7 +31,7 @@ import Core.Types (EntityId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
 import Data.Maybe (Maybe(..), maybe)
-import Views.Common (Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, col, column, names)
+import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, col, column, names)
 import Views.Standings (netWorths)
 
 spreadStat :: Statistic
@@ -117,7 +117,7 @@ giniUnit = "index, 0 to 1 − 1/n"
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ valueColumn, roleColumn, criteriaColumn, metColumn, notMetColumn, notEvaluatedColumn, giniColumn ]
+columns = [ valueColumn ] <> columnsOf completionFields <> [ giniColumn ]
 
 -- | The measures over a run's final net worths: the spread and the Gini coefficient.
 measures :: StoredRun -> Table
@@ -148,11 +148,18 @@ completionOf gb r = map row (evaluateObjectives gb r.rounds)
 
 -- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
 completion :: Gameboard -> StoredRun -> Table
-completion gb r =
-  { title: "Objective completion by role"
-  , columns: names [ roleColumn, col.objective, criteriaColumn, metColumn, notMetColumn, notEvaluatedColumn, col.outcome ]
-  , rows: map (\c -> [ show c.actor, c.description, show c.criteria, show c.met, show c.notMet, show c.notEvaluated, show c.outcome ]) (completionOf gb r)
-  }
+completion gb r = tableOf "Objective completion by role" completionFields (completionOf gb r)
+
+completionFields :: Array (Field Completion)
+completionFields =
+  [ cellOf roleColumn (show <<< _.actor)
+  , cellOf col.objective _.description
+  , cellOf criteriaColumn (show <<< _.criteria)
+  , cellOf metColumn (show <<< _.met)
+  , cellOf notMetColumn (show <<< _.notMet)
+  , cellOf notEvaluatedColumn (show <<< _.notEvaluated)
+  , cellOf col.outcome (show <<< _.outcome)
+  ]
 
 -- | The balance view model (`/api/runs/:id/balance`): the measures and the objective completion.
 type BalanceView = { measures :: Table, completion :: Table }

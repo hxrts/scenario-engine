@@ -26,7 +26,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Column, Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf, col, column, names)
+import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf, col, column, names)
 
 netWorthStat :: Statistic
 netWorthStat =
@@ -80,15 +80,20 @@ rankColumn = column "Rank" "The player's place by final net worth, 1 being highe
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ netWorthColumn, changeColumn, rankColumn ]
+columns = columnsOf standingFields
 
 -- | The standings table: the net worth, its change from the start, and the rank of each Actor.
 standings :: StoredRun -> Table
-standings r =
-  { title: "Standings after round " <> show (completed r)
-  , columns: names [ col.player, netWorthColumn, changeColumn, rankColumn ]
-  , rows: map (\s -> [ show s.player, quantity s.netWorth, quantity s.change, show s.rank ]) (standingsOf r)
-  }
+standings r = tableOf ("Standings after round " <> show (completed r)) standingFields (standingsOf r)
+
+-- | The standings table's columns and cells.
+standingFields :: Array (Field Standing)
+standingFields =
+  [ cellOf col.player (show <<< _.player)
+  , cellOf netWorthColumn (quantity <<< _.netWorth)
+  , cellOf changeColumn (quantity <<< _.change)
+  , cellOf rankColumn (show <<< _.rank)
+  ]
 
 -- | Every Actor's net worth over the run, one line per Actor, from round 0 (the start) to the final round.
 netWorthChart :: StoredRun -> Chart

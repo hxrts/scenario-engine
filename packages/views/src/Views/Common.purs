@@ -13,6 +13,10 @@ module Views.Common
   , column
   , emptied
   , names
+  , Field
+  , cellOf
+  , tableOf
+  , columnsOf
   , col
   , sharedColumns
   , StoredRun
@@ -84,6 +88,22 @@ emptied emptyReason c = c { emptyReason = Just emptyReason }
 -- | The headings of a table's columns.
 names :: Array Column -> Array String
 names = map _.name
+
+-- | A table column: its heading and definition, and the cell it shows for a row. A table is built from these,
+-- | so a heading and its cells cannot drift apart, and the glossary reads the same array.
+type Field a = { column :: Column, cell :: a -> String }
+
+-- | A field from its column and its cell.
+cellOf :: forall a. Column -> (a -> String) -> Field a
+cellOf column' cell = { column: column', cell }
+
+-- | A table with one row per item.
+tableOf :: forall a. String -> Array (Field a) -> Array a -> Table
+tableOf title fields items = { title, columns: names (columnsOf fields), rows: map (\x -> map (\f -> f.cell x) fields) items }
+
+-- | The columns of a table's fields, for the glossary.
+columnsOf :: forall a. Array (Field a) -> Array Column
+columnsOf = map _.column
 
 -- | The columns several views share. A view's own columns are defined where it builds its table.
 col

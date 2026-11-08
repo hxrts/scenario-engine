@@ -19,10 +19,11 @@ import Schema.Gameboard (Gameboard)
 import Schema.Run (RunStatus(..))
 import Data.String (joinWith)
 import Data.Array (concatMap, mapWithIndex)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
+import Record as Record
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
-import Checks.Objectives (evaluateObjectives)
-import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, names, ofCount, quantity, target)
+import Checks.Objectives (CriterionResult, ObjectiveResult, evaluateObjectives)
+import Views.Common (Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
@@ -52,21 +53,28 @@ type RunFlags = { id :: String, archived :: Boolean, readable :: Boolean }
 type RunList = Record (TableRow (runs :: Array RunFlags))
 
 runList :: Array (Either Unreadable ListedRun) -> RunList
-runList rows =
-  { title: "Simulation runs"
-  , columns: names [ col.run, col.name, col.gameboard, col.gameSeed, col.playerSeed, col.rounds, col.status, assertionsFailing, reasonColumn, archivedColumn, sourceColumn ]
-  , rows: map row rows
-  , runs: map flags rows
-  }
+runList rows = Record.merge (tableOf "Simulation runs" runFields rows) { runs: map flags rows }
   where
-  -- an unreadable run's archive flag and source are not decoded, so they show as unknown
-  row = case _ of
-    Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason, "—", "—" ]
-    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, show s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
   flags = case _ of
     Left u -> { id: u.id, archived: false, readable: false }
     Right s -> { id: s.id, archived: s.archived, readable: true }
-  yesNo b = if b then "yes" else "no"
+
+-- | The run list's columns and cells. An unreadable run's archive flag and source are not decoded, so they show
+-- | as unknown.
+runFields :: Array (Field (Either Unreadable ListedRun))
+runFields =
+  [ cellOf col.run (either _.id _.id)
+  , cellOf col.name (either _.name _.name)
+  , cellOf col.gameboard (either (const "—") _.gameboard)
+  , cellOf col.gameSeed (either (const "—") _.gameSeed)
+  , cellOf col.playerSeed (either (const "—") _.playerSeed)
+  , cellOf col.rounds (either (const "—") (show <<< _.rounds))
+  , cellOf col.status (either (const "unreadable") (show <<< _.status))
+  , cellOf assertionsFailing (either (const "—") (show <<< _.assertionsFailing))
+  , cellOf reasonColumn (either _.reason (fromMaybe "" <<< _.reason))
+  , cellOf archivedColumn (either (const "—") (\s -> if s.archived then "yes" else "no"))
+  , cellOf sourceColumn (either (const "—") (\s -> sourceCell s.source s.sourceDeleted))
+  ]
 
 assertionsFailing :: Column
 assertionsFailing = column "Assertions failing" "Assertion failures across all rounds. An assertion checks an economic invariant (INV-xx), so 0 means none failed."
@@ -103,7 +111,7 @@ boundColumn = column "Bound" "The threshold the measured values are compared wit
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ assertionsFailing, reasonColumn, archivedColumn, sourceColumn, presetColumn, settingColumn, roundsCompleted, gameIdColumn, criterionColumn, valuesColumn, boundColumn ]
+columns = columnsOf runFields <> [ presetColumn, settingColumn, roundsCompleted, gameIdColumn ] <> columnsOf objectiveFields
 
 -- | The source a derived run cites: its id, marked when the store no longer holds that run.
 sourceCell :: Maybe String -> Boolean -> String
@@ -145,9 +153,17 @@ overview r =
 
 -- | Every Actor's objective criteria as met, not met, or not evaluated, with the measured values.
 objectives :: Gameboard -> StoredRun -> Table
-objectives gb r =
-  { title: "Objectives"
-  , columns: names [ col.actor, col.objective, criterionColumn, col.outcome, valuesColumn, boundColumn ]
-  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinWith ", " (map quantity c.values), joinWith ", " (map quantity c.bound) ]) o.criteria)
-      (evaluateObjectives gb r.rounds)
-  }
+objectives gb r = tableOf "Objectives" objectiveFields (concatMap (\o -> mapWithIndex (\i c -> { o, i, c }) o.criteria) (evaluateObjectives gb r.rounds))
+
+-- | One criterion of an Objective, with the Actor it belongs to and its position in the list.
+type CriterionRow = { o :: ObjectiveResult, i :: Int, c :: CriterionResult }
+
+objectiveFields :: Array (Field CriterionRow)
+objectiveFields =
+  [ cellOf col.actor (show <<< _.o.actor)
+  , cellOf col.objective _.o.description
+  , cellOf criterionColumn (\x -> show (x.i + 1))
+  , cellOf col.outcome (show <<< _.c.outcome)
+  , cellOf valuesColumn (\x -> joinWith ", " (map quantity x.c.values))
+  , cellOf boundColumn (\x -> joinWith ", " (map quantity x.c.bound))
+  ]
