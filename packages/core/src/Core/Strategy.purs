@@ -65,7 +65,7 @@ data Cond
   | Not Cond
   | TransformedLastRound { by :: EntityId, transformation :: TransformationId, atLeast :: Expr }
   | RestrictedLastRound { by :: EntityId, target :: EntityId } -- a restriction enacted last round
-  | RestrictionInForce { by :: EntityId } -- an AccessBan or Tariff by that jurisdiction is in force
+  | RestrictionInForce { by :: EntityId } -- a flows Rule governed by that Entity is in force
 
 -- | A Strategy's template: an Intent or a Proposal with its quantities as expressions, or one of the
 -- | combinators that choose among them or depend on the last round's events. `self` names the acting

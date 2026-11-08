@@ -11,13 +11,12 @@ module Core.Authority
   , validIntent
   , routeMarkets
   , governs
-  , kindOf
   ) where
 
 import Prelude
 
 import Core.Query (owner, marketsOf)
-import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, Rule, RuleF(..), RuleChangeF(..), RuleId, RuleKind(..), Transferability(..), TransformationId)
+import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, Rule, RuleChangeF(..), RuleId, RuleKindDecl, RuleKindId, Scope(..), Transferability(..), conforms, TransformationId)
 import Core.World (Bounds, RejectReason(..), Venue, View, WorldState)
 import Data.Array (any, elem, filter, null)
 import Data.Either (Either(..))
@@ -45,6 +44,7 @@ type Facts =
   , access :: EntityId -> MarketId -> Boolean
   , transformation :: TransformationId -> Maybe Bounds
   , capacityOwner :: CapacityRef -> Maybe EntityId
+  , ruleKind :: RuleKindId -> Maybe RuleKindDecl
   }
 
 worldFacts :: WorldState -> Facts
@@ -56,6 +56,7 @@ worldFacts w =
   , access: \who m -> maybe false (elem who <<< _.access) (Map.lookup m w.markets)
   , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
   , capacityOwner: owner w
+  , ruleKind: \k -> Map.lookup k w.ruleKinds
   }
 
 viewFacts :: View -> Facts
@@ -66,6 +67,7 @@ viewFacts v =
   , venues: v.markets
   , access: \who m -> who == v.self.id && any ((_ == m) <<< _.id) v.markets
   , transformation: \t -> Map.lookup t v.transformations
+  , ruleKind: \k -> Map.lookup k v.ruleKinds
   , capacityOwner: \c -> if c `elem` v.ownedCapacities then Just v.self.id else Nothing
   }
 
@@ -79,26 +81,19 @@ authorized facts caps who = case _ of
   -- only a Restricted Resource's transfer is authority-gated (§2.3)
   Transfer t -> t.from == who && (facts.transferability t.resource == Just Free || MayTransfer t.resource `elem` caps)
   Transform t -> MayTransform t.transformation `elem` caps && t.by == who
-  ChangeRule (Enact r) -> MayEnact (kindOf r) `elem` caps
+  ChangeRule (Enact r) -> MayEnact r.kind `elem` caps
   -- an unknown Rule is not authorized to be repealed
-  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (facts.rule id)
+  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact r.kind `elem` caps) (facts.rule id)
   where
   isTrade (MayTrade _) = true
   isTrade _ = false
 
-kindOf :: Rule -> RuleKind
-kindOf = case _ of
-  Tariff _ -> TariffRule
-  AccessBan _ -> AccessBanRule
-  Withholding _ -> WithholdingRule
-
--- | Whether an Entity governs a Rule: a Tariff or AccessBan by its jurisdiction, a Withholding by
--- | the owner of its capacity. Enacting and repealing both require it.
+-- | Whether an Entity governs a Rule: the governor of its flows, or the owner of its capacity. Enacting
+-- | and repealing both require it.
 governs :: Facts -> EntityId -> Rule -> Boolean
-governs facts who = case _ of
-  Tariff r -> r.jurisdiction == who
-  AccessBan r -> r.jurisdiction == who
-  Withholding r -> facts.capacityOwner r.capacity == Just who
+governs facts who r = case r.scope of
+  Flows f -> f.governor == who
+  OnCapacity c -> facts.capacityOwner c == Just who
 
 -- | The Markets a routed order for `pair` may use: those whose base and quote match, to which `who` has
 -- | access, and for which `caps` hold the trade capability. In MarketId order.
@@ -139,7 +134,7 @@ validIntent facts caps who i = known *> limited *> authority *> access *> transf
     Transfer t | Just NonTransferable <- facts.transferability t.resource -> Left (NotTransferable t.resource)
     _ -> Right unit
   scope = case i of
-    ChangeRule (Enact r) | not (governs facts who r) -> Left (OutOfScope r)
+    ChangeRule (Enact r) | not (maybe false (_ `conforms` r) (facts.ruleKind r.kind) && governs facts who r) -> Left (OutOfScope r)
     ChangeRule (Repeal id) | Just r <- facts.rule id, not (governs facts who r) -> Left OnlyGoverningRepeal
     _ -> Right unit
   withinBounds = case i of

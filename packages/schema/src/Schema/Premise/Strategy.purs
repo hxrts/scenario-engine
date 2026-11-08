@@ -16,7 +16,8 @@ import Core.Query (transfersOf, transformsOf)
 import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericPremiseSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, SignRule, Strategy, Template(..), selfName)
-import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, dealIntent, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
+import Schema.Premise.Intent (ruleBody)
+import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, dealIntent, idShape, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
@@ -31,6 +32,10 @@ noActionT = "noAction"
 -- | The entity a Strategy's `self` names.
 selfId :: EntityId
 selfId = Id selfName
+
+-- | An Entity that defaults to the acting one, and is not written when it is.
+selfIdShape :: Shape EntityId
+selfIdShape = idShape { absent = (_ == selfId), missing = Just selfId }
 
 -- | A Market reference: a bare Market id, or a selector over the accessible Markets for a Resource.
 marketRefShape :: Shape MarketRef
@@ -128,24 +133,12 @@ intentTemplateShape = premiseSum "Intent template"
           _ -> Nothing
       )
       Transfer
-  , oneKey "enactTariff" "a tariff set by the acting Entity" (ownTariffBody exprShape)
-      ( \x -> case x of
-          ChangeRule (Enact (Tariff r)) | r.jurisdiction == selfId -> Just { origin: r.origin, rate: r.rate }
+  , oneKey "enact" "enact a Rule, with the acting Entity as its governor by default" (ruleBody selfIdShape exprShape)
+      ( \i -> case i of
+          ChangeRule (Enact r) -> Just r
           _ -> Nothing
       )
-      (\r -> ChangeRule (Enact (Tariff { jurisdiction: selfId, origin: r.origin, rate: r.rate })))
-  , oneKey "enactAccessBan" "a ban set by the acting Entity" ownAccessBanBody
-      ( \x -> case x of
-          ChangeRule (Enact (AccessBan r)) | r.jurisdiction == selfId -> Just { target: r.target }
-          _ -> Nothing
-      )
-      (\r -> ChangeRule (Enact (AccessBan { jurisdiction: selfId, target: r.target })))
-  , oneKey "enactWithholding" "units of a capacity withheld by the author" (withholdingBody exprShape)
-      ( \x -> case x of
-          ChangeRule (Enact (Withholding r)) -> Just r
-          _ -> Nothing
-      )
-      (\r -> ChangeRule (Enact (Withholding r)))
+      (ChangeRule <<< Enact)
   , oneKey "repeal" "repeal a Rule the author governs" repealBody
       ( \x -> case x of
           ChangeRule (Repeal r) -> Just { rule: r }

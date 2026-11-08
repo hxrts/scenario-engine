@@ -9,7 +9,8 @@ import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleF(..), RuleId, Transferability(..), Transformation, TransformationId)
+import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
+import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (UnseededWorld)
 import Data.Argonaut.Core (Json)
 import Data.Array (concatMap, elem, filter, mapMaybe)
@@ -86,13 +87,14 @@ coverageGameboard =
     , transformations: Map.singleton (Id "fac") facility
     , representations: []
     , numeraire: money
-    , transport: Map.empty
-    , jurisdiction: Map.empty
+    , transferConditions: Map.empty
+    , groups: Map.empty
+    , ruleKinds: testKinds
     , rules: Map.fromFoldable
-        [ Tuple (Id "tariff") (Tariff { jurisdiction: eu, origin: us, rate: Q.fromInt 1 })
-        , Tuple (Id "ban") (AccessBan { jurisdiction: eu, target: us })
+        [ Tuple (Id "tariff") (tariffR { jurisdiction: eu, origin: us, rate: Q.fromInt 1 })
+        , Tuple (Id "ban") (banR { jurisdiction: eu, target: us })
         ]
-    , scheduled: Map.singleton (Id "later") (Just (AccessBan { jurisdiction: eu, target: us }))
+    , scheduled: Map.singleton (Id "later") (Just (banR { jurisdiction: eu, target: us }))
     , deliveries: []
     , factors: Map.empty
     , circulation: { production: [], flows: [], shares: [], requirements: [] }
@@ -117,8 +119,7 @@ worldEntityRefs w =
 
   ruleEntities :: Maybe Rule -> Array EntityId
   ruleEntities = case _ of
-    Just (Tariff x) -> [ x.jurisdiction, x.origin ]
-    Just (AccessBan x) -> [ x.jurisdiction, x.target ]
+    Just { scope: Flows f } -> [ f.governor, f.counterparty ]
     _ -> []
 
 main :: Effect Unit
@@ -182,3 +183,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           case instantiate raw config of
             Left es -> fail (show es)
             Right initial -> show initial.world.seed `shouldEqual` "9"
+
+-- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
+tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+
+banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
+banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+
+holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
+holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
+
+testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
+testKinds = Map.fromFoldable
+  [ Tuple (Id "tariff") { effect: LevyEffect, scope: InboundFlows, text: "" }
+  , Tuple (Id "accessBan") { effect: BlockEffect, scope: EitherWayFlows, text: "" }
+  , Tuple (Id "withholding") { effect: ReduceEffect, scope: CapacityScope, text: "" }
+  ]

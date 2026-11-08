@@ -15,9 +15,12 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Slice (Slice, describeSlice, event, foldEvents, groupBy, ignore, read, runSlice, total)
-import Core.Types (EntityId, ResourceId, Rule, RuleF(..))
-import Core.World (RoundRecord)
+import Core.Types (EffectF(..), EntityId, ResourceId, Rule, Scope(..))
+import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, length, nub)
+import Data.Map as Map
+import Data.Maybe (Maybe(..))
+import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..))
 import Views.Common (Column, Procedure, Statistic, StoredRun, Table, asProcedure, col, column, names, outcomeLabel, quantity, ratio, records, supportThreshold)
 
@@ -47,11 +50,20 @@ shortfallsOf rec = map perResource (runSlice shortfallsByResource rec.events)
   where
   perResource (Tuple res mine) = { resource: res, quantity: Q.sumQ (map _.quantity mine), entities: length (nub (map _.entity mine)) }
 
-ruleText :: Rule -> String
-ruleText = case _ of
-  Tariff t -> "tariff on " <> show t.origin <> " goods into " <> show t.jurisdiction <> ", rate " <> ratio t.rate
-  AccessBan b -> "access ban: " <> show b.jurisdiction <> " bars " <> show b.target
-  Withholding w -> "withholding of " <> quantity w.units <> " from " <> show w.capacity
+-- | A Rule as its declared kind writes it.
+ruleText :: WorldState -> Rule -> String
+ruleText w r = case Map.lookup r.kind w.ruleKinds of
+  Nothing -> show r.kind
+  Just d -> fill "amount" amount (scopeFill d.text)
+  where
+  fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
+  amount = case r.effect of
+    Levy x -> ratio x
+    Reduce x -> quantity x
+    Block -> ""
+  scopeFill t = case r.scope of
+    Flows f -> fill "governor" (show f.governor) (fill "counterparty" (show f.counterparty) t)
+    OnCapacity c -> fill "capacity" (show c) t
 
 -- | A procedure's row in the drivers table: its outcome and the support against the threshold.
 procedureRow :: Procedure -> Array String
@@ -91,10 +103,10 @@ drivers r =
     , "OrderRemoved": ignore
     , "Traded": ignore
     , "Transferred": ignore
-    , "Tariffed": ignore
+    , "Levied": ignore
     , "Transformed": ignore
     , "Delivered": ignore
-    , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText e.rule ] ]
+    , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText r.manifest.initial e.rule ] ]
     , "Repealed": \e acc -> acc <> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
     , "Estimated": ignore
     , "Consumed": ignore

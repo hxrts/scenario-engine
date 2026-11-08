@@ -10,13 +10,10 @@ module Schema.Build.Fixture
   , refAt
   , procedureDoc
   , noRound
-  , accessBanRule
-  , tariffRule
-  , withholdingRule
   ) where
 
 import Core.Num (Q)
-import Core.Types (Id(..), Intent, RuleF(..))
+import Core.Types (Id(..), Intent)
 import Schema.Premise.Fixture (ExpectDoc, ProcedureDoc, ProposalDoc, ProposalRefDoc, RoundDoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -46,11 +43,3 @@ noRound :: RoundDoc
 noRound = { proposals: Nothing, expect: Nothing }
 
 -- | Rules in force from the start of a world.
-accessBanRule :: { jurisdiction :: String, target :: String } -> RuleF Q
-accessBanRule r = AccessBan { jurisdiction: Id r.jurisdiction, target: Id r.target }
-
-tariffRule :: { jurisdiction :: String, origin :: String, rate :: Q } -> RuleF Q
-tariffRule r = Tariff { jurisdiction: Id r.jurisdiction, origin: Id r.origin, rate: r.rate }
-
-withholdingRule :: { capacity :: String, units :: Q } -> RuleF Q
-withholdingRule r = Withholding { capacity: Id r.capacity, units: r.units }

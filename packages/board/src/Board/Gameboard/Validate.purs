@@ -15,7 +15,7 @@ import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, domainResource, idText)
+import Core.Types (Capability(..), Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, Scope(..), TransformationId, domainResource, idText)
 import Core.World (ShareSource(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -88,10 +88,12 @@ validateGameboard gb config =
         )
       <> unknownEntity (map _.entity w.circulation.requirements)
       <> unknownResource (map _.resource w.circulation.requirements)
-      <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.jurisdiction :: Array _))
+      <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.groups :: Array _))
       <> concatMap ruleRefs (values w.rules)
-      <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transport :: Array _))
-      <> unknownTransformation (map (\(Tuple _ t) -> t) (Map.toUnfoldable w.transport :: Array _))
+      <> concatMap enactRefs (concatMap _.capabilities (values w.entities))
+      <> concatMap enactRefs (concatMap (\x -> concatMap _.authorizes (values x.aggregate.procedures)) aggregates)
+      <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transferConditions :: Array _))
+      <> unknownTransformation (map (\(Tuple _ t) -> t.bundled) (Map.toUnfoldable w.transferConditions :: Array _))
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
       <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
@@ -102,10 +104,14 @@ validateGameboard gb config =
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
-  ruleRefs = case _ of
-    Tariff x -> unknownEntity [ x.jurisdiction, x.origin ]
-    AccessBan x -> unknownEntity [ x.jurisdiction, x.target ]
-    Withholding x -> unknownCapacity [ x.capacity ]
+  ruleRefs r = (if Map.member r.kind w.ruleKinds then [] else unknownKind r.kind) <> case r.scope of
+    Flows f -> unknownEntity [ f.governor, f.counterparty ]
+    OnCapacity c -> unknownCapacity [ c ]
+  unknownKind k = [ UnknownReference RuleKindRef (show k) ]
+  -- a capability to enact names a declared kind
+  enactRefs = case _ of
+    MayEnact k | not (Map.member k w.ruleKinds) -> unknownKind k
+    _ -> []
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
   -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
   fallbackPolicies = concatMap institutional (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks)

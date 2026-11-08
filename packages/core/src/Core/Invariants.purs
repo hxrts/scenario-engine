@@ -99,7 +99,7 @@ inv01 before r = foldEvents
   , "OrderRemoved": ignore
   , "Traded": \t acc -> if any (traded t) intents then acc else acc <> unmatched ("a trade by " <> show t.entity <> " on " <> show t.market)
   , "Transferred": \t acc -> if any (moved t) intents || declared t then acc else acc <> unmatched ("a transfer from " <> show t.from <> " to " <> show t.to)
-  , "Tariffed": ignore
+  , "Levied": ignore
   , "Transformed": \t acc -> if any (transformed t) intents then acc else acc <> unmatched ("a run of " <> show t.transformation <> " by " <> show t.by)
   , "Delivered": ignore
   , "Enacted": ignore
@@ -158,7 +158,7 @@ inv04 before r =
         Just m -> add t.entity m.base t.quantity (add t.entity m.quote (Q.neg (Q.mul t.price t.quantity)) acc)
         Nothing -> acc
     , "Transferred": \t acc -> add t.to t.resource t.quantity (add t.from t.resource (Q.neg t.quantity) acc)
-    , "Tariffed": \t acc -> add t.to before.numeraire t.amount (add t.from before.numeraire (Q.neg t.amount) acc)
+    , "Levied": \t acc -> add t.to before.numeraire t.amount (add t.from before.numeraire (Q.neg t.amount) acc)
     , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
         Just tr ->
           let
@@ -200,7 +200,7 @@ inv05 before r = concatMap one resources
     , "OrderRemoved": ignore
     , "Traded": ignore
     , "Transferred": ignore
-    , "Tariffed": ignore
+    , "Levied": ignore
     , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
         Just tr ->
           let

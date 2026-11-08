@@ -6,6 +6,7 @@ module Premises.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixture
 import Prelude (map, negate)
 
 import Premises.Names as N
+import Premises.Rules (enactTariff, mayEnactTariff)
 import Core.Types (Id(..))
 
 import Core.Num (Q)
@@ -15,11 +16,11 @@ import Premises.Meridian (resources)
 import Premises.Fixtures.Common (holding, defaultFixture, energyAt, fixture)
 import Premises.Meridian.Holdings (pickAccounts)
 import Premises.Meridian.Entities.Aggregates (euAggregate, euPoolAggregate)
-import Schema.Build.Base (Keyed, keyed, (:=), mayEnactTariff, mayTrade, mayTransfer)
+import Schema.Build.Base (Keyed, keyed, (:=), mayTrade, mayTransfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noEntity)
 import Schema.Build.Fixture (noExpect, procedureDoc, proposal, ref)
-import Schema.Build.Intent (enactTariff, trade, transfer)
+import Schema.Build.Intent (trade, transfer)
 import Schema.Premise.World (EntityDoc)
 import Data.Maybe (Maybe(..))
 

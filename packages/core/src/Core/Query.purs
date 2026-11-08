@@ -37,7 +37,7 @@ import Core.Map (values)
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, Scope(..), EffectF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
 import Core.World (Event, WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
@@ -106,7 +106,7 @@ isAggregate = isJust <<< aggregateOf
 
 -- | The capacity's owner: the Entity with a positive holding of it, else the first with an account
 -- | for it (an owner run down to zero still owns it). INV-08 keeps a positive holder unique.
--- | Withholding and capacity lookups both use this.
+-- | Capacity Rules and capacity lookups both use this.
 owner :: WorldState -> CapacityRef -> Maybe EntityId
 owner w ref = _.id <$> (find (\e -> lookupQ ref e.capacities > Q.zero) entities <|> find (\e -> Map.member ref e.capacities) entities)
   where
@@ -119,9 +119,9 @@ capacityOf w ref =
     held = maybe Q.zero (\o -> capacityHeld w o ref) (owner w ref)
     withheld = Q.sumQ
       ( map
-          ( case _ of
-              Withholding r | r.capacity == ref -> r.units
-              _ -> Q.zero
+          ( \r -> case r.scope, r.effect of
+              OnCapacity c, Reduce units | c == ref -> units
+              _, _ -> Q.zero
           )
           (rulesOf w)
       )
@@ -190,13 +190,12 @@ transformedLastRound :: RoundIndex -> EntityId -> TransformationId -> Quantity -
 transformedLastRound round by transformation atLeast = any (\t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast) <<< select (event @"Transformed")
 
 -- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
--- | were proposed in the round before: an AccessBan on `target`, or a Tariff on its origin.
+-- | were proposed in the round before: a flows Rule of `by`'s whose counterparty is `target`.
 restrictedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
 restrictedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enacted")
   where
   rulesOf' e
     | e.round /= round = []
-    | otherwise = case e.rule of
-        r@(AccessBan x) | x.jurisdiction == by && x.target == target -> [ r ]
-        r@(Tariff x) | x.jurisdiction == by && x.origin == target -> [ r ]
+    | otherwise = case e.rule.scope of
+        Flows f | f.governor == by && f.counterparty == target -> [ e.rule ]
         _ -> []

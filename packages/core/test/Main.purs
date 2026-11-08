@@ -20,7 +20,8 @@ import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (count, describeSlice, event, items, matches, orKind, pickOf, read, runSlice, total, whereEq)
 import Core.World (Event(..), RoundResult, costFunctionShape, Target(..), WorldState, renderReason)
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -51,13 +52,13 @@ genId = Id <$> elements (cons' "US" [ "DE", "SA", "JP", "EU" ])
 
 genCapability :: Gen Capability
 genCapability = oneOf $ cons' (MayTrade <$> genId)
-  [ MayTransfer <$> genId, MayTransform <$> genId, MayEnact <$> elements (cons' TariffRule [ AccessBanRule, WithholdingRule ]) ]
+  [ MayTransfer <$> genId, MayTransform <$> genId, MayEnact <$> elements (cons' (Id "tariff") [ Id "accessBan", Id "withholding" ]) ]
 
 genRule :: Gen Rule
 genRule = oneOf $ cons'
-  ((\j o r -> Tariff { jurisdiction: j, origin: o, rate: r }) <$> genId <*> genId <*> genQ)
-  [ (\j t -> AccessBan { jurisdiction: j, target: t }) <$> genId <*> genId
-  , (\c u -> Withholding { capacity: c, units: u }) <$> genId <*> genQ
+  ((\j o r -> tariffR { jurisdiction: j, origin: o, rate: r }) <$> genId <*> genId <*> genQ)
+  [ (\j t -> banR { jurisdiction: j, target: t }) <$> genId <*> genId
+  , (\c u -> holdR { capacity: c, units: u }) <$> genId <*> genQ
   ]
 
 genIntent :: Gen Intent
@@ -80,7 +81,7 @@ genProposal = (\a is ss p -> { id: proposalId 1 a 0, author: a, intents: is, sig
 genKind :: Gen EntityKind
 genKind = oneOf $ cons' (Actor <<< Seat <$> genId)
   [ Actor <<< NPC <$> genId
-  , (\p ms w -> Aggregate { policy: p, members: ms, procedures: Map.singleton (Id "eu-trade") { weights: Map.singleton (Id "DE") w, residualWeight: w, threshold: w, authorizes: [ MayEnact TariffRule ] } })
+  , (\p ms w -> Aggregate { policy: p, members: ms, procedures: Map.singleton (Id "eu-trade") { weights: Map.singleton (Id "DE") w, residualWeight: w, threshold: w, authorizes: [ MayEnact (Id "tariff") ] } })
       <$> genId
       <*> arrayOf genId
       <*> genQ
@@ -143,8 +144,9 @@ baseWorld es =
   , transformations: Map.empty
   , representations: []
   , numeraire: Id "M"
-  , transport: Map.empty
-  , jurisdiction: Map.empty
+  , transferConditions: Map.empty
+  , groups: Map.empty
+  , ruleKinds: testKinds
   , rules: Map.empty
   , scheduled: Map.empty
   , deliveries: []
@@ -436,7 +438,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (resolveRound w [ submit "US" 0 [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ] ])
         `shouldEqual` []
     it "rejects repealing an unknown rule" do
-      let w = baseWorld [ actor "US" [ MayEnact TariffRule ] ]
+      let w = baseWorld [ actor "US" [ MayEnact (Id "tariff") ] ]
       rejections (resolveRound w [ submit "US" 0 [ ChangeRule (Repeal (Id "nope")) ] ])
         `shouldEqual` [ "unknown rule nope" ]
     it "rejects every copy of a duplicated ProposalId" do
@@ -445,15 +447,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ "duplicate proposal id", "duplicate proposal id" ]
     it "a procedure's enactment is limited to its own jurisdiction" do
       let
-        proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayEnact TariffRule ] }
+        proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayEnact (Id "tariff") ] }
         eu = (actor "EU" []) { kind = Aggregate { policy: Id "p", members: [], procedures: Map.singleton (Id "trade") proc } }
-        tariff j = Tariff { jurisdiction: j, origin: Id "US", rate: q "0.1" }
+        tariff j = tariffR { jurisdiction: j, origin: Id "US", rate: q "0.1" }
         procedureSubmit j =
           { proposal: { id: proposalId 1 (Id "EU") 0, author: Id "EU", intents: [ ChangeRule (Enact (tariff j)) ], signers: [], procedure: Just (Id "trade") }
           , signatures: []
           }
         w = baseWorld [ eu ]
-      rejections (resolveRound w [ procedureSubmit (Id "DE") ]) `shouldEqual` [ "a Tariff applies only to the enacting jurisdiction" ]
+      rejections (resolveRound w [ procedureSubmit (Id "DE") ]) `shouldEqual` [ "a Rule of kind tariff applies only to its governing Entity or owner, and only in its declared form" ]
       rejections (resolveRound w [ procedureSubmit (Id "EU") ]) `shouldEqual` []
     it "a deal bundles Transfers and Transforms, and only those" do
       let
@@ -658,9 +660,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       proposalAuthor (Id "not-a-proposal-id") `shouldEqual` Nothing
     it "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" do
       let
-        uk = (actor "UK" [ MayEnact WithholdingRule ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        uk = (actor "UK" [ MayEnact (Id "withholding") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
         ruleId = ruleIdOf (proposalId 1 (Id "UK") 0) 0
-        round1 = advance (baseWorld [ uk ]) [ submit "UK" 0 [ ChangeRule (Enact (Withholding { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
+        round1 = advance (baseWorld [ uk ]) [ submit "UK" 0 [ ChangeRule (Enact (holdR { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
         round2 = advance round1 [ submit "UK" 0 [ ChangeRule (Repeal ruleId) ] ]
       -- scheduled in round 1 and in force from round 2, so the round-1 world reads its scheduled Rule as not yet applied
       capacityOf round1 (Id "plant") `shouldEqual` Q.fromInt 10
@@ -705,10 +707,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let
       transport = { id: Id "ship", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
       holder name = (actor name [ MayTransform (Id "ship") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 50) ] }
-      shipWorld = (baseWorld [ holder "A", holder "B", holder "C" ]) { transformations = Map.singleton (Id "ship") transport, transport = Map.singleton (Id "E") (Id "ship") }
+      shipWorld = (baseWorld [ holder "A", holder "B", holder "C" ]) { transformations = Map.singleton (Id "ship") transport, transferConditions = Map.singleton (Id "E") { bundled: Id "ship" } }
       send to n = Transfer { from: Id "A", to: Id to, resource: Id "E", quantity: Q.fromInt n }
       carry n = Transform { by: Id "A", transformation: Id "ship", quantity: Q.fromInt n }
-      needsTransport = "a cross-region Transfer needs a matching transport order by the sender"
+      needsTransport = "this Transfer needs a matching bundled order by the sender"
       invariantsOf w r = map _.invariant (check w r)
       resolved w inputs = either (\e -> unsafeCrashWith (show e)) identity (resolveRound w inputs)
     it "a procedure Proposal whose agent is short is scaled to what the agent holds, with no Shortfall" do
@@ -728,11 +730,27 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (resolveRound shipWorld [ submit "A" 0 [ send "B" 5, send "C" 5, carry 5 ] ]) `shouldEqual` [ needsTransport ]
     it "one transport order covering the sender's shipments in total is accepted" do
       rejections (resolveRound shipWorld [ submit "A" 0 [ send "B" 5, send "C" 5, carry 10 ] ]) `shouldEqual` []
+    it "a premise with no Rule kinds, conditions or groups runs: nothing is checked" do
+      let plain = shipWorld { ruleKinds = Map.empty, transferConditions = Map.empty, groups = Map.empty }
+      rejections (resolveRound plain [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` []
+    it "with no declared kinds, no Rule can be enacted" do
+      let w = (baseWorld [ actor "US" [ MayEnact (Id "tariff") ] ]) { ruleKinds = Map.empty }
+      rejections (resolveRound w [ submit "US" 0 [ ChangeRule (Enact (tariffR { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" })) ] ])
+        `shouldEqual` [ "a Rule of kind tariff applies only to its governing Entity or owner, and only in its declared form" ]
+    it "a new Rule kind, declared only as data, is enforced by the mechanism" do
+      let
+        embargo = { kind: Id "embargo", scope: Flows { governor: Id "B", counterparty: Id "A", direction: Inbound }, effect: Block }
+        toll = { kind: Id "toll", scope: Flows { governor: Id "B", counterparty: Id "A", direction: Inbound }, effect: Levy (q "0.1") }
+        declared = Map.fromFoldable [ Tuple (Id "embargo") { effect: BlockEffect, scope: InboundFlows, text: "" }, Tuple (Id "toll") { effect: LevyEffect, scope: InboundFlows, text: "" } ]
+        blocked = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
+        tolled = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") toll }
+      rejections (resolveRound blocked [ submit "A" 0 [ send "B" 5, carry 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind embargo" ]
+      length (filter (matches (event @"Levied") (\l -> l.kind == Id "toll")) (eventsOf (resolveRound tolled [ submit "A" 0 [ send "B" 5, carry 5 ] ]))) `shouldEqual` 1
     it "a Rule enacted in one round is in the next round's record" do
       let
-        us = actor "US" [ MayEnact TariffRule ]
+        us = actor "US" [ MayEnact (Id "tariff") ]
         w = baseWorld [ us ]
-        tariff = Tariff { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" }
+        tariff = tariffR { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" }
         next = either (const w) _.world (resolveRound w [ submit "US" 0 [ ChangeRule (Enact tariff) ] ])
         enacted = (matches (event @"Enacted") (const true))
       length (filter enacted (eventsOf (resolveRound next []))) `shouldEqual` 1
@@ -790,8 +808,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "One authority predicate" do
     it "a World State and an Entity's View of it answer every Intent the same" do
       let
-        rule = AccessBan { jurisdiction: Id "A", target: Id "B" }
-        base = baseWorld [ actor "A" [ MayEnact TariffRule, MayTransfer (Id "E"), MayTrade (Id "EM") ], actor "B" [] ]
+        rule = banR { jurisdiction: Id "A", target: Id "B" }
+        base = baseWorld [ actor "A" [ MayEnact (Id "tariff"), MayTransfer (Id "E"), MayTrade (Id "EM") ], actor "B" [] ]
         w = prepareRound (base { rules = Map.singleton (Id "ban") rule, resources = Map.update (\x -> Just x { transferability = Restricted }) (Id "E") base.resources })
         a = fromMaybe (actor "A" []) (Map.lookup (Id "A") w.entities)
         move res = Transfer { from: Id "A", to: Id "B", resource: Id res, quantity: Q.fromInt 1 }
@@ -799,7 +817,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         intents :: Array Intent
         intents = [ move "M", move "E", move "unknown", ChangeRule (Repeal (Id "ban")), ChangeRule (Repeal (Id "gone")), ChangeRule (Enact rule), Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ]
         ask facts caps = map (authorized facts caps (Id "A")) intents
-      for_ [ a.capabilities, [], [ MayEnact AccessBanRule ], [ MayTransfer (Id "M") ] ] \caps ->
+      for_ [ a.capabilities, [], [ MayEnact (Id "accessBan") ], [ MayTransfer (Id "M") ] ] \caps ->
         ask (viewFacts (observe w a)) caps `shouldEqual` ask (worldFacts w) caps
 
   describe "Tampered results trip each invariant (work/6)" do
@@ -894,5 +912,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"market\":\"energy-asia\",\"limitPrice\":null}],\"tag\":\"Trade\"}"
     it "the snapshot form of a rule enactment nests the Rule the same way" do
-      stringify (encodeJson (ChangeRule (Enact (Tariff { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
-        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"rate\":\"0.5000\",\"origin\":\"US\",\"jurisdiction\":\"EU\"}],\"tag\":\"Tariff\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
+      stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
+        `shouldEqual` "{\"values\":[{\"values\":[{\"scope\":{\"values\":[{\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"}],\"tag\":\"Flows\"},\"kind\":\"tariff\",\"effect\":{\"values\":[\"0.5000\"],\"tag\":\"Levy\"}}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
+
+-- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
+tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+
+banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
+banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+
+holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
+holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
+
+testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
+testKinds = Map.fromFoldable
+  [ Tuple (Id "tariff") { effect: LevyEffect, scope: InboundFlows, text: "" }
+  , Tuple (Id "accessBan") { effect: BlockEffect, scope: EitherWayFlows, text: "" }
+  , Tuple (Id "withholding") { effect: ReduceEffect, scope: CapacityScope, text: "" }
+  ]

@@ -19,8 +19,7 @@ module Schema.Build.Decision
   , asTemplate
   , orderAt
   , selfTransform
-  , selfTariff
-  , selfAccessBan
+  , selfEnact
   , procedure
   , deal
   , reciprocate
@@ -49,7 +48,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
-import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
+import Core.Types (EffectF, Id(..), IntentF(..), RuleChangeF(..), Scope)
 import Schema.Build.Quantity (class ToQty, q)
 
 -- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
@@ -152,13 +151,9 @@ orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
 selfTransform :: { transformation :: String, quantity :: Expr } -> IntentTemplate
 selfTransform r = Transform { by: Id S.selfName, transformation: Id r.transformation, quantity: r.quantity }
 
--- | Enact a tariff as the acting Entity's jurisdiction.
-selfTariff :: { origin :: String, rate :: Expr } -> IntentTemplate
-selfTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id S.selfName, origin: Id r.origin, rate: r.rate }))
-
--- | Enact an access ban as the acting Entity's jurisdiction.
-selfAccessBan :: { target :: String } -> IntentTemplate
-selfAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id S.selfName, target: Id r.target }))
+-- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or owner (a capacity).
+selfEnact :: { kind :: String, scope :: Scope, effect :: EffectF Expr } -> IntentTemplate
+selfEnact r = ChangeRule (Enact { kind: Id r.kind, scope: r.scope, effect: r.effect })
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).

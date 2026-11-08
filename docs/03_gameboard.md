@@ -24,7 +24,7 @@ A premise is a directory of JSON section files. The loader merges every file exc
 |---|---|---|
 | `premise.json` | Premise header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
 | `resources.json` | Resources (§5.1) | `resources` |
-| `markets.json` | Markets, transport, jurisdiction (§5.2, §5.5) | `markets`, `transport`, `jurisdiction` |
+| `markets.json` | Markets, transfer conditions, groups, Rule kinds (§5.2, §5.5) | `markets`, `transferConditions`, `groups`, `ruleKinds` |
 | `transformations.json` | Facilities (§5.3) | `transformations` |
 | `circulation.json` | Recurring cycle (§5.4) | `circulation` |
 | `entities.json` | Entity catalog (§6) | `entities` |
@@ -115,9 +115,10 @@ Decay follows each Resource's `decay`. Capacity changes come from Facility `effe
 ### 5.5 Geography, access, and Rules
 
 - **Regions** are separate Markets. There is no node hierarchy.
-- **`transport`** maps a Resource to the Facility that carries it between regions. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
-- **`jurisdiction`** maps an Entity to the Entity that governs it, when different from itself.
-- **`rules`** are institutional conditions: `tariff` `{ jurisdiction, origin, rate }`, `accessBan` `{ jurisdiction, target }`, and `withholding` `{ capacity, units }`. A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
+- **`transferConditions`** maps a Resource to `{ bundled: <facility> }`, the order a Transfer of it must be bundled with between parties who share no Market for it. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
+- **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
+- **`ruleKinds`** declares each kind of Rule: `{ effect: levy | block | reduce, scope: inbound | eitherWay | capacity, text }`, the text being how a Rule of the kind is displayed. A premise that declares none has no Rules.
+- **`rules`** are institutional conditions, each `{ kind, scope, effect }` of a declared kind: `scope` is `{ flows: { governor, counterparty, direction } }` or `{ capacity }`, and `effect` is `{ levy: rate }`, `block`, or `{ reduce: units }`. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
 
@@ -177,7 +178,7 @@ A fallback is a tag, in an Actor's `fallback` or in the configuration's `fallbac
 
 | Tag | Effect when the Actor is unselected |
 |---|---|
-| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, jurisdiction, facility payees and effect holders, Rules in force and scheduled, and Aggregate member lists and other Aggregates' procedure weights that name the Actor move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
+| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, groups, facility payees and effect holders, Rules in force and scheduled, and Aggregate member lists and other Aggregates' procedure weights that name the Actor move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
 | `policy:<policy>` | The Entity stays and is driven by that in-world Policy as an NPC. Its capabilities stay with it. |
 | `omission` | No change. Its holdings and capabilities remain in World State with no controller, so it submits nothing. |
 
@@ -185,7 +186,7 @@ The three are not interchangeable: a government's regulatory authority never mov
 
 ## 7. Structural Relationships
 
-The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `jurisdiction`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the premise report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
+The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `groups`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the premise report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
 
 ## 8. Policy Catalog
 

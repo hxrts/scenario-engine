@@ -12,7 +12,7 @@ module Premises.Meridian
   , resources
   , coreResources
   , atlanticTerms
-  , transport
+  , transferConditions
   , productionCapacity
   , atlanticMarket
   , asiaMarket
@@ -33,6 +33,7 @@ module Premises.Meridian
 
 import Prelude (bind, map, negate, show, ($), (+), (<>))
 import Premises.Names as N
+import Premises.Rules (ruleKinds)
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
@@ -88,8 +89,9 @@ gameboard =
       , resources
       , markets
       , transformations
-      , transport: Just transport
-      , jurisdiction: Just jurisdiction
+      , transferConditions: Just transferConditions
+      , groups: Just groups
+      , ruleKinds: Just ruleKinds
       , entities
       , rules: Just []
       , representations: Nothing
@@ -103,7 +105,7 @@ files :: Array (Tuple String Json)
 files =
   [ section N.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
   , section N.resourcesFile [ "resources" ]
-  , section N.marketsFile [ "markets", "transport", "jurisdiction" ]
+  , section N.marketsFile [ "markets", "transferConditions", "groups", "ruleKinds" ]
   , section N.transformationsFile [ "transformations" ]
   , section N.circulationFile [ "circulation" ]
   , section N.entitiesFile [ "entities" ]
@@ -185,13 +187,13 @@ atlanticTerms = energyTerms { hi: q 300, reserves: keyed [ N.money := 700, N.ene
 asiaTerms :: MarketTerms
 asiaTerms = energyTerms { hi: q 200, reserves: keyed [ N.money := 500, N.energy := 250 ] }
 
--- | The facility that carries each Resource between regions.
-transport :: Keyed TransformationId
-transport = keyed [ Tuple N.energy (Id N.energyShipping) ]
+-- | What a Transfer of each Resource must be bundled with, between parties who share no Market for it.
+transferConditions :: Keyed { bundled :: TransformationId }
+transferConditions = keyed [ Tuple N.energy { bundled: Id N.energyShipping } ]
 
--- | Each Entity's governing jurisdiction, where it is not its own.
-jurisdiction :: Keyed EntityId
-jurisdiction = keyed
+-- | The group each Entity counts as for flows Rules, where it is not its own: its governing country.
+groups :: Keyed EntityId
+groups = keyed
   [ Tuple N.enco (Id N.us)
   , Tuple N.def (Id N.us)
   , Tuple N.labor (Id N.us)

@@ -12,6 +12,7 @@ module Premises.Fixtures.Common
 
 import Prelude (map, (+))
 import Premises.Names as N
+import Premises.Rules (ruleKinds)
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
@@ -25,7 +26,7 @@ import Schema.Build.World (noEntity)
 import Schema.Premise.Fixture (ExpectDoc, FixtureDoc, ProposalDoc, RoundDoc, fixtureShape)
 import Schema.Premise.World (CirculationDoc, EntityDoc, FacilityDoc, MarketDoc, RepresentationDoc, ResourceDoc)
 import Data.Argonaut.Core (Json)
-import Premises.Meridian (asiaMarket, atlanticTerms, coreResources, defenseProcurementFacility, energyShipping, gameSeed, transport, market)
+import Premises.Meridian (asiaMarket, atlanticTerms, coreResources, defenseProcurementFacility, energyShipping, gameSeed, transferConditions, market)
 import Premises.Meridian.Holdings (pickAccounts)
 
 -- | What a fixture gives. The Gameboard's sections (resources, markets, facilities, transport,
@@ -36,7 +37,7 @@ type FixtureSpec =
   , resources :: Keyed ResourceDoc
   , markets :: Keyed MarketDoc
   , transformations :: Keyed FacilityDoc
-  , transport :: Keyed TransformationId
+  , transport :: Keyed { bundled :: TransformationId }
   , rules :: Array (RuleF Q)
   , entities :: Keyed EntityDoc
   , representations :: Maybe (Array RepresentationDoc)
@@ -54,7 +55,7 @@ defaultFixture =
   , resources: coreResources
   , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , transformations: facilities
-  , transport
+  , transport: transferConditions
   , rules: []
   , entities: []
   , representations: Nothing
@@ -84,8 +85,9 @@ fixture name s = Tuple name (encodeWith Premise fixtureShape doc)
             , resources: s.resources
             , markets: s.markets
             , transformations: s.transformations
-            , transport: Just s.transport
-            , jurisdiction: Nothing
+            , transferConditions: Just s.transport
+            , groups: Nothing
+            , ruleKinds: Just ruleKinds
             , entities: s.entities
             , rules: Just s.rules
             , representations: s.representations

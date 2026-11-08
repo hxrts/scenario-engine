@@ -16,7 +16,7 @@ import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (holding)
-import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), RuleF(..), proposalId)
+import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), EffectF(..), Scope(..), proposalId)
 import Core.Slice (event, matches, pickOf)
 import Core.World (RejectReason(..), renderReason)
 import Data.Array (any, concatMap, drop, findMap, index, last, length, reverse, take, zip)
@@ -269,12 +269,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           (matches (event @"ProcedureOutcome") (\o -> o.executed))
           events
         banned = any
-          (matches (event @"Rejected") (\x -> x.reason == ShipmentBanned))
+          (matches (event @"Rejected") (\x -> x.reason == Blocked (Id "accessBan")))
           events
         tariffOnUs = case index r.records 3 of
           Just rec -> any
             ( case _ of
-                Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
+                { scope: Flows f, effect: Levy _ } -> f.governor == Id "EU" && f.counterparty == Id "US"
                 _ -> false
             )
             (values rec.world.rules)
@@ -287,13 +287,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- premise
       g <- everySeat p "Passive"
       let
-        banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enactAccessBan":{"target":"CN"}}]}]}"""
+        banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enact":{"kind":"accessBan","scope":{"flows":{"counterparty":"CN","direction":"eitherWay"}},"effect":"block"}}]}]}"""
         rules i r = maybe [] (\rec -> values rec.world.rules) (index r.records i)
         isBan a b = case _ of
-          AccessBan x -> x.jurisdiction == Id a && x.target == Id b
+          { scope: Flows f, effect: Block } -> f.governor == Id a && f.counterparty == Id b
           _ -> false
         isTariff = case _ of
-          Tariff x -> x.jurisdiction == Id "EU" && x.origin == Id "US"
+          { scope: Flows f, effect: Levy _ } -> f.governor == Id "EU" && f.counterparty == Id "US"
           _ -> false
       r <- run (Seed 1) (withStrategy g "US" banChina)
       valid (initialOf r) r

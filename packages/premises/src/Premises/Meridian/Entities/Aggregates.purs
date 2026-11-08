@@ -3,10 +3,11 @@
 module Premises.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, euPoolAggregate, globalSmesAggregate) where
 
 import Prelude ((<>))
+import Premises.Rules (mayEnactTariff)
 import Premises.Names as N
 
 import Data.Tuple (Tuple(..))
-import Schema.Build.Base (keyed, (:=), mayEnactTariff, mayTrade, mayTransfer)
+import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, aggregateWith, collective)
 import Schema.Premise.World (AggregateDoc, EntityDoc)

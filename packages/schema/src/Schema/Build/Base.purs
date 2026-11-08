@@ -10,9 +10,7 @@ module Schema.Build.Base
   , mayTrade
   , mayTransfer
   , mayTransform
-  , mayEnactTariff
-  , mayEnactAccessBan
-  , mayEnactWithholding
+  , mayEnact
   , coverage
   , institutional
   , omission
@@ -32,7 +30,7 @@ module Schema.Build.Base
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (Capability(..), Id(..), RuleKind(..))
+import Core.Types (Capability(..), Id(..))
 import Core.World (ShareSource)
 import Core.World as W
 import Data.Tuple (Tuple(..))
@@ -61,14 +59,9 @@ mayTransfer r = MayTransfer (Id r)
 mayTransform :: String -> Capability
 mayTransform t = MayTransform (Id t)
 
-mayEnactTariff :: Capability
-mayEnactTariff = MayEnact TariffRule
-
-mayEnactAccessBan :: Capability
-mayEnactAccessBan = MayEnact AccessBanRule
-
-mayEnactWithholding :: Capability
-mayEnactWithholding = MayEnact WithholdingRule
+-- | May enact a Rule of a declared kind.
+mayEnact :: String -> Capability
+mayEnact = MayEnact <<< Id
 
 -- Fallbacks --------------------------------------------------------------------------------
 

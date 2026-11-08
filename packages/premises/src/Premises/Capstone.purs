@@ -25,6 +25,7 @@ module Premises.Capstone
 
 import Prelude (map, otherwise, ($), (<<<), (<>), (==))
 import Premises.Names as N
+import Premises.Rules (enactWithholding, selfAccessBan)
 import Game.Assemble (assemble)
 import Game.Bindings (strategyBindings)
 import Game.Error (GameError)
@@ -48,8 +49,8 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (passive, orderAt, selfAccessBan, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
-import Schema.Build.Intent (enactWithholding, repeal)
+import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
+import Schema.Build.Intent (repeal)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
 import Core.Shape (encodeWith, Format(..))
@@ -355,7 +356,14 @@ proposalReply author i = obj
 -- | access ban on IN.
 banIntent :: Json
 banIntent = intent "ChangeRule"
-  [ intent "Enact" [ intent "AccessBan" [ obj [ Tuple "target" (fromString N.india), Tuple "jurisdiction" (fromString N.us) ] ] ] ]
+  [ intent "Enact"
+      [ obj
+          [ Tuple "scope" (intent "Flows" [ obj [ Tuple "governor" (fromString N.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString N.india) ] ])
+          , Tuple "kind" (fromString "accessBan")
+          , Tuple "effect" (intent "Block" [])
+          ]
+      ]
+  ]
 
 -- | The US buying ten Energy in the Atlantic market at no limit price.
 tradeIntent :: Json

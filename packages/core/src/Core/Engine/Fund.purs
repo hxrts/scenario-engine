@@ -62,7 +62,7 @@ fund w items =
 
 -- | What an Item escrows from opening holdings at its full requested size.
 claims :: WorldState -> Item -> Array Claim
-claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.from, resource: w.numeraire, amount: t.amount }) item.tariffs
+claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.from, resource: w.numeraire, amount: t.amount }) item.levies
   where
   p = item.proposal
   claim = case _ of

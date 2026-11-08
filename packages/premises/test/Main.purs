@@ -16,7 +16,8 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (Direction(..), EffectF(..), Scope(..), RuleF, CapacityTag, EntityTag)
+import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)
@@ -37,11 +38,10 @@ import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape)
 import Schema.Build.Quantity (q)
-import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
+import Premises.Rules (enactAccessBan, enactWithholding, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, tariffRule, withholdingRule)
+import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
 import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
-import Schema.Build.Fixture (tariffRule, withholdingRule)
-import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
@@ -110,7 +110,8 @@ withSection name json = map (\s -> if s.name == name then s { json = json } else
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
 chinaView :: View
 chinaView =
-  { round: 2
+  { ruleKinds: Map.empty
+  , round: 2
   , self: { id: Id "CN", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTransform (Id "defense-procurement-cn"), MayTrade (Id "energy-asia") ], kind: Actor (NPC (Id "china-strategic-v0")) }
   , prices: Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 2) ]
   , rules: Map.empty
@@ -195,22 +196,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "enactAccessBanI decodes to an AccessBan enactment" do
       case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
-        Right (ChangeRule (Enact (AccessBan a))) -> do
-          a.jurisdiction `shouldEqual` Id "US"
-          a.target `shouldEqual` Id "CN"
+        Right (ChangeRule (Enact { scope: Flows a })) -> do
+          a.governor `shouldEqual` Id "US"
+          a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
       case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
-        Right (Tariff t) -> do
-          t.jurisdiction `shouldEqual` Id "US"
-          t.origin `shouldEqual` Id "CN"
+        Right { scope: Flows t } -> do
+          t.governor `shouldEqual` Id "US"
+          t.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
       decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
-        `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
+        `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
       decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
-        `shouldEqual` Right (ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })))
+        `shouldEqual` Right (ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
         case toString (encodeWith Premise capabilityShape c) of
@@ -313,8 +314,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "UnknownReference: a facility's payee is not an Entity"
       (editWorld \w -> w { transformations = Map.update (\t -> Just t { payee = Just (Id "NOBODY") }) (Id "energy-shipping") w.transformations })
       (UnknownReference EntityRef "NOBODY")
+    rejects "UnknownReference: a capability names a Rule kind the premise does not declare"
+      (editWorld \w -> w { ruleKinds = Map.delete (Id "tariff") w.ruleKinds })
+      (UnknownReference RuleKindRef "tariff")
     rejects "UnknownReference: a jurisdiction is not an Entity"
-      (editWorld \w -> w { jurisdiction = Map.insert (Id "DE") (Id "NOBODY") w.jurisdiction })
+      (editWorld \w -> w { groups = Map.insert (Id "DE") (Id "NOBODY") w.groups })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a Representation scheme's domain is not a Resource"
       (\g c -> Tuple g { schemes = map (\s -> s { domain = Id "NOPE" }) g.schemes } c)
@@ -326,7 +330,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (\g c -> Tuple g { actors = Map.update (\d -> Just d { npc = [ Id "no-such-policy" ] }) (Id "CN") g.actors } c)
       (UnknownReference PolicyRef "no-such-policy")
     rejects "UnknownReference: a Withholding rule names a capacity no Entity holds"
-      (editWorld \w -> w { rules = Map.insert (Id "rule-x") (Withholding { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
+      (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
       (UnknownReference CapacityName "nowhere")
     rejects "MissingFallback: a non-required Actor with no fallback"
       (\g c -> Tuple g { actors = Map.update (\d -> Just d { fallback = Nothing }) (Id "DE") g.actors } c)
@@ -341,7 +345,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { transformations = Map.update (\t -> Just t { payee = Nothing }) (Id "public-attention") w.transformations })
       (FacilityWithoutPayee (Id "public-attention"))
     rejects "ProcedureExceedsAuthority: a procedure authorizes what its Aggregate may not do"
-      (editWorld (onEntity "EU" \e -> e { capabilities = filter (_ /= MayEnact TariffRule) e.capabilities }))
+      (editWorld (onEntity "EU" \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
       (ProcedureExceedsAuthority (Id "EU"))
     rejects "ProductionWithoutCapacity: a producer that does not hold the capacity it produces from"
       (editWorld \w -> w { circulation = w.circulation { production = w.circulation.production <> [ { entity: Id "US", resource: Id "E", capacity: Id "energy-production" } ] } })
@@ -407,13 +411,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { circulation = w.circulation { requirements = w.circulation.requirements <> [ { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] } })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: an access ban whose target is not an Entity"
-      (editWorld \w -> w { rules = Map.insert (Id "rule-y") (AccessBan { jurisdiction: Id "US", target: Id "NOBODY" }) w.rules })
+      (editWorld \w -> w { rules = Map.insert (Id "rule-y") (banR { jurisdiction: Id "US", target: Id "NOBODY" }) w.rules })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a tariff whose origin is not an Entity"
-      (editWorld \w -> w { rules = Map.insert (Id "rule-z") (Tariff { jurisdiction: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
+      (editWorld \w -> w { rules = Map.insert (Id "rule-z") (tariffR { jurisdiction: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a transport entry whose facility does not exist"
-      (editWorld \w -> w { transport = Map.insert (Id "E") (Id "no-such-facility") w.transport })
+      (editWorld \w -> w { transferConditions = Map.insert (Id "E") { bundled: Id "no-such-facility" } w.transferConditions })
       (UnknownReference TransformationRef "no-such-facility")
     rejects "UnknownReference: a procedure weight on an Entity that does not exist"
       (editWorld (onEntity "EU" (withWeightOf "NOBODY")))
@@ -422,7 +426,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       { gameboard, config } <- loaded
       -- DE may enact tariffs, but once the EU covers DE, DE's authority disappears
       let
-        gb = gameboard { world = gameboard.world { entities = Map.update (\e -> Just e { capabilities = e.capabilities <> [ MayEnact TariffRule ] }) (Id "DE") gameboard.world.entities } }
+        gb = gameboard { world = gameboard.world { entities = Map.update (\e -> Just e { capabilities = e.capabilities <> [ MayEnact (Id "tariff") ] }) (Id "DE") gameboard.world.entities } }
       case validateGameboard gb config of
         Left es -> (ResolutionInconsistent (Id "DE") [ AuthorityDiffers ] `elem` es) `shouldEqual` true
         Right _ -> fail "expected ResolutionInconsistent"
@@ -558,4 +562,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   isBalanceMismatch = case _ of
     Mismatch _ (Balance _ _) _ _ -> true
     _ -> false
+
+-- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
+tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+
+banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
+banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+
+holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
+holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
 

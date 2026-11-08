@@ -120,9 +120,8 @@ data Capability
   = MayTrade MarketId
   | MayTransfer ResourceId
   | MayTransform TransformationId
-  | MayEnact RuleKind
+  | MayEnact RuleKindId -- a kind the premise declares
 
-data RuleKind = TariffRule | AccessBanRule | WithholdingRule
 
 authorized :: Facts -> Array Capability -> EntityId -> Intent -> Boolean   -- INV-02
 ```
@@ -158,8 +157,9 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers no ownership, and agency only in procedures the member holds no weight in (§2.2). |
 | **Collective procedure** | An Aggregate's weighted-signature rule for Proposals made in its name ([§2.2](#22-three-projections-of-an-entity)). |
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
-| **Rule** | An institutional condition the engine interprets: a `Tariff`, an `AccessBan`, or a `Withholding` ([§3](#3-intents-and-economic-actions)). |
-| **Jurisdiction** | The Entity that enacts and governs a Tariff or AccessBan against others. A Withholding is governed by its capacity's owner ([§2.4](#24-capability)). |
+| **Rule** | An institutional condition the engine interprets: `{ kind, scope, effect }`. The `kind` names a declared Rule kind; the engine reads only the `scope` (flows between two groups, or one capacity) and the `effect` (`Levy`, `Block`, or `Reduce`) ([§3](#3-intents-and-economic-actions)). A premise that declares no kinds has no Rules. |
+| **Group** | The Entity another Entity counts as when a flows Rule is applied, when not itself. A flows Rule names a group as its governor; a capacity Rule is governed by the capacity's owner ([§2.4](#24-capability)). |
+| **Transfer condition** | What a Transfer of a Resource must be bundled with, between parties who share no Market for it. A premise with none has no such check. |
 | **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a deal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
 | **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing. |
 | **Lapse** | The outcome of a Proposal whose signature rule is not met by the end of the Sign step. It is a decline, not an error. |
@@ -249,10 +249,13 @@ data Intent
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
   | ChangeRule RuleChange
 
-data Rule
-  = Tariff { jurisdiction :: EntityId, origin :: EntityId, rate :: Price }
-  | AccessBan { jurisdiction :: EntityId, target :: EntityId }
-  | Withholding { capacity :: CapacityRef, units :: Quantity }
+type Rule = { kind :: RuleKindId, scope :: Scope, effect :: Effect }
+
+data Scope
+  = Flows { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | EitherWay }
+  | OnCapacity CapacityRef
+
+data Effect = Levy Ratio | Block | Reduce Quantity
 
 data RuleChange
   = Enact Rule
@@ -456,13 +459,13 @@ A facility may be presented as a "market" in the player interface, but its accou
 Each commodity keeps a single Resource type. Geography is expressed through:
 
 - Scoped or regional Market nodes, and market access rules that determine which Entities may trade.
-- `Tariff` and `AccessBan` Rules applied to particular jurisdictions and origins ([§3](#3-intents-and-economic-actions)).
-- Transport between nodes as a facility with limited capacity ([§5.3](#53-facilities-costed-transformations)). Two Entities are in the same region when some Market for the Resource lets both trade. A cross-region Transfer must be bundled with a matching order on the Resource's transport facility, executed by the sender and signed by the owner of that facility's capacity. An `AccessBan` makes the shipment infeasible. A `Tariff` adds its rate to the shipment, paid by the sender to the restricting jurisdiction.
+- Flows Rules (`Levy`, `Block`) between particular groups ([§3](#3-intents-and-economic-actions)).
+- Transfer conditions ([§8.1](#81-canonical-resolution-sequence)): a Transfer of a Resource with a condition, between parties who share no Market for it, must be bundled with a matching order on the condition's Transformation, executed by the sender and signed by the owner of that facility's capacity. A `Block` flows Rule between their groups refuses it. A `Levy` flows Rule adds its rate to the Transfer, paid by the sender to the destination's group.
 - Facilities that share a capacity share its limit and its uniform price.
 
 ### 5.5 Simultaneous clearing
 
-All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Tariffs do not enter clearing: they apply to shipped Transfers ([§5.4](#54-market-scope-and-geography)).
+All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Levies do not enter clearing: they apply to conditioned Transfers ([§5.4](#54-market-scope-and-geography)).
 
 For a given Market:
 
@@ -477,7 +480,7 @@ The clearing result must not depend on the order in which submissions were recei
 
 ### 5.6 Market-rule changes
 
-A `Tariff` adds its rate to deliveries from the origin into the jurisdiction, paid to the jurisdiction's government. An `AccessBan` makes such deliveries infeasible. A `Withholding` removes units of a capacity. Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
+A `Levy` adds its rate to conditioned Transfers the Rule covers, paid to the destination's group. A `Block` refuses them. A `Reduce` removes units of a capacity. Each kind's name, form, and who governs it is the premise's declaration (docs/03). Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
 
 ## 6. Economic Circulation
 

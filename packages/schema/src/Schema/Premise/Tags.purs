@@ -5,9 +5,7 @@
 module Schema.Premise.Tags
   ( TagPair
   , transferabilityTags
-  , ruleKindTags
   , capabilityTags
-  , ruleTags
   , premiseEnum
   ) where
 
@@ -22,15 +20,6 @@ import Partial.Unsafe (unsafeCrashWith)
 
 -- | One constructor's tag in each format, and its note.
 type TagPair = { snapshot :: String, premise :: String, desc :: String }
-
-tariffTag :: String
-tariffTag = "tariff"
-
-accessBanTag :: String
-accessBanTag = "accessBan"
-
-withholdingTag :: String
-withholdingTag = "withholding"
 
 tradeKindTag :: String
 tradeKindTag = "trade"
@@ -51,26 +40,12 @@ transferabilityTags =
   , { snapshot: "NonTransferable", premise: "NonTransferable", desc: "never moves between Entities" }
   ]
 
-ruleKindTags :: Array TagPair
-ruleKindTags =
-  [ { snapshot: "TariffRule", premise: tariffTag, desc: "" }
-  , { snapshot: "AccessBanRule", premise: accessBanTag, desc: "" }
-  , { snapshot: "WithholdingRule", premise: withholdingTag, desc: "" }
-  ]
-
 capabilityTags :: { trade :: TagPair, transfer :: TagPair, transform :: TagPair, enact :: TagPair }
 capabilityTags =
   { trade: { snapshot: "MayTrade", premise: tradeKindTag, desc: "may trade in the Market" }
   , transfer: { snapshot: "MayTransfer", premise: transferKindTag, desc: "may transfer the Resource" }
   , transform: { snapshot: "MayTransform", premise: transformKindTag, desc: "may run the transformation" }
   , enact: { snapshot: "MayEnact", premise: enactKindTag, desc: "may enact a Rule of the kind" }
-  }
-
-ruleTags :: { tariff :: TagPair, accessBan :: TagPair, withholding :: TagPair }
-ruleTags =
-  { tariff: { snapshot: "Tariff", premise: tariffTag, desc: "a tariff on the origin's goods, set by the jurisdiction" }
-  , accessBan: { snapshot: "AccessBan", premise: accessBanTag, desc: "a ban on shipments from the jurisdiction to the target" }
-  , withholding: { snapshot: "Withholding", premise: withholdingTag, desc: "units of a capacity withheld" }
   }
 
 -- | The premise form of an enum: each value is the one its snapshot tag decodes to, written as a bare

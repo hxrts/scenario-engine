@@ -4,7 +4,8 @@ import Prelude
 
 import Data.Map as Map
 
-import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (Direction(..), EffectF(..), Scope(..), RuleF, CapacityTag, EntityTag)
+import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
@@ -13,9 +14,9 @@ import Data.Array as Array
 import Schema.Premise.Tags as Tags
 import Core.Shape (Desc(..), Format(..), Shape, encodeWith, decodeJsonWith, prose)
 import Data.Foldable (for_)
-import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
+import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
-import Schema.Build.Intent (enactWithholding, repeal, route, transfer)
+import Schema.Build.Intent (enactRule, repeal, route, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
@@ -77,9 +78,9 @@ roundTripStrategies =
             [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: lit 2 })
             , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
-            , asTemplate (selfTariff { origin: "CN", rate: lit "0.5" })
-            , asTemplate (selfAccessBan { target: "CN" })
-            , asTemplate (enactWithholding { capacity: "c", units: lit 2 })
+            , asTemplate (selfEnact { kind: "tariff", scope: Flows { governor: Id "self", counterparty: Id "CN", direction: Inbound }, effect: Levy (lit "0.5") })
+            , asTemplate (selfEnact { kind: "accessBan", scope: Flows { governor: Id "self", counterparty: Id "CN", direction: EitherWay }, effect: Block })
+            , asTemplate (enactRule { kind: "withholding", scope: OnCapacity (Id "c"), effect: Reduce (lit 2) })
             , asTemplate (repeal { rule: "r2/US/0/rule-0" })
             ]
         , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
@@ -105,9 +106,9 @@ roundTripIntents =
   , Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt (-3), limitPrice: Nothing }
   , Transfer { from: Id "US", to: Id "CN", resource: Id "E", quantity: Q.fromInt 2 }
   , Transform { by: Id "US", transformation: Id "t", quantity: Q.fromInt 1 }
-  , ChangeRule (Enact (Tariff { jurisdiction: Id "US", origin: Id "CN", rate: qv "0.25" }))
-  , ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "IN" }))
-  , ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 5 }))
+  , ChangeRule (Enact (tariffR { jurisdiction: Id "US", origin: Id "CN", rate: qv "0.25" }))
+  , ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "IN" }))
+  , ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 5 }))
   ]
 
 roundTripCapabilities :: Array Capability
@@ -115,9 +116,9 @@ roundTripCapabilities =
   [ MayTrade (Id "m")
   , MayTransfer (Id "E")
   , MayTransform (Id "t")
-  , MayEnact TariffRule
-  , MayEnact AccessBanRule
-  , MayEnact WithholdingRule
+  , MayEnact (Id "tariff")
+  , MayEnact (Id "accessBan")
+  , MayEnact (Id "withholding")
   ]
 
 main :: Effect Unit
@@ -138,27 +139,27 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       capability "trade:energy-atlantic" `shouldEqual` Right (MayTrade (Id "energy-atlantic"))
       capability "transfer:E" `shouldEqual` Right (MayTransfer (Id "E"))
       capability "transform:defense-procurement" `shouldEqual` Right (MayTransform (Id "defense-procurement"))
-      capability "enact:withholding" `shouldEqual` Right (MayEnact WithholdingRule)
-      capability "enact:tariff" `shouldEqual` Right (MayEnact TariffRule)
+      capability "enact:withholding" `shouldEqual` Right (MayEnact (Id "withholding"))
+      capability "enact:tariff" `shouldEqual` Right (MayEnact (Id "tariff"))
     it "rejects an unknown capability kind" do
       isLeft (capability "launch:missile") `shouldEqual` true
-    it "rejects an unknown enactment" do
-      isLeft (capability "enact:embargo") `shouldEqual` true
+    it "an enactment names a kind by id; the load check rejects an undeclared one" do
+      capability "enact:embargo" `shouldEqual` Right (MayEnact (Id "embargo"))
     it "rejects a capability tag without its argument" do
       isLeft (capability "trade") `shouldEqual` true
 
   describe "Rules" do
     it "decodes each rule key, including withholding" do
-      rule (json """{ "withholding": { "capacity": "semiconductors", "units": "3" } }""")
-        `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      rule (json """{ "accessBan": { "jurisdiction": "US", "target": "CN" } }""")
-        `shouldEqual` Right (AccessBan { jurisdiction: Id "US", target: Id "CN" })
+      rule (json """{ "kind": "withholding", "scope": { "capacity": "semiconductors" }, "effect": { "reduce": "3" } }""")
+        `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
+      rule (json """{ "kind": "accessBan", "scope": { "flows": { "governor": "US", "counterparty": "CN", "direction": "eitherWay" } }, "effect": "block" }""")
+        `shouldEqual` Right (banR { jurisdiction: Id "US", target: Id "CN" })
     it "rejects an unknown rule key with a typed error" do
       case rule (json """{ "embargo": {} }""") of
         Left _ -> pure unit
         other -> fail ("expected a rule error, got " <> show (map (const "a rule") other))
     it "rejects a rule object with two keys" do
-      isLeft (rule (json """{ "accessBan": { "jurisdiction": "US", "target": "CN" }, "tariff": { "jurisdiction": "US", "origin": "CN", "rate": "0.2" } }"""))
+      isLeft (rule (json """{ "kind": "accessBan", "scope": { "flows": { "governor": "US", "counterparty": "CN", "direction": "sideways" } }, "effect": "block" }"""))
         `shouldEqual` true
 
   describe "Intents" do
@@ -177,8 +178,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
     it "decodes an enactment through its rule" do
-      intent (json """{ "enact": { "accessBan": { "jurisdiction": "US", "target": "CN" } } }""")
-        `shouldEqual` Right (ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "CN" })))
+      intent (json """{ "enact": { "kind": "accessBan", "scope": { "flows": { "governor": "US", "counterparty": "CN", "direction": "eitherWay" } }, "effect": "block" } }""")
+        `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
     it "a Repeal round-trips through the premise form, as one key naming the Rule" do
       intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
       intent (encodeWith Premise intentShape (repeal { rule: "r2/US/0/rule-0" })) `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
@@ -199,9 +200,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           _ -> []
         pairs ps = Array.sort (map _.snapshot ps)
       pairs Tags.transferabilityTags `shouldEqual` tagsOf Types.transferabilityShape
-      pairs Tags.ruleKindTags `shouldEqual` tagsOf Types.ruleKindShape
       pairs [ Tags.capabilityTags.trade, Tags.capabilityTags.transfer, Tags.capabilityTags.transform, Tags.capabilityTags.enact ] `shouldEqual` tagsOf Types.capabilityShape
-      pairs [ Tags.ruleTags.tariff, Tags.ruleTags.accessBan, Tags.ruleTags.withholding ] `shouldEqual` tagsOf Types.ruleShape
     it "a trade's description lists its body's fields" do
       contains (Pattern "market") (prose intentShape.desc) `shouldEqual` true
       contains (Pattern "quantity") (prose intentShape.desc) `shouldEqual` true
@@ -267,4 +266,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a well-formed strategy decodes" do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
         `shouldEqual` false
+
+-- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
+tariffR r = { kind: Id "tariff", scope: Flows { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+
+banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
+banR r = { kind: Id "accessBan", scope: Flows { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+
+holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
+holdR r = { kind: Id "withholding", scope: OnCapacity r.capacity, effect: Reduce r.units }
 

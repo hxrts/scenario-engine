@@ -20,7 +20,7 @@ import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
+import Core.Types (Scope(..), governorOf, EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
@@ -189,14 +189,8 @@ holds env = foldCond (evalAlg env)
   , not: map not
   , transformedLastRound: \c -> map (\least -> transformedLastRound env.view.round (entityRef env c.by) c.transformation least env.view.events) c.atLeast
   , restrictedLastRound: \c -> Just (not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events)))
-  , restrictionInForce: \c -> Just (any (\r -> jurisdictionOf r == Just (entityRef env c.by)) (values env.view.rules))
+  , restrictionInForce: \c -> Just (any (\r -> governorOf r == Just (entityRef env c.by)) (values env.view.rules))
   }
-
-jurisdictionOf :: Rule -> Maybe EntityId
-jurisdictionOf = case _ of
-  AccessBan x -> Just x.jurisdiction
-  Tariff x -> Just x.jurisdiction
-  Withholding _ -> Nothing
 
 -- | The Proposals one template yields, and the draw counter after it. A Choose consumes one draw for
 -- | its pick, then interprets the chosen option with the next counter value.
@@ -229,11 +223,10 @@ intentsOf env = case _ of
   ProposalT _ -> []
   where
   keep i = if zeroQuantity i then [] else [ i ]
-  -- the restriction, turned back on the Entity that enacted it; a Withholding has no mirror
-  mirror = case _ of
-    AccessBan r -> Just (AccessBan { jurisdiction: env.view.self.id, target: r.jurisdiction })
-    Tariff r -> Just (Tariff { jurisdiction: env.view.self.id, origin: r.jurisdiction, rate: r.rate })
-    Withholding _ -> Nothing
+  -- the restriction, turned back on the Entity that enacted it; a capacity Rule has no mirror
+  mirror r = case r.scope of
+    Flows f -> Just r { scope = Flows f { governor = env.view.self.id, counterparty = f.governor } }
+    OnCapacity _ -> Nothing
 
 -- | A Proposal template, evaluated. A Procedure's Intents drop zero quantities, as its single Intents
 -- | do; a Deal's do not (docs/02 §3).

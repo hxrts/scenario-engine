@@ -5,7 +5,7 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, mapOf, object, optionalOf, prim)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -51,6 +51,7 @@ data RefKind
   | PolicyRef
   | ParameterRef
   | ProcedureRef
+  | RuleKindRef
 
 derive instance Eq RefKind
 
@@ -65,6 +66,7 @@ instance Show RefKind where
     PolicyRef -> "policy"
     ParameterRef -> "parameter"
     ProcedureRef -> "procedure"
+    RuleKindRef -> "rule kind"
 
 data EntityTag
 data ResourceTag
@@ -73,6 +75,7 @@ data TransformationTag
 data CapacityTag
 data ProcedureTag
 data RuleTag
+data RuleKindTag
 data ProposalTag
 data PolicyTag
 data SeatTag
@@ -154,13 +157,9 @@ data Capability
   = MayTrade MarketId
   | MayTransfer ResourceId
   | MayTransform TransformationId
-  | MayEnact RuleKind
+  | MayEnact RuleKindId
 
 derive instance Ord Capability
-
-data RuleKind = TariffRule | AccessBanRule | WithholdingRule
-
-derive instance Ord RuleKind
 
 -- Intents and Proposals (§3) -------------------------------------------------
 
@@ -178,11 +177,51 @@ data IntentF m v
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: v }
   | ChangeRule (RuleChangeF v)
 
--- | A Rule with its amounts in the filling `v`.
-data RuleF v
-  = Tariff { jurisdiction :: EntityId, origin :: EntityId, rate :: v }
-  | AccessBan { jurisdiction :: EntityId, target :: EntityId }
-  | Withholding { capacity :: CapacityRef, units :: v }
+-- | The two ways a flows Rule applies: into its governor from the counterparty, or either way between them.
+data Direction = Inbound | EitherWay
+
+-- | What a Rule covers: conditioned Transfers between two groups, or one capacity.
+data Scope
+  = Flows { governor :: EntityId, counterparty :: EntityId, direction :: Direction }
+  | OnCapacity CapacityRef
+
+-- | What a Rule does: a levy at a rate of the flow, a block on it, or a reduction of a capacity.
+data EffectF v = Levy v | Block | Reduce v
+
+-- | A Rule with its amounts in the filling `v`. Its `kind` names a declared kind; the mechanism reads the
+-- | `scope` and the `effect`, never the kind.
+type RuleF v = { kind :: RuleKindId, scope :: Scope, effect :: EffectF v }
+
+-- | The form of a Rule's effect, as a declaration states it.
+data EffectKind = LevyEffect | BlockEffect | ReduceEffect
+
+-- | The form of a Rule's scope, as a declaration states it.
+data ScopeKind = InboundFlows | EitherWayFlows | CapacityScope
+
+-- | A declared kind of Rule: the effect and scope a Rule of it must have, and its display text, with
+-- | `{governor}`, `{counterparty}`, `{capacity}`, and `{amount}` as placeholders.
+type RuleKindDecl = { effect :: EffectKind, scope :: ScopeKind, text :: String }
+
+-- | Whether a Rule has the form its kind declares.
+conforms :: forall v. RuleKindDecl -> RuleF v -> Boolean
+conforms d r = effectOK && scopeOK
+  where
+  effectOK = case d.effect, r.effect of
+    LevyEffect, Levy _ -> true
+    BlockEffect, Block -> true
+    ReduceEffect, Reduce _ -> true
+    _, _ -> false
+  scopeOK = case d.scope, r.scope of
+    InboundFlows, Flows f -> f.direction == Inbound
+    EitherWayFlows, Flows f -> f.direction == EitherWay
+    CapacityScope, OnCapacity _ -> true
+    _, _ -> false
+
+-- | The Entity that governs a flows Rule; a capacity Rule has none.
+governorOf :: forall v. RuleF v -> Maybe EntityId
+governorOf r = case r.scope of
+  Flows f -> Just f.governor
+  OnCapacity _ -> Nothing
 
 -- | Enact a Rule, or repeal one by the id the engine assigned it.
 data RuleChangeF v
@@ -243,12 +282,19 @@ traverseIntent t = case _ of
   Route x -> (\base quote quantity limitPrice -> Route { pair: { base, quote }, quantity, limitPrice }) <$> t.resource x.pair.base <*> t.resource x.pair.quote <*> t.value x.quantity <*> traverse t.value x.limitPrice
   Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
   Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.entity x.by <*> t.transformation x.transformation <*> t.value x.quantity
-  ChangeRule (Enact (Tariff x)) -> (\jurisdiction origin rate -> ChangeRule (Enact (Tariff { jurisdiction, origin, rate }))) <$> t.entity x.jurisdiction <*> t.entity x.origin <*> t.value x.rate
-  ChangeRule (Enact (AccessBan x)) -> (\jurisdiction target -> ChangeRule (Enact (AccessBan { jurisdiction, target }))) <$> t.entity x.jurisdiction <*> t.entity x.target
-  ChangeRule (Enact (Withholding x)) -> (\capacity units -> ChangeRule (Enact (Withholding { capacity, units }))) <$> t.capacity x.capacity <*> t.value x.units
+  ChangeRule (Enact r) -> (\scope effect -> ChangeRule (Enact { kind: r.kind, scope, effect })) <$> scopeAt r.scope <*> effectAt r.effect
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
+  where
+  scopeAt = case _ of
+    Flows f -> (\governor counterparty -> Flows { governor, counterparty, direction: f.direction }) <$> t.entity f.governor <*> t.entity f.counterparty
+    OnCapacity c -> OnCapacity <$> t.capacity c
+  effectAt = case _ of
+    Levy v -> Levy <$> t.value v
+    Block -> pure Block
+    Reduce v -> Reduce <$> t.value v
 
 type Rule = RuleF Q
+type RuleKindId = Id RuleKindTag
 type RuleChange = RuleChangeF Q
 
 -- | Whether a Deal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
@@ -344,17 +390,20 @@ derive instance Generic EntityKind _
 derive instance Generic Controller _
 derive instance Generic Transferability _
 derive instance Generic Capability _
-derive instance Generic RuleKind _
+derive instance Generic Direction _
+derive instance Generic Scope _
+derive instance Generic (EffectF v) _
+derive instance Generic EffectKind _
+derive instance Generic ScopeKind _
 derive instance Generic (IntentF m v) _
-derive instance Generic (RuleF v) _
 derive instance Generic (RuleChangeF v) _
 
 derive instance Functor (IntentF m)
 derive instance Foldable (IntentF m)
 derive instance Traversable (IntentF m)
-derive instance Functor RuleF
-derive instance Foldable RuleF
-derive instance Traversable RuleF
+derive instance Functor EffectF
+derive instance Foldable EffectF
+derive instance Traversable EffectF
 derive instance Functor RuleChangeF
 derive instance Foldable RuleChangeF
 derive instance Traversable RuleChangeF
@@ -363,9 +412,12 @@ derive instance Eq EntityKind
 derive instance Eq Controller
 derive instance Eq Transferability
 derive instance Eq Capability
-derive instance Eq RuleKind
+derive instance Eq Direction
+derive instance Eq Scope
+derive instance Eq EffectKind
+derive instance Eq ScopeKind
 derive instance (Eq m, Eq v) => Eq (IntentF m v)
-derive instance Eq v => Eq (RuleF v)
+derive instance Eq v => Eq (EffectF v)
 derive instance Eq v => Eq (RuleChangeF v)
 
 instance Show EntityKind where
@@ -380,13 +432,22 @@ instance Show Transferability where
 instance Show Capability where
   show = genericShow
 
-instance Show RuleKind where
+instance Show EffectKind where
+  show = genericShow
+
+instance Show ScopeKind where
+  show = genericShow
+
+instance Show Direction where
+  show = genericShow
+
+instance Show Scope where
   show = genericShow
 
 instance (Show m, Show v) => Show (IntentF m v) where
   show = genericShow
 
-instance Show v => Show (RuleF v) where
+instance Show v => Show (EffectF v) where
   show = genericShow
 
 instance Show v => Show (RuleChangeF v) where
@@ -400,21 +461,48 @@ instance Show v => Show (RuleChangeF v) where
 idShape :: forall t. Shape (Id t)
 idShape = prim "Id" (\(Id s) -> fromString s) (\j -> note "expected an id string" (map Id (toString j)))
 
-instance Described (RuleF Q) where
-  shape = ruleShape
-
 instance Described (RuleChangeF Q) where
   shape = ruleChangeShape
 
 instance Described (IntentF MarketId Q) where
   shape = intentShape
 
-ruleShape :: Shape (RuleF Q)
-ruleShape = genericSum "Rule"
-  { "Tariff": atTagged "a tariff on the origin's goods, set by the jurisdiction" (tariffBody qShape)
-  , "AccessBan": atTagged "a ban on shipments from the jurisdiction to the target" accessBanBody
-  , "Withholding": atTagged "units of a capacity withheld" (withholdingBody qShape)
+directionShape :: Shape Direction
+directionShape = genericEnum "Direction"
+
+-- | A flows scope's body.
+flowsBody :: Shape { governor :: EntityId, counterparty :: EntityId, direction :: Direction }
+flowsBody = object "Flows"
+  ( (\governor counterparty direction -> { governor, counterparty, direction })
+      <$> fieldOf "governor" "the Entity that governs the Rule" idShape _.governor
+      <*> fieldOf "counterparty" "the other party" idShape _.counterparty
+      <*> fieldOf "direction" "inbound to the governor, or either way" directionShape _.direction
+  )
+
+scopeShape :: Shape Scope
+scopeShape = genericSum "Scope"
+  { "Flows": atTagged "conditioned Transfers between two groups" flowsBody
+  , "OnCapacity": atTagged "one capacity" idShape
   }
+
+effectShape :: forall v. Shape v -> Shape (EffectF v)
+effectShape v = genericSum "Effect"
+  { "Levy": atTagged "a levy at this rate of the flow" v
+  , "Block": atTagged "the flow is refused" unitShape
+  , "Reduce": atTagged "the capacity is reduced by these units" v
+  }
+
+ruleShape :: Shape (RuleF Q)
+ruleShape = recordShape "Rule" { kind: idShape, scope: scopeShape, effect: effectShape qShape }
+
+ruleKindDeclShape :: Shape RuleKindDecl
+ruleKindDeclShape = recordShape "RuleKind" { effect: effectKindShape, scope: scopeKindShape, text: stringShape }
+
+effectKindShape :: Shape EffectKind
+effectKindShape = genericEnum "EffectKind"
+
+scopeKindShape :: Shape ScopeKind
+scopeKindShape = genericEnum "ScopeKind"
 
 -- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
 -- tag forms differ by format; these do not.
@@ -427,45 +515,6 @@ transferBody v = object "Transfer"
       <*> fieldOf "to" "the receiving Entity" idShape _.to
       <*> fieldOf "resource" "the Resource" idShape _.resource
       <*> fieldOf "quantity" "the quantity" v _.quantity
-  )
-
-tariffBody :: forall v. Shape v -> Shape { jurisdiction :: EntityId, origin :: EntityId, rate :: v }
-tariffBody v = object "Tariff"
-  ( (\j o r -> { jurisdiction: j, origin: o, rate: r })
-      <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
-      <*> originF
-      <*> rateF v
-  )
-
--- | A Tariff with its jurisdiction left implicit: the acting Entity's.
-ownTariffBody :: forall v. Shape v -> Shape { origin :: EntityId, rate :: v }
-ownTariffBody v = object "Tariff" ((\o r -> { origin: o, rate: r }) <$> originF <*> rateF v)
-
-originF :: forall r. RecF { origin :: EntityId | r } EntityId
-originF = fieldOf "origin" "the Entity whose goods it taxes" idShape _.origin
-
-rateF :: forall v r. Shape v -> RecF { rate :: v | r } v
-rateF v = fieldOf "rate" "the rate" v _.rate
-
-accessBanBody :: Shape { jurisdiction :: EntityId, target :: EntityId }
-accessBanBody = object "AccessBan"
-  ( (\j t -> { jurisdiction: j, target: t })
-      <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
-      <*> targetF
-  )
-
--- | An AccessBan with its jurisdiction left implicit: the acting Entity's.
-ownAccessBanBody :: Shape { target :: EntityId }
-ownAccessBanBody = object "AccessBan" ((\t -> { target: t }) <$> targetF)
-
-targetF :: forall r. RecF { target :: EntityId | r } EntityId
-targetF = fieldOf "target" "the Entity whose shipments are banned" idShape _.target
-
-withholdingBody :: forall v. Shape v -> Shape { capacity :: CapacityRef, units :: v }
-withholdingBody v = object "Withholding"
-  ( (\c u -> { capacity: c, units: u })
-      <$> fieldOf "capacity" "the capacity withheld" idShape _.capacity
-      <*> fieldOf "units" "units withheld" v _.units
   )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
@@ -515,15 +564,12 @@ intentShape = genericSum "Intent"
 transferabilityShape :: Shape Transferability
 transferabilityShape = genericEnum "Transferability"
 
-ruleKindShape :: Shape RuleKind
-ruleKindShape = genericEnum "RuleKind"
-
 capabilityShape :: Shape Capability
 capabilityShape = genericSum "Capability"
   { "MayTrade": atTagged "a Market the Entity may trade in" idShape
   , "MayTransfer": atTagged "a Resource the Entity may transfer" idShape
   , "MayTransform": atTagged "a Transformation the Entity may run" idShape
-  , "MayEnact": atTagged "a kind of Rule the Entity may enact" ruleKindShape
+  , "MayEnact": atTagged "a kind of Rule the Entity may enact" idShape
   }
 
 controllerShape :: Shape Controller
@@ -585,9 +631,6 @@ signedProposalShape = object "SignedProposal"
 instance Described Transferability where
   shape = transferabilityShape
 
-instance Described RuleKind where
-  shape = ruleKindShape
-
 instance Described Capability where
   shape = capabilityShape
 
@@ -602,12 +645,6 @@ instance EncodeJson Transferability where
 
 instance DecodeJson Transferability where
   decodeJson = decodeJsonWith Snapshot transferabilityShape
-
-instance EncodeJson RuleKind where
-  encodeJson = encodeJsonWith Snapshot ruleKindShape
-
-instance DecodeJson RuleKind where
-  decodeJson = decodeJsonWith Snapshot ruleKindShape
 
 instance EncodeJson Capability where
   encodeJson = encodeJsonWith Snapshot capabilityShape
@@ -627,11 +664,35 @@ instance EncodeJson EntityKind where
 instance DecodeJson EntityKind where
   decodeJson = decodeJsonWith Snapshot entityKindShape
 
-instance EncodeJson (RuleF Q) where
-  encodeJson = encodeJsonWith Snapshot ruleShape
+instance EncodeJson Direction where
+  encodeJson = encodeJsonWith Snapshot directionShape
 
-instance DecodeJson (RuleF Q) where
-  decodeJson = decodeJsonWith Snapshot ruleShape
+instance DecodeJson Direction where
+  decodeJson = decodeJsonWith Snapshot directionShape
+
+instance EncodeJson Scope where
+  encodeJson = encodeJsonWith Snapshot scopeShape
+
+instance DecodeJson Scope where
+  decodeJson = decodeJsonWith Snapshot scopeShape
+
+instance EncodeJson (EffectF Q) where
+  encodeJson = encodeJsonWith Snapshot (effectShape qShape)
+
+instance DecodeJson (EffectF Q) where
+  decodeJson = decodeJsonWith Snapshot (effectShape qShape)
+
+instance EncodeJson EffectKind where
+  encodeJson = encodeJsonWith Snapshot effectKindShape
+
+instance DecodeJson EffectKind where
+  decodeJson = decodeJsonWith Snapshot effectKindShape
+
+instance EncodeJson ScopeKind where
+  encodeJson = encodeJsonWith Snapshot scopeKindShape
+
+instance DecodeJson ScopeKind where
+  decodeJson = decodeJsonWith Snapshot scopeKindShape
 
 instance EncodeJson (RuleChangeF Q) where
   encodeJson = encodeJsonWith Snapshot ruleChangeShape

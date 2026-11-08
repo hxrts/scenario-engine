@@ -1,6 +1,6 @@
 -- | Engine phase 6, first half (docs/02_type_system.md §8.1, §8.2): settle the funded batch
 -- | against the prepared snapshot. Markets clear at uniform prices, facility fills are allocated
--- | per pool and paid, and Transfers, tariffs, and Rule changes apply. Every payment goes through
+-- | per pool and paid, and Transfers, levies, and Rule changes apply. Every payment goes through
 -- | `pay`, which caps it at what the payer holds, so an Account cannot go negative. Settlement
 -- | accumulates a ledger of net changes; nothing is written to World State until Commit.
 -- | `Settlement`, `Account`, and `Ledger` are defined here because this is the first phase that
@@ -285,16 +285,16 @@ settleFacilities w facility acc s = foldl one acc (mapWithIndex Tuple s.item.pro
       _ -> a
     _ -> a
 
--- | Transfers, tariffs, and rule changes of surviving Items.
+-- | Transfers, levies, and rule changes of surviving Items.
 transfersAndRules :: WorldState -> Settlement -> Scaled -> Settlement
-transfersAndRules w acc s = foldl one withTariffs (mapWithIndex Tuple p.intents)
+transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
   where
   p = s.item.proposal
-  -- tariffs follow the shipment they belong to, so they are scaled with it
-  withTariffs = foldl tariff acc s.item.tariffs
-  tariff a' t = case pay w t.from (Just t.to) w.numeraire (Q.mul (scaleOf s t.from) t.amount) a' of
+  -- levies follow the Transfer they belong to, so they are scaled with it
+  withLevies = foldl levy acc s.item.levies
+  levy a' t = case pay w t.from (Just t.to) w.numeraire (Q.mul (scaleOf s t.from) t.amount) a' of
     Tuple paid after
-      | paid > Q.zero -> after { events = after.events <> [ Tariffed { round: w.round, from: t.from, to: t.to, amount: paid } ] }
+      | paid > Q.zero -> after { events = after.events <> [ Levied { round: w.round, kind: t.kind, from: t.from, to: t.to, amount: paid } ] }
       | otherwise -> after
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a

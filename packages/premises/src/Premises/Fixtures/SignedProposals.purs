@@ -7,6 +7,7 @@ module Premises.Fixtures.SignedProposals (fixtureG1, fixtureG2, fixtureG3Ban, fi
 import Prelude (map)
 
 import Premises.Names as N
+import Premises.Rules (accessBanRule)
 import Core.Types (Id(..))
 
 import Data.Argonaut.Core (Json)
@@ -17,7 +18,7 @@ import Premises.Meridian.Holdings (pickAccounts)
 import Schema.Build.Base (Keyed, keyed, (:=), mayTransfer, mayTransform)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noEntity)
-import Schema.Build.Fixture (accessBanRule, noExpect, proposal, ref)
+import Schema.Build.Fixture (noExpect, proposal, ref)
 import Schema.Build.Intent (transfer, transform)
 import Schema.Premise.World (EntityDoc)
 import Data.Maybe (Maybe(..))

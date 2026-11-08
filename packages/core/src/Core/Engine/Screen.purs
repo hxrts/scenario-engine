@@ -1,11 +1,11 @@
 -- | Engine phase 4 (docs/02_type_system.md §8.1): screen and interpret. Each submitted Proposal is
--- | checked for duplicate ids, signature completeness, shape, authority, and shipping rules. A
+-- | checked for duplicate ids, signature completeness, shape, authority, and transfer conditions. A
 -- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. The
 -- | authority predicates live in Core.Authority, the capacity owner and the Intent selectors in
 -- | Core.Query.
 module Core.Engine.Screen
   ( Item
-  , Tariff
+  , Levy
   , screen
   , duplicatedIds
   ) where
@@ -16,9 +16,10 @@ import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), SignedProposal, dealIntent)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleKindId, Scope(..), Direction(..), EffectF(..), SignedProposal, dealIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, filter, length, nub)
+import Data.Array (all, any, concat, elem, filter, find, length, nub)
+import Data.Foldable (for_)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
@@ -29,14 +30,14 @@ import Data.Tuple (Tuple(..))
 
 -- Screening -------------------------------------------------------------------
 
--- | A screened Proposal: signatures, shape, and authority checked; shipping cost attached.
+-- | A screened Proposal: signatures, shape, and authority checked; levies attached.
 -- | `routes` holds, by Intent index, the candidate Markets of each routed Trade (docs/02 §5.2).
-type Tariff = { from :: EntityId, to :: EntityId, amount :: Q }
+type Levy = { kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Q }
 
 type Item =
   { proposal :: Proposal
   , deal :: Boolean
-  , tariffs :: Array Tariff
+  , levies :: Array Levy
   , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
   , routes :: Map Int (Array MarketId)
   }
@@ -60,7 +61,7 @@ duplicatedIds inputs = nub (filter (\i -> length (filter (_ == i) ids) > 1) ids)
   where
   ids = map (_.proposal.id) inputs
 
--- | Phase 4: signature completeness, shape, authority, and shipping rules. `duplicated` is the
+-- | Phase 4: signature completeness, shape, authority, and transfer conditions. `duplicated` is the
 -- | set of ids `duplicatedIds` found in the round.
 screen :: WorldState -> Array ProposalId -> SignedProposal -> Either (Array Event) Item
 screen w duplicated { proposal: p, signatures } =
@@ -75,16 +76,16 @@ screen w duplicated { proposal: p, signatures } =
       | deal && not (all dealIntent p.intents) = reject DealBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
-          Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [], routes: routesOf w p.author ownCaps p.intents }
+          Right levies -> Right { proposal: p, deal, levies, outcome: [], routes: routesOf w p.author ownCaps p.intents }
   in
     if p.id `elem` duplicated then reject DuplicateProposalId
     else case p.procedure of
       Just pid -> procedureProposal w p signed pid
       Nothing -> ordinary
 
--- | Every Intent of a Proposal, then its shipments. Returns the tariffs the shipments owe.
-validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array Tariff)
-validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
+-- | Every Intent of a Proposal, then its conditioned Transfers. Returns the levies they owe.
+validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array Levy)
+validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> conditioned w p
 
 -- | One Intent: its executor must exist and sign, it must be valid (`validIntent` over the World State), and
 -- | an owner-signed facility's owner must sign. `signers` are the Entities whose signatures count.
@@ -124,39 +125,48 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
       if not (all executedBy p.intents) then reject OutsideProcedureAuthority
       else case validate w p (signed <> agents) (ProcedureAuthority proc.authorizes) of
         Left reason -> reject reason
-        Right tariffs
+        Right levies
           | not passes -> Left [ outcome, lapse w.round p.id ]
-          | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
+          | otherwise -> Right { proposal: p, deal: false, levies, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
   _ -> reject UnknownProcedure
   where
   reject reason = Left [ rejection w.round p.id reason ]
 
--- | Cross-region Transfers must be bundled with a matching transport order signed by the
--- | transport capacity's owner, and are subject to access bans and tariffs.
-shipping :: WorldState -> Proposal -> Either RejectReason (Array Tariff)
-shipping w p = traverse ship shipments
+-- | Conditioned Transfers must be bundled with matching orders by the sender, and are subject to the
+-- | flows Rules between their groups. Parties who share a Market for the Resource are exempt.
+conditioned :: WorldState -> Proposal -> Either RejectReason (Array Levy)
+conditioned w p = concat <$> traverse check shipments
   where
-  shipments = filter crossRegion (transfersOf p.intents)
-  crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
-  sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (marketsOf w)
-  ship t = do
-    tid <- note NoTransportFacility (Map.lookup t.resource w.transport)
-    let
-      carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
-      -- everything this sender ships on this facility, so one order cannot carry two shipments
-      shipped = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && Map.lookup x.resource w.transport == Just tid) shipments))
-    when (carried /= shipped) (Left CrossRegionNeedsTransport)
-    let
-      jf = jur w t.from
-      jt = jur w t.to
-    when (any (banned jf jt) (rulesOf w)) (Left ShipmentBanned)
-    pure { from: t.from, to: jt, amount: Q.sumQ (map (rate jf jt t.quantity) (rulesOf w)) }
-  banned a b = case _ of
-    AccessBan r -> (r.jurisdiction == a && r.target == b) || (r.jurisdiction == b && r.target == a)
+  bundledFor r = _.bundled <$> Map.lookup r w.transferConditions
+  shipments = filter crosses (transfersOf p.intents)
+  crosses t = isJust (bundledFor t.resource) && not (shareMarket t)
+  shareMarket t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (marketsOf w)
+  check t = case bundledFor t.resource of
+    Nothing -> Right []
+    Just tid -> do
+      let
+        carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
+        -- everything this sender moves on this facility, so one order cannot carry two Transfers
+        moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) shipments))
+        a = groupOf w t.from
+        b = groupOf w t.to
+        applicable = filter (covers a b) (rulesOf w)
+      when (carried /= moved) (Left MissingBundledOrder)
+      for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
+      pure (map (levyOf t.from b t.quantity applicable) (nub (map _.kind (filter isLevy applicable))))
+  isBlock r = r.effect == Block
+  isLevy r = case r.effect of
+    Levy _ -> true
     _ -> false
-  rate origin dest q = case _ of
-    Tariff r | r.jurisdiction == dest && r.origin == origin -> Q.mul r.rate q
+  covers from to r = case r.scope of
+    Flows f | f.direction == Inbound -> f.governor == to && f.counterparty == from
+    Flows f -> (f.governor == from && f.counterparty == to) || (f.governor == to && f.counterparty == from)
+    OnCapacity _ -> false
+  levyOf from to q rules kind = { kind, from, to, amount: Q.sumQ (map (rate q) (filter (\r -> r.kind == kind) rules)) }
+  rate q r = case r.effect of
+    Levy x -> Q.mul x q
     _ -> Q.zero
 
-jur :: WorldState -> EntityId -> EntityId
-jur w e = fromMaybe e (Map.lookup e w.jurisdiction)
+-- | The group an Entity counts as: itself, unless the premise says otherwise.
+groupOf :: WorldState -> EntityId -> EntityId
+groupOf w e = fromMaybe e (Map.lookup e w.groups)

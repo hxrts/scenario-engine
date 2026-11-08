@@ -36,8 +36,9 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
+import Core.Shape (RecF, Shape, nameShape, recordShape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
 import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
+import Core.Types (EffectKind(..), RuleKindDecl, ScopeKind(..))
 import Core.Types as Types
 import Core.World (Circulation, ShareSource, UnseededWorld)
 import Data.Array (mapWithIndex)
@@ -142,8 +143,9 @@ type WorldDoc =
   , resources :: Keyed ResourceDoc
   , markets :: Keyed MarketDoc
   , transformations :: Keyed FacilityDoc
-  , transport :: Maybe (Keyed TransformationId)
-  , jurisdiction :: Maybe (Keyed EntityId)
+  , transferConditions :: Maybe (Keyed { bundled :: TransformationId })
+  , groups :: Maybe (Keyed EntityId)
+  , ruleKinds :: Maybe (Keyed RuleKindDecl)
   , entities :: Keyed EntityDoc
   , rules :: Maybe (Array (Rule))
   , representations :: Maybe (Array RepresentationDoc)
@@ -363,11 +365,30 @@ marketsF = fieldOf "markets" "the Markets" (keyedAlways marketShape) _.markets
 transformationsF :: RecF WorldDoc (Keyed FacilityDoc)
 transformationsF = fieldOf "transformations" "the facilities" (keyedAlways facilityShape) _.transformations
 
-transportF :: RecF WorldDoc (Maybe (Keyed TransformationId))
-transportF = fieldOf "transport" "the facility that carries each Resource between regions" (optionalOf (keyedAlways idShape)) _.transport
+transportF :: RecF WorldDoc (Maybe (Keyed { bundled :: TransformationId }))
+transportF = fieldOf "transferConditions" "what a Transfer of each Resource must be bundled with" (optionalOf (keyedAlways (recordShape "TransferCondition" { bundled: idShape }))) _.transferConditions
 
 jurisdictionF :: RecF WorldDoc (Maybe (Keyed EntityId))
-jurisdictionF = fieldOf "jurisdiction" "each Entity's governing Entity, where it is not its own" (optionalOf (keyedAlways idShape)) _.jurisdiction
+jurisdictionF = fieldOf "groups" "the group each Entity counts as, where it is not its own" (optionalOf (keyedAlways idShape)) _.groups
+
+ruleKindsF :: RecF WorldDoc (Maybe (Keyed RuleKindDecl))
+ruleKindsF = fieldOf "ruleKinds" "the kinds of Rule the premise declares" (optionalOf (keyedAlways ruleKindDecl)) _.ruleKinds
+
+ruleKindDecl :: Shape RuleKindDecl
+ruleKindDecl = recordShape "RuleKindDecl"
+  { effect: nameShape "EffectKind" "effect: levy, block or reduce" effectName [ LevyEffect, BlockEffect, ReduceEffect ]
+  , scope: nameShape "ScopeKind" "scope: inbound, eitherWay or capacity" scopeName [ InboundFlows, EitherWayFlows, CapacityScope ]
+  , text: stringShape
+  }
+  where
+  effectName = case _ of
+    LevyEffect -> "levy"
+    BlockEffect -> "block"
+    ReduceEffect -> "reduce"
+  scopeName = case _ of
+    InboundFlows -> "inbound"
+    EitherWayFlows -> "eitherWay"
+    CapacityScope -> "capacity"
 
 entitiesF :: RecF WorldDoc (Keyed EntityDoc)
 entitiesF = fieldOf "entities" "the Entities" (keyedAlways entityShape) _.entities
@@ -382,10 +403,10 @@ circulationF :: RecF WorldDoc (Maybe CirculationDoc)
 circulationF = fieldOf "circulation" "the recurring economic cycle" (optionalOf circulationShape) _.circulation
 
 worldRec :: RecF WorldDoc WorldDoc
-worldRec = mk <$> nameF <*> roundF <*> numeraireF <*> resourcesF <*> marketsF <*> transformationsF <*> transportF <*> jurisdictionF <*> entitiesF <*> rulesF <*> representationsF <*> circulationF
+worldRec = mk <$> nameF <*> roundF <*> numeraireF <*> resourcesF <*> marketsF <*> transformationsF <*> transportF <*> jurisdictionF <*> ruleKindsF <*> entitiesF <*> rulesF <*> representationsF <*> circulationF
   where
-  mk n r nu res mks trs tp j ent ru rep c =
-    { name: n, round: r, numeraire: nu, resources: res, markets: mks, transformations: trs, transport: tp, jurisdiction: j, entities: ent, rules: ru, representations: rep, circulation: c }
+  mk n r nu res mks trs tp j rk ent ru rep c =
+    { name: n, round: r, numeraire: nu, resources: res, markets: mks, transformations: trs, transferConditions: tp, groups: j, ruleKinds: rk, entities: ent, rules: ru, representations: rep, circulation: c }
 
 -- Conversions ---------------------------------------------------------------------------------
 
@@ -420,8 +441,9 @@ worldToCore w =
   , transformations: Map.fromFoldable (map (\(Tuple k f) -> Tuple (Id k) (facilityToCore k f)) w.transformations)
   , representations: map representationToCore (fromMaybe [] w.representations)
   , numeraire: w.numeraire
-  , transport: keyedToMap (fromMaybe [] w.transport)
-  , jurisdiction: keyedToMap (fromMaybe [] w.jurisdiction)
+  , transferConditions: keyedToMap (fromMaybe [] w.transferConditions)
+  , groups: keyedToMap (fromMaybe [] w.groups)
+  , ruleKinds: keyedToMap (fromMaybe [] w.ruleKinds)
   , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) (fromMaybe [] w.rules))
   , scheduled: Map.empty
   , deliveries: []

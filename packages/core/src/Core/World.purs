@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
-import Core.Types (Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Types (RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -22,6 +22,10 @@ import Data.Show.Generic (genericShow)
 
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
 -- | is instantiated (`seeded`); a decoded Gameboard's world is `UnseededWorld`.
+-- | A Transfer of a conditioned Resource between parties who share no Market for it must be bundled with
+-- | orders of this Transformation by the sender.
+type TransferCondition = { bundled :: TransformationId }
+
 type WorldFields r =
   ( round :: RoundIndex
   , entities :: Map EntityId Entity
@@ -30,8 +34,9 @@ type WorldFields r =
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
   , numeraire :: ResourceId -- the Resource facility costs are paid in
-  , transport :: Map ResourceId TransformationId -- facility that carries a Resource between regions
-  , jurisdiction :: Map EntityId EntityId -- governing Entity, when not the Entity itself
+  , transferConditions :: Map ResourceId TransferCondition -- what a Transfer of a Resource must be bundled with
+  , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
+  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
   , rules :: Map RuleId Rule -- Rules in force
   , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
   , deliveries :: Array Delivery -- due at Prepare
@@ -90,6 +95,7 @@ type View =
   , entities :: Array EntityId -- the known Entities, in id order
   , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
   , ownedCapacities :: Array CapacityRef -- the capacities the Entity owns
+  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
   }
 
 -- | A Transformation's order bounds, as a View shows them.
@@ -127,9 +133,8 @@ data RejectReason
   | BelowMinimum TransformationId
   | AboveMaximum TransformationId
   | OwnerMustSign TransformationId
-  | NoTransportFacility
-  | CrossRegionNeedsTransport
-  | ShipmentBanned
+  | MissingBundledOrder
+  | Blocked RuleKindId
   | Recorded String -- a reason read back from the store: the text is all the record keeps
 
 -- | Stored as text by decision (docs/02 §9, "Rejection reasons in records").
@@ -164,17 +169,13 @@ renderReason = case _ of
   NoMarketAccess e m -> show e <> " has no access to " <> show m
   NoRouteAccess e base quote -> show e <> " has no accessible market for " <> show base <> "/" <> show quote
   NotTransferable r -> show r <> " is not transferable"
-  OutOfScope rule -> case rule of
-    Tariff _ -> "a Tariff applies only to the enacting jurisdiction"
-    AccessBan _ -> "an AccessBan applies only to the enacting jurisdiction"
-    Withholding _ -> "withholding needs the capacity's owner"
+  OutOfScope r -> "a Rule of kind " <> show r.kind <> " applies only to its governing Entity or owner, and only in its declared form"
   OnlyGoverningRepeal -> "only the governing authority may repeal a Rule"
   BelowMinimum t -> show t <> " order below its minimum"
   AboveMaximum t -> show t <> " order above its maximum"
   OwnerMustSign t -> "the owner of " <> show t <> "'s capacity must sign"
-  NoTransportFacility -> "no transport facility"
-  CrossRegionNeedsTransport -> "a cross-region Transfer needs a matching transport order by the sender"
-  ShipmentBanned -> "shipment banned"
+  MissingBundledOrder -> "this Transfer needs a matching bundled order by the sender"
+  Blocked k -> "blocked by a Rule of kind " <> show k
   Recorded text -> text
 
 -- | The only place a rejection reason is stored: its rendered text, so the record is unchanged.
@@ -204,14 +205,14 @@ data Event
   | OrderRemoved { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
   | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
   | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
-  | Tariffed { round :: RoundIndex, from :: EntityId, to :: EntityId, amount :: Quantity }
+  | Levied { round :: RoundIndex, kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Quantity }
   | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }
   | Delivered { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
   | Consumed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
-  -- an amount owed but not delivered: an unpaid payment (Transfer, tariff, facility payment),
+  -- an amount owed but not delivered: an unpaid payment (Transfer, levy, facility payment),
   -- or an unmet operating requirement; the resource says which
   | Shortfall { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | Decayed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
@@ -282,7 +283,7 @@ eventShape = genericSum "Event"
   , "OrderRemoved": atTagged "one order of a Proposal removed at settlement" (recordShape "OrderRemoved" { round: intShape, proposal: idShape, reason: rejectReasonShape })
   , "Traded": atTagged "a Market order filled" (recordShape "Traded" { round: intShape, market: idShape, entity: idShape, quantity: qShape, price: qShape })
   , "Transferred": atTagged "a Resource moved between Entities" (recordShape "Transferred" { round: intShape, from: idShape, to: idShape, resource: idShape, quantity: qShape })
-  , "Tariffed": atTagged "a tariff paid on a shipment" (recordShape "Tariffed" { round: intShape, from: idShape, to: idShape, amount: qShape })
+  , "Levied": atTagged "a levy paid on a conditioned Transfer" (recordShape "Levied" { round: intShape, kind: idShape, from: idShape, to: idShape, amount: qShape })
   , "Transformed": atTagged "a run of a transformation" (recordShape "Transformed" { round: intShape, by: idShape, transformation: idShape, quantity: qShape, paid: qShape })
   , "Delivered": atTagged "a delivery arrived" (recordShape "Delivered" { round: intShape, entity: idShape, target: targetShape, quantity: qShape })
   , "Enacted": atTagged "a Rule enacted" (recordShape "Enacted" { round: intShape, id: idShape, rule: ruleShape })
@@ -297,7 +298,7 @@ eventShape = genericSum "Event"
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
 viewShape = object "View"
-  ( (\r s p rs tr e f t m es ts oc -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m, entities: es, transformations: ts, ownedCapacities: oc })
+  ( (\r s p rs tr e f t m es ts oc rk -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m, entities: es, transformations: ts, ownedCapacities: oc, ruleKinds: rk })
       <$> fieldOf "round" "the round" intShape _.round
       <*> fieldOf "self" "the Entity seeing it" entityShape _.self
       <*> fieldOf "prices" "the price of each Market" (mapOf idShape qShape) _.prices
@@ -310,6 +311,7 @@ viewShape = object "View"
       <*> fieldOf "entities" "the known Entities" (arrayOf idShape) _.entities
       <*> fieldOf "transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape) _.transformations
       <*> fieldOf "ownedCapacities" "the capacities the Entity owns" (arrayOf idShape) _.ownedCapacities
+      <*> fieldOf "ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape) _.ruleKinds
   )
 
 boundsShape :: Shape Bounds
@@ -403,8 +405,11 @@ circulationShape = recordShape "Circulation" { production: (arrayOf productionSh
   shareShape = recordShape "Share" { from: idShape, to: idShape, share: qShape, source: shareSourceShape }
   requirementShape = recordShape "Requirement" { entity: idShape, resource: idShape, amount: (optionalOf qShape), penalty: qShape }
 
+transferConditionShape :: Shape TransferCondition
+transferConditionShape = recordShape "TransferCondition" { bundled: idShape }
+
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transport: (mapOf idShape idShape), jurisdiction: (mapOf idShape idShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), circulation: circulationShape, events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transferConditions: (mapOf idShape transferConditionShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), circulation: circulationShape, events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

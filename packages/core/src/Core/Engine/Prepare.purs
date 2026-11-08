@@ -81,4 +81,5 @@ observe w self =
   , entities: fromFoldable (Map.keys w.entities)
   , transformations: map (\t -> { minimum: t.minimum, maximum: t.maximum }) w.transformations
   , ownedCapacities: filter (\c -> owner w c == Just self.id) (fromFoldable (Map.keys self.capacities))
+  , ruleKinds: w.ruleKinds
   }

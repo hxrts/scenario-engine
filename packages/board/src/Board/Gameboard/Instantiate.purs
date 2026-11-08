@@ -16,7 +16,7 @@ import Board.Error (ValidationError(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), RuleF(..))
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), Scope(..))
 import Core.World (Requirement, UnseededWorld, manifestOf, seeded)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
@@ -99,7 +99,7 @@ mergeInto agg e w = case Map.lookup e w.entities of
         , shares = filter (\s -> s.from /= s.to) (map (\s -> s { from = retarget s.from, to = retarget s.to }) c.shares)
         , requirements = mergeRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
         }
-    , jurisdiction = map retarget (Map.delete e w.jurisdiction)
+    , groups = map retarget (Map.delete e w.groups)
     , transformations = map facility w.transformations
     , rules = map rule w.rules
     , scheduled = map (map rule) w.scheduled
@@ -121,11 +121,11 @@ mergeInto agg e w = case Map.lookup e w.entities of
     { payee = map retarget t.payee
     , effects = map (\ef -> ef { holder = map retarget ef.holder }) t.effects
     }
-  -- a Rule's Entities: a Tariff's jurisdiction and origin, an AccessBan's jurisdiction and target
-  rule = case _ of
-    Tariff x -> Tariff (x { jurisdiction = retarget x.jurisdiction, origin = retarget x.origin })
-    AccessBan x -> AccessBan (x { jurisdiction = retarget x.jurisdiction, target = retarget x.target })
-    Withholding x -> Withholding x
+  -- a flows Rule's Entities pass to the Aggregate
+  rule r = r { scope = scopeRetarget r.scope }
+  scopeRetarget = case _ of
+    Flows f -> Flows (f { governor = retarget f.governor, counterparty = retarget f.counterparty })
+    s -> s
   -- the Actor's membership and procedure weight pass to the Aggregate in every Aggregate's lists;
   -- an Aggregate is never its own member (lists that do not name the Actor are left as written)
   membership x = case x.kind of

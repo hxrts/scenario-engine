@@ -90,8 +90,8 @@ Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
 - its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
-- Market access lists, jurisdiction entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Requirements for the same Entity and Resource are summed, except that an explicit amount and one equal to purchases stay separate.
-- Facility `payee`s and effect `holder`s, Rules in force and scheduled (a Tariff's jurisdiction and origin, an AccessBan's jurisdiction and target), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A Withholding names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
+- Market access lists, group entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Requirements for the same Entity and Resource are summed, except that an explicit amount and one equal to purchases stay separate.
+- Facility `payee`s and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A Withholding names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
 
@@ -210,7 +210,7 @@ A round record contains:
 
 - `round`: the round index.
 - `inputs`: every submitted signed Proposal, each with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
-- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Traded`, `Transferred`, `Tariffed`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
+- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Traded`, `Transferred`, `Levied`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
 Events record executed quantities, so a partial fill appears as a smaller `Traded` quantity, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
 

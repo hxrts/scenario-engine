@@ -9,14 +9,12 @@ module Schema.Build.Intent
   , route
   , transfer
   , transform
-  , enactTariff
-  , enactAccessBan
-  , enactWithholding
+  , enactRule
   , repeal
   ) where
 
 import Core.Num (Q)
-import Core.Types (Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), RuleF(..))
+import Core.Types (EffectF, Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), Scope)
 import Data.Maybe (Maybe(..))
 
 -- | An order on a Market, by id; `limit` is the optional limit price. A Strategy that picks its Market
@@ -35,14 +33,9 @@ transfer r = Transfer { from: Id r.from, to: Id r.to, resource: Id r.resource, q
 transform :: { by :: String, transformation :: String, quantity :: Q } -> Intent
 transform r = Transform { by: Id r.by, transformation: Id r.transformation, quantity: r.quantity }
 
-enactTariff :: { jurisdiction :: String, origin :: String, rate :: Q } -> Intent
-enactTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id r.jurisdiction, origin: Id r.origin, rate: r.rate }))
-
-enactAccessBan :: { jurisdiction :: String, target :: String } -> Intent
-enactAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id r.jurisdiction, target: Id r.target }))
-
-enactWithholding :: forall m v. { capacity :: String, units :: v } -> IntentF m v
-enactWithholding r = ChangeRule (Enact (Withholding { capacity: Id r.capacity, units: r.units }))
+-- | Enact a Rule of a declared kind.
+enactRule :: forall m v. { kind :: String, scope :: Scope, effect :: EffectF v } -> IntentF m v
+enactRule r = ChangeRule (Enact { kind: Id r.kind, scope: r.scope, effect: r.effect })
 
 -- | Repeal a Rule by the id the engine assigned it.
 repeal :: forall m v. { rule :: String } -> IntentF m v

@@ -4,17 +4,18 @@
 module Schema.Premise.Intent
   ( intentShape
   , ruleShape
+  , ruleBody
   , capabilityShape
   ) where
 
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, atKindArg, atOneKey, fieldOf, genericPremiseSum, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, requiredOf)
-import Core.Types (Capability, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, RuleKind, accessBanBody, idShape, ruleKindShape, tariffBody, transferBody, withholdingBody)
+import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, recordShape, requiredOf)
+import Core.Types (Capability, Direction(..), EffectF, EntityId, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, Scope, idShape, transferBody)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
-import Schema.Premise.Tags (capabilityTags, premiseEnum, ruleKindTags, ruleTags)
+import Schema.Premise.Tags (capabilityTags)
 
 -- | The Intent tags. Private: the sums below are the only place they are written or read.
 tradeTag :: String
@@ -32,13 +33,37 @@ enactTag = "enact"
 repealTag :: String
 repealTag = "repeal"
 
--- | The Rule, under `enact`: `{ "tariff": ... }`, `{ "accessBan": ... }`, `{ "withholding": ... }`.
-ruleShape :: Shape (RuleF Q)
-ruleShape = genericPremiseSum "Rule"
-  { "Tariff": atOneKey ruleTags.tariff.premise ruleTags.tariff.desc (tariffBody qShape)
-  , "AccessBan": atOneKey ruleTags.accessBan.premise ruleTags.accessBan.desc accessBanBody
-  , "Withholding": atOneKey ruleTags.withholding.premise ruleTags.withholding.desc (withholdingBody qShape)
+-- | A Rule's direction, written by name.
+directionShape :: Shape Direction
+directionShape = nameShape "Direction" "direction: inbound or eitherWay" dirName [ Inbound, EitherWay ]
+  where
+  dirName = case _ of
+    Inbound -> "inbound"
+    EitherWay -> "eitherWay"
+
+-- | What a Rule covers. `governor` is how the governor is written: templates default it to the acting Entity.
+scopeShapeWith :: Shape EntityId -> Shape Scope
+scopeShapeWith governor = genericPremiseSum "Scope"
+  { "Flows": atOneKey "flows" "Transfers between two groups" flows
+  , "OnCapacity": atOneKey "capacity" "one capacity" idShape
   }
+  where
+  flows = recordShape "Flows" { governor, counterparty: idShape, direction: directionShape }
+
+-- | What a Rule does, over its filling.
+effectShapeOf :: forall v. Shape v -> Shape (EffectF v)
+effectShapeOf v = genericPremiseSum "Effect"
+  { "Levy": atOneKey "levy" "a levy at this rate of the flow" v
+  , "Block": atBare { tag: "block", desc: "the flow is refused" }
+  , "Reduce": atOneKey "reduce" "the capacity is reduced by these units" v
+  }
+
+-- | A Rule, under `enact`.
+ruleBody :: forall v. Shape EntityId -> Shape v -> Shape (RuleF v)
+ruleBody governor v = recordShape "Rule" { kind: idShape, scope: scopeShapeWith governor, effect: effectShapeOf v }
+
+ruleShape :: Shape (RuleF Q)
+ruleShape = ruleBody idShape qShape
 
 -- | An Intent. A `trade` with a null market is a routed order (docs/02 §5.2): it names its pair by
 -- | `base` and `quote`.
@@ -125,14 +150,12 @@ tradeBody = partialIso bodyShape read write
     Right r -> { market: Nothing, base: Just r.pair.base, quote: Just r.pair.quote, quantity: r.quantity, limit: r.limitPrice }
 
 -- | A Capability: `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, or
--- | `enact:<tariff|accessBan|withholding>`.
+-- | `enact:<kind>`, a kind the premise declares.
 capabilityShape :: Shape Capability
 capabilityShape = genericPremiseSum "Capability"
   { "MayTrade": atKindArg { tag: capabilityTags.trade.premise, desc: capabilityTags.trade.desc } idShape
   , "MayTransfer": atKindArg { tag: capabilityTags.transfer.premise, desc: capabilityTags.transfer.desc } idShape
   , "MayTransform": atKindArg { tag: capabilityTags.transform.premise, desc: capabilityTags.transform.desc } idShape
-  , "MayEnact": atKindArg { tag: capabilityTags.enact.premise, desc: capabilityTags.enact.desc } premiseRuleKind
+  , "MayEnact": atKindArg { tag: capabilityTags.enact.premise, desc: capabilityTags.enact.desc } idShape
   }
 
-premiseRuleKind :: Shape RuleKind
-premiseRuleKind = premiseEnum "RuleKind" ruleKindShape ruleKindTags
