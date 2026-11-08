@@ -19,12 +19,12 @@ import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)
 import Data.Foldable (any, foldM, for_)
 import Data.Generic.Rep (class Generic)
-import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
 import Game.Error (GameError(..), Stage(..))
+import Game.Patch (setCapacity)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
 data Override
@@ -60,10 +60,10 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
     UnknownReference kind ref -> Unresolved "override" kind ref
     e -> Invalid AfterOverrides [ e ]
   apply acc = case _ of
-    GameSeed s -> Right acc { config = acc.config { seed = Seed s } }
-    Parameter name q -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-    Capacity e ref q -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
-    Shrinkage scheme q -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
+    GameSeed s -> Right acc { config { seed = Seed s } }
+    Parameter name q -> Right acc { gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
+    Capacity e ref q -> setCapacity e ref q acc.gameboard <#> \gameboard -> acc { gameboard = gameboard }
+    Shrinkage scheme q -> Right acc { gameboard { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
     Implicit e -> Right acc { config = withoutActor e acc.config }
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.

@@ -33,6 +33,7 @@ import Data.String (Pattern(..), contains)
 import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
+import Game.Patch (setCapacity, setCurve)
 import Testkit.Meridian (premise)
 import Testkit.Json (strategyOrThrow)
 import Unsafe.Coerce (unsafeCoerce)
@@ -70,6 +71,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Just (Script [ r ]) -> map _.signers r.propose `shouldEqual` [ [ Id "0" ], [ Id "1" ] ]
         _ -> fail "expected one scripted round"
 
+  describe "Named patches of a premise" do
+    it "a patch sets what it names, and fails on a name the premise does not have" do
+      p <- premise
+      map (\g -> map _.capacities (Map.lookup (Id "SA") g.world.entities)) (setCapacity (Id "SA") (Id "energy-production") (Q.fromInt 7) p.gameboard)
+        `shouldEqual` Right (Just (Map.singleton (Id "energy-production") (Q.fromInt 7)))
+      isLeft (setCapacity (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.gameboard) `shouldEqual` true
+      isLeft (setCurve (Id "no-market") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.gameboard) `shouldEqual` true
   describe "Assembly (docs/06 §4.3)" do
     let
       assembled p bindings = map (const unit) (assemble (GameboardPremise p) bindings [])
