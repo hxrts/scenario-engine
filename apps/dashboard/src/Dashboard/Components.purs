@@ -249,6 +249,7 @@ fetched = component "Fetched" \p -> React.do
     Just (Left e) -> status (Just e)
     Nothing -> status Nothing
 
--- | Dims content that is the previous selection while its replacement loads.
+-- | Dims content that is the previous selection while its replacement loads. The wrapper is always
+-- | present, so toggling it never remounts the content (a remount would detach it for a frame).
 stale :: Boolean -> JSX -> JSX
-stale busy child = if busy then D.div { className: "opacity-60 transition-opacity", children: [ child ] } else child
+stale busy child = D.div { className: if busy then "opacity-60 transition-opacity" else "transition-opacity", children: [ child ] }

@@ -80,10 +80,10 @@ mkRunResults grid = do
       Just (Left e) -> status (Just e)
       Just (Right o) -> D.div
         { className: "flex min-w-0 flex-col gap-section"
-        , children: [ header glossary p.id (o.facts), body { id: p.id, rounds: o.rounds } ]
+        , children: [ header glossary p.id (o.facts), body { id: p.id } ]
         }
 
-type BodyProps = { id :: String, rounds :: Int }
+type BodyProps = { id :: String }
 
 -- | The sections, in the order of the five questions. Each has one purpose line.
 mkBody :: DataTable -> Component BodyProps
@@ -136,7 +136,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
         , Layout.section
             { title: "Final balance sheet"
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
-            , children: [ fetch { key: b.id <> "/balances?round=" <> show b.rounds, load: runView b.id "balances" (Just b.rounds), render: as \(t :: Table) -> titled grid t } ]
+            , children: [ fetch { key: b.id <> "/balances", load: runView b.id "balances" Nothing, render: as \(t :: Table) -> titled grid t } ]
             }
         , entity { id: b.id }
         ]
