@@ -16,7 +16,7 @@ import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Either (note)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe)
 import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
 

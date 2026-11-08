@@ -18,6 +18,7 @@ import Core.Shape as Shape
 import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
+import Core.Slice (count, describeSlice, event, items, matches, orKind, pickOf, read, runSlice, total, whereEq)
 import Core.World (Event(..), RoundResult, costFunctionShape, Target(..), WorldState, renderReason)
 import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
@@ -30,7 +31,7 @@ import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.String (Pattern(..)) as S
 import Data.String as Str
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck ((===), Result)
@@ -161,9 +162,7 @@ submit author index intents =
 
 -- | The quantity of a Transformed event.
 transformedQ :: Event -> Array Q
-transformedQ = case _ of
-  Transformed t -> [ t.quantity ]
-  _ -> []
+transformedQ = (\ev_ -> maybe [] (\t -> [ t.quantity ]) (pickOf (event @"Transformed") ev_))
 
 -- | The reasons of the Rejected events of a resolved round (or the engine error).
 rejections :: Either EngineError RoundResult -> Array String
@@ -171,14 +170,10 @@ rejections = case _ of
   Right r -> concatMap reason r.record.events
   Left e -> [ show e ]
   where
-  reason = case _ of
-    Rejected x -> [ renderReason x.reason ]
-    _ -> []
+  reason = (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
 
 isShortfall :: Event -> Boolean
-isShortfall = case _ of
-  Shortfall _ -> true
-  _ -> false
+isShortfall = (matches (event @"Shortfall") (const true))
 
 eventsOf :: Either EngineError RoundResult -> Array Event
 eventsOf = case _ of
@@ -204,10 +199,7 @@ routed base n limit = Route { pair: { base: Id base, quote: Id "M" }, quantity: 
 -- | The (Market, quantity) of each fill of an Entity in a resolved round.
 fillsOf :: String -> Either EngineError RoundResult -> Array (Tuple String Q)
 fillsOf who r = concatMap
-  ( case _ of
-      Traded t | t.entity == Id who -> [ Tuple (show t.market) t.quantity ]
-      _ -> []
-  )
+  (\ev_ -> maybe [] (\t -> if t.entity == Id who then [ Tuple (show t.market) t.quantity ] else []) (pickOf (event @"Traded") ev_))
   (eventsOf r)
 
 -- | The quantity an Entity filled in one Market.
@@ -514,10 +506,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         -- 8 units of FA (use 1) and 1 unit of FB (use 2) fill the whole capacity of 10: the pool total is 9
         r = resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "FA", quantity: Q.fromInt 8 } ], submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "FB", quantity: Q.fromInt 1 } ] ]
       filter
-        ( \e -> case e of
-            Shortfall _ -> true
-            _ -> false
-        )
+        (matches (event @"Shortfall") (const true))
         (eventsOf r) `shouldEqual` []
     it "clamps a delivery at zero and records only the change applied" do
       let
@@ -622,10 +611,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           holding res.world (Id "JP") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 25) (Q.fromInt 4)
           concatMap transformedQ res.record.events `shouldEqual` [ Q.fromInt 5 `Q.div` Q.fromInt 4 ]
           filter
-            ( \e -> case e of
-                Consumed _ -> true
-                _ -> false
-            )
+            (matches (event @"Consumed") (const true))
             res.record.events `shouldEqual` []
           -- the reservation is released at commit: the next round starts with nothing reserved
           case resolveRound res.world [ submit "US" 0 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.div (Q.fromInt 15) (Q.fromInt 4) } ] ] of
@@ -748,9 +734,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = baseWorld [ us ]
         tariff = Tariff { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" }
         next = either (const w) _.world (resolveRound w [ submit "US" 0 [ ChangeRule (Enact tariff) ] ])
-        enacted = case _ of
-          Enacted _ -> true
-          _ -> false
+        enacted = (matches (event @"Enacted") (const true))
       length (filter enacted (eventsOf (resolveRound next []))) `shouldEqual` 1
       -- a world prepared before resolution records the same events
       length (filter enacted (eventsOf (resolveRound (prepareRound next) []))) `shouldEqual` 1
@@ -760,9 +744,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         low = Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Just (q "0.5") }
         ok = Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing }
         r = resolved w [ submit "US" 0 [ low, ok ] ]
-        removed = case _ of
-          OrderRemoved _ -> true
-          _ -> false
+        removed = (matches (event @"OrderRemoved") (const true))
       length (filter removed r.record.events) `shouldEqual` 1
       rejections (Right r) `shouldEqual` []
       -- the Proposal is not dropped from INV-02: a stripped capability is caught
@@ -881,6 +863,24 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ [ Snapshot, Premise ] \fmt -> do
         stringify (encodeWith fmt derived m) `shouldEqual` stringify (encodeWith fmt written m)
         (derived.codec fmt).dec (encodeWith fmt written m) `shouldEqual` Right m
+  describe "Event slices" do
+    let
+      us = Id "US"
+      evs =
+        [ Traded { round: 1, market: Id "m", entity: us, quantity: Q.fromInt 2, price: Q.fromInt 1 }
+        , Lapsed { round: 1, proposal: Id "p" }
+        , Traded { round: 1, market: Id "m", entity: Id "CN", quantity: Q.fromInt 5, price: Q.fromInt 1 }
+        ]
+      traded = whereEq @"entity" us (event @"Traded")
+    it "runSlice counts, sums and reads in recorded order" do
+      runSlice (count traded) evs `shouldEqual` 1
+      runSlice (total (read @"quantity" traded)) evs `shouldEqual` Q.fromInt 2
+      map _.entity (runSlice (items (event @"Traded")) evs) `shouldEqual` [ us, Id "CN" ]
+      runSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" (event @"Traded")))) evs `shouldEqual` 3
+    it "describeSlice renders the slice" do
+      describeSlice (count traded) `shouldEqual` "count of Traded events where entity = US"
+      describeSlice (total (read @"quantity" traded)) `shouldEqual` "sum of quantity of Traded events where entity = US"
+      describeSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" (event @"Traded")))) `shouldEqual` "count of round of Lapsed and Traded events"
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

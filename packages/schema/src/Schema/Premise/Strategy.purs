@@ -15,14 +15,14 @@ import Prelude
 import Core.Query (transfersOf, transformsOf)
 import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericPremiseSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
 import Core.Num (qShape)
-import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, SignRule, Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, dealIntent, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
 import Data.Either (Either)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple)
 
 -- The premise tags used more than once. Private to this module.
 noActionT :: String

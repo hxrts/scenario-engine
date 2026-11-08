@@ -67,7 +67,7 @@ Module map: every `src` module, one line per package, from `find packages apps -
 packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Digest, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
 packages/board:      Board.Error, Board.Gameboard.Instantiate, Board.Gameboard.Reconcile, Board.Gameboard.Validate
 packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
-packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Strategy, Core.Types, Core.World
+packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Core.World
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
 packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
@@ -130,6 +130,8 @@ data Format = Premise | Snapshot          -- authored premise files; stored runs
 codec :: forall a. Format -> Shape a -> JsonCodec a
 class Described a where shape :: Shape a
 ```
+
+**Event slices** (`core`, `Core.Slice`). A selector (`event @"Traded"`) names an Event kind; the kind and field names are checked at compile time against `Event`. A `Slice` is a value: its kinds, field filters, the field read, and its aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a Statistic's or Glossary entry's formula is generated from its calculation. A computation that treats several kinds differently is a total fold, `foldEvents`, one handler per kind; a kind with no effect is `ignore`d, so a new kind fails to compile.
 
 **Effects** (`effects`). The impure vocabulary of the system. Each row is declared in `Effects.Signatures`, or `Effects.Api` for `API`, with no implementation:
 

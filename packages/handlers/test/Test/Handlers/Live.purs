@@ -12,7 +12,8 @@ import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
-import Core.World (Event(..), RoundRecord, RoundResult, WorldState, renderReason)
+import Core.Slice (event, matches, pickOf)
+import Core.World (RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -102,10 +103,7 @@ replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record recor
 
 lapsed :: ProposalId -> RoundResult -> Boolean
 lapsed pid r = any
-  ( \ev -> case ev of
-      Lapsed l -> l.proposal == pid
-      _ -> false
-  )
+  (matches (event @"Lapsed") (\l -> l.proposal == pid))
   r.record.events
 
 spec :: Spec Unit
@@ -150,16 +148,10 @@ spec = do
       let
         events = bind out.records (_.record.events)
         rejections' = mapMaybe
-          ( \ev -> case ev of
-              Rejected r -> Just { proposal: r.proposal, reason: r.reason }
-              _ -> Nothing
-          )
+          (pickOf (event @"Rejected") >=> \r -> Just { proposal: r.proposal, reason: r.reason })
           events
         executed = filter
-          ( \ev -> case ev of
-              Traded t -> t.entity == Id "US" && t.market == Id "energy-atlantic"
-              _ -> false
-          )
+          (matches (event @"Traded") (\t -> t.entity == Id "US" && t.market == Id "energy-atlantic"))
           events
       map _.proposal rejections' `shouldEqual` [ Id "r1/US/1" ]
       map (contains (Pattern "no-such-market") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]

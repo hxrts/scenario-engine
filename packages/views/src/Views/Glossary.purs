@@ -4,9 +4,15 @@
 -- | `{name}` and `{market}` placeholders of the templates. Pure.
 module Views.Glossary (Glossary, Reason, glossary) where
 
+import Prelude ((<>))
+
+import Core.Slice (describeSlice)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Views.Actions (rejections)
+import Views.Drivers (shortfallSum)
+import Views.Markets (consumedTotal, decayedTotal, lapsedCount)
 
 -- | What an empty value shows: a short label, and the reason on hover.
 type Reason = { label :: String, reason :: String }
@@ -56,7 +62,7 @@ glossary =
     , Tuple "Engine" "The version of the round engine that resolved each round."
     , Tuple "Draws" "The randomness scheme every draw uses."
     , Tuple "Rounds target" "The number of rounds the run was launched for. A run shorter than this can be resumed to it."
-    , Tuple "Rejected Proposals" "Proposals the engine rejected across all rounds. A rejected Proposal has no effect on the economy."
+    , Tuple "Rejected Proposals" ("Proposals the engine rejected across all rounds. A rejected Proposal has no effect on the economy. Computed as: " <> describeSlice rejections <> ".")
     , Tuple "Military procured" "Military bought through the defense procurement facilities over the run."
     , Tuple "Actor" "The Actor (or Aggregate) this row describes."
     , Tuple "Objective" "A goal from the Gameboard for one Actor. It is measured from the run and never changes the economy."
@@ -79,11 +85,11 @@ glossary =
     , Tuple "Current" "The holding after the selected round. It includes any reserved quantity."
     , Tuple "Change" "Current holding minus initial holding."
     , Tuple "Event" "One engine event, listed in the canonical phase order."
-    , Tuple "Shortfalls (E)" "Energy wanted but not supplied in the round (a Shortfall). 0 means every request was filled."
-    , Tuple "Rejected" "Proposals the engine rejected in the round (rejected Proposals)."
-    , Tuple "Lapsed" "Proposals whose signature rule was not met in the round, so they lapsed without executing."
-    , Tuple "Consumed (E)" "Energy consumed in the round."
-    , Tuple "Decayed" "Quantity that decayed in the round."
+    , Tuple "Shortfalls (E)" ("Energy wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice shortfallSum <> ".")
+    , Tuple "Rejected" ("Proposals the engine rejected in the round (rejected Proposals). Computed as: " <> describeSlice rejections <> ".")
+    , Tuple "Lapsed" ("Proposals whose signature rule was not met in the round, so they lapsed without executing. Computed as: " <> describeSlice lapsedCount <> ".")
+    , Tuple "Consumed (E)" ("Energy consumed in the round. Computed as: " <> describeSlice consumedTotal <> ".")
+    , Tuple "Decayed" ("Quantity that decayed in the round. Computed as: " <> describeSlice decayedTotal <> ".")
     , Tuple "Representative" "The Actor whose purchases the Aggregate represents."
     , Tuple "Aggregate" "The residual Aggregate whose Policy acts on the stored factor."
     , Tuple "Domain" "The market the representation applies to."

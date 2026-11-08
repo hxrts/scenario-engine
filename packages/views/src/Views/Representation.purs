@@ -10,9 +10,10 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (eventsOf, tradesOf)
+import Core.Query (tradesOf)
+import Core.Slice (event, read, runSlice, select, total, whereEq, whereGt)
 import Core.Types (EntityId)
-import Core.World (Event(..), RoundRecord)
+import Core.World (RoundRecord)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
@@ -29,10 +30,8 @@ representation r =
   }
   where
   recs = records r
-  rows (Tuple i rec) = concat (eventsOf (estimate i rec) rec.events)
-  estimate i rec = case _ of
-    Estimated est -> Just (map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations))
-    _ -> Nothing
+  rows (Tuple i rec) = concat (map (estimate i rec) (select (event @"Estimated") rec.events))
+  estimate i rec est = map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations)
   stages i rec factor rep =
     let
       observed = proposedPurchases rep.actor rec
@@ -51,11 +50,7 @@ proposedPurchases e rec = Q.sumQ (concatMap (\s -> if s.proposal.author == e the
 
 -- | Quantities an Entity actually bought in a round.
 bought :: EntityId -> RoundRecord -> Q
-bought e rec = Q.sumQ (eventsOf (boughtBy e) rec.events)
-  where
-  boughtBy who = case _ of
-    Traded t | t.entity == who && t.quantity > Q.zero -> Just t.quantity
-    _ -> Nothing
+bought e rec = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"entity" e (event @"Traded"))))) rec.events
 
 -- | Every collective procedure in the run: per round, its Proposal, the members who signed, the
 -- | support against the threshold, and whether it executed or lapsed.

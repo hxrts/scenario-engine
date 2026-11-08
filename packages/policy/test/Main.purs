@@ -8,6 +8,7 @@ import Core.Map (values)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Engine.Screen (screen)
 import Core.Types (EntityId, Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId, samePositions, traverseIntent)
+import Core.Slice (event, pickOf)
 import Core.World (Event(..), RejectReason(..), View, WorldState)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
@@ -20,7 +21,7 @@ import Testkit.Meridian (unseated)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Either (Either(..), either, isLeft)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
 import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
@@ -90,9 +91,7 @@ agreement w = do
     strategy = { rules: [ { when: [], propose: [ IntentT template ] } ], sign: [] }
     drafted = not (Array.null (propose strategy (envFor { params: Object.empty, seed: Seed 1, source: "property" } self.id (observe w self))))
     submitted = { proposal: { id: proposalId w.round self.id 0, author: self.id, intents: [ i ], signers: [], procedure: Nothing }, signatures: [] }
-    refused = case _ of
-      Rejected x -> not (engineOnly x.reason)
-      _ -> true
+    refused = (\ev_ -> maybe true (\x -> not (engineOnly x.reason)) (pickOf (event @"Rejected") ev_))
     accepted = either (not <<< Array.any refused) (const true) (screen w [] submitted)
   pure (drafted == accepted <?> show i <> " by " <> show self.id <> ": drafted " <> show drafted <> ", accepted " <> show accepted)
   where

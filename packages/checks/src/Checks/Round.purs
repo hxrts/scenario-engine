@@ -16,7 +16,8 @@ import Prelude
 import Core.Num (Q)
 import Core.Query (holding, reserveOf)
 import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
-import Core.World (Event(..), RoundResult, Target(..))
+import Core.Slice (event, orKind, read, select)
+import Core.World (RoundResult, Target(..))
 import Data.Array (concat, concatMap, sort, sortWith)
 import Data.Identity (Identity(..))
 import Data.Map as Map
@@ -77,9 +78,9 @@ observe r =
   , reserves: Map.mapMaybeWithKey (\m _ -> Just (filled (reserveOf w m))) w.markets
   , factors: map (map Identity) w.factors
   , deliveries: Identity (concatMap deliveryOf w.deliveries)
-  , rejected: Identity (sort (concatMap rejectedOf events))
-  , lapsed: Identity (sort (concatMap lapsedOf events))
-  , procedures: Identity (concatMap procedureOf events)
+  , rejected: Identity (sort (select (read @"proposal" (orKind (event @"Rejected") (event @"OrderRemoved"))) events))
+  , lapsed: Identity (sort (select (read @"proposal" (event @"Lapsed")) events))
+  , procedures: Identity (map (\x -> { proposal: x.proposal, support: x.support, executed: x.executed }) (select (event @"ProcedureOutcome") events))
   , scheduled: Identity (Map.size w.scheduled)
   }
   where
@@ -90,16 +91,6 @@ observe r =
   filled f = Map.mapMaybeWithKey (\res _ -> Just (Identity (f res))) w.resources
   deliveryOf d = case d.target of
     Holding res | d.round > r.record.round -> [ { entity: d.entity, resource: res, quantity: d.quantity } ]
-    _ -> []
-  rejectedOf = case _ of
-    Rejected x -> [ x.proposal ]
-    OrderRemoved x -> [ x.proposal ]
-    _ -> []
-  lapsedOf = case _ of
-    Lapsed x -> [ x.proposal ]
-    _ -> []
-  procedureOf = case _ of
-    ProcedureOutcome x -> [ { proposal: x.proposal, support: x.support, executed: x.executed } ]
     _ -> []
 
 -- | Every check the Expect makes of the Observed, for round `round`. Deliveries are compared as sets

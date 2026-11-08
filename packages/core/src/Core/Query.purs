@@ -5,8 +5,6 @@ module Core.Query
   ( lookupQ
   , holding
   , accountsOf
-  , eventsOf
-  , countEvents
   , capacityHeld
   , capabilitiesOf
   , entitiesOf
@@ -40,8 +38,9 @@ import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
-import Core.World (Event(..), WorldState)
-import Data.Array (any, concatMap, filter, find, length, mapMaybe)
+import Core.Slice (event, orKind, read, select)
+import Core.World (Event, WorldState)
+import Data.Array (any, concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
@@ -59,15 +58,6 @@ holding w e r = lookupQ r (accountsOf w e)
 -- | Entity the World State does not have.
 accountsOf :: WorldState -> EntityId -> Map ResourceId Q
 accountsOf w e = maybe Map.empty _.accounts (Map.lookup e w.entities)
-
--- | The values the matching events yield, in recorded order: the one way a view picks out events of
--- | some kinds, so every event match reads the same way.
-eventsOf :: forall a. (Event -> Maybe a) -> Array Event -> Array a
-eventsOf = mapMaybe
-
--- | How many events match the predicate.
-countEvents :: (Event -> Boolean) -> Array Event -> Int
-countEvents p = length <<< eventsOf (\ev -> if p ev then Just ev else Nothing)
 
 -- | Every Entity, in id order.
 entitiesOf :: WorldState -> Array Entity
@@ -193,29 +183,20 @@ transformsOf = mapMaybe
 
 -- | The Proposals a round turned down whole: rejected or lapsed. A Proposal that lost one order is not among them.
 droppedProposals :: Array Event -> Array ProposalId
-droppedProposals = concatMap
-  ( case _ of
-      Rejected x -> [ x.proposal ]
-      Lapsed x -> [ x.proposal ]
-      _ -> []
-  )
+droppedProposals = select (orKind (read @"proposal" (event @"Rejected")) (read @"proposal" (event @"Lapsed")))
 
 -- | Whether `by` ran `transformation` in the round before `round` for at least `atLeast` units.
 transformedLastRound :: RoundIndex -> EntityId -> TransformationId -> Quantity -> Array Event -> Boolean
-transformedLastRound round by transformation atLeast = any
-  ( case _ of
-      Transformed t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast
-      _ -> false
-  )
+transformedLastRound round by transformation atLeast = any (\t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast) <<< select (event @"Transformed")
 
 -- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
 -- | were proposed in the round before: an AccessBan on `target`, or a Tariff on its origin.
 restrictedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
-restrictedAtBoundary round by target = concatMap
-  ( case _ of
-      Enacted e | e.round == round -> case e.rule of
+restrictedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enacted")
+  where
+  rulesOf' e
+    | e.round /= round = []
+    | otherwise = case e.rule of
         r@(AccessBan x) | x.jurisdiction == by && x.target == target -> [ r ]
         r@(Tariff x) | x.jurisdiction == by && x.origin == target -> [ r ]
         _ -> []
-      _ -> []
-  )

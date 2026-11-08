@@ -17,7 +17,8 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), RuleF(..), proposalId)
-import Core.World (Event(..), RejectReason(..), renderReason)
+import Core.Slice (event, matches, pickOf)
+import Core.World (RejectReason(..), renderReason)
 import Data.Array (any, concatMap, drop, findMap, index, last, length, reverse, take, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -153,16 +154,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         events = concatMap (\rec -> rec.record.events) r.records
         invested = any
-          ( case _ of
-              Transformed t -> t.transformation == Id "energy-capacity-investment"
-              _ -> false
-          )
+          (matches (event @"Transformed") (\t -> t.transformation == Id "energy-capacity-investment"))
           events
         unsigned = any
-          ( case _ of
-              Rejected x -> contains (Pattern "must sign") (renderReason x.reason)
-              _ -> false
-          )
+          (matches (event @"Rejected") (\x -> contains (Pattern "must sign") (renderReason x.reason)))
           events
       invested `shouldEqual` true
       unsigned `shouldEqual` false
@@ -175,17 +170,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         -- what the US ordered of a Transformation in round i (0-based), if it did
         ordered i name = index r.records i >>= \rec -> findMap
-          ( case _ of
-              Transformed t | t.by == Id "US" && t.transformation == Id name -> Just t.quantity
-              _ -> Nothing
-          )
+          (pickOf (event @"Transformed") >=> \t -> if t.by == Id "US" && t.transformation == Id name then Just t.quantity else Nothing)
           rec.record.events
         -- the US's fill on the defence-goods Market in round i, if it traded there
         sold i = index r.records i >>= \rec -> findMap
-          ( case _ of
-              Traded t | t.entity == Id "US" && t.market == Id "defence-goods" -> Just t
-              _ -> Nothing
-          )
+          (pickOf (event @"Traded") >=> \t -> if t.entity == Id "US" && t.market == Id "defence-goods" then Just t else Nothing)
           rec.record.events
         usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
         parse x = fromMaybe Q.zero (Q.parse x)
@@ -216,16 +205,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       valid (initialOf r) r
       let
         has f = any (\x -> any f x.record.events) r.records
-        did t = has case _ of
-          Transformed x -> x.by == Id "LABOR" && x.transformation == Id t
-          _ -> false
+        did t = has (matches (event @"Transformed") (\x -> x.by == Id "LABOR" && x.transformation == Id t))
       did "public-attention" `shouldEqual` true
       did "strike" `shouldEqual` true
       has
-        ( case _ of
-            Decayed x -> x.entity == Id "LABOR" && x.resource == Id "S"
-            _ -> false
-        ) `shouldEqual` true
+        (matches (event @"Decayed") (\x -> x.entity == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's propagation, as far as the shipped game shows it" do
       p <- premise
@@ -236,28 +220,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         round3 r = fromMaybe [] (index r.records 2 <#> _.record.events)
         boughtBy who r i = findMap
-          ( case _ of
-              Traded t | t.entity == Id who -> Just t.quantity
-              _ -> Nothing
-          )
+          (pickOf (event @"Traded") >=> \t -> if t.entity == Id who then Just t.quantity else Nothing)
           (fromMaybe [] (index r.records i <#> _.record.events))
         anyShortfall who res evs = any
-          ( case _ of
-              Shortfall x -> x.entity == Id who && x.resource == Id res
-              _ -> false
-          )
+          (matches (event @"Shortfall") (\x -> x.entity == Id who && x.resource == Id res))
           evs
         transformedAny name evs = any
-          ( case _ of
-              Transformed t -> t.transformation == Id name
-              _ -> false
-          )
+          (matches (event @"Transformed") (\t -> t.transformation == Id name))
           evs
         euExecuted evs = findMap
-          ( case _ of
-              ProcedureOutcome o | o.executed -> Just o.support
-              _ -> Nothing
-          )
+          (pickOf (event @"ProcedureOutcome") >=> \o -> if o.executed then Just o.support else Nothing)
           evs
       -- the disruption raises the Atlantic price between Rounds 2 and 3
       case index passive.records 1, index passive.records 2 of
@@ -294,16 +266,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         events = concatMap (_.record.events) r.records
         procedureRan = any
-          ( case _ of
-              ProcedureOutcome o -> o.executed
-              _ -> false
-          )
+          (matches (event @"ProcedureOutcome") (\o -> o.executed))
           events
         banned = any
-          ( case _ of
-              Rejected x -> x.reason == ShipmentBanned
-              _ -> false
-          )
+          (matches (event @"Rejected") (\x -> x.reason == ShipmentBanned))
           events
         tariffOnUs = case index r.records 3 of
           Just rec -> any
@@ -339,10 +305,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       any (isBan "CN" "US") (rules 3 r) `shouldEqual` true
       -- the EU passes its tariff in the round the ban is in force, and it applies from the next
       (fromMaybe [] (index r.records 2 <#> _.record.events)) `shouldSatisfy` any
-        ( case _ of
-            ProcedureOutcome o -> o.executed
-            _ -> false
-        )
+        (matches (event @"ProcedureOutcome") (\o -> o.executed))
       any isTariff (rules 2 r) `shouldEqual` false
       any isTariff (rules 3 r) `shouldEqual` true
 
@@ -360,10 +323,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail (show e)
         Right r -> do
           concatMap
-            ( case _ of
-                Rejected x -> [ renderReason x.reason ]
-                _ -> []
-            )
+            (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
             r.record.events `shouldEqual` [ "ENCO has no access to defence-goods" ]
           holding r.world (Id "ENCO") (Id "Mil") `shouldEqual` holding world (Id "ENCO") (Id "Mil")
           (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true

@@ -290,7 +290,9 @@ function scan(file, text, ctx) {
       // an Event kind, by name or in formula text
       const kindText = ctx.eventKinds.some((k) => new RegExp(`\\b${k} events?\\b`).test(s.value));
       const aColumn = file.startsWith("packages/views/src/") && ctx.columns.has(s.value);
-      if ((ctx.eventKinds.includes(s.value) || kindText) && sym !== "eventShape" && !aColumn) hit("kind", i);
+      // a selector's type-level name (`@"Traded"`) and a total fold's handler label are compile-checked
+      const typedName = before.endsWith('@"') || raw[i].includes(`"${s.value}":`);
+      if ((ctx.eventKinds.includes(s.value) || kindText) && sym !== "eventShape" && !aColumn && !typedName) hit("kind", i);
       // a route segment: a path built from them, in `wire` (the segments are `parse`'s)
       if (file === routeFile && sym === "wire" && s.value.includes("/") && s.value.split("/").filter(Boolean).every((p) => p === "api" || ctx.routeSegments.includes(p)) && s.value.split("/").filter(Boolean).length > 0) hit("route", i);
       // a spec key, outside Game.Recipe's one table

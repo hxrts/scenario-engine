@@ -49,10 +49,11 @@ import Prelude
 import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
 import Core.Num as Q
-import Core.Query (eventsOf, isAggregate)
+import Core.Query (isAggregate)
+import Core.Slice (event, select)
 import Core.Run (RunStatus)
 import Core.Types (EntityId, ProposalId, ResourceId)
-import Core.World (Event(..), Manifest, RoundRecord, RoundResult, WorldState)
+import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
 import Data.Foldable (lookup)
 import Data.Int as Int
@@ -245,20 +246,17 @@ roundResults r = r.rounds
 -- | rows from this one read.
 type Procedure = { round :: Int, proposal :: ProposalId, executed :: Boolean, support :: Q, threshold :: Q, signers :: Array EntityId }
 
--- | The procedure an event records, when it is a procedure outcome, within its round.
-asProcedure :: RoundRecord -> Event -> Maybe Procedure
-asProcedure rec = case _ of
-  ProcedureOutcome o ->
-    Just
-      { round: rec.round
-      , proposal: o.proposal
-      , executed: o.executed
-      , support: o.support
-      , threshold: o.threshold
-      , signers: concatMap (\s -> if s.proposal.id == o.proposal then s.signatures else []) rec.inputs
-      }
-  _ -> Nothing
+-- | The procedure a ProcedureOutcome records, within its round.
+asProcedure :: RoundRecord -> { round :: Int, proposal :: ProposalId, support :: Q, threshold :: Q, executed :: Boolean } -> Procedure
+asProcedure rec o =
+  { round: rec.round
+  , proposal: o.proposal
+  , executed: o.executed
+  , support: o.support
+  , threshold: o.threshold
+  , signers: concatMap (\s -> if s.proposal.id == o.proposal then s.signatures else []) rec.inputs
+  }
 
 -- | Every procedure outcome in the run, in round order.
 proceduresOf :: StoredRun -> Array Procedure
-proceduresOf r = concatMap (\rec -> eventsOf (asProcedure rec) rec.events) (records r)
+proceduresOf r = concatMap (\rec -> map (asProcedure rec) (select (event @"ProcedureOutcome") rec.events)) (records r)

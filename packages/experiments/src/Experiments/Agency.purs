@@ -15,9 +15,9 @@ import Data.Tuple (Tuple(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Query (eventsOf)
+import Core.Slice (event, read, select)
 import Core.Types (EntityId)
-import Core.World (Event(..), WorldState)
+import Core.World (WorldState)
 import Data.Array (concatMap, elem, filter, length, zipWith)
 import Data.Either (Either(..), hush)
 import Data.Map as Map
@@ -76,10 +76,7 @@ agency gameboard presets seed game alternative actors = do
       prices = absSum (map _.delta d.prices)
       others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))
       aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
-      outcomes r = concatMap (\x -> eventsOf executedOf x.record.events) r.records
-      executedOf = case _ of
-        ProcedureOutcome o -> Just o.executed
-        _ -> Nothing
+      outcomes r = concatMap (\x -> select (read @"executed" (event @"ProcedureOutcome")) x.record.events) r.records
       institutions = if outcomes base == outcomes variant then 0 else 1
       own r = map _.outcome (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives gameboard r.records)))
       objectives = length (filter identity (zipWith (/=) (own base) (own variant)))

@@ -3,6 +3,7 @@
 -- | is the one definition of a shortfall total. Pure.
 module Views.Drivers
   ( driversStat
+  , shortfallSum
   , shortfallTotal
   , drivers
   ) where
@@ -11,11 +12,11 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (eventsOf)
+import Core.Slice (Slice, describeSlice, event, foldEvents, groupBy, ignore, read, runSlice, total)
 import Core.Types (EntityId, ResourceId, Rule, RuleF(..))
-import Data.Maybe (Maybe(..))
-import Core.World (Event(..), RoundRecord)
-import Data.Array (concatMap, filter, length, nub)
+import Core.World (RoundRecord)
+import Data.Array (concatMap, length, nub)
+import Data.Tuple (Tuple(..))
 import Views.Common (Procedure, Statistic, StoredRun, Table, asProcedure, outcomeLabel, quantity, ratio, records, supportThreshold)
 
 driversStat :: Statistic
@@ -23,35 +24,26 @@ driversStat =
   { name: "Drivers"
   , question: "What forces are driving gameplay (what moves prices and outcomes)?"
   , definition: "Rules enacted and repealed, collective procedure outcomes, and shortfalls, by round."
-  , formula: "Shortfall(r, resource) = sum of Shortfall quantities in round r for that Resource, with the number of Entities short; a procedure's support and threshold are the ratios its ProcedureOutcome records."
+  , formula: "Shortfall(r, resource) = " <> describeSlice shortfallsByResource <> ": per Resource in round r, the sum of quantity and the number of distinct Entities short; a procedure's support and threshold are the ratios its ProcedureOutcome records."
   }
 
--- | A round's Shortfall event: the Resource, the Entity short, and the quantity.
-type Shortfall = { resource :: ResourceId, entity :: EntityId, quantity :: Q }
+-- | Every Shortfall, grouped by Resource: what `Shortfall(r, resource)` totals.
+shortfallsByResource :: Slice (Array (Tuple ResourceId (Array { round :: Int, entity :: EntityId, resource :: ResourceId, quantity :: Q })))
+shortfallsByResource = groupBy @"resource" (event @"Shortfall")
 
-shortfalls :: RoundRecord -> Array Shortfall
-shortfalls rec = eventsOf
-  ( case _ of
-      Shortfall s -> Just { resource: s.resource, entity: s.entity, quantity: s.quantity }
-      _ -> Nothing
-  )
-  rec.events
+-- | Every Shortfall quantity, summed.
+shortfallSum :: Slice Q
+shortfallSum = total (read @"quantity" (event @"Shortfall"))
 
 -- | The round's shortfalls summed over all Resources: an amount owed but not delivered.
 shortfallTotal :: RoundRecord -> Q
-shortfallTotal rec = Q.sumQ (map _.quantity (shortfalls rec))
+shortfallTotal rec = runSlice shortfallSum rec.events
 
 -- | Shortfalls in a round, per Resource: the total quantity and the number of Entities short.
 shortfallsOf :: RoundRecord -> Array { resource :: ResourceId, quantity :: Q, entities :: Int }
-shortfallsOf rec = map perResource resources
+shortfallsOf rec = map perResource (runSlice shortfallsByResource rec.events)
   where
-  shorts = shortfalls rec
-  resources = nub (map _.resource shorts)
-  perResource res =
-    let
-      mine = filter (\s -> s.resource == res) shorts
-    in
-      { resource: res, quantity: Q.sumQ (map _.quantity mine), entities: length (nub (map _.entity mine)) }
+  perResource (Tuple res mine) = { resource: res, quantity: Q.sumQ (map _.quantity mine), entities: length (nub (map _.entity mine)) }
 
 ruleText :: Rule -> String
 ruleText = case _ of
@@ -72,12 +64,25 @@ drivers r =
   , rows: concatMap roundRows (records r)
   }
   where
-  roundRows rec =
-    concatMap (eventRow rec) rec.events <> map (shortRow rec) (shortfallsOf rec)
-  eventRow rec ev = case asProcedure rec ev of
-    Just p -> [ procedureRow p ]
-    Nothing -> case ev of
-      Enacted e -> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText e.rule ] ]
-      Repealed e -> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
-      _ -> []
+  roundRows rec = eventRows rec <> map (shortRow rec) (shortfallsOf rec)
+  -- the events a round's drivers show, in the order the engine recorded them; a kind with no row is `ignore`d
+  eventRows rec = foldEvents
+    { "Lapsed": ignore
+    , "Rejected": ignore
+    , "OrderRemoved": ignore
+    , "Traded": ignore
+    , "Transferred": ignore
+    , "Tariffed": ignore
+    , "Transformed": ignore
+    , "Delivered": ignore
+    , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText e.rule ] ]
+    , "Repealed": \e acc -> acc <> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
+    , "Estimated": ignore
+    , "Consumed": ignore
+    , "Shortfall": ignore
+    , "Decayed": ignore
+    , "ProcedureOutcome": \o acc -> acc <> [ procedureRow (asProcedure rec o) ]
+    }
+    []
+    rec.events
   shortRow rec s = [ show rec.round, "Shortfall", show s.resource, quantity s.quantity, show s.entities <> " entities short" ]

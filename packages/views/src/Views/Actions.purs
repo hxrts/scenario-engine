@@ -5,6 +5,7 @@
 module Views.Actions
   ( actionsStat
   , rejectionCount
+  , rejections
   , Counts
   , PlayerCounts
   , actionTotals
@@ -15,9 +16,10 @@ module Views.Actions
 
 import Prelude
 
-import Core.Query (countEvents, droppedProposals)
-import Core.Types (EntityId, IntentF(..), Proposal, ProposalId)
-import Core.World (Event(..), RoundRecord)
+import Core.Query (droppedProposals)
+import Core.Slice (Select, Slice, count, describeSlice, event, orKind, runSlice, whereEq, whereNamed)
+import Core.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
+import Core.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
 import Views.Common (Statistic, StoredRun, Table, players, records)
@@ -27,8 +29,28 @@ actionsStat =
   { name: "Actions"
   , question: "What do players do over the run?"
   , definition: "Per player, over the whole run: market trades (buys and sells), production and procurement, payments to other players, deals signed, and proposals rejected."
-  , formula: "trades = Traded events with the Actor; transforms = Transformed events by the Actor; transfers = Transferred events the Actor pays (from); deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = Rejected and OrderRemoved events on the Actor's own Proposals."
+  , formula: "trades = " <> describeSlice (tradesBy actor) <> "; transforms = " <> describeSlice (transformsBy actor) <> "; transfers = " <> describeSlice (transfersBy actor) <> "; deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
   }
+
+-- | The Actor a formula names: the slices below render their filter's value.
+actor :: EntityId
+actor = Id "the Actor"
+
+tradesBy :: EntityId -> Slice Int
+tradesBy e = count (whereEq @"entity" e (event @"Traded"))
+
+transformsBy :: EntityId -> Slice Int
+transformsBy e = count (whereEq @"by" e (event @"Transformed"))
+
+transfersBy :: EntityId -> Slice Int
+transfersBy e = count (whereEq @"from" e (event @"Transferred"))
+
+-- | Every Rejected or OrderRemoved event: the rejections the Overview reports.
+rejections :: Slice Int
+rejections = count rejectedEvents
+
+rejectedOwn :: (ProposalId -> Boolean) -> Slice Int
+rejectedOwn own = count (whereNamed "the Proposal is the Actor's own" (own <<< _.proposal) rejectedEvents)
 
 -- | One Actor's counts of each kind of action, over a round or a whole run.
 type Counts = { trades :: Int, transforms :: Int, transfers :: Int, deals :: Int, rejected :: Int }
@@ -63,12 +85,7 @@ type PlayerCounts = { player :: EntityId, counts :: Counts, total :: Int }
 
 -- | Every Rejected or OrderRemoved event in a round: the number the Overview reports.
 rejectionCount :: RoundRecord -> Int
-rejectionCount rec = countEvents isRejected rec.events
-  where
-  isRejected = case _ of
-    Rejected _ -> true
-    OrderRemoved _ -> true
-    _ -> false
+rejectionCount rec = runSlice rejections rec.events
 
 -- | The Proposal a round's inputs carry, by id.
 proposalOf :: RoundRecord -> ProposalId -> Maybe Proposal
@@ -83,37 +100,21 @@ isDeal p = length p.signers >= 2 && any movesStuff p.intents
     Transform _ -> true
     _ -> false
 
-tradedBy :: EntityId -> Event -> Boolean
-tradedBy e = case _ of
-  Traded t -> t.entity == e
-  _ -> false
-
-transformedBy :: EntityId -> Event -> Boolean
-transformedBy e = case _ of
-  Transformed t -> t.by == e
-  _ -> false
-
-transferredBy :: EntityId -> Event -> Boolean
-transferredBy e = case _ of
-  Transferred t -> t.from == e
-  _ -> false
-
 countsOf :: RoundRecord -> EntityId -> Counts
 countsOf rec e =
-  { trades: countEvents (tradedBy e) rec.events
-  , transforms: countEvents (transformedBy e) rec.events
-  , transfers: countEvents (transferredBy e) rec.events
+  { trades: runSlice (tradesBy e) rec.events
+  , transforms: runSlice (transformsBy e) rec.events
+  , transfers: runSlice (transfersBy e) rec.events
   , deals: length (filter signedDeal rec.inputs)
-  , rejected: countEvents rejectedOwn rec.events
+  , rejected: runSlice (rejectedOwn ownProposal) rec.events
   }
   where
   signedDeal s = elem e s.signatures && isDeal s.proposal && not (elem s.proposal.id dropped)
   dropped = droppedProposals rec.events
-  rejectedOwn = case _ of
-    Rejected x -> ownProposal x.proposal
-    OrderRemoved x -> ownProposal x.proposal
-    _ -> false
   ownProposal pid = maybe false (\p -> p.author == e) (proposalOf rec pid)
+
+rejectedEvents :: Select { round :: Int, proposal :: ProposalId, reason :: RejectReason }
+rejectedEvents = orKind (event @"Rejected") (event @"OrderRemoved")
 
 zeroCounts :: Counts
 zeroCounts = { trades: 0, transforms: 0, transfers: 0, deals: 0, rejected: 0 }

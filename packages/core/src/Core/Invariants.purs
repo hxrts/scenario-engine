@@ -19,7 +19,8 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, facilitiesOf, marketsOf)
 import Core.Types (IntentF(..), SignedProposal)
-import Core.World (Event(..), RoundResult, WorldState)
+import Core.Slice (event, foldEvents, ignore, select)
+import Core.World (RoundResult, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, nub)
 import Data.Foldable (foldl)
 import Data.Map as Map
@@ -92,17 +93,30 @@ inv03 before r = concatMap one (entitiesOf (r.world))
 -- | INV-01 Unified action semantics: every Trade, Transform, and Transfer the record shows came
 -- | from a signed Intent, or (a Transfer) from a declared recurring flow or share.
 inv01 :: WorldState -> RoundResult -> Array Failure
-inv01 before r = concatMap one r.record.events
+inv01 before r = foldEvents
+  { "Lapsed": ignore
+  , "Rejected": ignore
+  , "OrderRemoved": ignore
+  , "Traded": \t acc -> if any (traded t) intents then acc else acc <> unmatched ("a trade by " <> show t.entity <> " on " <> show t.market)
+  , "Transferred": \t acc -> if any (moved t) intents || declared t then acc else acc <> unmatched ("a transfer from " <> show t.from <> " to " <> show t.to)
+  , "Tariffed": ignore
+  , "Transformed": \t acc -> if any (transformed t) intents then acc else acc <> unmatched ("a run of " <> show t.transformation <> " by " <> show t.by)
+  , "Delivered": ignore
+  , "Enacted": ignore
+  , "Repealed": ignore
+  , "Estimated": ignore
+  , "Consumed": ignore
+  , "Shortfall": ignore
+  , "Decayed": ignore
+  , "ProcedureOutcome": ignore
+  }
+  []
+  r.record.events
   where
   proposals = map _.proposal r.record.inputs
   intents = concatMap (\p -> map (Tuple p.author) p.intents) proposals
   baseOf m = _.base <$> Map.lookup m before.markets
   unmatched what = [ failure INV01 (what <> " has no Intent behind it") ]
-  one = case _ of
-    Traded t | not (any (traded t) intents) -> unmatched ("a trade by " <> show t.entity <> " on " <> show t.market)
-    Transformed t | not (any (transformed t) intents) -> unmatched ("a run of " <> show t.transformation <> " by " <> show t.by)
-    Transferred t | not (any (moved t) intents || declared t) -> unmatched ("a transfer from " <> show t.from <> " to " <> show t.to)
-    _ -> []
   traded t (Tuple author i) = author == t.entity && case i of
     Trade o -> o.market == t.market
     Route x -> baseOf t.market == Just x.pair.base
@@ -136,26 +150,36 @@ inv04 before r =
     in
       concatMap (\res -> if actual res == expected res then [] else [ failure INV04 (show e.id <> " " <> show res <> " changed by " <> show (actual res) <> ", its events say " <> show (expected res)) ]) resources
   add who res = sumInto (Tuple who res)
-  changes = foldl change Map.empty r.record.events
-  change acc = case _ of
-    Traded t -> case Map.lookup t.market before.markets of
-      Just m -> add t.entity m.base t.quantity (add t.entity m.quote (Q.neg (Q.mul t.price t.quantity)) acc)
-      Nothing -> acc
-    Transferred t -> add t.to t.resource t.quantity (add t.from t.resource (Q.neg t.quantity) acc)
-    Tariffed t -> add t.to before.numeraire t.amount (add t.from before.numeraire (Q.neg t.amount) acc)
-    Transformed t -> case Map.lookup t.transformation before.transformations of
-      Just tr ->
-        let
-          outputs = if tr.delay == 0 then Map.toUnfoldable tr.outputs else []
-          moved = foldl (\a (Tuple res u) -> add t.by res (Q.mul u t.quantity) a) acc (outputs :: Array _)
-          consumed = foldl (\a (Tuple res u) -> add t.by res (Q.neg (Q.mul u t.quantity)) a) moved (entries tr.inputs)
-          paid = add t.by before.numeraire (Q.neg t.paid) consumed
-        in
-          maybe paid (\payee -> add payee before.numeraire t.paid paid) tr.payee
-      Nothing -> acc
-    Consumed c -> add c.entity c.resource (Q.neg c.quantity) acc
-    Decayed d -> add d.entity d.resource (Q.neg d.quantity) acc
-    _ -> acc
+  changes = foldEvents
+    { "Lapsed": ignore
+    , "Rejected": ignore
+    , "OrderRemoved": ignore
+    , "Traded": \t acc -> case Map.lookup t.market before.markets of
+        Just m -> add t.entity m.base t.quantity (add t.entity m.quote (Q.neg (Q.mul t.price t.quantity)) acc)
+        Nothing -> acc
+    , "Transferred": \t acc -> add t.to t.resource t.quantity (add t.from t.resource (Q.neg t.quantity) acc)
+    , "Tariffed": \t acc -> add t.to before.numeraire t.amount (add t.from before.numeraire (Q.neg t.amount) acc)
+    , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
+        Just tr ->
+          let
+            outputs = if tr.delay == 0 then Map.toUnfoldable tr.outputs else []
+            moved = foldl (\a (Tuple res u) -> add t.by res (Q.mul u t.quantity) a) acc (outputs :: Array _)
+            consumed = foldl (\a (Tuple res u) -> add t.by res (Q.neg (Q.mul u t.quantity)) a) moved (entries tr.inputs)
+            paid = add t.by before.numeraire (Q.neg t.paid) consumed
+          in
+            maybe paid (\payee -> add payee before.numeraire t.paid paid) tr.payee
+        Nothing -> acc
+    , "Delivered": ignore
+    , "Enacted": ignore
+    , "Repealed": ignore
+    , "Estimated": ignore
+    , "Consumed": \c acc -> add c.entity c.resource (Q.neg c.quantity) acc
+    , "Shortfall": ignore
+    , "Decayed": \d acc -> add d.entity d.resource (Q.neg d.quantity) acc
+    , "ProcedureOutcome": ignore
+    }
+    Map.empty
+    r.record.events
 
 -- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what
 -- | facilities produced, less what facilities, requirements, and decay consumed (§6).
@@ -170,23 +194,36 @@ inv05 before r = concatMap one resources
       expected = lookupQ res flows
     in
       if actual == expected then [] else [ failure INV05 (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
-  flows = foldl addFlow Map.empty r.record.events
-  addFlow acc = case _ of
-    Transformed t -> case Map.lookup t.transformation before.transformations of
-      Just tr ->
-        let
-          now = if tr.delay == 0 then tr.outputs else Map.empty
-          burned = case tr.payee of
-            Nothing -> Map.singleton before.numeraire t.paid
-            Just _ -> Map.empty
-          plus = map (Q.mul t.quantity) now
-          minus = map (Q.mul t.quantity) tr.inputs
-        in
-          sumMaps acc (sumMaps plus (map Q.neg (sumMaps minus burned)))
-      Nothing -> acc
-    Consumed c -> sumInto c.resource (Q.neg c.quantity) acc
-    Decayed d -> sumInto d.resource (Q.neg d.quantity) acc
-    _ -> acc
+  flows = foldEvents
+    { "Lapsed": ignore
+    , "Rejected": ignore
+    , "OrderRemoved": ignore
+    , "Traded": ignore
+    , "Transferred": ignore
+    , "Tariffed": ignore
+    , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
+        Just tr ->
+          let
+            now = if tr.delay == 0 then tr.outputs else Map.empty
+            burned = case tr.payee of
+              Nothing -> Map.singleton before.numeraire t.paid
+              Just _ -> Map.empty
+            plus = map (Q.mul t.quantity) now
+            minus = map (Q.mul t.quantity) tr.inputs
+          in
+            sumMaps acc (sumMaps plus (map Q.neg (sumMaps minus burned)))
+        Nothing -> acc
+    , "Delivered": ignore
+    , "Enacted": ignore
+    , "Repealed": ignore
+    , "Estimated": ignore
+    , "Consumed": \c acc -> sumInto c.resource (Q.neg c.quantity) acc
+    , "Shortfall": ignore
+    , "Decayed": \d acc -> sumInto d.resource (Q.neg d.quantity) acc
+    , "ProcedureOutcome": ignore
+    }
+    Map.empty
+    r.record.events
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain, and facility fills
 -- | stay within their pool's capacity and their ceiling.
@@ -196,12 +233,7 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (
   one m =
     if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
     else []
-  transforms = concatMap
-    ( case _ of
-        Transformed t -> [ t ]
-        _ -> []
-    )
-    r.record.events
+  transforms = select (event @"Transformed") r.record.events
   filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of
@@ -221,21 +253,19 @@ inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (facilit
 
 -- | INV-09 Representation consistency: a stored factor stays within its estimators' bounds.
 inv09 :: WorldState -> RoundResult -> Array Failure
-inv09 before r = concatMap one r.record.events
+inv09 before r = concatMap one (select (event @"Estimated") r.record.events)
   where
-  one = case _ of
-    Estimated e ->
-      let
-        reps = filter (\x -> x.aggregate == e.aggregate && x.domain == e.domain) before.representations
-        bound pick = foldl (\acc x -> maybe Nothing (\b -> map (Q.add (Q.mul x.estimator.shrinkage (Q.mul x.weight (pick b)))) acc) x.estimator.deviationBound) (Just Q.zero) reps
-        -- a Representation with no observation contributes nothing, so zero is always inside the bound
-        below = bound (min Q.zero <<< _.lo)
-        above = bound (max Q.zero <<< _.hi)
-        delta = Q.sub e.factor Q.one
-      in
-        if maybe false (delta < _) below || maybe false (delta > _) above then [ failure INV09 (show e.aggregate <> " factor " <> show e.factor <> " outside its bounds") ]
-        else []
-    _ -> []
+  one e =
+    let
+      reps = filter (\x -> x.aggregate == e.aggregate && x.domain == e.domain) before.representations
+      bound pick = foldl (\acc x -> maybe Nothing (\b -> map (Q.add (Q.mul x.estimator.shrinkage (Q.mul x.weight (pick b)))) acc) x.estimator.deviationBound) (Just Q.zero) reps
+      -- a Representation with no observation contributes nothing, so zero is always inside the bound
+      below = bound (min Q.zero <<< _.lo)
+      above = bound (max Q.zero <<< _.hi)
+      delta = Q.sub e.factor Q.one
+    in
+      if maybe false (delta < _) below || maybe false (delta > _) above then [ failure INV09 (show e.aggregate <> " factor " <> show e.factor <> " outside its bounds") ]
+      else []
 
 -- | INV-10 Signature completeness: a deal executes only if every required signer signed, and a
 -- | procedure Proposal only if its support exceeds the threshold.

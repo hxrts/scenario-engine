@@ -3,6 +3,9 @@
 -- | pressure indicators, and a Market's price trajectory across runs. Pure.
 module Views.Markets
   ( marketPrices
+  , consumedTotal
+  , decayedTotal
+  , lapsedCount
   , roundPressure
   , markets
   , facilities
@@ -19,9 +22,10 @@ import Core.Map (sumInto)
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
-import Core.Query (countEvents, eventsOf, lookupQ, priceOf, totalHolding)
+import Core.Query (lookupQ, priceOf, totalHolding)
+import Core.Slice (Slice, count, event, read, runSlice, select, total, whereEq, whereGt)
 import Core.Types (Id(..), Market, MarketId, ResourceId)
-import Core.World (Event(..), RoundRecord, WorldState)
+import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
 import Data.Either (Either(..), hush)
 import Data.Foldable (for_)
@@ -54,16 +58,7 @@ markets r =
   volume = map
     ( \(Tuple id _) ->
         { name: show id
-        , points: recordPoints r \rec -> exact
-            ( Q.sumQ
-                ( eventsOf
-                    ( case _ of
-                        Traded t | t.market == id && t.quantity > Q.zero -> Just t.quantity
-                        _ -> Nothing
-                    )
-                    rec.events
-                )
-            )
+        , points: recordPoints r \rec -> exact (runSlice (boughtVolume id) rec.events)
         }
     )
     (Map.toUnfoldable r.manifest.initial.markets :: Array _)
@@ -74,14 +69,10 @@ facilities r =
   , columns: [ "Round", "Facility", "Ordered by", "Kind", "Quantity", "Paid" ]
   , rows: concatMap
       ( \rec -> map (\t -> [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ])
-          (eventsOf transformed rec.events)
+          (select (event @"Transformed") rec.events)
       )
       (records r)
   }
-  where
-  transformed = case _ of
-    Transformed t -> Just t
-    _ -> Nothing
 
 economy :: StoredRun -> { totals :: Chart, flows :: Table, pressure :: Table }
 economy r = { totals: resourceTotals r, flows: moneyFlows r, pressure: pressure r }
@@ -99,35 +90,36 @@ moneyFlows :: StoredRun -> Table
 moneyFlows r =
   { title: "Money circulation (from → to category)"
   , columns: [ "From", "To", "Money" ]
-  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events (records r))))
+  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
   }
   where
   w0 = r.manifest.initial
-  add acc = case _ of
-    Transferred t | t.resource == w0.numeraire -> sumInto (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
-    _ -> acc
+  numeraireMoves = whereEq @"resource" w0.numeraire (event @"Transferred")
+  add acc t = sumInto (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
 
 -- | One round's pressure: shortfalls, consumption and decay, and the Proposals rejected or lapsed.
 type Pressure = { shortfall :: Q, consumed :: Q, decayed :: Q, rejected :: Int, lapsed :: Int }
 
+consumedTotal :: Slice Q
+consumedTotal = total (read @"quantity" (event @"Consumed"))
+
+decayedTotal :: Slice Q
+decayedTotal = total (read @"quantity" (event @"Decayed"))
+
+lapsedCount :: Slice Int
+lapsedCount = count (event @"Lapsed")
+
+boughtVolume :: MarketId -> Slice Q
+boughtVolume id = total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"market" id (event @"Traded"))))
+
 roundPressure :: RoundRecord -> Pressure
 roundPressure rec =
   { shortfall: shortfallTotal rec
-  , consumed: Q.sumQ (eventsOf consumedOf rec.events)
-  , decayed: Q.sumQ (eventsOf decayedOf rec.events)
+  , consumed: runSlice consumedTotal rec.events
+  , decayed: runSlice decayedTotal rec.events
   , rejected: rejectionCount rec
-  , lapsed: countEvents isLapsed rec.events
+  , lapsed: runSlice lapsedCount rec.events
   }
-  where
-  consumedOf = case _ of
-    Consumed c -> Just c.quantity
-    _ -> Nothing
-  decayedOf = case _ of
-    Decayed d -> Just d.quantity
-    _ -> Nothing
-  isLapsed = case _ of
-    Lapsed _ -> true
-    _ -> false
 
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table

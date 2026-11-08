@@ -16,14 +16,13 @@ import Prelude
 
 import Schema.Gameboard (Gameboard)
 import Core.Num as Q
-import Core.Query (eventsOf)
+import Core.Slice (event, read, runSlice, total, whereIn)
+import Core.Types (Id(..))
 import Core.Run (RunStatus(..), runStatusName)
-import Core.World (Event(..))
 import Data.Array (concat, concatMap, length, mapWithIndex)
 import Data.Either (Either(..))
-import Data.Foldable (any, sum)
+import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (unwrap)
 import Checks.Objectives (evaluateObjectives)
 import Views.Actions (rejectionCount)
 import Views.Common (MetricSpec, StoredRun, Table, TableRow, completed, final, joinComma, ofCount, price, quantity, records, roundResults, specKeys, specValue, target)
@@ -133,11 +132,9 @@ overview spec r =
     , field "Rounds target" (show launched)
     , field "Assertions failing" (show (length (concat r.assertions)))
     , field "Rejected Proposals" (show (sum (map rejectionCount (records r))))
-    , field (spec.procurementLabel <> " procured") (quantity (Q.sumQ (concatMap (\rec -> eventsOf procured rec.events) (records r))))
+    , field (spec.procurementLabel <> " procured") (quantity (Q.sumQ (map (\rec -> runSlice procured rec.events) (records r))))
     ] <> map (\p -> field ("Final price " <> show p.market) (price p.price)) (marketPrices (final r))
-  procured = case _ of
-    Transformed t | any (\name -> unwrap t.transformation == name) spec.procurement -> Just t.quantity
-    _ -> Nothing
+  procured = total (read @"quantity" (whereIn @"transformation" "the procurement facilities" (map Id spec.procurement) (event @"Transformed")))
 
 -- | Every Actor's objective criteria as met, not met, or not evaluated, with the measured values.
 objectives :: Gameboard -> StoredRun -> Table

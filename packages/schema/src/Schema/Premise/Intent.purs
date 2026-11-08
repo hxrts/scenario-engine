@@ -11,7 +11,7 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Shape (Shape, atKindArg, atOneKey, fieldOf, genericPremiseSum, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, requiredOf)
-import Core.Types (Capability(..), Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF(..), RuleKind, accessBanBody, idShape, ruleKindShape, tariffBody, transferBody, withholdingBody)
+import Core.Types (Capability, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, RuleKind, accessBanBody, idShape, ruleKindShape, tariffBody, transferBody, withholdingBody)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
 import Schema.Premise.Tags (capabilityTags, premiseEnum, ruleKindTags, ruleTags)

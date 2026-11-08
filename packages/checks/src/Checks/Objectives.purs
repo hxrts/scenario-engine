@@ -10,9 +10,10 @@ import Prelude
 import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityHeld, eventsOf, holding)
+import Core.Query (capacityHeld, holding)
+import Core.Slice (count, event, read, runSlice, total, whereEq, whereNamed)
 import Core.Types (EntityId)
-import Core.World (Event(..), RoundResult)
+import Core.World (RoundResult)
 import Data.Array (all, any, concatMap, last, null, zipWith)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -73,20 +74,10 @@ measureValue :: Measure -> EntityId -> RoundResult -> Q
 measureValue msr e r = case msr of
   HoldingOf res -> holding r.world e res
   CapacityAmount c -> capacityHeld r.world e c
-  ShortfallOf res -> sumEvents r case _ of
-    Shortfall s | s.entity == e && s.resource == res -> Just s.quantity
-    _ -> Nothing
-  ShortfallRounds res -> if sumEvents r (shortfall res) > Q.zero then Q.fromInt 1 else Q.zero
-  PayeeReceipts -> sumEvents r case _ of
-    Transformed t | (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e -> Just t.paid
-    _ -> Nothing
-  VolumeOf tid -> sumEvents r case _ of
-    Transformed t | t.transformation == tid -> Just t.quantity
-    _ -> Nothing
+  ShortfallOf res -> runSlice (total (read @"quantity" (shortfall res))) r.record.events
+  ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
+  PayeeReceipts -> runSlice (total (read @"paid" (whereNamed "paid to the Entity as the facility's payee" payee (event @"Transformed")))) r.record.events
+  VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid (event @"Transformed")))) r.record.events
   where
-  shortfall res = case _ of
-    Shortfall s | s.entity == e && s.resource == res -> Just (Q.fromInt 1)
-    _ -> Nothing
-
-sumEvents :: RoundResult -> (Event -> Maybe Q) -> Q
-sumEvents r f = Q.sumQ (eventsOf f r.record.events)
+  shortfall res = whereEq @"resource" res (whereEq @"entity" e (event @"Shortfall"))
+  payee t = (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e
