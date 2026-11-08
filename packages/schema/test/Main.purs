@@ -8,7 +8,7 @@ import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), Rule
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
-import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
+import Core.Shape (Format(..), encodeWith, decodeJsonWith)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
@@ -52,14 +52,14 @@ expectOf text = case decodeJsonWith Premise roundShape (json text) of
   Right r -> (toRound 1 r).expect
 
 -- | The decoders the tests read: each is the shape's decoder, with the core value it makes.
-capability :: String -> Either String Capability
-capability s = decodeWith Premise capabilityShape (fromString s)
+capability :: String -> Either JsonDecodeError Capability
+capability s = decodeJsonWith Premise capabilityShape (fromString s)
 
-rule :: Json -> Either String (RuleF Q)
-rule = decodeWith Premise ruleShape
+rule :: Json -> Either JsonDecodeError (RuleF Q)
+rule = decodeJsonWith Premise ruleShape
 
-intent :: Json -> Either String Intent
-intent = decodeWith Premise intentShape
+intent :: Json -> Either JsonDecodeError Intent
+intent = decodeJsonWith Premise intentShape
 
 decodeText :: String -> Either JsonDecodeError Strategy
 decodeText text = case jsonParser text of
@@ -147,10 +147,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
     it "every Intent kind, in the fixture format" do
       for_ roundTripIntents \i ->
-        (decodeWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
+        (decodeJsonWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
     it "every Capability, in the premise format" do
       for_ roundTripCapabilities \c ->
-        (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
+        (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
 
   describe "Capability tags" do
     it "decodes each capability kind" do

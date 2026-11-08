@@ -52,7 +52,6 @@ assemble premise bindings overrides = case premise of
       , world: initial.world
       , inWorld
       , rounds: resolved.config.rounds
-      , parameters: resolved.gameboard.parameters
       , seats: bindings
       }
   LiteralPremise p
@@ -65,7 +64,6 @@ assemble premise bindings overrides = case premise of
           , world: p.world
           , inWorld: { strategies: Map.empty, params: Object.empty } :: InWorld
           , rounds: p.rounds
-          , parameters: Object.empty
           , seats: bindings
           }
 

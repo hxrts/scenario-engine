@@ -28,9 +28,8 @@ import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (toCharArray)
 import Effect (Effect)
 import Effect.Ref as Ref
-import Effects.Signatures (MetricRow, NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
+import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 -- | A versioned metric of a round: its name, the version of its definition, and its value.
@@ -62,7 +61,6 @@ type StoreBackend =
   , listSummaries :: Effect (Array RunSummary)
   , readManifest :: String -> Effect (Maybe StoredManifest)
   , readRounds :: String -> Effect (Array StoredRound)
-  , readMetric :: String -> String -> String -> Effect (Array MetricRow)
   }
 
 interpretStore :: StoreBackend -> StoreF ~> Effect
@@ -81,15 +79,14 @@ interpretObserve b = case _ of
   ListSummaries k -> k <$> b.listSummaries
   ReadManifest id k -> k <$> b.readManifest id
   ReadRounds id k -> k <$> b.readRounds id
-  ReadMetric id metric version k -> k <$> b.readMetric id metric version
 
 -- | Run a write program over a backend.
 runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a
-runStore b = run (case_ # on (Proxy :: _ "store") (interpretStore b))
+runStore b = run (case_ # on _store (interpretStore b))
 
 -- | Run a read program over a backend. A read program has the `OBSERVE` row only, so it writes nothing.
 runObserve :: forall a. StoreBackend -> Run (OBSERVE + ()) a -> Effect a
-runObserve b = run (case_ # on (Proxy :: _ "observe") (interpretObserve b))
+runObserve b = run (case_ # on _observe (interpretObserve b))
 
 -- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
 -- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.

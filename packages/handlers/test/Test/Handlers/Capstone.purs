@@ -27,13 +27,14 @@ import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
 import Premises.Capstone (JointLine, jointLines)
-import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
+import Schema.Decode.Common (readJson)
+import Test.Handlers.Stub (backendOf, replayCall)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | `packages/premises/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
-recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
+recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< readJson
 
 setup :: Aff Game
 setup = unseated

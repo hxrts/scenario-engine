@@ -1,7 +1,7 @@
--- | The filesystem device: reads a text file, lists a directory, appends a line to a file, and looks
--- | up an environment variable. It knows no file layout; the paths are the caller's. A failure names
+-- | The filesystem device: reads a text file, lists a directory, opens a file to append lines to, and
+-- | looks up an environment variable. It knows no file layout; the paths are the caller's. A failure names
 -- | the path it failed on.
-module Adapters.Filesystem (fileOps, appendLine) where
+module Adapters.Filesystem (fileOps, lineSink) where
 
 import Prelude
 
@@ -24,11 +24,11 @@ fileOps
      }
 fileOps = { env: lookupEnv, list: \path -> map (failed path) (try (readdir path)), read: \path -> map (failed path) (try (readTextFile UTF8 path)) }
 
--- | Append a line to a file, creating its directory first.
-appendLine :: String -> String -> Effect Unit
-appendLine path line = do
+-- | A sink that appends lines to a file. The file's directory is created here, once, not per line.
+lineSink :: String -> Effect (String -> Effect Unit)
+lineSink path = do
   mkdir' (dirname path) { recursive: true, mode: mkPerms all all all }
-  appendTextFile UTF8 path (line <> "\n")
+  pure \line -> appendTextFile UTF8 path (line <> "\n")
 
 failed :: forall a. String -> Either Error a -> Either { path :: String, reason :: String } a
 failed path = lmap (\ex -> { path, reason: message ex })

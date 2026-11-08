@@ -6,7 +6,7 @@
 -- | Market-id order, with distinct selectors ranging over the product of their picks. A selector that
 -- | picks nothing instantiates nothing, so an Entity with no accessible Market proposes nothing from
 -- | that clause. A clause that names Markets only by id runs once.
-module Policy.Interpret (Env, envFor, propose, sign, candidates) where
+module Policy.Interpret (Env, DrawContext, envFor, propose, sign, candidates) where
 
 import Prelude
 
@@ -34,9 +34,13 @@ import Policy.Strategy (CondAlg, ExprAlg, TemplateAlg, foldCond, foldExpr, foldT
 -- | every Choose it meets.
 type Env = { view :: View, params :: Object Q, random :: Int -> Q }
 
+-- | What a policy's draws and parameters come from: the Gameboard's parameters, the seed, and the
+-- | name of the draw stream.
+type DrawContext = { params :: Object Q, seed :: Seed, source :: String }
+
 -- | The policy environment of an Entity at a View. Draws are keyed by the source (the
 -- | in-world stream or a seat's stream), the round, and the Entity, so streams never share draws.
-envFor :: { params :: Object Q, seed :: Seed, source :: String } -> EntityId -> View -> Env
+envFor :: DrawContext -> EntityId -> View -> Env
 envFor c e v =
   { view: v
   , params: c.params

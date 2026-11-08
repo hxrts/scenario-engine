@@ -193,7 +193,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Uncertainty** | An element a scenario set varies: a shock, a parameter override, the player seed, or a derived run. |
 | **Gameboard** | The authored economic world of a premise: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules ([03](03_gameboard.md)). |
 | **Game** | One run's assembled state, which every runner plays: the initial World State, the in-world Strategies, the rounds to play, the parameters, and one SeatBinding per seat. `assemble` builds it from a premise ([07 §4](07_architecture.md#4-key-interfaces)). |
-| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round), `Recorded` (stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
+| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round, including those read from stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
 | **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `ReciprocateLastRound`) ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Expect** | What a premise asserts about one round: sparse expected values, one per field, written as literals. It is checked against Observed. |
 | **Observed** | What a round produced, read into the same record shape as Expect. |
@@ -659,7 +659,7 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 | `INTERPRET` | `Interpret` | The round's transcripts to Intents, read together across players. No confirmation (live play) |
 | `NARRATE` | `Narrate` | Resolved events to front-page and balance-sheet text, requested after each round. Adds no facts |
 | `RECORD` | `Record` | Append a round result, with the transcripts its joint pass read, to the run's records. Each round's write is `RECORD` |
-| `OBSERVE` | `ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric` | Run Store reads. A read program names only this row, so it cannot write. Unreadable stored fields come back as `Left` |
+| `OBSERVE` | `ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds` | Run Store reads. A read program names only this row, so it cannot write. Unreadable stored fields come back as `Left` |
 | `STORE` | `CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun` | Run Store lifecycle writes only ([`Effects.Store`](07_architecture.md#4-key-interfaces)). Round writes stay `RECORD` |
 | `API` | `Call` (an `ApiRequest`, answered by a `Reply`) | Every route of the dashboard's HTTP API. Its paths and codecs are in `Handlers.Api.Route`, and the server supplies what each operation does ([07 §4](07_architecture.md#4-key-interfaces)) |
 

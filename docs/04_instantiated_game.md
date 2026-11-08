@@ -188,7 +188,7 @@ Validation ([03 §12](03_gameboard.md#12-validation-and-compilation)) runs this 
 
 ## 11. Round Execution
 
-Live round execution runs a `Game` through `runLive` (`Handlers.Live`). Each seat's `SeatBinding` answers it: a `Human` seat types its transcript in the propose window, an `Agent` seat answers through its own model call, and any other binding (`Strategy`, `Script`, `Recorded`) is answered by `Handlers.Seats`.
+Live round execution runs a `Game` through `runLive` (`Handlers.Live`). Each seat's `SeatBinding` answers it: a `Human` seat types its transcript in the propose window, an `Agent` seat answers through its own model call, and any other binding (`Strategy`, `Script`) is answered by `Handlers.Seats`.
 
 Each round follows the canonical sequence ([Type System §8.1](02_type_system.md#81-canonical-resolution-sequence)). The round runner (`Effects.Round`) runs the seat input, the joint pass, Propose, and Sign, then calls the engine's `resolveRound` for the remaining phases. In code order:
 

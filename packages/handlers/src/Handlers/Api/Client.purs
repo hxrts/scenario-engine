@@ -9,15 +9,14 @@ module Handlers.Api.Client
 
 import Prelude
 
+import Core.Shape (Format(..), parse)
 import Data.Either (Either(..), either)
 import Effect.Aff (Aff, attempt)
 import Effect.Exception (message)
-import Effects.Api (API, ApiF(..), Reply)
-import Handlers.Api.Route (Wire)
+import Effects.Api (API, ApiF(..), Reply, _apiCall)
+import Handlers.Api.Route (Wire, errorShape)
 import Handlers.Api.Route as Route
 import Run (Run, case_, on, run)
-import Schema.Decode.Common (readJson)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 -- | The fetch device: sends a request and resolves to its reply. A failed request resolves with status 0
@@ -26,7 +25,7 @@ type Fetch = Wire -> Aff Reply
 
 -- | Run API operations over a fetch device.
 runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
-runApi fetch = run (case_ # on (Proxy :: _ "apiCall") (\(Call req k) -> k <$> sendOver fetch req))
+runApi fetch = run (case_ # on _apiCall (\(Call req k) -> k <$> sendOver fetch req))
   where
   sendOver f req = do
     r <- attempt (f (Route.wire req))
@@ -39,6 +38,6 @@ replyText r
   | r.status >= 200 && r.status < 300 = Right r.body
   | otherwise = Left (errorOf r)
       where
-      errorOf reply = case readJson reply.body :: Either String { error :: String } of
+      errorOf reply = case parse Snapshot errorShape reply.body of
         Right { error } -> error
         Left _ -> if reply.body == "" then "HTTP " <> show reply.status else reply.body

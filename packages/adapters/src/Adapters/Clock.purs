@@ -8,11 +8,8 @@ import Data.Int (toNumber)
 import Effect (Effect)
 import Effect.Aff (Aff, Milliseconds(..), delay)
 
-foreign import nowIsoImpl :: Effect String
-
 -- | The current time, for a run's `created` field.
-nowIso :: Effect String
-nowIso = nowIsoImpl
+foreign import nowIso :: Effect String
 
 -- | Wait the given number of milliseconds of wall-clock time.
 delayMs :: Int -> Aff Unit

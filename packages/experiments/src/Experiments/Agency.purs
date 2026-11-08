@@ -3,6 +3,7 @@
 module Experiments.Agency
   ( difference
   , counterfactual
+  , counterfactualFrom
   , playerSeedRuns
   , agency
   ) where
@@ -12,10 +13,9 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Query (eventsOf)
-import Core.Query as Query
 import Core.Types (EntityId)
 import Core.World (Event(..), WorldState)
-import Data.Array (concatMap, filter, length, zipWith)
+import Data.Array (concatMap, elem, filter, length, zipWith)
 import Data.Either (Either(..), hush)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -29,6 +29,7 @@ import Game.Error (GameError(..))
 import Game.Types (Game, SeatBinding(..))
 import Simulator.Simulate (SimRun, simulate)
 import Views.Agency (AgencyProfile)
+import Views.Common (players)
 import Views.Difference (Difference, differenceOfWorlds)
 
 finalWorld :: SimRun -> Maybe WorldState
@@ -44,6 +45,11 @@ difference base other = case finalWorld base, finalWorld other of
 counterfactual :: Seed -> Game -> (Game -> Game) -> Either GameError { base :: SimRun, variant :: SimRun, difference :: Difference }
 counterfactual seed game change = do
   base <- simulate seed game
+  counterfactualFrom seed base game change
+
+-- | The same, over a base run already played: only the variant is run.
+counterfactualFrom :: Seed -> SimRun -> Game -> (Game -> Game) -> Either GameError { base :: SimRun, variant :: SimRun, difference :: Difference }
+counterfactualFrom seed base game change = do
   variant <- simulate seed (change game)
   pure { base, variant, difference: difference base variant }
 
@@ -60,10 +66,9 @@ agency gameboard presets seed game alternative actors = do
   traverse (profile base replacement) actors
   where
   profile base replacement actor = do
-    variant <- simulate seed game { seats = Map.insert actor (Strategy replacement) game.seats }
+    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.insert actor (Strategy replacement) g.seats })
     let
-      d = difference base variant
-      isAggregate e = maybe false Query.isAggregate (finalWorld base >>= \w -> Map.lookup e w.entities)
+      isAggregate e = maybe false (\w -> not (elem e (players w))) (finalWorld base)
       absSum xs = Q.sumQ (map Q.abs xs)
       prices = absSum (map _.delta d.prices)
       others = absSum (map _.delta (filter (\h -> h.entity /= actor && not (isAggregate h.entity)) d.holdings))

@@ -13,6 +13,7 @@ module Effects.Api
   , Reply
   , API
   , call
+  , _apiCall
   ) where
 
 import Prelude
@@ -69,9 +70,9 @@ derive instance Functor ApiF
 
 type API r = (apiCall :: ApiF | r)
 
-apiCall :: Proxy "apiCall"
-apiCall = Proxy
+_apiCall :: Proxy "apiCall"
+_apiCall = Proxy
 
 -- | Send a request; the reply's status and body.
 call :: forall r. ApiRequest -> Run (API + r) Reply
-call req = lift apiCall (Call req identity)
+call req = lift _apiCall (Call req identity)

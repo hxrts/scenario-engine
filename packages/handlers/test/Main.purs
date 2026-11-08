@@ -79,7 +79,6 @@ memoryStore saved =
   , listSummaries: pure []
   , readManifest: \_ -> pure Nothing
   , readRounds: \_ -> pure []
-  , readMetric: \_ _ _ -> pure []
   }
 
 strategy :: String -> Strategy

@@ -13,15 +13,15 @@ module Handlers.Api.Route
   , parse
   , wire
   , failWith
+  , errorShape
   ) where
 
 import Prelude
 
 import Core.Shape as Shape
-import Core.Shape (Shape, decodeWith, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
+import Core.Shape (Shape, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
-import Data.Argonaut.Encode (encodeJson)
+import Data.Argonaut.Decode (decodeJson)
 import Data.Array (catMaybes, filter)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
@@ -33,7 +33,7 @@ import Effects.Api (ApiRequest(..), DeriveRequest, Launch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
-import Schema.Decode.Common (readJson)
+import Schema.Decode.Common (decodeError)
 
 -- | The path prefix every operation's URL starts with: the HTTP device hands these requests to the route.
 apiPrefix :: String
@@ -50,7 +50,11 @@ type Wire = { method :: String, url :: String, body :: String }
 
 -- | An error reply: the status, and the message in the body's `error` field.
 failWith :: Int -> String -> Reply
-failWith status error = { status, body: stringify (encodeJson { error }) }
+failWith status error = { status, body: stringify (encodeWith Shape.Snapshot errorShape { error }) }
+
+-- | An error reply's body.
+errorShape :: Shape { error :: String }
+errorShape = object "ErrorBody" ((\error -> { error }) <$> fieldOf "error" "what went wrong" stringShape _.error)
 
 -- | Answer a request: parse it (an error reply when it is not a route or its body does not decode),
 -- | then run the operation.
@@ -63,9 +67,9 @@ parse req = case req.method, segments of
   "GET", [ "api", "runs" ] -> Right (ListRuns { archived: param "archived" "" == "true" })
   "GET", [ "api", "premise" ] -> Right Premise
   "GET", [ "api", "glossary" ] -> Right Glossary
-  "POST", [ "api", "runs" ] -> map LaunchRun (decodeBody req.body :: Either Reply Launch)
-  "POST", [ "api", "runs", id, "derive" ] -> map (\body -> Derive { id, body }) (decodeDerive req.body)
-  "POST", [ "api", "runs", id, "resume" ] -> map (\b -> Resume { id, rounds: b.rounds }) (decodeBody req.body :: Either Reply { rounds :: Int })
+  "POST", [ "api", "runs" ] -> map LaunchRun (decodeBody launchShape req.body)
+  "POST", [ "api", "runs", id, "derive" ] -> map (\body -> Derive { id, body }) (decodeBody deriveShape req.body)
+  "POST", [ "api", "runs", id, "resume" ] -> map (\b -> Resume { id, rounds: b.rounds }) (decodeBody resumeShape req.body)
   "POST", [ "api", "runs", id, "archive" ] -> Right (Archive id)
   "POST", [ "api", "runs", id, "unarchive" ] -> Right (Unarchive id)
   "DELETE", [ "api", "runs", id ] -> Right (Delete { id, confirm: param "confirm" "" })
@@ -80,13 +84,22 @@ parse req = case req.method, segments of
   segments = map (\s -> fromMaybe s (decodeURIComponent s)) (filter (_ /= "") (split (Pattern "/") req.path))
   param k d = fromMaybe d (Object.lookup k req.query)
 
--- | A body decoded as the typed record it must be; a body that does not decode is a 400.
-decodeBody :: forall a. DecodeJson a => String -> Either Reply a
-decodeBody text = either (\e -> Left (failWith 400 e)) Right (readJson text)
+-- | A body decoded through its shape; a body that does not decode is a 400.
+decodeBody :: forall a. Shape a -> String -> Either Reply a
+decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.parse Shape.Premise s text))
 
--- | A derive body: a body that does not match `deriveShape` is a 400.
-decodeDerive :: String -> Either Reply DeriveRequest
-decodeDerive text = either (Left <<< failWith 400) Right (readJson text >>= decodeWith Shape.Premise deriveShape)
+-- | The body of `POST /api/runs`.
+launchShape :: Shape Launch
+launchShape = object "Launch" ado
+  name <- fieldOf "name" "the new run's name" stringShape _.name
+  preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
+  playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
+  rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
+  in { name, preset, playerSeed, rounds }
+
+-- | The body of `POST /api/runs/:id/resume`.
+resumeShape :: Shape { rounds :: Int }
+resumeShape = object "Resume" ((\rounds -> { rounds }) <$> fieldOf "rounds" "the new total round count" intShape _.rounds)
 
 -- | `playerSeed` in a derive body: absent keeps the source's seed, null draws a new one, a number names one.
 seedChoiceShape :: Shape (Maybe (Maybe Int))
@@ -114,14 +127,14 @@ wire = case _ of
   ListRuns { archived } -> get ("/api/runs" <> query (if archived then [ "archived=true" ] else []))
   Premise -> get "/api/premise"
   Glossary -> get "/api/glossary"
-  LaunchRun l -> post "/api/runs" (stringify (encodeJson l))
+  LaunchRun l -> post "/api/runs" (stringify (encodeWith Shape.Premise launchShape l))
   Entities id -> get (run id <> "/entities")
   Entity id e -> get (run id <> "/entity/" <> enc e)
   RunView { id, view, round } -> get (run id <> "/" <> view <> query (catMaybes [ optional "round" round ]))
   Compare { runs, market } -> get ("/api/compare" <> query ([ "runs=" <> joinWith "," (map enc runs) ] <> catMaybes [ optional "market" market ]))
   Agency { playerSeed, preset, alternative } -> get ("/api/agency" <> query (catMaybes [ optional "playerSeed" playerSeed, optional "preset" preset, optional "alternative" alternative ]))
   Derive { id, body } -> post (run id <> "/derive") (stringify (encodeWith Shape.Premise deriveShape body))
-  Resume { id, rounds } -> post (run id <> "/resume") (stringify (encodeJson { rounds }))
+  Resume { id, rounds } -> post (run id <> "/resume") (stringify (encodeWith Shape.Premise resumeShape { rounds }))
   Archive id -> post (run id <> "/archive") "{}"
   Unarchive id -> post (run id <> "/unarchive") "{}"
   Delete { id, confirm } -> { method: "DELETE", url: run id <> query [ "confirm=" <> enc confirm ], body: "" }

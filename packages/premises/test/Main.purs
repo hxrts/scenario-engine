@@ -4,7 +4,7 @@ import Prelude
 
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.Actor (boundShape, metricShape)
-import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
+import Core.Shape (Format(..), encodeWith, decodeJsonWith)
 import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
@@ -190,29 +190,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case decodeWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
+      case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (AccessBan a))) -> do
           a.jurisdiction `shouldEqual` Id "US"
           a.target `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case decodeWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (Tariff t) -> do
           t.jurisdiction `shouldEqual` Id "US"
           t.origin `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      decodeWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      decodeWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
-          Just _ -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
+          Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
         p = strategy

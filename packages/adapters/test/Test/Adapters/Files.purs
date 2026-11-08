@@ -15,37 +15,55 @@ module Test.Adapters.Files
 
 import Prelude
 
+import Data.Maybe (fromMaybe)
 import Effect (Effect)
+import Node.Encoding (Encoding(..))
+import Node.FS.Perms (permsAll)
+import Node.FS.Sync (chmod, exists, mkdir', mkdtemp, readTextFile, rm', writeTextFile)
+import Node.Path (dirname)
+import Node.Process (lookupEnv, setEnv)
 
-foreign import fileExists :: String -> Effect Boolean
+fileExists :: String -> Effect Boolean
+fileExists = exists
 
-foreign import removeFile :: String -> Effect Unit
-
-foreign import createV1StoreImpl :: String -> Effect Unit
+removeFile :: String -> Effect Unit
+removeFile path = rm' path { force: true, maxRetries: 0, recursive: false, retryDelay: 100 }
 
 -- | A store file as schema version 1 wrote it, with one run (run-1), for upgrade tests.
-createV1Store :: String -> Effect Unit
-createV1Store = createV1StoreImpl
-
-foreign import setRawSpecImpl :: String -> String -> String -> Effect Unit
+foreign import createV1Store :: String -> Effect Unit
 
 -- | Overwrite a run's stored spec with raw text, below the typed port: the store then holds text that
 -- | does not decode, which the port must report as unreadable in that row.
-setRawSpec :: String -> String -> String -> Effect Unit
-setRawSpec = setRawSpecImpl
+foreign import setRawSpec :: String -> String -> String -> Effect Unit
 
 -- | A new empty scratch directory under the system temporary directory.
-foreign import tempDir :: Effect String
+tempDir :: Effect String
+tempDir = do
+  root <- fromMaybe "/tmp" <$> lookupEnv "TMPDIR"
+  mkdtemp (root <> "/sp-adapters-")
 
 -- | Remove a directory tree, if it exists.
-foreign import removeTree :: String -> Effect Unit
+removeTree :: String -> Effect Unit
+removeTree path = rm' path { force: true, maxRetries: 0, recursive: true, retryDelay: 100 }
 
-foreign import readFileText :: String -> Effect String
+readFileText :: String -> Effect String
+readFileText = readTextFile UTF8
 
-foreign import writeFileText :: String -> String -> Effect Unit
+writeFileText :: String -> String -> Effect Unit
+writeFileText path text = do
+  mkdir' (dirname path) { recursive: true, mode: permsAll }
+  writeTextFile UTF8 path text
 
 -- | Write an executable `pi` script (a shell body) into `binDir`, and put `binDir` first on the PATH.
 -- | Returns the PATH it replaced, for `restorePath`.
-foreign import installPi :: String -> String -> Effect String
+installPi :: String -> String -> Effect String
+installPi binDir body = do
+  let file = binDir <> "/pi"
+  writeFileText file ("#!/bin/sh\n" <> body <> "\n")
+  chmod file permsAll
+  old <- fromMaybe "" <$> lookupEnv "PATH"
+  setEnv "PATH" (binDir <> ":" <> old)
+  pure old
 
-foreign import restorePath :: String -> Effect Unit
+restorePath :: String -> Effect Unit
+restorePath = setEnv "PATH"

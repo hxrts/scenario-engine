@@ -23,7 +23,9 @@ module Premises.Capstone
 
 import Prelude (map, otherwise, ($), (<<<), (==))
 import Premises.Names as N
-import Game.Types (Bindings, SeatBinding(..))
+import Game.Bindings (strategyBindings)
+import Game.Types (Bindings)
+import Data.Bifunctor (lmap)
 import Data.Map as Map
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
@@ -266,14 +268,11 @@ counterfactualObjectives = map (\e -> objective e (if e == N.us then Met else No
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
-seatBindings = strategyBindings (seats us)
+seatBindings = strategyBindings (map (lmap Id) (seats us))
 
 -- | The counterfactual's seats: the capstone's, with the US's Strategy replaced (the left operand wins).
 counterfactualBindings :: Bindings
-counterfactualBindings = Map.union (strategyBindings [ Tuple N.us usWithoutDeployment ]) seatBindings
-
-strategyBindings :: Array (Tuple String Strategy) -> Bindings
-strategyBindings xs = Map.fromFoldable (map (\(Tuple e s) -> Tuple (Id e) (Strategy s)) xs)
+counterfactualBindings = Map.union (strategyBindings [ Tuple (Id N.us) usWithoutDeployment ]) seatBindings
 
 -- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
 -- | and every objective's expected outcome in each case, in the premise's spelling.
