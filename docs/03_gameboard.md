@@ -10,7 +10,7 @@
 
 The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a premise ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.
 
-Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type System [§2.5](02_type_system.md#25-glossary)) and must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)). Terms, invariants, and numerics are defined in the Type System ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). The Gameboard is declarative: it holds no player assignments, Intents, or evolving state, and its checks run before any game starts ([§12](#12-validation-and-compilation)).
+Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type System [§2.5](02_type_system.md#25-glossary)) and must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)). Terms and invariants are defined in the Type System ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). The Gameboard is declarative: it holds no player assignments, Intents, or evolving state, and its checks run before any game starts ([§12](#12-validation-and-compilation)).
 
 **Gameboard files → Validated Gameboard** (for one Instantiation Configuration)
 
@@ -31,23 +31,23 @@ A premise is a directory of JSON section files. The loader merges every file exc
 | `representations.json` | Representation schemes (§9) | `schemes` |
 | `game-rules.json` | Named parameters (§11) and Rules in force at the start (§5.5) | `parameters`, `rules` |
 | `policies.json` | Policy catalog (§8) | `policies` |
-| `instantiation.json` | Instantiation Configuration | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
+| `instantiation.json` | Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all premises ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)).
+Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all premises ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
 
-In a section, `rounds` is a list of fixture rounds (`proposals`, `expect`), not the round count. A `representations` key in a section is the instantiated shape. Gameboards declare schemes under `schemes`. The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
+A `representations` key in a Gameboard section is decoded but ignored: instantiation sets the Representations from `instantiation.json` ([04 §5](04_instantiated_game.md#5-representation-assignment)). The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
 ## 3. Premise
 
 `premise.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
-- `numeraire`: the Resource in which Facility costs are paid (Meridian: `M`).
-- `horizon`: simulated years (Meridian: 5).
-- `roundRange`: `[min, max]`, the supported round counts, with `1 <= min <= max`.
+- `numeraire`: the Resource in which Facility costs are paid.
+- `horizon`: simulated years.
+- `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
 
-The premise says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's is in [05 §6](05_test_instance.md#6-premise-meridian).
+The premise says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's values are in [05 §6](05_test_instance.md#6-premise-meridian).
 
 ### 3.1 Strategic tensions
 
@@ -67,7 +67,7 @@ A report compiles into explicit configuration in [§5](#5-economic-structure)–
 
 - `transferability`: `Free`, `Restricted`, or `NonTransferable` (required).
 - `reservable` (default `false`): whether a Facility may reserve it.
-- `decay` (optional): `{ "rate": q }`, a per-round decay rate.
+- `decay` (optional): the per-round decay rate, a plain quantity.
 
 The engine attaches no behavior to a Resource's name. Its effects come from the Facilities, Markets, and cycle entries that reference it.
 
@@ -81,21 +81,21 @@ The engine attaches no behavior to a Resource's name. Its effects come from the 
 - `access`: the Entity ids allowed to trade.
 - `position` (default `0`): the initial position on the cost curve.
 
-Limit-price orders and allocation are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
+Limit-price orders and clearing are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
 
 ### 5.3 Facilities
 
 `transformations.json` maps each Facility (Transformation) id to:
 
 - `inputs`, `outputs`: Resource to quantity per unit.
-- `reserves`: reservable Resources the Facility locks per unit (Meridian's deployment reserves `Mil`). A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
+- `reserves`: reservable Resources the Facility locks per unit. A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
 - `cost` (optional): a CostFunction giving the price per unit. A costed Facility requires `payee`.
 - `payee` (optional): the Entity paid for the Facility's output.
 - `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
-- `delay` (default `0`): rounds before output is delivered. The effective delay is at least one round ([§10.2](#102-temporal-structure)).
+- `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. Capacity `effects` always land at least one round after the order.
 - `minimum` (default `0`) and `maximum` (optional): bounds on one Entity's order per round.
 - `ownerSigns` (default `false`): the capacity's owner must sign every order.
-- `effects` (optional): `[{ capacity, perUnit, holder?, rounds? }]`, changes to capacities per unit ordered, applied after `delay`.
+- `effects` (optional): `[{ capacity, perUnit, holder?, rounds? }]`, changes to capacities per unit ordered. `holder` defaults to the ordering Entity. `rounds`, if given, reverses the change after that many rounds.
 
 Defense procurement, public campaigns, energy shipping, and military deployment are all Facilities. Facilities are not a separate type.
 
@@ -106,29 +106,29 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 - `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
 - `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round.
 - `shares`: `[{ from, to, share, source }]`. A share of sales revenue (`sales:<resource>`) or of payee receipts (`payee`).
-- `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. A shortfall accrues `penalty` against that Entity's incoming flows.
+- `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` against that Entity's incoming flows.
 
 Decay follows each Resource's `decay`. Capacity changes come from Facility `effects` and Rules. No renewal or depreciation rule exists. Rates are per round ([§10.2](#102-temporal-structure)).
 
 ### 5.5 Geography, access, and Rules
 
-- **Regions** are separate Markets (Meridian has Atlantic and Asian Energy Markets). There is no node hierarchy.
-- **`transport`** maps a Resource to the Facility that carries it between regions. A cross-region movement bundles a Transfer with that Facility's order, which the owning Policy signs (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)).
+- **Regions** are separate Markets. There is no node hierarchy.
+- **`transport`** maps a Resource to the Facility that carries it between regions. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`jurisdiction`** maps an Entity to the Entity that governs it, when different from itself.
-- **`rules`** are institutional conditions: `tariff` `{ jurisdiction, origin, rate }`, `accessBan` `{ jurisdiction, target }`, and `withholding` `{ capacity, units }`. A Rule in force at the start is listed in `game-rules.json`. Rules enacted during play need the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
+- **`rules`** are institutional conditions: `tariff` `{ jurisdiction, origin, rate }`, `accessBan` `{ jurisdiction, target }`, and `withholding` `{ capacity, units }`. A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
 
-The schema has no separate constraints section. Limits are expressed through reserves, capacities, Market access, and Rules. Settlement enforces non-negativity at commit: a negative holding or reserve fails the round ([04 §11](04_instantiated_game.md#11-round-execution)). That is a runtime invariant, not a validation check.
+The schema has no separate constraints section. Limits are expressed through reserves, capacities, Market access, and Rules. A negative holding or reserve fails the round at commit ([04 §11](04_instantiated_game.md#11-round-execution)). That is a runtime invariant, not a validation check.
 
 ## 6. Entity Catalog
 
 `entities.json` maps each Entity id to:
 
 - `accounts`: Resource to holding (required).
-- `capabilities`: a list of capability tags (required, [§6.2](#62-actor-definitions)).
+- `capabilities`: a list of capability tags (required). The tags are `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<tariff|accessBan|withholding>`, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
 - `capacities` (optional): capacity name to quantity.
-- `definition` (an Actor, [§6.2](#62-actor-definitions)) or `aggregate` (an Aggregate, [§6.3](#63-aggregates)). Every Meridian Entity has one of the two.
+- `definition` (an Actor, [§6.2](#62-actor-definitions)) or `aggregate` (an Aggregate, [§6.3](#63-aggregates)). An Entity should have exactly one. Validation does not check this.
 
 ### 6.1 Projections
 
@@ -147,10 +147,9 @@ An Actor is an Entity with a `definition`:
 - `required` (default `false`): the configuration must select this Actor.
 - `seat` (default `true`): the Actor may be controlled by a seat.
 - `npc` (default `[]`): the NPC Policy ids that may drive it.
-- `fallback` (optional): used when the Actor is unselected ([§6.5](#65-fallbacks)). Required for every Actor that is not `required`.
-- `objective` (required): `{ description, criteria }` ([§10.5](#105-evaluation)).
+- `fallback` (optional): used when the Actor is unselected ([§6.5](#65-fallbacks)). Required for every Actor that is not `required` (`MissingFallback`).
+- `objective` (`{ description, criteria }`, [§10.5](#105-evaluation)): required by validation (`MissingObjective`).
 - `description`, `dependency` (default `""`): prose. `dependency` is not checked.
-- `capabilities`: tags `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<tariff|accessBan|withholding>`, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
 
 [INV-19](02_type_system.md#inv-19) requires a capability, a dependency, and a measurable objective for every Actor. Validation checks the objective only ([§12.3](#123-not-yet-checked-planned)).
 
@@ -164,7 +163,7 @@ An Aggregate is an Entity with an `aggregate` block:
 
 The Aggregate's accounts are its **residual**: the holdings that remain when its coverage Actors are explicit. An unselected coverage Actor's holdings are added to them at instantiation ([04 §4.2](04_instantiated_game.md#42-partitioning)).
 
-A collective procedure is a weighted-signature rule on the Aggregate's own Proposals. Its Policy publishes a procedure Proposal, members sign it, and it executes in the same round if `residualWeight` plus the signing members' weights exceeds `threshold`. Otherwise it lapses. Signing moves no resources. A procedure is not a Representation ([§9](#9-representation-schemes)).
+A collective procedure is a weighted-signature rule on the Aggregate's own Proposals (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). A procedure is not a Representation ([§9](#9-representation-schemes)).
 
 ### 6.4 Overlap
 
@@ -180,7 +179,7 @@ A fallback is a tag, in an Actor's `fallback` or in the configuration's `fallbac
 | `policy:<policy>` | The Entity stays and is driven by that in-world Policy as an NPC. Its capabilities stay with it. |
 | `omission` | No change. Its holdings and capabilities remain in World State with no controller, so it submits nothing. |
 
-The three are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)). Required Actors cannot be unselected, so they need no fallback.
+The three are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)).
 
 ## 7. Structural Relationships
 
@@ -188,7 +187,7 @@ The schema has no relationship list. Mechanical links are the fields above (depe
 
 ## 8. Policy Catalog
 
-`policies.json` maps each Policy id to a Strategy, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Strategies are declarative and fixed for a game. The loader checks that every name a Strategy uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Policy.Interpret`): `self` is the acting Entity at every entity position, so the loader does not check it.
+`policies.json` maps each Policy id to a Strategy, `{ rules, sign }`, in the shared decision language (Type System [§4](02_type_system.md#4-policies)). Strategies are declarative and fixed for a game. The loader checks that every name a Strategy uses (Entities, Markets, Resources, Facilities, parameters) exists. `$home` and `self` resolve at run time (`Policy.Interpret`), so the loader does not check them.
 
 Policies are referenced by an Actor's `npc` list (chosen in the configuration's `npcs`) and by `aggregate.policy`. Seat presets are bound by the simulator or session ([06 §4](06_simulator.md#4-seat-policies)).
 
@@ -206,29 +205,27 @@ A Policy reads last round's recorded events (for example `TransformedLastRound`)
 
 A scheme is a template. Which representatives are active, and their weights, are set at instantiation ([04 §5](04_instantiated_game.md#5-representation-assignment)). Schemes declare no permitted ranges for those values. Range checks are planned. The estimator formula and adjustment pipeline are in Type System [§7.2](02_type_system.md#72-representation-and-estimators)–[§7.4](02_type_system.md#74-estimation-semantics).
 
-Representatives' choices move the Aggregate, so their observations are not independent samples. The Gameboard keeps that influence explicit and bounded. Estimator strength is a balancing parameter, not a claim of unbiased inference.
-
 ## 10. Game Rules
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine as Proposals that name more than one signer, such as deals and procedure Proposals ([INV-10](02_type_system.md#inv-10), Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). Two Gameboard rules govern what they can move: Resource transferability ([§5.1](#51-resources)) and each Entity's capabilities ([§6.2](#62-actor-definitions)). A switch restricting multi-signer Proposals by Resource or Entity category is planned.
+Agreements reach the engine as Proposals that name more than one signer, such as deals and procedure Proposals ([INV-10](02_type_system.md#inv-10)). Two Gameboard rules govern what they can move: Resource transferability ([§5.1](#51-resources)) and each Entity's capabilities ([§6.2](#62-actor-definitions)). A switch restricting multi-signer Proposals by Resource or Entity category is planned.
 
 Aggregates do not sign Proposals in the round runner. Procedure Proposals are signed by their members ([04 §11](04_instantiated_game.md#11-round-execution)).
 
 ### 10.2 Temporal structure
 
-The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). Rule changes take effect at the next round boundary. Facility output and effects become visible after `max(1, delay)` rounds. A procedure Proposal is published, signed, and executed within one round. Rates are per round.
+The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). Rule changes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round. Rates are per round.
 
-The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration. Scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Meridian's energy disruption is a set of named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)), not a shock declaration.
+The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration. Scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Scenario shocks are named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)).
 
 ### 10.3 Information visibility
 
-Planned, not implemented. The Gameboard does not declare public, private, or capability-gated information. Every Policy's View currently contains the same prices, Rules, and events (`Core.Engine.Prepare.observe`), so [INV-16](02_type_system.md#inv-16) is not enforced yet.
+Planned, not implemented. The Gameboard declares no public, private, or capability-gated information. Every Policy's View currently holds the same prices, Rules, and events ([04 §6](04_instantiated_game.md#6-policy-initialization)), so [INV-16](02_type_system.md#inv-16) is not enforced yet.
 
 ### 10.4 Available actions
 
-An Actor acts through its capabilities ([§6.2](#62-actor-definitions)), the Markets it can access, and the Facilities and capacities it holds. Intents and their rules are in Type System [§3](02_type_system.md#3-intents-and-economic-actions).
+An Actor acts through its capabilities ([§6](#6-entity-catalog)), the Markets it can access, and the Facilities and capacities it holds. Intents and their rules are in Type System [§3](02_type_system.md#3-intents-and-economic-actions).
 
 ### 10.5 Evaluation
 
@@ -240,9 +237,7 @@ Criterion = { metric: MetricRef, over: final | everyRound | cumulative, atLeast:
 MetricRef = { entities: [EntityId], measure, negated? }
 ```
 
-`measure` is one of `holding:<resource>`, `capacity:<capacity>`, `shortfall:<resource>`, `shortfallRounds:<resource>`, `payeeReceipts`, or `volume:<transformation>`, summed over the listed entities. `negated: true` expresses "at most", with a negative `atLeast`.
-
-Each criterion is reported as met, not met, or not evaluated (when the run has no rounds or series, [06 §9.2](06_simulator.md#92-run-details)), with its values. There is no single winner, and outcomes are not reduced to Money. System-level measures are planned.
+`measure` is one of `holding:<resource>`, `capacity:<capacity>`, `shortfall:<resource>`, `shortfallRounds:<resource>`, `payeeReceipts`, or `volume:<transformation>`, summed over the listed entities. `negated: true` expresses "at most", with a negative `atLeast`. Each criterion is reported as met, not met, or not evaluated ([06 §9.2](06_simulator.md#92-run-details)). System-level measures are planned.
 
 ## 11. Initialization Constraints
 
@@ -259,16 +254,16 @@ Gameboard `parameters` are fixed for a Gameboard. A simulation may override them
 
 ### 12.1 Load pipeline
 
-`Premises.Load` decodes a premise's files. `Game.Premise.checkPremise` runs the checks, in order:
+`Premises.Load` decodes a premise's files. `Game.Premise.checkPremise` then validates them, in order:
 
 1. Decode `instantiation.json` as the configuration.
-2. Merge the other sections (a duplicate key fails).
-3. Decode the Gameboard.
+2. Merge the other sections (a duplicate key fails) and decode the Gameboard, including its parameters and Policy catalog.
+3. Decode the seat presets.
 4. `validateGameboard gameboard config` (checks in [§12.2](#122-checks-implemented)–[§12.4](#124-resolution-consistency)).
-5. Decode and check every Policy.
-6. Check every seat preset against the Gameboard.
+5. Check every Policy's names against the Gameboard.
+6. Check every seat preset's names against the Gameboard.
 
-Load failures are `LoadError` values: `Unreadable`, `NotAnObject`, `DuplicateKey`, `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`), `Invalid` (validation errors), and `Unresolved` (a Policy or preset names something the Gameboard lacks).
+Load failures are `LoadError` values (`Premises.Load`): `Unreadable`, `NotAnObject`, `DuplicateKey`, and `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`). `checkPremise` returns `GameError` values: `Invalid` (validation errors) and `Unresolved` (a Policy or preset names something the Gameboard lacks).
 
 ```purescript
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
@@ -319,7 +314,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which encodes them through their `Shape` codecs into the Meridian files, presets, fixtures, and capstone run file; then `Transcript` regenerates the capstone recording (`packages/premises/capstone/transcript.json`) with no model call. Before anything is written, each file is decoded and checked. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
+Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording ([08](08_coverage.md)), with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
 
 ## 13. Provenance and Versioning
 
@@ -329,7 +324,7 @@ Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in
 
 ## 14. Reference Gameboard
 
-Meridian, a five-year US–China industrial competition, is the reference Gameboard, specified in [05 Part II](05_test_instance.md#part-ii-gameboard-configuration). Its files are listed in [§2](#2-gameboard-structure).
+Meridian is the reference Gameboard, specified in [05 Part II](05_test_instance.md#part-ii-gameboard-configuration). Its files are listed in [§2](#2-gameboard-structure).
 
 ---
 

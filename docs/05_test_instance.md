@@ -65,7 +65,7 @@ Markets and facilities price through the shared CostFunction primitive. Faciliti
 
 | Market ID | Region | Home Entities | Money reserve | Energy reserve | Operational interval |
 |---|---|---|---:|---:|---|
-| `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, US_WORKERS, GLOBAL_SMES | 700 M | 350 E | −80 ≤ x ≤ 300 |
+| `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, EU_POOL, US_WORKERS, GLOBAL_SMES | 700 M | 350 E | −80 ≤ x ≤ 300 |
 | `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS | 500 M | 250 E | −80 ≤ x ≤ 200 |
 
 SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy. Other Entities trade only on their home node. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
@@ -161,7 +161,7 @@ A hypothetical near-future economy of intensifying competition between the Unite
 
 ### 6.2 Time horizon
 
-Five simulated years, played as five one-year rounds. Other instantiations may use four to eight rounds. Annual flows scale to round duration.
+Five simulated years, played as five one-year rounds. Other instantiations may use four to eight rounds. Scaling annual flows to round length is planned ([INV-28](02_type_system.md#inv-28)) and not yet implemented.
 
 ### 6.3 Central tensions
 
@@ -316,8 +316,6 @@ CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-th
 | SME | Implicit coverage: accounts merge into GLOBAL_SMES. No Representation |
 | AID | Implicit coverage: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
 
-An unassigned responsibility fails initialization ([INV-25](02_type_system.md#inv-25)).
-
 ### 9.3 Objectives
 
 Each Actor's objective is data: measurable criteria over the recorded game ([Gameboard §10.5](03_gameboard.md#105-evaluation)). The criteria are provisional, never affect the economy, and are reported per Actor as met or not met, with values.
@@ -368,7 +366,7 @@ The owner is a member of `GLOBAL_SMES`. Their holdings and direct transactions a
 
 ## 11. Policy Catalog
 
-Policies are declarative strategies ([Type System §4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record.
+Each declarative Policy runs a Strategy: a rule set over World State ([Type System §4](02_type_system.md#4-policies)). Memory such as "the US conducted a major deployment last round" is read from World State and the public event record.
 
 ### 11.1 China NPC Policy: `china-strategic-v0`
 
@@ -423,14 +421,14 @@ Each procedure is a weighted-signature rule on Proposals the EU's Policy publish
 The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy-eu-coordination-v0)):
 
 - **Solidarity Proposal:** sell up to 8 E on `energy-atlantic`, drawing first on the pool and then on its holdings. The pool's transfer is scaled to what it holds, so the pool gives min(8, pool) and the EU sells 8 E. Published in any round whose beginning-of-round Atlantic price exceeds 3.0 M/E, provided the EU's holdings cover its operating requirement of 8 E.
-- **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction affecting the Atlantic region is in force.
+- **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction is in force and no EU tariff is. The Atlantic-region condition in the original design is not encoded: the trigger is any US or Chinese restriction. This deviation is open.
 
 | Procedure | Germany signs | Germany does not sign |
 |---|---|---|
 | `eu-solidarity` | 0.40 + 0.20 = 0.60: executes | 0.40: lapses |
 | `eu-trade` | 0.48 + 0.20 = 0.68: executes | 0.48: executes |
 
-Germany is pivotal for solidarity and has no veto on trade. Germany may also Transfer Energy into the solidarity pool at any time, independent of signing. That Transfer is an ordinary Proposal by Germany, made in the Fixture B1 scenario rather than by its default Policy. This is a stylized procedure, not a claim about EU voting law.
+Germany is pivotal for solidarity and has no veto on trade. Germany may also Transfer Energy into the solidarity pool at any time, independent of signing. That Transfer is an ordinary Proposal by Germany, made in Fixture B1 rather than by its default Policy. This is a stylized procedure, not a claim about EU voting law.
 
 ### 12.2 Small-Business Owner → Global SMEs (Representation)
 
@@ -519,7 +517,7 @@ Actor objectives ([§9.3](#93-objectives)) plus the system metrics in [§30](#30
 
 ### 14.1 Seat assignments
 
-Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human. In simulation it may be an AI agent or a preset strategy. Rebinding a seat requires no Gameboard change.
+Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID. In live play each seat's Policy is a human. In simulation it may be an AI agent or a preset Strategy. Rebinding a seat requires no Gameboard change.
 
 China is Actor `CN` with controller `NPC china-strategic-v0`. It has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0` with Germany among its members and both collective procedures active. No human controls it. The `sme-energy-sample` Representation is active.
 
@@ -534,7 +532,7 @@ With Germany implicit, the German government's accounts sit in the EU Aggregate 
 | Military | 24 + 50 = 74 | 74 |
 | Soft Power | 45 + 75 = 120 | 120 |
 
-Implicitly, the EU → DE and DE → EU flows become internal and net to zero. DE's 8 E requirement joins the EU's (16 E total). Germany's 0.20 weight joins the EU's residual weight (0.60 for `eu-solidarity`, 0.68 for `eu-trade`, as in [§12.1](#121-germany--eu-collective-procedure)). And every capability keeps the same owner.
+Implicitly, the EU → DE and DE → EU flows become internal and net to zero. DE's 8 E requirement joins the EU's (16 E total). Germany's 0.20 weight joins the EU's residual weight for each procedure ([§12.1](#121-germany--eu-collective-procedure)). And every capability keeps the same owner.
 
 ## 15. Initial Holdings
 
@@ -654,7 +652,7 @@ Verifies [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06),
 
 **B1: contribution, normal prices.** The Atlantic price is at or below 3.0, so the EU publishes no solidarity Proposal. Germany transfers 10 E to the pool. DE Energy 38 → 28. Pool 0 → 10 E. The EU's own account stays at 125 E. EU holdings including the pool are 135 E.
 
-**B2: Germany signs, high prices.** Atlantic price above 3.0. The EU publishes the solidarity Proposal and Germany signs it, transferring nothing. Support = 0.40 + 0.20 = 0.60 > 0.45, so the EU's offer of up to 8 E enters this round's clearing. The pool is empty, so its leg gives nothing and the EU sells from its own holdings.
+**B2: Germany signs, high prices.** Atlantic price above 3.0 (B2, B2-pool and B3 start the node at x = 60, price 3.2). The EU publishes the solidarity Proposal and Germany signs it, transferring nothing. Support = 0.40 + 0.20 = 0.60 > 0.45, so the EU's offer of up to 8 E enters this round's clearing. The pool is empty, so its leg gives nothing and the EU sells from its own holdings: EU Energy 125 → 117, Money 320 → 344.96.
 
 **B2-pool: the pool drawn first.** As B2, with 10 E in the pool. The pool gives 8 E to the EU, which sells 8 E: pool 10 → 2, EU account 125 unchanged.
 
@@ -695,7 +693,7 @@ Verifies conditional Policy execution, cross-round observation, reservation and 
 
 ## 25. Fixture E: Scarcity and Trade Restriction
 
-[Fixture E](#25-fixture-e-scarcity-and-trade-restriction) is qualitative: it has no fixed expected values. It passes on reconciliation, solvency, and the propagation below.
+[Fixture E](#25-fixture-e-scarcity-and-trade-restriction) is qualitative: it has no fixed expected values and no compiled fixture file. It passes on reconciliation, solvency, and the propagation below.
 
 With full circulation enabled, the Round 3 disruption ([§13.6](#136-energy-disruption)) reduces supplier offers. Expected propagation: operating shortfalls. Capacity investment and procurement. Household and SME demand. SHIP arbitrage. China's Asia offer rule. And the EU's solidarity Proposal, with Germany's pivotal signature, executed in the same round.
 
@@ -817,7 +815,7 @@ packages/premises/
   fixtures/             the golden fixtures of Part IV (generated, not committed)
 ```
 
-Each section file is one JSON object, merged into the Gameboard. `instantiation.json` is the Instantiation Configuration. Capabilities, objectives, and relationships live in `entities.json` and the DSL. Verticals and initial conditions have no file yet. A revised cost curve or circulation flow is a Gameboard change. A different initial node reserve within range is an Instantiation change. New player assignments need no engine change.
+Each section file is one JSON object, merged into the Gameboard. `instantiation.json` is the Instantiation Configuration. Capabilities, objectives, and relationships live in `entities.json` and the DSL. Verticals and initial conditions have no file yet. Which edits are Gameboard changes and which are Instantiation changes is set by [Gameboard](03_gameboard.md) and [Instantiated Game](04_instantiated_game.md).
 
 ---
 
@@ -839,7 +837,7 @@ The first complete test succeeds when the engine can:
 10. Store the bounded Representation factor and apply it in the following round, recording proposed and executed actions. *Proved by:* Fixtures C1–C3 (golden), the C4 arithmetic (golden test), and C5 for seeded noise only (its invariants and noise test). Simulator: *6 SME Representation*.
 11. Settle fully signed Proposals atomically and let incompletely signed ones lapse. *Proved by:* Fixtures G1–G5 (golden). Simulator: *10 Signed Proposals*.
 12. Resolve simultaneous actions deterministically and order-independently. *Proved by:* golden: *order independence*. Simulator: *3 Submission order*.
-13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* simulator: *2 Replay*. Adapters: *13 Persistence*, *a scripted live session equals replaying…*.
+13. Execute five years and produce a replayable history and structured events for reporting. *Proved by:* simulator: *2 Replay*. Adapters: *13 Persistence*. Handlers: *a scripted live session equals replaying its recorded Proposals and signatures*.
 14. Evaluate every Actor's objective criteria from the records. *Proved by:* experiments: *14 Agency*.
 
 The test does not need realistic macroeconomic forecasting. Its objective is coherent, consequential, explainable interaction.

@@ -22,7 +22,7 @@ The economic engine is built around seven concepts.
 | **Market** | A mechanism that exchanges existing resources, determines prices, and settles exchange. |
 | **Aggregate** | An Entity representing the residual accounts and baseline behavior of an implicit population or institution. |
 | **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate's baseline through an estimator. |
-| **Intent** | A typed economic or institutional action. |
+| **Intent** | A typed action: `Trade`, `Route`, `Transfer`, `Transform`, or `ChangeRule` ([§3](#3-intents-and-economic-actions)). |
 
 One supporting primitive is shared: **CostFunction**, a cumulative cost curve that prices quantity. It is used by exchange Markets and by facilities. It is not an Entity and never creates resources by itself.
 
@@ -133,19 +133,16 @@ Institutional capabilities stay with the institutional Entity or rule mechanism 
 
 ### 2.5 Glossary
 
-This table is the single source of term definitions. The other specifications use these terms and do not redefine them.
+The seven concepts in §2 and this table are the only term definitions. The other specifications use these terms and do not redefine them.
 
 | Term | Definition |
 |---|---|
 | **Actor** | An explicitly represented Entity, driven by a seat or NPC Policy. |
-| **Aggregate** | An Entity holding the residual accounts and baseline Policy of an implicit population or institution. |
 | **Explicit / implicit** | An Entity is explicit when it is an Actor, and implicit when its behavior and accounts sit in an Aggregate's residual. |
-| **Entity** | An economic participant with accounts, capacities, capabilities, and a kind (Actor or Aggregate). |
 | **Controller** | What drives an Actor: a seat or an NPC Policy. |
 | **NPC** | An Actor whose Policy is part of the premise. |
 | **Seat** | An Actor whose Policy is supplied from outside the premise. Swapping the implementation never changes the Actor. |
-| **Policy** | Anything that produces Intents from its authorized View ([§4](#4-policies)). |
-| **Policy kind** | How a Policy is implemented: declarative strategy, AI agent, or human. Recorded in the manifest and round records, not on Proposals. |
+| **Policy kind** | How a Policy is implemented: declarative strategy, AI agent, or human. |
 | **Preset** | A named parameter set for a declarative strategy, such as the seat-policy preset `Conservative`. |
 | **Strategy** | The declarative rules a Policy runs on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)). A Policy is the actor-level concept (a seat, NPC or Aggregate decides); its Strategy is the rules it runs. Only declarative Policies have one. |
 | **View** | What a Policy sees of the Snapshot: its own Entity, prices, Rules in force, permitted events, stored adjustment factors, and the Proposals awaiting its signature. |
@@ -153,9 +150,8 @@ This table is the single source of term definitions. The other specifications us
 | **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls `resolveRound` ([§8.3](#83-functional-interface)). |
 | **World State** | The economic state at a round boundary: Entities with accounts and capacities, Markets, Transformations, Representations, Rules in force and scheduled, Deliveries, stored adjustment factors, the numeraire, transport and jurisdiction links, the event history, the game seed, and the round number. |
 | **Snapshot** | The beginning-of-round World State on which all of that round's decisions are made. |
-| **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity. |
+| **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity or Market. |
 | **Money** | The numeraire Resource (World State `numeraire`): the Resource facility costs are paid in. |
-| **Resource** | An identifiable economic quantity with a unit and declared properties ([§2.3](#23-resource)). |
 | **Holding** | A quantity of a Resource held by an Entity or a Market's reserves. |
 | **Capacity** | A throughput quantity an Entity holds, which Transformations draw on. Its owner is the Entity holding it. |
 | **Residual** | The accounts and behavior of a population remaining in an Aggregate after explicitly modeled accounts are assigned elsewhere. |
@@ -164,7 +160,6 @@ This table is the single source of term definitions. The other specifications us
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
 | **Rule** | An institutional condition the engine interprets: a `Tariff`, an `AccessBan`, or a `Withholding` ([§3](#3-intents-and-economic-actions)). |
 | **Jurisdiction** | The Entity that enacts and governs a Tariff or AccessBan against others. A Withholding is governed by its capacity's owner ([§2.4](#24-capability)). |
-| **Intent** | A typed action: `Trade`, `Route`, `Transfer`, `Transform`, or `ChangeRule` ([§3](#3-intents-and-economic-actions)). |
 | **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a deal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
 | **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing. |
 | **Lapse** | The outcome of a Proposal whose signature rule is not met by the end of the Sign step. It is a decline, not an error. |
@@ -179,7 +174,6 @@ This table is the single source of term definitions. The other specifications us
 | **Shortfall** | An amount owed but not paid, because the payer's holdings were insufficient. Recorded, never driving a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
 | **Delivery** | A scheduled change to a holding or capacity, applied at the start of the round it is due. |
 | **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
-| **Representation** | A relationship through which an explicit Actor's sampled behavior adjusts an Aggregate's baseline ([§7](#7-aggregates-and-representation)). |
 | **Behavior domain** | The Resource whose purchases a Representation observes. The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
 | **Observation** | The admissible proposed buy quantity a Representation reads from its Actor's validated Proposals ([§7.3](#73-representation-pipeline)). |
 | **Estimator** | The configured function that turns a representative's observed behavior into an adjustment factor ([§7.4](#74-estimation-semantics)). |
@@ -199,7 +193,7 @@ This table is the single source of term definitions. The other specifications us
 | **Uncertainty** | An element a scenario set varies: a shock, a parameter override, the player seed, or a derived run. |
 | **Gameboard** | The authored economic world of a premise: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules ([03](03_gameboard.md)). |
 | **Game** | One run's assembled state, which every runner plays: the initial World State, the in-world Strategies, the rounds to play, the parameters, and one SeatBinding per seat. `assemble` builds it from a premise ([07 §4](07_architecture.md#4-key-interfaces)). |
-| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round), `Recorded` replies, an `Agent` (a model call per round), or a `Human` (a transcript per round). |
+| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round), `Recorded` (stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
 | **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `ReciprocateLastRound`) ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Expect** | What a premise asserts about one round: sparse expected values, one per field, written as literals. It is checked against Observed. |
 | **Observed** | What a round produced, read into the same record shape as Expect. |
@@ -259,7 +253,7 @@ type Proposal =
 
 A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers. Gameboard visibility rules may make it more public. Intents are carried by Proposals and are never applied directly to state.
 
-An Intent's economic meaning does not depend on who generated it: a seat, NPC, or Aggregate can all propose a Trade, and the engine determines whether it is permitted, feasible, and executable. Provenance (which seat or Policy produced a Proposal, and its Policy kind) is kept in the round record and manifest.
+An Intent's economic meaning does not depend on who generated it: a seat, NPC, or Aggregate can all propose a Trade, and the engine determines whether it is permitted, feasible, and executable. Each Proposal records its author, the Entity whose seat or Policy produced it, in the round record.
 
 ### 3.1 Intent validation
 
@@ -589,6 +583,8 @@ Produce the beginning-of-round Snapshot and each Entity's View of it ([§4](#4-p
 
 **3. Generate Proposals** *(round runner)*
 
+Human seats speak first. Their transcripts are read in one joint pass (`INTERPRET`), and the Proposals it reconciles join the set frozen in 3a. No joint call is made when nobody speaks.
+
 - **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or strategy), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
 - **3b Sign.** Every signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
 
@@ -633,7 +629,7 @@ runRound :: InWorld -> WorldState
 
 `runRound` evaluates every Policy, seat or in-world, through the same code in live play and simulation. Its `InWorld` argument is defined in `core` (`Core.Strategy`). In-world declarative strategies run on the shared interpreter. `resolveRound` screens authority and signature rules, records lapsed and rejected Proposals, stores estimates, runs the economic cycle and clearing, and commits the new World State with the round record.
 
-`EngineError` reports a failure of the configured simulation or of its execution, such as an unknown reference or a negative balance that settlement should have prevented. Lapsed Proposals and ordinary infeasible actions are outcomes recorded as events and never fail the round.
+`EngineError` reports an invariant failure in settlement: a negative holding or Market reserve that settlement should have prevented ([INV-04](#inv-04)). Lapsed Proposals and ordinary infeasible actions are outcomes recorded as events and never fail the round.
 
 ### 8.4 Effects and handlers
 
@@ -655,14 +651,7 @@ Operation payloads are plain records in `effects` today. Where a payload's type 
 
 Handlers interpret these operations over typed backends; the adapters supply the raw I/O primitives ([07 §4](07_architecture.md#4-key-interfaces)).
 
-Handlers choose the context. The round runner is the same code under all of them:
-
-- **Live session:** `SEAT_INPUT` through humans and `INTERPRET`, and each round narrated. The live handler enforces the human deadline windows.
-- **Simulation:** `SEAT_INPUT` through preset strategies or AI agents, whose randomness draws from the player seed.
-- **Replay:** `SEAT_INPUT` feeds recorded Proposals and signatures.
-- **Test:** all handlers pure.
-
-Determinism follows from purity: identical handler inputs (seeds and recorded seat input) give an identical run, and replay is running under the replay handler.
+Handlers choose the context (live session, simulation, replay, or test). The round runner is the same code under all of them. Determinism follows from purity: identical handler inputs (seeds and recorded seat input) give an identical run, and replay is running under the replay handler. The per-context behavior is in [04](04_instantiated_game.md) and [06](06_simulator.md).
 
 ## 9. Architectural Invariants and Numerics
 
@@ -703,7 +692,7 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 
 IDs 18, 20, and 32–35 are retired.
 
-**Enforcement status.** Predicates in `Core.Invariants` check INV-02, 04, 05, 06 (domain only), and 10 on every round in the test suites and simulator. Gameboard validation and instantiation check parts of INV-03, 08, 14, 17, 19, 21, 23–25, 27, and 28. INV-01, 07, 09, 11, 12, 13, 15, 16, 26, 29, 30, 31, and 36 are covered by the types and effects or by named tests. INV-22 has no check yet.
+**Enforcement status.** Predicates in `Core.Invariants` check INV-02, 04, 05, 06 (domain only), and 10 on every round in the test suites and simulator. Gameboard validation and instantiation check parts of INV-03, 05, 08, 14, 17, 19, 21, 23–28. INV-01, 07, 09, 11, 12, 13, 15, 16, 29, 30, 31, and 36 are covered by the types and effects or by named tests. INV-22 has no check yet.
 
 ### 9.1 Numerics and randomness
 

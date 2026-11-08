@@ -34,7 +34,7 @@
    Run Store ◄── OBSERVE ── server (Implementation) ◄── API ── Handlers.Api.Route ◄── dashboard (Handlers.Api.Client)
 ```
 
-A premise is assembled once into a `Game` ([§4](#4-key-interfaces)). Every runner plays that same `Game`: the simulator folds it with the player seed, and live play runs it through `runLive`. Each round is one call to `runRound`. Seats propose and sign through `SEAT_INPUT`, and the pure engine resolves the signed Proposals. The engine checks authority and signatures and keeps the books balanced. It never authors or rewrites an Intent. Handlers choose where seat inputs come from and where records go. Every round is also narrated (`NARRATE`), and live play adds `INTERPRET`. The live handler waits out each human deadline window itself. The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, the API, and the dashboard are in [06](06_simulator.md).
+A premise is assembled once into a `Game` ([§4](#4-key-interfaces)), and every runner plays that same `Game`: the simulator folds it with the player seed, and live play runs it through `runLive`. Each round is one `runRound` call. Seats propose and sign through `SEAT_INPUT`; the pure engine resolves the signed Proposals and never authors or rewrites an Intent. Handlers choose where seat inputs come from and where records go. The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, the API, and the dashboard are in [06](06_simulator.md).
 
 ## 3. Codebase Layout
 
@@ -48,19 +48,20 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `policy` | `core`, `schema` | The Strategy interpreter: pure `propose` and `sign` over an `Env`; `inWorldOf` | `run` or any effect library; codecs; World State access |
 | `game` | `core`, `schema`, `board`, `policy` | `Premise`, `assemble`, `Game`, `SeatBinding`, `checkHomes`, `Override`, `Recipe` (the stored spec and derive rules), `GameError`. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
 | `premises` | `core`, `schema`, `game` | Meridian and its presets, the fixtures (`Premises.Fixtures.*`), the capstone's authored DSL, the premise file tree and loader; all as typed values | IO, compiling, decoders, computed expected values |
-| `checks` | `core`, `schema` | `Expect` against `Observed` (`observe`, `check`, `checkRound`); `checkRun`; objective evaluation (`evaluateObjectives`, `Outcome`) | Effects, running games |
+| `checks` | `core`, `schema` | `Expect` against `Observed` (`observe`, `check`, `checkRound`); `checkRun`; objective evaluation (`evaluateObjectives`, `ObjectiveResult`) | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows (`SEAT_INPUT`, `INTERPRET`, `NARRATE`, `RECORD`, `OBSERVE`, `STORE`, `API`) and the programs over them (`runRound`, `runGame`, `finish`) | Interpreters, handler records, domain rules, prompt text |
 | `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | `Seats`, `Live` (`runLive`), `Llm`, `Store`, `Recording`, `Replay`, `Sim`; `Api.Route` and `Api.Client` | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
 | `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices: `Pi`, `SQLite`, `Clock`, `Random`, `Console`, `Filesystem` | Games, runs, prompts, premises, any handler function |
-| `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game`: `simulate`, `simulateWith` (persisting), `resumeFrom`; `Records`, `Options` | `board` or `policy` imports; premises, views, experiments |
+| `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game` (`Simulator.Simulate`) and the round records (`Simulator.Records`) | `board` or `policy` imports; premises, views, experiments |
 | `views` | `core`, `schema`, `checks` | Pure projections of a stored run to `Table`, `Chart`, `Bars`, `Statistic` | Effects; `simulator`, `game`, `experiments`, or `premises` imports; objective evaluation of their own |
 | `experiments` | `core`, `schema`, `checks`, `views`, `game`, `simulator` | Counterfactuals, agency, and seed batches (`Experiments.Agency`), over the pure `simulate` | Effects; persistence; `board` or `policy` imports |
 | `testkit` | `core`, `schema`, `premises`, `game`, `adapters`, `simulator`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
+| `flags` (`apps/flags`) | nothing | The `--name value` parser (`parseFlags`, `flagOr`) that `cli` and `server` read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli`: `run`, `session`, `Compile`, `Transcript`. `server`: `Http`, and the `API` operation semantics (`Server.Implementation`). `dashboard`: renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
-Two differences from the layering table in the design record (work/4.md §12.2), both recorded deviations. `testkit` depends on `adapters`, because it reads the premise files through the filesystem device (work/4.md §9). `handlers` does not list `checks`, so a handler never reaches the checkers.
+Two deliberate exceptions to the layering: `testkit` depends on `adapters`, because it reads the premise files through the filesystem device. `handlers` does not list `checks`, so a handler never reaches the checkers.
 
-Module map, one line per package, generated from `find packages apps -name '*.purs'`. Test modules (`Test.<Pkg>.*`) are under each package's `test/`:
+Module map: every `src` module, one line per package, from `find packages apps -name '*.purs'` (test modules, `Test.<Pkg>.*` under each `test/`, are not listed):
 
 ```text
 packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
@@ -157,10 +158,11 @@ runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 simulate   :: Seed -> Game -> Either GameError SimRun
 simulateWith :: Seed -> Game -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
 resumeFrom :: Seed -> Game -> Snapshot -> Either GameError SimRun
+resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
 -- SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 ```
 
-`simulateWith` takes the per-round persister, so the server writes each round as it completes.
+`simulateWith` and `resumeWith` take the per-round persister, so the server writes each round as it completes. `resumeFrom` is the pure form.
 
 **Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, live play, views, and experiments:
 
@@ -173,7 +175,7 @@ evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
 
 Objectives are a view over the records and never touch the engine (Gameboard [§10.5](03_gameboard.md#105-evaluation)).
 
-**API** (`effects` row `API`, `handlers` routing and client, `apps/server` semantics). Each route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body:
+**API** (`effects` row `API`, `handlers` routing and client, `apps/server` semantics). Each route is one operation of the `API` row, and the route table is [06 §8.1](06_simulator.md#81-read-api-and-run-operations). A request is an `ApiRequest`, and a reply is a status and a body:
 
 ```purescript
 -- handlers/Api/Route: the one route table; parse and wire map between HTTP and ApiRequest
@@ -193,7 +195,7 @@ type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendR
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.SQLite` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `packages/premises/capstone/transcript.json`; neither is production code.
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric`), so a read program cannot write. The startup policy (a run still `running` when the server starts is failed with reason `interrupted`) is `Server.Launch.failInterrupted`; the adapter supplies only the SQL. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 
@@ -216,15 +218,12 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 - Only `core` changes the economy.
 - Each described type is described once: `core` for engine types, `schema` for premise-format types, and `effects` for operation payloads (plain records today, see [02 §8.4](02_type_system.md#84-effects-and-handlers)). Its codec, JSON Schema, prose, and `EncodeJson`/`DecodeJson` come from that one description. Each operation is declared once, in `effects`. Action lists, routes, and decoders come from those declarations.
 - `core` imports no effect library and no IO. Its JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type, because PureScript forbids orphan instances. The engine never calls them.
-- Adapters expose devices, effects declare, handlers interpret. Raw I/O primitives live only in `adapters`.
 - Capabilities are rows. A read program has only `OBSERVE`, and a `ProposalBody` carries no author.
-- Pure packages import no effect library.
-- One `Game` and one `SeatBinding` for every runner. `simulator` imports no `board` or `policy`. `handlers` imports no `views`, `simulator`, or `experiments`. `views` imports no `simulator`, `game`, or `experiments`.
 - Policies never touch World State. They receive a `View` and return Proposals and signatures.
-- Economic rules live only in `core`. Views are computed in `views`, and the dashboard holds no business logic. `API` operation semantics are the server's, and paths, codecs, and routes are `handlers`'.
+- Economic rules live only in `core`. Views are computed in `views`, and the dashboard holds no business logic.
 - Interfaces are derived; behaviour (the Strategy interpreter, agent framing, human facilitation, view projections, `API` semantics) is hand-written.
 - Replacing an adapter (the SQLite store, the LLM provider) changes nothing in `core`, `board`, `policy`, `effects`, or `handlers`: the new adapter implements the same primitives.
-- Premises change by editing data. Needing new engine code for a premise is a design finding to resolve in `core` ([05 §1](05_test_instance.md#1-purpose)).
+- Needing new engine code for a premise is a design finding to resolve in `core` ([05 §1](05_test_instance.md#1-purpose)).
 - Per-round checks are pure predicates in `checks` and `core/Invariants` (`check`), shared by the tests, the simulator, and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 
 ## 6. Testing

@@ -33,7 +33,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Templates `trade`, `transform`, `enactTariff` | `packages/policy/test/Main.purs` (propose tests) | covered | yes |
+| Templates `trade`, `transform`, `enactTariff` | `packages/policy/test/Main.purs` :: "a route drafts a routed Trade with its pair and limit", "a zero quantity yields no Trade or Transform…" (trade, transform). `packages/simulator/test/Main.purs` :: "11 Trade restriction…" (enactTariff) | covered | yes |
 | Template `choose`, `noAction` | `packages/policy/test/Main.purs` :: "two Choose blocks…", "noAction proposes nothing" | covered | no |
 | Template `reciprocate` | `packages/policy/test/Main.purs` :: "reciprocate enacts the mirror…" | covered | no (no restriction against CN in the run) |
 | Template `procedure` | `packages/policy/test/Main.purs` :: "a Procedure drafts its intents…" | covered | yes (EU solidarity and trade) |
@@ -58,7 +58,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Facility `effects` (capacity change, holder, rounds) | `packages/simulator/test/Main.purs` :: "Soft Power is produced, spent, and decays" | partial | no |
 | Capacity escrow and pooled facility ceiling | `packages/core/test/Main.purs` :: "caps an uncapped facility's fills…" | covered | partial |
 | Reservations (Mil escrow, scaling, release at commit) | `packages/core/test/Main.purs`. `packages/simulator/test/Main.purs` :: "7b Reservation", "7c Deployer" | covered | yes (US round 4: 60 reserved, 38 of 40 ordered, 85.5 Mil held) |
-| Fixed flows | fixture and full-game runs only | partial | yes (every shipped flow runs each round) |
+| Fixed flows | `packages/simulator/test/Main.purs` :: "1 Full game…" (full-game runs only) | partial | yes (every shipped flow runs each round) |
 
 ## Collective procedure, tariffs, bans, repeal, withholding
 
@@ -70,7 +70,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Tariff enactment and in-force condition | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
 | Access ban enacted by a seat's strategy | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
 | Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
-| Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 (rules in force drop from 3 to 1 by round 7) |
+| Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 |
 | Withholding changes capacity | decode only (`packages/premises/test/Main.purs` :: "a withholding rule and an enactment of one decode…") | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
 
 ## Deals and signed Proposals
@@ -87,7 +87,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Estimator, shrinkage, one-round lag | `packages/simulator/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES factor moves from 0.9358 (round 1) to 0.9406 (round 8) |
+| Estimator, shrinkage, one-round lag | `packages/simulator/test/Main.purs` :: "6 SME Representation…" | covered | yes: GLOBAL_SMES energy factor is 0.9437 in round 4 and 0.9406 in round 8 |
 | Seeded noise spread | `packages/premises/test/Test/Premises/Golden.purs` :: "C5: seeded noise…" | covered | yes (noise is drawn each round) |
 | Representation moves an aggregate's policy in a run | Fixture C only | partial | yes (SME's purchases feed the estimate, which scales GLOBAL_SMES' Atlantic orders) |
 
@@ -95,7 +95,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Unmet requirement is a shortfall | `packages/core/test/Main.purs` :: "an overdrawing Transfer records a shortfall…" | covered | yes (JP short 4 in round 3 after its deal, 8 in round 4) |
+| Unmet requirement is a shortfall | `packages/core/test/Main.purs` :: "an overdrawing Transfer records a shortfall…" | covered | partial (JP's shortfalls are recorded in rounds 3 and 4, not asserted) |
 | Penalty reduces incoming flows per unit unmet | none directly | partial | no (the shortfall is recorded, the penalty's size is not asserted) |
 
 ## Objectives
@@ -121,8 +121,8 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Replay from records | `packages/simulator/test/Main.purs` :: "2 Replay…". `packages/simulator/test/Test/Simulator/Capstone.purs` :: "replays byte-identically from its records" | covered | yes |
 | Store round-trip (save, reload, replay) | `packages/adapters/test/Main.purs` :: "13 Persistence: save, reload byte-identically, and replay from stored records". `packages/adapters/test/Test/Adapters/Capstone.purs` :: "the capstone run round-trips through the store…" | covered | yes |
 | Store backend carries typed values; a stored value that does not read back is reported in its own field, and the other runs stay readable | `packages/adapters/test/Main.purs` :: "a stored spec that does not read back…" | covered | no |
-| Store migration, busy timeout, failing running runs at startup (`failRunning`) | `packages/adapters/test/Main.purs` | covered | n/a |
-| Counterfactual (a deployment removed, measured) | `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "7 NPC response: Fixture D as a pair, with and without the deployment" | covered | yes ("the counterfactual without the deployment changes US Mil…") |
+| Store migration, busy timeout, failing running runs at startup (`failRunning`) | `packages/adapters/test/Main.purs` :: "a version 1 store upgrades in place…", "the busy timeout is set on the store…", "failRunning fails every run still running…" | covered | n/a |
+| Counterfactual (a deployment removed, measured) | `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "7 NPC response: Fixture D as a pair, with and without the deployment" | covered | yes (`packages/views/test/Test/Views/Capstone.purs` :: "the counterfactual without the deployment changes US Mil…") |
 | Resume from snapshot matches uninterrupted | `packages/simulator/test/Main.purs` :: "a run resumed from its third snapshot…". `packages/simulator/test/Test/Simulator/Capstone.purs` :: "a run resumed from round 4's snapshot matches the uninterrupted run" | covered | yes |
 | Archive and delete | `apps/server/test/Main.purs` :: "archive hides a run…" | covered | no |
 | Derive kinds (duplicate, rerun, variant, counterfactual) | `apps/server/test/Main.purs` :: "derive: duplicate, rerun, variant…" | covered | no |
@@ -140,7 +140,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; an undecodable reply submits nothing | `packages/handlers/test/Test/Handlers/Llm.purs` :: "two transcripts describing one deal reconcile into one Proposal with both as signers", "a one-sided description keeps only its author as signer". `packages/handlers/test/Test/Handlers/Live.purs` :: "an undecodable joint reply submits nothing…" | covered | yes: the capstone's recording (`packages/premises/capstone/transcript.json`, generated by `just _premises`) replayed through a stub backend (`Test.Handlers.Capstone` :: "each recorded line, in its recorded order, maps to the canonical Intents it records (replayed)") |
+| Joint pass, stubbed model: a transcript-pair deal reconciles into one Proposal with both as signers; a one-sided deal keeps its author as the only signer; a reply that does not decode is corrected up to two times (three model calls at most), then submits nothing | `packages/handlers/test/Test/Handlers/Llm.purs` :: "two transcripts describing one deal reconcile into one Proposal with both as signers", "a one-sided description keeps only its author as signer", "a joint reply that does not decode is corrected…", "a joint reply that still does not decode after two corrections is three calls, then a Left". `packages/handlers/test/Test/Handlers/Live.purs` :: "an undecodable joint reply submits nothing…" | covered | yes: the capstone's recording (`packages/premises/capstone/transcript.json`, generated by `just _premises`) replayed through a stub backend (`Test.Handlers.Capstone` :: "each recorded line, in its recorded order, maps to the canonical Intents it records (replayed)") |
 | Recorded model calls replay from their typed requests; a request the recording does not hold is an error, never a model call | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a recorded exchange replays…". `packages/handlers/test/Test/Handlers/Capstone.purs` :: "a call the recording does not hold in its next place is an error, never a model call" | covered | yes |
 | Capstone recording is generated: each DSL exchange's Intents are checked against the DSL before the file is written | `apps/cli/src/Transcript.purs` (run by `just _premises`) | covered | yes |
 | Prompts, reply decoding, and evidence, with no model | `packages/handlers/test/Test/Handlers/Llm.purs` :: "Prompts", "Reply decoding", "Evidence and recording" | covered | no |
@@ -183,16 +183,8 @@ Test references are `file :: test name`, relative to the repository root. Test m
    [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
    tests named in their rows.
 
-## Expected inputs
-
-This repo expects the following to exist.
-
-- **Audio front end.** A separate layer turns each player's audio submission into a transcript.
-  The session and the joint interpretation take those transcripts as input, and the scripted live
-  session is exercised once that layer exists.
-
 ## Expected numbers
 
-The capstone's expectations are a snapshot of the current run. Each value is explained by its
-mechanism in `packages/premises/src/Premises/Capstone.purs`. A change to the shipped economics or
-to the engine requires regenerating them.
+The capstone's expectations are a snapshot of the current run. They are literals in
+`packages/premises/src/Premises/Capstone.purs`, each explained there by its mechanism. A change to
+the shipped economics or to the engine means updating those literals.

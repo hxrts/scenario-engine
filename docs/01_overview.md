@@ -28,7 +28,7 @@ Each round runs in five steps. The engine's sequence within a round is in [02 §
 
 1. **Briefing.** Players receive the current state of the world.
 2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band. The system has no negotiation protocol.
-3. **Submission.** Players talk with each other in private, then each human submits one audio recording of what they intend to do this round. A trade may be described by one party, by both, or by neither. Once submitted, a human has no further input in that round. Transcription and interpretation then read every transcript together. A transcript that describes a deal is that party's agreement to it, and the interpreter reconciles matching descriptions into one Proposal, adjusting details slightly where needed. Informal transcripts are loose by nature, and a player who did not want a deal would not have described it. A deal that only one side describes lapses, as any Proposal whose signatures are missing does.
+3. **Submission.** Players talk with each other in private, then each human submits one transcript of what they intend to do this round (**Planned:** as an audio recording, transcribed first; the current build takes the transcript typed at the prompt). A trade may be described by one party, by both, or by neither. Once submitted, a human has no further input in that round. Interpretation then reads every transcript together. A transcript that describes a deal is that party's agreement to it, and the interpreter reconciles matching descriptions into one Proposal, adjusting details slightly where needed. Informal transcripts are loose by nature, and a player who did not want a deal would not have described it. A deal that only one side describes lapses, as any Proposal whose signatures are missing does.
 4. **Resolution.** The engine resolves every player, NPC, and implicit-economy action together as one round update.
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
@@ -81,7 +81,7 @@ The engine takes the World State and a round's Intents and produces the next Wor
 
 - **Strategies:** declarative rules for NPCs, Aggregate baselines, and preset seat behaviour, all on one shared interpreter.
 - **AI agents:** a language model playing a role from its briefing and view.
-- **Humans:** a person who submits one audio recording per round, which is transcribed and interpreted into Intents.
+- **Humans:** a person who submits one transcript per round, which is interpreted into Intents.
 
 Strategies are reproducible from their seed. AI agents and humans are reproducible from their recorded Intents ([02 §4](02_type_system.md#4-policies), [INV-13](02_type_system.md#inv-13)).
 
@@ -104,9 +104,9 @@ Seat decisions, NPC decisions, Aggregate behaviour, and signed deals all become 
 
 ## 10. AI Interface and Reporting
 
-Players never touch the type system, and they give no input after submitting audio. A middleware transcribes each recording, then interprets all of a round's transcripts together into Intents on a best-effort basis, in the spirit of each transcript. Ambiguity is resolved in that translation, so there is no clarification or confirmation step. The transcripts and the Intents built from them are recorded, so a game can be replayed without reinterpreting ([04 §11](04_instantiated_game.md#11-round-execution)).
+Players never touch the type system, and they give no input after submitting. Interpretation reads all of a round's transcripts together into Intents on a best-effort basis, in the spirit of each transcript. Transcribing audio is **Planned**. Ambiguity is resolved in that translation, so there is no clarification or confirmation step. The transcripts and the Intents built from them are recorded, so a game can be replayed without reinterpreting ([04 §11](04_instantiated_game.md#11-round-execution)).
 
-The engine, not the language model, decides what happens. AI then writes a fictional financial-news front page in the style of the *Financial Times* that all players can read, along side an update to their balance sheet dashboard. **AI interprets inputs and communicates results. The engine determines outcomes.** Reporting must stay grounded in the resolved world state.
+The engine, not the language model, decides what happens. AI then writes a fictional financial-news front page in the style of the *Financial Times* that all players can read, alongside an update to their balance sheet dashboard. **AI interprets inputs and communicates results. The engine determines outcomes.** Reporting must stay grounded in the resolved world state.
 
 ## 11. Evaluation
 

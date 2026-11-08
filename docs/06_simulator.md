@@ -111,7 +111,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `Trader` | Buys 5 Energy at a limit of 2.2 while the home price is at most 2.2. Sells 5 at a limit of 3 while it is above 3. The bands are fixed in the preset. |
 | `Cooperative` | Proposes nothing. Signs every Proposal addressed to it. |
 | `Opportunistic` | Sells 5 Energy at a limit of 3 while the home price is above 3. Signs every Proposal addressed to it. |
-| `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100. |
+| `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100, as a deal that CHIP co-signs. |
 | `CrisisResponse` | Buys 3 Energy at a limit of 4 while the home price is above 3.5 and its Energy holding is below 20. |
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
@@ -173,14 +173,14 @@ An invariant violation fails the run. The simulator preserves the configuration,
 
 A failed run is never left `running`. It is marked `failed` with its reason in each of these cases: an engine error or invariant violation (the reason is the error). An exception while simulating or saving a round, such as a store fault (the reason is the exception). A live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures. A joint-pass reply that does not decode is corrected: the model gets its previous reply and the decode error, at most two times. If the last reply still does not decode, it becomes an empty submission (the speakers are told) and the round proceeds. A narrator or seat reply that does not decode becomes a plain event listing or an empty transcript. At server startup, runs still marked `running` (left by a process that stopped) are marked failed with the reason `interrupted`.
 
-Live play has no confirmation step. Each human player's audio is transcribed, and every transcript of the round, human and AI, is interpreted together into Intents. A description of a deal in a transcript counts as that party's signature, and the interpreter adjusts matching descriptions slightly so that they become one Proposal. The transcripts and the Intents are recorded with the round, so replay uses the recorded Intents and does not re-interpret.
+Live play has no confirmation step. Every transcript of the round, human and AI, is interpreted together into Intents. A description of a deal in a transcript counts as that party's signature, and the interpreter adjusts matching descriptions slightly so that they become one Proposal. The transcripts and the Intents are recorded with the round, so replay uses the recorded Intents and does not re-interpret.
 
 ### 6.2 Entry points and flags
 
 | Command | Behaviour |
 |---|---|
 | `run <premise> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds (default 5, at least 1). The player seed is `--seed`, else drawn and printed. Prints a per-round summary and does not save to the Run Store. |
-| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` submit one audio recording per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`. |
+| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` type one transcript per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`; the raw model output and the call log go to `runs/<id>/`. |
 | `server [--db file] [--port n] [--static dir]` (`just serve`) | The read API and the dashboard. Defaults: `runs.db`, port 8787 (1–65535), static `apps/dashboard/dist`. |
 
 An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The premise argument is the premise's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
@@ -351,7 +351,7 @@ The server performs and validates every operation. The dashboard sends the reque
 
 ### 9.2 Run Details
 
-The page opens with a compact header: run id, then the overview's facts (name, scenario, status, rounds completed out of target, and game id). Resume is offered from the overview's `rounds` and `target`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
+The page opens with a compact header: run id, then the overview's facts (name, Scenario (the premise), status, rounds completed out of target, and game id). Resume is offered from the overview's `rounds` and `target`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
 
 1. **Key figures.** The five statistics the sections answer with, each with its question, definition, and formula. Each is a `Statistic` record in the module that computes it, and the dashboard renders that record. No view computes an economic statistic in the browser.
 2. **Marginal prices.** The marginal price of each Market after every round (`markets`, first chart).
@@ -384,8 +384,8 @@ Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of t
 |---|---|---|---|
 | Name | optional | `defaultName`, the next run id (`run-N`) | A label. The server names the default, and the dashboard fills a blank name with it. The API requires a `name`. |
 | Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/scenario` sends. |
-| Scenario | required | `meridian@v0` | The one premise the server serves. |
-| Rounds | optional | the premise's default (5) | A select of the premise's supported counts (4 to 8). Resume applies the same round-count rule: a whole number within the bounds. |
+| Premise (labelled Scenario) | required | `meridian@v0` | The one premise the server serves. |
+| Rounds | optional | the premise's default (5) | A select of the premise's supported counts (4 to 8). Resume takes a whole number above the run's completed rounds, with no upper bound (§8.1). |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
 | Game seed | read-only | the premise's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
 
@@ -393,7 +393,7 @@ A summary line says what Run will play, for example "This run: Conservative, 5 r
 
 ### 9.4 Compare
 
-The Compare page (`#/compare`) lists every readable run as a tick box, and the ticked runs, in the order ticked, form the comparison. The first run ticked is the baseline, and the top bar shows how many are ticked. A run leaves the comparison only by being unticked. The page has no other removal control. The sections, each with one purpose line:
+The Compare page (`#/compare`) lists every readable run as a tick box, and the ticked runs, in the order ticked, form the scenario set. The first run ticked is the baseline, and the top bar shows how many are ticked. A run leaves the comparison only by being unticked. The page has no other removal control. The sections, each with one purpose line:
 
 - **Prices by market:** one plot per Market, one line per run, in the Market's quote per base unit.
 - **Net worth over time:** a player selector. One line per run for that player, from round 0 to the final round.
@@ -446,7 +446,7 @@ The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under
 
 ### 10.6 Saved comparisons
 
-The comparison's runs and baseline are carried in the route (`#/compare/:ids`), and the theme preference is kept in browser storage. **Planned:** persisting selections, metrics, and display preferences as Dashboard state, and named comparison sets (for example "Energy Scarcity Experiment"), which would reference immutable Run IDs and never copy run data.
+The comparison's runs and baseline are carried in the route (`#/compare/:ids`), and the theme preference is kept in browser storage. **Planned:** persisting selections, metrics, and display preferences as Dashboard state, and named scenario sets (for example "Energy Scarcity Experiment"), which would reference immutable Run IDs and never copy run data.
 
 ---
 
@@ -454,7 +454,7 @@ The comparison's runs and baseline are carried in the route (`#/compare/:ids`), 
 
 ## 11. Experiments
 
-**Planned as a launcher.** Experiments run today in the `experiments` package (`Experiments.Agency`: `playerSeedRuns`, `counterfactual`, and `agency`). It assembles game variants, runs the pure `simulate`, scores them with `checks`, and presents them through `views`. Its suite is `Test.Experiments.Experiments`. No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a comparison set.
+**Planned as a launcher.** Experiments run today in the `experiments` package (`Experiments.Agency`: `playerSeedRuns`, `counterfactual`, and `agency`). It assembles game variants, runs the pure `simulate`, scores them with `checks`, and presents them through `views`. Its suite is `Test.Experiments.Experiments`. No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a scenario set.
 
 Target experiment kinds:
 
@@ -501,11 +501,11 @@ Every one of the fifteen seats receives a simple, predictable preset seat Policy
 
 ## 14. Mandatory Tests
 
-Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7c, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Experiments.Agency`, so they run in the experiments suite (`packages/experiments/test/Test/Experiments/Mandatory.purs`). The fixtures and the capstone run that these suites share are in `testkit`.
+Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7d, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Experiments.Agency`, so they run in the experiments suite (`packages/experiments/test/Test/Experiments/Mandatory.purs`). The fixtures and the capstone run that these suites share are in `testkit`.
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
-| 1 | Full game | Three preset configurations: all `Conservative`. All `Passive`. `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with [INV-01](02_type_system.md#inv-01)–16 passing. The cycle sustains five years ([INV-05](02_type_system.md#inv-05), [INV-07](02_type_system.md#inv-07)). The same seeds reproduce, a drawn player seed and the same value injected give identical records and spec, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
+| 1 | Full game | Three preset configurations: all `Conservative`. All `Passive`. `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with the invariants [§7.1](#71-required-assertions) marks Implemented holding. The cycle sustains five years ([INV-05](02_type_system.md#inv-05)). The same seeds reproduce, a drawn player seed and the same value injected give identical records and spec, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
 | 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values. [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
@@ -514,6 +514,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values. [INV-12](02_type_system.md#inv-12). |
 | 7b | Reservation | Runs [Fixture R](05_test_instance.md#133-military-deployment) and R-alone: a deployment reserves Mil, and a Military sale on the same Mil is scaled. The reservation is released at commit. | Fixture values. [INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05). |
 | 7c | Deployer | Runs the shipped `Deployer` preset with the other seats Passive, and checks the scaled deployment and sale in the rounds the Atlantic price is above 3. | Exact values from [05 §13.3](05_test_instance.md#133-military-deployment). |
+| 7d | Investor | Five seats (US, ENCO, CHIP, SHIP, DEF) play `Investor`, so ENCO signs the capacity investment it is offered. | `energy-capacity-investment` executes, and no Rejected event says the Proposal "must sign". |
 | 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds. [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
 | 8b | Major shock | Every seat plays each preset, calm and with the [§13.6](05_test_instance.md#136-energy-disruption) major shock as overrides, same seats and player seed. A preset flips when its seats propose different kinds of action in some round. | At least four presets flip. The shock is deterministic under the fixed player seed ([INV-13](02_type_system.md#inv-13)). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills. [INV-11](02_type_system.md#inv-11). |
