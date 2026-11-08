@@ -210,9 +210,9 @@ A round record contains:
 
 - `round`: the round index.
 - `inputs`: every submitted signed Proposal, each with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
-- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Traded`, `Transferred`, `Levied`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
+- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Coupled` (one settlement: its legs, each with `owed` and `moved`, its `rate`, and its `cause`; `delivered` marks a delivery of something settled earlier), `CapacityChanged`, `Enacted`, `Repealed`, `Estimated`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
-Events record executed quantities, so a partial fill appears as a smaller `Traded` quantity, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
+Events record executed quantities, so a partial fill appears as smaller legs, and a shortfall as `moved < owed` on a leg, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
 
 ### 11.2 Live session
 

@@ -110,6 +110,8 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 - `shares`: `[{ from, to, share, source }]`. A share of sales revenue (`sales:<resource>`) or of payee receipts (`payee`).
 - `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` against that Entity's incoming flows.
 
+The authored forms and a Resource's `decay` are compiled (`Schema.Recurring`) into the one `RecurringFlow` rule ([02 §6](02_type_system.md#6-economic-circulation)).
+
 Decay follows each Resource's `decay`. Capacity changes come from Facility `effects` and Rules. No renewal or depreciation rule exists. Rates are per round ([§10.2](#102-temporal-structure)).
 
 ### 5.5 Geography, access, and Rules
@@ -194,7 +196,7 @@ The schema has no relationship list. Mechanical links are the fields above (depe
 
 Policies are referenced by an Actor's `npc` list (chosen in the configuration's `npcs`) and by `aggregate.policy`. Seat presets are bound by the simulator or session ([06 §4](06_simulator.md#4-seat-policies)).
 
-A Policy reads last round's recorded events (for example `TransformedLastRound`), the stored Representation factor (`Factor`), and Gameboard parameters ([§11](#11-initialization-constraints)). Planned, not in the schema: per-category View permissions ([INV-16](02_type_system.md#inv-16)), parameter ranges and defaults, and declared behavioral domains for Aggregates.
+A Policy reads last round's record through `Recorded` conditions (`transformedLastRound`, `restrictedLastRound`, `restrictionInForce`, in the DSL), the stored Representation factor (`Factor`), and Gameboard parameters ([§11](#11-initialization-constraints)). Planned, not in the schema: per-category View permissions ([INV-16](02_type_system.md#inv-16)), parameter ranges and defaults, and declared behavioral domains for Aggregates.
 
 ## 9. Representation Schemes
 

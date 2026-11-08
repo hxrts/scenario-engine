@@ -798,6 +798,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       holding r.world (Id "B") (Id "M") `shouldEqual` Q.fromInt 100
       holding r.world (Id "A") (Id "E") `shouldEqual` Q.fromInt 1
       length (rejections (Right r)) `shouldEqual` 1
+    it "a recurring rule's condition gates it on what its holder holds" do
+      let
+        w = (baseWorld [ (actor "A" []) { accounts = Map.singleton (Id "M") (Q.fromInt 100) }, actor "B" [] ]) { recurring = [ (testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt 5))) { condition = Just { holder: Id "A", resource: Id "E", atLeast: Q.fromInt 1 } } ] }
+        moved w' = either (const Q.zero) (\r -> holding r.world (Id "B") (Id "M")) (resolveRound w' [])
+        holdsE = w { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "E") (Q.fromInt 1) e.accounts }) (Id "A") w.entities }
+      moved w `shouldEqual` Q.fromInt 100
+      moved holdsE `shouldEqual` Q.fromInt 105
     it "a negative fixed flow is an engine error, not a crash" do
       let w = (baseWorld [ actor "A" [], actor "B" [] ]) { recurring = [ testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt (-1))) ] }
       rejections (resolveRound w []) `shouldEqual` [ "negative fixed flow: A to B" ]

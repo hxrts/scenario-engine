@@ -98,7 +98,6 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: Unit
   , transferability :: Transferability   -- Free | Restricted | NonTransferable
-  , decay :: Maybe DecayRule
   , reservable :: Boolean
   }
 ```
@@ -171,7 +170,11 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Best execution** | The Entity-facing form of an order that names a base and quote pair, not a Market. The engine routes it across the Markets for that pair the Entity can trade on ([§5.2](#52-exchange-markets)). |
 | **Escrow** | The hold placed at screening on a Proposal's maximum cost, in any Resource, released at commit if unused ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
 | **Reservation** | A reserved quantity of a reservable Resource, such as deployed Military: unavailable within the round, not consumed. |
-| **Shortfall** | An amount owed but not paid, because the payer's holdings were insufficient. Recorded, never driving a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
+| **Shortfall** | `moved < owed` on a leg: an amount owed but not delivered, because the source's holdings were insufficient. Never drives a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
+| **Flow** | One leg of a settlement: a quantity of a Resource `owed` from one endpoint (an Entity, a Market, a source, or a sink) to another, and how much `moved`. |
+| **Coupled flow** | The one settlement event: `Coupled { legs, rate, cause }`. Its legs settle together, at its exact stored rate when it has one. A trade is two legs at a rate; a Transform is its input, output, and payment legs; a single move is one leg ([§5.5](#55-simultaneous-clearing)). |
+| **Cause** | Structurally, what produced a settlement: an Intent of a Proposal (with the mechanism that settled it), a declared Rule kind, or a recurring-flow rule. A premise's names live on the thing the cause points at. |
+| **Recurring flow** | One rule of the recurring cycle: a source, a destination, a Resource, an amount, a condition, and what a shortfall does ([§6](#6-economic-circulation)). |
 | **Delivery** | A scheduled change to a holding or capacity, applied at the start of the round it is due. |
 | **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
 | **Behavior domain** | The Resource whose purchases a Representation observes. The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
@@ -194,7 +197,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Gameboard** | The authored economic world of a premise: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules ([03](03_gameboard.md)). |
 | **Game** | One run's assembled state, which every runner plays: the initial World State, the in-world Strategies, the rounds to play, the parameters, and one SeatBinding per seat. `assemble` builds it from a premise ([07 §4](07_architecture.md#4-key-interfaces)). |
 | **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round, including those read from stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
-| **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `ReciprocateLastRound`) ([§4.4](#44-shared-decision-language-interpreter)). |
+| **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `Mirror`) ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Expect** | What a premise asserts about one round: sparse expected values, one per field, written as literals. It is checked against Observed. |
 | **Observed** | What a round produced, read into the same record shape as Expect. |
 | **Deal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
@@ -491,22 +494,22 @@ Each round's single update includes a recurring stock-flow cycle with four compo
 - **Income and expenditure.** Explicit rules distribute earnings, wages, taxes, public spending, and transfers among Entities.
 - **Capacity renewal.** Investments, depreciation, and degradation adjust future capacities.
 
-The cycle is data in World State and is applied by one function:
+The cycle is data in World State, one rule per flow, and one function applies it in list order, with the rules from every holder last (Entity order, then Resource):
 
 ```purescript
-type Circulation =
-  { production :: Array { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef }  -- delivered next round
-  , flows :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Quantity } -- fixed income and expenditure
-  , shares :: Array { from :: EntityId, to :: EntityId, share :: Ratio, source :: ShareSource }     -- variable flows
-  , requirements :: Array Requirement }                                                              -- consumed at commit
-
-data ShareSource = SalesOf ResourceId | PayeeReceipts   -- net sale revenue, or Money received as a facility payee
-
-type Requirement =
-  { entity :: EntityId, resource :: ResourceId
-  , amount :: Maybe Quantity    -- Nothing: equal to this round's purchases of the Resource
-  , penalty :: Quantity }       -- each unit unmet reduces the Entity's fixed incoming flows by this much
+type RecurringFlow =
+  { id :: RecurringFlowId, kind :: RecurringKindId       -- kind: a name the premise declares; Core reads none
+  , source :: RecurringSource                            -- one Entity, each Entity holding the Resource, or created
+  , destination :: RecurringDestination                  -- one Entity, or a sink
+  , resource :: ResourceId
+  , amount :: RecurringAmount                            -- fixed, a capacity held, a share of what the source received, this round's purchases, or a fraction held
+  , condition :: Maybe { holder :: EntityId, resource :: ResourceId, atLeast :: Quantity }  -- applies only while the holder holds this much
+  , onShortfall :: ShortfallEffect                       -- NoEffect, or accrue against the offsetable flows the Entity receives
+  , offsetable :: Boolean                                -- reduced pro rata by the recipient's accrued offset
+  , delay :: Int }                                       -- rounds until a created Resource is delivered
 ```
+
+A premise authors production, flows, shares, requirements, and a Resource's decay ([03 §5.4](03_gameboard.md#54-recurring-cycle)); the DSL compiles them to these rules in the engine's order: production, shares, requirements, fixed flows by recipient, decay. Each evaluation produces a `Coupled` event whose `cause` is the rule, and a shortfall is `moved < owed` on its leg.
 
 Every Resource stock reconciles each round: **Closing stock = Opening stock + Production + Issuance − Consumption − Destruction − Decay**, with transfers and trades summing to zero across all accounts, including Market reserves ([INV-05](#inv-05)).
 
@@ -627,7 +630,7 @@ All Actor and Aggregate actions for a round are bundled into one round update an
 - **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit). For a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `reserves` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Every deal of a party whose total deal demand exceeds its holdings is rejected, even if one of those deals alone could be funded. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying both draw on opening holdings.
 
-Every payment out of an Entity is capped at what that Entity holds after the batch so far: facility payments, Transfers, tariffs, and circulation flows alike. Any remainder is recorded as a Shortfall rather than driving a holding negative. Escrow makes the cap bind only in error. It is a backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them. If a settled holding or Market reserve would still be negative, the commit fails the round with an engine error, which is an invariant failure ([INV-04](#inv-04)), not an infeasible action.
+Every payment out of an Entity is capped at what that Entity holds after the batch so far: Transformation payments, Transfers, levies, and recurring flows alike. Any remainder is a shortfall on the settlement's leg (`moved < owed`) rather than driving a holding negative. Escrow makes the cap bind only in error. It is a backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them. If a settled holding or Market reserve would still be negative, the commit fails the round with an engine error, which is an invariant failure ([INV-04](#inv-04)), not an infeasible action.
 
 Passive consumption rules (such as operating requirements), decay, and derived flows (such as revenue sharing) are functions of the batch result, evaluated on each Entity's net position at commit. All decisions in a round operate on the beginning-of-round Snapshot. Everything a round computes becomes observable in the next round, so there is no same-round feedback.
 

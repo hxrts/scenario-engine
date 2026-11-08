@@ -127,7 +127,7 @@ interpretPrompt = common <> "\nTask: read the round's `transcripts` together and
 
 -- | The system prompt of the narrator.
 narratePrompt :: String
-narratePrompt = common <> "\nTask: write the round's front page: a short newspaper-style summary of `events`. Report only what the events state; add no facts, motives, or numbers not present. Reply with the page as `text`." <> replySchemaOf textReplyShape
+narratePrompt = common <> "\nTask: write the round's front page: a short newspaper-style summary of `events`. Each event of kind Coupled is a settlement: its `legs` move a Resource from one endpoint to another, `owed` and `moved`, and a shortfall is `moved` below `owed`; `cause` says what produced it. Report only what the events state; add no facts, motives, or numbers not present. Reply with the page as `text`." <> replySchemaOf textReplyShape
 
 -- | The system prompt of an AI-agent seat.
 speakPrompt :: String

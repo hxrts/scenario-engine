@@ -54,6 +54,7 @@ import Premises.Meridian (files, gameboard)
 import Premises.Fixtures (fixtures)
 import Schema.Premise.Gameboard (gameboardShape)
 import Premises.Meridian.Policies (policies)
+import Test.Premises.Flows as Flows
 import Test.Premises.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -182,6 +183,7 @@ rejects name edit err = it name do
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   golden
+  Flows.spec
 
   describe "Premise DSL builders" do
     it "max' and signProcedures compile to a strategy the decoder accepts" do

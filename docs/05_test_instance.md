@@ -205,7 +205,7 @@ Production is computed during economic resolution and delivered at the Prepare p
 
 ### 8.2 Operating Energy requirements
 
-Consumed at commit from each Entity's net Energy position, evaluated on the batch result:
+Consumed at commit from each Entity's net Energy position, evaluated on the batch result (each a recurring flow of [02 §6](02_type_system.md#6-economic-circulation), its shortfall `moved < owed` on its leg):
 
 | Entity | E/round |
 |---|---:|
