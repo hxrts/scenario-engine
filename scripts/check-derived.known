@@ -212,11 +212,8 @@ silent-default packages/core/src/Core/Invariants.purs inv05
 alias packages/testkit/src/Testkit/Capstone.purs runOf
 alias packages/core/src/Core/Shape.purs encodeJsonWith
 alias packages/core/src/Core/Query.purs eventsOf
-alias packages/core/src/Core/Query.purs countEvents
-alias packages/simulator/src/Simulator/Records.purs recordsEqual
 alias packages/core/src/Core/Num.purs displayQuantity
 alias packages/core/src/Core/Num.purs displayPrice
-alias packages/adapters/src/Adapters/Clock.purs delayMs
 # L10: unsafeCoerce in tests
 test-literal packages/board/test/Main.purs main
 test-literal packages/game/test/Main.purs main
