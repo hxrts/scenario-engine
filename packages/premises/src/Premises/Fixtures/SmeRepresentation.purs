@@ -35,6 +35,7 @@ smeRepresentation noise =
   , actor: Id smeSample.actor
   , aggregate: Id smeSample.aggregate
   , domain: Id smeSample.domain
+  , observes: Nothing
   , weight: q 1
   , estimator: smeSample.estimator noise
   }

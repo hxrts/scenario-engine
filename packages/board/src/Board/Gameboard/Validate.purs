@@ -19,7 +19,7 @@ import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, In
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, FlowEffect(..), LevyBasis(..), RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, domainResource, idText)
+import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, FlowEffect(..), LevyBasis(..), RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -92,7 +92,7 @@ validateGameboard gb config =
       <> unknownTransformation (mapMaybe _.bundled w.flowGates)
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
-      <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
+      <> map (\s -> UnknownReference ResourceRef (show s.observes)) (filter (\s -> not (Map.member s.observes w.resources)) gb.schemes)
       <> unknownEntity (concatMap _.aggregate.members aggregates)
       <> unknownEntity
         (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)

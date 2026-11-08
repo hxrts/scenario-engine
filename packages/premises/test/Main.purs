@@ -332,8 +332,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "UnknownReference: a jurisdiction is not an Entity"
       (editWorld \w -> w { groups = Map.insert (Id "DE") (Id "NOBODY") w.groups })
       (UnknownReference EntityRef "NOBODY")
-    rejects "UnknownReference: a Representation scheme's domain is not a Resource"
-      (\g c -> Tuple g { schemes = map (\s -> s { domain = Id "NOPE" }) g.schemes } c)
+    rejects "UnknownReference: what a Representation scheme observes is not a Resource"
+      (\g c -> Tuple g { schemes = map (\s -> s { observes = Id "NOPE" }) g.schemes } c)
       (UnknownReference ResourceRef "NOPE")
     rejects "UnknownReference: an Aggregate member is not an Entity"
       (editWorld (onEntity "EU" \e -> e { kind = Aggregate { policy: Id "eu-coordination-v0", members: [ Id "NOBODY" ], procedures: Map.empty } }))

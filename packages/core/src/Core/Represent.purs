@@ -9,7 +9,7 @@ import Core.Map (entries, sumInto)
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, EntityId, IntentF(..), Proposal, Ratio, Representation, domainResource)
+import Core.Types (BehaviorDomain, EntityId, IntentF(..), Proposal, Ratio, Representation)
 import Core.World (Event(..), WorldState)
 import Data.Array (concatMap, foldl, null)
 import Data.Map (Map)
@@ -18,7 +18,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
--- | A domain names the Resource whose purchases are observed. The observation is the actor's
+-- | A Representation names the Resource whose purchases are observed. The observation is the actor's
 -- | validated buy quantity as proposed: the sum of its Trade quantities over screened Proposals,
 -- | before funding scales them and before clearing. It is what the actor asked to buy, not its
 -- | executed fill.
@@ -27,8 +27,8 @@ observation w rep ps =
   let
     orders = concatMap (\p -> if p.author == rep.actor then concatMap trade p.intents else []) ps
     trade = case _ of
-      Trade o | maybe false (\m -> m.base == domainResource rep.domain) (Map.lookup o.market w.markets) -> [ o.quantity ]
-      Route r | r.pair.base == domainResource rep.domain -> [ r.quantity ]
+      Trade o | maybe false (\m -> m.base == rep.observes) (Map.lookup o.market w.markets) -> [ o.quantity ]
+      Route r | r.pair.base == rep.observes -> [ r.quantity ]
       _ -> []
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))

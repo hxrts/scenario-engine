@@ -104,6 +104,7 @@ type Scheme =
   , eligibleActors :: Array EntityId
   , target :: EntityId
   , domain :: BehaviorDomain
+  , observes :: ResourceId
   , estimator :: Estimator
   }
 

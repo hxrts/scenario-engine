@@ -38,7 +38,7 @@ import Prelude
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, nameShape, recordShape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
-import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
+import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape, idText)
 import Core.Types (FlowGovernance(..), RuleForm, RuleKindDecl)
 import Core.Types as Types
 import Core.World (FlowGate, RecurringFlow, UnseededWorld)
@@ -112,12 +112,13 @@ type RepresentationDoc =
   , actor :: EntityId
   , aggregate :: EntityId
   , domain :: BehaviorDomain
+  , observes :: Maybe ResourceId
   , weight :: Q
   , estimator :: EstimatorDoc
   }
 
 -- | A Gameboard's scheme: the Representation an Actor's behaviour is estimated under.
-type SchemeDoc = { id :: String, eligibleActors :: Array EntityId, target :: EntityId, domain :: BehaviorDomain, estimator :: EstimatorDoc }
+type SchemeDoc = { id :: String, eligibleActors :: Array EntityId, target :: EntityId, domain :: BehaviorDomain, observes :: Maybe ResourceId, estimator :: EstimatorDoc }
 
 -- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
 type AssignmentDoc = { scheme :: String, actor :: EntityId, weight :: Maybe Q }
@@ -266,10 +267,12 @@ representationRec = mk <$> fieldOf "id" "the Representation" idShape _.id
   <*> fieldOf "actor" "the Actor represented" idShape _.actor
   <*> fieldOf "aggregate" "the Aggregate that holds the estimate" idShape _.aggregate
   <*> fieldOf "domain" "the behaviour domain" idShape _.domain
+  <*> observesF
   <*> fieldOf "weight" "the weight in the Aggregate's estimate" qShape _.weight
   <*> contramapRec _.estimator estimatorRec
   where
-  mk i a g d w e = { id: i, actor: a, aggregate: g, domain: d, weight: w, estimator: e }
+  mk i a g d o w e = { id: i, actor: a, aggregate: g, domain: d, observes: o, weight: w, estimator: e }
+  observesF = fieldOf "observes" "the Resource whose purchases are observed (default: the Resource the domain names)" (optionalOf idShape) _.observes
 
 representationShape :: Shape RepresentationDoc
 representationShape = object "Representation" representationRec
@@ -280,10 +283,11 @@ schemeShape = object "Scheme"
       <*> fieldOf "eligibleActors" "the Actors it may estimate" (listOf idShape) _.eligibleActors
       <*> fieldOf "target" "the Aggregate it estimates" idShape _.target
       <*> fieldOf "domain" "the behaviour domain" idShape _.domain
+      <*> fieldOf "observes" "the Resource whose purchases are observed (default: the Resource the domain names)" (optionalOf idShape) _.observes
       <*> fieldOf "estimator" "the estimator" estimatorShape _.estimator
   )
   where
-  mk i e t d est = { id: i, eligibleActors: e, target: t, domain: d, estimator: est }
+  mk i e t d o est = { id: i, eligibleActors: e, target: t, domain: d, observes: o, estimator: est }
 
 assignmentShape :: Shape AssignmentDoc
 assignmentShape = object "Assignment"
@@ -419,6 +423,10 @@ worldRec = mk <$> nameF <*> roundF <*> numeraireF <*> resourcesF <*> marketsF <*
 keyedToMap :: forall t a. Keyed a -> Map.Map (Id t) a
 keyedToMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
 
+-- | What a Representation observes: as written, or the Resource its domain names.
+observedBy :: forall r. { domain :: BehaviorDomain, observes :: Maybe ResourceId | r } -> ResourceId
+observedBy r = fromMaybe (Id (idText r.domain)) r.observes
+
 estimatorToCore :: EstimatorDoc -> Estimator
 estimatorToCore e =
   { reference: e.reference
@@ -433,6 +441,7 @@ schemeToCore s =
   , eligibleActors: s.eligibleActors
   , target: s.target
   , domain: s.domain
+  , observes: observedBy s
   , estimator: estimatorToCore s.estimator
   }
 
@@ -541,6 +550,7 @@ representationToCore r =
   , actor: r.actor
   , aggregate: r.aggregate
   , domain: r.domain
+  , observes: observedBy r
   , weight: r.weight
   , estimator: estimatorToCore r.estimator
   }

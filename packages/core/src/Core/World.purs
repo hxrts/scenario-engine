@@ -526,7 +526,7 @@ estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
 
 representationShape :: Shape Representation
-representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, weight: qShape, estimator: estimatorShape }
+representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
 
 deliveryShape :: Shape Delivery
 deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, target: targetShape, quantity: qShape, cause: causeShape }

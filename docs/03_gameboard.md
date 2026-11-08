@@ -204,7 +204,8 @@ A Policy reads last round's record through `Recorded` conditions (`transformedLa
 - `id`: the scheme's identifier.
 - `eligibleActors`: Actor ids that may represent the Aggregate (must exist).
 - `target`: the Aggregate represented (must be an Aggregate).
-- `domain`: the Resource whose behavior is adjusted (must exist).
+- `domain`: the behaviour domain adjusted.
+- `observes` (default: the Resource named like the domain, which must exist): the Resource whose purchases are observed.
 - `estimator`: `reference` and `shrinkage` are required. `bound` (optional) clamps each deviation to `±bound`. `noiseSpread` (default `0`) sets the amplitude of sampling noise.
 
 A scheme is a template. Which representatives are active, and their weights, are set at instantiation ([04 §5](04_instantiated_game.md#5-representation-assignment)). Schemes declare no permitted ranges for those values. Range checks are planned. The estimator formula and adjustment pipeline are in Type System [§7.2](02_type_system.md#72-representation-and-estimators)–[§7.4](02_type_system.md#74-estimation-semantics).

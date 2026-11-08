@@ -68,7 +68,7 @@ instantiate gb config =
     _ -> Nothing
   -- a configured Representation of a scheme the Gameboard defines; an unknown scheme is an error
   -- (`representationErrors`), so the instantiation never returns it
-  toRepresentation r = (\s -> { id: Id s.id, actor: r.actor, aggregate: s.target, domain: s.domain, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
+  toRepresentation r = (\s -> { id: Id s.id, actor: r.actor, aggregate: s.target, domain: s.domain, observes: s.observes, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
   setController e = case Map.lookup e.id config.seats, Map.lookup e.id config.npcs of
     Just seat, _ -> e { kind = Actor (Seat (Id seat)) }
     _, Just p -> e { kind = Actor (NPC p) }

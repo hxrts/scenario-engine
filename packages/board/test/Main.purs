@@ -40,7 +40,7 @@ coverageGameboard =
   , version: "v0"
   , world: world
   , actors: Map.singleton us actor
-  , schemes: [ { id: "s", eligibleActors: [ us ], target: eu, domain: Id "d", estimator: estimator } ]
+  , schemes: [ { id: "s", eligibleActors: [ us ], target: eu, domain: Id "d", observes: money, estimator: estimator } ]
   , parameters: Object.empty
   , horizon: 1
   , rounds: { min: 1, max: 4 }

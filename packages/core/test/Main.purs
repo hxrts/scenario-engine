@@ -546,7 +546,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)
     it "a Representation with a zero reference contributes no estimate" do
       let
-        rep = { id: Id "r", actor: Id "US", aggregate: Id "EU", domain: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero } }
+        rep = { id: Id "r", actor: Id "US", aggregate: Id "EU", domain: Id "E", observes: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero } }
         w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]), representations = [ rep ] }
         p = { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }
       (Represent.estimate w [ p ]).events `shouldEqual` []
@@ -912,7 +912,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       invariantsOf w (empty w) `shouldContain` "INV-08"
     it "INV-09: a factor outside its estimators' bounds" do
       let
-        rep = { id: Id "r", actor: Id "A", aggregate: Id "G", domain: Id "energy-demand", weight: Q.fromInt 1, estimator: { reference: Q.fromInt 1, shrinkage: q "0.5", deviationBound: Just { lo: q "-0.2", hi: q "0.2" }, noiseSpread: Q.zero } }
+        rep = { id: Id "r", actor: Id "A", aggregate: Id "G", domain: Id "energy-demand", observes: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.fromInt 1, shrinkage: q "0.5", deviationBound: Just { lo: q "-0.2", hi: q "0.2" }, noiseSpread: Q.zero } }
         w = (baseWorld [ actor "A" [], actor "G" [] ]) { representations = [ rep ] }
       invariantsOf w (withEvent (Estimated { round: 1, aggregate: Id "G", domain: Id "energy-demand", factor: q "1.2" }) (empty w)) `shouldContain` "INV-09"
       invariantsOf w (withEvent (Estimated { round: 1, aggregate: Id "G", domain: Id "energy-demand", factor: q "1.05" }) (empty w)) `shouldEqual` []

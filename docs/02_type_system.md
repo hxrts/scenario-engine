@@ -176,7 +176,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Recurring flow** | One rule of the recurring cycle: a source, a destination, a Resource, an amount, a condition, and what a shortfall does ([§6](#6-economic-circulation)). |
 | **Delivery** | A scheduled change to a holding or capacity, applied at the start of the round it is due. |
 | **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
-| **Behavior domain** | The Resource whose purchases a Representation observes. The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
+| **Behavior domain** | The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
 | **Observation** | The admissible proposed buy quantity a Representation reads from its Actor's validated Proposals ([§7.3](#73-representation-pipeline)). |
 | **Estimator** | The configured function that turns a representative's observed behavior into an adjustment factor ([§7.4](#74-estimation-semantics)). |
 | **Adjustment factor** | The stored multiplier an Aggregate's baseline is scaled by in the following round ([§7.4](#74-estimation-semantics)). |
@@ -535,6 +535,7 @@ type Representation =
   , actor :: EntityId
   , aggregate :: EntityId
   , domain :: BehaviorDomain
+  , observes :: ResourceId           -- the Resource whose purchases are observed (the DSL defaults it to the domain)
   , weight :: Ratio                     -- this representative's share in the combination
   , estimator :: Estimator
   }
@@ -553,7 +554,7 @@ The domain constrains which part of the Actor's behavior may influence the Aggre
 
 Representation proceeds through four stages, and the engine records each one:
 
-1. **Observation.** Taken from a validated Proposal before funding and clearing. The observation is the actor's total proposed buy quantity of the behavior domain's Resource on Markets (Trades and Routes). It is what the actor asked to buy, not its executed fill, and it is not escrow-backed: funding may later scale it down.
+1. **Observation.** Taken from a validated Proposal before funding and clearing. The observation is the actor's total proposed buy quantity of the Resource it `observes` on Markets (Trades and Routes). It is what the actor asked to buy, not its executed fill, and it is not escrow-backed: funding may later scale it down.
 2. **Estimate.** The adjustment factor, computed and stored by the engine.
 3. **Proposed Aggregate Intent.** The Aggregate Policy's adjusted Proposal.
 4. **Executed result.** The settled outcome after feasibility checks.

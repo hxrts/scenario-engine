@@ -388,6 +388,7 @@ type Representation =
   , actor :: EntityId
   , aggregate :: EntityId
   , domain :: BehaviorDomain
+  , observes :: ResourceId -- the Resource whose purchases are observed
   , weight :: Ratio
   , estimator :: Estimator
   }
@@ -740,10 +741,6 @@ ruleIdOf p i = Id (show p <> "/rule-" <> show i)
 -- | that `proposalId` could not have made.
 submissionIndex :: ProposalId -> Maybe Int
 submissionIndex (Id s) = Int.fromString =<< last (split (Pattern "/") s)
-
--- | The Resource a Behavior Domain names: a domain is the Resource whose purchases are observed.
-domainResource :: BehaviorDomain -> ResourceId
-domainResource (Id s) = Id s
 
 instance EncodeJson (RuleF Q) where
   encodeJson = encodeJsonWith Snapshot ruleShape
