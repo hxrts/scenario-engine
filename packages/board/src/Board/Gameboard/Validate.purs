@@ -36,7 +36,7 @@ import Foreign.Object as Object
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> delays <> reservations <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> delays <> reservations <> capacities <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -75,7 +75,8 @@ validateGameboard gb config =
       <> unknownCapacity (mapMaybe _.capacity facilities)
       <> unknownCapacity (concatMap (\t -> map _.capacity t.effects) facilities)
       <> unknownEntity (concatMap (\t -> mapMaybe _.holder t.effects) facilities)
-      <> unknownEntity (mapMaybe _.payee facilities)
+      <> unknownEntity (map _.to (mapMaybe _.payment facilities))
+      <> unknownResource (map _.resource (mapMaybe _.payment facilities))
       <> unknownResource (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities)
       <> map (UnknownReference CapacityName) (filter (\c -> not (c `elem` referenced)) held)
       <> concatMap recurringRefs w.recurring
@@ -171,7 +172,6 @@ validateGameboard gb config =
     Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
   schemeTarget s = if Map.member s.target w.entities && not (isAggregateId s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
-  payees = map (\t -> FacilityWithoutPayee t.id) (filter (\t -> isJust t.cost && isNothing t.payee) facilities)
   fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   procedures = concatMap

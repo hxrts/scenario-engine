@@ -128,9 +128,9 @@ capacityOf w ref =
     max Q.zero (Q.sub held reduced)
 
 -- | A Transformation's uniform price at a total of `q` units: its cost function's average price, or
--- | zero for a Transformation with no cost function.
+-- | zero for a Transformation with no payment.
 conversionPrice :: Transformation -> Q -> Q
-conversionPrice tr q = maybe Q.zero (\c -> averagePrice c Q.zero q) tr.cost
+conversionPrice tr q = maybe Q.zero (\p -> averagePrice p.curve Q.zero q) tr.payment
 
 -- | The pool a Transformation's fills draw on: the shared capacity if it is capped, else the Transformation
 -- | alone. Allocation in one pool are allocated together and priced at one uniform price.
@@ -149,7 +149,7 @@ poolOf tid tr = case tr.capacity of
 poolCeiling :: WorldState -> Transformation -> Maybe Q
 poolCeiling w tr = case tr.capacity of
   Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
-  _ -> (\c -> c.domain.hi) <$> tr.cost
+  _ -> _.curve.domain.hi <$> tr.payment
 
 -- | The smallest `capacityUse` among the capped Transformations on `ref`, starting from `use` (the
 -- | Transformation's own, so the result is never above it).

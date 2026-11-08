@@ -359,14 +359,16 @@ type Market =
   , access :: Array EntityId
   }
 
+-- | What a Transformation's orders pay: priced on the curve, in the Resource, to the Entity.
+type Payment = { curve :: CostFunction, resource :: ResourceId, to :: EntityId }
+
 type Transformation =
   { id :: TransformationId
   , inputs :: Holdings
   , outputs :: Holdings
   , escrowPerUnit :: Holdings -- reserved per unit ordered: escrowed and released within the round, never consumed
-  , cost :: Maybe CostFunction
+  , payment :: Maybe Payment -- what an order pays, if anything
   , capacity :: Maybe CapacityRef -- Nothing: uncapped
-  , payee :: Maybe EntityId
   , delay :: RoundOffset
   , minimum :: Quantity -- smallest order accepted
   , maximum :: Maybe Quantity -- largest order accepted per Entity per round

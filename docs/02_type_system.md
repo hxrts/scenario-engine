@@ -149,7 +149,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **World State** | The economic state at a round boundary: Entities with accounts and capacities, Markets, Transformations, Representations, Rules in force and scheduled, Deliveries, stored adjustment factors, the numeraire, transport and jurisdiction links, the event history, the game seed, and the round number. |
 | **Snapshot** | The World State a round ends with. The next round's decisions are all made on it, once Prepare has applied what is due. |
 | **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity or Market. |
-| **Money** | The numeraire Resource (World State `numeraire`): the Resource facility costs are paid in. |
+| **Money** | The numeraire Resource (premise field `numeraire`): the unit of account the views use for net worth and units. The engine does not read it: a Transformation's payment and a levy name their own Resource. |
 | **Holding** | A quantity of a Resource held by an Entity or a Market's reserves. |
 | **Capacity** | A throughput quantity an Entity holds, which Transformations draw on. Its owner is the Entity holding it. |
 | **Residual** | The accounts and behavior of a population remaining in an Aggregate after explicitly modeled accounts are assigned elsewhere. |
@@ -439,10 +439,9 @@ type Transformation =
   { id :: TransformationId
   , inputs :: Holdings            -- per unit
   , outputs :: Holdings           -- per unit
-  , reserves :: Holdings          -- reserved per unit ordered (§2.3)
-  , cost :: Maybe CostFunction    -- money price of congestion or increasing marginal cost
+  , escrowPerUnit :: Holdings     -- reserved per unit ordered (§2.3)
+  , payment :: Maybe { curve :: CostFunction, resource :: ResourceId, to :: EntityId }  -- what an order pays
   , capacity :: Maybe CapacityRef -- limiting capacity, shared by facilities naming it; Nothing: uncapped
-  , payee :: Maybe EntityId       -- recipient of money paid
   , delay :: RoundOffset
   , minimum :: Quantity           -- smallest order accepted
   , maximum :: Maybe Quantity     -- largest order accepted per Entity per round

@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
-import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
+import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Payment, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -34,7 +34,7 @@ type WorldFields r =
   , markets :: Map MarketId Market
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
-  , numeraire :: ResourceId -- the Resource Transformation costs are paid in
+  , numeraire :: ResourceId -- the premise's unit of account; only the views read it
   , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
@@ -513,8 +513,11 @@ marketShape = recordShape "Market" { id: idShape, base: idShape, quote: idShape,
 capacityEffectShape :: Shape CapacityEffect
 capacityEffectShape = recordShape "CapacityEffect" { capacity: idShape, holder: (optionalOf idShape), perUnit: qShape, rounds: (optionalOf intShape) }
 
+paymentShape :: Shape Payment
+paymentShape = recordShape "Payment" { curve: costFunctionShape, resource: idShape, to: idShape }
+
 transformationShape :: Shape Transformation
-transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, escrowPerUnit: holdingsShape, cost: (optionalOf costFunctionShape), capacity: (optionalOf idShape), payee: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
+transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, escrowPerUnit: holdingsShape, payment: (optionalOf paymentShape), capacity: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
 resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, reservable: boolShape }

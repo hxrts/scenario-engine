@@ -47,9 +47,8 @@ noFacility =
   { inputs: Nothing
   , outputs: Nothing
   , escrowPerUnit: Nothing
-  , cost: Nothing
+  , payment: Nothing
   , capacity: Nothing
-  , payee: Nothing
   , delay: Nothing
   , minimum: Nothing
   , maximum: Nothing

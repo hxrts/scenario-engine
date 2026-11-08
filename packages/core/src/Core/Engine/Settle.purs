@@ -241,7 +241,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
                 <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) unpaid
             }
 
--- | Settle one Proposal's filled Transforms: pay the Transformation's payee, consume inputs, produce
+-- | Settle one Proposal's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule capacity effects.
 settleConversions :: WorldState -> Allocation -> Settlement -> Scaled -> Settlement
 settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
@@ -251,7 +251,7 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
   pricedTotal tid tr = Q.sumQ
     ( map (\(Tuple _ q) -> q)
         ( filter
-            (\(Tuple other _) -> maybe false (\x -> poolOf other x == poolOf tid tr && x.cost == tr.cost) (Map.lookup other w.transformations))
+            (\(Tuple other _) -> maybe false (\x -> poolOf other x == poolOf tid tr && map _.curve x.payment == map _.curve tr.payment) (Map.lookup other w.transformations))
             (entries allocation.totals)
         )
     )
@@ -277,7 +277,6 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (entries tr.inputs)
           cause = OfIntent { proposal: pid, intent: i, mechanism: Conversion { by: t.by, transformation: t.transformation, units: q } }
           outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q, cause }) (entries tr.outputs)
-          payment = fromMaybe Sink (Held <$> tr.payee)
           inputLegs = map (\(Tuple r u) -> whole (Held t.by) Sink r (Q.mul u q)) (entries tr.inputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
           produce l = foldl
@@ -295,16 +294,18 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
             now
         in
           if not inputsHeld then a { events = a.events <> [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] }
-          else case pay w t.by tr.payee w.numeraire owed a of
-            Tuple paid afterPay ->
-              let
-                paymentLeg = if owed > Q.zero then [ leg (Held t.by) payment w.numeraire owed paid ] else []
-              in
-                afterPay
-                  { ledger = produce (consume afterPay.ledger)
-                  , deliveries = afterPay.deliveries <> later <> effects cause t tr q
-                  , events = afterPay.events <> [ coupled w.round (inputLegs <> outputLegs <> paymentLeg) Nothing cause ]
-                  }
+          else
+            let
+              { afterPay, paymentLeg } = case tr.payment of
+                Nothing -> { afterPay: a, paymentLeg: [] }
+                Just p -> case pay w t.by (Just p.to) p.resource owed a of
+                  Tuple paid st -> { afterPay: st, paymentLeg: if owed > Q.zero then [ leg (Held t.by) (Held p.to) p.resource owed paid ] else [] }
+            in
+              afterPay
+                { ledger = produce (consume afterPay.ledger)
+                , deliveries = afterPay.deliveries <> later <> effects cause t tr q
+                , events = afterPay.events <> [ coupled w.round (inputLegs <> outputLegs <> paymentLeg) Nothing cause ]
+                }
       _ -> a
     _ -> a
 

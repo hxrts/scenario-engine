@@ -324,7 +324,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { markets = Map.update (\m -> Just m { quote = Id "X" }) (Id "energy-asia") w.markets })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a facility's payee is not an Entity"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { payee = Just (Id "NOBODY") }) (Id "energy-shipping") w.transformations })
+      (editWorld \w -> w { transformations = Map.update (\t -> Just t { payment = map (_ { to = Id "NOBODY" }) t.payment }) (Id "energy-shipping") w.transformations })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a capability names a Rule kind the premise does not declare"
       (editWorld \w -> w { ruleKinds = Map.delete (Id "tariff") w.ruleKinds })
@@ -353,9 +353,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "DuplicateCapacityOwner: two Entities hold the same capacity"
       (editWorld (onEntity "SA" \e -> e { capacities = Map.insert (Id "semiconductors") (Q.fromInt 1) e.capacities }))
       (DuplicateCapacityOwner "semiconductors")
-    rejects "FacilityWithoutPayee: a facility with a cost and no payee"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { payee = Nothing }) (Id "public-attention") w.transformations })
-      (FacilityWithoutPayee (Id "public-attention"))
     rejects "ProcedureExceedsAuthority: a procedure authorizes what its Aggregate may not do"
       (editWorld (onEntity "EU" \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
       (ProcedureExceedsAuthority (Id "EU"))

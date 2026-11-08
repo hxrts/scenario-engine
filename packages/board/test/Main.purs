@@ -68,9 +68,8 @@ coverageGameboard =
     , inputs: Map.empty
     , outputs: Map.empty
     , escrowPerUnit: Map.empty
-    , cost: Just { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
+    , payment: Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, resource: money, to: us }
     , capacity: Nothing
-    , payee: Just us
     , delay: 0
     , minimum: Q.zero
     , maximum: Nothing
@@ -112,7 +111,7 @@ membersOf x = case x.kind of
 -- | holders, and the Entities of every Rule in force or scheduled.
 worldEntityRefs :: forall r. { transformations :: Map.Map TransformationId Transformation, rules :: Map.Map RuleId Rule, scheduled :: Map.Map RuleId (Maybe Rule) | r } -> Array EntityId
 worldEntityRefs w =
-  mapMaybe _.payee transforms
+  map _.to (mapMaybe _.payment transforms)
     <> concatMap (\t -> mapMaybe _.holder t.effects) transforms
     <> concatMap ruleEntities (map Just (values w.rules) <> values w.scheduled)
   where
@@ -142,7 +141,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left es -> fail (show es)
         Right initial -> do
           filter (\e -> not (Map.member e initial.world.entities)) (worldEntityRefs initial.world) `shouldEqual` []
-          map _.payee (values initial.world.transformations) `shouldEqual` [ Just (Id "EU") ]
+          map (map _.to <<< _.payment) (values initial.world.transformations) `shouldEqual` [ Just (Id "EU") ]
           -- the Aggregate's member list does not name the Actor it now is
           map membersOf (Map.lookup (Id "EU") initial.world.entities) `shouldEqual` Just []
     it "a Representation scheme whose target is an Actor is a validation error" do

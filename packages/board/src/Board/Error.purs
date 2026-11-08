@@ -18,7 +18,6 @@ data ValidationError
   | UnknownScheme String -- a Representation scheme the Gameboard does not define
   | DuplicateCapacityOwner String
   | ProductionWithoutCapacity EntityId String -- a producer does not hold the capacity it produces from
-  | FacilityWithoutPayee TransformationId
   | ReservesNonReservable TransformationId ResourceId -- a facility reserves a Resource that is not reservable
   | MissingFallback EntityId
   | MissingObjective EntityId
@@ -40,7 +39,6 @@ instance Show ValidationError where
     UnknownScheme s -> "unknown scheme reference: " <> s
     DuplicateCapacityOwner c -> "capacity has more than one owner: " <> c
     ProductionWithoutCapacity e c -> show e <> " produces from " <> c <> " but does not hold it"
-    FacilityWithoutPayee t -> "facility has a cost but no payee: " <> show t
     ReservesNonReservable t r -> "facility " <> show t <> " reserves " <> show r <> ", which is not reservable"
     MissingFallback e -> "Actor has no fallback: " <> show e
     MissingObjective e -> "Actor has no objective: " <> show e

@@ -63,15 +63,14 @@ type CostDoc = { intercept :: Q, slope :: Q, lo :: Q, hi :: Q }
 
 type MarketDoc = { base :: ResourceId, quote :: ResourceId, cost :: CostDoc, reserves :: Keyed Q, access :: Array EntityId, position :: Maybe Q }
 
--- | A facility (a transformation): its inputs, outputs and reserves, its cost, capacity and payee,
+-- | A facility (a transformation): its inputs, outputs and escrow, its payment and capacity,
 -- | and its timing, limits and effects. Every key is optional.
 type FacilityDoc =
   { inputs :: Maybe (Keyed Q)
   , outputs :: Maybe (Keyed Q)
   , escrowPerUnit :: Maybe (Keyed Q)
-  , cost :: Maybe CostDoc
+  , payment :: Maybe { curve :: CostDoc, resource :: ResourceId, to :: EntityId }
   , capacity :: Maybe CapacityRef
-  , payee :: Maybe EntityId
   , delay :: Maybe Int
   , minimum :: Maybe Q
   , maximum :: Maybe Q
@@ -205,9 +204,8 @@ facilityShape = object "Facility"
   ( mk <$> fieldOf "inputs" "consumed per unit" (optionalOf (keyedAlways qShape)) _.inputs
       <*> fieldOf "outputs" "produced per unit" (optionalOf (keyedAlways qShape)) _.outputs
       <*> fieldOf "escrowPerUnit" "reserved per unit, released within the round" (optionalOf (keyedAlways qShape)) _.escrowPerUnit
-      <*> fieldOf "cost" "the cost curve of the facility" (optionalOf costShape) _.cost
+      <*> fieldOf "payment" "what each order pays: its curve, its Resource, and who is paid" (optionalOf (recordShape "Payment" { curve: costShape, resource: idShape, to: idShape })) _.payment
       <*> fieldOf "capacity" "the capacity it draws on" (optionalOf idShape) _.capacity
-      <*> fieldOf "payee" "the Entity paid" (optionalOf idShape) _.payee
       <*> fieldOf "delay" "rounds before its effects apply" (optionalOf intShape) _.delay
       <*> fieldOf "minimum" "the smallest order accepted" (optionalOf qShape) _.minimum
       <*> fieldOf "maximum" "the largest order accepted per Entity per round" (optionalOf qShape) _.maximum
@@ -216,7 +214,7 @@ facilityShape = object "Facility"
       <*> fieldOf "effects" "changes to capacities" (optionalOf (listOf effectShape)) _.effects
   )
   where
-  mk i o r c cap p d mn mx cu os ef = { inputs: i, outputs: o, escrowPerUnit: r, cost: c, capacity: cap, payee: p, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
+  mk i o r c cap d mn mx cu os ef = { inputs: i, outputs: o, escrowPerUnit: r, payment: c, capacity: cap, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
 
 aggregateShape :: Shape AggregateDoc
 aggregateShape = object "Aggregate"
@@ -356,7 +354,7 @@ roundF :: RecF WorldDoc (Maybe Int)
 roundF = fieldOf "round" "the starting round (default 1)" (optionalOf intShape) _.round
 
 numeraireF :: RecF WorldDoc ResourceId
-numeraireF = fieldOf "numeraire" "the Resource facility costs are paid in" idShape _.numeraire
+numeraireF = fieldOf "numeraire" "the unit of account, which the views use for net worth" idShape _.numeraire
 
 resourcesF :: RecF WorldDoc (Keyed ResourceDoc)
 resourcesF = fieldOf "resources" "the Resources" (keyedAlways resourceShape) _.resources
@@ -486,9 +484,8 @@ facilityToCore k f =
   , inputs: keyedToMap (fromMaybe [] f.inputs)
   , outputs: keyedToMap (fromMaybe [] f.outputs)
   , escrowPerUnit: keyedToMap (fromMaybe [] f.escrowPerUnit)
-  , cost: map costToCore f.cost
+  , payment: map (\p -> p { curve = costToCore p.curve }) f.payment
   , capacity: f.capacity
-  , payee: f.payee
   , delay: fromMaybe 0 f.delay
   , minimum: fromMaybe Q.zero f.minimum
   , maximum: f.maximum

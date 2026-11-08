@@ -511,7 +511,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> show e `shouldEqual` "a round"
     it "caps an uncapped facility's fills at its ceiling, so escrow bounds the settled price" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Just { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, resource: Id "M", to: Id "PAYEE" }, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], actor "UK" [ MayTransform (Id "F") ] ]) { transformations = Map.singleton (Id "F") fac }
         order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
         filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
@@ -519,7 +519,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "escrows a pooled facility at the pool ceiling, so a member with a larger capacityUse is still bounded" do
       let
         cost = { intercept: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
-        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Just cost, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
+        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Just { curve: cost, resource: Id "M", to: Id "PAYEE" }, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "FA") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
         -- UK holds exactly the escrow of its order at the old per-facility ceiling (capacity / 2 = 5, price 1 + 5/2 = 3.5)
         uk = (actor "UK" [ MayTransform (Id "FB") ]) { accounts = Map.singleton (Id "M") (Q.div (Q.fromInt 7) (Q.fromInt 2)) }
@@ -619,7 +619,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
       let
         mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
-        dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
         -- 2 units reserve 6 Mil and the Transfer asks 10: 16 escrowed against 10 held, so both scale by 5/8
@@ -640,7 +640,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             Right next -> holding next.world (Id "US") (Id "Mil") `shouldEqual` Q.zero
     it "a reservation alongside inputs leaves the reserved Resource unchanged and still consumes the inputs" do
       let
-        dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
         mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
         w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
@@ -689,7 +689,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a capacity effect changes only its named holder's capacity, for its rounds" do
       let
         -- each unit ordered adds one unit of plant to JP in the round after the order, for two rounds
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
         w = (baseWorld [ actor "UK" [ MayTransform (Id "F") ], actor "JP" [], actor "US" [] ]) { transformations = Map.singleton (Id "F") fac }
         held e world = capacityHeld (prepareRound world) (Id e) (Id "plant")
         round2 = advance w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 3 } ] ]
@@ -702,7 +702,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       held "US" round2 `shouldEqual` Q.zero
     it "a facility whose owner does not sign is rejected, and accepted once the owner signs" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: true, effects: [] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: true, effects: [] }
         w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
         order = Transform { by: Id "US", transformation: Id "F", quantity: Q.fromInt 1 }
         p signers =
@@ -722,7 +722,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Funding, shipping, the record, and ownership (work/6)" do
     let
-      transport = { id: Id "ship", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+      transport = { id: Id "ship", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
       holder name = (actor name [ MayTransform (Id "ship") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 50) ] }
       shipWorld = (baseWorld [ holder "A", holder "B", holder "C" ]) { transformations = Map.singleton (Id "ship") transport, flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "ship") } ] }
       send to n = Transfer { from: Id "A", to: Id to, resource: Id "E", quantity: Q.fromInt n }
@@ -901,12 +901,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       invariantsOf w grown `shouldContain` "INV-05"
     it "INV-06: a fill above the pool's capacity" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         w = (baseWorld [ (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (withEvent (convE (Id "UK") (Id "F") (Q.fromInt 11)) (empty w)) `shouldContain` "INV-06"
     it "INV-08: two positive holders of a facility's capacity" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         holds n = (actor n []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
         w = (baseWorld [ holds "UK", holds "JP" ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (empty w) `shouldContain` "INV-08"

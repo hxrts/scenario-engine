@@ -31,6 +31,7 @@ module Premises.Meridian
   , market
   ) where
 
+import Schema.Premise.World (CostDoc)
 import Prelude (bind, map, negate, show, ($), (+), (<>))
 
 import Core.World (FlowGate)
@@ -57,7 +58,7 @@ import Game.Premise (GameboardParts, checkPremise)
 import Premises.Load (fromFiles, shippedPresets)
 import Schema.Premise.Gameboard (ConfigDoc, GameboardDoc, configShape, gameboardShape)
 import Schema.Premise.World (EstimatorDoc, CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
-import Core.Types (EntityId, Id(..), TransformationId, Transferability(..))
+import Core.Types (ResourceId, EntityId, Id(..), TransformationId, Transferability(..))
 
 -- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
 -- | in-world seed; fixtures and golden tests use it too.
@@ -210,18 +211,18 @@ transformations = keyed
   [ Tuple N.defenseProcurement defenseProcurementFacility
   , Tuple N.defenseProcurementCn (procurement N.cnPrivate)
   , Tuple N.publicAttention
-      (noFacility { outputs = Just (keyed [ N.softPower := 1 ]), cost = Just { intercept: q 3, slope: q "0.2", lo: q 0, hi: q 50 }, capacity = Just (Id N.attention), payee = Just (Id N.worldHouseholds), maximum = Just (q 10) })
+      (noFacility { outputs = Just (keyed [ N.softPower := 1 ]), payment = paid { intercept: q 3, slope: q "0.2", lo: q 0, hi: q 50 } (Id N.worldHouseholds), capacity = Just (Id N.attention), maximum = Just (q 10) })
   , Tuple N.energyShipping energyShipping
   , Tuple N.humanitarianAid
-      (noFacility { inputs = Just (keyed [ N.energy := 5 ]), outputs = Just (keyed [ N.softPower := 4 ]), cost = Just { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee = Just (Id N.worldHouseholds), maximum = Just (q 2) })
+      (noFacility { inputs = Just (keyed [ N.energy := 5 ]), outputs = Just (keyed [ N.softPower := 4 ]), payment = paid { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 } (Id N.worldHouseholds), maximum = Just (q 2) })
   , Tuple N.militaryDeployment deployment
   , Tuple N.majorMilitaryAction majorMilitaryAction
   , Tuple N.logisticsInvestment
-      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), cost = Just { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 }, payee = Just (Id N.globalSmes), delay = Just 1, effects = Just [ { capacity: Id N.transport, holder: Nothing, perUnit: q 10, rounds: Nothing } ] })
+      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), payment = paid { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 } (Id N.globalSmes), delay = Just 1, effects = Just [ { capacity: Id N.transport, holder: Nothing, perUnit: q 10, rounds: Nothing } ] })
   , Tuple N.energyCapacityInvestment
-      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), cost = Just { intercept: q 12, slope: q 0, lo: q 0, hi: q 1000 }, payee = Just (Id N.globalSmes), delay = Just 1, capacity = Just (Id N.semiconductors), capacityUse = Just (q 1), ownerSigns = Just true, effects = Just [ { capacity: Id N.energyProduction, holder: Nothing, perUnit: q 2, rounds: Nothing } ] })
+      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), payment = paid { intercept: q 12, slope: q 0, lo: q 0, hi: q 1000 } (Id N.globalSmes), delay = Just 1, capacity = Just (Id N.semiconductors), capacityUse = Just (q 1), ownerSigns = Just true, effects = Just [ { capacity: Id N.energyProduction, holder: Nothing, perUnit: q 2, rounds: Nothing } ] })
   , Tuple N.strike
-      (noFacility { inputs = Just (keyed [ N.softPower := 8 ]), cost = Just { intercept: q 5, slope: q 0, lo: q 0, hi: q 1 }, payee = Just (Id N.usWorkers), delay = Just 1, maximum = Just (q 1), effects = Just [ { capacity: Id N.energyProduction, holder: Just (Id N.enco), perUnit: q "-6.25", rounds: Just 1 }, { capacity: Id N.semiconductors, holder: Just (Id N.chip), perUnit: q "-3.75", rounds: Just 1 } ] })
+      (noFacility { inputs = Just (keyed [ N.softPower := 8 ]), payment = paid { intercept: q 5, slope: q 0, lo: q 0, hi: q 1 } (Id N.usWorkers), delay = Just 1, maximum = Just (q 1), effects = Just [ { capacity: Id N.energyProduction, holder: Just (Id N.enco), perUnit: q "-6.25", rounds: Just 1 }, { capacity: Id N.semiconductors, holder: Just (Id N.chip), perUnit: q "-3.75", rounds: Just 1 } ] })
   ]
 
 -- | The US defence procurement facility, which DEF operates.
@@ -232,10 +233,14 @@ defenseProcurementFacility = procurement N.def
 -- | Procurement by the US and its rivals differ only in the payee.
 procurement :: String -> FacilityDoc
 procurement payeeEntity =
-  noFacility { inputs = Just (keyed [ N.energy := 2 ]), outputs = Just (keyed [ N.mil := 1 ]), cost = Just { intercept: q 8, slope: q "0.5", lo: q 0, hi: q 30 }, capacity = Just (Id N.semiconductors), capacityUse = Just (q "0.5"), delay = Just 1, payee = Just (Id payeeEntity) }
+  noFacility { inputs = Just (keyed [ N.energy := 2 ]), outputs = Just (keyed [ N.mil := 1 ]), payment = paid { intercept: q 8, slope: q "0.5", lo: q 0, hi: q 30 } (Id payeeEntity), capacity = Just (Id N.semiconductors), capacityUse = Just (q "0.5"), delay = Just 1 }
+
+-- | A facility's price, paid in the numeraire to the Entity.
+paid :: CostDoc -> EntityId -> Maybe { curve :: CostDoc, resource :: ResourceId, to :: EntityId }
+paid curve to = Just { curve, resource: Id N.money, to }
 
 energyShipping :: FacilityDoc
-energyShipping = noFacility { cost = Just { intercept: q "0.3", slope: q 0, lo: q 0, hi: q 60 }, capacity = Just (Id N.transport), payee = Just (Id N.ship), ownerSigns = Just true }
+energyShipping = noFacility { payment = paid { intercept: q "0.3", slope: q 0, lo: q 0, hi: q 60 } (Id N.ship), capacity = Just (Id N.transport), ownerSigns = Just true }
 
 -- | A deployment reserves 1 Mil per unit for the round and consumes and produces nothing: the
 -- | reserved Mil is released at commit (docs/05_test_instance.md §13.3).

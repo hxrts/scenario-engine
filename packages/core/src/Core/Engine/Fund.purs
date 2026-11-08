@@ -22,7 +22,7 @@ import Core.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
 
 -- | An Item with the factor each Entity's funding scales what it executes by. A joint Proposal, which is
@@ -84,7 +84,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
     Transform t -> case Map.lookup t.transformation w.transformations of
       Nothing -> []
       Just tr ->
-        [ { entity: t.by, resource: w.numeraire, amount: Q.mul (fullPrice w tr) t.quantity } ]
+        maybe [] (\pay -> [ { entity: t.by, resource: pay.resource, amount: Q.mul (fullPrice w tr) t.quantity } ]) tr.payment
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.escrowPerUnit)
     ChangeRule _ -> []

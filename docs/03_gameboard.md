@@ -42,7 +42,7 @@ A `representations` key in a Gameboard section is decoded but ignored: instantia
 `premise.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
-- `numeraire`: the Resource in which Facility costs are paid.
+- `numeraire`: the unit of account, read by the views for net worth and units. The engine does not read it; the DSL fills it into payments and levies.
 - `horizon`: simulated years.
 - `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
@@ -91,8 +91,7 @@ Limit-price orders and clearing are Intents and clearing rules (Type System [§3
 
 - `inputs`, `outputs`: Resource to quantity per unit.
 - `escrowPerUnit`: reservable Resources the Facility locks per unit. A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
-- `cost` (optional): a CostFunction giving the price per unit. A costed Facility requires `payee`.
-- `payee` (optional): the Entity paid for the Facility's output.
+- `payment` (optional): `{ curve, resource, to }`, a CostFunction giving the price per unit, the Resource paid in, and the Entity paid.
 - `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
 - `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. Capacity `effects` always land at least one round after the order.
 - `minimum` (default `0`) and `maximum` (optional): bounds on one Entity's order per round.
@@ -285,7 +284,6 @@ Validation is always against one configuration. The Gameboard has no separate "v
 | `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, Rule, scheme, Aggregate member, procedure weight, `npc` list, capability, procedure `authorizes`, objective metric or Measure, coverage fallback, `config.fallbacks` entry, or the `numeraire` does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
 | `DuplicateCapacityOwner` | A capacity, other than a producer's production capacity, has more than one owner. |
 | `ProductionWithoutCapacity` | A `production` entry's Entity does not hold that capacity. |
-| `FacilityWithoutPayee` | A costed Facility has no `payee`. |
 | `ReservesNonReservable` | A Facility reserves a Resource not marked `reservable`. |
 | `MissingFallback` | A non-required Actor has no fallback. |
 | `MissingObjective` | An Actor has no objective. |

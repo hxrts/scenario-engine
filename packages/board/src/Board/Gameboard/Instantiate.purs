@@ -125,9 +125,9 @@ mergeInto agg e w = case Map.lookup e w.entities of
   foldWeights a = case aggregateOf a of
     Just x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
     Nothing -> a.kind
-  -- a payee and an effect's holder that were the Actor are the Aggregate now
+  -- a payment's recipient and an effect's holder that were the Actor are the Aggregate now
   facility t = t
-    { payee = map retarget t.payee
+    { payment = map (\p -> p { to = retarget p.to }) t.payment
     , effects = map (\ef -> ef { holder = map retarget ef.holder }) t.effects
     }
   -- a flows Rule's Entities pass to the Aggregate
