@@ -22,7 +22,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
 import Premises.Load (decodePresets, fromFiles)
-import Premises.Names as N
+import Premises.Layout as L
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Premise.Gameboard (configShape, gameboardShape)
 import Schema.Premise.Strategy (presetsShape)
@@ -45,16 +45,16 @@ directory c = c.id <> "/" <> c.version
 -- | Gameboard's encoding, and the instantiation configuration is its own file.
 files :: Composition -> Array (Tuple String Json)
 files c =
-  [ section N.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
-  , section N.resourcesFile [ "resources" ]
-  , section N.marketsFile [ "markets", "flowGates", "groups", "ruleKinds" ]
-  , section N.transformationsFile [ "transformations" ]
-  , section N.circulationFile [ "circulation" ]
-  , section N.entitiesFile [ "entities" ]
-  , section N.representationsFile [ "schemes" ]
-  , section N.gameRulesFile [ "parameters", "rules" ]
-  , section N.policiesFile [ "policies" ]
-  , Tuple N.instantiationFile (encodeWith Premise configShape c.config)
+  [ section L.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
+  , section L.resourcesFile [ "resources" ]
+  , section L.marketsFile [ "markets", "flowGates", "groups", "ruleKinds" ]
+  , section L.transformationsFile [ "transformations" ]
+  , section L.circulationFile [ "circulation" ]
+  , section L.entitiesFile [ "entities" ]
+  , section L.representationsFile [ "schemes" ]
+  , section L.gameRulesFile [ "parameters", "rules" ]
+  , section L.policiesFile [ "policies" ]
+  , Tuple L.instantiationFile (encodeWith Premise configShape c.config)
   ]
   where
   whole = fromMaybe Object.empty (toObject (encodeWith Premise gameboardShape c.gameboard))

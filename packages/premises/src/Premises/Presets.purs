@@ -3,7 +3,7 @@
 module Premises.Presets (presets, presetNames, defaultPresets) where
 
 import Prelude (map, negate)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..))

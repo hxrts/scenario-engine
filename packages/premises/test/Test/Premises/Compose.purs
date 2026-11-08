@@ -17,8 +17,9 @@ import Foreign.Object as Object
 import Game.Error (GameError(..))
 import Game.Restrict (everything, restrict)
 import Premises.Load (fromFiles)
-import Premises.Meridian (files, gameboard, parts)
-import Premises.Names as N
+import Premises.Compose as Composition
+import Premises.Meridian (gameboard, meridian)
+import Premises.Meridian.Names as N
 import Schema.Premise.Gameboard (configShape, gameboardShape)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -27,7 +28,7 @@ spec :: Spec Unit
 spec = do
   describe "A premise's section files" do
     it "merge back to the same Gameboard" do
-      case fromFiles (map (\(Tuple name json) -> { name, json }) files) of
+      case fromFiles (map (\(Tuple name json) -> { name, json }) (Composition.files meridian)) of
         Left e -> fail e
         Right d -> stringify (encodeWith Premise gameboardShape d.gameboard) `shouldEqual` stringify (encodeWith Premise gameboardShape gameboard)
 
@@ -94,6 +95,6 @@ spec = do
             Left e -> fail (show e)
             Right _ -> fail "an unknown Entity should not pass"
   where
-  withPremise k = case parts of
+  withPremise k = case Composition.parts meridian of
     Left e -> fail e
     Right p -> k p

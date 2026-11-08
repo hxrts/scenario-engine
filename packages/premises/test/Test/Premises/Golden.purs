@@ -21,7 +21,7 @@ import Data.Tuple (fst)
 import Effect.Aff (Aff)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
-import Premises.Fixtures as Fixtures
+import Premises.Meridian.Fixtures as Fixtures
 import Premises.Meridian (gameSeed)
 import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Test.Spec (Spec, describe, it)

@@ -5,7 +5,7 @@
 -- | same seats, expectations and objectives to `capstone/run.json`, a record of them for readers; no
 -- | code decodes that file. The world and the Entity Policies are the shipped ones; only the seat
 -- | strategies and the expectations are here.
-module Premises.Capstone
+module Premises.Meridian.Capstone
   ( file
   , rounds
   , playerSeed
@@ -24,7 +24,7 @@ module Premises.Capstone
   ) where
 
 import Prelude (map, otherwise, ($), (<<<), (<>), (==))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (enactWithholding, selfAccessBan)
 import Game.Assemble (assemble)
 import Game.Bindings (strategyBindings)

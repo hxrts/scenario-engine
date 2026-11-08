@@ -27,7 +27,7 @@ import Game.Override (Override)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Premises.Load (loadFrom)
-import Premises.Names (meridianDir, seatActors)
+import Premises.Meridian.Names (meridianDir, seatActors)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
 silent :: GameboardParts -> Bindings

@@ -1,16 +1,16 @@
 -- | Golden fixtures for the NPC response (docs/05_test_instance.md §24, Fixture D): the US's
 -- | major military action, and China answering as its NPC (§11.1) with defence procurement. The
 -- | shorter D-minor carries the major action alone. Fixtures D and D-minor.
-module Premises.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
+module Premises.Meridian.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
 import Data.Map as Map
 import Prelude ((<>))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Core.Types (Id(..))
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, facilities, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, facilities, fixture)
 import Premises.Meridian (majorMilitaryAction, procurement, resources)
 
 import Schema.Build.Base (keyed, (:=), mayTransform)

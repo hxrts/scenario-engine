@@ -1,9 +1,7 @@
 -- | The names the Meridian premise and its fixtures use: Entities, Markets, Resources,
 -- | Transformations, Capacities and Policies. Every premise module refers to a name through
 -- | these constants, so a name is spelled once. Read qualified (`N.us`, `N.energyAtlantic`).
-module Premises.Names where
-
-import Prelude ((<>))
+module Premises.Meridian.Names where
 
 -- Entities (docs/05_test_instance.md §9 and §10) ----------------------------------------
 
@@ -186,61 +184,10 @@ euSolidarity = "eu-solidarity"
 euTrade :: String
 euTrade = "eu-trade"
 
--- Files (the premise package's JSON sections and the Gameboard's instantiation) ----------
-
-premiseFile :: String
-premiseFile = "premise.json"
-
-resourcesFile :: String
-resourcesFile = "resources.json"
-
-marketsFile :: String
-marketsFile = "markets.json"
-
-transformationsFile :: String
-transformationsFile = "transformations.json"
-
-circulationFile :: String
-circulationFile = "circulation.json"
-
-entitiesFile :: String
-entitiesFile = "entities.json"
-
-representationsFile :: String
-representationsFile = "representations.json"
-
-gameRulesFile :: String
-gameRulesFile = "game-rules.json"
-
-policiesFile :: String
-policiesFile = "policies.json"
-
-instantiationFile :: String
-instantiationFile = "instantiation.json"
-
-presetsFile :: String
-presetsFile = "presets.json"
-
--- Paths under the premise root ----------------------------------------------------------------
+-- The compiled premise's directory under the premise root --------------------------------------
 
 meridianDir :: String
 meridianDir = "meridian/v0"
-
-fixturesDir :: String
-fixturesDir = "fixtures"
-
-capstoneDir :: String
-capstoneDir = "capstone"
-
--- | A compiled fixture's path.
-fixturePath :: String -> String
-fixturePath name = fixturesDir <> "/" <> name <> ".json"
-
-capstoneRunFile :: String
-capstoneRunFile = capstoneDir <> "/run.json"
-
-capstoneTranscriptFile :: String
-capstoneTranscriptFile = capstoneDir <> "/transcript.json"
 
 -- Seats ---------------------------------------------------------------------------------------
 

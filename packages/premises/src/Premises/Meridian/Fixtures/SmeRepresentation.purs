@@ -1,16 +1,16 @@
 -- | Golden fixtures for SME representation (docs/05_test_instance.md §23, Fixture C): the
 -- | Small-Business Owner's Representation of Global SMEs' Energy demand, its stored factor applied
 -- | a round later (§12.2). Fixtures C1, C2, C3 and C5; C5 checks only the seeded noise.
-module Premises.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
+module Premises.Meridian.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
 
 import Data.Map (Map)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Core.Types (EntityKind(Aggregate), EntityId, Id(..))
 
 import Core.Num (Q)
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, energy, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, energy, fixture)
 import Premises.Meridian (smeSample, resources)
 import Premises.Meridian.Holdings (pickAccounts)
 import Premises.Meridian.Entities.Aggregates (globalSmesAggregate)

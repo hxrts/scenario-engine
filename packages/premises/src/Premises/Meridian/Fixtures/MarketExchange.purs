@@ -1,16 +1,16 @@
 -- | Golden fixtures for direct market exchange (docs/05_test_instance.md §21, Fixture A): two
 -- | Energy traders on the Atlantic Market, with and without a limit price. Shares the Energy
--- | Markets of §3.1 with the other families through `Premises.Fixtures.Common`.
-module Premises.Fixtures.MarketExchange (fixtureA, fixtureA2) where
+-- | Markets of §3.1 with the other families through `Premises.Meridian.Fixtures.Common`.
+module Premises.Meridian.Fixtures.MarketExchange (fixtureA, fixtureA2) where
 
 import Data.Map (Map)
 import Prelude (negate)
 
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
 
 import Schema.Build.World (entitiesOf)
 import Schema.Build.Base (keyed, (:=), mayTrade)

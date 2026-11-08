@@ -17,12 +17,12 @@ import Data.Foldable (foldMap, for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
-import Premises.Capstone as Capstone
-import Premises.Fixtures as Fixtures
+import Premises.Meridian.Capstone as Capstone
+import Premises.Meridian.Fixtures as Fixtures
 import Premises.Catalog (compositions)
 import Premises.Compose (directory, files, parts, presetsJson)
 import Schema.Premise.Fixture (decodeLiteral)
-import Premises.Names (capstoneRunFile, fixturePath, presetsFile)
+import Premises.Layout (capstoneRunFile, fixturePath, presetsFile)
 
 -- | A compiled file: its path under the premise root, and its text.
 type Output = { path :: String, text :: String }

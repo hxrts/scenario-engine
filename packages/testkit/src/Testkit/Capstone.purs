@@ -1,6 +1,6 @@
 -- | The capstone run as the test suites read it: the Meridian premise assembled with the capstone's seat
 -- | bindings (and its counterfactual's), its expectations and objectives, and the run it produces. The
--- | values come from `Premises.Capstone`; nothing decodes `capstone/run.json`. Test support only.
+-- | values come from `Premises.Meridian.Capstone`; nothing decodes `capstone/run.json`. Test support only.
 module Testkit.Capstone (Capstone, load, runOf) where
 
 import Prelude
@@ -11,8 +11,8 @@ import Effect.Aff (Aff)
 import Game.Assemble (assemble, withRounds)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game)
-import Premises.Capstone as C
-import Premises.Capstone (ObjectiveExpect, RoundExpect)
+import Premises.Meridian.Capstone as C
+import Premises.Meridian.Capstone (ObjectiveExpect, RoundExpect)
 import Simulator.Simulate (SimRun)
 import Testkit.Meridian (orThrow, premise, run)
 

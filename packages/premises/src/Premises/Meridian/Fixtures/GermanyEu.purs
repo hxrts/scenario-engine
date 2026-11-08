@@ -1,12 +1,12 @@
 -- | Golden fixtures for Germany and the EU (docs/05_test_instance.md §22, Fixture B): Germany
 -- | transfers Energy to the EU, and the EU's collective procedures (§12.1) enact or lapse. Fixtures
 -- | B1 to B4 and B4-unsigned.
-module Premises.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4) where
+module Premises.Meridian.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4) where
 
 import Data.Map (Map)
 import Prelude (map, negate)
 
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (enactTariff, mayEnactTariff)
 import Core.Types (EntityKind(Aggregate), EntityId, Id(..))
 
@@ -14,7 +14,7 @@ import Core.Num (Q)
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
 import Premises.Meridian (resources)
-import Premises.Fixtures.Common (holding, defaultFixture, energyAt, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, energyAt, fixture)
 import Premises.Meridian.Holdings (pickAccounts)
 import Premises.Meridian.Entities.Aggregates (euAggregate, euPoolAggregate)
 import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer)

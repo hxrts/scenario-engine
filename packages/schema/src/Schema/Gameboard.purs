@@ -125,7 +125,7 @@ type InitialWorld = { world :: WorldState, manifest :: Manifest }
 
 -- | The outcome of an objective or a criterion. A run with no rounds, or a criterion with no series,
 -- | is not evaluated: it is neither a pass nor a failure. The premise spells the outcomes "met",
--- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Capstone`).
+-- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Meridian.Capstone`).
 data Outcome = Met | NotMet | NotEvaluated
 
 derive instance Eq Outcome

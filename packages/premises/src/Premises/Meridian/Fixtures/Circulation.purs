@@ -1,13 +1,13 @@
 -- | The circulation golden fixture (docs/05_test_instance.md §8, Economic Circulation): every
 -- | Entity of the reference instance, with its production (§8.1) and flows (§8.4), over five
 -- | rounds of nothing but circulation. Fixture `circulation`.
-module Premises.Fixtures.Circulation (fixtureCirculation) where
+module Premises.Meridian.Fixtures.Circulation (fixtureCirculation) where
 
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
 import Premises.Meridian (flows, productionCapacity, requirements)
 import Premises.Meridian.Holdings (pickAccounts)
 import Schema.Build.Base (keyed, (:=))

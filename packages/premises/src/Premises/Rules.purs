@@ -21,7 +21,7 @@ import Core.Strategy (Expr, IntentTemplate, selfName)
 import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), LevyBasis(..), LevyRecipient(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl, RuleKindId)
 import Data.Map (Map)
 import Data.Tuple (Tuple(..))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Schema.Build.Base (keyed, mayEnact)
 import Schema.Build.Decision (selfEnact)
 

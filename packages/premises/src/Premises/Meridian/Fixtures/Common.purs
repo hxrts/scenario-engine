@@ -1,7 +1,7 @@
 -- | The world pieces every golden fixture family shares: the fixture spec and its builder, and the
 -- | Energy Markets and Facilities that the families build on. Every expected value stays in the
 -- | family modules, as a literal from docs/05_test_instance.md; nothing here computes one.
-module Premises.Fixtures.Common
+module Premises.Meridian.Fixtures.Common
   ( defaultFixture
   , fixture
   , holding
@@ -13,7 +13,7 @@ module Premises.Fixtures.Common
 import Prelude (map, (+))
 
 import Core.World (FlowGate)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (ruleKinds)
 
 import Core.Num (Q)

@@ -5,7 +5,7 @@ import Prelude
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
-import Premises.Names (seatActors)
+import Premises.Meridian.Names (seatActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)

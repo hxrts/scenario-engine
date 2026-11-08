@@ -1,14 +1,14 @@
 -- | Golden fixtures for simultaneous conflicting orders (docs/05_test_instance.md §26, Fixture F):
 -- | three governments order defence procurement in the same round, and the procurement facility
 -- | and the semiconductor capacity allocate what they can. Fixture F.
-module Premises.Fixtures.ConflictingActions (fixtureF) where
+module Premises.Meridian.Fixtures.ConflictingActions (fixtureF) where
 
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Core.Types (Id(..))
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
 
 import Schema.Build.Base (keyed, (:=), mayTransform)
 import Schema.Build.Quantity (q)

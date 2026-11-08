@@ -2,18 +2,18 @@
 -- | between Saudi Arabia, Japan, Germany, the shipping facility and the other Actors, settled
 -- | atomically when fully signed and lapsed otherwise; G3-ban runs under an access ban (§3.2).
 -- | Fixtures G1, G2, G3-ban, G3, G4, G5-unsigned and G5.
-module Premises.Fixtures.SignedProposals (fixtureG1, fixtureG2, fixtureG3Ban, fixtureG3, fixtureG4, fixtureG5Unsigned, fixtureG5) where
+module Premises.Meridian.Fixtures.SignedProposals (fixtureG1, fixtureG2, fixtureG3Ban, fixtureG3, fixtureG4, fixtureG5Unsigned, fixtureG5) where
 
 import Data.Map (Map)
 import Prelude (map)
 
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (accessBanRule)
 import Core.Types (EntityId, Id(..))
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
 
 import Premises.Meridian.Holdings (pickAccounts)
 import Schema.Build.Base (keyed, (:=), mayTransfer, mayTransform)

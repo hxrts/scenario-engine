@@ -5,7 +5,7 @@ module Test.Adapters.Primitives (spec) where
 
 import Prelude
 
-import Premises.Names (meridianDir)
+import Premises.Meridian.Names (meridianDir)
 
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)

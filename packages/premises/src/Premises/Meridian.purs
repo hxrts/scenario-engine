@@ -35,7 +35,7 @@ module Premises.Meridian
 import Prelude (map, negate, show, (+), (<>))
 
 import Core.World (FlowGate)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (ruleKinds)
 
 import Core.Num (Q)

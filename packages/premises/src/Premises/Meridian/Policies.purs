@@ -12,7 +12,7 @@ import Data.Tuple (Tuple(..))
 import Schema.Build.Decision (asTemplate, orderAt, selfTransform, each, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, named, not', param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, signFacility, subQ, tradeAt, transformedLastRound)
 import Schema.Build.Intent (transfer)
 import Premises.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (selfTariff)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).

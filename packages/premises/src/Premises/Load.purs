@@ -27,7 +27,7 @@ import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
-import Premises.Names (instantiationFile, presetsFile)
+import Premises.Layout (instantiationFile, presetsFile)
 import Premises.Presets as Presets
 import Premises.Tree as Tree
 import Schema.Decode.Common (decodeError)

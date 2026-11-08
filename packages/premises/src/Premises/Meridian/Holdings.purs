@@ -6,7 +6,7 @@
 module Premises.Meridian.Holdings (Holding, holdings, accountsOf, capacitiesOf, pickAccounts, capacityHolders) where
 
 import Prelude (map, (<>), (==))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Data.Array (filter, find)
 import Data.Foldable (any)

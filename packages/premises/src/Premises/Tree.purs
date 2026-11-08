@@ -20,7 +20,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe, fromMaybe, isJust)
 import Data.String (Pattern(..), stripSuffix)
 import Data.Traversable (sequence, traverse)
-import Premises.Names (presetsFile)
+import Premises.Layout (presetsFile)
 
 -- | One premise file: its name (`markets.json`), its path under the working directory (used in
 -- | failure messages), and its text.

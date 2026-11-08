@@ -2,16 +2,16 @@
 -- | defence-goods Market of §3.5): a deployment reserves Military while the US sells on the
 -- | defence-goods Market in the same round, and the reserved units are released the next round.
 -- | Fixture R, with R-alone as the same sale without the deployment.
-module Premises.Fixtures.Reservation (fixtureR, fixtureRAlone) where
+module Premises.Meridian.Fixtures.Reservation (fixtureR, fixtureRAlone) where
 
 import Data.Map (Map)
 import Data.Map as Map
 import Prelude (negate, (<>))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
-import Premises.Fixtures.Common (holding, defaultFixture, energy, facilities, fixture)
+import Premises.Meridian.Fixtures.Common (holding, defaultFixture, energy, facilities, fixture)
 import Premises.Meridian (defenceAccess, defenceTerms, deployment, market, resources)
 
 import Schema.Build.World (entitiesOf, byKey)

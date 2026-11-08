@@ -10,7 +10,7 @@ import Core.Num (Q)
 import Data.Maybe (Maybe(..), maybe)
 import Premises.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Premises.Meridian.Holdings (accountsOf, capacitiesOf)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (mayEnactWithholding)
 import Schema.Build.Base (capacityOf, cumulative, coverage, final, holdingOf, institutional, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (noEntity, atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)

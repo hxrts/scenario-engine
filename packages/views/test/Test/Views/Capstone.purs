@@ -23,7 +23,7 @@ import Foreign.Object as Object
 import Effect.Aff (Aff)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load, runOf)
-import Premises.Capstone (ObjectiveExpect)
+import Premises.Meridian.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)

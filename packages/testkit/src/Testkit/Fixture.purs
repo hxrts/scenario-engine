@@ -9,7 +9,7 @@ import Adapters.Filesystem (fileOps)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Premises.Load (loadLiteral)
-import Premises.Names (fixturePath)
+import Premises.Layout (fixturePath)
 import Premises.Tree (readRootFile)
 import Test.Spec.Assertions (fail, shouldEqual)
 

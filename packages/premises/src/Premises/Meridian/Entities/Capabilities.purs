@@ -14,7 +14,7 @@ import Prelude ((<>))
 
 import Core.Types (Capability)
 import Schema.Build.Base (mayTrade, mayTransfer, mayTransform)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Premises.Rules (mayEnactAccessBan, mayEnactTariff)
 
 -- | Trading in one Energy market, and holding Money and Energy.

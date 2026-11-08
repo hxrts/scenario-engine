@@ -6,7 +6,7 @@
 module Premises.Meridian.Entities (entities, actors) where
 
 import Prelude (map, (<>))
-import Premises.Names as N
+import Premises.Meridian.Names as N
 import Data.Array (zip)
 import Data.Tuple (Tuple(..), fst, snd)
 import Core.Types (Entity, EntityId)

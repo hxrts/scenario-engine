@@ -7,7 +7,7 @@ module Test.Handlers.Capstone (spec) where
 
 import Prelude
 
-import Premises.Names (capstoneTranscriptFile)
+import Premises.Layout (capstoneTranscriptFile)
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
@@ -26,7 +26,7 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
-import Premises.Capstone (JointLine, jointLines, matchesExpect)
+import Premises.Meridian.Capstone (JointLine, jointLines, matchesExpect)
 import Data.Argonaut.Decode (fromJsonString)
 import Schema.Decode.Common (decodeError)
 import Test.Handlers.Stub (backendOf, replayCall)

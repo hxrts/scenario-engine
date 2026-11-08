@@ -4,7 +4,7 @@ module Premises.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, 
 
 import Prelude ((<>))
 import Premises.Rules (mayEnactTariff)
-import Premises.Names as N
+import Premises.Meridian.Names as N
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer)

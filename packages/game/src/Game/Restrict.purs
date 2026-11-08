@@ -11,7 +11,6 @@ module Game.Restrict
 
 import Prelude
 
-import Board.Error (ValidationError(..))
 import Board.Gameboard.Validate (gameboardNames, unknownNames)
 import Core.Map (values)
 import Core.Strategy (Strategy)
