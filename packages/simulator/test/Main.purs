@@ -29,7 +29,6 @@ import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Simulator.Simulate (Snapshot, resumeFrom)
 import Core.Strategy (Strategy)
-import Effects.Round (runGame)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Premises.Load (loadLiteral)
@@ -99,7 +98,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- premise
       g <- everySeat p "RandomValid"
       a <- run (Seed 1) g
-      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) (runGame g.inWorld 5 g.world) of
+      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g of
         Left e -> fail (show e)
         Right out -> do
           map _.world out.records `shouldEqual` map _.world a.records
@@ -274,10 +273,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (boughtBy "GLOBAL_SMES" passive 2 < boughtBy "GLOBAL_SMES" passive 0) `shouldEqual` true
       -- the EU's solidarity Proposal executes in Round 3 on Germany's pivotal signature: 0.40 + 0.20
       euExecuted (round3 investor) `shouldEqual` Q.parse "0.6"
-      -- Finding (docs/05 §25 is not met here): two listed effects do not occur in any shipped preset
-      -- game of this suite. SHIP places no Market order in Round 3, and China's Asia offer rule needs
-      -- an Asian price above 3.2 while the Asian price peaks at 2.88. Asserted as observed so a future
-      -- premise change that adds them is noticed.
+      -- the two channels docs/05 §25 records as dormant: SHIP places no Market order, and China's Asia
+      -- offer rule needs an Asian price above 3.2 while the Asian price peaks at 2.88
       for_ [ passive, investor, aggressive ] \r -> do
         boughtBy "SHIP" r 2 `shouldEqual` Nothing
         boughtBy "CN" r 2 `shouldEqual` Nothing

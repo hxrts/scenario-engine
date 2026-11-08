@@ -9,11 +9,6 @@ import { test, expect } from "@playwright/test";
 import { mockReads, ACTIVE, COLUMNS } from "./mocks.js";
 import { postSpy, rowWith, section } from "./helpers.js";
 
-test.beforeAll(async ({ request }) => {
-  for (const [name, preset, playerSeed, rounds] of [["base", "Conservative", 1, 3], ["seed", "Conservative", 2, 3], ["variant", "Aggressive", 1, 3], ["short", "Conservative", 1, 2]])
-    await request.post("/api/runs", { data: { name, preset, playerSeed, gameSeed: null, rounds } });
-});
-
 // The row of a scoped table whose accessible name is its cells' text in order.
 const rowNamed = (scope, cells) => scope.getByRole("row", { name: cells.join(" "), exact: true });
 
@@ -382,7 +377,18 @@ test("clicking another run does not move the results", async ({ page }) => {
   const before = await keyFigures.boundingBox();
   await page.getByRole("button", { name: "run-4", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
-  await expect(page.getByText("Loading", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Loading…", { exact: true })).toHaveCount(0);
   const after = await keyFigures.boundingBox();
   expect(after.y).toBe(before.y);
+});
+
+test("a resume refreshes the whole run page: the standings show the new round count without a reload", async ({ page, request }) => {
+  const launched = await (await request.post("/api/runs", { data: { name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 2 } })).json();
+  await page.goto(`/#/runs/${launched.id}`);
+  await expect(page.getByText("Standings after round 2", { exact: true })).toBeVisible();
+  const region = page.getByRole("region", { name: "Resume", exact: true });
+  await region.getByLabel("Length to run to").fill("3");
+  await region.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.getByText("Standings after round 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
 });

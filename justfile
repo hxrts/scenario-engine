@@ -108,7 +108,8 @@ _dashboard: _ui
     set -euo pipefail
     spago build -p sp-dashboard
     # the bundle is rebuilt only when something it is built from is newer than it
-    if [ -f apps/dashboard/dist/index.html ] && [ -z "$(find apps/dashboard/src apps/dashboard/ui apps/dashboard/app.css apps/dashboard/theme.css apps/dashboard/index.html apps/dashboard/main.js apps/dashboard/vite.config.mjs apps/dashboard/ports.mjs output/Dashboard* -newer apps/dashboard/dist/index.html -print -quit)" ]; then
+    # compiled modules only: output/ also holds the run stores and spago's own cache, which change on every run
+    if [ -f apps/dashboard/dist/index.html ] && [ -z "$(find apps/dashboard/src apps/dashboard/ui apps/dashboard/app.css apps/dashboard/theme.css apps/dashboard/index.html apps/dashboard/main.js apps/dashboard/vite.config.mjs apps/dashboard/ports.mjs -newer apps/dashboard/dist/index.html -print -quit)" ] && [ -z "$(find output \( -name index.js -o -name foreign.js \) -newer apps/dashboard/dist/index.html -print -quit)" ]; then
       echo "dashboard bundle is up to date"
       exit 0
     fi

@@ -8,7 +8,7 @@ import Premises.Names as N
 import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (orderAt, selfTransform, choose, deal, gt, holding, asTemplate, le, lit, noAction, price, rule, signAll, strategy, homeMarket)
+import Schema.Build.Decision (orderAt, selfTransform, asTemplate, cheapest, choose, costliest, deal, gt, holding, le, lit, noAction, price, rule, named, priceAt, signAll, strategy)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2), in the order the launch form offers them.
 presets :: Array (Tuple String Strategy)
@@ -30,14 +30,15 @@ presets =
 presetNames :: Array String
 presetNames = map (\(Tuple k _) -> k) presets
 
--- | Buy `quantity` on the home Market while its price is at or below `threshold`, at a limit of `limit`.
+-- | Buy `quantity` Energy at the cheapest accessible Market while its price is at or below `threshold`,
+-- | at a limit of `limit`. With no accessible Energy Market, nothing is proposed.
 buyBelow :: Expr -> Expr -> Expr -> Clause
-buyBelow threshold quantity limit = rule [ le (price homeMarket) threshold ] [ orderAt homeMarket quantity (Just limit) ]
+buyBelow threshold quantity limit = rule [ le (priceAt (cheapest N.energy)) threshold ] [ orderAt (cheapest N.energy) quantity (Just limit) ]
 
--- | Trade `quantity` on the home Market while its price is above `threshold`, at a limit of `limit`
--- | (a negative quantity sells).
+-- | Sell `quantity` Energy (a negative quantity) at the costliest accessible Market while its price is
+-- | above `threshold`, at a limit of `limit`.
 sellAbove :: Expr -> Expr -> Expr -> Clause
-sellAbove threshold quantity limit = rule [ gt (price homeMarket) threshold ] [ orderAt homeMarket quantity (Just limit) ]
+sellAbove threshold quantity limit = rule [ gt (priceAt (costliest N.energy)) threshold ] [ orderAt (costliest N.energy) quantity (Just limit) ]
 
 passive :: Strategy
 passive = strategy { rules: [], sign: [] }
@@ -45,8 +46,8 @@ passive = strategy { rules: [], sign: [] }
 conservative :: Strategy
 conservative = strategy
   { rules:
-      [ rule [ gt (lit 30) (holding N.energy), le (price homeMarket) (lit "2.5") ]
-          [ orderAt homeMarket (lit 5) (Just (lit "2.5")) ]
+      [ rule [ gt (lit 30) (holding N.energy), le (priceAt (cheapest N.energy)) (lit "2.5") ]
+          [ orderAt (cheapest N.energy) (lit 5) (Just (lit "2.5")) ]
       ]
   , sign: []
   }
@@ -76,7 +77,8 @@ trader = strategy
   , sign: []
   }
 
--- | Sell 5 when the home price is above 3, at a limit of 3. Shared by Trader and Opportunistic.
+-- | Sell 5 Energy at the costliest accessible Market when its price is above 3, at a limit of 3. Shared by
+-- | Trader and Opportunistic.
 sellAboveThree :: Clause
 sellAboveThree = sellAbove (lit 3) (lit (-5)) (lit 3)
 
@@ -104,8 +106,8 @@ investor = strategy
 crisisresponse :: Strategy
 crisisresponse = strategy
   { rules:
-      [ rule [ gt (price homeMarket) (lit "3.5"), gt (lit 20) (holding N.energy) ]
-          [ orderAt homeMarket (lit 3) (Just (lit 4)) ]
+      [ rule [ gt (priceAt (cheapest N.energy)) (lit "3.5"), gt (lit 20) (holding N.energy) ]
+          [ orderAt (cheapest N.energy) (lit 3) (Just (lit 4)) ]
       ]
   , sign: []
   }
@@ -114,7 +116,7 @@ randomvalid :: Strategy
 randomvalid = strategy
   { rules:
       [ rule []
-          [ choose [ noAction, orderAt homeMarket (lit 5) (Just (lit 3)), orderAt homeMarket (lit (-5)) (Just (lit 2)) ] ]
+          [ choose [ noAction, orderAt (cheapest N.energy) (lit 5) (Just (lit 3)), orderAt (costliest N.energy) (lit (-5)) (Just (lit 2)) ] ]
       ]
   , sign: []
   }
@@ -129,7 +131,7 @@ deployer = strategy
   { rules:
       [ rule [ gt (price N.energyAtlantic) (lit 3) ]
           [ asTemplate (selfTransform { transformation: N.militaryDeployment, quantity: lit 60 })
-          , orderAt N.defenceGoods (lit (-40)) (Just (lit "2.4"))
+          , orderAt (named N.defenceGoods) (lit (-40)) (Just (lit "2.4"))
           ]
       ]
   , sign: []

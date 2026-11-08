@@ -12,16 +12,17 @@ import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
-import Core.World (Event(..), RoundResult, WorldState, renderReason)
+import Core.World (Event(..), RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
-import Effect.Aff (Aff)
+import Data.Time.Duration (Milliseconds(..))
+import Effect.Aff (Aff, delay)
+import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Effects.Round (runGame)
 import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
@@ -77,7 +78,7 @@ liveWith g0 n seat input backend = do
   _ <- runLive
     { seed: Seed 1
     , input
-    , window: pure unit
+    , window: Nothing
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
@@ -86,14 +87,19 @@ liveWith g0 n seat input backend = do
         t <- narrator backend failed (Narrate r identity)
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)
         pure t
-    , record: \r _ -> liftEffect (Ref.modify_ (_ <> [ r ]) recs)
+    , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
     }
     (g { rounds = n })
   { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
 
 -- | Replay the recorded rounds: the same worlds, with no model call.
+replayedRecords :: Game -> Int -> Array RoundResult -> Array RoundRecord
+replayedRecords g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
+  Left e -> unsafeCrashWith e
+  Right r -> map _.record r.records
+
 replayed :: Game -> Int -> Array RoundResult -> Array WorldState
-replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) (runGame g.inWorld n g.world) of
+replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
   Left e -> unsafeCrashWith e
   Right r -> map _.world r.records
 
@@ -116,6 +122,7 @@ spec = do
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
       out.narration `shouldEqual` [ "Markets moved.", "Markets moved.", "Markets moved." ]
       replayed g 3 out.records `shouldEqual` map _.world out.records
+      replayedRecords g 3 out.records `shouldEqual` map _.record out.records
 
     it "an undecodable joint reply submits nothing, tells the speaker, and the run completes" do
       g <- setup
@@ -184,7 +191,40 @@ spec = do
       map (lapsed (Id "r1/US/0")) both.records `shouldEqual` [ false ]
       let
         signedBy = map _.signatures (filter (\s -> s.proposal.id == Id "r1/US/0") (bind both.records _.record.inputs))
-      signedBy `shouldEqual` [ [ Id "US", Id "DE" ] ]
+      signedBy `shouldEqual` [ [ Id "DE", Id "US" ] ]
+      replayedRecords g 1 both.records `shouldEqual` map _.record both.records
+
+    it "two humans are both prompted in one window, and a human not reached before it closes is silent" do
+      g <- setup
+      asked <- liftEffect (Ref.new [])
+      closing <- AVar.empty
+      backend <- withAnswers model
+      let
+        base = g { seats = Map.fromFoldable (map (\e -> Tuple e (if e == Id "US" || e == Id "DE" then Human else Script [])) (Array.fromFoldable (Map.keys g.world.entities))), rounds = 1 }
+        -- DE is asked first: its answer closes the window, so US (asked later) is not reached
+        input prompt = do
+          liftEffect (Ref.modify_ (_ <> [ prompt ]) asked)
+          _ <- AVar.tryPut unit closing
+          delay (Milliseconds 20.0)
+          pure "nothing"
+      _ <- runLive
+        { seed: Seed 1
+        , input
+        , window: Just (AVar.read closing)
+        , say: \_ -> pure unit
+        , notify: \_ _ -> pure unit
+        , interpret: interpreter backend g.world
+        , speak: speak backend (const "")
+        , narrate: \failed r -> narrator backend failed (Narrate r identity)
+        , record: \_ _ -> pure unit
+        }
+        base
+      prompts <- liftEffect (Ref.read asked)
+      map (contains (Pattern "DE>")) prompts `shouldEqual` [ true ]
+      asked' <- liftEffect (Ref.new [])
+      let answersAll prompt = liftEffect (Ref.modify_ (_ <> [ prompt ]) asked') $> "nothing"
+      _ <- liveWith g 1 (\e -> if e == Id "US" || e == Id "DE" then Human else Script []) answersAll backend
+      map (\p -> contains (Pattern "DE>") p || contains (Pattern "US>") p) <$> liftEffect (Ref.read asked') >>= (_ `shouldEqual` [ true, true ])
 
     it "an all-AI-agent game completes five rounds and replays from its records" do
       g <- setup

@@ -27,6 +27,7 @@ module Core.Num
   , Kind(..)
   , display
   , displayQuantity
+  , formatMinimal
   , displayPrice
   , displayRatio
   , displayTick
@@ -125,27 +126,23 @@ divFloor (Q a) (Q b)
 truncDiv :: BigInt -> BigInt -> BigInt
 truncDiv n d =
   let
-    q = P.div (absBig n) (absBig d)
+    q = P.div (magnitude n) (magnitude d)
   in
     if (n < P.zero) /= (d < P.zero) then negate q else q
-  where
-  absBig x = if x < P.zero then negate x else x
 
 -- | Integer division of `n` by `d` rounded half-to-even.
 divRound :: BigInt -> BigInt -> BigInt
 divRound n d =
   let
     sign = if (n < P.zero) /= (d < P.zero) then negate P.one else P.one
-    an = absBig n
-    ad = absBig d
+    an = magnitude n
+    ad = magnitude d
     q = P.div an ad
     r = an - q * ad
     twice = r + r
     q' = if twice > ad || (twice == ad && BI.odd q) then q + P.one else q
   in
     sign * q'
-  where
-  absBig x = if x < P.zero then negate x else x
 
 -- | Negation and absolute value.
 neg :: Q -> Q
@@ -194,7 +191,7 @@ format (Q u) =
 -- | callers must order their inputs canonically. Weights must be non-negative (a negative weight
 -- | fails loudly). If the weights sum to zero, nothing is allocated and every share is zero.
 -- | Kept: Market's weights are sign-filtered, Settle's are a Transform's use times its quantity (at
--- | least its minimum, which is zero by default), and Circulate's flow amounts are not validated.
+-- | least its minimum, which is zero by default), and Circulate's flow amounts are checked non-negative when a round starts.
 allocate :: BigInt -> Q -> Array Q -> Array Q
 allocate unit (Q total) weights
   | any (_ < P.zero) (map toUnits weights) = unsafeCrashWith "Q.allocate: negative weight"
@@ -226,7 +223,7 @@ floorInt (Q u) = fromMaybe 0 (BI.toInt (P.div u scale))
 -- | The one float boundary: a quantity as a JavaScript `Number`, for display-only scaling (chart
 -- | axes). Never feed the result back into economic state; parse with `parse` instead.
 toDisplayNumber :: Q -> Number
-toDisplayNumber (Q u) = BI.toNumber u / 10000.0
+toDisplayNumber (Q u) = BI.toNumber u / BI.toNumber scale
 
 -- | A display kind (docs/02 §9.1): how a value is shown. Each kind has one display function below;
 -- | every view, table, chart and CLI line names its kind and calls that function.
@@ -276,7 +273,7 @@ displayRatio q = fixed2 (hundredths q)
 -- | boundary for display only: the tick is rounded to the 0.0001 grid and never parsed back into
 -- | economic state.
 displayTick :: Kind -> Number -> String
-displayTick k n = case BI.fromNumber (round (n * 10000.0)) of
+displayTick k n = case BI.fromNumber (round (n * BI.toNumber scale)) of
   Just u -> display k (Q u)
   Nothing -> ""
 
@@ -300,6 +297,17 @@ splitScaled unit u =
     i = P.div a unit
   in
     { sign: if u < P.zero then "-" else "", int: i, frac: a - i * unit }
+
+-- | The exact value with no trailing fraction zeros or bare point: 2.04, -5.
+formatMinimal :: Q -> String
+formatMinimal q = minimal (format q)
+  where
+  minimal s = case S.indexOf (S.Pattern ".") s of
+    Nothing -> s
+    Just _ -> trimPoint (trimZeros s)
+  trimZeros t = if endsWith "0" t then trimZeros (S.take (S.length t - 1) t) else t
+  trimPoint t = if endsWith "." t then S.take (S.length t - 1) t else t
+  endsWith suffix t = S.drop (S.length t - 1) t == suffix
 
 -- | Hundredths as text, trailing zeros trimmed.
 trimmed2 :: BigInt -> String

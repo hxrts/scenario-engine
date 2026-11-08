@@ -9,6 +9,7 @@ module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
   , Launch
+  , DeriveRequest
   , Reply
   , API
   , call
@@ -19,19 +20,32 @@ import Prelude
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
+import Data.Argonaut.Core (Json)
 import Data.Maybe (Maybe)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
 -- | at launch; the reply carries the seed used either way.
 type Launch = { name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
+-- | `POST /api/runs/:id/derive` body: the kind, the new run's name, and what the kind may change. A
+-- | field left absent keeps the source's value. `playerSeed` is doubly optional: absent keeps the
+-- | source's seed, and an explicit null draws a new one. `overrides` stays JSON because the override
+-- | shape belongs to `game`, which this package may not import; `Game.Recipe` decodes it.
+type DeriveRequest =
+  { kind :: String
+  , name :: Maybe String
+  , preset :: Maybe String
+  , playerSeed :: Maybe (Maybe Int)
+  , rounds :: Maybe Int
+  , overrides :: Maybe Json
+  }
+
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
 
--- | One operation per route. Query values and bodies that the routes validate (the round, the seed, the
--- | confirmation, a derivation's fields) are carried as the text the request gave, so each route's
--- | validation and its messages stay with the route's semantics. A route's body is decoded as typed
--- | data where the body is a fixed record (`Launch`, a resume's round count).
+-- | One operation per route. Query values the routes validate (the round, the seed, the confirmation)
+-- | are carried as the text the request gave, so each route's validation and its messages stay with
+-- | the route's semantics. A body is decoded as typed data before the operation runs.
 data ApiRequest
   = ListRuns { archived :: Boolean }
   | Premise
@@ -42,7 +56,7 @@ data ApiRequest
   | RunView { id :: String, view :: String, round :: Maybe String }
   | Compare { runs :: Array String, market :: Maybe String }
   | Agency { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
-  | Derive { id :: String, body :: String }
+  | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
   | Archive String
   | Unarchive String

@@ -30,7 +30,7 @@ const bars = (title, unit, kind, categories, ids, value) => ({
 });
 
 // The comparison of the given runs, in the shape `/api/compare` returns.
-function comparison(ids) {
+function comparison(ids, skipped = []) {
   const players = ["US", "DE"];
   const line = (id, base) => ({ name: id, points: [0, 1, 2, 3].map((round) => ({ round, value: String(base + round) })) });
   const cols = ["Measure", "Unit", ...ids.map(header)];
@@ -44,9 +44,11 @@ function comparison(ids) {
       gini: bars("Gini of final net worth", "index, 0 to 1", "ratio", ["Gini"], ids, () => "0.1000"),
     },
     keyValues: table("Key values by run", cols, [["Final net worth, US", "M", ...ids.map(() => "10.0000")]]),
-    final: table("Final state", ["Entity", "Resource", ...ids.map(header)], [["US", "M", ...ids.map(() => "10.0000")]]),
+    final: { table: table("Final state", ["Entity", "Resource", ...ids.map(header)], [["US", "M", ...ids.map((_, i) => (i === 0 ? "10.0000" : "12.0000"))]]), marked: [[false, false, ...ids.map((_, i) => i !== 0)]] },
     diff: table("Difference from baseline", ["Run", "Entity", "Resource", "Δ"], []),
-    config: table("Configuration differences", ["Parameter", ...ids.map(header)], [["preset", ...ids.map(() => "Conservative")]]),
+    config: { table: table("Configuration differences", ["Category", "Parameter", ...ids.map(header)], [["seat Policy", "preset", ...ids.map(() => "Conservative")]]), marked: [[false, false, ...ids.map(() => false)]] },
+    trajectory: { title: "Price, energy-atlantic", unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i)) },
+    skipped,
     compatibility: table("Compatibility", ["Run", "Comparable with the first"], ids.map((id, i) => [header(id), i === 0 ? "yes" : "yes"])),
     seeds: table("Seed-to-seed variation", ["Run"], [["one run of this specification"]]),
     baseline: header(ids[0]),
@@ -141,6 +143,21 @@ test("the page has the planned plots: prices by market, net worth, standings, an
   await expect(page.getByRole("figure", { name: "Spread of final net worth", exact: true })).toBeVisible();
   await expect(page.getByRole("figure", { name: "Gini of final net worth", exact: true })).toBeVisible();
   await expect(page.getByRole("figure", { name: /^Net worth, / })).toBeVisible();
+});
+
+test("a run that cannot be read is listed as skipped with its reason", async ({ page }) => {
+  await page.route("**/api/compare*", (route) => route.fulfill(json(comparison(["run-a"], ["run-gone: not found"]))));
+  await page.goto("/#/compare/run-a/run-gone");
+  await expect(page.getByRole("heading", { name: "Skipped runs", exact: true })).toBeVisible();
+  await expect(page.getByText("run-gone: not found", { exact: true })).toBeVisible();
+});
+
+test("the final-state table highlights the cells the view marked", async ({ page }) => {
+  await page.goto("/#/compare/run-a/run-b");
+  await page.getByRole("tab", { name: "Final state" }).click();
+  const tab = page.getByRole("tabpanel", { name: "Final state" });
+  await expect(tab.getByRole("cell", { name: "12.0000", exact: true })).toHaveClass(/bg-amber/);
+  await expect(tab.getByRole("cell", { name: "10.0000", exact: true })).not.toHaveClass(/bg-amber/);
 });
 
 test("the net-worth plot overlays one line per run for the chosen player", async ({ page }) => {

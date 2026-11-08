@@ -40,7 +40,7 @@ import Data.Maybe (Maybe(..))
 import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (orderAt, selfAccessBan, selfTransform, deal, eqQ, ge, gt, asTemplate, lit, price, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
+import Schema.Build.Decision (orderAt, selfAccessBan, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, price, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
 import Schema.Build.Intent (enactWithholding, repeal, transfer)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
@@ -126,7 +126,7 @@ enco = strategy
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
 sme :: Strategy
-sme = strategy { rules: [ rule [] [ orderAt N.energyAtlantic (lit 4) Nothing ] ], sign: [] }
+sme = strategy { rules: [ rule [] [ orderAt (named N.energyAtlantic) (lit 4) Nothing ] ], sign: [] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
 shipping :: Strategy

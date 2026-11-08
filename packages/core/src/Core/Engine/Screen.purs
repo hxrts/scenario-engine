@@ -5,6 +5,7 @@
 -- | Core.Query.
 module Core.Engine.Screen
   ( Item
+  , Tariff
   , screen
   , duplicatedIds
   , routeCandidates
@@ -15,10 +16,10 @@ import Prelude
 import Core.Authority (authorizedIn, executor, governs)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (aggregateOf, lookupQ, owner, transfersOf, transformsOf)
+import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
 import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ProposalId, RuleF(..), RuleChangeF(..), SignedProposal, Transferability(..))
-import Core.World (Event(..), RejectReason(..), WorldState, rejection)
-import Data.Array (all, any, concat, elem, filter, fromFoldable, length, nub, null)
+import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
+import Data.Array (all, any, concat, elem, filter, length, nub, null)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
@@ -31,10 +32,12 @@ import Data.Tuple (Tuple(..))
 
 -- | A screened Proposal: signatures, shape, and authority checked; shipping cost attached.
 -- | `routes` holds, by Intent index, the candidate Markets of each routed Trade (docs/02 §5.2).
+type Tariff = { from :: EntityId, to :: EntityId, amount :: Q }
+
 type Item =
   { proposal :: Proposal
   , deal :: Boolean
-  , tariffs :: Array { from :: EntityId, to :: EntityId, amount :: Q }
+  , tariffs :: Array Tariff
   , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
   , routes :: Map Int (Array MarketId)
   }
@@ -42,7 +45,7 @@ type Item =
 -- | The Markets a routed order for `pair` may use: those whose base and quote match, to which
 -- | `who` has access, and for which `caps` hold the trade capability. In MarketId order.
 routeCandidates :: WorldState -> EntityId -> Array Capability -> Pair -> Array MarketId
-routeCandidates w who caps pair = map _.id (filter usable (fromFoldable (Map.values w.markets)))
+routeCandidates w who caps pair = map _.id (filter usable (marketsOf w))
   where
   usable m = m.base == pair.base && m.quote == pair.quote && who `elem` m.access && MayTrade m.id `elem` caps
 
@@ -74,14 +77,14 @@ screen w duplicated { proposal: p, signatures } =
     signers = nub ([ p.author ] <> p.signers)
     deal = isNothing p.procedure && any (_ /= p.author) p.signers
     reject reason = Left [ rejection w.round p.id reason ]
-    ownCaps = fromMaybe [] (_.capabilities <$> Map.lookup p.author w.entities)
+    ownCaps = capabilitiesOf w p.author
     tradeOrRule = case _ of
       Trade _ -> true
       Route _ -> true
       ChangeRule _ -> true
       _ -> false
     ordinary
-      | not (all (_ `elem` signed) signers) = Left [ Lapsed { round: w.round, proposal: p.id } ]
+      | not (all (_ `elem` signed) signers) = Left [ lapse w.round p.id ]
       | deal && any tradeOrRule p.intents = reject DealBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
@@ -93,7 +96,7 @@ screen w duplicated { proposal: p, signatures } =
       Nothing -> ordinary
 
 -- | Every Intent of a Proposal, then its shipments. Returns the tariffs the shipments owe.
-validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array { from :: EntityId, to :: EntityId, amount :: Q })
+validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array Tariff)
 validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
 
 -- | One Intent: its executor must sign and be authorized, and the Intent must name known
@@ -108,7 +111,7 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
   where
   who = executor p i
   caps = case standing of
-    OwnAuthority -> fromMaybe [] (_.capabilities <$> Map.lookup who w.entities)
+    OwnAuthority -> capabilitiesOf w who
     ProcedureAuthority cs -> cs
   authority = if authorizedIn w caps who i then Right unit else Left (NotAuthorized who)
   transformation t = Map.lookup t.transformation w.transformations
@@ -167,7 +170,7 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
       else case validate w p (signed <> agents) (ProcedureAuthority proc.authorizes) of
         Left reason -> reject reason
         Right tariffs
-          | not passes -> Left [ outcome, Lapsed { round: w.round, proposal: p.id } ]
+          | not passes -> Left [ outcome, lapse w.round p.id ]
           | otherwise -> Right { proposal: p, deal: false, tariffs, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
   _ -> reject UnknownProcedure
   where
@@ -175,20 +178,24 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
 
 -- | Cross-region Transfers must be bundled with a matching transport order signed by the
 -- | transport capacity's owner, and are subject to access bans and tariffs.
-shipping :: WorldState -> Proposal -> Either RejectReason (Array { from :: EntityId, to :: EntityId, amount :: Q })
-shipping w p = traverse ship (filter crossRegion (transfersOf p.intents))
+shipping :: WorldState -> Proposal -> Either RejectReason (Array Tariff)
+shipping w p = traverse ship shipments
   where
+  shipments = filter crossRegion (transfersOf p.intents)
   crossRegion t = isJust (Map.lookup t.resource w.transport) && not (sameRegion t)
-  sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (fromFoldable (Map.values w.markets) :: Array _)
+  sameRegion t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (marketsOf w)
   ship t = do
     tid <- note NoTransportFacility (Map.lookup t.resource w.transport)
-    let carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
-    when (carried /= t.quantity) (Left CrossRegionNeedsTransport)
+    let
+      carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
+      -- everything this sender ships on this facility, so one order cannot carry two shipments
+      shipped = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && Map.lookup x.resource w.transport == Just tid) shipments))
+    when (carried /= shipped) (Left CrossRegionNeedsTransport)
     let
       jf = jur w t.from
       jt = jur w t.to
-    when (any (banned jf jt) (fromFoldable (Map.values w.rules) :: Array _)) (Left ShipmentBanned)
-    pure { from: t.from, to: jt, amount: Q.sumQ (map (rate jf jt t.quantity) (fromFoldable (Map.values w.rules))) }
+    when (any (banned jf jt) (rulesOf w)) (Left ShipmentBanned)
+    pure { from: t.from, to: jt, amount: Q.sumQ (map (rate jf jt t.quantity) (rulesOf w)) }
   banned a b = case _ of
     AccessBan r -> (r.jurisdiction == a && r.target == b) || (r.jurisdiction == b && r.target == a)
     _ -> false

@@ -14,7 +14,7 @@ module Schema.Build.Fixture
   ) where
 
 import Core.Num (Q)
-import Core.Types (Id(..), IntentF, RuleF(..))
+import Core.Types (Id(..), Intent, RuleF(..))
 import Schema.Premise.Fixture (ExpectDoc, ProposalDoc, ProposalRefDoc, RoundDoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -24,7 +24,7 @@ noExpect :: ExpectDoc
 noExpect = { accounts: Nothing, reserves: Nothing, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, factors: Nothing, scheduled: Nothing, procedures: Nothing }
 
 -- | An unsigned Proposal with no signers, signatures or procedure. Those keys are given by record update.
-proposal :: { author :: String, intents :: Array (IntentF Q) } -> ProposalDoc
+proposal :: { author :: String, intents :: Array Intent } -> ProposalDoc
 proposal p = { author: p.author, intents: p.intents, signers: Nothing, signatures: Nothing, procedure: Nothing }
 
 -- | A Proposal named in an expectation: its author's first Proposal in the round.

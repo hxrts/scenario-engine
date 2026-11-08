@@ -16,6 +16,7 @@ import Prelude
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Effects.Signatures (RunInfo, RunSummary, StoredManifest, StoredRound)
 import Handlers.Store (StoreBackend, runObserve)
+import Server.Cache (Cache, cached, cachedAgency)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
@@ -84,9 +85,10 @@ sourceDeletedIn :: Array String -> Object String -> Boolean
 sourceDeletedIn ids s = maybe false (\src -> notElem src ids) (Object.lookup "source" s)
 
 -- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
--- | assertion set. Any stored text that fails to decode makes the whole run unreadable.
-loadRun :: StoreBackend -> String -> Effect (Either LoadError StoredRun)
-loadRun store id = do
+-- | assertion set. Any stored text that fails to decode makes the whole run unreadable. A finished
+-- | run is decoded once and then served from the cache (`Server.Cache`).
+loadRun :: Cache -> StoreBackend -> String -> Effect (Either LoadError StoredRun)
+loadRun cache store id = cached cache id do
   runs <- runObserve store listRuns
   m <- runObserve store (readManifest id)
   rows <- runObserve store (readRounds id)
@@ -118,8 +120,8 @@ loadRun store id = do
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: GameboardParts -> StoreBackend -> { id :: String, view :: String, round :: Maybe String } -> Effect Response
-getView ctx store { id, view, round } = loadRun store id >>= case _ of
+getView :: Cache -> GameboardParts -> StoreBackend -> { id :: String, view :: String, round :: Maybe String } -> Effect Response
+getView cache ctx store { id, view, round } = loadRun cache store id >>= case _ of
   Right r -> runView r
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
@@ -148,25 +150,25 @@ getView ctx store { id, view, round } = loadRun store id >>= case _ of
     _ -> failWith 404 view
 
 -- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
-entitiesView :: StoreBackend -> String -> Effect Response
-entitiesView store id = loadRun store id >>= case _ of
+entitiesView :: Cache -> StoreBackend -> String -> Effect Response
+entitiesView cache store id = loadRun cache store id >>= case _ of
   Right r -> ok (Entity.entityList r)
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
 
 -- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Views.Entity`).
 -- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
-entityView :: StoreBackend -> String -> String -> Effect Response
-entityView store id entity = loadRun store id >>= case _ of
+entityView :: Cache -> StoreBackend -> String -> String -> Effect Response
+entityView cache store id entity = loadRun cache store id >>= case _ of
   Right r -> viewOr (Entity.entityHistory r (Id entity))
   Left Missing -> failWith 404 ("no run " <> id)
   Left (Unreadable why) -> failWith 500 ("run " <> id <> " is unreadable: " <> why)
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: GameboardParts -> StoreBackend -> { runs :: Array String, market :: Maybe String } -> Effect Response
-compareView ctx store { runs: ids, market } = do
-  loaded <- traverse (loadRun store) ids
+compareView :: Cache -> GameboardParts -> StoreBackend -> { runs :: Array String, market :: Maybe String } -> Effect Response
+compareView cache ctx store { runs: ids, market } = do
+  loaded <- traverse (loadRun cache store) ids
   let
     good = catMaybes (map (hush) loaded)
     skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
@@ -175,24 +177,25 @@ compareView ctx store { runs: ids, market } = do
     Just { head: base, tail: others } -> case Markets.trajectories good (fromMaybe defaultMetricSpec.market market) of
       Left e -> failWith 400 e
       Right trajectory -> ok
-        { compatibility: Compare.compatible good
-        , trajectory
-        , markets: Markets.marketCharts good
-        , netWorth: Compare.netWorthCharts good
-        , standings: Compare.standingsBars good
-        , balance: Compare.balanceBars good
-        , keyValues: Compare.keyValues ctx.gameboard good
-        , final: Compare.finalState good
-        , baseline: base.id
-        , diff: Compare.baselineDiff base others
-        , config: Compare.configDiff base others
-        , seeds: Balance.seedVariation (Compare.sameSpecification good)
-        , skipped
-        }
+        ( { compatibility: Compare.compatible good
+          , trajectory
+          , markets: Markets.marketCharts good
+          , netWorth: Compare.netWorthCharts good
+          , standings: Compare.standingsBars good
+          , balance: Compare.balanceBars good
+          , keyValues: Compare.keyValues ctx.gameboard good
+          , final: Compare.finalState good
+          , baseline: base.id
+          , diff: Compare.baselineDiff base others
+          , config: Compare.configDiff base others
+          , seeds: Balance.seedVariation (Compare.sameSpecification good)
+          , skipped
+          } :: Compare.CompareView
+        )
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.
-agencyView :: GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Response
-agencyView ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
+agencyView :: Cache -> GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Response
+agencyView cache ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> viewOr (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))
+  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe "Conservative" preset, fromMaybe "Aggressive" alternative ]) $ viewOr (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))

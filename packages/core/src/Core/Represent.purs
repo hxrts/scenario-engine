@@ -4,6 +4,8 @@ module Core.Represent (estimate, adjustedTarget) where
 
 import Prelude
 
+import Core.Map (entries, sumInto)
+
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
@@ -54,8 +56,8 @@ estimate w ps =
           _ -> []
       )
       w.representations
-    sums = foldl (\m t -> Map.insertWith Q.add (Tuple t.rep.aggregate t.rep.domain) t.term m) Map.empty terms
-    estimates = map (\(Tuple (Tuple agg dom) s) -> { aggregate: agg, domain: dom, factor: Q.add (Q.fromInt 1) s }) (Map.toUnfoldable sums :: Array _)
+    sums = foldl (\m t -> sumInto (Tuple t.rep.aggregate t.rep.domain) t.term m) Map.empty terms
+    estimates = map (\(Tuple (Tuple agg dom) s) -> { aggregate: agg, domain: dom, factor: Q.add (Q.fromInt 1) s }) (entries sums)
     factors = foldl (\m e -> Map.insertWith Map.union e.aggregate (Map.singleton e.domain e.factor) m) Map.empty estimates
     events = map (\e -> Estimated { round: w.round, aggregate: e.aggregate, domain: e.domain, factor: e.factor }) estimates
   in

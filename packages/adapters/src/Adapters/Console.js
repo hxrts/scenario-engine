@@ -9,7 +9,6 @@ let rejectPending = null;
 
 const ensure = () => {
   if (rl) return rl;
-  closed = false;
   rl = createInterface({ input: process.stdin, output: process.stdout });
   rl.on("close", () => {
     closed = true;
@@ -36,10 +35,13 @@ export const readLineImpl = (question) => (onError, onSuccess) => {
   const succeed = settle(onSuccess);
   const fail = settle(onError);
   rejectPending = fail;
-  ensure().question(question).then((a) => succeed(a.trim()), fail);
+  // aborted on cancel: an unanswered question left on the interface would swallow the next one
+  const abort = new AbortController();
+  ensure().question(question, { signal: abort.signal }).then((a) => succeed(a.trim()), fail);
   return (_, __, done) => {
     settled = true;
     rejectPending = null;
+    abort.abort();
     done();
   };
 };
@@ -47,6 +49,7 @@ export const readLineImpl = (question) => (onError, onSuccess) => {
 export const writeLine = (line) => () => console.log(line);
 
 export const closeInput = () => {
+  closed = true;
   const r = rl;
   rl = null;
   r?.close();

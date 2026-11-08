@@ -12,7 +12,6 @@ module Effects.Signatures
   , InterpretF(..)
   , NARRATE
   , NarrateF(..)
-  , Deadline(..)
   , OBSERVE
   , ObserveF(..)
   , STORE
@@ -72,16 +71,6 @@ derive instance Functor NarrateF
 
 type NARRATE r = (narrate :: NarrateF | r)
 
--- | Session deadlines (live play only): the propose and sign windows of a round. The live handler
--- | waits out each window; no program requests a wait.
-data Deadline = ProposeDeadline | SignDeadline
-
-derive instance Eq Deadline
-
-instance Show Deadline where
-  show ProposeDeadline = "propose"
-  show SignDeadline = "sign"
-
 -- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
 -- | the overrides, and the source it was derived from). Each producer writes its own fields.
 type Spec = Object String
@@ -98,6 +87,7 @@ type NewRun =
   , manifest :: Manifest
   , source :: Maybe String
   , kind :: Maybe String
+  , owner :: String -- the process that created the run (`Adapters.SQLite.processOwner`): role, process id, start time
   }
 
 -- | A run's row for the run list: its status, and why it failed if it did.
@@ -139,7 +129,7 @@ data StoreF a
   = CreateRun NewRun (Unit -> a)
   | SetStatus String String (Unit -> a)
   | FailRun String String (Unit -> a)
-  | FailRunning String (Int -> a)
+  | FailRunning { role :: String, reason :: String } (Int -> a)
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)

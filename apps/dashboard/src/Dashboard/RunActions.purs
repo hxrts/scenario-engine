@@ -25,10 +25,9 @@ import React.Basic.Hooks as React
 import Routing.Duplex (print)
 import Routing.Hash (setHash)
 
--- | The run's id, whether it is archived, its completed rounds and its target rounds (Resume is offered
--- | only while the run is shorter than its target), and a callback that refreshes the page after an
--- | archive or a resume.
-type Props = { id :: String, archived :: Boolean, rounds :: Int, target :: Int, onChanged :: Effect Unit }
+-- | The run's id, whether it is archived, whether it can be resumed (the overview says: only a completed
+-- | run), and a callback that refreshes the page after an archive or a resume.
+type Props = { id :: String, archived :: Boolean, resumable :: Boolean, onChanged :: Effect Unit }
 
 mkRunActions :: Component Props
 mkRunActions = component "RunActions" \p -> React.do
@@ -56,13 +55,11 @@ mkRunActions = component "RunActions" \p -> React.do
     delete = submit (Right unit) (\_ -> Client.delete p.id) \(_ :: Json) ->
       p.onChanged *> setHash (print route Runs)
 
-    canResume = p.rounds < p.target
-
   pure $ D.div_
     [ D.div
         { className: "flex flex-col gap-6"
         , children:
-            [ if canResume then element UI.region
+            [ if p.resumable then element UI.region
                 { "aria-label": "Resume"
                 , className: "flex flex-col gap-2"
                 , children:

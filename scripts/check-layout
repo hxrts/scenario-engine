@@ -48,6 +48,11 @@ const rules = [
     bad: (line) => /\binstantiate\b/.test(line),
   },
   {
+    name: "no $home: a Strategy names a Market by id or by selector (MarketRef); there is no home Market",
+    files: (f) => f.includes("/src/"),
+    bad: (line) => line.includes("$home") || /\bhomeMarket\b|\bcheckHomes\b|\bNoHomeMarket\b/.test(line),
+  },
+  {
     name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",
     files: () => true,
     bad: (line) => /\bSeed 0\b/.test(line),
@@ -89,6 +94,19 @@ const files = ["packages", "apps"].flatMap((d) =>
   .map((f) => path.relative(root, f));
 
 const errors = [];
+// FFI is a device (docs/07 §1): a `.js` file beside a module lives only in adapters or an app. Every other
+// package is PureScript alone, so no package binds itself to Node, or to any platform, without saying so in its spago.yaml.
+const ffiHomes = (f) => f.startsWith("packages/adapters/src/") || f.startsWith("apps/");
+(function js(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) { if (e.name !== "node_modules") js(p); }
+    else if (e.name.endsWith(".js") && p.includes(`${path.sep}src${path.sep}`)) {
+      const f = path.relative(root, p);
+      if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/07 §1)`);
+    }
+  }
+})(path.join(root, "packages"));
 for (const rule of rules) {
   for (const f of files.filter(rule.files)) {
     fs.readFileSync(path.join(root, f), "utf8").split("\n").forEach((line, i) => {

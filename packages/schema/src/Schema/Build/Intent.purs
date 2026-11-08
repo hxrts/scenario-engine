@@ -16,19 +16,20 @@ module Schema.Build.Intent
   ) where
 
 import Core.Num (Q)
-import Core.Types (Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..))
+import Core.Types (Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), RuleF(..))
 import Data.Maybe (Maybe)
 
--- | An order on a Market; `limit` is the optional limit price.
-trade :: forall v. { market :: String, quantity :: v, limit :: Maybe v } -> IntentF v
+-- | An order on a Market, by id; `limit` is the optional limit price. A Strategy that picks its Market
+-- | by selector writes `Schema.Build.Decision.tradeAt`.
+trade :: forall v. { market :: String, quantity :: v, limit :: Maybe v } -> IntentF MarketId v
 trade r = Trade { market: Id r.market, quantity: r.quantity, limitPrice: r.limit }
 
 -- | A routed order: no Market is named, so `base` and `quote` give the pair.
-route :: forall v. { base :: String, quote :: String, quantity :: v, limit :: Maybe v } -> IntentF v
+route :: forall m v. { base :: String, quote :: String, quantity :: v, limit :: Maybe v } -> IntentF m v
 route r = Route { pair: { base: Id r.base, quote: Id r.quote }, quantity: r.quantity, limitPrice: r.limit }
 
 -- | The `from` Entity gives `quantity` of `resource` to `to`.
-transfer :: forall v. { from :: String, to :: String, resource :: String, quantity :: v } -> IntentF v
+transfer :: forall m v. { from :: String, to :: String, resource :: String, quantity :: v } -> IntentF m v
 transfer r = Transfer { from: Id r.from, to: Id r.to, resource: Id r.resource, quantity: r.quantity }
 
 transform :: { by :: String, transformation :: String, quantity :: Q } -> Intent
@@ -40,9 +41,9 @@ enactTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id r.jurisdiction, ori
 enactAccessBan :: { jurisdiction :: String, target :: String } -> Intent
 enactAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id r.jurisdiction, target: Id r.target }))
 
-enactWithholding :: forall v. { capacity :: String, units :: v } -> IntentF v
+enactWithholding :: forall m v. { capacity :: String, units :: v } -> IntentF m v
 enactWithholding r = ChangeRule (Enact (Withholding { capacity: Id r.capacity, units: r.units }))
 
 -- | Repeal a Rule by the id the engine assigned it.
-repeal :: forall v. { rule :: String } -> IntentF v
+repeal :: forall m v. { rule :: String } -> IntentF m v
 repeal r = ChangeRule (Repeal (Id r.rule))

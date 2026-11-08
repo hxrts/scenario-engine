@@ -3,10 +3,10 @@
 -- | play, the server's derive and launch) assembles through `assemble`.
 module Game.Assemble
   ( assemble
-  , checkHomes
   , configuredSeats
   , presetBindings
   , liveBindings
+  , unknownSeats
   , assemblePreset
   , withRounds
   ) where
@@ -15,18 +15,15 @@ import Prelude
 
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (drawVersion)
-import Core.Query (homeMarket)
 import Core.Strategy (InWorld, Strategy)
 import Core.Num (Q)
-import Core.Types (Entity, EntityId, MarketId, ResourceId, TransformationId)
-import Data.Array (elem, find, fromFoldable, null)
-import Core.World (WorldState)
-import Data.Bifunctor (lmap)
+import Core.Types (EntityId, MarketId, ResourceId, TransformationId)
+import Data.Array (elem, fromFoldable, null, filter)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isNothing, maybe)
+import Data.Maybe (Maybe, maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -36,13 +33,13 @@ import Game.Error (GameError(..))
 import Game.Override (Override, resolve)
 import Game.Premise (GameboardParts, Premise(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
-import Policy.InWorld (acts, inWorldOf)
+import Policy.InWorld (inWorldOf)
 import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
--- | names something the baseline lacks, when the world does not instantiate, when a seat that acts
--- | has no home market, when the bindings are not exactly the configured seats (`checkSeats`), or
--- | when a bound Strategy names something the premise lacks (checked before any round).
+-- | names something the baseline lacks, when the world does not instantiate, when the bindings are not
+-- | exactly the configured seats (`checkSeats`), or when a bound Strategy names something the premise
+-- | lacks (checked before any round).
 assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
 assemble premise bindings overrides = case premise of
   GameboardPremise p -> do
@@ -94,21 +91,11 @@ checkStrategies world parameters bindings = traverse_ check (Map.toUnfoldable bi
     _ -> Right unit
 
 -- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
--- | world does not instantiate, or when a seat that acts has no home market.
+-- | world does not instantiate.
 startOf :: Gameboard -> InstantiationConfig -> Either GameError { initial :: InitialWorld, inWorld :: InWorld }
 startOf gameboard config = case instantiate gameboard config of
   Left es -> Left (Instantiation es)
-  Right initial -> do
-    let inWorld = inWorldOf gameboard
-    lmap NoHomeMarket (checkHomes (acts inWorld) initial.world)
-    pure { initial, inWorld }
-
--- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market, because
--- | `$home` names it. An acting Entity with none is a startup error, named here, before any round.
-checkHomes :: (Entity -> Boolean) -> WorldState -> Either EntityId Unit
-checkHomes actsFn w = case find (\e -> actsFn e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
-  Just e -> Left e.id
-  Nothing -> Right unit
+  Right initial -> Right { initial, inWorld: inWorldOf gameboard }
 
 -- | The seats the configuration names, in order.
 configuredSeats :: InstantiationConfig -> Array EntityId
@@ -135,6 +122,10 @@ assemblePreset p preset overrides rounds = do
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
 withRounds :: Maybe Int -> Game -> Game
 withRounds = maybe identity (\n g -> g { rounds = n })
+
+-- | The named humans that are not configured seats of the premise, a usage error at the composition root.
+unknownSeats :: Array EntityId -> InstantiationConfig -> Array EntityId
+unknownSeats humans config = filter (\h -> not (elem h (configuredSeats config))) humans
 
 -- | The seat bindings of a live session: each listed human is a Human seat, and every other configured
 -- | seat is an Agent.

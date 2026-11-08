@@ -19,8 +19,8 @@ module Policy.Strategy
 import Prelude
 
 import Core.Num (Q)
-import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id(..), IntentF(..), MarketId, ProposalF, ResourceId, RuleChangeF(..), RuleF(..), TransformationId)
+import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id(..), IntentF(..), ProposalF, ResourceId, RuleChangeF(..), RuleF(..), TransformationId)
 import Data.Array (concat, concatMap, mapMaybe)
 import Data.Maybe (Maybe(..), maybe)
 
@@ -30,7 +30,7 @@ type ExprAlg a =
   { lit :: Q -> a
   , param :: String -> a
   , round :: a
-  , price :: MarketId -> a
+  , price :: MarketRef -> a
   , holding :: ResourceId -> a
   , factor :: BehaviorDomain -> a
   , mul :: a -> a -> a
@@ -51,8 +51,8 @@ type CondAlg a c =
   }
 
 type TemplateAlg a t =
-  { intent :: IntentF a -> t
-  , proposal :: ProposalF a -> t
+  { intent :: IntentF MarketRef a -> t
+  , proposal :: ProposalF MarketRef a -> t
   , reciprocate :: { target :: EntityId } -> t
   , choose :: Array t -> t
   , noAction :: t
@@ -129,8 +129,9 @@ foldStrategy alg p =
   where
   cond = foldCond alg.expr alg.cond
 
--- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` and
--- | `$home` are not listed: the interpreter resolves them at every position they can appear.
+-- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` is not
+-- | listed: the interpreter resolves it at every position it can appear. A Market selector names its
+-- | Resource; the Markets it picks are the interpreter's.
 type Refs =
   { entities :: Array String
   , markets :: Array String
@@ -189,7 +190,7 @@ refsExpr =
   { lit: const []
   , param: \name -> [ ParamName name ]
   , round: []
-  , price: \m -> [ MarketName (unwrapId m) ]
+  , price: marketRefs
   , holding: \r -> [ ResourceName (unwrapId r) ]
   , factor: \d -> [ ResourceName (unwrapId d) ]
   , mul: append
@@ -219,7 +220,7 @@ refsTemplate =
   }
   where
   intentRefs = case _ of
-    Trade x -> [ MarketName (unwrapId x.market) ] <> x.quantity <> maybe [] identity x.limitPrice
+    Trade x -> marketRefs x.market <> x.quantity <> maybe [] identity x.limitPrice
     Route x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> x.quantity <> maybe [] identity x.limitPrice
     Transform x -> [ TransformationName (unwrapId x.transformation) ] <> x.quantity
     Transfer x -> [ ResourceName (unwrapId x.resource), EntityName (unwrapId x.from), EntityName (unwrapId x.to) ] <> x.quantity
@@ -235,6 +236,13 @@ refsSign =
   , all: []
   , signIf: \x -> concat x.when <> x.rule
   }
+
+marketRefs :: MarketRef -> Array Ref
+marketRefs = case _ of
+  Named m -> [ MarketName (unwrapId m) ]
+  Each r -> [ ResourceName (unwrapId r) ]
+  Cheapest r -> [ ResourceName (unwrapId r) ]
+  Costliest r -> [ ResourceName (unwrapId r) ]
 
 unwrapId :: forall t. Id t -> String
 unwrapId (Id s) = s

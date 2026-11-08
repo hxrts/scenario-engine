@@ -141,7 +141,7 @@ The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World
 
 The schedule is the round count (`rounds`, within `roundRange`). Every round has the same length, and `horizon` gives the total in years ([03 §3](03_gameboard.md#3-premise)). Per-round intervals, and scaling annual rates to round length ([INV-28](02_type_system.md#inv-28)), are planned. Rates are per round.
 
-In live play, each round has two windows: a **propose deadline** (`ProposeDeadline`), after which Proposals freeze, and a **sign deadline** (`SignDeadline`), after which signatures freeze. The live handler ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)) waits out each window once. The CLI's `--window` sets each window's length in seconds, and it defaults to `0`. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
+In live play, each round has one **propose deadline**. Humans give no input after their transcript, so there is no sign window. The live handler ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)) prompts every human in turn under one window, opened at the round's first prompt. A human who has not answered when it closes says nothing that round. The CLI's `--window` sets the window's length in seconds, and it defaults to `0`, which is no deadline. A provisional six-hour session schedule is in [05 §19](05_test_instance.md#19-session-structure). The engine does not enforce it. Windows control only when submissions are accepted. They never change outcomes.
 
 ## 9. Runtime State and Lifecycle
 
@@ -182,7 +182,7 @@ It runs these steps. Gameboard decoding, merging, and validation run before it (
 
 Errors from steps 1 and 2 return the full error list, and no world is produced.
 
-`assemble` (`Game.Assemble`) applies the overrides, runs `instantiate`, and then checks that every Entity that acts has a home market (`NoHomeMarket`), before any round.
+`assemble` (`Game.Assemble`) applies the overrides and runs `instantiate`.
 
 Validation ([03 §12](03_gameboard.md#12-validation-and-compilation)) runs this function as a feasibility check. It also runs the structural checks and resolution consistency ([§4.3](#43-resolution-consistency)). The simulator instantiates a spec's overrides with the same function, without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
 
@@ -196,7 +196,7 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 2. **Observe (phase 2).** Each Entity's View is built from the prepared state.
 3. **Speak and joint pass (phase 3a).** Each seat without a Policy speaks: a human's typed transcript, or an AI agent's model call. If any transcript exists, one joint pass reads all of them together into Proposals ([§11.2](#112-live-session)).
 4. **Propose (phase 3a).** Each Entity, in Entity-id order, drafts Proposals against the same beginning-of-round View: a Policy from its View, or a seat through its binding. The joint-pass Proposals join them.
-5. **Sign (phase 3b).** Each non-Aggregate Entity named as a signer of a Proposal it did not author is asked to sign it. Human seats answer within the sign window. Agent seats give no signatures.
+5. **Sign (phase 3b).** Each non-Aggregate Entity named as a signer of a Proposal it did not author is asked to sign it. Human and Agent seats give no separate signature: the joint pass records who agreed.
 6. **Screen (phase 4).** Inputs are ordered by author, then submission index, never by arrival time ([INV-11](02_type_system.md#inv-11)). Duplicate Proposal ids are rejected. Authority is checked, and each signature rule is applied: every signer for a deal, or support above the threshold for a procedure. Failures are recorded as `Rejected` or `Lapsed`.
 7. **Estimate (phase 5).** Each Representation's factor is computed from the validated Proposals, before funding scales them, and stored for the next round.
 8. **Fund and settle (phase 6).** Accepted actions are funded from escrow and settle as one batch: Market trades clear at uniform prices, and each deal settles atomically with any Facility order it bundles. A passed procedure Proposal counts as its Aggregate's action. Clearing, limit prices, and tie-breaking are in Type System [§3](02_type_system.md#3-intents-and-economic-actions) and [§5.5](02_type_system.md#55-simultaneous-clearing).
@@ -209,8 +209,8 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 A round record contains:
 
 - `round`: the round index.
-- `inputs`: the accepted signed Proposals, each with its signatures.
-- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (with its reason), `Traded`, `Transferred`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `CapacityChanged`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
+- `inputs`: every submitted signed Proposal, each with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
+- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Traded`, `Transferred`, `Tariffed`, `Transformed`, `Delivered`, `Enacted`, `Repealed`, `Estimated`, `Consumed`, `Shortfall`, `Decayed`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
 Events record executed quantities, so a partial fill appears as a smaller `Traded` quantity, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
 

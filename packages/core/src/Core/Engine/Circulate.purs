@@ -9,16 +9,18 @@ module Core.Engine.Circulate
 
 import Prelude
 
-import Core.Engine.Settle (Account(..), Settlement, adjust, consumedOf, groupBy, minOwedHeld, net, shortfallOf, transfer)
+import Core.Engine.Settle (Account(..), Settlement, adjust, consumedOf, minOwedHeld, net, shortfallOf, transfer)
+import Core.Map (entries, groupBy, sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityHeld, lookupQ)
+import Core.Query (capacityHeld, lookupQ, entitiesOf)
 import Core.Types (EntityId, MarketId, ResourceId)
 import Core.World (Event(..), ShareSource(..), Target(..), WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable, zipWith)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | The recurring cycle, evaluated on the round's batch result: production (delivered next
@@ -82,14 +84,14 @@ requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.
               <> when' (consumed > Q.zero) (consumedOf w.round rq.entity rq.resource consumed)
               <> when' (short > Q.zero) (shortfallOf w.round rq.entity rq.resource short)
           }
-      , penalties: if short > Q.zero then Map.insertWith Q.add rq.entity (Q.mul rq.penalty short) acc.penalties else acc.penalties
+      , penalties: if short > Q.zero then sumInto rq.entity (Q.mul rq.penalty short) acc.penalties else acc.penalties
       }
 
 -- | Fixed flows, each Entity's incoming flows reduced pro rata by its penalty (payers keep it).
 fixedFlows :: WorldState -> Penalised -> Settlement
 fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.from f.to f.resource amount acc) st (concatMap reduce byRecipient)
   where
-  byRecipient = Map.toUnfoldable (groupBy _.to w.circulation.flows) :: Array _
+  byRecipient = entries (groupBy _.to w.circulation.flows)
   reduce (Tuple to fs) =
     let
       incoming = Q.sumQ (map _.amount fs)
@@ -102,7 +104,9 @@ fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.fr
 decay :: WorldState -> Settlement -> Settlement
 decay w st0 = foldl lose st0 holdings
   where
-  holdings = concatMap (\e -> map (Tuple e.id) (fromFoldable (Map.keys e.accounts))) (fromFoldable (Map.values w.entities))
+  -- every Resource the Entity has an account for or came to hold this round
+  holdings = concatMap (\e -> map (Tuple e.id) (fromFoldable (Set.union (Map.keys e.accounts) (acquired e.id)))) (entitiesOf w)
+  acquired e = Set.mapMaybe (\(Tuple a r) -> if a == Ent e then Just r else Nothing) (Map.keys st0.ledger)
   lose acc (Tuple e r) = case Map.lookup r w.resources >>= _.decay of
     Just d ->
       let

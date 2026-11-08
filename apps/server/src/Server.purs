@@ -20,6 +20,7 @@ import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')
 import Premises.Load (loadPremise)
+import Server.Cache (newCache)
 import Server.Launch (failInterrupted)
 import Server.Implementation (implement)
 
@@ -34,8 +35,8 @@ main = do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
-          serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement ctx store))
-          log ("serving on :" <> show port)
+          cache <- newCache
+          serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement ctx store cache))
         Left e -> log e *> exit' 1
       _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)
   where

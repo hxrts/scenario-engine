@@ -9,7 +9,7 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
-import Test.Handlers.Run (meridian)
+import Testkit.Meridian (orThrow, unseated)
 import Game.Types (Game)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (JointProposal)
@@ -28,7 +28,6 @@ import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
 import Premises.Capstone (JointLine, jointLines)
 import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
-import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -37,7 +36,7 @@ recording :: Aff Recording
 recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
 
 setup :: Aff Game
-setup = meridian
+setup = unseated
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))

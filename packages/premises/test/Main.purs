@@ -40,7 +40,7 @@ import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
-import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
+import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, strategy, rule, signProcedures, tradeAt)
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
@@ -118,11 +118,12 @@ chinaView =
   , events: [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 12, paid: Q.zero } ]
   , factors: Map.empty
   , toSign: []
+  , markets: [ { id: Id "energy-asia", base: Id "E", quote: Id "M" } ]
   }
 
--- | An environment whose every draw is `u`, with `$home` at energy-asia.
+-- | An environment whose every draw is `u`.
 envWith :: View -> Q -> Env
-envWith v u = { view: v, params: Object.empty, home: Just (Id "energy-asia"), random: const u }
+envWith v u = { view: v, params: Object.empty, random: const u }
 
 -- | The Policy named in the catalog, decoded.
 policyNamed :: Gameboard -> String -> Aff Strategy
@@ -487,13 +488,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (NotAnObject "premise.json")
     it "a policy that names an unknown market fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+        bad = strategy { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" Market "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
-        bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
+        bad = strategy { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))

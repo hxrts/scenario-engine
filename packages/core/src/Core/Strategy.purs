@@ -9,24 +9,36 @@ module Core.Strategy
   , Template(..)
   , SignRule(..)
   , InWorld
+  , MarketRef(..)
+  , IntentTemplate
   , selfName
-  , homeMarketName
   ) where
 
 import Prelude
 
 import Core.Num (Q)
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
+import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
+import Data.Show.Generic (genericShow)
 import Foreign.Object (Object)
 
--- | The sentinel names a Strategy uses: `self` names the acting Entity in an entity position, and
--- | `$home` the Entity's home Market. The interpreter resolves them (`Policy.Interpret`).
+-- | The sentinel name a Strategy uses: `self` names the acting Entity in an entity position. The
+-- | interpreter resolves it (`Policy.Interpret`).
 selfName :: String
 selfName = "self"
 
-homeMarketName :: String
-homeMarketName = "$home"
+-- | How a Strategy names a Market (docs/02 §4.4): one Market by id, or a selector over the Markets
+-- | the acting Entity has access to whose base is the Resource. A clause that uses selectors is
+-- | instantiated once per Market they pick; an empty pick instantiates nothing.
+data MarketRef
+  = Named MarketId -- one Market, by id
+  | Each ResourceId -- every accessible Market for the Resource
+  | Cheapest ResourceId -- the accessible Market with the lowest beginning-of-round price for the Resource
+  | Costliest ResourceId -- the accessible Market with the highest beginning-of-round price for the Resource
+
+-- | An Intent as a Strategy writes it: Markets by reference, quantities as expressions.
+type IntentTemplate = IntentF MarketRef Expr
 
 -- | Clauses propose; sign rules choose which addressed Proposals to sign.
 type Strategy = { rules :: Array Clause, sign :: Array SignRule }
@@ -38,7 +50,7 @@ data Expr
   = Lit Q
   | Param String -- a premise parameter (checked against the Gameboard at load time)
   | Round -- the current round
-  | Price MarketId -- beginning-of-round marginal price
+  | Price MarketRef -- beginning-of-round marginal price of the Market the reference picks
   | Holding ResourceId -- the Entity's own holding
   | Factor BehaviorDomain -- the stored Representation factor, 1 when none
   | Mul Expr Expr
@@ -57,10 +69,10 @@ data Cond
 
 -- | A Strategy's template: an Intent or a Proposal with its quantities as expressions, or one of the
 -- | combinators that choose among them or depend on the last round's events. `self` names the acting
--- | Entity in any entity position, and `$home` the Entity's home Market (`Policy.Interpret`).
+-- | Entity in any entity position, and a `MarketRef` names a Market (`Policy.Interpret`).
 data Template
-  = IntentT (IntentF Expr) -- one Intent (docs/02 §3)
-  | ProposalT (ProposalF Expr) -- a Deal (no procedure), or a Procedure (its id); its Intents are Intent templates
+  = IntentT IntentTemplate -- one Intent (docs/02 §3)
+  | ProposalT (ProposalF MarketRef Expr) -- a Deal (no procedure), or a Procedure (its id); its Intents are Intent templates
   | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
   | Choose (Array Template) -- one option, picked by a seeded draw
   | NoAction -- propose nothing (an option for Choose)
@@ -74,6 +86,12 @@ data SignRule
   | SignFacility TransformationId -- Proposals ordering this facility (e.g. shipments)
   | SignAll
   | SignIf { when :: Array Cond, rule :: SignRule } -- the inner rule, while every condition holds
+
+derive instance Eq MarketRef
+derive instance Ord MarketRef
+derive instance Generic MarketRef _
+instance Show MarketRef where
+  show = genericShow
 
 derive instance Eq Expr
 derive instance Eq Cond

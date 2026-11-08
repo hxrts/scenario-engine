@@ -4,10 +4,13 @@
 -- | prices and pools are in Core.Query, which Fund and Settle share.
 module Core.Engine.Fund
   ( Scaled
+  , scaleOf
   , fund
   ) where
 
 import Prelude
+
+import Core.Map (entries, sumInto)
 
 import Core.Engine.Screen (Item)
 import Core.Market as Market
@@ -16,27 +19,30 @@ import Core.Num as Q
 import Core.Query (facilityPrice, holding, lookupQ, poolCeiling)
 import Core.Types (EntityId, IntentF(..), ResourceId, Transformation)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
-import Data.Array (any, concatMap, elem, fromFoldable, partition)
+import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..), fst)
 
--- | An Item with the factor its author's funding scales it by (1 for a deal, which is never scaled).
-type Scaled = { item :: Item, scale :: Q }
+-- | An Item with the factor each Entity's funding scales what it executes by. A deal, which is
+-- | never scaled, and an Entity with room to spare have no entry.
+type Scaled = { item :: Item, scales :: Map EntityId Q }
+
+-- | The factor an Item's Intents executed by `e` are scaled by.
+scaleOf :: Scaled -> EntityId -> Q
+scaleOf s e = fromMaybe Q.one (Map.lookup e s.scales)
 
 type Claim = { entity :: EntityId, resource :: ResourceId, amount :: Q }
 
--- | An Item with the scale its funding gives it.
-scaled :: Q -> Item -> Scaled
-scaled scale item = { item, scale }
-
--- | Reject deals a party cannot fund; scale an Entity's own actions pro rata to what it can
--- | fund. Deals are never scaled.
+-- | Reject deals a party cannot fund: every deal of a party whose total deal demand exceeds its
+-- | holdings goes, even if one alone could be funded (docs/02 §8.2). Scale other Items pro rata to
+-- | what the Entities they draw on can fund. Deals are never scaled.
 fund :: WorldState -> Array Item -> { items :: Array Scaled, events :: Array Event }
 fund w items =
   let
     { yes: deals, no: singles } = partition _.deal items
-    total xs = Map.fromFoldableWith Q.add (map (\c -> Tuple (Tuple c.entity c.resource) c.amount) (concatMap (claims w) xs))
+    total xs = foldl (\m c -> sumInto (Tuple c.entity c.resource) c.amount m) Map.empty (concatMap (claims w) xs)
     dealDemand = total deals
     short (Tuple e r) amt = amt > holding w e r
     shortKeys = Map.keys (Map.filterWithKey short dealDemand)
@@ -46,11 +52,11 @@ fund w items =
     singleDemand = total singles
     room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)
     -- rounded down, so scale × amt never exceeds the room (a half-even round-up could overdraw it)
-    ratio key amt = if amt > room key then fromMaybe Q.zero (Q.divFloor (max Q.zero (room key)) amt) else Q.fromInt 1
-    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (Map.toUnfoldable singleDemand :: Array _))
-    scaleOf item = fromMaybe (Q.fromInt 1) (Map.lookup item.proposal.author entityScale)
+    ratio key amt = if amt > room key then fromMaybe Q.zero (Q.divFloor (max Q.zero (room key)) amt) else Q.one
+    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (entries singleDemand))
   in
-    { items: map (scaled (Q.fromInt 1)) kept <> map (\i -> scaled (scaleOf i) i) singles
+    -- keyed by the Entity whose claim it is, which for a procedure Proposal may not be its author
+    { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: entityScale }) singles
     , events: map (\d -> rejection w.round d.proposal.id PartyCannotFund) dropped
     }
 

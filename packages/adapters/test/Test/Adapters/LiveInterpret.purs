@@ -8,6 +8,7 @@ module Test.Adapters.LiveInterpret (main) where
 
 import Prelude
 
+import Adapters.Digest (sha256)
 import Adapters.Pi (defaultModel, pi)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (Transcript)
@@ -23,7 +24,7 @@ import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
-import Handlers.Llm (interpreter)
+import Handlers.Llm (interpreter, backend)
 import Node.Process (exit', lookupEnv)
 import Testkit.Meridian (presetSeats)
 
@@ -44,8 +45,8 @@ world = do
 check :: Aff Unit
 check = do
   w <- world
-  let backend = { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, evidence: const (pure unit), exchange: const (pure unit) }
-  out <- interpreter backend w (Interpret 1 transcripts identity)
+  let llm = backend { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, digest: sha256 }
+  out <- interpreter llm w (Interpret 1 transcripts identity)
   js <- case out of
     Right js -> pure js
     Left why -> throwError (error ("the reply did not decode: " <> why))

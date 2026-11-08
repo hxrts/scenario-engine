@@ -6,7 +6,6 @@ import Core.Draw (Seed(..))
 import Data.Array (length)
 import Data.Either (Either(..))
 import Effect (Effect)
-import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Simulator.Simulate (simulate)
@@ -25,7 +24,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- unseated
       case simulate (Seed 1) g { rounds = 3 } of
         Left e -> fail (show e)
-        Right sim -> case runReplay (seatEnv (Seed 1) g) 3 (map _.record sim.records) (runGame g.inWorld 3 g.world) of
+        Right sim -> case runReplay (seatEnv (Seed 1) g) 3 (map _.record sim.records) g { rounds = 3 } of
           Left e -> fail (show e)
           Right out -> do
             length out.records `shouldEqual` 3

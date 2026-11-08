@@ -4,16 +4,42 @@
 // or on the write endpoints being present: each mock answers the contract (apps/server), and the test asserts
 // the request the page sent.
 import { test, expect } from "@playwright/test";
-import { mockReads, ARCHIVED, isPath, json } from "./mocks.js";
+import { mockReads, ACTIVE, ARCHIVED, overview, isPath, json } from "./mocks.js";
 
-test("the selected run shows the manage actions, and no resume when the run is at its target", async ({ page }) => {
+test("a completed run shows the manage actions and offers Resume", async ({ page }) => {
   await mockReads(page);
   await page.goto("/#/runs/run-1");
   // the panel's title is shown once: the manage body is not a second card repeating it
   await expect(page.getByText("Manage this run", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Resume" })).toBeVisible();
+});
+
+test("a failed run offers no Resume", async ({ page }) => {
+  await mockReads(page, { status: "failed" });
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Resume" })).toHaveCount(0);
+});
+
+test("switching runs keeps the old header until the new run's overview arrives", async ({ page }) => {
+  await mockReads(page, { active: [ACTIVE, ["run-2", "second", ...ACTIVE.slice(2)]] });
+  let release;
+  const held = new Promise((resolve) => (release = resolve));
+  await page.route(isPath("/api/runs/run-2/overview"), async (route) => {
+    await held;
+    await route.fulfill(json(overview(3, { id: "run-2" })));
+  });
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
+  await page.getByRole("button", { name: "run-2", exact: true }).click();
+  await expect(page).toHaveURL(/#\/runs\/run-2$/);
+  await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Run run-2" })).toHaveCount(0);
+  release();
+  await expect(page.getByRole("heading", { name: "Run run-2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Run run-1" })).toHaveCount(0);
 });
 
 test("the Prepare page has no derive controls: no duplicate, rerun, variant or counterfactual", async ({ page }) => {
@@ -26,7 +52,7 @@ test("the Prepare page has no derive controls: no duplicate, rerun, variant or c
   await expect(page.getByLabel("Source run")).toHaveCount(0);
 });
 
-test("resume posts the rounds to run to, and is offered only while the run is shorter than its target", async ({ page }) => {
+test("resume posts the rounds to run to", async ({ page }) => {
   let body = null;
   await mockReads(page, { target: 5 });
   await page.route(isPath("/api/runs/run-1/resume"), async (route) => {

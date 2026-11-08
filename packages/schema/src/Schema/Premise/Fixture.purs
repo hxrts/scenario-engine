@@ -30,7 +30,7 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape, Format(..), decodeJsonWith)
-import Core.Types (Id(..), IntentF, ProposalId, RoundIndex, SignedProposal, proposalId)
+import Core.Types (Id(..), Intent, ProposalId, RoundIndex, SignedProposal, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, elem, find, groupBy, length, mapWithIndex, nub, range, sortWith)
 import Data.Array.NonEmpty (toArray)
@@ -55,7 +55,7 @@ type Literal = { name :: String, world :: WorldState, rounds :: Array Round }
 -- | A Proposal as written: its author, its intents, and what signed it.
 type ProposalDoc =
   { author :: String
-  , intents :: Array (IntentF Q)
+  , intents :: Array Intent
   , signers :: Maybe (Array String)
   , signatures :: Maybe (Array String)
   , procedure :: Maybe String

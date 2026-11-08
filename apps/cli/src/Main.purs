@@ -9,8 +9,7 @@ import Prelude
 
 import Adapters.Random (resolveSeed)
 import Core.Draw (Seed)
-import Core.Engine.Prepare (prepareRound)
-import Core.Invariants (check)
+import Core.Invariants (checkAfter)
 import Core.World (RoundResult, WorldState)
 import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
@@ -79,7 +78,7 @@ summarize before r = do
   let
     p = roundPressure r.record
     prices = map (\m -> show m.market <> " " <> price m.price) (marketPrices r.world)
-    failures = check (prepareRound before) r
+    failures = checkAfter before r
   log
     ( "round " <> show r.record.round <> ": " <> joinWith ", " prices <> "; lapsed " <> show p.lapsed <> ", rejected " <> show p.rejected
         <> "; invariants "

@@ -2,99 +2,124 @@
 -- | Human seats type one transcript per round at their prompt, within the propose window; AI-agent
 -- | seats speak through their own model call; the round's transcripts go to one joint pass (INTERPRET).
 -- | Each round is recorded with those transcripts, then narrated (NARRATE). Any other seat plays its
--- | bound strategy. Each deadline's window is waited out once. There is no clarification and no
--- | confirmation.
+-- | bound strategy. There is no clarification and no confirmation.
 module Handlers.Live (Live, runLive) where
 
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Proposal (Transcript)
+import Control.Alt ((<|>))
+import Control.Monad.Error.Class (throwError)
+import Control.Parallel (parallel, sequential)
 import Core.Types (EntityId, RoundIndex)
 import Core.World (RoundResult, View, WorldState)
 import Core.Engine.Commit (EngineError)
 import Data.Map as Map
-import Data.Array (elem)
-import Data.Either (Either(..), isLeft)
+import Data.Either (Either(..), either, isLeft)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, Fiber, attempt, forkAff, joinFiber, killFiber)
+import Effect.Exception (error)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Signatures (Deadline(..), InterpretF(..), NarrateF(..), RecordF(..), SeatInputF(..))
+import Effects.Signatures (InterpretF(..), NarrateF(..), RecordF(..), SeatInputF(..))
 import Game.Types (Game, SeatBinding(..))
-import Handlers.Seats (proposeFor, seatEnv, signFor)
+import Handlers.Seats (RecordSink, proposeFor, seatEnv, signFor)
 import Effects.Round (runGame)
 import Run (case_, on, run)
 import Type.Proxy (Proxy(..))
 
 -- | The live session's devices and callbacks, supplied by the composition root: the player seed (the
--- | machine seats draw from it), a line of input, the window's wait, output, the model calls, and the
--- | record write. Which seats are human or agent is the game's: each seat's SeatBinding.
+-- | machine seats draw from it), a line of input, the propose window's timer (`Nothing` for no deadline),
+-- | output, the model calls, and the record write. Which seats are human or agent is the game's: each
+-- | seat's SeatBinding.
 type Live =
   { seed :: Seed
   , input :: String -> Aff String -- a human seat's line, after the prompt text
-  , window :: Aff Unit -- one deadline's window of wall-clock time
+  , window :: Maybe (Aff Unit) -- the propose window: completes when the window has elapsed
   , say :: String -> Effect Unit -- a line for the facilitator
   , notify :: EntityId -> String -> Aff Unit -- a message to the seat that needs no answer
   , interpret :: InterpretF ~> Aff -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , speak :: EntityId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
-  , record :: RoundResult -> Array Transcript -> Aff Unit -- persist the round
+  , record :: RecordSink -- persist the round
   }
+
+-- | The round whose propose window is running, and whether it has closed.
+type Window = { round :: RoundIndex, timer :: Fiber Unit, closed :: Ref Boolean }
 
 -- | A seat's words as the round reads them: an empty transcript is silence (Nothing).
 spokenText :: String -> Maybe String
 spokenText "" = Nothing
 spokenText s = Just s
 
--- | The prompt a human seat types its transcript at: the round and the window it is typed in.
-prompt :: EntityId -> RoundIndex -> Deadline -> String
-prompt seat round window = "[round " <> show round <> ", " <> show window <> " window] " <> show seat <> "> "
+-- | The prompt a human seat types its transcript at.
+prompt :: EntityId -> RoundIndex -> String
+prompt seat round = "[round " <> show round <> ", propose window] " <> show seat <> "> "
 
 -- | Play a game live: the round program runs on the game's world and seats. Human and Agent seats are
--- | answered here; every other binding is answered by `Handlers.Seats`.
+-- | answered here; every other binding is answered by `Handlers.Seats`. Every human is prompted in
+-- | turn under one propose window, opened at the round's first prompt. A human who has not answered
+-- | when it closes says nothing that round.
 runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 runLive live game = do
   -- set by the round's joint pass when its reply does not decode; read and cleared when the round is narrated
   failed <- liftEffect (Ref.new false)
-  -- the deadlines whose windows have closed, so each window is waited out once
-  closed <- liftEffect (Ref.new [])
-  run (case_ # on (Proxy :: _ "seatInput") (seat closed) # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") record # on (Proxy :: _ "narrate") (narrate failed)) (runGame game.inWorld game.rounds game.world)
+  window <- liftEffect (Ref.new Nothing)
+  run (case_ # on (Proxy :: _ "seatInput") (seat window) # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") (record window) # on (Proxy :: _ "narrate") (narrate failed)) (runGame game.inWorld game.rounds game.world)
   where
   env = seatEnv live.seed game
   binding e = Map.lookup e game.seats
 
-  seat :: Ref (Array (Tuple RoundIndex Deadline)) -> SeatInputF ~> Aff
-  seat closed = case _ of
+  seat :: Ref (Maybe Window) -> SeatInputF ~> Aff
+  seat window = case _ of
     Speak e v k -> k <<< spokenText <$> case binding e of
-      Just Human -> do
-        text <- live.input (prompt e v.round ProposeDeadline)
-        await closed v.round ProposeDeadline
-        pure text
+      Just Human -> human window e v.round
       Just Agent -> live.speak e v
       _ -> pure ""
     Propose e v k -> k <$> case binding e of
       Just Human -> pure []
       Just Agent -> pure []
       _ -> pure (proposeFor env game.seats e v)
+    -- humans give no input after their transcript, and agents' agreement is read in the joint pass
     Sign e v k -> k <$> case binding e of
-      Just Human -> await closed v.round SignDeadline $> []
+      Just Human -> pure []
       Just Agent -> pure []
       _ -> pure (signFor env game.seats e v)
 
-  await :: Ref (Array (Tuple RoundIndex Deadline)) -> RoundIndex -> Deadline -> Aff Unit
-  await closed round d = do
-    seen <- liftEffect (Ref.read closed)
-    unless (Tuple round d `elem` seen) do
-      live.window
-      liftEffect (Ref.modify_ (_ <> [ Tuple round d ]) closed *> live.say ("— round " <> show round <> " " <> show d <> " window closed —"))
+  human :: Ref (Maybe Window) -> EntityId -> RoundIndex -> Aff String
+  human window e round = case live.window of
+    Nothing -> live.input (prompt e round)
+    Just timer -> do
+      w <- opened window timer round
+      over <- liftEffect (Ref.read w.closed)
+      if over then liftEffect (live.say (show e <> " was not reached before the window closed")) $> ""
+      else do
+        answer <- sequential (parallel (attempt (live.input (prompt e round))) <|> parallel (joinFiber w.timer $> Right ""))
+        either throwError pure answer
 
-  record :: RecordF ~> Aff
-  record (Record r transcripts next) = live.record r transcripts *> pure next
+  -- the round's window, started at its first prompt
+  opened :: Ref (Maybe Window) -> Aff Unit -> RoundIndex -> Aff Window
+  opened window timer round = liftEffect (Ref.read window) >>= case _ of
+    Just w | w.round == round -> pure w
+    _ -> do
+      closed <- liftEffect (Ref.new false)
+      fiber <- forkAff do
+        timer
+        liftEffect (Ref.write true closed *> live.say ("— round " <> show round <> " propose window closed —"))
+      let w = { round, timer: fiber, closed }
+      liftEffect (Ref.write (Just w) window)
+      pure w
+
+  -- a round that is over needs no timer running
+  record :: Ref (Maybe Window) -> RecordF ~> Aff
+  record window (Record r transcripts next) = do
+    running <- liftEffect (Ref.read window)
+    for_ running \w -> killFiber (error "the round is over") w.timer
+    liftEffect (Ref.write Nothing window)
+    liftEffect (live.record r transcripts) $> next
 
   narrate :: Ref Boolean -> NarrateF ~> Aff
   narrate failed (Narrate r k) = do

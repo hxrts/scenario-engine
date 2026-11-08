@@ -8,7 +8,7 @@ import Prelude
 
 import Board.Error (RefKind(..))
 import Board.Gameboard.Validate (validateGameboard)
-import Core.Strategy (Strategy, homeMarketName)
+import Core.Strategy (Strategy)
 import Core.Types (EntityId, Id(..), MarketId, ResourceId, TransformationId)
 import Core.World (WorldState)
 import Data.Array (filter, head)
@@ -44,9 +44,10 @@ checkPremise p = do
     Left es -> Left (Invalid es)
     Right g -> Right g
 
--- | The first name a Strategy uses that the world or the parameters lack. `$home` is the Entity's own
--- | home market, resolved by the interpreter, so it is not checked here. Every Strategy a game can run
--- | passes through here: catalog Policies and presets at load, bound Strategies at assembly.
+-- | The first name a Strategy uses that the world or the parameters lack. A Market selector names a
+-- | Resource, which is checked as one; the Markets it picks are resolved by the interpreter. Every
+-- | Strategy a game can run passes through here: catalog Policies and presets at load, bound
+-- | Strategies at assembly.
 checkRefs
   :: forall e m r t p rest
    . String
@@ -60,7 +61,7 @@ checkRefs what w parameters s =
   r = strategyRefs s
   missing = foldl (\acc xs -> acc <> xs) []
     [ tag EntityRef (filter (\e -> not (Map.member (Id e) w.entities)) r.entities)
-    , tag Market (filter (\m -> m /= homeMarketName && not (Map.member (Id m) w.markets)) r.markets)
+    , tag Market (filter (\m -> not (Map.member (Id m) w.markets)) r.markets)
     , tag ResourceRef (filter (\x -> not (Map.member (Id x) w.resources)) r.resources)
     , tag TransformationRef (filter (\t -> not (Map.member (Id t) w.transformations)) r.transformations)
     , tag ParameterRef (filter (\x -> not (Object.member x parameters)) r.parameters)

@@ -26,7 +26,7 @@ import Data.Tuple (Tuple(..))
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> reservations <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> delays <> reservations <> capacities <> payees <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -96,7 +96,7 @@ validateGameboard gb config =
             )
             entities
         )
-      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors))))
+      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors)) <> fallbackPolicies))
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
@@ -104,6 +104,12 @@ validateGameboard gb config =
     Tariff x -> unknownEntity [ x.jurisdiction, x.origin ]
     AccessBan x -> unknownEntity [ x.jurisdiction, x.target ]
     Withholding x -> unknownCapacity [ x.capacity ]
+  delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
+  -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
+  fallbackPolicies = concatMap institutional (mapMaybe _.fallback (fromFoldable (Map.values gb.actors)) <> fromFoldable (Map.values config.fallbacks))
+  institutional = case _ of
+    InstitutionalPolicy p -> [ p ]
+    _ -> []
   aggregatePolicies = concatMap (\e -> maybe [] (\a -> [ a.policy ]) (aggregateOf e)) entities
   capacities = concatMap productionHeld w.circulation.production
     <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))

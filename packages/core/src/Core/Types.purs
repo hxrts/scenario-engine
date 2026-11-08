@@ -5,7 +5,7 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q)
-import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, ctorOf, decodeJsonWith, encodeJsonWith, field, mapOf, optionalOf, prim, qShape, rec2, rec3, rec4, rec5, sumOf, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, qShape, sumOf, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -133,34 +133,15 @@ derive instance Ord RuleKind
 
 -- Intents and Proposals (§3) -------------------------------------------------
 
-type Order =
-  { market :: MarketId
-  , quantity :: Quantity -- + buys, − sells the Market's base Resource
-  , limitPrice :: Maybe Price
-  }
-
 -- | A base and quote Resource pair, which a routed order names in place of a Market.
 type Pair = { base :: ResourceId, quote :: ResourceId }
 
--- | The Entity-facing best-execution order (docs/02 §5.2): the Trade with its market omitted. The
--- | engine routes it across the Markets for `pair` that the Entity has access to. It requires a limit.
-type RouteOrder =
-  { pair :: Pair
-  , quantity :: Quantity
-  , limitPrice :: Maybe Price
-  }
-
-type TransferSpec =
-  { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
-
-type TransformSpec =
-  { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
-
--- | An Intent with its quantities and limits in the filling `v`: `Q` for an Intent the engine
--- | settles (`Intent`), `Expr` for a Strategy's template (`Core.Strategy`). Every kind of Core
--- | Intent is one constructor here, so the filling is the only thing the two languages differ in.
-data IntentF v
-  = Trade { market :: MarketId, quantity :: v, limitPrice :: Maybe v }
+-- | An Intent with its Market position in `m` and its quantities and limits in the filling `v`:
+-- | `MarketId` and `Q` for an Intent the engine settles (`Intent`), `MarketRef` and `Expr` for a
+-- | Strategy's template (`Core.Strategy`). Every kind of Core Intent is one constructor here, so the
+-- | two fillings are the only things the two languages differ in.
+data IntentF m v
+  = Trade { market :: m, quantity :: v, limitPrice :: Maybe v }
   | Route { pair :: Pair, quantity :: v, limitPrice :: Maybe v }
   | Transfer { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: v }
@@ -177,15 +158,26 @@ data RuleChangeF v
   = Enact (RuleF v)
   | Repeal RuleId
 
-type Intent = IntentF Q
+type Intent = IntentF MarketId Q
+
+-- | An Intent with its Market position resolved: `Nothing` when the position does not resolve. Only a
+-- | Trade names a Market; every other kind passes through unchanged.
+withMarket :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
+withMarket f = case _ of
+  Trade x -> (\m -> Trade { market: m, quantity: x.quantity, limitPrice: x.limitPrice }) <$> f x.market
+  Route x -> Just (Route x)
+  Transfer x -> Just (Transfer x)
+  Transform x -> Just (Transform x)
+  ChangeRule x -> Just (ChangeRule x)
+
 type Rule = RuleF Q
 type RuleChange = RuleChangeF Q
 
 -- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
--- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF Expr`.
-type ProposalF v =
-  { intents :: Array (IntentF v)
+-- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF MarketRef Expr`.
+type ProposalF m v =
+  { intents :: Array (IntentF m v)
   , signers :: Array EntityId
   , procedure :: Maybe CollectiveProcedureId
   }
@@ -264,13 +256,13 @@ derive instance Generic Controller _
 derive instance Generic Transferability _
 derive instance Generic Capability _
 derive instance Generic RuleKind _
-derive instance Generic (IntentF v) _
+derive instance Generic (IntentF m v) _
 derive instance Generic (RuleF v) _
 derive instance Generic (RuleChangeF v) _
 
-derive instance Functor IntentF
-derive instance Foldable IntentF
-derive instance Traversable IntentF
+derive instance Functor (IntentF m)
+derive instance Foldable (IntentF m)
+derive instance Traversable (IntentF m)
 derive instance Functor RuleF
 derive instance Foldable RuleF
 derive instance Traversable RuleF
@@ -283,7 +275,7 @@ derive instance Eq Controller
 derive instance Eq Transferability
 derive instance Eq Capability
 derive instance Eq RuleKind
-derive instance Eq v => Eq (IntentF v)
+derive instance (Eq m, Eq v) => Eq (IntentF m v)
 derive instance Eq v => Eq (RuleF v)
 derive instance Eq v => Eq (RuleChangeF v)
 
@@ -302,7 +294,7 @@ instance Show Capability where
 instance Show RuleKind where
   show = genericShow
 
-instance Show v => Show (IntentF v) where
+instance (Show m, Show v) => Show (IntentF m v) where
   show = genericShow
 
 instance Show v => Show (RuleF v) where
@@ -325,11 +317,11 @@ instance Described (RuleF Q) where
 instance Described (RuleChangeF Q) where
   shape = ruleChangeShape
 
-instance Described (IntentF Q) where
+instance Described (IntentF MarketId Q) where
   shape = intentShape
 
 ruleShape :: Shape (RuleF Q)
-ruleShape = sumOf "Rule" OneKey [] [ tariff, accessBan, withholding ]
+ruleShape = sumOf "Rule" [ tariff, accessBan, withholding ]
   where
   tariff = ctorOf { tag: "Tariff", desc: "a tariff on the origin's goods, set by the jurisdiction" } tariffShape projTariff Tariff
   accessBan = ctorOf { tag: "AccessBan", desc: "a ban on shipments from the jurisdiction to the target" } accessBanShape projAccessBan AccessBan
@@ -343,22 +335,25 @@ ruleShape = sumOf "Rule" OneKey [] [ tariff, accessBan, withholding ]
   projWithholding = case _ of
     Withholding x -> Just x
     _ -> Nothing
-  tariffShape = rec3 "Tariff"
-    (field "jurisdiction" "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction)
-    (field "origin" "origin" "the Entity whose goods it taxes" idShape _.origin)
-    (field "rate" "rate" "the rate" qShape _.rate)
-    (\j o r -> { jurisdiction: j, origin: o, rate: r })
-  accessBanShape = rec2 "AccessBan"
-    (field "jurisdiction" "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction)
-    (field "target" "target" "the Entity whose shipments are banned" idShape _.target)
-    (\j t -> { jurisdiction: j, target: t })
-  withholdingShape = rec2 "Withholding"
-    (field "capacity" "capacity" "the capacity withheld" idShape _.capacity)
-    (field "units" "units" "units withheld" qShape _.units)
-    (\c u -> { capacity: c, units: u })
+  tariffShape = object "Tariff"
+    ( (\j o r -> { jurisdiction: j, origin: o, rate: r })
+        <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
+        <*> fieldOf "origin" "the Entity whose goods it taxes" idShape _.origin
+        <*> fieldOf "rate" "the rate" qShape _.rate
+    )
+  accessBanShape = object "AccessBan"
+    ( (\j t -> { jurisdiction: j, target: t })
+        <$> fieldOf "jurisdiction" "the Entity that enacts it" idShape _.jurisdiction
+        <*> fieldOf "target" "the Entity whose shipments are banned" idShape _.target
+    )
+  withholdingShape = object "Withholding"
+    ( (\c u -> { capacity: c, units: u })
+        <$> fieldOf "capacity" "the capacity withheld" idShape _.capacity
+        <*> fieldOf "units" "units withheld" qShape _.units
+    )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
-ruleChangeShape = sumOf "RuleChange" OneKey [] [ enact, repeal ]
+ruleChangeShape = sumOf "RuleChange" [ enact, repeal ]
   where
   enact = ctorOf { tag: "Enact", desc: "enact a Rule" } ruleShape projEnact Enact
   repeal = ctorOf { tag: "Repeal", desc: "repeal a Rule by its id" } idShape projRepeal Repeal
@@ -369,8 +364,8 @@ ruleChangeShape = sumOf "RuleChange" OneKey [] [ enact, repeal ]
     Repeal r -> Just r
     _ -> Nothing
 
-intentShape :: Shape (IntentF Q)
-intentShape = sumOf "Intent" OneKey [] [ trade, route, transfer, transform, changeRule ]
+intentShape :: Shape Intent
+intentShape = sumOf "Intent" [ trade, route, transfer, transform, changeRule ]
   where
   trade = ctorOf { tag: "Trade", desc: "an order in a Market" } tradeShape projTrade Trade
   route = ctorOf { tag: "Route", desc: "a best-execution order on a pair of Resources" } routeShape projRoute Route
@@ -392,38 +387,43 @@ intentShape = sumOf "Intent" OneKey [] [ trade, route, transfer, transform, chan
   projChangeRule = case _ of
     ChangeRule x -> Just x
     _ -> Nothing
-  tradeShape = rec3 "Trade"
-    (field "market" "market" "the Market" idShape _.market)
-    (field "quantity" "quantity" "+ buys, - sells the Market's base Resource" qShape _.quantity)
-    (field "limitPrice" "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice)
-    (\m q l -> { market: m, quantity: q, limitPrice: l })
-  routeShape = rec3 "Route"
-    (field "pair" "pair" "the base and quote Resources" pairShape _.pair)
-    (field "quantity" "quantity" "+ buys, - sells the base Resource" qShape _.quantity)
-    (field "limitPrice" "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice)
-    (\p q l -> { pair: p, quantity: q, limitPrice: l })
-  pairShape = rec2 "Pair"
-    (field "base" "base" "the base Resource" idShape _.base)
-    (field "quote" "quote" "the quote Resource" idShape _.quote)
-    (\b q -> { base: b, quote: q })
-  transferShape = rec4 "Transfer"
-    (field "from" "from" "the giving Entity" idShape _.from)
-    (field "to" "to" "the receiving Entity" idShape _.to)
-    (field "resource" "resource" "the Resource" idShape _.resource)
-    (field "quantity" "quantity" "the quantity" qShape _.quantity)
-    (\f t r q -> { from: f, to: t, resource: r, quantity: q })
-  transformShape = rec3 "Transform"
-    (field "by" "by" "the Entity that runs it" idShape _.by)
-    (field "transformation" "transformation" "the transformation" idShape _.transformation)
-    (field "quantity" "quantity" "the quantity run" qShape _.quantity)
-    (\b t q -> { by: b, transformation: t, quantity: q })
+  tradeShape = object "Trade"
+    ( (\m q l -> { market: m, quantity: q, limitPrice: l })
+        <$> fieldOf "market" "the Market" idShape _.market
+        <*> fieldOf "quantity" "+ buys, - sells the Market's base Resource" qShape _.quantity
+        <*> fieldOf "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice
+    )
+  routeShape = object "Route"
+    ( (\p q l -> { pair: p, quantity: q, limitPrice: l })
+        <$> fieldOf "pair" "the base and quote Resources" pairShape _.pair
+        <*> fieldOf "quantity" "+ buys, - sells the base Resource" qShape _.quantity
+        <*> fieldOf "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice
+    )
+  pairShape = object "Pair"
+    ( (\b q -> { base: b, quote: q })
+        <$> fieldOf "base" "the base Resource" idShape _.base
+        <*> fieldOf "quote" "the quote Resource" idShape _.quote
+    )
+  transferShape = object "Transfer"
+    ( (\f t r q -> { from: f, to: t, resource: r, quantity: q })
+        <$> fieldOf "from" "the giving Entity" idShape _.from
+        <*> fieldOf "to" "the receiving Entity" idShape _.to
+        <*> fieldOf "resource" "the Resource" idShape _.resource
+        <*> fieldOf "quantity" "the quantity" qShape _.quantity
+    )
+  transformShape = object "Transform"
+    ( (\b t q -> { by: b, transformation: t, quantity: q })
+        <$> fieldOf "by" "the Entity that runs it" idShape _.by
+        <*> fieldOf "transformation" "the transformation" idShape _.transformation
+        <*> fieldOf "quantity" "the quantity run" qShape _.quantity
+    )
 
 -- The entity, capability, and proposal shapes (design 4, §5.3). The closure of a View is described
 -- here, so the model's requests and the Run Store's records encode through these shapes.
 
 -- | A sum of constructors with no payload, written as its tag alone.
 enumShape :: forall a. Eq a => String -> Array { tag :: String, value :: a } -> Shape a
-enumShape name ctors = sumOf name OneKey [] (map nullary ctors)
+enumShape name ctors = sumOf name (map nullary ctors)
   where
   nullary c = ctorOf { tag: c.tag, desc: "" } unitShape (\x -> if x == c.value then Just unit else Nothing) (const c.value)
 
@@ -436,7 +436,7 @@ ruleKindShape = enumShape "RuleKind"
   [ { tag: "TariffRule", value: TariffRule }, { tag: "AccessBanRule", value: AccessBanRule }, { tag: "WithholdingRule", value: WithholdingRule } ]
 
 capabilityShape :: Shape Capability
-capabilityShape = sumOf "Capability" OneKey []
+capabilityShape = sumOf "Capability"
   [ ctorOf { tag: "MayTrade", desc: "a Market the Entity may trade in" } idShape
       ( \c -> case c of
           MayTrade m -> Just m
@@ -464,7 +464,7 @@ capabilityShape = sumOf "Capability" OneKey []
   ]
 
 controllerShape :: Shape Controller
-controllerShape = sumOf "Controller" OneKey []
+controllerShape = sumOf "Controller"
   [ ctorOf { tag: "Seat", desc: "a seat of the game" } idShape
       ( \c -> case c of
           Seat s -> Just s
@@ -480,22 +480,24 @@ controllerShape = sumOf "Controller" OneKey []
   ]
 
 collectiveProcedureShape :: Shape CollectiveProcedure
-collectiveProcedureShape = rec4 "CollectiveProcedure"
-  (field "weights" "weights" "the weight of each member" (mapOf idShape qShape) _.weights)
-  (field "residualWeight" "residualWeight" "the weight of the residual" qShape _.residualWeight)
-  (field "threshold" "threshold" "the support needed" qShape _.threshold)
-  (field "authorizes" "authorizes" "the Capabilities the procedure authorizes" (arrayOf capabilityShape) _.authorizes)
-  (\w r t a -> { weights: w, residualWeight: r, threshold: t, authorizes: a })
+collectiveProcedureShape = object "CollectiveProcedure"
+  ( (\w r t a -> { weights: w, residualWeight: r, threshold: t, authorizes: a })
+      <$> fieldOf "weights" "the weight of each member" (mapOf idShape qShape) _.weights
+      <*> fieldOf "residualWeight" "the weight of the residual" qShape _.residualWeight
+      <*> fieldOf "threshold" "the support needed" qShape _.threshold
+      <*> fieldOf "authorizes" "the Capabilities the procedure authorizes" (arrayOf capabilityShape) _.authorizes
+  )
 
 aggregateShape :: Shape Aggregate
-aggregateShape = rec3 "Aggregate"
-  (field "policy" "policy" "the Policy that decides for it" idShape _.policy)
-  (field "members" "members" "the Entities it is made of" (arrayOf idShape) _.members)
-  (field "procedures" "procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape) _.procedures)
-  (\p m pr -> { policy: p, members: m, procedures: pr })
+aggregateShape = object "Aggregate"
+  ( (\p m pr -> { policy: p, members: m, procedures: pr })
+      <$> fieldOf "policy" "the Policy that decides for it" idShape _.policy
+      <*> fieldOf "members" "the Entities it is made of" (arrayOf idShape) _.members
+      <*> fieldOf "procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape) _.procedures
+  )
 
 entityKindShape :: Shape EntityKind
-entityKindShape = sumOf "EntityKind" OneKey []
+entityKindShape = sumOf "EntityKind"
   [ ctorOf { tag: "Actor", desc: "an Entity a Controller acts for" } controllerShape
       ( \k -> case k of
           Actor c -> Just c
@@ -511,28 +513,31 @@ entityKindShape = sumOf "EntityKind" OneKey []
   ]
 
 entityShape :: Shape Entity
-entityShape = rec5 "Entity"
-  (field "id" "id" "the Entity's id" idShape _.id)
-  (field "accounts" "accounts" "its holdings of each Resource" (mapOf idShape qShape) _.accounts)
-  (field "capacities" "capacities" "its capacities" (mapOf idShape qShape) _.capacities)
-  (field "capabilities" "capabilities" "what it may do" (arrayOf capabilityShape) _.capabilities)
-  (field "kind" "kind" "an Actor or an Aggregate" entityKindShape _.kind)
-  (\i a c cs k -> { id: i, accounts: a, capacities: c, capabilities: cs, kind: k })
+entityShape = object "Entity"
+  ( (\i a c cs k -> { id: i, accounts: a, capacities: c, capabilities: cs, kind: k })
+      <$> fieldOf "id" "the Entity's id" idShape _.id
+      <*> fieldOf "accounts" "its holdings of each Resource" (mapOf idShape qShape) _.accounts
+      <*> fieldOf "capacities" "its capacities" (mapOf idShape qShape) _.capacities
+      <*> fieldOf "capabilities" "what it may do" (arrayOf capabilityShape) _.capabilities
+      <*> fieldOf "kind" "an Actor or an Aggregate" entityKindShape _.kind
+  )
 
 proposalShape :: Shape Proposal
-proposalShape = rec5 "Proposal"
-  (field "id" "id" "the Proposal's id" idShape _.id)
-  (field "author" "author" "the Entity that submitted it" idShape _.author)
-  (field "intents" "intents" "the Intents" (arrayOf intentShape) _.intents)
-  (field "signers" "signers" "the Entities asked to sign" (arrayOf idShape) _.signers)
-  (field "procedure" "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure)
-  (\i a is ss p -> { id: i, author: a, intents: is, signers: ss, procedure: p })
+proposalShape = object "Proposal"
+  ( (\i a is ss p -> { id: i, author: a, intents: is, signers: ss, procedure: p })
+      <$> fieldOf "id" "the Proposal's id" idShape _.id
+      <*> fieldOf "author" "the Entity that submitted it" idShape _.author
+      <*> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
+      <*> fieldOf "signers" "the Entities asked to sign" (arrayOf idShape) _.signers
+      <*> fieldOf "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure
+  )
 
 signedProposalShape :: Shape SignedProposal
-signedProposalShape = rec2 "SignedProposal"
-  (field "proposal" "proposal" "the Proposal" proposalShape _.proposal)
-  (field "signatures" "signatures" "the Entities that signed it" (arrayOf idShape) _.signatures)
-  (\p s -> { proposal: p, signatures: s })
+signedProposalShape = object "SignedProposal"
+  ( (\p s -> { proposal: p, signatures: s })
+      <$> fieldOf "proposal" "the Proposal" proposalShape _.proposal
+      <*> fieldOf "signatures" "the Entities that signed it" (arrayOf idShape) _.signatures
+  )
 
 instance Described Transferability where
   shape = transferabilityShape
@@ -591,10 +596,10 @@ instance EncodeJson (RuleChangeF Q) where
 instance DecodeJson (RuleChangeF Q) where
   decodeJson = decodeJsonWith Snapshot ruleChangeShape
 
-instance EncodeJson (IntentF Q) where
+instance EncodeJson (IntentF MarketId Q) where
   encodeJson = encodeJsonWith Snapshot intentShape
 
-instance DecodeJson (IntentF Q) where
+instance DecodeJson (IntentF MarketId Q) where
   decodeJson = decodeJsonWith Snapshot intentShape
 
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId

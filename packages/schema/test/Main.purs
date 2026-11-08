@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Map as Map
 
-import Core.Types (proposalId, Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
@@ -12,7 +12,7 @@ import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
-import Schema.Build.Intent (enactWithholding, repeal, route, trade, transfer)
+import Schema.Build.Intent (enactWithholding, repeal, route, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
@@ -23,10 +23,10 @@ import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
+import Partial.Unsafe (unsafeCrashWith)
 import Schema.Premise.Fixture (roundShape, toRound)
 import Schema.Round (Expect)
 import Schema.Premise.Gameboard (decodeGameboard)
-import Partial.Unsafe (unsafeCrashWith)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -58,7 +58,7 @@ capability s = decodeWith Premise capabilityShape (fromString s)
 rule :: Json -> Either String (RuleF Q)
 rule = decodeWith Premise ruleShape
 
-intent :: Json -> Either String (IntentF Q)
+intent :: Json -> Either String Intent
 intent = decodeWith Premise intentShape
 
 decodeText :: String -> Either JsonDecodeError Strategy
@@ -85,7 +85,7 @@ qv t = fromMaybe (Q.fromInt 0) (Q.parse t)
 -- | One Strategy per form the premise format writes, so every constructor of the AST round-trips.
 roundTripStrategies :: Array Strategy
 roundTripStrategies =
-  [ D.strategy { rules: [ D.rule [] [ asTemplate (trade { market: "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+  [ D.strategy { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
   , D.strategy
       { rules:
           [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
@@ -99,7 +99,7 @@ roundTripStrategies =
               ]
           , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
               [ reciprocate { target: "US" }
-              , choose [ noAction, asTemplate (trade { market: "m", quantity: lit 1, limit: Just (lit 3) }) ]
+              , choose [ noAction, asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Just (lit 3) }) ]
               ]
           ]
       , sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
@@ -114,7 +114,7 @@ roundTripStrategies =
   ]
 
 -- | One Intent of each kind, with explicit entities, in the fixture format (the premise tags).
-roundTripIntents :: Array (IntentF Q)
+roundTripIntents :: Array Intent
 roundTripIntents =
   [ Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Nothing }
   , Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Just (qv "2.5") }

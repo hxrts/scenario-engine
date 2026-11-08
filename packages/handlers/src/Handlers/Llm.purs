@@ -11,6 +11,7 @@ module Handlers.Llm
   ( Call
   , Evidence
   , Backend
+  , backend
   , interpreter
   , narrator
   , speak
@@ -19,6 +20,10 @@ module Handlers.Llm
 
 import Prelude
 
+import Control.Alt ((<|>))
+import Control.Monad.Error.Class (throwError)
+import Control.Parallel (parallel, sequential)
+
 import Core.Proposal (ProposedDeal, jointProposals, proposedDealShape)
 import Core.Shape (Format(..), Shape, arrayOf, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
@@ -26,18 +31,19 @@ import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, fromObject, fromString, stringify)
 import Data.Array (fromFoldable, null)
 import Data.Either (Either(..), either)
+import Data.Int (toNumber)
 import Data.Map as Map
 import Data.String (joinWith)
+import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, attempt, delay)
+import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Foreign.Object as Object
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
-
-foreign import sha256 :: String -> String
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
 -- | its raw event stream out. A failed call is an Aff error.
@@ -47,9 +53,18 @@ type Call = String -> String -> Aff { text :: String, raw :: String }
 -- | template and the JSON payload, the path of the raw event stream, and whether the reply decoded.
 type Evidence = { effect :: String, model :: String, template :: String, input :: String, raw :: String, decoded :: String }
 
--- | The model backend a handler interprets over: the raw call, the model name for evidence, and the
--- | sinks for each call's evidence and its typed exchange (the recording, when one is kept).
-type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
+-- | The model backend a handler interprets over: the raw call, the model name for evidence, the
+-- | digest device that hashes a template or payload for evidence, and the sinks for each call's
+-- | evidence and its typed exchange (the recording, when one is kept).
+type Backend = { model :: String, call :: Call, digest :: String -> String, timeoutMs :: Int, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
+
+-- | A backend with the default timeout and sinks that keep nothing; a composition root overrides what it keeps.
+backend :: { model :: String, call :: Call, digest :: String -> String } -> Backend
+backend b = { model: b.model, call: b.call, digest: b.digest, timeoutMs: defaultTimeoutMs, evidence: const (pure unit), exchange: const (pure unit) }
+
+-- | How long one model call may take before the run fails.
+defaultTimeoutMs :: Int
+defaultTimeoutMs = 300000
 
 -- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
 type Key = { round :: Int, seats :: Array String }
@@ -62,16 +77,28 @@ seatText :: EntityId -> String
 seatText (Id s) = s
 
 -- | One call with its payload already encoded: the payload goes to the backend, the reply decodes,
--- | and the call's evidence and typed exchange are kept. A failed call is not kept.
+-- | and the call's evidence and typed exchange are kept. A failed call or one that times out leaves
+-- | evidence naming why, keeps no exchange, and rethrows.
 send :: forall a. Backend -> String -> Key -> String -> Json -> Shape a -> (String -> Either String a) -> Aff { text :: String, decoded :: Either String a }
 send b effect key template request replyShape decode = do
   let input = stringify request
-  out <- b.call template input
+  let evidenceOf raw result = b.evidence { effect, model: b.model, template: b.digest template, input: b.digest input, raw, decoded: result }
+  out <- within b (b.call template input) >>= case _ of
+    Right r -> pure r
+    Left err -> do
+      liftEffect (evidenceOf "" ("error: the call failed: " <> message err))
+      throwError err
   let decoded = decode out.text
   liftEffect do
-    b.evidence { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
+    evidenceOf out.raw (either ("error: " <> _) (const "ok") decoded)
     b.exchange { effect, round: key.round, seats: key.seats, request, reply: encodeReply replyShape decoded }
   pure { text: out.text, decoded }
+
+-- | Run a call under the backend's timeout: the first of its result and the timer. The loser is cancelled.
+within :: forall a. Backend -> Aff a -> Aff (Either Error a)
+within b call = sequential (parallel (attempt call) <|> parallel timer)
+  where
+  timer = delay (Milliseconds (toNumber b.timeoutMs)) $> Left (error ("the model call timed out after " <> show b.timeoutMs <> " ms"))
 
 -- | One call: the payload is encoded through its shape, and the reply decodes.
 ask :: forall p a. Backend -> String -> Key -> String -> Shape p -> p -> Shape a -> (String -> Either String a) -> Aff (Either String a)
@@ -101,6 +128,7 @@ joint b key request = go 0 original
 -- | The round's transcripts to Proposals, one joint pass (`joint`). A reply that still does not
 -- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
 -- | Entries the engine could not use are dropped by the joint pass rule (`Core.Proposal.jointProposals`).
+-- | `w` supplies only the Entity and Market ids, which no round changes, so the initial world serves.
 interpreter :: Backend -> WorldState -> InterpretF ~> Aff
 interpreter b w (Interpret round transcripts k) = k <$> do
   let

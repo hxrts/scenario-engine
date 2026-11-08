@@ -34,7 +34,12 @@ module Schema.Build.Decision
   , rule
   , strategy
   , selfEntity
-  , homeMarket
+  , named
+  , each
+  , cheapest
+  , costliest
+  , tradeAt
+  , priceAt
   , max'
   , not'
   ) where
@@ -43,7 +48,7 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 
-import Core.Strategy (Clause, Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
+import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
 import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
 import Schema.Build.Quantity (class ToQty, q)
@@ -52,9 +57,27 @@ import Schema.Build.Quantity (class ToQty, q)
 selfEntity :: String
 selfEntity = S.selfName
 
--- | The Market a Strategy names by `$home`: the Entity's home Market.
-homeMarket :: String
-homeMarket = S.homeMarketName
+-- Market references ----------------------------------------------------------------------
+
+-- | One Market, by id.
+named :: String -> MarketRef
+named = Named <<< Id
+
+-- | Every accessible Market for the Resource: the clause runs once per Market.
+each :: String -> MarketRef
+each = Each <<< Id
+
+-- | The accessible Market with the lowest beginning-of-round price for the Resource.
+cheapest :: String -> MarketRef
+cheapest = Cheapest <<< Id
+
+-- | The accessible Market with the highest beginning-of-round price for the Resource.
+costliest :: String -> MarketRef
+costliest = Costliest <<< Id
+
+-- | An order on the Market a reference picks; `limit` is the optional limit price.
+tradeAt :: { market :: MarketRef, quantity :: Expr, limit :: Maybe Expr } -> IntentTemplate
+tradeAt r = Trade { market: r.market, quantity: r.quantity, limitPrice: r.limit }
 
 -- Expressions ----------------------------------------------------------------------------
 
@@ -68,8 +91,13 @@ param = Param
 roundQ :: Expr
 roundQ = Round
 
+-- | The beginning-of-round price of a Market, by id.
 price :: String -> Expr
-price = Price <<< Id
+price = Price <<< named
+
+-- | The beginning-of-round price of the Market a reference picks.
+priceAt :: MarketRef -> Expr
+priceAt = Price
 
 holding :: String -> Expr
 holding = Holding <<< Id
@@ -116,34 +144,34 @@ restrictionInForce r = RestrictionInForce { by: Id r.by }
 -- Templates ------------------------------------------------------------------------------
 
 -- | One Intent, with its quantities as expressions, as a template.
-asTemplate :: IntentF Expr -> Template
+asTemplate :: IntentTemplate -> Template
 asTemplate = IntentT
 
--- | An order on a Market as a template; `limit` is the optional limit price.
-orderAt :: String -> Expr -> Maybe Expr -> Template
-orderAt market quantity limit = IntentT (Trade { market: Id market, quantity, limitPrice: limit })
+-- | An order on the Market a reference picks, as a template; `limit` is the optional limit price.
+orderAt :: MarketRef -> Expr -> Maybe Expr -> Template
+orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
 
 -- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the premise
 -- | format writes no `by` for a template, so these three builders take none. (`Schema.Build.Intent`'s
 -- | `transform`, `enactTariff` and `enactAccessBan` are the fixture forms, with `Q` quantities.)
-selfTransform :: { transformation :: String, quantity :: Expr } -> IntentF Expr
+selfTransform :: { transformation :: String, quantity :: Expr } -> IntentTemplate
 selfTransform r = Transform { by: Id S.selfName, transformation: Id r.transformation, quantity: r.quantity }
 
 -- | Enact a tariff as the acting Entity's jurisdiction.
-selfTariff :: { origin :: String, rate :: Expr } -> IntentF Expr
+selfTariff :: { origin :: String, rate :: Expr } -> IntentTemplate
 selfTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id S.selfName, origin: Id r.origin, rate: r.rate }))
 
 -- | Enact an access ban as the acting Entity's jurisdiction.
-selfAccessBan :: { target :: String } -> IntentF Expr
+selfAccessBan :: { target :: String } -> IntentTemplate
 selfAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id S.selfName, target: Id r.target }))
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).
-procedure :: { id :: String, signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+procedure :: { id :: String, signers :: Array String, intents :: Array IntentTemplate } -> Template
 procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
 
 -- | A Deal: a Proposal with no procedure. Its transfers come first, then its transforms.
-deal :: { signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+deal :: { signers :: Array String, intents :: Array IntentTemplate } -> Template
 deal r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Nothing }
 
 -- | Enact the restriction `target` enacted against this Entity last round.

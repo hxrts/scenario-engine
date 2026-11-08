@@ -4,11 +4,12 @@ module Core.World where
 
 import Prelude
 
-import Core.Draw (Seed)
+import Core.Draw (Seed(..))
+import Core.Num (Q)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, boolShape, ctorOf, decodeJsonWith, encodeJsonWith, field, intShape, mapOf, prim, qShape, rec2, rec3, rec4, rec5, rec7, sumOf)
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, qShape, stringShape, sumOf, unitShape)
+import Core.Types (CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Decode.Generic (genericDecodeJson)
@@ -18,6 +19,7 @@ import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Either (note)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
 
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
@@ -85,7 +87,11 @@ type View =
   , events :: Array Event
   , factors :: Map BehaviorDomain Ratio
   , toSign :: Array Proposal
+  , markets :: Array Venue -- the Markets the Entity has access to, in id order
   }
+
+-- | A Market as a Policy sees it: where a Resource (the base) is traded for the quote.
+type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 
 -- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
 -- | matches on the specific failure. `renderReason` gives the text the record stores and the
@@ -176,17 +182,27 @@ instance DecodeJson RejectReason where
 rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
 rejection round proposal reason = Rejected { round, proposal, reason }
 
+-- | A Lapsed event for a Proposal whose signature rule was not met in `round`.
+lapse :: RoundIndex -> ProposalId -> Event
+lapse round proposal = Lapsed { round, proposal }
+
+-- | An OrderRemoved event for one order of a Proposal dropped at settlement in `round`.
+orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event
+orderRemoved round proposal reason = OrderRemoved { round, proposal, reason }
+
 -- | Everything the engine records. The round record is the list of a round's events.
 data Event
   = Lapsed { round :: RoundIndex, proposal :: ProposalId }
   | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
+  -- one order of a Proposal removed at settlement; the Proposal's other Intents still settle
+  | OrderRemoved { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
   | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
   | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
+  | Tariffed { round :: RoundIndex, from :: EntityId, to :: EntityId, amount :: Quantity }
   | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }
   | Delivered { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
-  | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, delta :: Quantity }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
   | Consumed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   -- an amount owed but not delivered: an unpaid payment (Transfer, tariff, facility payment),
@@ -239,7 +255,7 @@ rejectReasonShape :: Shape RejectReason
 rejectReasonShape = prim "RejectReason" (fromString <<< renderReason) (\j -> map Recorded (note "expected a rejection reason text" (toString j)))
 
 targetShape :: Shape Target
-targetShape = sumOf "Target" OneKey []
+targetShape = sumOf "Target"
   [ ctorOf { tag: "Holding", desc: "a Resource held" } idShape
       ( \t -> case t of
           Holding r -> Just r
@@ -256,7 +272,7 @@ targetShape = sumOf "Target" OneKey []
 
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
 eventShape :: Shape Event
-eventShape = sumOf "Event" OneKey []
+eventShape = sumOf "Event"
   [ ctorOf { tag: "Lapsed", desc: "a Proposal that lapsed" } lapsedShape
       ( \e -> case e of
           Lapsed r -> Just r
@@ -269,6 +285,18 @@ eventShape = sumOf "Event" OneKey []
           _ -> Nothing
       )
       Rejected
+  , ctorOf { tag: "OrderRemoved", desc: "one order of a Proposal removed at settlement" } orderRemovedShape
+      ( \e -> case e of
+          OrderRemoved r -> Just r
+          _ -> Nothing
+      )
+      OrderRemoved
+  , ctorOf { tag: "Tariffed", desc: "a tariff paid on a shipment" } tariffedShape
+      ( \e -> case e of
+          Tariffed r -> Just r
+          _ -> Nothing
+      )
+      Tariffed
   , ctorOf { tag: "Traded", desc: "a Market order filled" } tradedShape
       ( \e -> case e of
           Traded r -> Just r
@@ -305,12 +333,6 @@ eventShape = sumOf "Event" OneKey []
           _ -> Nothing
       )
       Repealed
-  , ctorOf { tag: "CapacityChanged", desc: "a capacity changed" } capacityChangedShape
-      ( \e -> case e of
-          CapacityChanged r -> Just r
-          _ -> Nothing
-      )
-      CapacityChanged
   , ctorOf { tag: "Estimated", desc: "a representation's factor estimated" } estimatedShape
       ( \e -> case e of
           Estimated r -> Just r
@@ -343,108 +365,139 @@ eventShape = sumOf "Event" OneKey []
       ProcedureOutcome
   ]
   where
-  lapsedShape = rec2 "Lapsed"
-    (field "round" "round" "" intShape _.round)
-    (field "proposal" "proposal" "" idShape _.proposal)
-    (\r p -> { round: r, proposal: p })
-  rejectedShape = rec3 "Rejected"
-    (field "round" "round" "" intShape _.round)
-    (field "proposal" "proposal" "" idShape _.proposal)
-    (field "reason" "reason" "" rejectReasonShape _.reason)
-    (\r p x -> { round: r, proposal: p, reason: x })
-  tradedShape = rec5 "Traded"
-    (field "round" "round" "" intShape _.round)
-    (field "market" "market" "" idShape _.market)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (field "price" "price" "" qShape _.price)
-    (\r m e q p -> { round: r, market: m, entity: e, quantity: q, price: p })
-  transferredShape = rec5 "Transferred"
-    (field "round" "round" "" intShape _.round)
-    (field "from" "from" "" idShape _.from)
-    (field "to" "to" "" idShape _.to)
-    (field "resource" "resource" "" idShape _.resource)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (\r f t res q -> { round: r, from: f, to: t, resource: res, quantity: q })
-  transformedShape = rec5 "Transformed"
-    (field "round" "round" "" intShape _.round)
-    (field "by" "by" "" idShape _.by)
-    (field "transformation" "transformation" "" idShape _.transformation)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (field "paid" "paid" "" qShape _.paid)
-    (\r b t q p -> { round: r, by: b, transformation: t, quantity: q, paid: p })
-  deliveredShape = rec4 "Delivered"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "target" "target" "" targetShape _.target)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (\r e t q -> { round: r, entity: e, target: t, quantity: q })
-  enactedShape = rec3 "Enacted"
-    (field "round" "round" "" intShape _.round)
-    (field "id" "id" "" idShape _.id)
-    (field "rule" "rule" "" ruleShape _.rule)
-    (\r i x -> { round: r, id: i, rule: x })
-  repealedShape = rec2 "Repealed"
-    (field "round" "round" "" intShape _.round)
-    (field "id" "id" "" idShape _.id)
-    (\r i -> { round: r, id: i })
-  capacityChangedShape = rec4 "CapacityChanged"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "capacity" "capacity" "" idShape _.capacity)
-    (field "delta" "delta" "" qShape _.delta)
-    (\r e c d -> { round: r, entity: e, capacity: c, delta: d })
-  estimatedShape = rec4 "Estimated"
-    (field "round" "round" "" intShape _.round)
-    (field "aggregate" "aggregate" "" idShape _.aggregate)
-    (field "domain" "domain" "" idShape _.domain)
-    (field "factor" "factor" "" qShape _.factor)
-    (\r a d f -> { round: r, aggregate: a, domain: d, factor: f })
-  consumedShape = rec4 "Consumed"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "resource" "resource" "" idShape _.resource)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-  shortfallShape = rec4 "Shortfall"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "resource" "resource" "" idShape _.resource)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-  decayedShape = rec4 "Decayed"
-    (field "round" "round" "" intShape _.round)
-    (field "entity" "entity" "" idShape _.entity)
-    (field "resource" "resource" "" idShape _.resource)
-    (field "quantity" "quantity" "" qShape _.quantity)
-    (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-  procedureOutcomeShape = rec5 "ProcedureOutcome"
-    (field "round" "round" "" intShape _.round)
-    (field "proposal" "proposal" "" idShape _.proposal)
-    (field "support" "support" "" qShape _.support)
-    (field "threshold" "threshold" "" qShape _.threshold)
-    (field "executed" "executed" "" boolShape _.executed)
-    (\r p s t x -> { round: r, proposal: p, support: s, threshold: t, executed: x })
+  lapsedShape = object "Lapsed"
+    ( (\r p -> { round: r, proposal: p })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "proposal" "" idShape _.proposal
+    )
+  rejectedShape = object "Rejected"
+    ( (\r p x -> { round: r, proposal: p, reason: x })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "proposal" "" idShape _.proposal
+        <*> fieldOf "reason" "" rejectReasonShape _.reason
+    )
+  orderRemovedShape = object "OrderRemoved"
+    ( (\r p x -> { round: r, proposal: p, reason: x })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "proposal" "" idShape _.proposal
+        <*> fieldOf "reason" "" rejectReasonShape _.reason
+    )
+  tariffedShape = object "Tariffed"
+    ( (\r f t a -> { round: r, from: f, to: t, amount: a })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "amount" "" qShape _.amount
+    )
+  tradedShape = object "Traded"
+    ( (\r m e q p -> { round: r, market: m, entity: e, quantity: q, price: p })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "market" "" idShape _.market
+        <*> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "quantity" "" qShape _.quantity
+        <*> fieldOf "price" "" qShape _.price
+    )
+  transferredShape = object "Transferred"
+    ( (\r f t res q -> { round: r, from: f, to: t, resource: res, quantity: q })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "quantity" "" qShape _.quantity
+    )
+  transformedShape = object "Transformed"
+    ( (\r b t q p -> { round: r, by: b, transformation: t, quantity: q, paid: p })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "by" "" idShape _.by
+        <*> fieldOf "transformation" "" idShape _.transformation
+        <*> fieldOf "quantity" "" qShape _.quantity
+        <*> fieldOf "paid" "" qShape _.paid
+    )
+  deliveredShape = object "Delivered"
+    ( (\r e t q -> { round: r, entity: e, target: t, quantity: q })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "target" "" targetShape _.target
+        <*> fieldOf "quantity" "" qShape _.quantity
+    )
+  enactedShape = object "Enacted"
+    ( (\r i x -> { round: r, id: i, rule: x })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "id" "" idShape _.id
+        <*> fieldOf "rule" "" ruleShape _.rule
+    )
+  repealedShape = object "Repealed"
+    ( (\r i -> { round: r, id: i })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "id" "" idShape _.id
+    )
+  estimatedShape = object "Estimated"
+    ( (\r a d f -> { round: r, aggregate: a, domain: d, factor: f })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "aggregate" "" idShape _.aggregate
+        <*> fieldOf "domain" "" idShape _.domain
+        <*> fieldOf "factor" "" qShape _.factor
+    )
+  consumedShape = object "Consumed"
+    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "quantity" "" qShape _.quantity
+    )
+  shortfallShape = object "Shortfall"
+    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "quantity" "" qShape _.quantity
+    )
+  decayedShape = object "Decayed"
+    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "quantity" "" qShape _.quantity
+    )
+  procedureOutcomeShape = object "ProcedureOutcome"
+    ( (\r p s t x -> { round: r, proposal: p, support: s, threshold: t, executed: x })
+        <$> fieldOf "round" "" intShape _.round
+        <*> fieldOf "proposal" "" idShape _.proposal
+        <*> fieldOf "support" "" qShape _.support
+        <*> fieldOf "threshold" "" qShape _.threshold
+        <*> fieldOf "executed" "" boolShape _.executed
+    )
 
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
-viewShape = rec7 "View"
-  (field "round" "round" "the round" intShape _.round)
-  (field "self" "self" "the Entity seeing it" entityShape _.self)
-  (field "prices" "prices" "the price of each Market" (mapOf idShape qShape) _.prices)
-  (field "rules" "rules" "the Rules in force" (arrayOf ruleShape) _.rules)
-  (field "events" "events" "the public history" (arrayOf eventShape) _.events)
-  (field "factors" "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors)
-  (field "toSign" "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign)
-  (\r s p rs e f t -> { round: r, self: s, prices: p, rules: rs, events: e, factors: f, toSign: t })
+viewShape = object "View"
+  ( (\r s p rs e f t m -> { round: r, self: s, prices: p, rules: rs, events: e, factors: f, toSign: t, markets: m })
+      <$> fieldOf "round" "the round" intShape _.round
+      <*> fieldOf "self" "the Entity seeing it" entityShape _.self
+      <*> fieldOf "prices" "the price of each Market" (mapOf idShape qShape) _.prices
+      <*> fieldOf "rules" "the Rules in force" (arrayOf ruleShape) _.rules
+      <*> fieldOf "events" "the public history" (arrayOf eventShape) _.events
+      <*> fieldOf "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors
+      <*> fieldOf "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign
+      <*> fieldOf "markets" "the Markets the Entity has access to" (arrayOf venueShape) _.markets
+  )
+
+venueShape :: Shape Venue
+venueShape = object "Venue"
+  ( (\i b q -> { id: i, base: b, quote: q })
+      <$> fieldOf "id" "the Market" idShape _.id
+      <*> fieldOf "base" "the Resource traded" idShape _.base
+      <*> fieldOf "quote" "the Resource it is priced in" idShape _.quote
+  )
 
 -- | A round's record as the Run Store holds it.
 roundRecordShape :: Shape RoundRecord
-roundRecordShape = rec3 "RoundRecord"
-  (field "round" "round" "the round" intShape _.round)
-  (field "inputs" "inputs" "the signed Proposals of the round" (arrayOf signedProposalShape) _.inputs)
-  (field "events" "events" "the round's events" (arrayOf eventShape) _.events)
-  (\r i e -> { round: r, inputs: i, events: e })
+roundRecordShape = object "RoundRecord"
+  ( (\r i e -> { round: r, inputs: i, events: e })
+      <$> fieldOf "round" "the round" intShape _.round
+      <*> fieldOf "inputs" "every Proposal submitted in the round, with its signatures" (arrayOf signedProposalShape) _.inputs
+      <*> fieldOf "events" "the round's events" (arrayOf eventShape) _.events
+  )
 
 instance Described Target where
   shape = targetShape
@@ -463,3 +516,187 @@ instance EncodeJson Event where
 
 instance DecodeJson Event where
   decodeJson = decodeJsonWith Snapshot eventShape
+
+-- The stored run ------------------------------------------------------------------------------
+--
+-- A Run Store row holds these shapes' snapshot form: its bytes are what argonaut's generic record
+-- encoder writes (test: "stored records encode the same"), so stored rows read back unchanged.
+
+intervalShape :: Shape Interval
+intervalShape = object "Interval"
+  ( { lo: _, hi: _ }
+      <$> fieldOf "lo" "" qShape _.lo
+      <*> fieldOf "hi" "" qShape _.hi
+  )
+
+costFunctionShape :: Shape CostFunction
+costFunctionShape = object "CostFunction"
+  ( { base: _, slope: _, domain: _ }
+      <$> fieldOf "base" "" qShape _.base
+      <*> fieldOf "slope" "" qShape _.slope
+      <*> fieldOf "domain" "" intervalShape _.domain
+  )
+
+holdingsShape :: forall t. Shape (Map (Id t) Q)
+holdingsShape = mapOf idShape qShape
+
+marketShape :: Shape Market
+marketShape = object "Market"
+  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "base" "" idShape _.base
+      <*> fieldOf "quote" "" idShape _.quote
+      <*> fieldOf "cost" "" costFunctionShape _.cost
+      <*> fieldOf "position" "" qShape _.position
+      <*> fieldOf "reserves" "" holdingsShape _.reserves
+      <*> fieldOf "access" "" (arrayOf idShape) _.access
+  )
+
+capacityEffectShape :: Shape CapacityEffect
+capacityEffectShape = object "CapacityEffect"
+  ( { capacity: _, holder: _, perUnit: _, rounds: _ }
+      <$> fieldOf "capacity" "" idShape _.capacity
+      <*> fieldOf "holder" "" (optionalOf idShape) _.holder
+      <*> fieldOf "perUnit" "" qShape _.perUnit
+      <*> fieldOf "rounds" "" (optionalOf intShape) _.rounds
+  )
+
+transformationShape :: Shape Transformation
+transformationShape = object "Transformation"
+  ( { id: _, inputs: _, outputs: _, reserves: _, cost: _, capacity: _, payee: _, delay: _, minimum: _, maximum: _, capacityUse: _, ownerSigns: _, effects: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "inputs" "" holdingsShape _.inputs
+      <*> fieldOf "outputs" "" holdingsShape _.outputs
+      <*> fieldOf "reserves" "" holdingsShape _.reserves
+      <*> fieldOf "cost" "" (optionalOf costFunctionShape) _.cost
+      <*> fieldOf "capacity" "" (optionalOf idShape) _.capacity
+      <*> fieldOf "payee" "" (optionalOf idShape) _.payee
+      <*> fieldOf "delay" "" intShape _.delay
+      <*> fieldOf "minimum" "" qShape _.minimum
+      <*> fieldOf "maximum" "" (optionalOf qShape) _.maximum
+      <*> fieldOf "capacityUse" "" qShape _.capacityUse
+      <*> fieldOf "ownerSigns" "" boolShape _.ownerSigns
+      <*> fieldOf "effects" "" (arrayOf capacityEffectShape) _.effects
+  )
+
+resourceDefinitionShape :: Shape ResourceDefinition
+resourceDefinitionShape = object "ResourceDefinition"
+  ( { id: _, unit: _, transferability: _, decay: _, reservable: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "unit" "" stringShape _.unit
+      <*> fieldOf "transferability" "" transferabilityShape _.transferability
+      <*> fieldOf "decay" "" (optionalOf (object "DecayRule" ({ rate: _ } <$> fieldOf "rate" "" qShape _.rate))) _.decay
+      <*> fieldOf "reservable" "" boolShape _.reservable
+  )
+
+estimatorShape :: Shape Estimator
+estimatorShape = object "Estimator"
+  ( { reference: _, shrinkage: _, deviationBound: _, noiseSpread: _ }
+      <$> fieldOf "reference" "" qShape _.reference
+      <*> fieldOf "shrinkage" "" qShape _.shrinkage
+      <*> fieldOf "deviationBound" "" (optionalOf intervalShape) _.deviationBound
+      <*> fieldOf "noiseSpread" "" qShape _.noiseSpread
+  )
+
+representationShape :: Shape Representation
+representationShape = object "Representation"
+  ( { id: _, actor: _, aggregate: _, domain: _, weight: _, estimator: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "actor" "" idShape _.actor
+      <*> fieldOf "aggregate" "" idShape _.aggregate
+      <*> fieldOf "domain" "" idShape _.domain
+      <*> fieldOf "weight" "" qShape _.weight
+      <*> fieldOf "estimator" "" estimatorShape _.estimator
+  )
+
+deliveryShape :: Shape Delivery
+deliveryShape = object "Delivery"
+  ( { round: _, entity: _, target: _, quantity: _ }
+      <$> fieldOf "round" "" intShape _.round
+      <*> fieldOf "entity" "" idShape _.entity
+      <*> fieldOf "target" "" targetShape _.target
+      <*> fieldOf "quantity" "" qShape _.quantity
+  )
+
+shareSourceShape :: Shape ShareSource
+shareSourceShape = sumOf "ShareSource"
+  [ ctorOf { tag: "SalesOf", desc: "sales revenue of a Resource" } idShape
+      ( case _ of
+          SalesOf r -> Just r
+          _ -> Nothing
+      )
+      SalesOf
+  , ctorOf { tag: "PayeeReceipts", desc: "what the Entity received as a payee" } unitShape
+      ( case _ of
+          PayeeReceipts -> Just unit
+          _ -> Nothing
+      )
+      (const PayeeReceipts)
+  ]
+
+circulationShape :: Shape Circulation
+circulationShape = object "Circulation"
+  ( { production: _, flows: _, shares: _, requirements: _ }
+      <$> fieldOf "production" "" (arrayOf productionShape) _.production
+      <*> fieldOf "flows" "" (arrayOf flowShape) _.flows
+      <*> fieldOf "shares" "" (arrayOf shareShape) _.shares
+      <*> fieldOf "requirements" "" (arrayOf requirementShape) _.requirements
+  )
+  where
+  productionShape = object "Production"
+    ( { entity: _, resource: _, capacity: _ }
+        <$> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "capacity" "" idShape _.capacity
+    )
+  flowShape = object "Flow"
+    ( { from: _, to: _, resource: _, amount: _ }
+        <$> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "amount" "" qShape _.amount
+    )
+  shareShape = object "Share"
+    ( { from: _, to: _, share: _, source: _ }
+        <$> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "share" "" qShape _.share
+        <*> fieldOf "source" "" shareSourceShape _.source
+    )
+  requirementShape = object "Requirement"
+    ( { entity: _, resource: _, amount: _, penalty: _ }
+        <$> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "amount" "" (optionalOf qShape) _.amount
+        <*> fieldOf "penalty" "" qShape _.penalty
+    )
+
+worldStateShape :: Shape WorldState
+worldStateShape = object "WorldState"
+  ( { round: _, seed: _, entities: _, resources: _, markets: _, transformations: _, representations: _, numeraire: _, transport: _, jurisdiction: _, rules: _, scheduled: _, deliveries: _, factors: _, circulation: _, events: _ }
+      <$> fieldOf "round" "" intShape _.round
+      <*> fieldOf "seed" "" (iso Seed unwrap intShape) _.seed
+      <*> fieldOf "entities" "" (mapOf idShape entityShape) _.entities
+      <*> fieldOf "resources" "" (mapOf idShape resourceDefinitionShape) _.resources
+      <*> fieldOf "markets" "" (mapOf idShape marketShape) _.markets
+      <*> fieldOf "transformations" "" (mapOf idShape transformationShape) _.transformations
+      <*> fieldOf "representations" "" (arrayOf representationShape) _.representations
+      <*> fieldOf "numeraire" "" idShape _.numeraire
+      <*> fieldOf "transport" "" (mapOf idShape idShape) _.transport
+      <*> fieldOf "jurisdiction" "" (mapOf idShape idShape) _.jurisdiction
+      <*> fieldOf "rules" "" (mapOf idShape ruleShape) _.rules
+      <*> fieldOf "scheduled" "" (mapOf idShape (optionalOf ruleShape)) _.scheduled
+      <*> fieldOf "deliveries" "" (arrayOf deliveryShape) _.deliveries
+      <*> fieldOf "factors" "" (mapOf idShape holdingsShape) _.factors
+      <*> fieldOf "circulation" "" circulationShape _.circulation
+      <*> fieldOf "events" "" (arrayOf eventShape) _.events
+  )
+
+manifestShape :: Shape Manifest
+manifestShape = object "Manifest"
+  ( { gameboard: _, engine: _, draw: _, initial: _ }
+      <$> fieldOf "gameboard" "" stringShape _.gameboard
+      <*> fieldOf "engine" "" stringShape _.engine
+      <*> fieldOf "draw" "" stringShape _.draw
+      <*> fieldOf "initial" "" worldStateShape _.initial
+  )

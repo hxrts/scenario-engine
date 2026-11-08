@@ -8,12 +8,16 @@ module Core.Query
   , eventsOf
   , countEvents
   , capacityHeld
+  , capabilitiesOf
+  , entitiesOf
+  , marketsOf
+  , rulesOf
+  , facilitiesOf
   , priceOf
   , totalHolding
   , reserveOf
   , aggregateOf
   , isAggregate
-  , homeMarket
   , owner
   , capacityOf
   , facilityPrice
@@ -24,16 +28,20 @@ module Core.Query
   , transformsOf
   , transformedLastRound
   , restrictedAtBoundary
+  , droppedProposals
   ) where
 
 import Prelude
 
-import Core.Market (averagePrice, marginal)
+import Control.Alt ((<|>))
+import Core.Map (values)
+
+import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, BehaviorDomain, CapacityRef, Entity, EntityId, EntityKind(..), Intent, IntentF(..), MarketId, Order, Price, Quantity, Ratio, ResourceId, RoundIndex, Rule, RuleF(..), TransferSpec, Transformation, TransformationId, TransformSpec)
+import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.World (Event(..), WorldState)
-import Data.Array (any, concatMap, elem, filter, find, fromFoldable, length, mapMaybe)
+import Data.Array (any, concatMap, filter, find, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
@@ -61,25 +69,41 @@ eventsOf = mapMaybe
 countEvents :: (Event -> Boolean) -> Array Event -> Int
 countEvents p = length <<< eventsOf (\ev -> if p ev then Just ev else Nothing)
 
+-- | Every Entity, in id order.
+entitiesOf :: WorldState -> Array Entity
+entitiesOf = values <<< _.entities
+
+-- | Every Market, in id order.
+marketsOf :: WorldState -> Array Market
+marketsOf = values <<< _.markets
+
+-- | The Rules in force, in id order.
+rulesOf :: WorldState -> Array Rule
+rulesOf = values <<< _.rules
+
+-- | Every Transformation, in id order.
+facilitiesOf :: WorldState -> Array Transformation
+facilitiesOf = values <<< _.transformations
+
+-- | What an Entity may do; nothing for an Entity the World State does not have.
+capabilitiesOf :: WorldState -> EntityId -> Array Capability
+capabilitiesOf w e = maybe [] _.capabilities (Map.lookup e w.entities)
+
 -- | The amount of a capacity an Entity holds.
 capacityHeld :: WorldState -> EntityId -> CapacityRef -> Q
 capacityHeld w e ref = fromMaybe Q.zero (Map.lookup e w.entities <#> \x -> lookupQ ref x.capacities)
 
--- | A Market's current marginal price.
+-- | A Market's current marginal price, by id.
 priceOf :: WorldState -> MarketId -> Maybe Price
-priceOf w m = Map.lookup m w.markets <#> \x -> marginal x.cost x.position
+priceOf w m = marketPrice <$> Map.lookup m w.markets
 
 -- | A Resource's total across every account and Market reserve.
 totalHolding :: WorldState -> ResourceId -> Q
-totalHolding w r = Q.sumQ (map (lookupQ r <<< _.accounts) (fromFoldable (Map.values w.entities)) <> map (lookupQ r <<< _.reserves) (fromFoldable (Map.values w.markets)))
+totalHolding w r = Q.sumQ (map (lookupQ r <<< _.accounts) (entitiesOf w) <> map (lookupQ r <<< _.reserves) (marketsOf w))
 
 -- | What a Market holds of a Resource in reserve; zero for an unknown Market.
 reserveOf :: WorldState -> MarketId -> ResourceId -> Q
 reserveOf w m r = maybe Q.zero (lookupQ r <<< _.reserves) (Map.lookup m w.markets)
-
--- | The stored Representation factor of an Aggregate in a Behavior Domain, if one is stored.
-factorOf :: WorldState -> EntityId -> BehaviorDomain -> Maybe Ratio
-factorOf w a d = Map.lookup a w.factors >>= Map.lookup d
 
 -- | An Entity's Aggregate definition, when it is an Aggregate.
 aggregateOf :: Entity -> Maybe Aggregate
@@ -90,13 +114,13 @@ aggregateOf e = case e.kind of
 isAggregate :: Entity -> Boolean
 isAggregate = isJust <<< aggregateOf
 
--- | An Entity's home market: the first Market (by id) it has access to, or Nothing when it has none.
-homeMarket :: WorldState -> EntityId -> Maybe MarketId
-homeMarket w e = map _.id (find (\m -> e `elem` m.access) (fromFoldable (Map.values w.markets)))
-
--- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
+-- | The capacity's owner: the Entity with a positive holding of it, else the first with an account
+-- | for it (an owner run down to zero still owns it). INV-08 keeps a positive holder unique.
+-- | Withholding and capacity lookups both use this.
 owner :: WorldState -> CapacityRef -> Maybe EntityId
-owner w ref = _.id <$> find (\e -> Map.member ref e.capacities) (fromFoldable (Map.values w.entities))
+owner w ref = _.id <$> (find (\e -> lookupQ ref e.capacities > Q.zero) entities <|> find (\e -> Map.member ref e.capacities) entities)
+  where
+  entities = entitiesOf w
 
 -- | Effective capacity: the owner's capacity less withheld units.
 capacityOf :: WorldState -> CapacityRef -> Q
@@ -109,7 +133,7 @@ capacityOf w ref =
               Withholding r | r.capacity == ref -> r.units
               _ -> Q.zero
           )
-          (fromFoldable (Map.values w.rules))
+          (rulesOf w)
       )
   in
     max Q.zero (Q.sub held withheld)
@@ -141,30 +165,39 @@ poolCeiling w tr = case tr.capacity of
 -- | The smallest `capacityUse` among the capped facilities on `ref`, starting from `use` (the
 -- | facility's own, so the result is never above it).
 smallestUse :: WorldState -> CapacityRef -> Q -> Q
-smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (fromFoldable (Map.values w.transformations))))
+smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (facilitiesOf w)))
   where
   drawsOn x = x.capacity == Just ref && x.capacityUse > Q.zero
 
 -- | The Trade orders of one Intent list, in order: the one place that selects a Trade.
-tradesOf :: Array Intent -> Array Order
+tradesOf :: forall m v. Array (IntentF m v) -> Array { market :: m, quantity :: v, limitPrice :: Maybe v }
 tradesOf = mapMaybe
   ( case _ of
       Trade o -> Just o
       _ -> Nothing
   )
 
-transfersOf :: Array Intent -> Array TransferSpec
+transfersOf :: forall m v. Array (IntentF m v) -> Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
 transfersOf = mapMaybe
   ( case _ of
       Transfer t -> Just t
       _ -> Nothing
   )
 
-transformsOf :: Array Intent -> Array TransformSpec
+transformsOf :: forall m v. Array (IntentF m v) -> Array { by :: EntityId, transformation :: TransformationId, quantity :: v }
 transformsOf = mapMaybe
   ( case _ of
       Transform t -> Just t
       _ -> Nothing
+  )
+
+-- | The Proposals a round turned down whole: rejected or lapsed. A Proposal that lost one order is not among them.
+droppedProposals :: Array Event -> Array ProposalId
+droppedProposals = concatMap
+  ( case _ of
+      Rejected x -> [ x.proposal ]
+      Lapsed x -> [ x.proposal ]
+      _ -> []
   )
 
 -- | Whether `by` ran `transformation` in the round before `round` for at least `atLeast` units.

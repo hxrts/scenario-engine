@@ -10,17 +10,18 @@ module Handlers.Seats
   , signFor
   , recordedBindings
   , handleSeats
-  , collectRecords
+  , RecordSink
+  , playPure
+  , playWith
   ) where
 
 import Prelude
 
 import Core.Draw (Seed)
 import Core.Num (Q)
-import Core.Proposal (ProposalBody, submissionOrder)
-import Core.Query (homeMarket)
-import Core.Types (EntityId, MarketId, ProposalId)
-import Core.World (RoundRecord, RoundResult, View)
+import Core.Proposal (ProposalBody, submissionOrder, Transcript)
+import Core.Types (EntityId, ProposalId)
+import Core.World (RoundRecord, RoundResult, View, WorldState)
 import Data.Array (concatMap, elem, filter, find, nub, sortWith)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -31,22 +32,26 @@ import Foreign.Object (Object)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.Interpret (envFor)
 import Policy.Interpret as Policy
-import Run (Run, case_, interpret, on, peel, send)
+import Core.Engine.Commit (EngineError)
+import Core.Strategy (InWorld)
+import Effect (Effect)
+import Effects.Round (runGame)
+import Run (Run, case_, interpret, on, peel, run, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
--- | What a machine seat's answer depends on besides its own binding: the player seed, the Gameboard's
--- | parameters, and each Entity's home market.
-type SeatEnv = { seed :: Seed, params :: Object Q, home :: EntityId -> Maybe MarketId }
+-- | What a machine seat's answer depends on besides its own binding: the player seed and the Gameboard's
+-- | parameters.
+type SeatEnv = { seed :: Seed, params :: Object Q }
 
 -- | The seat environment of a game under a player seed.
 seatEnv :: Seed -> Game -> SeatEnv
-seatEnv seed g = { seed, params: g.parameters, home: homeMarket g.world }
+seatEnv seed g = { seed, params: g.parameters }
 
 -- | The Proposal bodies a seat submits in a round. Agent and Human seats submit none here.
 proposeFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalBody
 proposeFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.propose p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Strategy p) -> Policy.propose p (envFor { params: env.params, seed: env.seed, source: "seat" } e v)
   Just (Script rounds) -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
   Just (Recorded records) ->
     map (\s -> { intents: s.proposal.intents, signers: s.proposal.signers, procedure: s.proposal.procedure })
@@ -58,7 +63,7 @@ proposeFor env bs e v = case Map.lookup e bs of
 -- | The Proposals a seat signs in a round. Agent and Human seats sign nothing here.
 signFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalId
 signFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.sign p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Strategy p) -> Policy.sign p (envFor { params: env.params, seed: env.seed, source: "seat" } e v)
   Just (Script rounds) -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
   Just (Recorded records) -> map _.proposal.id (filter (\s -> e `elem` s.signatures) (inputsOf records v.round))
   Just Agent -> []
@@ -92,8 +97,20 @@ handleSeats env bs = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy ::
   quiet :: NarrateF ~> Run r
   quiet (Narrate _ k) = pure (k "")
 
--- | Collect RECORD purely: the in-memory record store, shared by the replay and simulator runners. The
--- | transcripts of a record are not kept: a machine-driven run has none.
+-- | Where a round goes once it is resolved: the round, with the transcripts read for it.
+type RecordSink = RoundResult -> Array Transcript -> Effect Unit
+
+-- | Play `n` rounds over machine bindings with records kept in memory. Pure. The simulator and the
+-- | replay runner are this fold over their own bindings.
+playPure :: SeatEnv -> Bindings -> InWorld -> Int -> WorldState -> { records :: Array RoundResult, value :: Either EngineError WorldState }
+playPure env bs inWorld n w = collectRecords (handleSeats env bs (runGame inWorld n w))
+
+-- | Play `n` rounds over machine bindings, each round going to `sink` as it completes.
+playWith :: SeatEnv -> Bindings -> RecordSink -> InWorld -> Int -> WorldState -> Effect (Either EngineError WorldState)
+playWith env bs sink inWorld n w =
+  run (case_ # on (Proxy :: _ "record") (\(Record result transcripts next) -> sink result transcripts $> next)) (handleSeats env bs (runGame inWorld n w))
+
+-- | Collect RECORD purely. The transcripts of a record are not kept: a machine-driven run has none.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 collectRecords = go []
   where

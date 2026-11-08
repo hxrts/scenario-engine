@@ -62,6 +62,14 @@ spec = describe "pi process boundary (no model)" do
         raw <- liftEffect (readFileText out.raw)
         contains (Pattern "message_end") raw `shouldEqual` true
 
+  it "a stream with no assistant message is a failed call, never an empty reply" do
+    withFakePi (const "echo '{\"type\":\"something_new\"}'")
+      \dir -> do
+        out <- attempt (pi { model: "fake/model", rawDir: dir <> "/raw" } "system" "input")
+        case out of
+          Left e -> contains (Pattern "no assistant message") (message e) `shouldEqual` true
+          Right _ -> fail "a stream with no assistant message must fail the call"
+
   it "a non-zero exit from pi is fatal: the error names the model" do
     withFakePi (const "exit 3")
       \dir -> do

@@ -21,12 +21,11 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (try)
 import Foreign.Object as Object
-import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
 import Effects.Observe (listRuns, listSummaries, readManifest, readMetric, readRounds)
 import Views.Metrics (metricsVersion, roundMetrics)
-import Handlers.Store (persister, recorder, runStore, runObserve)
+import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
@@ -51,6 +50,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PiTests.spec
   PrimitiveTests.spec
   describe "Run Store" do
+    it "a run id already in the store is a usable error, not a constraint failure" do
+      g <- presetSeats [ "US" ] "Passive" Nothing
+      db <- liftEffect (open ":memory:")
+      let
+        port = sqliteBackend db
+        new = { owner: "session:1:0", id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: Object.empty, manifest: g.manifest, source: Nothing, kind: Nothing }
+      first <- liftEffect (startRun port new)
+      first `shouldEqual` Right unit
+      second <- liftEffect (startRun port new)
+      second `shouldEqual` Left "a run named session-1 already exists; choose another --id"
+
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
       g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
       let
@@ -58,8 +68,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "RandomValid", manifest, source: Nothing, kind: Nothing })
-        persister port roundMetrics "run-1" manifest.initial
+        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "RandomValid", manifest, source: Nothing, kind: Nothing })
+        recorder port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
       liftEffect (runStore port (setStatus "run-1" "completed"))
       runs <- liftEffect (runObserve port listRuns)
@@ -73,7 +83,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure' <- orThrow (simulate seed g)
       snapshots `shouldEqual` map _.world pure'.records
       map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
-      case runReplay (seatEnv seed g) 5 records (runGame g.inWorld 5 g.world) of
+      case runReplay (seatEnv seed g) 5 records g of
         Left e -> fail e
         Right out -> map _.world out.records `shouldEqual` snapshots
       prices <- liftEffect (runObserve port (readMetric "run-1" "price:energy-atlantic" metricsVersion))
@@ -91,8 +101,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = sqliteBackend db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 4
-      liftEffect $ runStore port (createRun { id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
+      version `shouldEqual` 5
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "boom" } ]
@@ -111,18 +121,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
       manifest <- manifestOf
       writer <- liftEffect (open path)
-      liftEffect $ runStore (sqliteBackend writer) (createRun { id: "run-1", name: "ro", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
+      liftEffect $ runStore (sqliteBackend writer) (createRun { owner: "server:1:0", id: "run-1", name: "ro", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
       reader' <- liftEffect (openReadOnly path)
       runs <- liftEffect (runObserve (sqliteBackend reader') listRuns)
       map _.id runs `shouldEqual` [ "run-1" ]
       liftEffect (removeFile path)
 
-    it "failRunning fails every run still running, with its reason" do
+    it "failRunning fails every run still running that the role left, with its reason" do
       manifest <- manifestOf
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
-      liftEffect $ runStore port (createRun { id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
-      n <- liftEffect (runStore port (failRunning "interrupted"))
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
+      n <- liftEffect (runStore port (failRunning { role: "server", reason: "interrupted" }))
       n `shouldEqual` 1
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "interrupted" } ]
@@ -147,9 +157,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
+        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
         save <- recorder port roundMetrics "run-1" manifest.initial
-        pure \r -> save r (if r.record.round == 1 then said else [])
+        pure \r _ -> save r (if r.record.round == 1 then said else [])
       _ <- orThrow stored
       rows <- liftEffect (runObserve port (readRounds "run-1"))
       map _.transcripts rows `shouldEqual` [ Right said, Right [] ]
@@ -161,7 +171,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = sqliteBackend db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 4
+      version `shouldEqual` 5
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { id: r.id, status: r.status, reason: r.reason }) runs `shouldEqual` [ { id: "run-1", status: "completed", reason: Nothing } ]
       sums <- liftEffect (runObserve port listSummaries)
@@ -172,7 +182,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.archived sums' `shouldEqual` [ true ]
       reader' <- liftEffect (openReadOnly path)
       version' <- liftEffect (schemaVersion reader')
-      version' `shouldEqual` 4
+      version' `shouldEqual` 5
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
@@ -182,11 +192,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
-        persister port roundMetrics "run-1" manifest.initial
+        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
+        recorder port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
       manifest <- manifestOf
-      liftEffect $ runStore port (createRun { id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Just "run-1", kind: Just "duplicate" })
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Just "run-1", kind: Just "duplicate" })
       liftEffect (runStore port (setArchived "run-2" true))
       liftEffect (runStore port (setArchived "run-2" true))
       sums <- liftEffect (runObserve port listSummaries)
@@ -212,8 +222,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       manifest <- manifestOf
       db <- liftEffect (open path)
       let port = sqliteBackend db
-      liftEffect $ runStore port (createRun { id: "run-1", name: "corrupt", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
-      liftEffect $ runStore port (createRun { id: "run-2", name: "fine", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "corrupt", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "fine", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
       liftEffect (setRawSpec path "run-1" "not json")
       rows <- liftEffect (runObserve port listSummaries)
       case map _.spec rows of
@@ -226,7 +236,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       manifest <- manifestOf
       db <- liftEffect (open ":memory:")
       let port = sqliteBackend db
-      liftEffect $ runStore port (createRun { id: "run-1", name: "resume", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "resume", created: "2026-01-01T00:00:00Z", spec: Object.singleton "rounds" "3", manifest, source: Nothing, kind: Nothing })
       liftEffect (runStore port (setSpec "run-1" (Object.singleton "rounds" "5")))
       rows <- liftEffect (runObserve port listSummaries)
       map _.spec rows `shouldEqual` [ Right (Object.singleton "rounds" "5") ]
