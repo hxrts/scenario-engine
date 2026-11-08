@@ -14,13 +14,13 @@ presets=$(cli presets)
 packages=$(just --evaluate packages)
 
 case $recipe in
-  sim)      usage="just sim <setting> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  sim)      usage="just sim <setting> $(cli usage run)"
             example="just sim meridian --preset Conservative --rounds 5"
             flags=$(cli flags run) positional=setting ;;
-  session)  usage="just session <setting> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
+  session)  usage="just session <setting> $(cli usage session)"
             example="just session meridian --humans US --rounds 3"
             flags=$(cli flags session) positional=setting ;;
-  serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
+  serve)    usage="just serve $(cli usage serve)   (defaults: runs.db, 8787, apps/dashboard/dist)"
             example="just serve --port 9000"
             flags=$(cli flags serve) positional= ;;
   test-pkg) usage="just test-pkg <package>"

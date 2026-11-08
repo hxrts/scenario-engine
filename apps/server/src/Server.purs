@@ -12,7 +12,7 @@ import Data.Array (drop)
 import Data.Either (Either(..))
 import Effect (Effect)
 import Effect.Console (log)
-import Flags (flagNames, flagOr, intFlag, parseFlags)
+import Flags (parseWith, serveFlags, usageOf)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Exit (fail, usageError)
@@ -25,18 +25,15 @@ import Server.Implementation (implement)
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
-  case parseFlags flagNames.serve args of
+  case parseWith serveFlags args of
     Left e -> usage e
-    -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port.sh reads
-    Right flags -> case intFlag "--port" 8787 (\p -> p > 0 && p < 65536) "a port number" flags of
-      Right port -> loadAll fileOps >>= case _ of
-        Right settings -> do
-          store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
-          stale <- failInterrupted store
-          when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
-          cache <- newCache
-          serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement settings store cache))
-        Left e -> fail e
-      Left e -> usage e
+    Right flags -> loadAll fileOps >>= case _ of
+      Right settings -> do
+        store <- sqliteBackend <$> open flags.db
+        stale <- failInterrupted store
+        when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
+        cache <- newCache
+        serve flags.port flags.static apiPrefix (route (implement settings store cache))
+      Left e -> fail e
   where
-  usage = usageError [ "usage: server [--db <file>] [--port <1-65535>] [--static <dir>]" ]
+  usage = usageError [ "usage: server " <> usageOf serveFlags ]

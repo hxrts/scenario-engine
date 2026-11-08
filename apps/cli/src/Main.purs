@@ -21,7 +21,7 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
 import Game.Assemble (assemblePreset, checkRounds)
-import Flags (flagNames, parseFlags)
+import Flags (flagNamesOf, parseWith, serveFlags, usageOf)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
@@ -29,7 +29,7 @@ import Node.Process (argv)
 import Adapters.Filesystem (fileOps)
 import Settings.Load (loadFrom)
 import Exit (fail, usageError)
-import Options (runOptions, sessionOptions)
+import Options (runFlags, sessionFlags)
 import Settings.Presets (presetNames)
 import Session (session)
 
@@ -38,25 +38,28 @@ main = do
   args <- drop 2 <$> argv
   case uncons args of
     Just { head: "run", tail: rest } -> case uncons rest of
-      Just { head: setting, tail: flags } -> case parseFlags flagNames.run flags >>= runOptions of
+      Just { head: setting, tail: flags } -> case parseWith runFlags flags of
         Left e -> usage e
         Right o -> runSetting setting o.preset o.rounds o.seed
       Nothing -> usage "run needs a setting, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
-      Just { head: setting, tail: flags } -> either usage session (parseFlags flagNames.session flags >>= sessionOptions setting)
+      Just { head: setting, tail: flags } -> either usage session (parseWith (sessionFlags setting) flags)
       Nothing -> usage "session needs a setting, e.g. session meridian"
     Just { head: "presets" } -> for_ presetNames log
-    -- the flag names of a command, for `scripts/validate.sh`
-    Just { head: "flags", tail: [ "run" ] } -> for_ flagNames.run log
-    Just { head: "flags", tail: [ "session" ] } -> for_ flagNames.session log
-    Just { head: "flags", tail: [ "serve" ] } -> for_ flagNames.serve log
+    -- a command's flag names and usage line, for `scripts/validate.sh`
+    Just { head: "flags", tail: [ "run" ] } -> for_ (flagNamesOf runFlags) log
+    Just { head: "flags", tail: [ "session" ] } -> for_ (flagNamesOf (sessionFlags "")) log
+    Just { head: "flags", tail: [ "serve" ] } -> for_ (flagNamesOf serveFlags) log
+    Just { head: "usage", tail: [ "run" ] } -> log (usageOf runFlags)
+    Just { head: "usage", tail: [ "session" ] } -> log (usageOf (sessionFlags ""))
+    Just { head: "usage", tail: [ "serve" ] } -> log (usageOf serveFlags)
     _ -> usage "expected a command: run, session, presets or flags"
 
 usage :: String -> Effect Unit
 usage = usageError
-  [ "usage: run <setting> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  [ "usage: run <setting> " <> usageOf runFlags
   , "  e.g. run meridian --preset Conservative --rounds 5"
-  , "       session <setting> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
+  , "       session <setting> " <> usageOf (sessionFlags "")
   ]
 
 runSetting :: String -> String -> Maybe Int -> Maybe Seed -> Effect Unit
