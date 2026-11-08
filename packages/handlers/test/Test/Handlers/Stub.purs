@@ -1,4 +1,4 @@
--- | Test support for the model handler (docs/08_coverage.md): backends that stand in for the `pi`
+-- | Test support for the model handler: backends that stand in for the `pi`
 -- | process. A stub answers each call with a reply text, so the handler's prompts, decoding, and
 -- | fallbacks all run; `answering` builds those texts from typed replies. `replayCall` answers from the
 -- | recorded capstone exchanges in their recorded order, checking each call's effect, round and seats

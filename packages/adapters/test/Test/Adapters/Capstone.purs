@@ -1,4 +1,4 @@
--- | The capstone run through the SQLite Run Store (docs/08_coverage.md): the DSL-authored capstone is
+-- | The capstone run through the SQLite Run Store: the DSL-authored capstone is
 -- | simulated, saved, reloaded byte-identically, and replayed from the stored records. The joint pass
 -- | over the recorded transcript is in `Test.Handlers.Capstone`.
 module Test.Adapters.Capstone (spec) where

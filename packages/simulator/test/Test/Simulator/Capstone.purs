@@ -20,7 +20,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Capstone (load, runOf)
 
 spec :: Spec Unit
-spec = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
+spec = describe "Capstone (DSL-authored run, )" do
   it "the checked invariants hold in every round (INV-02, 04, 05, 06, 10; see docs/02 §9)" do
     cap <- load
     r <- runOf cap.playerSeed cap.game

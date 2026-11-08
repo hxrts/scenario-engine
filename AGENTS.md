@@ -40,7 +40,6 @@ Read them in order. Each layer builds on the one before it.
 5. `05_test_instance.md`: *Meridian*, the reference premise, and fixtures A–G
 6. `06_simulator.md`: simulator, run store, dashboard, mandatory tests
 7. `07_architecture.md`: package layout, dependency direction, key interfaces
-8. `08_coverage.md`: feature-to-test audit and capstone run (not normative)
 
 Spec conventions:
 - Cite invariants as `INV-xx` and Type System sections by number. IDs 18, 20, and 32–35 are retired.
@@ -57,4 +56,4 @@ Spec conventions:
 
 ## Tests
 
-The premise fixtures are golden tests against `resolveRound` (`packages/premises/test/Test/Premises/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/06_simulator.md` §14 and `packages/simulator/test`. The coverage audit is `docs/08_coverage.md`.
+The premise fixtures are golden tests against `resolveRound` (`packages/premises/test/Test/Premises/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/06_simulator.md` §14 and `packages/simulator/test`.

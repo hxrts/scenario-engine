@@ -25,3 +25,6 @@ packages/premises/capstone/*
 !packages/premises/capstone/transcript.json
 
 .claude/
+
+# local pi agent state: never source
+.pi/

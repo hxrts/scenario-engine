@@ -55,7 +55,7 @@ toStored id r =
   }
 
 spec :: Aff GameboardParts -> Spec Unit
-spec context = describe "Capstone (DSL-authored run, docs/08_coverage.md)" do
+spec context = describe "Capstone (DSL-authored run, )" do
   it "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" do
     ctx <- context
     cap <- load

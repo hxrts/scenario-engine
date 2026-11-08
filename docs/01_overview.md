@@ -136,6 +136,5 @@ Every role should have a meaningful capability, a dependency that others can pro
 | [`05_test_instance.md`](05_test_instance.md) | Meridian reference premise and fixtures A–G |
 | [`06_simulator.md`](06_simulator.md) | Simulator (seat Policies, replay, experiments), run store, dashboard, and mandatory tests |
 | [`07_architecture.md`](07_architecture.md) | Codebase layout, module boundaries, and key interfaces |
-| [`08_coverage.md`](08_coverage.md) | Audit of which tests exercise each feature, and the capstone run |
 
 Economic participation does not require individual representation. Actors and Aggregates act through the same economic system, so a small group of human decisions can move a much larger simulated economy.

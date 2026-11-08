@@ -316,7 +316,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording ([08](08_coverage.md)), with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
+Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
 
 ## 13. Provenance and Versioning
 

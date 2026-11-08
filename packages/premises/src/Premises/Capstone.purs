@@ -1,4 +1,4 @@
--- | The capstone run (docs/08_coverage.md): a test-only game on the shipped Meridian, eight
+-- | The capstone run: a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat strategy for each seat that exercises the features the audit found
 -- | untested together. It is a Gameboard premise with Strategy bindings (`seatBindings`); the
 -- | counterfactual replaces one seat (`counterfactualBindings`). `just premises` also compiles the
@@ -310,7 +310,7 @@ positionOf p = fromMaybe 0 (submissionIndex p)
 
 -- Joint pass ------------------------------------------------------------------------------
 
--- | One exchange of the capstone's joint pass (docs/08_coverage.md): the seat's transcript, the
+-- | One exchange of the capstone's joint pass: the seat's transcript, the
 -- | model's reply as the wire carries it, and the Intents the joint pass must make of it, in the
 -- | engine's JSON encoding. The generator (`apps/cli`, module `Transcript`) runs each exchange through
 -- | the recording port and writes `capstone/transcript.json`; the handler suite replays that file.
