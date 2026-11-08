@@ -1,0 +1,40 @@
+# Hits that are correct to keep: rule-id file symbol reason. An entry with no reason, or matching nothing, fails the check.
+# Show whose text is the type's meaning: derived output would change what is displayed or stored.
+hand-instance apps/dashboard/src/Dashboard/Route.purs instance-Show-Route the text is the route's URL (print route)
+hand-instance packages/board/src/Board/Error.purs instance-Show-ValidationError the text is the user-facing validation message
+hand-instance packages/board/src/Board/Error.purs instance-Show-Inconsistency the text is the user-facing message
+hand-instance packages/checks/src/Checks/Round.purs instance-Show-Field the text is the prose an assertion failure reports
+hand-instance packages/checks/src/Checks/Round.purs instance-Show-Failure the text is the prose an assertion failure reports
+hand-instance packages/core/src/Core/Engine/Commit.purs instance-Show-EngineError the text is the engine's error message
+hand-instance packages/core/src/Core/Invariants.purs instance-Show-Invariant the text is the spec's id (INV-01), which a constructor cannot spell
+hand-instance packages/core/src/Core/Num.purs instance-Show-Q the text is the exact decimal form (Q.format)
+hand-instance packages/core/src/Core/Run.purs instance-Show-RunStatus the text is the status as stored
+hand-instance packages/core/src/Core/Run.purs instance-Show-DeriveKind the text is the kind as stored
+hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text is the prose name a prompt shows
+hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
+hand-instance packages/core/src/Core/Types.purs instance-Show-RefKind the text is the lower-case name error messages use
+hand-instance packages/game/src/Game/Error.purs instance-Show-GameError the text is the user-facing message (renderGameError)
+hand-instance packages/schema/src/Schema/Gameboard.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
+# JSON handled as JSON, not a payload with a type behind it.
+hand-json apps/cli/src/Compile/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
+hand-json packages/premises/src/Premises/Load.purs merge merges premise files as JSON objects before decoding
+hand-json packages/premises/src/Premises/Meridian.purs files splits a compiled document into its premise files by key
+# Not renames: each fixes a type or names a DSL word.
+alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
+alias packages/schema/src/Schema/Build/Base.purs keyed DSL word that fixes its argument to the Keyed type
+alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it
+# The engine's own reading of Events.
+silent-default packages/core/src/Core/Engine/Circulate.purs tradedIn engine code: the engine's own reading of the Events it produced
+silent-default packages/core/src/Core/Engine/Circulate.purs revenueShares engine code: the engine's own reading of the Events it produced
+silent-default packages/core/src/Core/Engine/Commit.purs prepared engine code: the engine's own reading of the Events it produced
+# One rule per Intent kind, not a walk of its references.
+intent-walk packages/core/src/Core/Authority.purs authorized the authority rule differs per kind; there is nothing to traverse
+# Format-pinning tests are not built with the thing they test.
+test-literal packages/schema/test/Main.purs main format-pinning test: JSON text in schema decode tests
+implicit-codec packages/core/test/Main.purs roundTrip format-pinning test: pins the argonaut instance's round trip
+implicit-codec packages/core/test/Main.purs main format-pinning test: pins the wire form of an Intent
+implicit-codec packages/simulator/test/Test/Simulator/Capstone.purs spec format-pinning test: byte identity between the shape and the instance
+implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
+implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
+implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
+implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed premise files
