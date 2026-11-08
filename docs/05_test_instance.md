@@ -311,7 +311,7 @@ CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-th
 | US, CN | Required explicit. Human or NPC controller |
 | DE | Government accounts held in the EU Aggregate as member-government accounts. Germany's weight folds into the EU's residual weights ([§14.2](#142-resolution-consistency)) |
 | IN, JP, UK, BR, SA, NG | `government-default-v0` controls the same accounts: baseline spending, no discretionary actions |
-| ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts and capacities: sells Energy above 30 E on its home node and signs `energy-shipping` Proposals |
+| ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts and capacities: sells Energy above 30 E on every Energy Market it has access to (its own node, for each of these firms) and signs `energy-shipping` Proposals |
 | LABOR | Implicit coverage: accounts merge into US_WORKERS. No strike capability |
 | SME | Implicit coverage: accounts merge into GLOBAL_SMES. No Representation |
 | AID | Implicit coverage: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
