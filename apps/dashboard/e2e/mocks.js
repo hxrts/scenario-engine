@@ -33,7 +33,7 @@ export const overview = (target, { id = "run-1", status = "completed" } = {}) =>
   resumable: status === "completed",
   facts: [
     { label: "Name", value: "base" },
-    { label: "Scenario", value: "meridian@v0" },
+    { label: "Premise", value: "meridian@v0" },
     { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },
     { label: "Game ID", value: "meridian/meridian-test-01" },

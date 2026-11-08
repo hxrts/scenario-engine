@@ -4,5 +4,5 @@ import { test } from "@playwright/test";
 
 test("seed the runs", async ({ request }) => {
   for (const [name, preset, playerSeed, rounds] of [["base", "Conservative", 1, 3], ["seed", "Conservative", 2, 3], ["variant", "Aggressive", 1, 3], ["short", "Conservative", 1, 2]])
-    await request.post("/api/runs", { data: { name, preset, playerSeed, gameSeed: null, rounds } });
+    await request.post("/api/runs", { data: { name, preset, playerSeed, rounds } });
 });
