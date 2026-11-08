@@ -82,7 +82,7 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       owner <- liftEffect (processOwner "session")
       let
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
-      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })
+      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, owner })
       liftEffect $ either (\why -> fail ("error: " <> why)) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
       liftEffect $ writeLine (gameboardRef parts.gameboard <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))

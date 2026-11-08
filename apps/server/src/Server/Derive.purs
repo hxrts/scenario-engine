@@ -132,7 +132,7 @@ deriveSession cache settings store sourceId body info spec
               created <- nowIso
               owner <- processOwner serverRole
               attempt <- play store id do
-                runStore store (createRun { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, source: Just sourceId, kind: Just body.kind, owner })
+                runStore store (createRun { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, owner })
                 save <- recorder store roundMetrics id g.world
                 traverse_ (\r -> save r []) out.records
                 pure (Right out.value :: Either String _)

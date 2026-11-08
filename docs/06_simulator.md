@@ -281,7 +281,7 @@ The initial record is written before Round 1. After each round, the round record
 
 **Schema.** The store is SQLite, accessed through the primitives of `Adapters.SQLite` and interpreted by `Handlers.Store`. Its schema version is `PRAGMA user_version`, and there is one schema, version 1:
 
-- `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `archived` default 0, `source`, `kind`, `owner`).
+- `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `archived` default 0, `source`, `owner`).
 - `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`, `transcripts` as a JSON array. Key `run`, `round`).
 - `metrics` (`run`, `metric`, `version`, `round`, `value`. Key `run`, `metric`, `version`, `round`).
 

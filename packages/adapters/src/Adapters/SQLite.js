@@ -11,7 +11,6 @@ const schema = `create table runs (
      reason text,
      archived integer not null default 0, -- 1 hides a run from the default list
      source text, -- the run this one was derived from (docs/06_simulator.md §10.4)
-     kind text, -- duplicate, rerun, variant or counterfactual
      owner text not null); -- the process that created the run (role:pid:start time)
    create table rounds (
      run text not null, round integer not null, record text not null, snapshot text not null,
@@ -100,10 +99,24 @@ export const schemaVersion = (db) => () => userVersion(db);
 
 export const busyTimeout = (db) => () => Object.values(statement(db, "pragma busy_timeout").get())[0];
 
-export const createRunImpl = (db, id, name, spec, manifest, created, source, kind, owner) => () => {
-  statement(db, "insert into runs (id, name, status, spec, manifest, created, source, kind, owner) values (?, ?, 'running', ?, ?, ?, ?, ?, ?)")
-    .run(id, name, spec, manifest, created, source ?? null, kind ?? null, owner);
+// Insert one row under its named parameters: the record's keys are the columns.
+export const insertRowImpl = (db, table, row) => () => {
+  const keys = Object.keys(row);
+  const columns = keys.join(", ");
+  const parameters = keys.map((k) => ":" + k).join(", ");
+  statement(db, `insert into ${table} (${columns}) values (${parameters})`).run(row);
 };
+
+// The rows of a select of these columns, with `suffix` (a where and order clause) and its parameters.
+export const selectRowsImpl = (db, columns, table, suffix, params) => () =>
+  statement(db, `select ${columns.join(", ")} from ${table} ${suffix}`).all(...params).map((r) => ({ ...r }));
+
+// The body in one transaction: committed if it returns, rolled back if it throws.
+export const transactionImpl = (db, body) => () => transaction(db, () => body());
+
+// The columns of a table as SQLite reports them, for the test that compares the descriptions with the DDL.
+export const tableColumns = (db) => (table) => () =>
+  statement(db, `pragma table_info(${table})`).all().map((c) => c.name);
 
 // A run's archive flag. Archived runs stay in the store; the default list hides them.
 export const setArchivedImpl = (db, id, archived) => () => {
@@ -122,14 +135,6 @@ export const deleteRunImpl = (db, id) => () =>
     statement(db, "delete from metrics where run = ?").run(id);
     statement(db, "delete from rounds where run = ?").run(id);
     return Number(statement(db, "delete from runs where id = ?").run(id).changes);
-  });
-
-export const appendRoundImpl = (db, id, round, record, snapshot, assertions, transcripts, metrics) => () =>
-  transaction(db, () => {
-    statement(db, "insert into rounds (run, round, record, snapshot, assertions, transcripts) values (?, ?, ?, ?, ?, ?)")
-      .run(id, round, record, snapshot, assertions, transcripts);
-    const m = statement(db, "insert into metrics (run, metric, version, round, value) values (?, ?, ?, ?, ?)");
-    for (const x of metrics) m.run(id, x.metric, x.version, round, x.value);
   });
 
 // A run's new status with its failure reason (null clears it).
@@ -161,26 +166,12 @@ export const failRunningImpl = (db, role, reason) => () => {
 // time is fixed for the process, so every run it creates carries the same token.
 export const processOwner = (role) => () => `${role}:${process.pid}:${Math.round(performance.timeOrigin)}`;
 
-export const listRunsImpl = (db) => () =>
-  statement(db, "select id, name, status, created, reason from runs order by rowid").all().map((r) => ({ ...r, reason: r.reason ?? null }));
-
-// Summary rows for the run list: each run's manifest and specification, and only the
-// assertion texts of its rounds. Records and snapshots are not read.
-export const summariesImpl = (db) => () => {
-  const runs = statement(db, "select id, name, status, created, reason, spec, manifest, archived, source from runs order by rowid").all();
-  const byRun = new Map();
+// The assertion texts of every run's rounds, by run, for the run list: records and snapshots are not read.
+export const assertionsByRun = (db) => () => {
+  const byRun = {};
   for (const r of statement(db, "select run, assertions from rounds order by run, round").all()) {
-    if (!byRun.has(r.run)) byRun.set(r.run, []);
-    byRun.get(r.run).push(r.assertions);
+    (byRun[r.run] ??= []).push(r.assertions);
   }
-  return runs.map((r) => ({ ...r, reason: r.reason ?? null, archived: r.archived === 1, source: r.source ?? null, assertions: byRun.get(r.id) ?? [] }));
+  return byRun;
 };
-
-export const manifestImpl = (db, id) => () => {
-  const row = statement(db, "select spec, manifest from runs where id = ?").get(id);
-  return row ? { spec: row.spec, manifest: row.manifest } : null;
-};
-
-export const roundsImpl = (db, id) => () =>
-  statement(db, "select round, record, snapshot, assertions, transcripts from rounds where run = ? order by round").all(id).map((r) => ({ ...r }));
 

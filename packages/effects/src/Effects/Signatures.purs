@@ -84,15 +84,13 @@ type Stored a = Either String a
 -- | Why a stored run cannot be served: it is not in the store, or it is there but unreadable.
 data RunError = Missing | Unreadable String
 
--- | A run registered before Round 1. `source` and `kind` are set for a run derived from another.
+-- | A run registered before Round 1. Its `source` is read from its specification.
 type NewRun =
   { id :: String
   , name :: String
   , created :: String
   , spec :: Spec
   , manifest :: Manifest
-  , source :: Maybe String
-  , kind :: Maybe DeriveKind
   , owner :: String -- the process that created the run (`Adapters.SQLite.processOwner`): role, process id, start time
   }
 

@@ -12,6 +12,8 @@ module Adapters.SQLite
   , busyTimeout
   , configuredBusyTimeout
   , sqliteBackend
+  , describedTables
+  , tableColumns
   , processOwner
   , Db
   ) where
@@ -27,35 +29,103 @@ import Schema.Run (RunStatus, Spec, runStatusShape, specShape)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Either (either)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, Fn9, runFn1, runFn2, runFn3, runFn4, runFn8, runFn9)
+import Data.Function.Uncurried (Fn2, Fn3, Fn4, Fn5, runFn2, runFn3, runFn4, runFn5)
 import Data.Nullable (Nullable, toMaybe, toNullable)
+import Data.Array (head)
+import Data.Foldable (for_)
+import Data.Maybe (fromMaybe)
+import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (traverse)
+import Foreign.Object (Object)
+import Foreign.Object as Object
+import Prim.Row as Row
+import Prim.RowList as RL
+import Type.Proxy (Proxy(..))
 import Effect (Effect)
 import Effect.Exception (throw)
 import Effects.Signatures (RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
-import Handlers.Store (Metric, StoreBackend)
+import Handlers.Store (StoreBackend)
 
 foreign import data Db :: Type
 
--- | The rows as SQLite returns them: texts, with a nullable reason and source, which the backend maps to Maybe.
-type RunInfoRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
-
-type RunSummaryRow =
-  { id :: String
+-- | A column's value as SQLite holds it: text, an integer, or a nullable text.
+-- | The full row of each table, described once; every insert and select names its columns from these, so a
+-- | column outside the table does not compile. The DDL stays one literal in the foreign module, and a test
+-- | compares these descriptions with `pragma table_info`.
+type RunColumns =
+  ( id :: String
   , name :: String
   , status :: String
-  , created :: String
-  , reason :: Nullable String
   , spec :: String
   , manifest :: String
-  , archived :: Boolean
+  , created :: String
+  , reason :: Nullable String
+  , archived :: Int
   , source :: Nullable String
-  , assertions :: Array String
-  }
+  , owner :: String
+  )
+
+type RoundColumns =
+  ( run :: String
+  , round :: Int
+  , record :: String
+  , snapshot :: String
+  , assertions :: String
+  , transcripts :: String
+  )
+
+type MetricColumns = (run :: String, metric :: String, version :: String, round :: Int, value :: String)
+
+-- | What a read of the runs table selects, row by row.
+type RunInfoRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
+
+type RunSummaryRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String, spec :: String, manifest :: String, archived :: Int, source :: Nullable String }
 
 type ManifestRow = { spec :: String, manifest :: String }
 
 type RoundRow = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
+
+-- | A table, by its row.
+newtype Table (row :: Row Type) = Table String
+
+runsTable :: Table RunColumns
+runsTable = Table "runs"
+
+roundsTable :: Table RoundColumns
+roundsTable = Table "rounds"
+
+metricsTable :: Table MetricColumns
+metricsTable = Table "metrics"
+
+-- | The columns of a record type, in sorted order.
+class Columns :: RL.RowList Type -> Constraint
+class Columns rl where
+  columnNames :: Proxy rl -> Array String
+
+instance Columns RL.Nil where
+  columnNames _ = []
+
+instance (IsSymbol k, Columns rest) => Columns (RL.Cons k a rest) where
+  columnNames _ = [ reflectSymbol (Proxy :: Proxy k) ] <> columnNames (Proxy :: Proxy rest)
+
+-- | Every table's name and its described columns, for the test against the DDL.
+describedTables :: Array { table :: String, columns :: Array String }
+describedTables =
+  [ describe runsTable
+  , describe roundsTable
+  , describe metricsTable
+  ]
+  where
+  describe :: forall r rl. RL.RowToList r rl => Columns rl => Table r -> { table :: String, columns :: Array String }
+  describe (Table table) = { table, columns: columnNames (Proxy :: Proxy rl) }
+
+-- | Insert a row: the record's fields must all be columns of the table.
+insert :: forall sub rest row. Row.Union sub rest row => Db -> Table row -> Record sub -> Effect Unit
+insert db (Table name) r = runFn3 insertRowImpl db name r
+
+-- | The rows of a select of a record's fields, with a where and order clause and its parameters.
+select :: forall sel rl rest row. RL.RowToList sel rl => Columns rl => Row.Union sel rest row => Db -> Table row -> String -> Array String -> Effect (Array (Record sel))
+select db (Table name) suffix params = runFn5 selectRowsImpl db (columnNames (Proxy :: Proxy rl)) name suffix params
 
 -- | Open the store read-write: created if new, refused at another schema version. Other connections'
 -- | locks are waited for (busy timeout) rather than failing at once. A refused open closes the handle.
@@ -81,17 +151,18 @@ foreign import configuredBusyTimeout :: Int
 -- | (docs/06_simulator.md §6.1): the role, the process id, and the process start time.
 foreign import processOwner :: String -> Effect String
 
-foreign import createRunImpl :: Fn9 Db String String String String String (Nullable String) (Nullable String) String (Effect Unit)
+foreign import insertRowImpl :: forall r. Fn3 Db String (Record r) (Effect Unit)
+foreign import selectRowsImpl :: forall r. Fn5 Db (Array String) String String (Array String) (Effect (Array (Record r)))
+foreign import transactionImpl :: forall a. Fn2 Db (Effect a) (Effect a)
+
+-- | A table's columns as SQLite reports them, for the test against the descriptions.
+foreign import tableColumns :: Db -> String -> Effect (Array String)
+foreign import assertionsByRun :: Db -> Effect (Object (Array String))
 foreign import setArchivedImpl :: Fn3 Db String Boolean (Effect Unit)
 foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
 foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
-foreign import appendRoundImpl :: Fn8 Db String Int String String String String (Array Metric) (Effect Unit)
 foreign import setStatusImpl :: Fn4 Db String String (Nullable String) (Effect Unit)
 foreign import failRunningImpl :: Fn3 Db String String (Effect Int)
-foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfoRow))
-foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummaryRow))
-foreign import manifestImpl :: Fn2 Db String (Effect (Nullable ManifestRow))
-foreign import roundsImpl :: Fn2 Db String (Effect (Array RoundRow))
 
 -- JSON -------------------------------------------------------------------------------------
 
@@ -120,24 +191,29 @@ statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeE
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn9 createRunImpl db r.id r.name (specText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (show <$> r.kind)) r.owner
-  , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (shapeText roundRecordShape r.record) (shapeText worldStateShape r.snapshot) (shapeText (arrayOf failureShape) r.assertions) (shapeText (arrayOf transcriptShape) r.transcripts) r.metrics
+  { createRun: \r -> insert db runsTable { id: r.id, name: r.name, status: "running", spec: specText r.spec, manifest: shapeText manifestShape r.manifest, created: r.created, source: toNullable r.spec.source, owner: r.owner }
+  , appendRound: \r -> runFn2 transactionImpl db do
+      insert db roundsTable { run: r.run, round: r.round, record: shapeText roundRecordShape r.record, snapshot: shapeText worldStateShape r.snapshot, assertions: shapeText (arrayOf failureShape) r.assertions, transcripts: shapeText (arrayOf transcriptShape) r.transcripts }
+      for_ r.metrics \m -> insert db metricsTable { run: r.run, metric: m.metric, version: m.version, round: r.round, value: m.value }
   , setStatus: \id status reason -> runFn4 setStatusImpl db id (show status) (toNullable reason)
   , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
   , setSpec: \id spec -> runFn3 setSpecImpl db id (specText spec)
   , setArchived: \id archived -> runFn3 setArchivedImpl db id archived
   , deleteRun: \id -> runFn2 deleteRunImpl db id
-  , listRuns: runFn1 listRunsImpl db >>= traverse runInfo
-  , listSummaries: runFn1 summariesImpl db >>= traverse runSummary
-  , readManifest: \id -> map (map manifestOf <<< toMaybe) (runFn2 manifestImpl db id)
-  , readRounds: \id -> map (map roundOf) (runFn2 roundsImpl db id)
+  , listRuns: select db runsTable "order by rowid" [] >>= traverse runInfo
+  , listSummaries: do
+      rows <- select db runsTable "order by rowid" []
+      byRun <- assertionsByRun db
+      traverse (runSummary byRun) rows
+  , readManifest: \id -> map (map manifestOf <<< head) (select db runsTable "where id = ?" [ id ])
+  , readRounds: \id -> map (map roundOf) (select db roundsTable "where run = ? order by round" [ id ])
   }
   where
   runInfo :: RunInfoRow -> Effect RunInfo
   runInfo r = statusOf r.id r.status <#> \status -> { id: r.id, name: r.name, status, created: r.created, reason: toMaybe r.reason }
 
-  runSummary :: RunSummaryRow -> Effect RunSummary
-  runSummary r = statusOf r.id r.status <#> \status ->
+  runSummary :: Object (Array String) -> RunSummaryRow -> Effect RunSummary
+  runSummary byRun r = statusOf r.id r.status <#> \status ->
     { id: r.id
     , name: r.name
     , status
@@ -145,9 +221,9 @@ sqliteBackend db =
     , reason: toMaybe r.reason
     , spec: specOf r.spec
     , manifest: fromShape manifestShape "manifest" r.manifest
-    , archived: r.archived
+    , archived: r.archived == 1
     , source: toMaybe r.source
-    , assertions: map (fromShape (arrayOf failureShape) "assertions") r.assertions
+    , assertions: map (fromShape (arrayOf failureShape) "assertions") (fromMaybe [] (Object.lookup r.id byRun))
     }
 
   manifestOf :: ManifestRow -> StoredManifest

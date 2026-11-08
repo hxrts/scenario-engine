@@ -20,7 +20,6 @@ import Adapters.Random (resolveSeed)
 import Adapters.SQLite (processOwner)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
-import Core.Shape (Shape, intShape, recordShape, stringShape)
 import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
 import Data.Bifunctor (lmap)
@@ -103,12 +102,10 @@ startAs id p store l = do
     Right game -> do
       let
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: Just l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
-        source = _.source <$> l.derivation
-        kind = _.kind <$> l.derivation
       created <- nowIso
       owner <- processOwner serverRole
       attempt <- play store id $ simulateWith seed game \manifest -> do
-        runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind, owner })
+        runStore store (createRun { id, name: l.name, created, spec, manifest, owner })
         recorder store roundMetrics id manifest.initial
       pure (attempt $> { id, playerSeed: unwrap seed })
 

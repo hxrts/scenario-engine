@@ -133,7 +133,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     let
-      new id owner = createRun { id, name: id, created: "2026-01-01T00:00:00Z", spec: emptySpec, manifest, source: Nothing, kind: Nothing, owner }
+      new id owner = createRun { id, name: id, created: "2026-01-01T00:00:00Z", spec: emptySpec, manifest, owner }
     liftEffect do
       runStore env.store (new "left" "server:1:0")
       runStore env.store (new "session-1" "session:1:0")
@@ -193,7 +193,7 @@ spec = describe "API status rules, startup and cache" do
     rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
     let written = encodeSpec { gameId: "meridian/meridian-test-01", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
     liftEffect do
-      runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, source: Nothing, kind: Nothing, owner: "session:1:0" })
+      runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
       for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of
         Right record, Right snapshot, Right assertions, Right transcripts -> env.store.appendRound { run: "session-1", round: r.round, record, snapshot, assertions, transcripts, metrics: [] }
         _, _, _, _ -> throw "an unreadable stored round"
