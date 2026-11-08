@@ -1,5 +1,5 @@
 -- | The `Shape` description algebra. A Shape is built once from combinators. The
--- | same value carries a description (for prose) and a codec per format (premise,
+-- | same value carries a description (for prose) and a codec per format (setting,
 -- | snapshot). Nothing here is a second description of a type: the codec and the interpreters read
 -- | the same combinator calls. Instances of `Described` sit beside their types (PureScript forbids
 -- | orphan instances), so this module imports no domain type.
@@ -31,7 +31,7 @@ module Core.Shape
   , bare
   , literal
   , embedded
-  , premiseSum
+  , settingSum
   , At
   , class SumRow
   , class SumCtors
@@ -42,7 +42,7 @@ module Core.Shape
   , toPayload
   , fromPayload
   , genericSum
-  , genericPremiseSum
+  , genericSettingSum
   , genericTypedSum
   , class EnumCtors
   , enumCtors
@@ -113,14 +113,14 @@ import Record.Builder as Builder
 import Type.Proxy (Proxy(..))
 
 -- | The two JSON formats a description is interpreted into. Snapshot is the generic encoding the
--- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Premise is the authored
+-- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Setting is the authored
 -- | fixture and Gameboard format (one-key unions, `kind:argument` strings, omitted empty keys).
-data Format = Premise | Snapshot
+data Format = Authored | Snapshot
 
 derive instance Eq Format
 
 -- | How a sum is written. `Tagged` is the generic snapshot form, `{"tag":..,"values":[..]}`; the others
--- | are premise forms.
+-- | are setting forms.
 data TagForm = Tagged | OneKey | KindArg | Bare | Literal | Mixed
 
 derive instance Eq TagForm
@@ -145,7 +145,7 @@ type DField = { key :: String, desc :: String, shape :: Desc }
 type DCtor = { tag :: String, desc :: String, payload :: Desc, form :: TagForm }
 
 -- | A shape of `a`: its description, its codec in each format, whether a value is omitted from
--- | the premise format when absent, and what a missing key decodes to (if anything).
+-- | the setting format when absent, and what a missing key decodes to (if anything).
 type Shape a =
   { desc :: Desc
   , codec :: Format -> Codec a
@@ -153,14 +153,14 @@ type Shape a =
   , missing :: Maybe a
   }
 
--- | Key order of an object as written. The premise format is sorted ascending, as `Compile`
+-- | Key order of an object as written. The setting format is sorted ascending, as `Compile`
 -- | writes it. The snapshot format is descending, which is what Argonaut's generic encoder
 -- | emits (checked against the stored records: `{"values":..,"tag":..}`, `{"quantity":..,"market":..}`).
 objectOf :: Format -> Array (Tuple String Json) -> Json
 objectOf fmt pairs = fromObject (Object.fromFoldable (sortBy order pairs))
   where
   order a b = case fmt of
-    Premise -> compare (fst a) (fst b)
+    Authored -> compare (fst a) (fst b)
     Snapshot -> compare (fst b) (fst a)
 
 -- Primitives -----------------------------------------------------------------------------
@@ -215,14 +215,14 @@ optionalOf s =
   , missing: Just Nothing
   }
 
--- Premise-format combinators ---------------------------------------------------------------
+-- Setting-format combinators ---------------------------------------------------------------
 --
--- The premise format is written and read only in `Premise`, so these combinators ignore the format
--- argument: a premise sum has no snapshot form. They cover a sum whose constructors mix one-key
+-- The setting format is written and read only in `Setting`, so these combinators ignore the format
+-- argument: a setting sum has no snapshot form. They cover a sum whose constructors mix one-key
 -- objects, `kind:argument` strings, bare strings and bare quantities; recursive descriptions; and
 -- isomorphisms, refinements and defaults.
 
--- | One constructor of a premise sum: its tag, how it is written, a projection (Nothing when the value
+-- | One constructor of a setting sum: its tag, how it is written, a projection (Nothing when the value
 -- | is another constructor), and an injection (Nothing when the JSON is another constructor's form).
 type PCtor a =
   { tag :: String
@@ -234,7 +234,7 @@ type PCtor a =
   }
 
 pay :: forall b. Shape b -> { enc :: b -> Json, dec :: Json -> Either String b }
-pay s = s.codec Premise
+pay s = s.codec Authored
 
 -- | `{ "tag": payload }`: a one-key object.
 oneKey :: forall a b. String -> String -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
@@ -306,16 +306,16 @@ embedded s proj inj =
       Left _ -> Nothing
   }
 
--- | A sum of premise constructors. The first constructor that reads a JSON value wins; the first
+-- | A sum of setting constructors. The first constructor that reads a JSON value wins; the first
 -- | that projects a value writes it. The list must be total for the type: an unmatched value is a
 -- | programming error, so encoding it crashes.
-premiseSum :: forall a. String -> Array (PCtor a) -> Shape a
-premiseSum name ctors =
+settingSum :: forall a. String -> Array (PCtor a) -> Shape a
+settingSum name ctors =
   { desc: DSum name Mixed (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form }) ctors)
   , codec: \_ ->
       { enc: \x -> case Array.findMap (\c -> c.project x) ctors of
           Just j -> j
-          Nothing -> unsafeCrashWith ("premise " <> name <> ": no constructor for a value")
+          Nothing -> unsafeCrashWith ("setting " <> name <> ": no constructor for a value")
       , dec: \j -> case Array.findMap (\c -> c.inject j) ctors of
           Just r -> r
           Nothing -> Left ("no " <> name <> " form for " <> stringify j)
@@ -329,7 +329,7 @@ premiseSum name ctors =
 -- A sum's list of constructors is derived from its `Generic` representation. A shape per constructor
 -- is supplied as a record keyed by constructor name, so a missing or an extra constructor is a compile
 -- error, and the constructor a value is written with is chosen by matching on its representation, so
--- encoding cannot fall through. Hand-written `premiseSum` lists remain only for guarded or merged cases.
+-- encoding cannot fall through. Hand-written `settingSum` lists remain only for guarded or merged cases.
 
 -- | How one constructor is written and read in a derived sum, in every form a sum may use.
 type Arm a =
@@ -497,10 +497,10 @@ genericSum name r =
       Just c -> fromMaybe (Left ("no constructor " <> tag)) (c.inject Snapshot j)
       Nothing -> Left ("no constructor " <> tag)
 
--- | A sum in a premise form, derived from its `Generic` representation: as `premiseSum`, with each
+-- | A sum in a setting form, derived from its `Generic` representation: as `settingSum`, with each
 -- | constructor described by `atOneKey`, `atKindArg`, `atBare`, `atLiteral` or `atEmbedded`; a value
 -- | is read by the first constructor in `data` order whose form matches.
-genericPremiseSum
+genericSettingSum
   :: forall a rep row
    . Generic a rep
   => SumRow rep row
@@ -508,7 +508,7 @@ genericPremiseSum
   => String
   -> Record row
   -> Shape a
-genericPremiseSum name r =
+genericSettingSum name r =
   { desc: descOf name Mixed cs
   , codec: \fmt ->
       { enc: sumWrite r fmt <<< from
@@ -604,12 +604,12 @@ instance Apply (RecF a) where
 instance Applicative (RecF a) where
   pure b = RecF { fields: [], enc: \_ _ -> [], dec: \_ _ -> Right b }
 
--- | A field of a record: its key, a note, its shape, and its getter. In the premise format an absent
+-- | A field of a record: its key, a note, its shape, and its getter. In the setting format an absent
 -- | value (per the shape's `absent`) is not written. A missing key reads as the shape's `missing`, or fails.
 fieldOf :: forall a b. String -> String -> Shape b -> (a -> b) -> RecF a b
 fieldOf key desc s get = RecF
   { fields: [ { key, desc, shape: s.desc } ]
-  , enc: \fmt x -> let b = get x in if fmt == Premise && s.absent b then [] else [ Tuple key ((s.codec fmt).enc b) ]
+  , enc: \fmt x -> let b = get x in if fmt == Authored && s.absent b then [] else [ Tuple key ((s.codec fmt).enc b) ]
   , dec: \fmt o -> case Object.lookup key o of
       Just j -> (s.codec fmt).dec j
       Nothing -> note ("missing key " <> key) s.missing
@@ -728,7 +728,7 @@ keyedOf :: forall a. Shape a -> Shape (Array (Tuple String a))
 keyedOf s =
   { desc: DKeyed s.desc
   , codec: \_ ->
-      { enc: \kvs -> objectOf Premise (map (\(Tuple k v) -> Tuple k ((pay s).enc v)) kvs)
+      { enc: \kvs -> objectOf Authored (map (\(Tuple k v) -> Tuple k ((pay s).enc v)) kvs)
       , dec: \j -> do
           o <- note "expected an object" (toObject j)
           traverse (\(Tuple k v) -> map (Tuple k) ((pay s).dec v)) (Object.toUnfoldable o)
@@ -793,7 +793,7 @@ refined msg p s = s { codec = \fmt -> let c = s.codec fmt in c { dec = \j -> c.d
 nameShape :: forall a. String -> String -> (a -> String) -> Array a -> Shape a
 nameShape name message nameOf values = prim name (fromString <<< nameOf) \j -> note message (toString j >>= \s -> Array.find (\v -> nameOf v == s) values)
 
--- | Omit the value from the premise format when `p` holds (an empty list, a default).
+-- | Omit the value from the setting format when `p` holds (an empty list, a default).
 omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a
 omittedWhen p s = s { absent = p }
 
@@ -817,7 +817,7 @@ keyedBy :: forall k v. Ord k => (String -> k) -> (k -> String) -> (k -> Shape v)
 keyedBy fromKey toKey entry =
   { desc: DKeyed (entry (fromKey "")).desc
   , codec: \_ ->
-      { enc: \m -> objectOf Premise (map (\(Tuple k v) -> Tuple (toKey k) ((pay (entry k)).enc v)) (Map.toUnfoldable m))
+      { enc: \m -> objectOf Authored (map (\(Tuple k v) -> Tuple (toKey k) ((pay (entry k)).enc v)) (Map.toUnfoldable m))
       , dec: \j -> do
           o <- note "expected an object" (toObject j)
           Map.fromFoldable <$> traverse (\(Tuple k v) -> let key = fromKey k in map (Tuple key) ((pay (entry key)).dec v)) (Object.toUnfoldable o :: Array (Tuple String Json))

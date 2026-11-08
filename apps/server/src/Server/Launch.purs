@@ -9,7 +9,7 @@ module Server.Launch
   , checkRunId
   , play
   , failInterrupted
-  , premiseInfo
+  , settingInfo
   , batchedShape
   , launchBatch
   ) where
@@ -38,12 +38,12 @@ import Effects.Observe (listSummaries)
 import Effects.Store (createRun, failRunning)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
-import Views.Premise (Premise)
-import Premises.Presets (presetNames)
+import Views.Setting (Setting)
+import Settings.Presets (presetNames)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle, validRunId)
 import Game.Assemble (assemblePreset, checkRounds)
 import Game.Override (Override)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Game.Recipe (Derivation, encodeSpec)
 import Simulator.Simulate (simulateWith)
 
@@ -134,21 +134,21 @@ nextRunId store = do
   pure ("run-" <> show (n + 1))
 
 -- | One run of a batch: its Setting and its run.
-batchedShape :: Shape { premise :: String, id :: String, playerSeed :: Int }
-batchedShape = recordShape "Batched" { premise: stringShape, id: stringShape, playerSeed: intShape }
+batchedShape :: Shape { setting :: String, id :: String, playerSeed :: Int }
+batchedShape = recordShape "Batched" { setting: stringShape, id: stringShape, playerSeed: intShape }
 
 -- | Launch one run of each Setting, in order. The first that does not start stops the batch; the runs
 -- | before it stay, as any launched run does.
-launchBatch :: Array GameboardParts -> StoreBackend -> LaunchBatch -> Effect (Either String (Array { premise :: String, id :: String, playerSeed :: Int }))
+launchBatch :: Array GameboardParts -> StoreBackend -> LaunchBatch -> Effect (Either String (Array { setting :: String, id :: String, playerSeed :: Int }))
 launchBatch ps store b = foldM step (Right []) ps
   where
   step acc p = case acc of
     Left e -> pure (Left e)
-    Right done -> launch p store { premise: Nothing, name: "batch " <> p.gameboard.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { premise: p.gameboard.id, id: l.id, playerSeed: l.playerSeed } ])
+    Right done -> launch p store { setting: Nothing, name: "batch " <> p.gameboard.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { setting: p.gameboard.id, id: l.id, playerSeed: l.playerSeed } ])
 
--- | `GET /api/premise`: the premises the launch form offers (`Views.Premise`).
-premiseInfo :: Array GameboardParts -> StoreBackend -> Effect (Array Premise)
-premiseInfo ps store = do
+-- | `GET /api/setting`: the settings the launch form offers (`Views.Setting`).
+settingInfo :: Array GameboardParts -> StoreBackend -> Effect (Array Setting)
+settingInfo ps store = do
   next <- nextRunId store
   pure (map (info next) ps)
   where

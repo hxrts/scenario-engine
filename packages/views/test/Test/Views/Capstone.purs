@@ -1,4 +1,4 @@
--- | The analysis checks of the capstone (packages/premises/src/Premises/Capstone.purs): an
+-- | The analysis checks of the capstone (packages/premises/src/Settings/Capstone.purs): an
 -- | eight-round run authored in the DSL, decoded from `capstone/run.json`, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
 -- | The simulator's own checks on the run are in the simulator suite (Test.Simulator.Capstone).
@@ -25,10 +25,10 @@ import Foreign.Object as Object
 import Effect.Aff (Aff)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load, runOf)
-import Premises.Meridian.Capstone (ObjectiveExpect)
+import Settings.Meridian.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Simulator.Simulate (SimRun)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances

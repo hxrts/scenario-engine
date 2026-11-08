@@ -769,7 +769,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         declared = Map.singleton (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }
         w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` []
-    it "a premise with no Rule kinds, conditions or groups runs: nothing is checked" do
+    it "a setting with no Rule kinds, conditions or groups runs: nothing is checked" do
       let plain = shipWorld { ruleKinds = Map.empty, flowGates = [], groups = Map.empty }
       rejections (resolveRound plain [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` []
     it "with no declared kinds, no Rule can be enacted" do
@@ -971,7 +971,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         m = market [ "US" ]
         derived = recordShape "Market" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape }
         written = marketObject
-      for_ [ Snapshot, Premise ] \fmt -> do
+      for_ [ Snapshot, Authored ] \fmt -> do
         stringify (encodeWith fmt derived m) `shouldEqual` stringify (encodeWith fmt written m)
         (derived.codec fmt).dec (encodeWith fmt written m) `shouldEqual` Right m
   describe "Event slices" do
@@ -1039,7 +1039,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 onEntity :: EntityId -> (Entity -> Entity) -> WorldState -> WorldState
 onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
 
--- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 

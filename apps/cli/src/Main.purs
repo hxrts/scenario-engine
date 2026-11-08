@@ -1,4 +1,4 @@
--- | Command line. `run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
+-- | Command line. `run <setting> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
 -- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
@@ -26,10 +26,10 @@ import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
 import Node.Process (argv)
 import Adapters.Filesystem (fileOps)
-import Premises.Load (loadFrom)
+import Settings.Load (loadFrom)
 import Exit (fail, usageError)
 import Options (runOptions, sessionOptions)
-import Premises.Presets (presetNames)
+import Settings.Presets (presetNames)
 import Session (session)
 
 main :: Effect Unit
@@ -37,13 +37,13 @@ main = do
   args <- drop 2 <$> argv
   case uncons args of
     Just { head: "run", tail: rest } -> case uncons rest of
-      Just { head: premise, tail: flags } -> case parseFlags flagNames.run flags >>= runOptions of
+      Just { head: setting, tail: flags } -> case parseFlags flagNames.run flags >>= runOptions of
         Left e -> usage e
-        Right o -> runPremise premise o.preset o.rounds o.seed
-      Nothing -> usage "run needs a premise, e.g. run meridian"
+        Right o -> runSetting setting o.preset o.rounds o.seed
+      Nothing -> usage "run needs a setting, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
-      Just { head: premise, tail: flags } -> either usage session (parseFlags flagNames.session flags >>= sessionOptions premise)
-      Nothing -> usage "session needs a premise, e.g. session meridian"
+      Just { head: setting, tail: flags } -> either usage session (parseFlags flagNames.session flags >>= sessionOptions setting)
+      Nothing -> usage "session needs a setting, e.g. session meridian"
     Just { head: "presets" } -> for_ presetNames log
     -- the flag names of a command, for `scripts/validate.sh`
     Just { head: "flags", tail: [ "run" ] } -> for_ flagNames.run log
@@ -53,14 +53,14 @@ main = do
 
 usage :: String -> Effect Unit
 usage = usageError
-  [ "usage: run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  [ "usage: run <setting> [--preset <name>] [--rounds <n>] [--seed <n>]"
   , "  e.g. run meridian --preset Conservative --rounds 5"
-  , "       session <premise> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
+  , "       session <setting> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
   ]
 
-runPremise :: String -> String -> Maybe Int -> Maybe Seed -> Effect Unit
-runPremise premise presetName rounds given = do
-  loaded <- loadFrom fileOps (premise <> "/v0")
+runSetting :: String -> String -> Maybe Int -> Maybe Seed -> Effect Unit
+runSetting setting presetName rounds given = do
+  loaded <- loadFrom fileOps (setting <> "/v0")
   case loaded of
     Left e -> fail e
     Right parts -> case traverse_ (checkRounds parts.gameboard) rounds *> assemblePreset parts presetName [] rounds of

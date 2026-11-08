@@ -13,7 +13,7 @@ import Data.Maybe (Maybe(..))
 import Data.String (trim)
 
 -- | The form's round-count rule: a whole number of at least one, read after trimming the text. The
--- | premise's range is the server's (`Game.Assemble.checkRounds`). The text is never blank here; a
+-- | setting's range is the server's (`Game.Assemble.checkRounds`). The text is never blank here; a
 -- | blank field is the caller's choice (the default, or a required field's error).
 rounds :: String -> Either String Int
 rounds s = case Int.fromString (trim s) of

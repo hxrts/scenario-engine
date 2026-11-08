@@ -82,14 +82,14 @@ sourceColumn = column "Source" "The run this one was derived from (duplicate, re
 presetColumn :: Column
 presetColumn = column "Preset" "The preset every seat plays in this run."
 
-premiseColumn :: Column
-premiseColumn = column "Premise" "The premise (Gameboard version) the run was played on."
+settingColumn :: Column
+settingColumn = column "Setting" "The setting (Gameboard version) the run was played on."
 
 roundsCompleted :: Column
 roundsCompleted = column "Rounds completed" "Rounds completed so far, out of the rounds the run was launched for. A run shorter than its target can be resumed to it."
 
 gameIdColumn :: Column
-gameIdColumn = column "Game ID" "The premise's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
+gameIdColumn = column "Game ID" "The setting's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
 
 criterionColumn :: Column
 criterionColumn = column "Criterion" "The number of the criterion within its objective."
@@ -102,7 +102,7 @@ boundColumn = column "Bound" "The threshold the measured values are compared wit
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ assertionsFailing, reasonColumn, archivedColumn, sourceColumn, presetColumn, premiseColumn, roundsCompleted, gameIdColumn, criterionColumn, valuesColumn, boundColumn ]
+columns = [ assertionsFailing, reasonColumn, archivedColumn, sourceColumn, presetColumn, settingColumn, roundsCompleted, gameIdColumn, criterionColumn, valuesColumn, boundColumn ]
 
 -- | The source a derived run cites: its id, marked when the store no longer holds that run.
 sourceCell :: Maybe String -> Boolean -> String
@@ -132,7 +132,7 @@ overview r =
   , facts:
       [ fact col.name r.name
       , fact presetColumn (fromMaybe "" r.spec.preset)
-      , fact premiseColumn r.manifest.gameboard
+      , fact settingColumn r.manifest.gameboard
       , fact col.status (runStatusName r.status)
       , fact roundsCompleted (ofCount rounds launched)
       , fact gameIdColumn (fromMaybe "" r.spec.gameId)

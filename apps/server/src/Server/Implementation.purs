@@ -20,25 +20,25 @@ import Server.Errors (failWith, ok)
 import Core.Shape (listOf)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
-import Server.Launch (batchedShape, launch, launchBatch, launchedShape, premiseInfo)
-import Server.Premises (Premises, chosen)
+import Server.Launch (batchedShape, launch, launchBatch, launchedShape, settingInfo)
+import Server.Settings (Settings, chosen)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
--- | The implementation of every operation over the loaded premises, one store, and the store's run cache.
-implement :: Premises -> StoreBackend -> Cache -> Implementation
-implement premises store cache = case _ of
+-- | The implementation of every operation over the loaded settings, one store, and the store's run cache.
+implement :: Settings -> StoreBackend -> Cache -> Implementation
+implement settings store cache = case _ of
   ListRuns { archived } -> runSummaries archived store >>= ok Keys.runList <<< Overview.runList
-  Premise -> premiseInfo premises store >>= ok Keys.premises
-  Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus premises))
-  LaunchRun l -> writing (either (pure <<< Left) (\p -> launch p store l) (chosen premises l.premise) >>= either (failWith 400) (ok launchedShape))
-  LaunchBatch b -> writing (either (pure <<< Left) (\ps -> launchBatch ps store b) (maybe (Right premises) (traverse (chosen premises <<< Just)) b.premises) >>= either (failWith 400) (ok (listOf batchedShape)))
+  Setting -> settingInfo settings store >>= ok Keys.settings
+  Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus settings))
+  LaunchRun l -> writing (either (pure <<< Left) (\p -> launch p store l) (chosen settings l.setting) >>= either (failWith 400) (ok launchedShape))
+  LaunchBatch b -> writing (either (pure <<< Left) (\ps -> launchBatch ps store b) (maybe (Right settings) (traverse (chosen settings <<< Just)) b.settings) >>= either (failWith 400) (ok (listOf batchedShape)))
   Entities id -> entitiesView cache store id
   Entity id entity -> entityView cache store id entity
-  RunView r -> getView cache premises store r
-  Compare r -> compareView cache premises store r
-  Agency r -> agencyView cache premises r
-  Derive { id, body } -> writing (deriveRun cache premises store id body)
-  Resume { id, rounds } -> writing (resumeRun premises store id rounds)
+  RunView r -> getView cache settings store r
+  Compare r -> compareView cache settings store r
+  Agency r -> agencyView cache settings r
+  Derive { id, body } -> writing (deriveRun cache settings store id body)
+  Resume { id, rounds } -> writing (resumeRun settings store id rounds)
   Archive id -> writing (setArchive store id true)
   Unarchive id -> writing (setArchive store id false)
   Delete { id, confirm } -> writing (deleteOne store id confirm)

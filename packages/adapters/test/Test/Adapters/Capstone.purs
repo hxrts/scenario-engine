@@ -26,7 +26,7 @@ import Game.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Handlers.Store (recorder, runStore, runObserve)
-import Premises.Meridian.Capstone as C
+import Settings.Meridian.Capstone as C
 import Simulator.Simulate (simulate, simulateWith)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow)

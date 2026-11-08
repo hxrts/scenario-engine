@@ -34,7 +34,7 @@ import Experiments.Agency (agency)
 import Simulator.Simulate (SimRun)
 import Game.Assemble (assemble, presetBindings)
 import Game.Override (Override(..))
-import Game.Premise (GameboardParts, Premise(..))
+import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Game)
 import Testkit.Capstone (runOf)
 import Test.Spec (Spec, describe, it)
@@ -50,7 +50,7 @@ spec' preset overrides seed = { preset, overrides, seed }
 gameOf :: GameboardParts -> Variant -> Aff Game
 gameOf p v = do
   bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) (map Id seats))
-  orThrow (assemble (GameboardPremise p) bindings v.overrides)
+  orThrow (assemble (GameboardSetting p) bindings v.overrides)
 
 play :: GameboardParts -> Variant -> Aff SimRun
 play ctx v = do

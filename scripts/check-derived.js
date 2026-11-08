@@ -148,7 +148,7 @@ function loadContext() {
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
   const specKeys = need("spec keys in Schema.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
-  const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/^\s*[{,] \w+: "([A-Z]\w+)"/gm)].map((m) => m[1]));
+  const presets = need("preset names in Settings.Presets", [...read(presetsFile).matchAll(/^\s*[{,] \w+: "([A-Z]\w+)"/gm)].map((m) => m[1]));
 
   const columns = new Set();
   for (const f of walk(path.join(root, "packages/views/src"), (n) => n.endsWith(".purs"))) {
@@ -161,7 +161,7 @@ function loadContext() {
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
 const viewFile = "packages/schema/src/Schema/View.purs";
-const presetsFile = "packages/premises/src/Premises/Presets.purs";
+const presetsFile = "packages/premises/src/Settings/Presets.purs";
 const specFile = "packages/schema/src/Schema/Run.purs";
 
 // Rules ----------------------------------------------------------------------------------------------
@@ -183,12 +183,12 @@ const fixes = {
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
   "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check-derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
-  "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
+  "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, Settings.Presets, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Market (entries, sumInto, marketPrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",
   "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check-derived.allow",
-  "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/07 §3)",
+  "banned-word": "Core carries no setting names; say what the mechanism does, and put the name in the DSL (docs/07 §3)",
 };
 
 const ruleIds = Object.keys(fixes);
@@ -220,7 +220,7 @@ function scan(file, text, ctx) {
     const sym = symbols[i];
 
     // sum-projection: the catch-all arm of a constructor's projection in a sum's constructor list
-    if (/^\s*_ -> Nothing\s*$/.test(l) && /\b(sumOf|premiseSum|typedSum)\b/.test(defs[sym] || "")) add("sum-projection", i);
+    if (/^\s*_ -> Nothing\s*$/.test(l) && /\b(sumOf|settingSum|typedSum)\b/.test(defs[sym] || "")) add("sum-projection", i);
 
     // hand-codec
     const inst = /^instance\b.*\b(EncodeJson|DecodeJson)\b/.exec(l);

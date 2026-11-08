@@ -35,7 +35,7 @@ delivered w = case split (Pattern "?") w.url of
 nameOf :: ApiRequest -> String
 nameOf = case _ of
   ListRuns _ -> "ListRuns"
-  Premise -> "Premise"
+  Setting -> "Setting"
   Glossary -> "Glossary"
   LaunchRun _ -> "LaunchRun"
   LaunchBatch _ -> "LaunchBatch"
@@ -54,18 +54,18 @@ examples :: Array (Tuple ApiRequest { method :: String, url :: String, body :: S
 examples =
   [ Tuple (ListRuns { archived: false }) (g "/api/runs")
   , Tuple (ListRuns { archived: true }) (g "/api/runs?archived=true")
-  , Tuple Premise (g "/api/premise")
+  , Tuple Setting (g "/api/setting")
   , Tuple Glossary (g "/api/glossary")
-  , Tuple (LaunchBatch { premises: Nothing, preset: "Trader", playerSeed: Just 7, rounds: Nothing }) (p "/api/batch" "{\"playerSeed\":7,\"preset\":\"Trader\"}")
-  , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Just 7, rounds: Just 3 }) (p "/api/runs" "{\"name\":\"n\",\"playerSeed\":7,\"preset\":\"Trader\",\"rounds\":3}")
-  , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Nothing, rounds: Nothing }) (p "/api/runs" "{\"name\":\"n\",\"preset\":\"Trader\"}")
+  , Tuple (LaunchBatch { settings: Nothing, preset: "Trader", playerSeed: Just 7, rounds: Nothing }) (p "/api/batch" "{\"playerSeed\":7,\"preset\":\"Trader\"}")
+  , Tuple (LaunchRun { setting: Nothing, name: "n", preset: "Trader", playerSeed: Just 7, rounds: Just 3 }) (p "/api/runs" "{\"name\":\"n\",\"playerSeed\":7,\"preset\":\"Trader\",\"rounds\":3}")
+  , Tuple (LaunchRun { setting: Nothing, name: "n", preset: "Trader", playerSeed: Nothing, rounds: Nothing }) (p "/api/runs" "{\"name\":\"n\",\"preset\":\"Trader\"}")
   , Tuple (Entities "run 1") (g "/api/runs/run%201/entities")
   , Tuple (Entity "run-1" "US") (g "/api/runs/run-1/entity/US")
   , Tuple (RunView { id: "run-1", view: NetWorth, round: Nothing }) (g "/api/runs/run-1/networth")
   , Tuple (RunView { id: "run-1", view: Balances, round: Just "2" }) (g "/api/runs/run-1/balances?round=2")
   , Tuple (Compare { runs: [ "a", "b" ], market: Just "m 1" }) (g "/api/compare?runs=a,b&market=m%201")
   , Tuple (Compare { runs: [], market: Nothing }) (g "/api/compare?runs=")
-  , Tuple (Agency { premise: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
+  , Tuple (Agency { setting: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
   , Tuple (Derive { id: "run-1", body: { kind: Variant, name: Just "x", preset: Just "Trader", playerSeed: Just Nothing, rounds: Just 4, overrides: Nothing } })
       (p "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"name\":\"x\",\"playerSeed\":null,\"preset\":\"Trader\",\"rounds\":4}")
   , Tuple (Derive { id: "run-1", body: { kind: Duplicate, name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing, overrides: Just (fromString "o") } })

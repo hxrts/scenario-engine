@@ -1,5 +1,5 @@
--- | The recurring-flow forms a premise authors (docs/03_gameboard.md §9), compiled to the one
--- | `RecurringFlow` rule the engine reads. The kinds are names a premise can use: a premise that
+-- | The recurring-flow forms a setting authors (docs/03_gameboard.md §9), compiled to the one
+-- | `RecurringFlow` rule the engine reads. The kinds are names a setting can use: a setting that
 -- | declares none has none of them. `compileIn` assigns ids and puts the rules in the order the engine
 -- | evaluates them: production, then shares, requirements, fixed flows in recipient order, then
 -- | decay. `normalize` restores that order after coverage merges Entities.
@@ -30,11 +30,11 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId, CapacityRef)
 import Core.World (CausePattern(..), LegAggregate(..), LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Side(..), Window(..))
-import Schema.Premise.Query (ShareMeasure, atParty)
+import Schema.Setting.Query (ShareMeasure, atParty)
 import Data.Array (mapWithIndex, sortWith)
 import Data.Maybe (Maybe(..), maybe)
 
--- | The kinds a premise compiles to; a view or a test reads these names.
+-- | The kinds a setting compiles to; a view or a test reads these names.
 kinds :: { production :: RecurringKindId, share :: RecurringKindId, requirement :: RecurringKindId, flow :: RecurringKindId, decay :: RecurringKindId }
 kinds =
   { production: Id "production"
@@ -64,7 +64,7 @@ type Share = { from :: EntityId, to :: EntityId, share :: Q, source :: ShareMeas
 
 type Requirement = { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Q }
 
--- | The recurring cycle as a premise authors it.
+-- | The recurring cycle as a setting authors it.
 type Circulation =
   { production :: Array Production
   , flows :: Array Flow
@@ -75,8 +75,8 @@ type Circulation =
 -- | A Resource's decay: the share every holder loses each round.
 type Decay = { resource :: ResourceId, rate :: Q }
 
--- | What a premise authors that Core has no field for: the cycle it compiles to rules, what a facility may
--- | reserve, and each Resource's decay. Compiled premise files are written from this and the World.
+-- | What a setting authors that Core has no field for: the cycle it compiles to rules, what a facility may
+-- | reserve, and each Resource's decay. Compiled setting files are written from this and the World.
 type Authored = { circulation :: Circulation, reservable :: Array ResourceId, decays :: Array Decay }
 
 -- | A rule of a kind, its id set by `compile`.
@@ -119,7 +119,7 @@ isRequirement :: RecurringFlow -> Boolean
 isRequirement r = r.kind == kinds.requirement
 
 -- | Every authored form as rules, ids assigned per kind, in evaluation order. A share is paid in the
--- | premise's numeraire (the DSL fills it in).
+-- | setting's numeraire (the DSL fills it in).
 compileIn :: ResourceId -> Circulation -> Array Decay -> Array RecurringFlow
 compileIn numeraire c decays = normalize
   ( withIds kinds.production (map productionRule c.production)

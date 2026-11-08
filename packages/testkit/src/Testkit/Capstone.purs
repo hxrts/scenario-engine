@@ -1,6 +1,6 @@
--- | The capstone run as the test suites read it: the Meridian premise assembled with the capstone's seat
+-- | The capstone run as the test suites read it: the Meridian setting assembled with the capstone's seat
 -- | bindings (and its counterfactual's), its expectations and objectives, and the run it produces. The
--- | values come from `Premises.Meridian.Capstone`; nothing decodes `capstone/run.json`. Test support only.
+-- | values come from `Settings.Meridian.Capstone`; nothing decodes `capstone/run.json`. Test support only.
 module Testkit.Capstone (Capstone, load, runOf) where
 
 import Prelude
@@ -9,12 +9,12 @@ import Core.Draw (Seed(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 import Game.Assemble (assemble, withRounds)
-import Game.Premise (GameboardParts, Premise(..))
+import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Bindings, Game)
-import Premises.Meridian.Capstone as C
-import Premises.Meridian.Capstone (ObjectiveExpect, RoundExpect)
+import Settings.Meridian.Capstone as C
+import Settings.Meridian.Capstone (ObjectiveExpect, RoundExpect)
 import Simulator.Simulate (SimRun)
-import Testkit.Meridian (orThrow, premise, run)
+import Testkit.Meridian (orThrow, setting, run)
 
 type Capstone =
   { rounds :: Int
@@ -29,7 +29,7 @@ type Capstone =
 -- | The capstone's game and its counterfactual, with their expectations and objectives.
 load :: Aff Capstone
 load = do
-  p <- premise
+  p <- setting
   game <- assembled p C.seatBindings
   counterfactual <- assembled p C.counterfactualBindings
   pure
@@ -43,7 +43,7 @@ load = do
     }
   where
   assembled :: GameboardParts -> Bindings -> Aff Game
-  assembled p bindings = orThrow (map (withRounds (Just C.rounds)) (assemble (GameboardPremise p) bindings []))
+  assembled p bindings = orThrow (map (withRounds (Just C.rounds)) (assemble (GameboardSetting p) bindings []))
 
 -- | Play a game to its end under a player seed; a simulation or engine failure is an error.
 runOf :: Seed -> Game -> Aff SimRun

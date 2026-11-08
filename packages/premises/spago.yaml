@@ -15,7 +15,7 @@ package:
     - tuples
     - maybe
   test:
-    main: Test.Premises.Main
+    main: Test.Settings.Main
     dependencies:
       - sp-testkit
       - sp-board

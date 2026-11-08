@@ -1,6 +1,6 @@
--- | The premise's schema types (docs/03_gameboard.md, docs/04_instantiated_game.md): the Gameboard,
+-- | The setting's schema types (docs/03_gameboard.md, docs/04_instantiated_game.md): the Gameboard,
 -- | its Actors, objectives and criteria, and the Instantiation Configuration. These are the types
--- | of the premise format; their decoders are in `Schema.Decode.Gameboard`, and their realization
+-- | of the setting format; their decoders are in `Schema.Decode.Gameboard`, and their realization
 -- | (instantiate, validate, reconcile) is in `board`.
 module Schema.Gameboard
   ( Gameboard
@@ -39,11 +39,11 @@ import Data.Maybe (Maybe)
 type Gameboard =
   { id :: String
   , version :: String
-  , authored :: Authored -- what the premise authors that the World does not hold
+  , authored :: Authored -- what the setting authors that the World does not hold
   , world :: UnseededWorld -- resources, Markets, facilities, circulation, rules, and every Entity; seeded by instantiation
   , actors :: Map EntityId ActorDefinition
   , schemes :: Array Scheme
-  , parameters :: Object Q -- named premise parameters read by Policies
+  , parameters :: Object Q -- named setting parameters read by Policies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_gameboard.md §4)
   , label :: Maybe String -- the test-instance label, which names the game (docs/05_test_instance.md §14)
@@ -124,8 +124,8 @@ type InstantiationConfig =
 type InitialWorld = { world :: WorldState, manifest :: Manifest }
 
 -- | The outcome of an objective or a criterion. A run with no rounds, or a criterion with no series,
--- | is not evaluated: it is neither a pass nor a failure. The premise spells the outcomes "met",
--- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Meridian.Capstone`).
+-- | is not evaluated: it is neither a pass nor a failure. The setting spells the outcomes "met",
+-- | "notMet" and "notEvaluated" (the capstone's expectations, `Settings.Meridian.Capstone`).
 data Outcome = Met | NotMet | NotEvaluated
 
 derive instance Eq Outcome

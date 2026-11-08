@@ -24,7 +24,7 @@ import Game.Bindings (scriptBindings)
 import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, unknownSeats)
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
-import Game.Premise (Premise(..))
+import Game.Setting (Setting(..))
 import Schema.Run (specShape)
 import Core.Shape as Shape
 import Data.Argonaut.Decode (printJsonDecodeError)
@@ -34,7 +34,7 @@ import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
 import Game.Patch (setCapacity, setCurve)
-import Testkit.Meridian (premise)
+import Testkit.Meridian (setting)
 import Testkit.Json (strategyOrThrow)
 import Unsafe.Coerce (unsafeCoerce)
 import Test.Spec (describe, it)
@@ -71,60 +71,60 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Just (Script [ r ]) -> map _.signers r.propose `shouldEqual` [ [ Id "0" ], [ Id "1" ] ]
         _ -> fail "expected one scripted round"
 
-  describe "Named patches of a premise" do
-    it "a patch sets what it names, and fails on a name the premise does not have" do
-      p <- premise
+  describe "Named patches of a setting" do
+    it "a patch sets what it names, and fails on a name the setting does not have" do
+      p <- setting
       map (\g -> map _.capacities (Map.lookup (Id "SA") g.world.entities)) (setCapacity (Id "SA") (Id "energy-production") (Q.fromInt 7) p.gameboard)
         `shouldEqual` Right (Just (Map.singleton (Id "energy-production") (Q.fromInt 7)))
       isLeft (setCapacity (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.gameboard) `shouldEqual` true
       isLeft (setCurve (Id "no-market") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.gameboard) `shouldEqual` true
   describe "Assembly (docs/06 §4.3)" do
     let
-      assembled p bindings = map (const unit) (assemble (GameboardPremise p) bindings [])
+      assembled p bindings = map (const unit) (assemble (GameboardSetting p) bindings [])
       silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
     it "a binding for something that is not a configured seat is rejected" do
-      p <- premise
+      p <- setting
       assembled p (Map.insert (Id "CN") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "CN"))
       assembled p (Map.insert (Id "NOBODY") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "NOBODY"))
     it "a configured seat with no binding is rejected" do
-      p <- premise
+      p <- setting
       assembled p (Map.delete (Id "AID") (silent p)) `shouldEqual` Left (UnboundSeat (Id "AID"))
     it "an implicit seat is neither bound nor required: the preset game of a run with it implicit assembles" do
-      p <- premise
+      p <- setting
       map _.rounds (assemblePreset p "Passive" [ Implicit (Id "AID") ] (Just 1)) `shouldEqual` Right 1
     it "a bound Strategy's names are checked: a misspelled parameter is an error, not a zero" do
-      p <- premise
+      p <- setting
       let
         typo = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"no-such-parameter"},"0"]}],"propose":[]}]}"""
         bindings = Map.insert (Id "US") (Strategy typo) (silent p)
       assembled p bindings `shouldEqual` Left (Unresolved "seat US" ParameterRef "no-such-parameter")
     it "a bound Strategy naming an unknown Market or Entity is an error" do
-      p <- premise
+      p <- setting
       let
         market = strategyOrThrow """{"rules":[{"when":[],"propose":[{"trade":{"market":"energy-nowhere","quantity":"1"}}]}]}"""
         entity = strategyOrThrow """{"rules":[{"when":[{"recorded":{"query":{"rulesInForce":{"governor":"ATLANTIS"}},"atLeast":"1"}}],"propose":[]}]}"""
       assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" Market "energy-nowhere")
       assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" EntityRef "ATLANTIS")
-    it "a literal premise takes no overrides" do
-      p <- premise
-      let world = (_.world) <$> assemble (GameboardPremise p) (silent p) []
+    it "a literal setting takes no overrides" do
+      p <- setting
+      let world = (_.world) <$> assemble (GameboardSetting p) (silent p) []
       case world of
         Left e -> fail (show e)
-        Right w -> map (const unit) (assemble (LiteralPremise { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
+        Right w -> map (const unit) (assemble (LiteralSetting { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
     it "an override naming an unknown Entity is an error" do
-      p <- premise
+      p <- setting
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
     it "an override naming an unknown capacity, or making an unknown Entity implicit, is an error" do
-      p <- premise
+      p <- setting
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" CapacityName "no-such-capacity")
       map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
     it "a recipe read back from a stored spec checks its overrides when it is played" do
-      p <- premise
+      p <- setting
       case decodeOverrides =<< jsonParser """[{"type":"implicit","entity":"NOBODY"}]""" of
         Left e -> fail e
         Right overrides -> map (const unit) (assemblePreset p "Passive" overrides Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
     it "the name check knows every kind of reference" do
-      p <- premise
+      p <- setting
       let
         scope = gameboardNames p.gameboard
         firstPolicy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.gameboard.policies) :: Array PolicyId)))
@@ -132,8 +132,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ UnknownReference PolicyRef "no-such-policy", UnknownReference RuleKindRef "no-such-kind" ]
       unknownNames scope [ Tuple PolicyRef firstPolicy, Tuple RuleKindRef "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
-      p <- premise
-      case assemble (GameboardPremise p) (Map.insert (Id "US") Agent (silent p)) [] of
+      p <- setting
+      case assemble (GameboardSetting p) (Map.insert (Id "US") Agent (silent p)) [] of
         Left e -> fail (show e)
         Right g -> case simulate (Seed 1) g of
           Left e -> e `shouldEqual` NotSimulable (Id "US")
@@ -168,7 +168,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a stored spec reads an absent round count, a number, and fails on a present non-integer" do
       let
         -- the stored text, through the one shape; the format is pinned here (S8)
-        spec rounds = bimap printJsonDecodeError identity (Shape.parse Shape.Premise specShape ("{\"preset\":\"Passive\",\"playerSeed\":\"1\"" <> rounds <> "}")) >>= decodeSpec
+        spec rounds = bimap printJsonDecodeError identity (Shape.parse Shape.Authored specShape ("{\"preset\":\"Passive\",\"playerSeed\":\"1\"" <> rounds <> "}")) >>= decodeSpec
       isLeft (spec ",\"rounds\":\"default\"") `shouldEqual` true
       map _.rounds (spec "") `shouldEqual` Right Nothing
       map _.rounds (spec ",\"rounds\":\"3\"") `shouldEqual` Right (Just 3)

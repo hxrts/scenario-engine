@@ -1,6 +1,6 @@
 -- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions, Proposal
 -- | templates, sign rules, clauses and Strategies a Policy runs. The builders return the
--- | `Core.Strategy` values directly; `Schema.Premise.Strategy` writes them in the premise format.
+-- | `Core.Strategy` values directly; `Schema.Setting.Strategy` writes them in the setting format.
 module Schema.Build.Decision
   ( lit
   , param
@@ -146,7 +146,7 @@ asTemplate = IntentT
 orderAt :: MarketRef -> Expr -> Maybe Expr -> Template
 orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
 
--- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the premise
+-- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the setting
 -- | format writes no `by` for a template, so these three builders take none. (`Schema.Build.Intent`'s
 -- | `transform`, `enactTariff` and `enactAccessBan` are the fixture forms, with `Q` quantities.)
 selfTransform :: { transformation :: String, quantity :: Expr } -> IntentTemplate

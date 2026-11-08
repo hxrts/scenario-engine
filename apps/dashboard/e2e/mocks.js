@@ -27,7 +27,7 @@ export const overview = (target, { id = "run-1", status = "completed" } = {}) =>
   facts: [
     { label: "Name", value: "base" },
     { label: "Preset", value: "Conservative" },
-    { label: "Premise", value: "meridian@v0" },
+    { label: "Setting", value: "meridian@v0" },
     { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },
     { label: "Game ID", value: "meridian/meridian-test-01" },

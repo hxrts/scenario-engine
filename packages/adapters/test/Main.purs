@@ -39,7 +39,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
--- | The initial manifest of the reference premise, for runs created by hand.
+-- | The initial manifest of the reference setting, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
   g <- presetSeats [] "Passive" Nothing

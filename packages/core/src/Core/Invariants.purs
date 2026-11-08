@@ -1,6 +1,6 @@
 -- | Invariant predicates over one resolved round (docs/02_type_system.md §9). Each returns
 -- | the failures it finds; an empty array means the invariant holds. Pure and read-only: the
--- | checks run after resolution, in the test suites, the simulator, the premise golden tests,
+-- | checks run after resolution, in the test suites, the simulator, the setting golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
 module Core.Invariants
@@ -123,7 +123,7 @@ inv01 before r = foldEvents
       Just (Tuple author i) -> if settled author i c.mechanism ls then [] else unmatched ("settlement of " <> show c.mechanism)
       Nothing -> unmatched ("settlement of " <> show c.mechanism)
     OfRule c -> if Map.member c.kind before.ruleKinds then [] else [ failure INV01 ("a levy of undeclared kind " <> show c.kind) ]
-    OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the premise does not declare") ]
+    OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the setting does not declare") ]
   -- the Intent the cause points at is of the mechanism's kind, and names what the legs moved
   settled author i mechanism ls = case mechanism of
     Curve m -> elem (Held author) (map _.to ls <> map _.from ls) && case i of

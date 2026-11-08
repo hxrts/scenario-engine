@@ -1,6 +1,6 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results and actions), Prepare (launch a run of the premise), and Compare (runs side by
+-- | results and actions), Prepare (launch a run of the setting), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
 -- | glossary once, before any page renders.
 module Dashboard.Main (main) where
@@ -36,7 +36,7 @@ import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
 import Views.Compare (CompareView)
 import Views.Overview (RunList, RunOverview)
-import Views.Premise (Premise)
+import Views.Setting (Setting)
 import Effects.Api (Launch)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
@@ -103,12 +103,12 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's view: the form, the premise it launches, the failure message, and the Run action.
+-- | The launch form's view: the form, the setting it launches, the failure message, and the Run action.
 type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
-  , premise :: Premise
-  , premises :: Array Premise
+  , setting :: Setting
+  , settings :: Array Setting
   , defaultName :: String
   , failure :: Maybe String
   , launch :: Effect Unit
@@ -119,41 +119,41 @@ launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.premise.rounds v.form) ] }
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.setting.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose (if length v.premises > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
+      , Layout.purpose (if length v.settings > 1 then "Required: Preset and Setting. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
       ]
   }
 
 -- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
 -- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
--- | come from the premise.
+-- | come from the setting.
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       picker <>
         [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
+        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.setting.presets (\x f -> f { preset = x })
         , selectField
-            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
-            (show (roundValue v.premise.rounds v.form.rounds))
-            (map show (roundChoices v.premise.rounds))
+            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.setting.rounds.default <> " rounds; allowed " <> show v.setting.rounds.min <> " to " <> show v.setting.rounds.max }
+            (show (roundValue v.setting.rounds v.form.rounds))
+            (map show (roundChoices v.setting.rounds))
             (\x f -> f { rounds = x })
         , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
         , D.div
             { className: "flex flex-col gap-1 text-sm"
             , children:
-                [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
-                , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
+                [ fieldHeading { label: "Game seed", required: false, note: "default: the setting's seed. Read-only, because the server takes no game seed at launch" }
+                , D.span { className: "font-mono", children: [ D.text (show v.setting.gameSeed) ] }
                 ]
             }
         ]
   }
   where
   -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.premises > 1 then [ selectField { label: "Premise", required: true, note: "required: which premise to play" } v.premise.name (map _.name v.premises) (\x f -> f { premise = x }) ] else []
+  picker = if length v.settings > 1 then [ selectField { label: "Setting", required: true, note: "required: which setting to play" } v.setting.name (map _.name v.settings) (\x f -> f { setting = x }) ] else []
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -166,32 +166,32 @@ launchFields v = D.div
         ]
     }
 
--- | Prepare: launch a run of the premise. The form starts with its defaults (the premise's next run name,
--- | the preset Conservative, the premise's round count, a drawn player seed), so Run needs no edits. A
+-- | Prepare: launch a run of the setting. The form starts with its defaults (the setting's next run name,
+-- | the preset Conservative, the setting's round count, a drawn player seed), so Run needs no edits. A
 -- | launch the server accepts opens the new run.
 mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  premiseLoad <- useLoad unit Client.premise
+  settingLoad <- useLoad unit Client.setting
   let
-    premises = case premiseLoad.value of
+    settings = case settingLoad.value of
       Just (Right ps) -> ps
       _ -> []
-    premise = selected form premises
-    -- the default name is known once the premise is; until then it is "run"
-    loadedName = maybe "" _.defaultName premise
+    setting = selected form settings
+    -- the default name is known once the setting is; until then it is "run"
+    loadedName = maybe "" _.defaultName setting
     defaultName = if loadedName == "" then "run" else loadedName
 
-    chosenPremise = (_ >>= note "The server offers no premise." <<< selected form)
-    view s = { form, setForm, premise: s, premises, defaultName, failure, launch }
+    chosenSetting = (_ >>= note "The server offers no setting." <<< selected form)
+    view s = { form, setForm, setting: s, settings, defaultName, failure, launch }
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
-    launch = case premise of
+    launch = case setting of
       Just s -> case validate s form of
         Left e -> setFailure (Just e)
         Right req -> setFailure Nothing *> launchAff_ (submit req)
-      Nothing -> setFailure (Just "The premise has not loaded, so the run cannot be launched.")
+      Nothing -> setFailure (Just "The setting has not loaded, so the run cannot be launched.")
 
     submit :: Launch -> Aff Unit
     submit req = do
@@ -205,22 +205,22 @@ mkPrepare = component "Prepare" \_ -> React.do
     pure (pure unit)
   pure $ Layout.page
     { title: "Prepare a run"
-    , purpose: "Launch a run of the premise from a preset. Every field has a default, so Run needs no edits."
+    , purpose: "Launch a run of the setting from a preset. Every field has a default, so Run needs no edits."
     , children:
         [ Layout.grid
             [ Layout.panel
                 { span: 6
                 , title: "Options"
-                , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
+                , purpose: "Each option's default is shown beside it. Only Preset and Setting are required."
                 , children:
-                    [ loaded (chosenPremise <$> premiseLoad.value) (launchFields <<< view) ]
+                    [ loaded (chosenSetting <$> settingLoad.value) (launchFields <<< view) ]
                 }
             , Layout.panel
                 { span: 6
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ loaded (chosenPremise <$> premiseLoad.value) (launchAction <<< view) ]
+                    [ loaded (chosenSetting <$> settingLoad.value) (launchAction <<< view) ]
                 }
             ]
         ]

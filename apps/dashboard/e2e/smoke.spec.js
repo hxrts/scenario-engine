@@ -85,10 +85,10 @@ test("the Compare page has no disclosure either", async ({ page }) => {
   await expect(page.locator("details, summary")).toHaveCount(0);
 });
 
-test("the header names the run, its premise, status, rounds completed out of target and game ID", async ({ page }) => {
+test("the header names the run, its setting, status, rounds completed out of target and game ID", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
-  await expect(page.getByText("Premise", { exact: true })).toBeVisible();
+  await expect(page.getByText("Setting", { exact: true })).toBeVisible();
   await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
   await expect(page.getByText("5 of 5", { exact: true })).toBeVisible();
   await expect(page.getByText("meridian@v0", { exact: true }).first()).toBeVisible();
@@ -246,8 +246,8 @@ test("sorting by a column does not move the header: its width is the same before
   expect((await header.boundingBox()).width).toBeCloseTo(before.width, 0);
 });
 
-test("the launch form on Prepare offers the known presets and the premise's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
-  const [{ presets }] = await (await request.get("/api/premise")).json();
+test("the launch form on Prepare offers the known presets and the setting's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
+  const [{ presets }] = await (await request.get("/api/setting")).json();
   const posts = postSpy(page);
   await page.goto("/#/prepare");
   await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
@@ -255,7 +255,7 @@ test("the launch form on Prepare offers the known presets and the premise's roun
   await expect(page.getByLabel("Rounds")).toHaveValue("5");
   await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
   // one composition is present, so there is no choice to offer
-  await expect(page.getByLabel("Premise")).toHaveCount(0);
+  await expect(page.getByLabel("Setting")).toHaveCount(0);
   await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByLabel("Player seed").fill("x");
   await page.getByRole("button", { name: "Run", exact: true }).click();
@@ -263,7 +263,7 @@ test("the launch form on Prepare offers the known presets and the premise's roun
   expect(posts.count).toBe(0);
 });
 
-test("Run with no edits launches the default run: Conservative, the premise's rounds and a drawn seed", async ({ page, request }) => {
+test("Run with no edits launches the default run: Conservative, the setting's rounds and a drawn seed", async ({ page, request }) => {
   const spy = postSpy(page);
   await page.goto("/#/prepare");
   // the name shows the next run id as its default, and the summary says what Run will play
@@ -274,8 +274,8 @@ test("Run with no edits launches the default run: Conservative, the premise's ro
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
   // the request leaves the seed and the rounds to the server, and the name is the default
-  expect(spy.body).toEqual({ premise: "meridian", name, preset: "Conservative" });
-  // the run is in the list with the premise's rounds and a seed, and its overview names the preset
+  expect(spy.body).toEqual({ setting: "meridian", name, preset: "Conservative" });
+  // the run is in the list with the setting's rounds and a seed, and its overview names the preset
   const row = rowWith(page, [id]);
   await expect(row.getByRole("cell").nth(5)).toHaveText("5");
   await expect(row.getByRole("cell").nth(4)).toHaveText(/^\d+$/);
@@ -299,7 +299,7 @@ test("a non-default preset and round count are sent, and the run plays them", as
   expect(overview.facts).toContainEqual({ label: "Preset", value: "Trader" });
 });
 
-test("the Game seed is shown read-only, with the premise's seed as the default", async ({ page }) => {
+test("the Game seed is shown read-only, with the setting's seed as the default", async ({ page }) => {
   await page.goto("/#/prepare");
   await expect(page.getByText("Game seed", { exact: true })).toBeVisible();
   await expect(page.getByText("26021", { exact: true })).toBeVisible();

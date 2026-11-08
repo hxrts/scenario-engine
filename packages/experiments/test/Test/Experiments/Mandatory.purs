@@ -24,14 +24,14 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Adapters.Filesystem (fileOps)
-import Premises.Layout (fixturePath)
-import Premises.Tree (readRootFile)
+import Settings.Layout (fixturePath)
+import Settings.Tree (readRootFile)
 import Experiments.Agency (agency, counterfactual, playerSeedRuns)
 import Checks.Objectives (evaluateObjectives)
-import Premises.Load (loadLiteral)
-import Premises.Literal (literalGame)
+import Settings.Load (loadLiteral)
+import Settings.Literal (literalGame)
 import Simulator.Simulate (simulate)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -62,7 +62,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       Left e -> fail (show e)
       Right ps -> do
         length ps `shouldEqual` 15
-        -- hard condition (docs/06 §14): a role with no measurable effect is a broken premise
+        -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
         map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
     g <- everySeat ctx "Conservative"
     case agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seats) of
@@ -70,7 +70,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       Right profiles -> do
         -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
         -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
-        -- is asserted on the RandomValid baseline. Pinned here so a premise change is noticed.
+        -- is asserted on the RandomValid baseline. Pinned here so a setting change is noticed.
         map _.actor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
         base <- run (Seed 1) g
         -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own

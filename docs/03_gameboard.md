@@ -8,11 +8,11 @@
 
 ## Format note
 
-Premise files decode directly into the core values (`Schema.Premise.*`): a key's default is in its shape, and a value equal to its default is not written. Two things stay only in the document, because the World State has no field for them: a Resource's `reservable` flag and `decay`, and the `circulation` forms, which the DSL compiles to recurring rules. Compiled files are written by the same shapes, so a file holds exactly what differs from the defaults. Authoring builders are `Schema.Build.*`.
+Setting files decode directly into the core values (`Schema.Setting.*`): a key's default is in its shape, and a value equal to its default is not written. Two things stay only in the document, because the World State has no field for them: a Resource's `reservable` flag and `decay`, and the `circulation` forms, which the DSL compiles to recurring rules. Compiled files are written by the same shapes, so a file holds exactly what differs from the defaults. Authoring builders are `Schema.Build.*`.
 
 ## 1. Purpose
 
-The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a premise ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.
+The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a setting ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.
 
 Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type System [§2.5](02_type_system.md#25-glossary)) and must preserve the world's initial economic meaning ([INV-14](02_type_system.md#inv-14)). Terms and invariants are defined in the Type System ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). The Gameboard is declarative: it holds no player assignments, Intents, or evolving state, and its checks run before any game starts ([§12](#12-validation-and-compilation)).
 
@@ -22,11 +22,11 @@ Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type S
 
 ## 2. Gameboard Structure
 
-A premise is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian premise uses these files under `packages/premises/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
+A setting is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian setting uses these files under `packages/premises/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
 
 | File | Sections | Keys |
 |---|---|---|
-| `premise.json` | Premise header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
+| `setting.json` | Setting header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
 | `resources.json` | Resources (§5.1) | `resources` |
 | `markets.json` | Markets, flow gates, groups, Rule kinds (§5.2, §5.5) | `markets`, `flowGates`, `groups`, `ruleKinds` |
 | `transformations.json` | Facilities (§5.3) | `transformations` |
@@ -37,23 +37,23 @@ A premise is a directory of JSON section files. The loader merges every file exc
 | `policies.json` | Policy catalog (§8) | `policies` |
 | `instantiation.json` | Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all premises ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
+Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all settings ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
 
 A `representations` key in a Gameboard section is decoded but ignored: instantiation sets the Representations from `instantiation.json` ([04 §5](04_instantiated_game.md#5-representation-assignment)). The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
-## 3. Premise
+## 3. Setting
 
-`premise.json` defines:
+`setting.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
 - `numeraire`: the unit of account, read by the views for net worth and units. The engine does not read it; the DSL fills it into payments and levies.
 - `horizon`: simulated years.
 - `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
-- `name` (optional): the premise's name, decoded from the merged Gameboard (`nameF`, `Schema.Premise.World`). It may sit in any section file, since the loader merges them; the Meridian premise sets neither `name` nor `round`, so its name comes from `id`.
-- `round` (optional, default 1): the starting round, the index the first round of a game is numbered from (`roundF`, `Schema.Premise.World`).
+- `name` (optional): the setting's name, decoded from the merged Gameboard (`nameF`, `Schema.Setting.World`). It may sit in any section file, since the loader merges them; the Meridian setting sets neither `name` nor `round`, so its name comes from `id`.
+- `round` (optional, default 1): the starting round, the index the first round of a game is numbered from (`roundF`, `Schema.Setting.World`).
 
-The premise says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's values are in [05 §6](05_test_instance.md#6-premise-meridian).
+The setting says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's values are in [05 §6](05_test_instance.md#6-setting-meridian).
 
 ### 3.1 Strategic tensions
 
@@ -84,7 +84,7 @@ The engine attaches no behavior to a Resource's name. Its effects come from the 
 - `base`, `quote`: the traded Resources.
 - `cost`: a linear CostFunction `{ intercept, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
 - `reserves`: the initial reserves by Resource. Reserves are the only liquidity. There is no separate liquidity parameter.
-- `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. EU_POOL is the only one in the reference premise, and its authority comes from the EU's procedure ([05 §10](05_test_instance.md#10-aggregate-catalog)).
+- `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. EU_POOL is the only one in the reference setting, and its authority comes from the EU's procedure ([05 §10](05_test_instance.md#10-aggregate-catalog)).
 - `position` (default `0`): the initial position on the cost curve.
 
 Limit-price orders and clearing are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
@@ -94,7 +94,7 @@ Limit-price orders and clearing are Intents and clearing rules (Type System [§3
 `transformations.json` maps each Facility (Transformation) id to:
 
 - `inputs`, `outputs`: Resource to quantity per unit.
-- `escrowPerUnit`: reservable Resources the Facility locks per unit. A non-reservable Resource fails when the premise document is read (the flag stays in the document).
+- `escrowPerUnit`: reservable Resources the Facility locks per unit. A non-reservable Resource fails when the setting document is read (the flag stays in the document).
 - `payment` (optional): `{ curve, resource, to }`, a CostFunction giving the price per unit, the Resource paid in, and the Entity paid.
 - `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
 - `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. Capacity `effects` always land at least one round after the order.
@@ -122,7 +122,7 @@ Decay follows each Resource's `decay`. Capacity changes come from Facility `effe
 - **Regions** are separate Markets. There is no node hierarchy.
 - **`flowGates`** are `[{ resource, exemptSharedMarket, bundled? }]`: `exemptSharedMarket` frees parties who share a Market for the Resource from the gate and from flows Rules, and `bundled` names the Transformation a sender's orders of which must carry the Transfer. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
-- **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A premise that declares none has no Rules.
+- **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A setting that declares none has no Rules.
 - **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: { rate, basis, in, to } }` or `block`; `basis` is `perUnit` or `{ adValorem: <market> }`, `in` is the Resource it is paid in, and `to` is `destination`, `governor`, or `sink`, or `{ capacity: { kind, capacity, reduce } }`. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
@@ -191,7 +191,7 @@ The three are not interchangeable: a government's regulatory authority never mov
 
 ## 7. Structural Relationships
 
-The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `groups`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the premise report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
+The schema has no relationship list. Mechanical links are the fields above (dependency: Facility inputs and outputs, `requirements`, `flows`, `shares`. Competition: `access`. Authority: `groups`, Rules, `enact`. Membership: `members`, `procedures`). Descriptive relationships are context in the setting report ([05](05_test_instance.md)) and do not alter outcomes. A typed relationship list is planned.
 
 ## 8. Policy Catalog
 
@@ -263,7 +263,7 @@ Gameboard `parameters` are fixed for a Gameboard. A simulation may override them
 
 ### 12.1 Load pipeline
 
-`Premises.Load` decodes a premise's files. `Game.Premise.checkPremise` then validates them, in order:
+`Settings.Load` decodes a setting's files. `Game.Setting.checkSetting` then validates them, in order:
 
 1. Decode `instantiation.json` as the configuration.
 2. Merge the other sections (a duplicate key fails) and decode the Gameboard, including its parameters and Policy catalog.
@@ -272,7 +272,7 @@ Gameboard `parameters` are fixed for a Gameboard. A simulation may override them
 5. Check every Policy's names against the Gameboard.
 6. Check every seat preset's names against the Gameboard.
 
-Load failures are `LoadError` values (`Premises.Load`): `Unreadable`, `NotAnObject`, `DuplicateKey`, and `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`). `checkPremise` returns `GameError` values: `Invalid` (validation errors) and `Unresolved` (a Policy or preset names something the Gameboard lacks).
+Load failures are `LoadError` values (`Settings.Load`): `Unreadable`, `NotAnObject`, `DuplicateKey`, and `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`). `checkSetting` returns `GameError` values: `Invalid` (validation errors) and `Unresolved` (a Policy or preset names something the Gameboard lacks).
 
 ```purescript
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
@@ -321,13 +321,13 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
+Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Settings/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _premises` runs `apps/cli`'s `Compile`, which checks each setting with `checkSetting` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
 
-## 12a. How premises are made
+## 12a. How settings are made
 
-A Setting is made from the definitions in the DSL by three operations ([02 §2.5](02_type_system.md#25-glossary)). **Composition** builds it up: `Premises.Kit` holds generic definitions that name no Setting, premise pieces combine with `<>`, and a key two pieces define fails. **Derivation** changes the values of a base Setting: dials, and named patches that fail on a missing key. **Filtering** (`restrict`) takes a subset, and fails if what is kept refers to what was dropped. All three are read-only over the authored source.
+A Setting is made from the definitions in the DSL by three operations ([02 §2.5](02_type_system.md#25-glossary)). **Composition** builds it up: `Settings.Kit` holds generic definitions that name no Setting, Premises combine with `<>`, and a key two Premises define fails. **Derivation** changes the values of a base Setting: dials, and named patches that fail on a missing key. **Filtering** (`restrict`) takes a subset, and fails if what is kept refers to what was dropped. All three are read-only over the authored source.
 
-`Premises.Catalog` lists the Settings the compiler writes. Each compiles to `<id>/<version>/` under the premise root, with its own `presets.json`.
+`Settings.Catalog` lists the Settings the compiler writes. Each compiles to `<id>/<version>/` under the setting root, with its own `presets.json`.
 
 ## 13. Provenance and Versioning
 

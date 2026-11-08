@@ -1,4 +1,4 @@
-module Test.Premises.Main where
+module Test.Settings.Main where
 
 import Prelude
 
@@ -6,8 +6,8 @@ import Testkit.Edit (onActor, onEntity, onMarket, onTransformation)
 
 import Core.Map (values)
 
-import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
-import Schema.Premise.Actor (boundShape, metricShape)
+import Schema.Setting.Intent (intentShape, ruleShape, capabilityShape)
+import Schema.Setting.Actor (boundShape, metricShape)
 import Core.Shape (Format(..), encodeWith, decodeJsonWith)
 import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
@@ -39,28 +39,28 @@ import Foreign.Object as Object
 import Policy.Interpret (Env, nameOnly, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
-import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape)
+import Schema.Setting.Strategy (decodeStrategy, encodeStrategy, policiesShape)
 import Schema.Build.Quantity (q)
-import Premises.Meridian.Rules (accessBan, tariff, withholding)
+import Settings.Meridian.Rules (accessBan, tariff, withholding)
 import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
 import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
 import Adapters.Filesystem (fileOps)
-import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
+import Schema.Setting.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Premises.Load (decodePresets, fromFiles, loadFrom)
-import Premises.Meridian.Names (meridianDir)
-import Game.Premise (GameboardParts, checkPremise)
+import Settings.Load (decodePresets, fromFiles, loadFrom)
+import Settings.Meridian.Names (meridianDir)
+import Game.Setting (GameboardParts, checkSetting)
 import Data.Bifunctor (lmap)
-import Premises.Compose as Compose
-import Premises.Meridian (defaultDials, gameboard, meridian)
-import Premises.Meridian.Fixtures (fixtures)
-import Schema.Premise.Gameboard (gameboardShape)
-import Premises.Meridian.Policies (policies)
-import Test.Premises.Compose as Compose
-import Test.Premises.Dials as Dials
-import Test.Premises.Flows as Flows
-import Test.Premises.Golden (failWith, fixture, golden)
+import Settings.Compose as Compose
+import Settings.Meridian (defaultDials, gameboard, meridian)
+import Settings.Meridian.Fixtures (fixtures)
+import Schema.Setting.Gameboard (gameboardShape)
+import Settings.Meridian.Policies (policies)
+import Test.Settings.Compose as Compose
+import Test.Settings.Dials as Dials
+import Test.Settings.Flows as Flows
+import Test.Settings.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -71,7 +71,7 @@ namesOf :: RefKind -> Array (Tuple RefKind String) -> Array String
 namesOf kind = map snd <<< filter ((_ == kind) <<< fst)
 
 -- | Initial holdings of the reference instance (docs/05_test_instance.md §15), restated as literals
--- | on purpose: a cross-check against `Premises.Meridian.Holdings`, not a copy of it.
+-- | on purpose: a cross-check against `Settings.Meridian.Holdings`, not a copy of it.
 holdings :: Array { entity :: String, m :: Int, e :: Int, mil :: Int, s :: Int }
 holdings =
   [ { entity: "US", m: 260, e: 70, mil: 95, s: 60 }
@@ -107,7 +107,7 @@ loaded = do
     Right x -> pure x
 
 -- | The reference instance's Meridian files, as name-and-JSON sections.
--- | Meridian's presets, encoded and decoded exactly as a compiled premise is read.
+-- | Meridian's presets, encoded and decoded exactly as a compiled setting is read.
 shippedPresets :: Either String (Object Strategy)
 shippedPresets = decodePresets (Compose.presetsJson (meridian defaultDials))
 
@@ -150,15 +150,15 @@ policyNamed gb name = case Map.lookup (Id name) gb.policies of
   Nothing -> failWith ("no policy named " <> name)
   Just p -> pure p
 
--- | A load outcome without its (non-comparable) premise, for equality checks.
+-- | A load outcome without its (non-comparable) setting, for equality checks.
 outcome :: forall a. Either String a -> Either String Unit
 outcome = map (const unit)
 
--- | A load outcome, checked as the game checks it: the decoded sections, then `checkPremise` (the error text).
+-- | A load outcome, checked as the game checks it: the decoded sections, then `checkSetting` (the error text).
 checked :: Array { name :: String, json :: Json } -> Either String Unit
 checked files = do
   d <- (fromFiles files)
-  map (const unit) (lmap show (checkPremise { gameboard: d.gameboard, config: d.config, presets: Object.empty }))
+  map (const unit) (lmap show (checkSetting { gameboard: d.gameboard, config: d.config, presets: Object.empty }))
 
 -- Edits for the validation tests --------------------------------------------------------
 
@@ -193,7 +193,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   Dials.spec
   Compose.spec
 
-  describe "Premise DSL builders" do
+  describe "Setting DSL builders" do
     it "max' and signProcedures compile to a strategy the decoder accepts" do
       let
         p =
@@ -209,30 +209,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (accessBan.enact { jurisdiction: "US", target: "CN" })) of
+      case decodeJsonWith Authored intentShape (encodeWith Authored intentShape (accessBan.enact { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (FlowRule { scope: a }))) -> do
           a.governor `shouldEqual` Id "US"
           a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariff.rule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (tariff.rule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (FlowRule { scope: t }) -> do
           t.governor `shouldEqual` Id "US"
           t.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholding.rule { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (withholding.rule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      decodeJsonWith Premise intentShape (encodeWith Premise intentShape (withholding.enact { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Authored intentShape (encodeWith Authored intentShape (withholding.enact { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", tariff.may, accessBan.may, withholding.may ] \c ->
-        case toString (encodeWith Premise capabilityShape c) of
+        case toString (encodeWith Authored capabilityShape c) of
           Nothing -> fail "a capability is not a string"
-          Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
-    it "a joint Proposal of a Transfer and a Transform round-trips through the premise form" do
+          Just _ -> isRight (decodeJsonWith Authored capabilityShape (encodeWith Authored capabilityShape c)) `shouldEqual` true
+    it "a joint Proposal of a Transfer and a Transform round-trips through the setting form" do
       let
         p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "plant", quantity: lit 1 } ] } ] ], sign: [] }
       (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
@@ -249,18 +249,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           namesOf EntityRef refs `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
       let m = own "CN" (holdingOf "Mil")
-      stringify (encodeWith Premise boundShape (matching m)) `shouldEqual` stringify (encodeWith Premise metricShape m)
+      stringify (encodeWith Authored boundShape (matching m)) `shouldEqual` stringify (encodeWith Authored metricShape m)
 
-  describe "Premise round trips" do
+  describe "Setting round trips" do
     it "every compiled fixture decodes and encodes back to the same JSON, key for key" do
-      for_ fixtures \(Tuple name j) -> case decodeJsonWith Premise fixtureShape j of
+      for_ fixtures \(Tuple name j) -> case decodeJsonWith Authored fixtureShape j of
         Left e -> fail (name <> ": " <> show e)
-        Right d -> stringify (encodeWith Premise fixtureShape d) `shouldEqual` stringify j
+        Right d -> stringify (encodeWith Authored fixtureShape d) `shouldEqual` stringify j
     it "the Meridian Gameboard decodes and encodes back to the same JSON" do
-      let j = encodeWith Premise gameboardShape gameboard
-      case decodeJsonWith Premise gameboardShape j of
+      let j = encodeWith Authored gameboardShape gameboard
+      case decodeJsonWith Authored gameboardShape j of
         Left e -> fail (show e)
-        Right d -> stringify (encodeWith Premise gameboardShape d) `shouldEqual` stringify j
+        Right d -> stringify (encodeWith Authored gameboardShape d) `shouldEqual` stringify j
 
   describe "Meridian" do
     let
@@ -277,7 +277,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (const unit) (validateGameboard gameboard config) `shouldEqual` Right unit
       case shippedPresets of
         Left e -> fail e
-        Right ps -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: ps })) `shouldEqual` Right unit
+        Right ps -> map (const unit) (lmap show (checkSetting { gameboard, config, presets: ps })) `shouldEqual` Right unit
 
     it "instantiates with the initial holdings of §15" do
       { initial } <- instantiated
@@ -334,7 +334,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "UnknownReference: a facility's payee is not an Entity"
       (editWorld \w -> onTransformation (Id "energy-shipping") (\t -> t { payment = map (_ { to = Id "NOBODY" }) t.payment }) w)
       (UnknownReference EntityRef "NOBODY")
-    rejects "UnknownReference: a capability names a Rule kind the premise does not declare"
+    rejects "UnknownReference: a capability names a Rule kind the setting does not declare"
       (editWorld \w -> w { ruleKinds = Map.delete (Id "tariff") w.ruleKinds })
       (UnknownReference RuleKindRef "tariff")
     rejects "UnknownReference: a jurisdiction is not an Entity"
@@ -504,54 +504,54 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               , [ Trade { market: Id "defence-goods", quantity: Q.fromInt (-40), limitPrice: Just (Q.parse "2.4" # fromMaybe Q.zero) } ]
               ]
 
-  describe "Premise loader: files and policies fail at load time" do
+  describe "Setting loader: files and policies fail at load time" do
     it "a key that two section files both define is an error, not an overwrite" do
       outcome (fromFiles (sections <> [ { name: "extra.json", json: encodeJson { resources: Object.empty :: Object Json } } ]))
         `shouldEqual` Left "extra.json: key resources is already defined by another section"
     it "a section that is not a JSON object is an error" do
-      outcome (fromFiles (withSection "premise.json" (encodeJson "not an object")))
-        `shouldEqual` Left "premise.json: a section must be a JSON object"
+      outcome (fromFiles (withSection "setting.json" (encodeJson "not an object")))
+        `shouldEqual` Left "setting.json: a section must be a JSON object"
     it "a policy that names an unknown market fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
-      checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
+      checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" Market "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
-      checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
+      checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
     it "a procedure a Strategy names that no Aggregate holds fails the check: in a sign rule, and in a Proposal template" do
       { gameboard, config } <- loaded
       let
         signing = { rules: [], sign: [ signProcedures [ "no-such-procedure" ] ] }
         proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: [], intents: [] } ] ], sign: [] }
-        check p = map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))
+        check p = map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
       check signing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
       check proposing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
     it "a capacity a Withholding names that no Entity holds fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
-      map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" bad }))
+      map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" bad }))
         `shouldEqual` Left (show (Unresolved "preset Bad" CapacityName "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
       case decodeStrategy (encodeStrategy bad) of
         Left e -> fail (show e)
-        Right p -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))
+        Right p -> map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
           `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do
-      isLeft (decodeLiteral (json """{ "premise": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
-      case decodeLiteral (json """{ "premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
+      isLeft (decodeLiteral (json """{ "setting": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
+      case decodeLiteral (json """{ "setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
         Left e -> fail (show e)
         Right d -> show d.world.seed `shouldEqual` "7"
     it "an expectation must name a round that has a binding" do
-      let world = """"premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
+      let world = """"setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
       isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true
       isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} }, { "round": 1, "expect": {} } ] }"""))) `shouldEqual` true
       isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} } ] }"""))) `shouldEqual` false
@@ -577,7 +577,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     Mismatch _ (Balance _ _) _ _ -> true
     _ -> false
 
--- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 

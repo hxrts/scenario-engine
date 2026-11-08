@@ -1,6 +1,6 @@
 -- | `just _premises` (after `Compile`): writes the capstone's joint-pass recording,
--- | `capstone/transcript.json` under the premise root. Each exchange the DSL defines
--- | (`Premises.Meridian.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
+-- | `capstone/transcript.json` under the setting root. Each exchange the DSL defines
+-- | (`Settings.Meridian.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
 -- | stub model that answers with the DSL's reply text (`jointLineFor`); the handler reports each exchange, which is kept. Each Intent set is
 -- | checked against the DSL's expectation before anything is written; a mismatch exits 1 and writes
 -- | nothing. No model is called: the file is generated, never hand-maintained.
@@ -10,7 +10,7 @@ import Prelude
 
 import Adapters.Digest (sha256)
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (premiseRoot)
+import Settings.Tree (settingRoot)
 import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
 import Data.Argonaut.Core (stringify)
@@ -29,10 +29,10 @@ import Handlers.Llm (interpreter, backend)
 import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
-import Premises.Meridian.Capstone (game, jointLineFor, jointLines, matchesExpect)
-import Premises.Load (loadFrom)
-import Premises.Layout (capstoneTranscriptFile)
-import Premises.Meridian.Names (meridianDir)
+import Settings.Meridian.Capstone (game, jointLineFor, jointLines, matchesExpect)
+import Settings.Load (loadFrom)
+import Settings.Layout (capstoneTranscriptFile)
+import Settings.Meridian.Names (meridianDir)
 import Exit (fail)
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
@@ -56,7 +56,7 @@ main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure u
         | matchesExpect l js -> pure unit
         | otherwise -> throwError (error ("the capstone exchange \"" <> l.text <> "\" does not give the Intents the DSL expects"))
   rec <- liftEffect (Ref.read ref)
-  root <- liftEffect (premiseRoot fileOps)
+  root <- liftEffect (settingRoot fileOps)
   liftEffect do
     writeTextFile UTF8 (root <> capstoneTranscriptFile) (encodeRecording rec)
     log ("wrote " <> show (length rec) <> " capstone exchanges to " <> root <> capstoneTranscriptFile)

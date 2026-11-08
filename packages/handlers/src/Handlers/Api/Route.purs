@@ -66,7 +66,7 @@ type Wire = { method :: String, url :: String, body :: String }
 reply :: forall a. Shape a -> Int -> a -> Reply
 reply = replyIn Shape.Snapshot
 
--- | A reply in a given format. The premise format leaves an absent optional field out.
+-- | A reply in a given format. The setting format leaves an absent optional field out.
 replyIn :: forall a. Shape.Format -> Shape a -> Int -> a -> Reply
 replyIn format s status a = { status, body: stringify (encodeWith format s a) }
 
@@ -155,7 +155,7 @@ commaParam key get = Part
 bodyOf :: forall a b. Shape b -> (a -> b) -> Part a b
 bodyOf s get = Part
   { read: \i -> decodeBody s i.body
-  , write: \a -> nothing { body = Just (stringify (encodeWith Shape.Premise s (get a))) }
+  , write: \a -> nothing { body = Just (stringify (encodeWith Shape.Authored s (get a))) }
   }
 
 -- | An endpoint: its method, its path (`:name` is a capture), and how its operation's payload is
@@ -242,7 +242,7 @@ table r = { rows: rowsOf (Proxy :: Proxy rep) r to, write: sentOf r <<< from }
 endpoints :: Table
 endpoints = table
   { "ListRuns": get "/api/runs" ((\archived -> { archived }) <$> flag "archived" _.archived)
-  , "Premise": get "/api/premise" (pure unit)
+  , "Setting": get "/api/setting" (pure unit)
   , "Glossary": get "/api/glossary" (pure unit)
   , "LaunchRun": post "/api/runs" (bodyOf launchShape identity)
   , "LaunchBatch": post "/api/batch" (bodyOf batchShape identity)
@@ -261,11 +261,11 @@ endpoints = table
         in { runs, market }
   , "Agency": get "/api/agency"
       ado
-        premise <- optionalParam "premise" _.premise
+        setting <- optionalParam "setting" _.setting
         playerSeed <- optionalParam "playerSeed" _.playerSeed
         preset <- optionalParam "preset" _.preset
         alternative <- optionalParam "alternative" _.alternative
-        in { premise, playerSeed, preset, alternative }
+        in { setting, playerSeed, preset, alternative }
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
   , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
@@ -304,26 +304,26 @@ endpointNames = map _.name endpoints.rows
 
 -- | A body decoded through its shape; a body that does not decode is a 400.
 decodeBody :: forall a. Shape a -> String -> Either Reply a
-decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.parse Shape.Premise s text))
+decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.parse Shape.Authored s text))
 
 -- | The body of `POST /api/runs`.
 launchShape :: Shape Launch
 launchShape = object "Launch" ado
-  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
+  setting <- fieldOf "setting" "which setting to play; absent is the first" (optionalOf stringShape) _.setting
   name <- fieldOf "name" "the new run's name" stringShape _.name
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
-  in { premise, name, preset, playerSeed, rounds }
+  in { setting, name, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/batch`.
 batchShape :: Shape LaunchBatch
 batchShape = object "LaunchBatch" ado
-  premises <- fieldOf "premises" "the Settings to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.premises
+  settings <- fieldOf "settings" "the Settings to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.settings
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one per run" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps each Setting's" (optionalOf intShape) _.rounds
-  in { premises, preset, playerSeed, rounds }
+  in { settings, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }

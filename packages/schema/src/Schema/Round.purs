@@ -1,8 +1,8 @@
 -- | The checks a round makes (§13 Phase 6): `RoundF f p`, one record of what a round
 -- | holds, with the filling at the leaves and `p` for a named Proposal. `Observed` is what the engine's
--- | round produced (`Checks.Round.observe`); `Expect` is what a premise asserts, with sparse maps (an
+-- | round produced (`Checks.Round.observe`); `Expect` is what a setting asserts, with sparse maps (an
 -- | absent key or a `Nothing` leaf asserts nothing) and a `Nothing` field asserting nothing, and
--- | `Authored` is an `Expect` as a premise writes it, whose Proposals are named by author and position
+-- | `Authored` is an `Expect` as a setting writes it, whose Proposals are named by author and position
 -- | because their ids depend on the round. All are values of this one type, so the checker compares
 -- | them field by field.
 module Schema.Round

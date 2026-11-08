@@ -1,7 +1,7 @@
--- | The vocabulary of the premise DSL's world and fixtures: keyed lists (`"M" := 260`), and the
--- | typed values a premise names — capabilities, Measures, spans, fallbacks, share sources. Each is
--- | a core value, so a premise is written with the same types the engine reads; nothing here builds
--- | JSON (the shapes in `Schema.Premise.*` do).
+-- | The vocabulary of the setting DSL's world and fixtures: keyed lists (`"M" := 260`), and the
+-- | typed values a setting names — capabilities, Measures, spans, fallbacks, share sources. Each is
+-- | a core value, so a setting is written with the same types the engine reads; nothing here builds
+-- | JSON (the shapes in `Schema.Setting.*` do).
 module Schema.Build.Base
   ( keyed
   , (:=)
@@ -30,7 +30,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Types (Capability(..), Id(..))
-import Schema.Premise.Query (ShareMeasure)
+import Schema.Setting.Query (ShareMeasure)
 import Schema.Recurring as Recurring
 import Core.World as W
 import Data.Map (Map)

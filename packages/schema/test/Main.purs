@@ -12,14 +12,14 @@ import Core.Num as Q
 import Core.Strategy (Strategy)
 import Core.Types as Types
 import Data.Array as Array
-import Schema.Premise.Tags as Tags
+import Schema.Setting.Tags as Tags
 import Core.Shape (Desc(..), Format(..), Shape, encodeWith, decodeJsonWith, prose)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
 import Schema.Build.Intent (enactRule, repeal, route, transfer)
-import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
-import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
+import Schema.Setting.Intent (capabilityShape, intentShape, ruleShape)
+import Schema.Setting.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..))
@@ -28,10 +28,10 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
-import Schema.Premise.Fixture (roundShape, toRound)
+import Schema.Setting.Fixture (roundShape, toRound)
 import Schema.Joint (jointProposals)
 import Schema.Round (Expect)
-import Schema.Premise.Gameboard (decodeGameboard)
+import Schema.Setting.Gameboard (decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -41,21 +41,21 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | The expectations of a one-round document.
 expectOf :: String -> Expect
-expectOf text = case decodeJsonWith Premise roundShape (json text) of
+expectOf text = case decodeJsonWith Authored roundShape (json text) of
   Left e -> unsafeCrashWith ("round does not decode: " <> show e)
   Right r -> (toRound 1 r).expect
 
 -- | The decoders the tests read: each is the shape's decoder, with the core value it makes.
 capability :: String -> Either JsonDecodeError Capability
-capability s = decodeJsonWith Premise capabilityShape (fromString s)
+capability s = decodeJsonWith Authored capabilityShape (fromString s)
 
 rule :: Json -> Either JsonDecodeError (RuleF Q)
-rule = decodeJsonWith Premise ruleShape
+rule = decodeJsonWith Authored ruleShape
 
 intent :: Json -> Either JsonDecodeError Intent
-intent = decodeJsonWith Premise intentShape
+intent = decodeJsonWith Authored intentShape
 
--- | A premise shape reports a failed form as text: the message names the sum that failed.
+-- | A setting shape reports a failed form as text: the message names the sum that failed.
 isTemplateError :: String -> Boolean
 isTemplateError m = contains (Pattern "Template form") m
 
@@ -71,7 +71,7 @@ outcome = case _ of
 qv :: String -> Q
 qv t = fromMaybe (Q.fromInt 0) (Q.parse t)
 
--- | One Strategy per form the premise format writes, so every constructor of the AST round-trips.
+-- | One Strategy per form the setting format writes, so every constructor of the AST round-trips.
 roundTripStrategies :: Array Strategy
 roundTripStrategies =
   [ { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
@@ -100,7 +100,7 @@ roundTripStrategies =
     }
   ]
 
--- | One Intent of each kind, with explicit entities, in the fixture format (the premise tags).
+-- | One Intent of each kind, with explicit entities, in the fixture format (the setting tags).
 roundTripIntents :: Array Intent
 roundTripIntents =
   [ Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Nothing }
@@ -125,16 +125,16 @@ roundTripCapabilities =
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "Round trips: decode (encode x) == x for each premise shape" do
-    it "every Strategy form, in the premise format" do
+  describe "Round trips: decode (encode x) == x for each setting shape" do
+    it "every Strategy form, in the setting format" do
       for_ roundTripStrategies \p ->
         (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
     it "every Intent kind, in the fixture format" do
       for_ roundTripIntents \i ->
-        (decodeJsonWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
-    it "every Capability, in the premise format" do
+        (decodeJsonWith Authored intentShape (encodeWith Authored intentShape i) == Right i) `shouldEqual` true
+    it "every Capability, in the setting format" do
       for_ roundTripCapabilities \c ->
-        (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
+        (decodeJsonWith Authored capabilityShape (encodeWith Authored capabilityShape c) == Right c) `shouldEqual` true
 
   describe "Joint pass rule (docs/04 §11)" do
     let
@@ -148,7 +148,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "keeps as signers only known Entities other than the author" do
       map _.draft.signers (jointProposals known said [ joint { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
-  describe "Reservations are checked on the premise document" do
+  describe "Reservations are checked on the setting document" do
     it "a facility may not escrow a Resource the document does not mark reservable" do
       let
         doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "markets": {}, "transformations": { "dep": { "escrowPerUnit": { "M": "1" } } }, "entities": {} }"""
@@ -157,12 +157,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Transferability tags" do
     it "describes Restricted as authority-gated transfer" do
-      map _.desc (Array.filter (\p -> p.premise == "Restricted") Tags.transferabilityTags) `shouldEqual` [ "transferred only by an Entity with the matching transfer capability" ]
+      map _.desc (Array.filter (\p -> p.setting == "Restricted") Tags.transferabilityTags) `shouldEqual` [ "transferred only by an Entity with the matching transfer capability" ]
 
   describe "Rule forms" do
     it "a combination that would do nothing has no form" do
-      isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
-      isLeft (decodeJsonWith Premise ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
+      isLeft (decodeJsonWith Authored ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
+      isLeft (decodeJsonWith Authored ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
 
   describe "Capability tags" do
     it "decodes each capability kind" do
@@ -210,9 +210,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
-    it "a Repeal round-trips through the premise form, as one key naming the Rule" do
+    it "a Repeal round-trips through the setting form, as one key naming the Rule" do
       intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
-      intent (encodeWith Premise intentShape (repeal { rule: "r2/US/0/rule-0" })) `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
+      intent (encodeWith Authored intentShape (repeal { rule: "r2/US/0/rule-0" })) `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
 
     it "rejects an intent with two keys" do
       case intent (json """{ "trade": { "market": "m", "quantity": "1" }, "transfer": { "from": "a", "to": "b", "resource": "E", "quantity": "1" } }""") of
@@ -221,7 +221,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "rejects an unknown intent key" do
       isLeft (intent (json """{ "gift": {} }""")) `shouldEqual` true
 
-  describe "Premise tag pairs" do
+  describe "Setting tag pairs" do
     it "every pair names a constructor of the snapshot shape, and every constructor has a pair" do
       let
         tagsOf :: forall a. Shape a -> Array String
@@ -297,7 +297,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
         `shouldEqual` false
 
--- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 

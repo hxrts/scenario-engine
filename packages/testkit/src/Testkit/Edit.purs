@@ -1,4 +1,4 @@
--- | Small edits of a premise or World in a test: change the named item of a section and leave the rest.
+-- | Small edits of a setting or World in a test: change the named item of a section and leave the rest.
 module Testkit.Edit
   ( onEntity
   , onMarket

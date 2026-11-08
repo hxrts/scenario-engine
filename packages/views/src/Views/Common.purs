@@ -114,8 +114,8 @@ col
 col =
   { run: column "Run" "The run's id in the Run Store. Selecting a row shows that run's results."
   , name: column "Name" "The name the run was given at launch, or by the derivation that created it." # emptied { label: "not recorded", reason: "The run was stored without a name." }
-  , gameboard: column "Gameboard" "The Gameboard version (the premise) the run was played on."
-  , gameSeed: column "Game seed" "The seed fixed by the premise. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
+  , gameboard: column "Gameboard" "The Gameboard version (the setting) the run was played on."
+  , gameSeed: column "Game seed" "The seed fixed by the setting. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
   , playerSeed: column "Player seed" "The seed for seat-policy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
   , rounds: column "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
   , status: column "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
@@ -175,7 +175,7 @@ type StoredRun =
   , assertions :: Array (Array Failure)
   }
 
--- | The Resource a run's market views centre on: the one its premise declares, else its numeraire.
+-- | The Resource a run's market views centre on: the one its setting declares, else its numeraire.
 focusOf :: StoredRun -> Focus
 focusOf r = fromMaybe { resource: r.manifest.initial.numeraire, label: idText r.manifest.initial.numeraire } r.manifest.initial.focus
 

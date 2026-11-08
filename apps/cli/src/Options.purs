@@ -17,7 +17,7 @@ import Data.Maybe (Maybe)
 import Flags (flagOr, intFlag, optionalInt)
 import Foreign.Object (Object)
 import Handlers.Store (validRunId)
-import Premises.Presets (defaultPresets)
+import Settings.Presets (defaultPresets)
 import Session (Options)
 
 runOptions :: Object String -> Either String { preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
@@ -26,7 +26,7 @@ runOptions fs = do
   seed <- seedFlag fs
   pure { preset: flagOr "--preset" defaultPresets.run fs, rounds, seed }
 
--- | The rounds flag: absent means the configuration's count; the premise's range is `checkRounds`.
+-- | The rounds flag: absent means the configuration's count; the setting's range is `checkRounds`.
 roundsFlag :: Object String -> Either String (Maybe Int)
 roundsFlag = optionalInt "--rounds" (_ >= 1) "a whole number of at least 1"
 
@@ -36,13 +36,13 @@ seedFlag :: Object String -> Either String (Maybe Seed)
 seedFlag fs = map Seed <$> optionalInt "--seed" (const true) "a whole number" fs
 
 sessionOptions :: String -> Object String -> Either String Options
-sessionOptions premise fs = do
+sessionOptions setting fs = do
   rounds <- roundsFlag fs
   window <- numberFrom 0 "--window" 0 fs
   let id = flagOr "--id" "session-1" fs
   if validRunId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)
   seed <- seedFlag fs
-  pure { premise, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
+  pure { setting, model: flagOr "--model" defaultModel fs, humans: flagOr "--humans" "" fs, rounds, window, id, db: flagOr "--db" "runs.db" fs, seed }
 
 -- | A whole-number flag of at least one, with its default.
 number :: String -> Int -> Object String -> Either String Int

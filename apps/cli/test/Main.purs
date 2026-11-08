@@ -46,7 +46,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "session options" do
     it "reads its flags and defaults the rest" do
       let o = sessionOptions "meridian" (Object.fromFoldable [ pair "--humans" "US,DE", pair "--window" "30" ])
-      map _.premise o `shouldEqual` Right "meridian"
+      map _.setting o `shouldEqual` Right "meridian"
       map _.humans o `shouldEqual` Right "US,DE"
       map _.window o `shouldEqual` Right 30
       map _.id o `shouldEqual` Right "session-1"

@@ -1,7 +1,7 @@
--- | Filtering a premise: the one operation that takes a subset of a premise, for a
+-- | Filtering a setting: the one operation that takes a subset of a setting, for a
 -- | cut-down game or a fixture. What belongs to something dropped goes with it: an account, a capability, a
 -- | Market's access entry, a recurring flow, a Rule, an actor definition, a seat. What a kept thing needs
--- | is not supplied: a kept thing that refers to a dropped one fails `checkPremise`, the one reference
+-- | is not supplied: a kept thing that refers to a dropped one fails `checkSetting`, the one reference
 -- | check, so a subset cannot silently depend on what it left out.
 module Game.Restrict
   ( Selection
@@ -25,7 +25,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Game.Error (GameError(..), Stage(..))
-import Game.Premise (GameboardParts, checkPremise, checkRefs)
+import Game.Setting (GameboardParts, checkSetting, checkRefs)
 import Schema.Gameboard (Gameboard)
 
 -- | What to keep. `accounts` narrows an Entity's accounts further, to those Resources; an Entity it does
@@ -48,11 +48,11 @@ everything gb =
   , accounts: Map.empty
   }
 
--- | The premise cut down to the Selection, checked. A name the premise does not have is an error, and so
+-- | The setting cut down to the Selection, checked. A name the setting does not have is an error, and so
 -- | is a kept thing that refers to a dropped one.
 restrict :: Selection -> GameboardParts -> Either GameError GameboardParts
 restrict s p = case unknownNames (gameboardNames p.gameboard) named of
-  [] -> checkPremise (filtered s p)
+  [] -> checkSetting (filtered s p)
   es -> Left (Invalid AtLoad es)
   where
   named = concat

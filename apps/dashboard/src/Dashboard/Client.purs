@@ -4,7 +4,7 @@
 module Dashboard.Client
   ( runs
   , launch
-  , premise
+  , setting
   , glossary
   , overview
   , entities
@@ -31,7 +31,7 @@ import Views.Glossary (Glossary)
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Views.Overview (RunList, RunOverview)
-import Views.Premise (Premise)
+import Views.Setting (Setting)
 import Data.Argonaut.Core (jsonNull)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -55,9 +55,9 @@ launch = typed launchedShape <<< LaunchRun
   where
   launchedShape = recordShape "Launched" { id: stringShape }
 
--- | The premises the launch form offers, each with its rounds, seed, default run name and presets.
-premise :: Aff (Either String (Array Premise))
-premise = typed Keys.premises Premise
+-- | The settings the launch form offers, each with its rounds, seed, default run name and presets.
+setting :: Aff (Either String (Array Setting))
+setting = typed Keys.settings Setting
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)
@@ -85,7 +85,7 @@ compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
 
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
-agency = typed Keys.table (Agency { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
+agency = typed Keys.table (Agency { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | Archive a run, or unarchive it.
 archive :: String -> Boolean -> Aff (Either String Unit)

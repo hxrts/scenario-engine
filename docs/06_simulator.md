@@ -3,7 +3,7 @@
 **Version:** 0.3  
 **Scope:** Automated Simulation, Persistence, Read API, Dashboard, Live Play, and Tests  
 **Implementation language:** PureScript  
-**Reference premise:** Meridian
+**Reference setting:** Meridian
 
 Items marked **Planned** are specified but not implemented. Unmarked behaviour is implemented. The mandatory tests in §14 check the economic and persistence behaviour.
 
@@ -31,7 +31,7 @@ The simulator should also expose architectural defects. Inconsistent accounting,
 
 The simulator is a development component, not a fourth layer of economic semantics.
 
-**Premise → `assemble` → Game + player seed → Simulation Run → Run Store → Dashboard**
+**Setting → `assemble` → Game + player seed → Simulation Run → Run Store → Dashboard**
 
 | Component | Responsibility |
 |---|---|
@@ -77,7 +77,7 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 ## 4. Seat Policies
 
-The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the premise. An NPC's Policy is part of the premise. In simulation each seat is bound to a **seat Policy** (its `SeatBinding`) when the game is assembled. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
+The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the setting. An NPC's Policy is part of the setting. In simulation each seat is bound to a **seat Policy** (its `SeatBinding`) when the game is assembled. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
 Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset strategy, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset strategies run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
 
@@ -100,7 +100,7 @@ Illustrative seat Policies (not all are presets):
 
 ### 4.2 Presets
 
-Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/premises/src/Premises/Presets.purs`, compiled to `packages/premises/presets.json`). "Cheapest" and "costliest" are the Energy Markets the Entity has access to with the lowest and highest beginning-of-round price (Type System [§4.4](02_type_system.md#44-shared-decision-language-interpreter)); a seat with access to one Energy Market trades there, and a seat with none trades nowhere. Every quantity is in Resource units per round.
+Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/premises/src/Settings/Presets.purs`, compiled to `packages/premises/presets.json`). "Cheapest" and "costliest" are the Energy Markets the Entity has access to with the lowest and highest beginning-of-round price (Type System [§4.4](02_type_system.md#44-shared-decision-language-interpreter)); a seat with access to one Energy Market trades there, and a seat with none trades nowhere. Every quantity is in Resource units per round.
 
 | Preset | Behavior |
 |---|---|
@@ -116,11 +116,11 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
-The Dashboard's launch form offers the same names: `GET /api/premise` sends them (`Premises.Presets.presetNames`, in the order written). The strategies are one shared set in `Premises.Kit.Presets`, which each setting binds to its own names and thresholds; a setting's presets compile into its own directory as `presets.json`.
+The Dashboard's launch form offers the same names: `GET /api/setting` sends them (`Settings.Presets.presetNames`, in the order written). The strategies are one shared set in `Settings.Kit.Presets`, which each setting binds to its own names and thresholds; a setting's presets compile into its own directory as `presets.json`.
 
 ### 4.3 Coverage
 
-Every seat has exactly one bound seat Policy. A binding for an NPC, an Aggregate, or an unknown id is an error (`GameError.NotASeat`), and so is a configured seat with no binding (`GameError.UnboundSeat`). A seat meant to stay silent is bound explicitly to an empty `Script`. A literal premise has no seat configuration, so any Entity it writes answers for may be bound. A seat Policy that produces nothing submits nothing for the round, and nothing is recorded for it. The simulator never invents default decisions.
+Every seat has exactly one bound seat Policy. A binding for an NPC, an Aggregate, or an unknown id is an error (`GameError.NotASeat`), and so is a configured seat with no binding (`GameError.UnboundSeat`). A seat meant to stay silent is bound explicitly to an empty `Script`. A literal setting has no seat configuration, so any Entity it writes answers for may be bound. A seat Policy that produces nothing submits nothing for the round, and nothing is recorded for it. The simulator never invents default decisions.
 
 ## 5. Deterministic Randomness
 
@@ -179,11 +179,11 @@ Live play has no confirmation step. Every transcript of the round, human and AI,
 
 | Command | Behaviour |
 |---|---|
-| `run <premise> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds (default the configuration's count; `checkRounds` refuses a count outside the Gameboard's `roundRange`). The player seed is `--seed`, else drawn and printed. Prints a per-round summary and does not save to the Run Store. |
-| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` type one transcript per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`; the raw model output and the call log go to `runs/<id>/`. |
+| `run <setting> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds (default the configuration's count; `checkRounds` refuses a count outside the Gameboard's `roundRange`). The player seed is `--seed`, else drawn and printed. Prints a per-round summary and does not save to the Run Store. |
+| `session <setting> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` type one transcript per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`; the raw model output and the call log go to `runs/<id>/`. |
 | `server [--db file] [--port n] [--static dir]` (`just serve`) | The read API and the dashboard. Defaults: `runs.db`, port 8787 (1–65535), static `apps/dashboard/dist`. |
 
-An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The premise argument is the premise's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
+An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The setting argument is the setting's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
 
 ## 7. Run Assertions
 
@@ -297,18 +297,18 @@ There are no migrations. A change to the schema starts a new store.
 
 ### 8.1 Read API and run operations
 
-The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path is a 404. Replies are 200 unless stated. The server loads every premise directory under the premise root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `PREMISES_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the cache. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
+The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path is a 404. Replies are 200 unless stated. The server loads every setting directory under the setting root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `PREMISES_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the cache. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
 
 | Method and path | Purpose | Replies |
 |---|---|---|
-| `GET /api/premise` | The launch form's list of premises, one for each setting found under the premise root; each has name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
+| `GET /api/setting` | The launch form's list of settings, one for each setting found under the setting root; each has name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
 | `GET /api/runs[?archived=true]` | The run list: a `Table` plus `runs`, the typed flags of each run in the table's order (`id`, `archived`, `readable`; a run that cannot be decoded is not readable). Archived runs are left out unless `archived=true`. | 200 |
-| `POST /api/runs` | Launch a run of one preset on every seat. Body: `premise` (a name from `GET /api/premise`; absent is the first), `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch, including `rounds` outside the premise's range (`checkRounds`) |
-| `POST /api/batch` | One run of one preset on every seat of each named Setting (`premises`, absent for every loaded one), so they can be read through `GET /api/compare`. Each run records its own Setting. There is no score of how well a Setting plays. | 200 `[{premise, id, playerSeed}]`. 400 for a bad body or a Setting that cannot start |
-| `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is `id`, `rounds` and `target` (completed and target rounds), `resumable`, and `facts` (the header's label and value pairs: Name, Preset, Premise, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
+| `POST /api/runs` | Launch a run of one preset on every seat. Body: `setting` (a name from `GET /api/setting`; absent is the first), `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch, including `rounds` outside the setting's range (`checkRounds`) |
+| `POST /api/batch` | One run of one preset on every seat of each named Setting (`settings`, absent for every loaded one), so they can be read through `GET /api/compare`. Each run records its own Setting. There is no score of how well a Setting plays. | 200 `[{setting, id, playerSeed}]`. 400 for a bad body or a Setting that cannot start |
+| `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is `id`, `rounds` and `target` (completed and target rounds), `resumable`, and `facts` (the header's label and value pairs: Name, Preset, Setting, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
 | `GET /api/runs/:id/entities` | The run's Entities: `entities`, each `{id, seat}` (`seat` is true for an Actor, false for an Aggregate), and `default`, the first seat (or the first Entity). | 200. 404. 500 |
 | `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth (M)`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
-| `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override, or a variant's `rounds` outside the premise's range (a duplicate or rerun replays what was recorded). 404 for an unknown source. 409 for a rerun whose source cannot be compared |
+| `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override, or a variant's `rounds` outside the setting's range (a duplicate or rerun replays what was recorded). 404 for an unknown source. 409 for a rerun whose source cannot be compared |
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200 `{deleted}`. 400 without a matching `confirm`. 404 |
@@ -322,7 +322,7 @@ Operation rules:
 - **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `Simulator.Records.recordsEqual`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
-- **Premise route.** `GET /api/premise` was named `GET /api/scenario` before the premise naming. No alias is kept.
+- **Setting route.** `GET /api/setting` was named `GET /api/scenario` before the setting naming. No alias is kept.
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
@@ -354,7 +354,7 @@ The server performs and validates every operation. The dashboard sends the reque
 
 ### 9.2 Run Details
 
-The page opens with a compact header: run id, then the overview's facts (name, preset, Premise, status, rounds completed out of target, and game id). Resume is offered from the overview's `resumable`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
+The page opens with a compact header: run id, then the overview's facts (name, preset, Setting, status, rounds completed out of target, and game id). Resume is offered from the overview's `resumable`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
 
 1. **Key figures.** The five statistics the sections answer with, each with its question, definition, and formula. Each is a `Statistic` record in the module that computes it, and the dashboard renders that record. No view computes an economic statistic in the browser.
 2. **Marginal prices.** The marginal price of each Market after every round (`markets`, first chart).
@@ -381,18 +381,18 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 
 ### 9.3 Prepare
 
-Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of the premise. Every field has a default, so Run needs no edits:
+Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of the setting. Every field has a default, so Run needs no edits:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | Name | optional | `defaultName`, the next run id (`run-N`) | A label. The server names the default, and the dashboard fills a blank name with it. The API requires a `name`. |
-| Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/premise` sends. |
-| Premise | required | `meridian@v0` | The one premise the server serves. |
-| Rounds | optional | the premise's default (5) | A select of the premise's supported counts (4 to 8). Resume takes a whole number above the run's completed rounds, with no upper bound (§8.1). |
+| Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/setting` sends. |
+| Setting | required | `meridian@v0` | The one setting the server serves. |
+| Rounds | optional | the setting's default (5) | A select of the setting's supported counts (4 to 8). Resume takes a whole number above the run's completed rounds, with no upper bound (§8.1). |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
-| Game seed | read-only | the premise's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
+| Game seed | read-only | the setting's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
 
-A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, game seed, default name, and presets come from `GET /api/premise`.
+A summary line says what Run will play, for example "This run: Conservative, 5 rounds, seed drawn at launch." A launch the server accepts opens the new run. A refused one shows the server's message. The round range, default, game seed, default name, and presets come from `GET /api/setting`.
 
 ### 9.4 Compare
 

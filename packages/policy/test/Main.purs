@@ -165,7 +165,7 @@ strategyParams = map snd <<< Array.filter ((_ == ParameterRef) <<< fst) <<< stra
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Unknown parameters" do
-    it "a clause reading a parameter the premise lacks does not fire, even under not" do
+    it "a clause reading a parameter the setting lacks does not fire, even under not" do
       let
         reads = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"missing"},"0"]}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
         negated = strategyOrThrow """{"rules":[{"when":[{"not":{"gt":[{"param":"missing"},"0"]}}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
@@ -302,10 +302,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         e = env { view = seat { factors = Map.fromFoldable [ Tuple (Id "E") (fromMaybe Q.zero (Q.parse "0.5")) ] } }
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" e)
         `shouldEqual` [ [ trade "energy-atlantic" "2.5" ] ]
-    it "a Param the premise does not define evaluates to zero, so an order of that size is dropped" do
+    it "a Param the setting does not define evaluates to zero, so an order of that size is dropped" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "param": "missing" } } } ] } ] }""" env)
         `shouldEqual` []
-    it "strategyParams lists every premise parameter a Strategy reads" do
+    it "strategyParams lists every setting parameter a Strategy reads" do
       strategyParams (strategyOrThrow """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
         `shouldEqual` [ "limit", "size" ]
 
@@ -362,7 +362,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       strategyRefs (strategyOrThrow """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
         [ Tuple ResourceRef "E", Tuple EntityRef "bogus" ]
 
--- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 

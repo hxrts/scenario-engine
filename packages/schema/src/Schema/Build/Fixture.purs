@@ -20,7 +20,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Premise.Fixture (RoundSpec, unnumbered)
+import Schema.Setting.Fixture (RoundSpec, unnumbered)
 import Schema.Round (ProcedureOf, ProposalRef)
 import Schema.Round (noExpect) as Exports
 

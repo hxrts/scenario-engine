@@ -17,7 +17,7 @@ import Effect.Ref as Ref
 import Effects.Observe (listRuns, readManifest)
 import Effects.Store (createRun, failRun)
 import Foreign.Object as Object
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Game.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore)
@@ -29,7 +29,7 @@ import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, premise)
+import Testkit.Meridian (anyRounds, setting)
 
 type Env =
   { api :: String -> String -> String -> Aff Reply
@@ -41,7 +41,7 @@ type Env =
 
 setup :: Aff Env
 setup = do
-  ctx <- anyRounds <$> premise
+  ctx <- anyRounds <$> setting
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newCache
   let

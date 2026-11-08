@@ -20,8 +20,8 @@ module Views.Keys
   , events
   , table
   , runList
-  , premise
-  , premises
+  , setting
+  , settings
   , glossary
   , entityList
   , history
@@ -39,7 +39,7 @@ import Views.Compare (CompareView, Marked)
 import Views.Entity (EntityChoice, EntityList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (Fact, RunFlags, RunList, RunOverview)
-import Views.Premise (Premise, RoundRange)
+import Views.Setting (Setting, RoundRange)
 
 -- | A view of a stored run, and the shape of its reply.
 type ViewKey a = { view :: View, shape :: Shape a }
@@ -114,12 +114,12 @@ runList = recordShape "RunList" { title: stringShape, columns: strings, rows: li
 roundRange :: Shape RoundRange
 roundRange = recordShape "RoundRange" { min: intShape, max: intShape, default: intShape }
 
--- | `GET /api/premise`: the premises the launch form offers.
-premises :: Shape (Array Premise)
-premises = listOf premise
+-- | `GET /api/setting`: the settings the launch form offers.
+settings :: Shape (Array Setting)
+settings = listOf setting
 
-premise :: Shape Premise
-premise = recordShape "Premise"
+setting :: Shape Setting
+setting = recordShape "Setting"
   { name: stringShape
   , version: stringShape
   , rounds: roundRange

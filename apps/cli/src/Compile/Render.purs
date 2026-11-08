@@ -1,6 +1,6 @@
--- | The premise compiler's rendering (docs/07 §3): the DSL premises, validated
+-- | The setting compiler's rendering (docs/07 §3): the DSL settings, validated
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
--- | module writes the files under the premise root. The output is gitignored: it is a pure function of
+-- | module writes the files under the setting root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.
 module Compile.Render
   ( compile
@@ -19,14 +19,14 @@ import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
-import Premises.Meridian.Capstone as Capstone
-import Premises.Meridian.Fixtures as Fixtures
-import Premises.Catalog (settings)
-import Premises.Compose (Setting, directory, files, parts, presetsJson)
-import Schema.Premise.Fixture (decodeLiteral)
-import Premises.Layout (capstoneRunFile, fixturePath, presetsFile)
+import Settings.Meridian.Capstone as Capstone
+import Settings.Meridian.Fixtures as Fixtures
+import Settings.Catalog (settings)
+import Settings.Compose (Setting, directory, files, parts, presetsJson)
+import Schema.Setting.Fixture (decodeLiteral)
+import Settings.Layout (capstoneRunFile, fixturePath, presetsFile)
 
--- | A compiled file: its path under the premise root, and its text.
+-- | A compiled file: its path under the setting root, and its text.
 type Output = { path :: String, text :: String }
 
 -- | Every compiled file, or the first validation failure.
@@ -43,19 +43,19 @@ compileOnly id = case find (\c -> c.id == id) settings of
     _ <- parts c
     pure (map (\(Tuple path j) -> { path, text: render j }) (settingFiles c))
 
--- | Every compiled file's path under the premise root and its JSON.
+-- | Every compiled file's path under the setting root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
   concatMap settingFiles settings
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
     <> [ Tuple capstoneRunFile Capstone.file ]
 
--- | One setting's files under the premise root.
+-- | One setting's files under the setting root.
 settingFiles :: Setting -> Array (Tuple String Json)
 settingFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
 
--- | Decode and check the compiled premise exactly as the loader will read it: the Gameboard, the
--- | Policies, the presets against the Gameboard (`checkPremise`), and every fixture.
+-- | Decode and check the compiled setting exactly as the loader will read it: the Gameboard, the
+-- | Policies, the presets against the Gameboard (`checkSetting`), and every fixture.
 validate :: Either String Unit
 validate = do
   for_ settings parts

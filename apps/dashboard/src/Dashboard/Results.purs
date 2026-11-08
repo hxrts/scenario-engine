@@ -40,7 +40,7 @@ type Props = { id :: String, version :: Int, overview :: Loaded (Either String R
 titled :: DataTable -> Table -> JSX
 titled grid t = Layout.captioned t.title [ tableOf grid t ]
 
--- | The compact header: the run's id, then its facts (name, premise, status, rounds completed out of
+-- | The compact header: the run's id, then its facts (name, setting, status, rounds completed out of
 -- | its target, game id), both from the same overview, so a run switch never shows a new name over the
 -- | old facts. An empty fact says what it means, with the reason on hover.
 header :: Lookup -> String -> Array Fact -> JSX

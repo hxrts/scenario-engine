@@ -26,7 +26,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
-import Premises.Presets (presetNames)
+import Settings.Presets (presetNames)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -35,14 +35,14 @@ import Handlers.Seats (seatEnv)
 import Simulator.Simulate (Checkpoint, resumeFrom)
 import Core.Strategy (Strategy)
 import Adapters.Filesystem (fileOps)
-import Premises.Layout (fixturePath)
-import Premises.Tree (readRootFile)
-import Premises.Load (loadLiteral)
+import Settings.Layout (fixturePath)
+import Settings.Tree (readRootFile)
+import Settings.Load (loadLiteral)
 import Game.Assemble (presetBindings, withRounds)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Game.Types (Game)
 import Testkit.Capstone (load)
-import Testkit.Meridian (orThrow, premise, presetGame, price, everySeat, initialOf, run, valid)
+import Testkit.Meridian (orThrow, setting, presetGame, price, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 import Testkit.Json (strategyOrThrow)
 import Test.Spec (describe, it)
@@ -71,11 +71,11 @@ permuted xs = [ reverse xs, drop 1 xs <> take 1 xs, drop 2 ys <> take 2 ys ]
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  ShockTests.spec premise
+  ShockTests.spec setting
   CapstoneTests.spec
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
-      p <- premise
+      p <- setting
       for_ [ "Conservative", "Passive" ] \preset -> do
         g <- everySeat p preset
         r <- run (Seed 1) g
@@ -91,7 +91,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (map _.world a.records /= map _.world b.records) `shouldEqual` true
 
     it "Every preset plays 8 rounds with invariants holding and no engine error" do
-      p <- premise
+      p <- setting
       for_ presetNames \preset -> do
         g <- presetGame p preset [] (Just 8)
         r <- run (Seed 1) g
@@ -99,7 +99,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         valid (initialOf r) r
 
     it "2 Replay: same seeds reproduce, and the replay handler reproduces from records" do
-      p <- premise
+      p <- setting
       g <- everySeat p "RandomValid"
       a <- run (Seed 1) g
       case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g of
@@ -109,7 +109,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           map _.record out.records `shouldEqual` map _.record a.records
 
     it "3 Submission order: permuting every recorded round's inputs changes nothing" do
-      p <- premise
+      p <- setting
       for_ [ "Conservative", "Aggressive", "RandomValid" ] \preset -> do
         g <- everySeat p preset
         a <- run (Seed 1) g
@@ -148,7 +148,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
     it "7d Investor: the capacity investment executes once its owner signs too" do
-      p <- premise
+      p <- setting
       -- every seat is an Investor, so ENCO (the capacity's owner) signs the investment it is offered
       g <- someSeats p "Investor" [ "US", "ENCO", "CHIP", "SHIP", "DEF" ]
       r <- run (Seed 1) g
@@ -164,7 +164,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       unsigned `shouldEqual` false
       valid (initialOf r) r
     it "7c Deployer: the shipped preset reserves and sells its Mil in the rounds the Atlantic price is above 3" do
-      p <- premise
+      p <- setting
       g <- someSeats p "Deployer" [ "US" ]
       r <- run (Seed 1) g
       valid (initialOf r) r
@@ -197,7 +197,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       usMil 4 `shouldEqual` Just (parse "34.2")
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
-      p <- premise
+      p <- setting
       g <- everySeat p "Passive"
       let
         labor = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
@@ -213,7 +213,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         (matches (sunk kinds.decay) (\x -> x.entity == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's propagation, as far as the shipped game shows it" do
-      p <- premise
+      p <- setting
       passive <- everySeat p "Passive" >>= run (Seed 1)
       investor <- everySeat p "Investor" >>= run (Seed 1)
       aggressive <- everySeat p "Aggressive" >>= run (Seed 1)
@@ -285,7 +285,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       banned `shouldEqual` true
 
     it "11 Trade restriction (Fixture E2): the US ban on China, its timing, the EU tariff, and China's reciprocation" do
-      p <- premise
+      p <- setting
       g <- everySeat p "Passive"
       let
         banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enact":{ "flows": { "kind": "accessBan", "scope": {"counterparty":"CN","direction":"eitherWay", "over": ["E"]}, "effect": "block" } }}]}]}"""
@@ -311,10 +311,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       any isTariff (rules 3 r) `shouldEqual` true
 
     it "Market access: an order submitted by an Entity outside a Market's access (a human's or an AI agent's; a Strategy does not draft one) is rejected, and the Entity inside it settles" do
-      p <- premise
+      p <- setting
       g <- presetGame p "Passive" [] (Just 1)
       let
-        -- ENCO holds no defence-goods trade capability in the shipped premise, so it is granted one here: its
+        -- ENCO holds no defence-goods trade capability in the shipped setting, so it is granted one here: its
         -- authority then passes and only the Market's access (US, DE, UK, JP) can reject its order
         w = prepareRound g.world
         enco = map (\e -> e { capabilities = e.capabilities <> [ MayTrade (Id "defence-goods") ] }) (Map.lookup (Id "ENCO") w.entities)
@@ -330,7 +330,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true
 
     it "INV-29 Engine reuse: resolving each round's recorded inputs through the engine reproduces the simulated round" do
-      p <- premise
+      p <- setting
       g <- everySeat p "RandomValid"
       r <- run (Seed 1) g
       let befores = [ initialOf r ] <> map _.world r.records
@@ -338,7 +338,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         map _.world (resolveRound (prepareRound before) rec.record.inputs) `shouldEqual` Right rec.world
 
     it "INV-30 Controller integrity: swapping a seat's Policy never changes its definition or makes it an NPC" do
-      p <- premise
+      p <- setting
       g <- everySeat p "Passive"
       conservative <- everySeat p "Conservative"
       a <- run (Seed 1) g
@@ -352,13 +352,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         map _.kind (Map.lookup (Id "US") (final r).entities) `shouldEqual` Just (Actor (Seat (Id "seat-1")))
 
     it "12 Resolution consistency: Germany explicit vs implicit" do
-      p <- premise
+      p <- setting
       case instantiate p.gameboard p.config, instantiate p.gameboard p.config { seats = Map.delete (Id "DE") p.config.seats } of
         Right a, Right b -> reconcile a b `shouldEqual` Right unit
         _, _ -> fail "instantiation"
 
     it "a run resumed from its third snapshot matches the uninterrupted run" do
-      p <- premise
+      p <- setting
       g <- everySeat p "RandomValid"
       full <- run (Seed 1) g
       case index full.records 2 of

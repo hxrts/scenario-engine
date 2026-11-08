@@ -1,16 +1,16 @@
 -- | The adapter primitives that need no model and no store (docs/06_simulator.md §5): an injected seed
 -- | is used as given, an absent one is drawn from the OS, the clock reads ISO 8601 in UTC, and the
--- | premise reads return the files they name, or a failure that names the path.
+-- | setting reads return the files they name, or a failure that names the path.
 module Test.Adapters.Primitives (spec) where
 
 import Prelude
 
-import Premises.Meridian.Names (meridianDir)
+import Settings.Meridian.Names (meridianDir)
 
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readRootFile, readPremise)
+import Settings.Tree (readRootFile, readSetting)
 import Adapters.Random (resolveSeed)
 import Core.Draw (Seed(..))
 import Data.Array (length, sort)
@@ -24,7 +24,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Spec Unit
-spec = describe "Primitives: seed, clock, premise reads" do
+spec = describe "Primitives: seed, clock, setting reads" do
   it "input closed once stays closed: a later prompt fails" do
     liftEffect closeInput
     out <- attempt (readLine "> ")
@@ -44,8 +44,8 @@ spec = describe "Primitives: seed, clock, premise reads" do
     contains (Pattern "T") t `shouldEqual` true
     contains (Pattern "Z") t `shouldEqual` true
 
-  it "a premise directory reads its files, with the shared presets" do
-    s <- liftEffect (readPremise fileOps meridianDir)
+  it "a setting directory reads its files, with the shared presets" do
+    s <- liftEffect (readSetting fileOps meridianDir)
     case s of
       Right sc -> do
         map _.name sc.sections `shouldEqual` sort (map _.name sc.sections)
@@ -53,13 +53,13 @@ spec = describe "Primitives: seed, clock, premise reads" do
         sc.presets.name `shouldEqual` "presets.json"
       Left e -> fail e
 
-  it "a missing premise directory is a failure that names its path" do
-    s <- liftEffect (readPremise fileOps "no-such-premise")
+  it "a missing setting directory is a failure that names its path" do
+    s <- liftEffect (readSetting fileOps "no-such-setting")
     case s of
-      Left e -> contains (Pattern "no-such-premise") e `shouldEqual` true
+      Left e -> contains (Pattern "no-such-setting") e `shouldEqual` true
       Right _ -> fail "a missing directory must not read"
 
-  it "readText reads a file under the premise root; a missing file names its path" do
+  it "readText reads a file under the setting root; a missing file names its path" do
     ok <- liftEffect (readRootFile fileOps (meridianDir <> "/presets.json"))
     case ok of
       Right _ -> pure unit

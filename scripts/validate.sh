@@ -6,20 +6,20 @@ set -euo pipefail
 recipe=$1
 shift
 
-premises="meridian"
+settings="meridian"
 # The preset names come from the CLI itself (`presets`) through the built program, so this list cannot
-# drift from `Premises.Presets`. Before the first build there is no program; the CLI validates then.
+# drift from `Settings.Presets`. Before the first build there is no program; the CLI validates then.
 cli() { node --input-type=module -e 'import("./output/Main/index.js").then((m) => m.main())' - "$@" 2>/dev/null | tr '\n' ' ' || true; }
 presets=$(cli presets)
 packages=$(just --evaluate packages)
 
 case $recipe in
-  sim)      usage="just sim <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  sim)      usage="just sim <setting> [--preset <name>] [--rounds <n>] [--seed <n>]"
             example="just sim meridian --preset Conservative --rounds 5"
-            flags=$(cli flags run) positional=premise ;;
-  session)  usage="just session <premise> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
+            flags=$(cli flags run) positional=setting ;;
+  session)  usage="just session <setting> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
             example="just session meridian --humans US --rounds 3"
-            flags=$(cli flags session) positional=premise ;;
+            flags=$(cli flags session) positional=setting ;;
   serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
             example="just serve --port 9000"
             flags=$(cli flags serve) positional= ;;
@@ -33,7 +33,7 @@ fail() {
   echo
   echo "usage: $usage"
   case $positional in
-    premise) echo "  premises: $premises" ;;
+    setting) echo "  settings: $settings" ;;
     package)  echo "  packages:  $packages" ;;
   esac
   [ "$recipe" = sim ] && echo "  presets:   $presets"
@@ -47,7 +47,7 @@ one_of() { [[ " $2 " == *" $1 "* ]]; }
 if [ -n "$positional" ]; then
   [ $# -gt 0 ] && [[ "$1" != -* ]] || fail "missing $positional"
   case $positional in
-    premise) one_of "$1" "$premises" || fail "unknown premise '$1'" ;;
+    setting) one_of "$1" "$settings" || fail "unknown setting '$1'" ;;
     package)  one_of "$1" "$packages" || fail "unknown package '$1'"
               [ $# -eq 1 ] || fail "test-pkg takes one package" ;;
   esac

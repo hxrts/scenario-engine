@@ -1,5 +1,5 @@
 -- | The bindings a runner plays a game with when no person or model takes part: Strategies, and
--- | scripts read from Proposals already written down (a literal premise's rounds, a stored run's records).
+-- | scripts read from Proposals already written down (a literal setting's rounds, a stored run's records).
 module Game.Bindings
   ( strategyBindings
   , scriptBindings

@@ -204,6 +204,6 @@ conditioned w p = concat <$> traverse check gated
       )
     Block -> Q.zero
 
--- | The group an Entity counts as: itself, unless the premise says otherwise.
+-- | The group an Entity counts as: itself, unless the setting says otherwise.
 groupOf :: WorldState -> EntityId -> EntityId
 groupOf w e = fromMaybe e (Map.lookup e w.groups)

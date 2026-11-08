@@ -312,7 +312,7 @@ type RuleChange = RuleChangeF Q
 
 -- | Whether a joint Proposal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
 -- | change of Rule are one party's own action (docs/02 §3.3). The one statement of the rule: screening,
--- | the premise shape of a joint Proposal, and the prompt's wording all follow it.
+-- | the setting shape of a joint Proposal, and the prompt's wording all follow it.
 jointIntent :: forall m v. IntentF m v -> Boolean
 jointIntent = case _ of
   Transfer _ -> true
@@ -484,7 +484,7 @@ instance Show v => Show (RuleChangeF v) where
 
 -- Described shapes. The engine's Intents, Rules and rule changes are described once
 -- here. Their JSON codecs are the snapshot codec of the shape, so no second codec exists for them.
--- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the premise-format tags of
+-- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the setting-format tags of
 -- these types are in the `schema` package.
 
 idShape :: forall t. Shape (Id t)
@@ -553,7 +553,7 @@ ruleFormShape = genericSum "RuleForm"
   , "ReduceCapacity": atTagged "a reduction of a capacity" unitShape
   }
 
--- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
+-- The bodies the snapshot, setting and template forms of an Intent share, over its filling `v`. The
 -- tag forms differ by format; these do not.
 
 -- | A Transfer.

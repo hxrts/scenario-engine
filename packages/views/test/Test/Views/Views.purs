@@ -30,7 +30,7 @@ import Effect.Aff (Aff)
 import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Schema.Run (specPairs)
 import Game.Recipe (encodeSpec)
 import Foreign.Object as Object
@@ -234,7 +234,7 @@ spec context = describe "Views and error paths" do
   it "the overview returns the header's facts, in order" do
     ctx <- context
     r <- play ctx (conservative 2)
-    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Premise", "Status", "Rounds completed", "Game ID" ]
+    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Setting", "Status", "Rounds completed", "Game ID" ]
   where
   summary s =
     { id: s.id

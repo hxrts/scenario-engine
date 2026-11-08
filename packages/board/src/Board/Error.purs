@@ -1,6 +1,6 @@
 -- | The errors and differences of Gameboard realization (docs/03_gameboard.md, docs/04_instantiated_game.md
 -- | §14.2): the failed checks of `Board.Gameboard.Validate` and the differences between two
--- | instantiations of one economy. Realization owns these; the premise format does not.
+-- | instantiations of one economy. Realization owns these; the setting format does not.
 module Board.Error
   ( ValidationError(..)
   , Inconsistency(..)

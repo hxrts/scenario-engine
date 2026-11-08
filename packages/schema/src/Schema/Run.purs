@@ -94,7 +94,7 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
 specKey :: { gameId :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, source :: String, kind :: String, model :: String, humans :: String }
 specKey = { gameId: "gameId", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", source: "source", kind: "kind", model: "model", humans: "humans" }
 
--- | The stored specification. Every value is stored as text, in the premise
+-- | The stored specification. Every value is stored as text, in the setting
 -- | format, so an absent field is not written.
 specShape :: Shape Spec
 specShape = object "Spec" ado
@@ -116,7 +116,7 @@ specPairs s = case specShape.desc of
   DRec _ fields -> mapMaybe (\f -> Tuple f.key <$> (Object.lookup f.key written >>= toString)) fields
   _ -> []
   where
-  written = case toObject (encodeWith Premise specShape s) of
+  written = case toObject (encodeWith Authored specShape s) of
     Just o -> o
     Nothing -> Object.empty
 

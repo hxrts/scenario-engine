@@ -29,9 +29,9 @@ import Server.Launch (play, start)
 import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset, checkRounds)
-import Server.Premises (Premises, ofSpec)
+import Server.Settings (Settings, ofSpec)
 import Schema.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
-import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
+import Core.Shape (Format(Authored), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Simulator.Records (recordsEqual)
@@ -47,8 +47,8 @@ import Simulator.Simulate (resumeWith)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Cache -> Premises -> StoreBackend -> String -> DeriveRequest -> Effect Reply
-deriveRun cache premises store sourceId body = do
+deriveRun :: Cache -> Settings -> StoreBackend -> String -> DeriveRequest -> Effect Reply
+deriveRun cache settings store sourceId body = do
   let kind = body.kind
   runInfo store sourceId >>= case _ of
     Nothing -> failWith 404 ("no run " <> sourceId)
@@ -63,15 +63,15 @@ deriveRun cache premises store sourceId body = do
           | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
         _ -> do
           stored <- runObserve store (readManifest sourceId)
-          case stored <#> \m -> m.spec >>= \spec -> { base: _, premise: _ } <$> decodeSpec spec <*> ofSpec premises spec of
+          case stored <#> \m -> m.spec >>= \spec -> { base: _, setting: _ } <$> decodeSpec spec <*> ofSpec settings spec of
             Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
             Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
-            Just (Right { base, premise }) -> case deriveRecipe kind body base of
+            Just (Right { base, setting }) -> case deriveRecipe kind body base of
               Left e -> failWith 400 e
-              Right _ | kind == Variant, Just bad <- outOfRange premise -> failWith 400 bad
+              Right _ | kind == Variant, Just bad <- outOfRange setting -> failWith 400 bad
               Right recipe -> do
                 let name = fromMaybe (info.name <> " (" <> deriveKindName kind <> ")") body.name
-                started <- start premise store
+                started <- start setting store
                   { name
                   , preset: recipe.preset
                   , playerSeed: recipe.playerSeed
@@ -91,18 +91,18 @@ deriveRun cache premises store sourceId body = do
   where
   -- a variant is a new game, so a round count it asks for obeys the Gameboard's range; a duplicate or a
   -- rerun replays what was recorded
-  outOfRange premise = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.gameboard) body.rounds)
+  outOfRange setting = either (Just <<< show) (const Nothing) (traverse_ (checkRounds setting.gameboard) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
-  replied id recordsMatch = pure (Route.replyIn Premise derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch })
+  replied id recordsMatch = pure (Route.replyIn Authored derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch })
 
--- | The reply to a derive; `recordsMatch` only for a rerun. The premise format leaves it out otherwise.
+-- | The reply to a derive; `recordsMatch` only for a rerun. The setting format leaves it out otherwise.
 derivedShape :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
 derivedShape = recordShape "Derived" { id: stringShape, source: stringShape, kind: deriveKindShape, recordsMatch: optionalOf boolShape }
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: Premises -> StoreBackend -> String -> Int -> Effect Reply
-resumeRun premises store id rounds =
+resumeRun :: Settings -> StoreBackend -> String -> Int -> Effect Reply
+resumeRun settings store id rounds =
   runInfo store id >>= case _ of
     Nothing -> failWith 404 ("no run " <> id)
     Just info
@@ -116,7 +116,7 @@ resumeRun premises store id rounds =
               Right p
                 | rounds <= p.done -> failWith 400 ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
                 | otherwise -> do
-                    case assemblePreset p.premise p.base.preset p.base.overrides (Just rounds) of
+                    case assemblePreset p.setting p.base.preset p.base.overrides (Just rounds) of
                       Left e -> failWith 400 (show e)
                       Right game -> do
                         attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
@@ -129,14 +129,14 @@ resumeRun premises store id rounds =
             _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
-  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, premise :: _, seed :: Seed, snapshot :: WorldState, done :: Int }
+  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, setting :: _, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
     spec <- text
     base <- decodeSpec spec
-    premise <- ofSpec premises spec
+    setting <- ofSpec settings spec
     seed <- note "the stored spec has no player seed" base.playerSeed
     snapshot <- latest.snapshot
-    pure { spec, base, premise, seed: Seed seed, snapshot, done }
+    pure { spec, base, setting, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
 setArchive :: StoreBackend -> String -> Boolean -> Effect Reply

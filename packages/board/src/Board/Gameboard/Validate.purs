@@ -195,7 +195,7 @@ type Names m r t k =
   , policies :: Set PolicyId
   }
 
--- | The names of a world on its own: a literal premise has no parameters, schemes, or Policies.
+-- | The names of a world on its own: a literal setting has no parameters, schemes, or Policies.
 worldNames :: forall m r t k rest. { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t, ruleKinds :: Map RuleKindId k | rest } -> Names m r t k
 worldNames w =
   { entities: w.entities

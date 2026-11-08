@@ -43,7 +43,7 @@ _derived:
     node scripts/check-derived.js --samples
     node scripts/check-derived.js
 
-# Compile the premise DSL to JSON, then generate the capstone recording (no model call)
+# Compile the setting DSL to JSON, then generate the capstone recording (no model call)
 _premises:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript

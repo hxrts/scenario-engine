@@ -32,11 +32,11 @@ type WorldFields r =
   , markets :: Map MarketId Market
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
-  , numeraire :: ResourceId -- the premise's unit of account; only the views read it
-  , focus :: Maybe Focus -- the Resource the premise's market views centre on; only the views read it
+  , numeraire :: ResourceId -- the setting's unit of account; only the views read it
+  , focus :: Maybe Focus -- the Resource the setting's market views centre on; only the views read it
   , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
-  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
+  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the setting declares
   , rules :: Map RuleId Rule -- Rules in force
   , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
   , deliveries :: Array Delivery -- due at Prepare
@@ -56,7 +56,7 @@ seeded :: Seed -> UnseededWorld -> WorldState
 seeded seed w = Record.insert (Proxy :: Proxy "seed") seed w
 
 -- | One step of the recurring cycle (docs/02_type_system.md §6): a Resource moving from a source to a
--- | destination each round. The DSL compiles a premise's recurring forms into these; `kind` is the
+-- | destination each round. The DSL compiles a setting's recurring forms into these; `kind` is the
 -- | name it declares for the form, and Core reads none of them.
 type RecurringFlow =
   { id :: RecurringFlowId
@@ -96,7 +96,7 @@ data CausePattern = CurveBase | ConversionPayment | ConversionOf TransformationI
 data LegAggregate = SumMoved | SumValue | LargestUnits
 
 -- | A question about the record (docs/02 §6): a window, a party, a side, an optional Resource, a cause
--- | pattern, and an aggregate. Stored in a premise as data.
+-- | pattern, and an aggregate. Stored in a setting as data.
 type LegQuery =
   { window :: Window
   , party :: EntityId
@@ -142,7 +142,7 @@ instance Show Mechanism where
   show = genericShow
 
 -- | What produced a settlement: an Intent of a Proposal, a declared Rule kind, or a recurring-flow rule.
--- | It points at the thing; a premise's name for it is on the thing.
+-- | It points at the thing; a setting's name for it is on the thing.
 data Cause
   = OfIntent { proposal :: ProposalId, intent :: Int, mechanism :: Mechanism }
   | OfRule { kind :: RuleKindId }
@@ -379,7 +379,7 @@ lapse round proposal = Lapsed { round, proposal }
 orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event
 orderRemoved round proposal reason = OrderRemoved { round, proposal, reason }
 
--- | The Resource a premise's market views centre on, and what they call it.
+-- | The Resource a setting's market views centre on, and what they call it.
 type Focus = { resource :: ResourceId, label :: String }
 
 focusShape :: Shape Focus

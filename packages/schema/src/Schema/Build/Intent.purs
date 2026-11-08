@@ -1,7 +1,7 @@
 -- | The Intent builders, one per kind (docs/02_type_system.md §3). `trade`, `route`, `transfer`,
 -- | `enactWithholding` and `repeal` are polymorphic in their filling: a fixture's Intent takes `Q`
 -- | quantities, a Strategy's template takes `Expr` and is lifted with `Schema.Build.Decision.asTemplate`.
--- | `transform`, `enactTariff` and `enactAccessBan` name their actor, which the premise format of a
+-- | `transform`, `enactTariff` and `enactAccessBan` name their actor, which the setting format of a
 -- | template cannot write, so they take `Q` only; a Strategy uses `Decision.selfTransform`,
 -- | `selfTariff` and `selfAccessBan` (a template naming another actor is a compile error, not a crash).
 module Schema.Build.Intent

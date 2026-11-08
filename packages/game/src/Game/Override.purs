@@ -1,4 +1,4 @@
--- | Declarative overrides of a baseline premise (docs/06_simulator.md §3.1). Values change within the
+-- | Declarative overrides of a baseline setting (docs/06_simulator.md §3.1). Values change within the
 -- | Gameboard's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.
@@ -70,7 +70,7 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
 overrideShape :: Shape Override
 overrideShape = genericTypedSum "Override" "type" ("unknown override type " <> _)
   { "GameSeed": atFields "type" "GameSeed" "gameSeed" "reseed the game" (object1 "seed" "the game seed" intShape)
-  , "Parameter": atFields "type" "Parameter" "parameter" "set a premise parameter" (pair "name" "the parameter" stringShape "value" "its value" decimal)
+  , "Parameter": atFields "type" "Parameter" "parameter" "set a setting parameter" (pair "name" "the parameter" stringShape "value" "its value" decimal)
   , "Capacity": atFields "type" "Capacity" "capacity" "set an Entity's capacity"
       ( (\e c v -> Tuple e (Tuple c v))
           <$> fieldOf "entity" "the Entity" idShape fst

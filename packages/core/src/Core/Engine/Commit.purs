@@ -34,7 +34,7 @@ import Data.Tuple (Tuple(..))
 data EngineError
   = NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
   | NegativeReserve MarketId ResourceId -- likewise, for Market reserves
-  | NegativeFlow EntityId EntityId -- a fixed flow with a negative amount: a World State the premise codec would refuse
+  | NegativeFlow EntityId EntityId -- a fixed flow with a negative amount: a World State the setting codec would refuse
 
 derive instance Eq EngineError
 instance Show EngineError where

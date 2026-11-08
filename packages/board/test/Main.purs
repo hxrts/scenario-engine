@@ -24,7 +24,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
 import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, Measure(..), Span(..))
-import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
+import Schema.Setting.Gameboard (decodeConfig, decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -229,7 +229,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             Left es -> fail (show es)
             Right initial -> show initial.world.seed `shouldEqual` "9"
 
--- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 

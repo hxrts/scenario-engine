@@ -103,13 +103,13 @@ shapeText s = stringify <<< encodeWith Snapshot s
 fromShape :: forall a. Shape a -> String -> String -> Stored a
 fromShape s what text = lmap (\e -> what <> ": " <> printJsonDecodeError e) (parse Snapshot s text)
 
--- | A stored specification to its text, in the premise form: an absent field is not written.
+-- | A stored specification to its text, in the setting form: an absent field is not written.
 specText :: Spec -> String
-specText = stringify <<< encodeWith Premise specShape
+specText = stringify <<< encodeWith Authored specShape
 
 -- | A stored specification's text, read through its shape.
 specOf :: String -> Stored Spec
-specOf text = lmap (\e -> "spec: " <> printJsonDecodeError e) (parse Premise specShape text)
+specOf text = lmap (\e -> "spec: " <> printJsonDecodeError e) (parse Authored specShape text)
 
 -- | A row's status text as the type the program reads. Only this module writes the column, so text
 -- | outside the set is a damaged store: an exception, not a guess.

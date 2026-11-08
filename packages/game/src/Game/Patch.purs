@@ -1,5 +1,5 @@
--- | Named patches of a base premise (docs/03): the only way a premise is changed from outside after it
--- | is authored. Each fails on a name the premise does not have, so a patch never silently does nothing.
+-- | Named patches of a base setting (docs/03): the only way a setting is changed from outside after it
+-- | is authored. Each fails on a name the setting does not have, so a patch never silently does nothing.
 module Game.Patch
   ( setCapacity
   , setCurve
@@ -21,9 +21,9 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Foreign.Object as Object
 import Game.Error (GameError(..), Stage(..))
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Schema.Gameboard (Gameboard)
-import Schema.Premise.World (rulesFromList)
+import Schema.Setting.World (rulesFromList)
 import Schema.Recurring (Circulation, compileIn)
 
 -- | Set what an Entity holds of a capacity.
@@ -56,7 +56,7 @@ setPosition m q gb
   | Map.member m gb.world.markets = Right gb { world { markets = Map.update (\x -> pure x { position = q }) m gb.world.markets } }
   | otherwise = Left (Invalid AfterOverrides [ UnknownReference Market (idText m) ])
 
--- | The Rules in force at the start. The check after filtering rejects one naming what the premise lacks.
+-- | The Rules in force at the start. The check after filtering rejects one naming what the setting lacks.
 setRules :: Array (RuleF Q) -> Gameboard -> Either GameError Gameboard
 setRules rs gb = Right gb { world { rules = rulesFromList rs } }
 
@@ -64,14 +64,14 @@ setRules rs gb = Right gb { world { rules = rulesFromList rs } }
 setRepresentations :: Array Representation -> Gameboard -> Either GameError Gameboard
 setRepresentations rs gb = Right gb { world { representations = rs } }
 
--- | Replace the recurring flows a premise authors; its decays stay.
+-- | Replace the recurring flows a setting authors; its decays stay.
 withCirculation :: Circulation -> Gameboard -> Gameboard
 withCirculation c gb = gb
   { authored { circulation = c }
   , world { recurring = compileIn gb.world.numeraire c gb.authored.decays }
   }
 
--- | The premise with no one deciding: no Actor definitions, schemes, seats or presets, and each Policy
+-- | The setting with no one deciding: no Actor definitions, schemes, seats or presets, and each Policy
 -- | left with nothing to do. The Aggregates keep their Policies' names. A fixture's decisions are its
 -- | Proposals, so what a Policy reads does not constrain what the fixture keeps.
 engineOnly :: GameboardParts -> GameboardParts

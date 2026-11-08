@@ -10,7 +10,7 @@ const root = path.join(__dirname, "..");
 
 // The rules are checked on PureScript source: its src/ trees, and its test/ trees for a rule that says so
 // (each rule's `files` predicate names its scope). A rule with `js: true` also reads the JavaScript beside it.
-// Tag kinds of the premise format: each Shape module keeps its tags as private constants (`tradeTag = "trade"`),
+// Tag kinds of the setting format: each Shape module keeps its tags as private constants (`tradeTag = "trade"`),
 // so a kind with its separator is written only in packages/schema/src (docs/03 §3).
 const schemaSrc = path.join(root, "packages/schema/src");
 const isPurs = (n) => n.endsWith(".purs");
@@ -25,19 +25,19 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
-    name: "a fixture's world is a restrict of its premise plus named patches: no fixture module builds an Entity, Market, Transformation, or World",
-    files: (f) => f.startsWith("packages/premises/src/Premises/Meridian/Fixtures"),
+    name: "a fixture's world is a restrict of its setting plus named patches: no fixture module builds an Entity, Market, Transformation, or World",
+    files: (f) => f.startsWith("packages/premises/src/Settings/Meridian/Fixtures"),
     bad: (line) => /\b(noEntity|noMarket|noFacility|emptyWorld|byKey|entitiesOf|pickAccounts|Map\.(union|fromFoldable))\b/.test(line),
   },
   {
-    name: "the server loads what the premise root contains: it imports no setting, Kit, or Catalog",
+    name: "the server loads what the setting root contains: it imports no setting, Kit, or Catalog",
     files: (f) => f.startsWith("apps/server/src/"),
-    bad: (line) => /^import Premises\.(Meridian|Kit|Catalog)\b/.test(line),
+    bad: (line) => /^import Settings\.(Meridian|Kit|Catalog)\b/.test(line),
   },
   {
-    name: "Premises.Kit is generic: it imports no premise (Premises.Meridian)",
-    files: (f) => f.startsWith("packages/premises/src/Premises/Kit"),
-    bad: (line) => /^import Premises\.Meridian\b/.test(line),
+    name: "Settings.Kit is generic: it imports no setting (Settings.Meridian)",
+    files: (f) => f.startsWith("packages/premises/src/Settings/Kit"),
+    bad: (line) => /^import Settings\.Meridian\b/.test(line),
   },
   {
     name: "effects declare operations only: no interpret, on, or handler definition",
@@ -63,7 +63,7 @@ const rules = [
     bad: (line) => /"(running|completed|failed)"/.test(line),
   },
   {
-    name: "no premise tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only",
+    name: "no setting tag built outside schema: a tag kind with its separator (`trade:`, `enact:`) is spelled in the schema's Shape modules only",
     files: (f) => f.includes("/src/") && !f.startsWith("packages/schema/src/"),
     bad: (line) => tagKinds.some((k) => line.includes(`"${k}:`)),
   },

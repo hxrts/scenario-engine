@@ -16,10 +16,10 @@ import Data.Tuple (Tuple(..), fst, snd)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Api.Route (route)
-import Premises.Compose (Setting, files, parts)
-import Premises.Kit (Cover(..), HoldingTable, market, seat)
-import Premises.Kit.Presets (standardThresholds)
-import Premises.Load (fromFiles)
+import Settings.Compose (Setting, files, parts)
+import Settings.Kit (Cover(..), HoldingTable, market, seat)
+import Settings.Kit.Presets (standardThresholds)
+import Settings.Load (fromFiles)
 import Schema.Build.Decision (lit)
 import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
@@ -28,7 +28,7 @@ import Server.Cache (newCache)
 import Server.Implementation (implement)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (premise)
+import Testkit.Meridian (setting)
 
 focus :: Focus
 focus = { resource: Id "C", label: "Corn" }
@@ -89,16 +89,16 @@ spec = describe "A second Setting" do
   it "a preset naming what the Setting lacks is refused" do
     isLeft (parts harbor { presets { build = Just { transformation: "no-such", quantity: lit 1 } } }) `shouldEqual` true
   it "is played and viewed, and compared with Meridian as a batch; each run records its Setting" do
-    meridian <- premise
+    meridian <- setting
     case parts harbor of
       Left e -> fail e
       Right h -> do
         db <- liftEffect (open ":memory:")
         cache <- liftEffect newCache
         let api method path query body = liftEffect (route (implement [ meridian, h ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable query, body })
-        list <- api "GET" "/api/premise" [] ""
+        list <- api "GET" "/api/setting" [] ""
         list.body `shouldSatisfy` contains (Pattern "\"harbor\"")
-        launched <- api "POST" "/api/runs" [] "{\"premise\":\"harbor\",\"name\":\"h\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"
+        launched <- api "POST" "/api/runs" [] "{\"setting\":\"harbor\",\"name\":\"h\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"
         launched.status `shouldEqual` 200
         charts <- api "GET" "/api/runs/run-1/markets" [] ""
         charts.body `shouldSatisfy` contains (Pattern "Corn reserves")
@@ -109,8 +109,8 @@ spec = describe "A second Setting" do
         rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
         batch <- api "POST" "/api/batch" [] "{\"preset\":\"Conservative\",\"playerSeed\":1}"
         batch.status `shouldEqual` 200
-        batch.body `shouldSatisfy` contains (Pattern "\"premise\":\"meridian\"")
-        batch.body `shouldSatisfy` contains (Pattern "\"premise\":\"harbor\"")
+        batch.body `shouldSatisfy` contains (Pattern "\"setting\":\"meridian\"")
+        batch.body `shouldSatisfy` contains (Pattern "\"setting\":\"harbor\"")
         compared <- api "GET" "/api/compare" [ Tuple "runs" "run-3,run-4" ] ""
         compared.status `shouldEqual` 200
         compared.body `shouldSatisfy` contains (Pattern "\"skipped\":[]")

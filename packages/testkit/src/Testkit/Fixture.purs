@@ -1,5 +1,5 @@
--- | The shared path for a literal premise (fixture): it plays through `simulate` with its Proposals
--- | and signatures as Script bindings, and the records are checked against the premise's rounds. Every
+-- | The shared path for a literal setting (fixture): it plays through `simulate` with its Proposals
+-- | and signatures as Script bindings, and the records are checked against the setting's rounds. Every
 -- | suite that checks a fixture (the golden tests, the views, experiments and simulator suites) calls this.
 module Testkit.Fixture (fixture, checkLiteral) where
 
@@ -8,9 +8,9 @@ import Prelude
 import Adapters.Filesystem (fileOps)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Premises.Load (loadLiteral)
-import Premises.Layout (fixturePath)
-import Premises.Tree (readRootFile)
+import Settings.Load (loadLiteral)
+import Settings.Layout (fixturePath)
+import Settings.Tree (readRootFile)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 import Checks.Round (Failure(..), Field(..), checkRound)
@@ -21,11 +21,11 @@ import Data.Array (concat, index, length, mapWithIndex, sort, sortWith, head)
 import Data.Either (Either(..))
 import Data.Maybe (fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
-import Premises.Literal (literalGame)
-import Schema.Premise.Fixture (Literal, Round)
+import Settings.Literal (literalGame)
+import Schema.Setting.Fixture (Literal, Round)
 import Simulator.Simulate (SimRun, simulate)
 
--- | Every failure of a literal premise played through the simulator: an invariant broken in any round,
+-- | Every failure of a literal setting played through the simulator: an invariant broken in any round,
 -- | an expectation the records do not meet, a round whose Proposals the engine did not receive as
 -- | written, or a round the engine stopped at. An empty list is a passing fixture.
 checkLiteral :: Literal -> Array Failure

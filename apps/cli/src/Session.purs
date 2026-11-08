@@ -43,20 +43,20 @@ import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, settle, startRun)
 import Exit (fail)
 import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
-import Game.Premise (Premise(..))
+import Game.Setting (Setting(..))
 import Game.Recipe (encodeSpec)
-import Premises.Presets (presetNames)
+import Settings.Presets (presetNames)
 import Schema.Gameboard (gameIdOf)
-import Premises.Load (loadFrom)
+import Settings.Load (loadFrom)
 
-type Options = { premise :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
+type Options = { setting :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 session :: Options -> Effect Unit
-session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
+session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
   Left e -> fail e
   Right parts | unknown <- unknownSeats humans parts.config, unknown /= [] ->
-    fail ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown))
-  Right parts -> case traverse_ (checkRounds parts.gameboard) o.rounds *> assemble (GameboardPremise parts) (liveBindings humans parts.config) [] of
+    fail ("error: --humans names no seat of this setting: " <> joinWith ", " (map show unknown))
+  Right parts -> case traverse_ (checkRounds parts.gameboard) o.rounds *> assemble (GameboardSetting parts) (liveBindings humans parts.config) [] of
     Left e -> fail (show e)
     Right assembled -> launchAff_ do
       let
@@ -78,7 +78,7 @@ session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
       created <- liftEffect nowIso
       owner <- liftEffect (processOwner "session")
       let
-        -- every seat of a run derived from this session plays the premise's first preset
+        -- every seat of a run derived from this session plays the setting's first preset
         preset = fromMaybe "" (find (\n -> Object.member n parts.presets) presetNames)
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
       started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })

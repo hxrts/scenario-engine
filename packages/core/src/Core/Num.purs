@@ -72,13 +72,13 @@ instance DecodeJson Q where
   decodeJson = decodeJsonWith Snapshot qShape
 
 -- | A fixed-point quantity, written as a decimal string. The two formats spell the same value
--- | differently: the snapshot writes four decimals (`Q.format`); the premise format writes the
+-- | differently: the snapshot writes four decimals (`Q.format`); the setting format writes the
 -- | minimal decimal the author wrote (`10`, `2.04`), which is what the compiled fixtures hold.
 qShape :: Shape Q
 qShape =
   { desc: DPrim "Q"
   , codec: \fmt ->
-      { enc: \q -> J.fromString (if fmt == Premise then formatMinimal q else format q)
+      { enc: \q -> J.fromString (if fmt == Authored then formatMinimal q else format q)
       , dec: \j -> note "expected a decimal quantity string" (J.toString j >>= parse)
       }
   , absent: \_ -> false

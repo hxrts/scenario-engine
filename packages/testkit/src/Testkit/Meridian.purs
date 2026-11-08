@@ -1,6 +1,6 @@
--- | The Meridian premise the views, experiments and simulator test suites share, and the fifteen seats every test
+-- | The Meridian setting the views, experiments and simulator test suites share, and the fifteen seats every test
 -- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (price, everySeat, run, valid, initialOf, premise, anyRounds, seats, unseated, presetGame, presetSeats, orThrow) where
+module Testkit.Meridian (price, everySeat, run, valid, initialOf, setting, anyRounds, seats, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
 
@@ -24,37 +24,37 @@ import Effect.Exception (error)
 import Core.Types (Id(..))
 import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, withRounds)
 import Game.Override (Override)
-import Game.Premise (GameboardParts, Premise(..))
+import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Bindings, Game, SeatBinding(..))
-import Premises.Load (loadFrom)
-import Premises.Meridian.Names (meridianDir, seatActors)
+import Settings.Load (loadFrom)
+import Settings.Meridian.Names (meridianDir, seatActors)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
 silent :: GameboardParts -> Bindings
 silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
 
--- | The Meridian premise: its Gameboard, configuration and presets, checked.
-premise :: Aff GameboardParts
-premise = do
+-- | The Meridian setting: its Gameboard, configuration and presets, checked.
+setting :: Aff GameboardParts
+setting = do
   loaded <- liftEffect (loadFrom fileOps meridianDir)
   orThrow loaded
 
 -- | The Meridian game with every seat bound to an empty script (silent).
 unseated :: Aff Game
 unseated = do
-  p <- premise
-  orThrow (assemble (GameboardPremise p) (silent p) [])
+  p <- setting
+  orThrow (assemble (GameboardSetting p) (silent p) [])
 
 -- | The Meridian seats every test plays.
 seats :: Array String
 seats = seatActors
 
--- | The premise with its supported round counts opened up, for suites that play a game shorter than the
--- | premise allows and read something else from it.
+-- | The setting with its supported round counts opened up, for suites that play a game shorter than the
+-- | setting allows and read something else from it.
 anyRounds :: GameboardParts -> GameboardParts
 anyRounds p = p { gameboard = p.gameboard { rounds = { min: 1, max: 8 } } }
 
--- | The Meridian premise assembled with every configured seat bound to one preset (see `assemblePreset`).
+-- | The Meridian setting assembled with every configured seat bound to one preset (see `assemblePreset`).
 presetGame :: GameboardParts -> String -> Array Override -> Maybe Int -> Aff Game
 presetGame p preset overrides rounds = orThrow (assemblePreset p preset overrides rounds)
 
@@ -62,9 +62,9 @@ presetGame p preset overrides rounds = orThrow (assemblePreset p preset override
 -- | Unlike `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
 presetSeats :: Array String -> String -> Maybe Int -> Aff Game
 presetSeats ids preset rounds = do
-  p <- premise
+  p <- setting
   listed <- orThrow (presetBindings p.presets (const preset) (map Id ids))
-  g <- orThrow (assemble (GameboardPremise p) (Map.union listed (silent p)) [])
+  g <- orThrow (assemble (GameboardSetting p) (Map.union listed (silent p)) [])
   pure (withRounds rounds g)
 
 -- | A value or the error it failed with, as an Aff error.

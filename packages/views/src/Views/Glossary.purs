@@ -35,7 +35,7 @@ type Glossary =
   , round :: { prefix :: String, definition :: String }
   }
 
--- | Every column the views use over the loaded premises' focus Resources, in name order, each once.
+-- | Every column the views use over the loaded settings' focus Resources, in name order, each once.
 allColumns :: Array Focus -> Array Column
 allColumns foci = nubBy (compare `on` _.name)
   ( sortBy (compare `on` _.name)

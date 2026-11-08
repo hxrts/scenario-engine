@@ -20,7 +20,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Game.Premise (GameboardParts)
+import Game.Setting (GameboardParts)
 import Testkit.Meridian (presetGame)
 import Testkit.Capstone (runOf)
 import Views.Actions (actions)

@@ -1,5 +1,5 @@
 -- | The one rendering of a JSON decode error. Text is read through `Core.Shape.parse` or
--- | `fromJsonString`; section decoding lives in `Schema.Premise.*`.
+-- | `fromJsonString`; section decoding lives in `Schema.Setting.*`.
 module Schema.Decode.Common
   ( decodeError
   ) where

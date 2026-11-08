@@ -1,4 +1,4 @@
--- | The major shock (docs/05 §13.6, `Premises.Meridian.majorShock`): a designed test case beside the
+-- | The major shock (docs/05 §13.6, `Settings.Meridian.majorShock`): a designed test case beside the
 -- | reference disruption. Calm and shocked games have the same seats, presets and player seed, so a
 -- | difference in a seat's proposals is the shock's doing.
 module Test.Simulator.Shock (spec) where
@@ -17,9 +17,9 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Game.Override (Override(..))
-import Game.Premise (GameboardParts)
-import Premises.Meridian (majorShock)
-import Premises.Presets (presetNames)
+import Game.Setting (GameboardParts)
+import Settings.Meridian (majorShock)
+import Settings.Presets (presetNames)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -50,9 +50,9 @@ flips :: SimRun -> SimRun -> Boolean
 flips calm shocked = any (\i -> roundKinds calm i /= roundKinds shocked i) (range 0 (length calm.records - 1))
 
 spec :: Aff GameboardParts -> Spec Unit
-spec premise = describe "Major shock (docs/05 §13.6)" do
+spec setting = describe "Major shock (docs/05 §13.6)" do
   it "flips the behaviour of at least four presets, deterministically" do
-    p <- premise
+    p <- setting
     let overrides = shockOverrides
     results <- traverse
       ( \preset -> do
@@ -64,7 +64,7 @@ spec premise = describe "Major shock (docs/05 §13.6)" do
     let flipped = map (\(Tuple preset _) -> preset) (filter (\(Tuple _ f) -> f) results)
     flipped `shouldSatisfy` (\ns -> length ns >= 4)
   it "pins the Conservative prices of docs/05 §13.6, and is deterministic" do
-    p <- premise
+    p <- setting
     calm <- play p "Conservative" []
     shocked <- play p "Conservative" shockOverrides
     again <- play p "Conservative" shockOverrides

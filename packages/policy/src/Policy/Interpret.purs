@@ -156,13 +156,13 @@ refTemplate =
 
 -- Evaluation ----------------------------------------------------------------------------
 
--- | Every condition holds. A condition over a value that does not resolve (a parameter the premise
+-- | Every condition holds. A condition over a value that does not resolve (a parameter the setting
 -- | lacks) does not hold, so its clause does not fire.
 fires :: Env -> Array Cond -> Boolean
 fires env = all (\c -> holds env c == Just true)
 
 -- | An expression's value, or Nothing when a Market it prices does not resolve or a parameter it reads
--- | is one the premise lacks.
+-- | is one the setting lacks.
 eval :: Env -> Expr -> Maybe Q
 eval env = foldExpr (evalAlg env)
 
@@ -212,7 +212,7 @@ draft env n t = case t of
     Nothing -> { next: n + 1, drafts: [] }
   ProposalT p
     | all (isJust <<< traverse (eval env)) p.intents -> { next: n, drafts: [ proposalOf env p ] }
-    -- a parameter the premise lacks: the Proposal is dropped whole, never sent short of a leg
+    -- a parameter the setting lacks: the Proposal is dropped whole, never sent short of a leg
     | otherwise -> { next: n, drafts: [] }
   _ ->
     { next: n
