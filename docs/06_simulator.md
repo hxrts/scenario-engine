@@ -61,7 +61,7 @@ simulate :: Seed -> Game -> Either GameError SimRun
 
 The `Game` holds the manifest, the initial World State, the in-world Strategies, the rounds to play, the parameters, and one `SeatBinding` per seat. A seat's preset, agent, script, or human is chosen when the game is assembled, not inside the simulator. The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
 
-The stored spec (`Game.Recipe`) records how the run was made: the preset every seat plays, the resolved player seed, the overrides, and the round count. With the same engine version, the spec and the seeds reproduce the complete economic history.
+The stored spec (`Game.Recipe`) records how the run was made: the preset every seat plays, the resolved player seed, the overrides, and the round count when one was given (the key is absent otherwise, and an older row's `"default"` reads as absent). With the same engine version, the spec and the seeds reproduce the complete economic history.
 
 ### 3.1 Configuration inheritance
 
