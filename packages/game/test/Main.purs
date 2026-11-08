@@ -8,7 +8,10 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Proposal (proposalAt)
-import Core.Types (Id(..), RefKind(..), proposalId)
+import Board.Error (ValidationError(..))
+import Board.Gameboard.Validate (gameboardNames, unknownNames)
+import Core.Types (Id(..), PolicyId, RefKind(..), proposalId)
+import Data.Array (fromFoldable, head)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
@@ -103,6 +106,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "an override naming an unknown Entity is an error" do
       p <- premise
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+    it "an override naming an unknown capacity, or making an unknown Entity implicit, is an error" do
+      p <- premise
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" CapacityName "no-such-capacity")
+      map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+    it "a recipe read back from a stored spec checks its overrides when it is played" do
+      p <- premise
+      case decodeOverrides =<< jsonParser """[{"type":"implicit","entity":"NOBODY"}]""" of
+        Left e -> fail e
+        Right overrides -> map (const unit) (assemblePreset p "Passive" overrides Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+    it "the name check knows every kind of reference" do
+      p <- premise
+      let
+        scope = gameboardNames p.gameboard
+        firstPolicy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.gameboard.policies) :: Array PolicyId)))
+      unknownNames scope [ Tuple SchemeRef "no-such-scheme", Tuple PolicyRef "no-such-policy", Tuple RuleKindRef "no-such-kind" ]
+        `shouldEqual` [ UnknownReference SchemeRef "no-such-scheme", UnknownReference PolicyRef "no-such-policy", UnknownReference RuleKindRef "no-such-kind" ]
+      unknownNames scope [ Tuple PolicyRef firstPolicy, Tuple RuleKindRef "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
       p <- premise
       case assemble (GameboardPremise p) (Map.insert (Id "US") Agent (silent p)) [] of

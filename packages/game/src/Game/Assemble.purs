@@ -19,13 +19,12 @@ import Game.Bindings (strategyBindings)
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Strategy (InWorld, Strategy)
 import Core.World (manifestOf)
-import Core.Num (Q)
-import Core.Types (Entity, EntityId, MarketId, ResourceId, TransformationId)
+import Board.Gameboard.Validate (Names, gameboardNames, worldNames)
+import Core.Types (EntityId)
 import Data.Array (elem, fromFoldable, null, filter)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
-import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe, maybe)
 import Data.Newtype (unwrap)
@@ -50,7 +49,7 @@ assemble premise bindings overrides = case premise of
     resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
     initial <- lmap (Invalid AfterOverrides) (instantiate resolved.gameboard resolved.config)
     checkSeats (configuredSeats resolved.config) bindings
-    checkStrategies resolved.gameboard.world resolved.gameboard.parameters bindings
+    checkStrategies (gameboardNames resolved.gameboard) bindings
     pure
       { manifest: initial.manifest
       , world: initial.world
@@ -62,7 +61,7 @@ assemble premise bindings overrides = case premise of
     | not (null overrides) -> Left LiteralOverrides
     | otherwise -> do
         -- a literal premise has no seat configuration: any Entity it writes answers may be bound
-        checkStrategies p.world (Object.empty :: Object Q) bindings
+        checkStrategies (worldNames p.world) bindings
         pure
           { manifest: manifestOf "literal" p.world
           , world: p.world
@@ -80,16 +79,11 @@ checkSeats seats bindings = do
 
 -- | Every Strategy bound to a seat names only what the premise has. A catalog Policy or preset was
 -- | checked at load; a Strategy bound directly (the capstone's, an `assemble` caller's) is checked here.
-checkStrategies
-  :: forall m r t p rest
-   . { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
-  -> Object p
-  -> Bindings
-  -> Either GameError Unit
-checkStrategies world parameters bindings = traverse_ check (Map.toUnfoldable bindings :: Array _)
+checkStrategies :: forall m r t k. Names m r t k -> Bindings -> Either GameError Unit
+checkStrategies names bindings = traverse_ check (Map.toUnfoldable bindings :: Array _)
   where
   check (Tuple e binding) = case binding of
-    Strategy s -> checkRefs ("seat " <> unwrap e) world parameters s
+    Strategy s -> checkRefs ("seat " <> unwrap e) names s
     _ -> Right unit
 
 -- | The seats the configuration names, in order.

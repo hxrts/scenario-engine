@@ -2,27 +2,29 @@
 -- | Gameboard's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.
-module Game.Override (Override(..), overrideShape, resolve, encodeOverrides, decodeOverrides) where
+module Game.Override (Override(..), overrideShape, overrideRefs, resolve, encodeOverrides, decodeOverrides) where
 
 import Prelude
 
+import Board.Error (ValidationError(..))
 import Board.Gameboard.Instantiate (withoutActor)
+import Board.Gameboard.Validate (gameboardNames, unknownNames)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, atFields, genericTypedSum)
-import Core.Types (CapacityRef, EntityId, RefKind(..), idShape)
+import Core.Types (CapacityRef, EntityId, RefKind(..), idShape, idText)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
-import Data.Array (any)
+import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)
 import Data.Foldable (foldM)
 import Data.Generic.Rep (class Generic)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
-import Game.Error (GameError(..))
+import Game.Error (GameError(..), Stage(..))
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
 data Override
@@ -35,22 +37,29 @@ data Override
 derive instance Generic Override _
 derive instance Eq Override
 
+-- | The names an override uses, as `Policy.Strategy.strategyRefs` lists a Strategy's.
+overrideRefs :: Override -> Array (Tuple RefKind String)
+overrideRefs = case _ of
+  GameSeed _ -> []
+  Parameter name _ -> [ Tuple ParameterRef name ]
+  Capacity e ref _ -> [ Tuple EntityRef (idText e), Tuple CapacityName (idText ref) ]
+  Shrinkage scheme _ -> [ Tuple SchemeRef scheme ]
+  Implicit e -> [ Tuple EntityRef (idText e) ]
+
 -- | Apply overrides to the baseline Gameboard and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.
 resolve :: { gameboard :: Gameboard, config :: InstantiationConfig } -> Array Override -> Either GameError { gameboard :: Gameboard, config :: InstantiationConfig }
-resolve base overrides = foldM apply base overrides
+resolve base overrides = checked *> foldM apply base overrides
   where
+  checked = maybe (Right unit) (Left <<< unresolved) (head (unknownNames (gameboardNames base.gameboard) (concatMap overrideRefs overrides)))
+  unresolved = case _ of
+    UnknownReference kind ref -> Unresolved "override" kind ref
+    e -> Invalid AfterOverrides [ e ]
   apply acc = case _ of
     GameSeed s -> Right acc { config = acc.config { seed = Seed s } }
-    Parameter name q
-      | Object.member name acc.gameboard.parameters -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-      | otherwise -> Left (Unresolved "override" ParameterRef name)
-    Capacity e ref q
-      | Map.member e acc.gameboard.world.entities -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
-      | otherwise -> Left (Unresolved "override" EntityRef (show e))
-    Shrinkage scheme q
-      | any (\s -> s.id == scheme) acc.gameboard.schemes -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
-      | otherwise -> Left (Unresolved "override" SchemeRef scheme)
+    Parameter name q -> Right acc { gameboard = acc.gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
+    Capacity e ref q -> Right acc { gameboard = acc.gameboard { world = acc.gameboard.world { entities = Map.update (\x -> Just x { capacities = Map.insert ref q x.capacities }) e acc.gameboard.world.entities } } }
+    Shrinkage scheme q -> Right acc { gameboard = acc.gameboard { schemes = map (\s -> if s.id == scheme then s { estimator = s.estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
     Implicit e -> Right acc { config = withoutActor e acc.config }
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.

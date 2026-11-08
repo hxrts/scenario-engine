@@ -67,7 +67,10 @@ evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Arr
   isFlow = case _ of
     HoldingOf _ -> false
     CapacityAmount _ -> false
-    _ -> true
+    ShortfallOf _ -> true
+    ShortfallRounds _ -> true
+    PayeeReceipts -> true
+    VolumeOf _ -> true
 
 -- | One Entity's value of a measure in one round.
 measureValue :: Measure -> EntityId -> RoundResult -> Q

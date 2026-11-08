@@ -4,6 +4,9 @@
 module Board.Gameboard.Validate
   ( validateGameboard
   , unknownNames
+  , Names
+  , worldNames
+  , gameboardNames
   ) where
 
 import Prelude
@@ -15,16 +18,17 @@ import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Capability(..), Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, Scope(..), TransformationId, domainResource, idText)
+import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Scope(..), Transformation, TransformationId, domainResource, idText)
 import Core.World (ShareSource(SalesOf))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Set (Set)
+import Data.Set as Set
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Tuple (Tuple(..))
-import Foreign.Object (Object)
 import Foreign.Object as Object
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
@@ -56,7 +60,7 @@ validateGameboard gb config =
 
   -- An unknown name in any position: one error per name.
   unknown :: forall t. RefKind -> Array (Id t) -> Array ValidationError
-  unknown kind = unknownNames w gb.parameters <<< map (Tuple kind <<< idText)
+  unknown kind = unknownNames (gameboardNames gb) <<< map (Tuple kind <<< idText)
   unknownEntity = unknown EntityRef
   unknownResource = unknown ResourceRef
   unknownTransformation = unknown TransformationRef
@@ -171,23 +175,51 @@ validateGameboard gb config =
         _, _ -> []
     _ -> []
 
--- | The names a world and its parameters lack: one error per unknown name of a kind this can check
--- | (an Entity, Market, Resource, Transformation, parameter, capacity, or collective procedure). Other kinds are checked where they
--- | are held, so they pass here.
-unknownNames
-  :: forall m r t p rest
-   . { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
-  -> Object p
-  -> Array (Tuple RefKind String)
-  -> Array ValidationError
-unknownNames w parameters = map (\(Tuple kind name) -> UnknownReference kind name) <<< filter (\(Tuple kind name) -> not (known kind name))
+-- | What a reference can name.
+type Names m r t k =
+  { entities :: Map EntityId Entity
+  , markets :: Map MarketId m
+  , resources :: Map ResourceId r
+  , transformations :: Map TransformationId t
+  , ruleKinds :: Map RuleKindId k
+  , parameters :: Set String
+  , schemes :: Set String
+  , policies :: Set PolicyId
+  }
+
+-- | The names of a world on its own: a literal premise has no parameters, schemes, or Policies.
+worldNames :: forall m r t k rest. { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t, ruleKinds :: Map RuleKindId k | rest } -> Names m r t k
+worldNames w =
+  { entities: w.entities
+  , markets: w.markets
+  , resources: w.resources
+  , transformations: w.transformations
+  , ruleKinds: w.ruleKinds
+  , parameters: Set.empty
+  , schemes: Set.empty
+  , policies: Set.empty
+  }
+
+-- | The names a Gameboard offers a reference.
+gameboardNames :: Gameboard -> Names Market ResourceDefinition Transformation RuleKindDecl
+gameboardNames gb = (worldNames gb.world)
+  { parameters = Set.fromFoldable (Object.keys gb.parameters)
+  , schemes = Set.fromFoldable (map _.id gb.schemes)
+  , policies = Map.keys gb.policies
+  }
+
+-- | The names the scope lacks: one error per unknown name, for every kind of reference.
+unknownNames :: forall m r t k. Names m r t k -> Array (Tuple RefKind String) -> Array ValidationError
+unknownNames w = map (\(Tuple kind name) -> UnknownReference kind name) <<< filter (\(Tuple kind name) -> not (known kind name))
   where
   known kind name = case kind of
     EntityRef -> Map.member (Id name) w.entities
     Market -> Map.member (Id name) w.markets
     ResourceRef -> Map.member (Id name) w.resources
     TransformationRef -> Map.member (Id name) w.transformations
-    ParameterRef -> Object.member name parameters
+    ParameterRef -> Set.member name w.parameters
     CapacityName -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
     ProcedureRef -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
-    _ -> true
+    SchemeRef -> Set.member name w.schemes
+    PolicyRef -> Set.member (Id name) w.policies
+    RuleKindRef -> Map.member (Id name) w.ruleKinds

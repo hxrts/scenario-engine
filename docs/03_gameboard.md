@@ -306,7 +306,7 @@ These documented requirements are not validated:
 - Liabilities and issuance semantics for financial claims.
 - That every required responsibility has an owner ([INV-25](02_type_system.md#inv-25)), beyond [§12.4](#124-resolution-consistency).
 - Estimator and Representation weight ranges, and duplicate Representation adjustments ([INV-24](02_type_system.md#inv-24)).
-- That objective metrics exist, that capability lists are non-empty, and that dependencies are declared ([INV-19](02_type_system.md#inv-19)).
+- That capability lists are non-empty and that dependencies are declared ([INV-19](02_type_system.md#inv-19)).
 - Scope definitions and information visibility ([§10.3](#103-information-visibility)).
 
 ### 12.4 Resolution consistency
