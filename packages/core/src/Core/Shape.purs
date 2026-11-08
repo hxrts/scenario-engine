@@ -31,6 +31,7 @@ module Core.Shape
   , rec4
   , rec5
   , rec7
+  , rec8
   , mapOf
   , requiredOf
   , ctorOf
@@ -288,6 +289,11 @@ rec4 :: forall a b1 b2 b3 b4. String -> Field a b1 -> Field a b2 -> Field a b3 -
 rec4 name f1 f2 f3 f4 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4 ]
   (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x)
   (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o)
+
+rec8 :: forall a b1 b2 b3 b4 b5 b6 b7 b8. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> Field a b7 -> Field a b8 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> b7 -> b8 -> a) -> Shape a
+rec8 name f1 f2 f3 f4 f5 f6 f7 f8 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6, dField f7, dField f8 ]
+  (\fmt x -> encField fmt f1 x <> encField fmt f2 x <> encField fmt f3 x <> encField fmt f4 x <> encField fmt f5 x <> encField fmt f6 x <> encField fmt f7 x <> encField fmt f8 x)
+  (\fmt o -> mk <$> decField fmt f1 o <*> decField fmt f2 o <*> decField fmt f3 o <*> decField fmt f4 o <*> decField fmt f5 o <*> decField fmt f6 o <*> decField fmt f7 o <*> decField fmt f8 o)
 
 rec7 :: forall a b1 b2 b3 b4 b5 b6 b7. String -> Field a b1 -> Field a b2 -> Field a b3 -> Field a b4 -> Field a b5 -> Field a b6 -> Field a b7 -> (b1 -> b2 -> b3 -> b4 -> b5 -> b6 -> b7 -> a) -> Shape a
 rec7 name f1 f2 f3 f4 f5 f6 f7 mk = recordOf name [ dField f1, dField f2, dField f3, dField f4, dField f5, dField f6, dField f7 ]

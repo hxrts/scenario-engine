@@ -10,6 +10,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
@@ -49,11 +50,20 @@ seat =
   , events: []
   , factors: Map.empty
   , toSign: []
+  , markets: [ { id: Id "energy-atlantic", base: Id "E", quote: Id "M" } ]
+  }
+
+-- | The seat with access to two Energy Markets, Atlantic at 2 and Asia at 3, and a defence Market at 5.
+twoMarkets :: View
+twoMarkets = seat
+  { self = seat.self { capabilities = [ MayTrade (Id "energy-atlantic"), MayTrade (Id "energy-asia"), MayTrade (Id "defence") ] }
+  , prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (Q.fromInt 2), Tuple (Id "energy-asia") (Q.fromInt 3), Tuple (Id "defence") (Q.fromInt 5) ]
+  , markets = [ { id: Id "energy-asia", base: Id "E", quote: Id "M" }, { id: Id "energy-atlantic", base: Id "E", quote: Id "M" }, { id: Id "defence", base: Id "D", quote: Id "M" } ]
   }
 
 -- | Every draw is zero.
 env :: Env
-env = { view: seat, params: Object.empty, home: Just (Id "energy-atlantic"), random: const Q.zero }
+env = { view: seat, params: Object.empty, random: const Q.zero }
 
 -- | Every draw except index 0 is 0.9.
 highDraws :: Int -> Q.Q
@@ -126,9 +136,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ] } }
       intentsOf (drafts """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "self" } } ], "propose": [ { "reciprocate": { "target": "CN" } } ] } ] }""" e)
         `shouldEqual` [ [ ChangeRule (Enact (AccessBan { jurisdiction: Id "EU", target: Id "CN" })) ] ]
-    it "$home resolves to the Entity's home market" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""" env)
+    it "each runs the clause once per accessible Market for the Resource, in id order" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "3" } } ] } ] }""" env { view = twoMarkets })
+        `shouldEqual` [ [ trade "energy-asia" "3" ], [ trade "energy-atlantic" "3" ] ]
+    it "cheapest and costliest pick by price, and the condition and the order see the same Market" do
+      intentsOf (drafts """{ "rules": [ { "when": [ { "le": [ { "price": { "cheapest": "E" } }, "2" ] } ], "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "3" } } ] } ] }""" env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-atlantic" "3" ] ]
+      intentsOf (drafts """{ "rules": [ { "when": [ { "gt": [ { "price": { "costliest": "E" } }, "2" ] } ], "propose": [ { "trade": { "market": { "costliest": "E" }, "quantity": "-3" } } ] } ] }""" env { view = twoMarkets })
+        `shouldEqual` [ [ trade "energy-asia" "-3" ] ]
+    it "two selectors in one clause range over the product of their picks" do
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } }, { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" env { view = twoMarkets })
+        `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-asia" "2" ], [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
+    it "a selector with no accessible Market proposes nothing, and a named Market in the same Strategy still does" do
+      let none = env { view = seat { markets = [] } }
+      intentsOf (drafts """{ "rules": [ { "when": [ { "le": [ { "price": { "cheapest": "E" } }, "9" ] } ], "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "3" } } ] }, { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }""" none)
+        `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+    it "a price selector skips a Market with no price; each does not" do
+      let unpriced = env { view = twoMarkets { prices = Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 3) ] } }
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } } ] }, { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" unpriced)
+        `shouldEqual` [ [ trade "energy-asia" "1" ], [ trade "energy-asia" "2" ], [ trade "energy-atlantic" "2" ] ]
+    it "a one-Market selector draws as a named Market does" do
+      let one = """{ "rules": [ { "propose": [ { "choose": [ { "noAction": null }, { "trade": { "market": MARKET, "quantity": "3" } } ] } ] } ] }"""
+      drafts (replaceAll (Pattern "MARKET") (Replacement "{ \"each\": \"E\" }") one) env { random = highDraws } `shouldEqual` drafts (replaceAll (Pattern "MARKET") (Replacement "\"energy-atlantic\"") one) env { random = highDraws }
+    it "$home is no longer a Market: it is an unknown name" do
+      (strategyRefs (strategy """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""")).markets `shouldEqual` [ "$home" ]
     it "a route drafts a routed Trade with its pair and limit" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]

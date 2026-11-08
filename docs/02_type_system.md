@@ -311,6 +311,7 @@ type View =                              -- what a Policy sees (INV-16)
   , events :: Array Event                -- public events and its own, from prior rounds
   , factors :: Map BehaviorDomain Ratio  -- adjustment factors stored last round, for an Aggregate's Policy
   , toSign :: Array Proposal             -- Proposals requiring its signature (empty in Propose)
+  , markets :: Array Venue               -- the Markets it has access to (id, base, quote), in id order
   }
 ```
 
@@ -355,7 +356,7 @@ An initialized Policy must:
 
 All declarative strategies (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A strategy is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, deals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
 
-The market `$home` names the Entity's home market: the first Market, by id, that the Entity has access to. An Entity that acts must have one. A premise that gives it none fails at startup, naming the Entity.
+A Strategy names a Market by reference (`MarketRef`): by id (`Named`), or by a selector over the Markets the Entity has access to whose base is a Resource: `Each` (every one), `Cheapest` or `Costliest` (the one with the lowest or highest beginning-of-round price; ties keep the first by id, and a Market with no price is not a candidate). A clause that uses selectors is instantiated once per Market they pick, in Market-id order; distinct selectors in one clause range over the product of their picks, so one clause can buy at the cheapest and sell at the costliest. A selector that picks nothing instantiates nothing, so an Entity with no accessible Market for the Resource proposes nothing from that clause and the premise is not an error. A sign rule's conditions are instantiated the same way and hold when any instantiation holds. Selectors read `View.markets`; the Policy never sees World State. There is no notion of a home Market.
 
 The interpreter drafts only the ordinary intents its Entity is authorized to execute, using the same `authorized` function the engine applies ([§2.4](#24-capability)). Procedure and deal intents are exempt, because the engine checks them against their own authority. A seat preset and an NPC Policy expressing the same rule therefore behave identically.
 

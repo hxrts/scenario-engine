@@ -7,7 +7,7 @@ import Prelude
 import Core.Draw (Seed)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, boolShape, ctorOf, decodeJsonWith, encodeJsonWith, field, intShape, mapOf, prim, qShape, rec2, rec3, rec4, rec5, rec7, sumOf)
+import Core.Shape (class Described, Format(..), Shape, TagForm(..), arrayOf, boolShape, ctorOf, decodeJsonWith, encodeJsonWith, field, intShape, mapOf, prim, qShape, rec2, rec3, rec4, rec5, rec7, rec8, sumOf)
 import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -85,7 +85,11 @@ type View =
   , events :: Array Event
   , factors :: Map BehaviorDomain Ratio
   , toSign :: Array Proposal
+  , markets :: Array Venue -- the Markets the Entity has access to, in id order
   }
+
+-- | A Market as a Policy sees it: where a Resource (the base) is traded for the quote.
+type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 
 -- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
 -- | matches on the specific failure. `renderReason` gives the text the record stores and the
@@ -428,7 +432,7 @@ eventShape = sumOf "Event" OneKey []
 
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
-viewShape = rec7 "View"
+viewShape = rec8 "View"
   (field "round" "round" "the round" intShape _.round)
   (field "self" "self" "the Entity seeing it" entityShape _.self)
   (field "prices" "prices" "the price of each Market" (mapOf idShape qShape) _.prices)
@@ -436,7 +440,15 @@ viewShape = rec7 "View"
   (field "events" "events" "the public history" (arrayOf eventShape) _.events)
   (field "factors" "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors)
   (field "toSign" "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign)
-  (\r s p rs e f t -> { round: r, self: s, prices: p, rules: rs, events: e, factors: f, toSign: t })
+  (field "markets" "markets" "the Markets the Entity has access to" (arrayOf venueShape) _.markets)
+  (\r s p rs e f t m -> { round: r, self: s, prices: p, rules: rs, events: e, factors: f, toSign: t, markets: m })
+
+venueShape :: Shape Venue
+venueShape = rec3 "Venue"
+  (field "id" "id" "the Market" idShape _.id)
+  (field "base" "base" "the Resource traded" idShape _.base)
+  (field "quote" "quote" "the Resource it is priced in" idShape _.quote)
+  (\i b q -> { id: i, base: b, quote: q })
 
 -- | A round's record as the Run Store holds it.
 roundRecordShape :: Shape RoundRecord

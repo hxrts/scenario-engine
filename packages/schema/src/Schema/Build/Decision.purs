@@ -30,7 +30,12 @@ module Schema.Build.Decision
   , rule
   , strategy
   , selfEntity
-  , homeMarket
+  , named
+  , each
+  , cheapest
+  , costliest
+  , tradeAt
+  , priceAt
   , max'
   , not'
   ) where
@@ -39,18 +44,36 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 
-import Core.Strategy (Clause, Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
+import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
-import Core.Types (Id(..), IntentF)
+import Core.Types (Id(..), IntentF(..))
 import Schema.Build.Quantity (class ToQty, q)
 
 -- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
 selfEntity :: String
 selfEntity = S.selfName
 
--- | The Market a Strategy names by `$home`: the Entity's home Market.
-homeMarket :: String
-homeMarket = S.homeMarketName
+-- Market references ----------------------------------------------------------------------
+
+-- | One Market, by id.
+named :: String -> MarketRef
+named = Named <<< Id
+
+-- | Every accessible Market for the Resource: the clause runs once per Market.
+each :: String -> MarketRef
+each = Each <<< Id
+
+-- | The accessible Market with the lowest beginning-of-round price for the Resource.
+cheapest :: String -> MarketRef
+cheapest = Cheapest <<< Id
+
+-- | The accessible Market with the highest beginning-of-round price for the Resource.
+costliest :: String -> MarketRef
+costliest = Costliest <<< Id
+
+-- | An order on the Market a reference picks; `limit` is the optional limit price.
+tradeAt :: { market :: MarketRef, quantity :: Expr, limit :: Maybe Expr } -> IntentTemplate
+tradeAt r = Trade { market: r.market, quantity: r.quantity, limitPrice: r.limit }
 
 -- Expressions ----------------------------------------------------------------------------
 
@@ -64,8 +87,13 @@ param = Param
 round :: Expr
 round = Round
 
+-- | The beginning-of-round price of a Market, by id.
 price :: String -> Expr
-price = Price <<< Id
+price = Price <<< named
+
+-- | The beginning-of-round price of the Market a reference picks.
+priceAt :: MarketRef -> Expr
+priceAt = Price
 
 holding :: String -> Expr
 holding = Holding <<< Id
@@ -112,16 +140,16 @@ restrictionInForce r = RestrictionInForce { by: Id r.by }
 -- Templates ------------------------------------------------------------------------------
 
 -- | One Intent, with its quantities as expressions, as a template.
-asTemplate :: IntentF Expr -> Template
+asTemplate :: IntentTemplate -> Template
 asTemplate = IntentT
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).
-procedure :: { id :: String, signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+procedure :: { id :: String, signers :: Array String, intents :: Array IntentTemplate } -> Template
 procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
 
 -- | A Deal: a Proposal with no procedure. Its transfers come first, then its transforms.
-deal :: { signers :: Array String, intents :: Array (IntentF Expr) } -> Template
+deal :: { signers :: Array String, intents :: Array IntentTemplate } -> Template
 deal r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Nothing }
 
 -- | Enact the restriction `target` enacted against this Entity last round.

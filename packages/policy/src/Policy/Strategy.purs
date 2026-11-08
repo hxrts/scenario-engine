@@ -8,13 +8,14 @@ module Policy.Strategy
 
 import Prelude
 
-import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
 import Data.Array (concatMap, mapMaybe)
 import Data.Maybe (Maybe(..), maybe)
 
--- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` and
--- | `$home` are not listed: the interpreter resolves them at every position they can appear.
+-- | Every name a Strategy refers to, for the load-time check against a Gameboard. `self` is not
+-- | listed: the interpreter resolves it at every position it can appear. A Market selector names its
+-- | Resource; the Markets it picks are the interpreter's.
 type Refs =
   { entities :: Array String
   , markets :: Array String
@@ -85,7 +86,7 @@ strategyRefs p =
     NoAction -> []
 
   intentRefs = case _ of
-    Trade x -> [ MarketName (unwrapId x.market) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limitPrice
+    Trade x -> marketRefs x.market <> exprRefs x.quantity <> maybe [] exprRefs x.limitPrice
     Route x -> [ ResourceName (unwrapId x.pair.base), ResourceName (unwrapId x.pair.quote) ] <> exprRefs x.quantity <> maybe [] exprRefs x.limitPrice
     Transform x -> [ TransformationName (unwrapId x.transformation) ] <> exprRefs x.quantity
     Transfer x -> [ ResourceName (unwrapId x.resource), EntityName (unwrapId x.from), EntityName (unwrapId x.to) ] <> exprRefs x.quantity
@@ -103,12 +104,18 @@ strategyRefs p =
     Lit _ -> []
     Param name -> [ ParamName name ]
     Round -> []
-    Price m -> [ MarketName (unwrapId m) ]
+    Price m -> marketRefs m
     Holding r -> [ ResourceName (unwrapId r) ]
     Factor d -> [ ResourceName (unwrapId d) ]
     Mul a b -> exprRefs a <> exprRefs b
     Sub a b -> exprRefs a <> exprRefs b
     Max a b -> exprRefs a <> exprRefs b
+
+  marketRefs = case _ of
+    Named m -> [ MarketName (unwrapId m) ]
+    Each r -> [ ResourceName (unwrapId r) ]
+    Cheapest r -> [ ResourceName (unwrapId r) ]
+    Costliest r -> [ ResourceName (unwrapId r) ]
 
   unwrapId :: forall t. Id t -> String
   unwrapId (Id s) = s

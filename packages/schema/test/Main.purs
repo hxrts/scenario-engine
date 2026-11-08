@@ -4,7 +4,7 @@ import Prelude hiding (eq, mul, sub)
 
 import Data.Map as Map
 
-import Core.Types (proposalId, Capability(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
+import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
@@ -57,7 +57,7 @@ capability s = decodeWith Premise capabilityShape (fromString s)
 rule :: Json -> Either String (RuleF Q)
 rule = decodeWith Premise ruleShape
 
-intent :: Json -> Either String (IntentF Q)
+intent :: Json -> Either String Intent
 intent = decodeWith Premise intentShape
 
 decodeText :: String -> Either JsonDecodeError Strategy
@@ -91,7 +91,7 @@ qv t = fromMaybe (Q.fromInt 0) (Q.parse t)
 -- | One Strategy per form the premise format writes, so every constructor of the AST round-trips.
 roundTripStrategies :: Array Strategy
 roundTripStrategies =
-  [ D.strategy { rules: [ D.rule [] [ asTemplate (trade { market: "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
+  [ D.strategy { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
   , D.strategy
       { rules:
           [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (round) (lit 3), eq (factor "d") (lit 0) ]
@@ -105,7 +105,7 @@ roundTripStrategies =
               ]
           , D.rule [ not' (eq (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
               [ reciprocate { target: "US" }
-              , choose [ noAction, asTemplate (trade { market: "m", quantity: lit 1, limit: Just (lit 3) }) ]
+              , choose [ noAction, asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Just (lit 3) }) ]
               ]
           ]
       , sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
@@ -120,7 +120,7 @@ roundTripStrategies =
   ]
 
 -- | One Intent of each kind, with explicit entities, in the fixture format (the premise tags).
-roundTripIntents :: Array (IntentF Q)
+roundTripIntents :: Array Intent
 roundTripIntents =
   [ Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Nothing }
   , Trade { market: Id "m", quantity: Q.fromInt 10, limitPrice: Just (qv "2.5") }

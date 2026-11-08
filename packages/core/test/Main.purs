@@ -697,8 +697,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "Event" $ quickCheck (roundTrip (genQ <#> \x -> Traded { round: 1, market: Id "energy-atlantic", entity: Id "US", quantity: x, price: x }))
     it "Transferability" $ quickCheck (roundTrip (elements (cons' Free [ Restricted, NonTransferable ])))
     it "the snapshot form of an Intent is the stored record's form" do
-      stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing }))
+      stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"market\":\"energy-asia\",\"limitPrice\":null}],\"tag\":\"Trade\"}"
     it "the snapshot form of a rule enactment nests the Rule the same way" do
-      stringify (encodeJson (ChangeRule (Enact (Tariff { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" }))))
+      stringify (encodeJson (ChangeRule (Enact (Tariff { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
         `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"rate\":\"0.5000\",\"origin\":\"US\",\"jurisdiction\":\"EU\"}],\"tag\":\"Tariff\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"

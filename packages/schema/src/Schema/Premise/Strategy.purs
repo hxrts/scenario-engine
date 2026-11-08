@@ -13,7 +13,7 @@ module Schema.Premise.Strategy
 import Prelude
 
 import Core.Shape (Desc(..), Format(..), PCtor, Shape, arrayOf, decodeJsonWith, decodeWith, embedded, encodeWith, fieldOf, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, qShape, recursive, stringShape, unitShape)
-import Core.Strategy (Clause, Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idShape)
 import Data.Argonaut.Core (Json, fromArray, jsonNull, toArray, toObject)
 import Data.Argonaut.Decode (JsonDecodeError)
@@ -124,6 +124,15 @@ allT = "all"
 signIfT :: String
 signIfT = "signIf"
 
+eachT :: String
+eachT = "each"
+
+cheapestT :: String
+cheapestT = "cheapest"
+
+costliestT :: String
+costliestT = "costliest"
+
 -- | A tagged form: `{ "<tag>": payload }`.
 tagged :: forall a b. String -> String -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
 tagged t desc = oneKey { tag: t, desc }
@@ -131,6 +140,35 @@ tagged t desc = oneKey { tag: t, desc }
 -- | The entity a Strategy's `self` names.
 selfId :: EntityId
 selfId = Id selfName
+
+-- | A Market reference: a bare Market id, or a selector over the accessible Markets for a Resource.
+marketRefShape :: Shape MarketRef
+marketRefShape = premiseSum "MarketRef"
+  [ tagged eachT "every accessible Market for the Resource" idShape
+      ( \x -> case x of
+          Each r -> Just r
+          _ -> Nothing
+      )
+      Each
+  , tagged cheapestT "the accessible Market with the lowest price for the Resource" idShape
+      ( \x -> case x of
+          Cheapest r -> Just r
+          _ -> Nothing
+      )
+      Cheapest
+  , tagged costliestT "the accessible Market with the highest price for the Resource" idShape
+      ( \x -> case x of
+          Costliest r -> Just r
+          _ -> Nothing
+      )
+      Costliest
+  , literal idShape
+      ( \x -> case x of
+          Named m -> Just m
+          _ -> Nothing
+      )
+      Named
+  ]
 
 -- | An expression: a quantity literal (a bare string), or a tagged form.
 exprShape :: Shape Expr
@@ -147,7 +185,7 @@ exprShape = recursive "Expr" \e -> premiseSum "Expr"
           _ -> Nothing
       )
       (const Round)
-  , tagged priceT "the beginning-of-round price of a Market" idShape
+  , tagged priceT "the beginning-of-round price of a Market" marketRefShape
       ( \x -> case x of
           Price m -> Just m
           _ -> Nothing
@@ -287,7 +325,7 @@ transformObject = object "Transform"
 
 -- | An Intent a Strategy writes as a template. `self` is implicit: the jurisdiction of an enactment,
 -- | and the `by` of a transform.
-intentTemplateShape :: Shape (IntentF Expr)
+intentTemplateShape :: Shape IntentTemplate
 intentTemplateShape = premiseSum "Intent template"
   [ tagged tradeT "an order in a Market" tradeBody
       ( \x -> case x of
@@ -340,7 +378,7 @@ intentTemplateShape = premiseSum "Intent template"
   ]
   where
   tradeBody = object "Trade"
-    ( mk3 <$> fieldOf "market" "the Market" idShape _.market
+    ( mk3 <$> fieldOf "market" "the Market, by id or by selector" marketRefShape _.market
         <*> fieldOf "quantity" "the quantity" exprShape _.quantity
         <*> fieldOf "limit" "the limit price, if any" (optionalOf exprShape) _.limitPrice
     )
@@ -379,7 +417,7 @@ isNoAction j = case toObject j of
   Just o -> Object.lookup noActionT o == Just jsonNull
   Nothing -> false
 
-procedureIntentsShape :: Shape (Array (IntentF Expr))
+procedureIntentsShape :: Shape (Array IntentTemplate)
 procedureIntentsShape =
   { desc: DArray intentTemplateShape.desc
   , codec: \_ ->
@@ -397,7 +435,7 @@ procedureIntentsShape =
     | otherwise = map Just (decodeWith Premise intentTemplateShape j)
 
 -- | Whether a Deal's Intents are its transfers, then its transforms, all run by the acting Entity.
-dealShaped :: Array (IntentF Expr) -> Boolean
+dealShaped :: Array IntentTemplate -> Boolean
 dealShaped xs = Array.all isTransfer ts && Array.all isSelfTransform fs && Array.length xs == Array.length ts + Array.length fs && xs == ts <> fs
   where
   ts = Array.filter isTransfer xs
@@ -451,7 +489,7 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
     where
     mk1 x = { target: x }
 
-  dealOf :: Template -> Maybe { signers :: Array EntityId, intents :: Array (IntentF Expr) }
+  dealOf :: Template -> Maybe { signers :: Array EntityId, intents :: Array IntentTemplate }
   dealOf = case _ of
     ProposalT p | Nothing <- p.procedure, dealShaped p.intents -> Just { signers: p.signers, intents: p.intents }
     _ -> Nothing
@@ -475,7 +513,7 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
     )
     xs
 
-  procedureOf :: Template -> Maybe { id :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array (IntentF Expr) }
+  procedureOf :: Template -> Maybe { id :: CollectiveProcedureId, signers :: Array EntityId, intents :: Array IntentTemplate }
   procedureOf = case _ of
     ProposalT p | Just pid <- p.procedure -> Just { id: pid, signers: p.signers, intents: p.intents }
     _ -> Nothing

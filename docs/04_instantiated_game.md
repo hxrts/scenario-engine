@@ -181,7 +181,7 @@ It runs these steps. Gameboard decoding, merging, and validation run before it (
 
 Errors from steps 1 and 2 return the full error list, and no world is produced.
 
-`assemble` (`Game.Assemble`) applies the overrides, runs `instantiate`, and then checks that every Entity that acts has a home market (`NoHomeMarket`), before any round.
+`assemble` (`Game.Assemble`) applies the overrides and runs `instantiate`.
 
 Validation ([03 §12](03_gameboard.md#12-validation-and-compilation)) runs this function as a feasibility check. It also runs the structural checks and resolution consistency ([§4.3](#43-resolution-consistency)). The simulator instantiates a spec's overrides with the same function, without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
 

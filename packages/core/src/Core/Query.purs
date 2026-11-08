@@ -13,7 +13,6 @@ module Core.Query
   , reserveOf
   , aggregateOf
   , isAggregate
-  , homeMarket
   , owner
   , capacityOf
   , facilityPrice
@@ -89,10 +88,6 @@ aggregateOf e = case e.kind of
 
 isAggregate :: Entity -> Boolean
 isAggregate = isJust <<< aggregateOf
-
--- | An Entity's home market: the first Market (by id) it has access to, or Nothing when it has none.
-homeMarket :: WorldState -> EntityId -> Maybe MarketId
-homeMarket w e = map _.id (find (\m -> e `elem` m.access) (fromFoldable (Map.values w.markets)))
 
 -- | The capacity's owner: the first Entity holding it. Withholding and capacity lookups both use this.
 owner :: WorldState -> CapacityRef -> Maybe EntityId

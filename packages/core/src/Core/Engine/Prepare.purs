@@ -13,7 +13,7 @@ import Core.Num as Q
 import Core.Query (lookupQ, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
 import Core.World (Delivery, Event(..), Target(..), View, WorldState)
-import Data.Array (foldl, fromFoldable, partition)
+import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -74,4 +74,5 @@ observe w self =
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
+  , markets: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (filter (\m -> self.id `elem` m.access) (fromFoldable (Map.values w.markets)))
   }

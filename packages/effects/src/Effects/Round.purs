@@ -11,7 +11,6 @@ import Prelude
 import Core.Engine.Commit (EngineError, resolveRound)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Proposal (assembleSigned, jointProposalsOf, numberJoint, proposalsOf, signableBy)
-import Core.Query (homeMarket)
 import Core.Types (Entity)
 import Core.World (RoundResult, View, WorldState)
 import Data.Array (concat, filter, fromFoldable, mapMaybe, null)
@@ -70,7 +69,7 @@ runRound inWorld w0 = do
     Nothing -> lift _seatInput (Sign e.id v identity)
 
   env :: Entity -> View -> Env
-  env e = envFor { params: inWorld.params, home: homeMarket w0, seed: w0.seed, source: "policy" } e.id
+  env e = envFor { params: inWorld.params, seed: w0.seed, source: "policy" } e.id
 
 -- | Run `n` rounds from `w`, stopping at the first engine failure.
 runGame :: forall r. InWorld -> Int -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError WorldState)

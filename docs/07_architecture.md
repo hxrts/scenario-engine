@@ -46,7 +46,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `schema` | `core` | Premise-format shapes (Gameboard sections, instantiation config, objectives, presets, `RoundF`: `Observed`, `Expect`), and the authoring builders (`Schema.Build.*`) | Realization logic, validation errors, operations, behaviour |
 | `board` | `core`, `schema` | World realization: `instantiate`, `validate`, `reconcile`; `ValidationError`, `Difference` | JSON, fixtures, seat binding, policy concepts |
 | `policy` | `core`, `schema` | The Strategy interpreter: pure `propose` and `sign` over an `Env`; `inWorldOf` | `run` or any effect library; codecs; World State access |
-| `game` | `core`, `schema`, `board`, `policy` | `Premise`, `assemble`, `Game`, `SeatBinding`, `checkHomes`, `Override`, `Recipe` (the stored spec and derive rules), `GameError`. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
+| `game` | `core`, `schema`, `board`, `policy` | `Premise`, `assemble`, `Game`, `SeatBinding`, `Override`, `Recipe` (the stored spec and derive rules), `GameError`. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
 | `premises` | `core`, `schema`, `game` | Meridian and its presets, the fixtures (`Premises.Fixtures.*`), the capstone's authored DSL, the premise file tree and loader; all as typed values | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | `Expect` against `Observed` (`observe`, `check`, `checkRound`); `checkRun`; objective evaluation (`evaluateObjectives`, `ObjectiveResult`) | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows (`SEAT_INPUT`, `INTERPRET`, `NARRATE`, `RECORD`, `OBSERVE`, `STORE`, `API`) and the programs over them (`runRound`, `runGame`, `finish`) | Interpreters, handler records, domain rules, prompt text |
@@ -120,7 +120,7 @@ propose :: Strategy -> Env -> Array ProposalBody
 sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 ```
 
-`View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature.
+`View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature, and its `markets` field the Markets the Entity has access to, which the Strategy language's Market selectors (`MarketRef`) pick from.
 
 **Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, its JSON Schema, and its prose. `Described` instances sit beside their types:
 

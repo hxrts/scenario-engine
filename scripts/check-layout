@@ -48,6 +48,11 @@ const rules = [
     bad: (line) => /\binstantiate\b/.test(line),
   },
   {
+    name: "no $home: a Strategy names a Market by id or by selector (MarketRef); there is no home Market",
+    files: (f) => f.includes("/src/"),
+    bad: (line) => line.includes("$home") || /\bhomeMarket\b|\bcheckHomes\b|\bNoHomeMarket\b/.test(line),
+  },
+  {
     name: "no \"Seed 0\" placeholder: a world's seed is attached by `seeded` only",
     files: () => true,
     bad: (line) => /\bSeed 0\b/.test(line),

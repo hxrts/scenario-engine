@@ -11,7 +11,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Shape (Format(..), PCtor, Shape, TagForm(..), Desc(..), bare, decodeWith, encodeWith, fieldOf, kindArg, object, oneKey, premiseSum, qShape)
-import Core.Types (Capability(..), Id(..), IntentF(..), RuleChangeF(..), RuleF(..), RuleKind(..), idShape)
+import Core.Types (Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), RuleKind(..), idShape)
 import Data.Argonaut.Core (fromObject, fromString, isNull, jsonNull, toObject)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
@@ -97,7 +97,7 @@ ruleShape = premiseSum "Rule"
 
 -- | An Intent. A `trade` with a null market is a routed order (docs/02 §5.2): it names its pair by
 -- | `base` and `quote`. A Repeal has no premise tag (Phase 2), so it does not encode.
-intentShape :: Shape (IntentF Q)
+intentShape :: Shape Intent
 intentShape = premiseSum "Intent"
   [ tradeCtor
   , oneKey { tag: transferTag, desc: "a Resource given from one Entity to another" } transferBody
@@ -137,7 +137,7 @@ intentShape = premiseSum "Intent"
     mk3 b t q' = { by: b, transformation: t, quantity: q' }
 
 -- | The Intent body under `trade`, written as its market (or null) and its amounts.
-tradeCtor :: PCtor (IntentF Q)
+tradeCtor :: PCtor Intent
 tradeCtor =
   { tag: tradeTag
   , desc: "an order in a Market, or a routed order on a pair of Resources"

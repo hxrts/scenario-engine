@@ -3,7 +3,6 @@
 -- | play, the server's derive and launch) assembles through `assemble`.
 module Game.Assemble
   ( assemble
-  , checkHomes
   , configuredSeats
   , presetBindings
   , liveBindings
@@ -15,15 +14,12 @@ import Prelude
 
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (drawVersion)
-import Core.Query (homeMarket)
 import Core.Strategy (InWorld, Strategy)
-import Core.Types (Entity, EntityId)
-import Data.Array (elem, find, fromFoldable, null)
-import Core.World (WorldState)
-import Data.Bifunctor (lmap)
+import Core.Types (EntityId)
+import Data.Array (elem, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isNothing, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
@@ -32,12 +28,11 @@ import Game.Error (GameError(..))
 import Game.Override (Override, resolve)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game, SeatBinding(..))
-import Policy.InWorld (acts, inWorldOf)
+import Policy.InWorld (inWorldOf)
 import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
--- | names something the baseline lacks, when the world does not instantiate, or when a seat that acts
--- | has no home market (checked before any round).
+-- | names something the baseline lacks, or when the world does not instantiate.
 assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
 assemble premise bindings overrides = case premise of
   GameboardPremise p -> do
@@ -64,21 +59,11 @@ assemble premise bindings overrides = case premise of
           }
 
 -- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
--- | world does not instantiate, or when a seat that acts has no home market.
+-- | world does not instantiate.
 startOf :: Gameboard -> InstantiationConfig -> Either GameError { initial :: InitialWorld, inWorld :: InWorld }
 startOf gameboard config = case instantiate gameboard config of
   Left es -> Left (Instantiation es)
-  Right initial -> do
-    let inWorld = inWorldOf gameboard
-    lmap NoHomeMarket (checkHomes (acts inWorld) initial.world)
-    pure { initial, inWorld }
-
--- | Every Entity that acts (`acts`: a seat, or an Entity whose Policy runs) needs a home market, because
--- | `$home` names it. An acting Entity with none is a startup error, named here, before any round.
-checkHomes :: (Entity -> Boolean) -> WorldState -> Either EntityId Unit
-checkHomes actsFn w = case find (\e -> actsFn e && isNothing (homeMarket w e.id)) (fromFoldable (Map.values w.entities)) of
-  Just e -> Left e.id
-  Nothing -> Right unit
+  Right initial -> Right { initial, inWorld: inWorldOf gameboard }
 
 -- | The seats the configuration names, in order.
 configuredSeats :: InstantiationConfig -> Array EntityId

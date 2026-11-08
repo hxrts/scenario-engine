@@ -18,7 +18,6 @@ import Prelude
 import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Proposal (ProposalBody, submissionOrder)
-import Core.Query (homeMarket)
 import Core.Types (EntityId, MarketId, ProposalId)
 import Core.World (RoundRecord, RoundResult, View)
 import Data.Array (concatMap, elem, filter, find, nub, sortWith)
@@ -35,18 +34,18 @@ import Run (Run, case_, interpret, on, peel, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
--- | What a machine seat's answer depends on besides its own binding: the player seed, the Gameboard's
--- | parameters, and each Entity's home market.
-type SeatEnv = { seed :: Seed, params :: Object Q, home :: EntityId -> Maybe MarketId }
+-- | What a machine seat's answer depends on besides its own binding: the player seed and the Gameboard's
+-- | parameters.
+type SeatEnv = { seed :: Seed, params :: Object Q }
 
 -- | The seat environment of a game under a player seed.
 seatEnv :: Seed -> Game -> SeatEnv
-seatEnv seed g = { seed, params: g.parameters, home: homeMarket g.world }
+seatEnv seed g = { seed, params: g.parameters }
 
 -- | The Proposal bodies a seat submits in a round. Agent and Human seats submit none here.
 proposeFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalBody
 proposeFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.propose p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Strategy p) -> Policy.propose p (envFor { params: env.params, seed: env.seed, source: "seat" } e v)
   Just (Script rounds) -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
   Just (Recorded records) ->
     map (\s -> { intents: s.proposal.intents, signers: s.proposal.signers, procedure: s.proposal.procedure })
@@ -58,7 +57,7 @@ proposeFor env bs e v = case Map.lookup e bs of
 -- | The Proposals a seat signs in a round. Agent and Human seats sign nothing here.
 signFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalId
 signFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.sign p (envFor { params: env.params, home: env.home, seed: env.seed, source: "seat" } e v)
+  Just (Strategy p) -> Policy.sign p (envFor { params: env.params, seed: env.seed, source: "seat" } e v)
   Just (Script rounds) -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
   Just (Recorded records) -> map _.proposal.id (filter (\s -> e `elem` s.signatures) (inputsOf records v.round))
   Just Agent -> []

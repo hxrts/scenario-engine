@@ -24,7 +24,7 @@ import Prelude
 
 import Core.Query (isAggregate)
 import Core.Shape (Shape, arrayOf, field, optionalOf, rec2, rec3, rec4, stringShape)
-import Core.Types (Entity, EntityId, Intent, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
+import Core.Types (Entity, EntityId, Intent, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
 import Core.Num (Q)
 import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null)
 import Data.Either (Either, either)
@@ -34,8 +34,8 @@ import Data.Traversable (mapAccumL)
 import Data.Tuple (Tuple(..))
 
 -- | What a Proposal says before its id and author are assigned: a Strategy's draft, a seat's
--- | submission, and a joint-pass draft all have this shape (`ProposalF` at `Q`).
-type ProposalBody = ProposalF Q
+-- | submission, and a joint-pass draft all have this shape (`ProposalF` at `MarketId` and `Q`).
+type ProposalBody = ProposalF MarketId Q
 
 -- | A ProposalBody in the snapshot form. A record synonym cannot carry a class instance, so this is a
 -- | value; a body that crosses a boundary is encoded through `Core.Shape.codec` over it.

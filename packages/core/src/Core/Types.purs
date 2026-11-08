@@ -156,11 +156,12 @@ type TransferSpec =
 type TransformSpec =
   { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
 
--- | An Intent with its quantities and limits in the filling `v`: `Q` for an Intent the engine
--- | settles (`Intent`), `Expr` for a Strategy's template (`Core.Strategy`). Every kind of Core
--- | Intent is one constructor here, so the filling is the only thing the two languages differ in.
-data IntentF v
-  = Trade { market :: MarketId, quantity :: v, limitPrice :: Maybe v }
+-- | An Intent with its Market position in `m` and its quantities and limits in the filling `v`:
+-- | `MarketId` and `Q` for an Intent the engine settles (`Intent`), `MarketRef` and `Expr` for a
+-- | Strategy's template (`Core.Strategy`). Every kind of Core Intent is one constructor here, so the
+-- | two fillings are the only things the two languages differ in.
+data IntentF m v
+  = Trade { market :: m, quantity :: v, limitPrice :: Maybe v }
   | Route { pair :: Pair, quantity :: v, limitPrice :: Maybe v }
   | Transfer { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
   | Transform { by :: EntityId, transformation :: TransformationId, quantity :: v }
@@ -177,15 +178,26 @@ data RuleChangeF v
   = Enact (RuleF v)
   | Repeal RuleId
 
-type Intent = IntentF Q
+type Intent = IntentF MarketId Q
+
+-- | An Intent with its Market position resolved: `Nothing` when the position does not resolve. Only a
+-- | Trade names a Market; every other kind passes through unchanged.
+withMarket :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
+withMarket f = case _ of
+  Trade x -> (\m -> Trade { market: m, quantity: x.quantity, limitPrice: x.limitPrice }) <$> f x.market
+  Route x -> Just (Route x)
+  Transfer x -> Just (Transfer x)
+  Transform x -> Just (Transform x)
+  ChangeRule x -> Just (ChangeRule x)
+
 type Rule = RuleF Q
 type RuleChange = RuleChangeF Q
 
 -- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
--- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF Expr`.
-type ProposalF v =
-  { intents :: Array (IntentF v)
+-- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF MarketRef Expr`.
+type ProposalF m v =
+  { intents :: Array (IntentF m v)
   , signers :: Array EntityId
   , procedure :: Maybe CollectiveProcedureId
   }
@@ -264,13 +276,13 @@ derive instance Generic Controller _
 derive instance Generic Transferability _
 derive instance Generic Capability _
 derive instance Generic RuleKind _
-derive instance Generic (IntentF v) _
+derive instance Generic (IntentF m v) _
 derive instance Generic (RuleF v) _
 derive instance Generic (RuleChangeF v) _
 
-derive instance Functor IntentF
-derive instance Foldable IntentF
-derive instance Traversable IntentF
+derive instance Functor (IntentF m)
+derive instance Foldable (IntentF m)
+derive instance Traversable (IntentF m)
 derive instance Functor RuleF
 derive instance Foldable RuleF
 derive instance Traversable RuleF
@@ -283,7 +295,7 @@ derive instance Eq Controller
 derive instance Eq Transferability
 derive instance Eq Capability
 derive instance Eq RuleKind
-derive instance Eq v => Eq (IntentF v)
+derive instance (Eq m, Eq v) => Eq (IntentF m v)
 derive instance Eq v => Eq (RuleF v)
 derive instance Eq v => Eq (RuleChangeF v)
 
@@ -302,7 +314,7 @@ instance Show Capability where
 instance Show RuleKind where
   show = genericShow
 
-instance Show v => Show (IntentF v) where
+instance (Show m, Show v) => Show (IntentF m v) where
   show = genericShow
 
 instance Show v => Show (RuleF v) where
@@ -325,7 +337,7 @@ instance Described (RuleF Q) where
 instance Described (RuleChangeF Q) where
   shape = ruleChangeShape
 
-instance Described (IntentF Q) where
+instance Described (IntentF MarketId Q) where
   shape = intentShape
 
 ruleShape :: Shape (RuleF Q)
@@ -369,7 +381,7 @@ ruleChangeShape = sumOf "RuleChange" OneKey [] [ enact, repeal ]
     Repeal r -> Just r
     _ -> Nothing
 
-intentShape :: Shape (IntentF Q)
+intentShape :: Shape Intent
 intentShape = sumOf "Intent" OneKey [] [ trade, route, transfer, transform, changeRule ]
   where
   trade = ctorOf { tag: "Trade", desc: "an order in a Market" } tradeShape projTrade Trade
@@ -591,10 +603,10 @@ instance EncodeJson (RuleChangeF Q) where
 instance DecodeJson (RuleChangeF Q) where
   decodeJson = decodeJsonWith Snapshot ruleChangeShape
 
-instance EncodeJson (IntentF Q) where
+instance EncodeJson (IntentF MarketId Q) where
   encodeJson = encodeJsonWith Snapshot intentShape
 
-instance DecodeJson (IntentF Q) where
+instance DecodeJson (IntentF MarketId Q) where
   decodeJson = decodeJsonWith Snapshot intentShape
 
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId

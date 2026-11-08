@@ -7,10 +7,10 @@ import Prelude (negate, (<>))
 
 import Data.Maybe (Maybe(..))
 
-import Core.Strategy (Clause, Expr, Strategy, Template)
+import Core.Strategy (Clause, Expr, MarketRef, Strategy, Template)
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (asTemplate, eq, factor, ge, gt, holding, homeMarket, le, lit, max', mul, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, rule, selfEntity, signFacility, strategy, sub, transformedLastRound)
-import Schema.Build.Intent (enactTariff, trade, transfer, transform)
+import Schema.Build.Decision (asTemplate, each, eq, factor, ge, gt, holding, le, lit, max', mul, named, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, rule, selfEntity, signFacility, strategy, sub, tradeAt, transformedLastRound)
+import Schema.Build.Intent (enactTariff, transfer, transform)
 import Premises.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Premises.Names as N
 
@@ -29,9 +29,13 @@ policies =
   , Tuple N.policySolidarityPool solidarityPool
   ]
 
--- | A market order with no limit price.
+-- | A market order with no limit price, on the Market a reference picks.
+orderAt :: MarketRef -> Expr -> Template
+orderAt market quantity = asTemplate (tradeAt { market, quantity, limit: Nothing })
+
+-- | A market order with no limit price, on a Market by id.
 order :: String -> Expr -> Template
-order m quantity = asTemplate (trade { market: m, quantity, limit: Nothing })
+order m = orderAt (named m)
 
 chinaStrategic :: Strategy
 chinaStrategic = strategy
@@ -52,7 +56,7 @@ euCoordination = strategy
       banded N.energyAtlantic 3 8 4
         <>
           [ rule [ gt (price N.energyAtlantic) (lit 3), ge (holding N.energy) (lit 8) ]
-              [ procedure { id: N.euSolidarity, signers: [ N.de ], intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: lit 8 }, trade { market: N.energyAtlantic, quantity: lit (-8), limit: Nothing } ] } ]
+              [ procedure { id: N.euSolidarity, signers: [ N.de ], intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: lit 8 }, tradeAt { market: named N.energyAtlantic, quantity: lit (-8), limit: Nothing } ] } ]
           , tariffMatch N.us
           , tariffMatch N.cn
           ]
@@ -122,11 +126,12 @@ governmentDefault = strategy { rules: [], sign: [] }
 solidarityPool :: Strategy
 solidarityPool = strategy { rules: [], sign: [] }
 
+-- | A firm sells its Energy surplus (above 30) on every Energy Market it has access to.
 firmDefault :: Strategy
 firmDefault = strategy
   { rules:
       [ rule [ gt (holding N.energy) (lit 30) ]
-          [ order homeMarket (sub (lit 30) (holding N.energy)) ]
+          [ orderAt (each N.energy) (sub (lit 30) (holding N.energy)) ]
       ]
   , sign: [ signFacility N.energyShipping ]
   }

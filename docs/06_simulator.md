@@ -100,20 +100,20 @@ Illustrative seat Policies (not all are presets):
 
 ### 4.2 Presets
 
-Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/premises/src/Premises/Presets.purs`, compiled to `packages/premises/presets.json`). "Home price" is the price of the Entity's home market, and every quantity is in Resource units per round.
+Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/premises/src/Premises/Presets.purs`, compiled to `packages/premises/presets.json`). "Cheapest" and "costliest" are the Energy Markets the Entity has access to with the lowest and highest beginning-of-round price (Type System [§4.4](02_type_system.md#44-shared-decision-language-interpreter)); a seat with access to one Energy Market trades there, and a seat with none trades nowhere. Every quantity is in Resource units per round.
 
 | Preset | Behavior |
 |---|---|
 | `Passive` | Submits nothing. |
-| `Conservative` | Buys 5 Energy at a limit of 2.5 while its Energy holding is below 30 and the home price is at most 2.5. |
+| `Conservative` | Buys 5 Energy at the cheapest Market at a limit of 2.5 while its Energy holding is below 30 and that price is at most 2.5. |
 | `Aggressive` | Runs `defense-procurement` at 4 units every round. It has no restrictions. |
-| `Accumulator` | Buys 10 Energy at a limit of 3 while the home price is at most 3. It has no holding target. |
-| `Trader` | Buys 5 Energy at a limit of 2.2 while the home price is at most 2.2. Sells 5 at a limit of 3 while it is above 3. The bands are fixed in the preset. |
+| `Accumulator` | Buys 10 Energy at the cheapest Market at a limit of 3 while that price is at most 3. It has no holding target. |
+| `Trader` | Buys 5 Energy at the cheapest Market at a limit of 2.2 while that price is at most 2.2. Sells 5 at the costliest Market at a limit of 3 while that price is above 3. The bands are fixed in the preset. |
 | `Cooperative` | Proposes nothing. Signs every Proposal addressed to it. |
-| `Opportunistic` | Sells 5 Energy at a limit of 3 while the home price is above 3. Signs every Proposal addressed to it. |
+| `Opportunistic` | Sells 5 Energy at the costliest Market at a limit of 3 while that price is above 3. Signs every Proposal addressed to it. |
 | `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100, as a deal that CHIP co-signs. |
-| `CrisisResponse` | Buys 3 Energy at a limit of 4 while the home price is above 3.5 and its Energy holding is below 20. |
-| `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 at a limit of 3, or sell 5 at a limit of 2. |
+| `CrisisResponse` | Buys 3 Energy at the cheapest Market at a limit of 4 while that price is above 3.5 and its Energy holding is below 20. |
+| `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
 The Dashboard's launch form offers the same names: `GET /api/premise` sends them (`Premises.Presets.presetNames`, in the order written).
