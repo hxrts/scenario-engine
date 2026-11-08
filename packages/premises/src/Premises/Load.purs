@@ -1,5 +1,5 @@
 -- | Decodes a premise package from its file contents: every JSON section is merged into one Gameboard
--- | object, except `instantiation.json`, the Instantiation Configuration, and the composition's seat
+-- | object, except `instantiation.json`, the Instantiation Configuration, and the setting's seat
 -- | presets are decoded. The texts come in as values (`Premises.Tree`): this module does no IO. Validation is
 -- | not here: `loadPremise` hands the decoded premise to `Game.Premise.checkPremise`, which checks it
 -- | against itself and its Strategies, so bad data fails before any game is assembled.
@@ -68,7 +68,7 @@ loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
 
 -- | Every premise directory under the root, loaded and checked. A root with none is a failure.
 loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array GameboardParts))
-loadAll ops = Tree.compositionDirs ops >>= case _ of
+loadAll ops = Tree.settingDirs ops >>= case _ of
   Left e -> pure (Left e)
   Right [] -> pure (Left "no premise under the premise root; run `just _premises`")
   Right dirs -> map sequence (traverse (loadFrom ops) dirs)

@@ -11,6 +11,8 @@ module Views.Drivers
   ) where
 
 import Prelude
+import Core.World (Focus)
+import Core.Types (idText)
 
 import Core.Num (Q)
 import Core.Num as Q
@@ -78,13 +80,13 @@ subjectColumn = column "Subject" "What the driver is about: the Rule, the Propos
 amountColumn :: Column
 amountColumn = column "Amount" "The size of the driver, where it has one, in its own unit."
 
--- | The Energy shortfall of a round; also a column of the pressure table.
-shortfallsColumn :: Column
-shortfallsColumn = column "Shortfalls (E)" ("Energy wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice shortfallSum <> ".")
+-- | The focus Resource's shortfall of a round; also a column of the pressure table.
+shortfallsColumn :: Focus -> Column
+shortfallsColumn f = column ("Shortfalls (" <> idText f.resource <> ")") (f.label <> " wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice shortfallSum <> ".")
 
 -- | The columns this module defines.
-columns :: Array Column
-columns = [ driverColumn, subjectColumn, amountColumn, shortfallsColumn ]
+columns :: Focus -> Array Column
+columns f = [ driverColumn, subjectColumn, amountColumn, shortfallsColumn f ]
 
 -- | The drivers table: each round's enacted and repealed rules and procedure outcomes in the order the
 -- | engine recorded them, then that round's shortfalls per Resource.

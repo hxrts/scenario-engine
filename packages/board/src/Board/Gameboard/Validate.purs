@@ -10,6 +10,7 @@ module Board.Gameboard.Validate
   ) where
 
 import Prelude
+import Data.Foldable (foldMap)
 
 import Core.Map (values)
 
@@ -84,7 +85,7 @@ validateGameboard gb config =
       <> concatMap ruleRefs (values w.rules)
       <> concatMap capabilityRefs (concatMap _.capabilities (values w.entities))
       <> concatMap capabilityRefs (concatMap (\x -> concatMap _.authorizes (values x.aggregate.procedures)) aggregates)
-      <> unknownResource [ w.numeraire ]
+      <> unknownResource ([ w.numeraire ] <> foldMap (pure <<< _.resource) w.focus)
       <> concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective (values gb.actors)) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
       <> unknownEntity (concatMap coverageOf (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks))
       <> map (UnknownReference EntityRef <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))

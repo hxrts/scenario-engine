@@ -1,6 +1,6 @@
 -- | The premise file tree: where a premise lives, which of its files are sections, how a section
 -- | takes its name and path, and how a failed read is reported. The file operations come from the
--- | caller as `FileOps` (the composition root passes `Adapters.Filesystem`'s functions), so this
+-- | caller as `FileOps` (the setting root passes `Adapters.Filesystem`'s functions), so this
 -- | module does no IO of its own: it asks for a directory listing or a file's text, and decides what
 -- | those mean. `Premises.Load` decodes and merges the sections it returns.
 module Premises.Tree
@@ -9,7 +9,7 @@ module Premises.Tree
   , FileOps
   , readPremise
   , readRootFile
-  , compositionDirs
+  , settingDirs
   , premiseRoot
   ) where
 
@@ -56,8 +56,8 @@ readPremise ops dir = do
         pure { sections: ss, presets: p }
 
 -- | Every premise directory under the root (`<id>/<version>`, the ones holding a `premise.json`), sorted.
-compositionDirs :: forall m. Monad m => FileOps m -> m (Either String (Array String))
-compositionDirs ops = do
+settingDirs :: forall m. Monad m => FileOps m -> m (Either String (Array String))
+settingDirs ops = do
   root <- premiseRoot ops
   listed <- ops.list root
   case listed of

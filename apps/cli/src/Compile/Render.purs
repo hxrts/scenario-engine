@@ -21,8 +21,8 @@ import Core.Shape (prettyJson)
 import Foreign.Object as Object
 import Premises.Meridian.Capstone as Capstone
 import Premises.Meridian.Fixtures as Fixtures
-import Premises.Catalog (compositions)
-import Premises.Compose (Composition, directory, files, parts, presetsJson)
+import Premises.Catalog (settings)
+import Premises.Compose (Setting, directory, files, parts, presetsJson)
 import Schema.Premise.Fixture (decodeLiteral)
 import Premises.Layout (capstoneRunFile, fixturePath, presetsFile)
 
@@ -35,30 +35,30 @@ compile = do
   validate
   pure (map (\(Tuple path j) -> { path, text: render j }) outputs)
 
--- | One composition's files alone, for a production build: no other composition, no fixtures, no capstone.
+-- | One setting's files alone, for a production build: no other setting, no fixtures, no capstone.
 compileOnly :: String -> Either String (Array Output)
-compileOnly id = case find (\c -> c.id == id) compositions of
-  Nothing -> Left ("no composition named " <> id)
+compileOnly id = case find (\c -> c.id == id) settings of
+  Nothing -> Left ("no setting named " <> id)
   Just c -> do
     _ <- parts c
-    pure (map (\(Tuple path j) -> { path, text: render j }) (compositionFiles c))
+    pure (map (\(Tuple path j) -> { path, text: render j }) (settingFiles c))
 
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  concatMap compositionFiles compositions
+  concatMap settingFiles settings
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
     <> [ Tuple capstoneRunFile Capstone.file ]
 
--- | One composition's files under the premise root.
-compositionFiles :: Composition -> Array (Tuple String Json)
-compositionFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
+-- | One setting's files under the premise root.
+settingFiles :: Setting -> Array (Tuple String Json)
+settingFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
 
 -- | Decode and check the compiled premise exactly as the loader will read it: the Gameboard, the
 -- | Policies, the presets against the Gameboard (`checkPremise`), and every fixture.
 validate :: Either String Unit
 validate = do
-  for_ compositions parts
+  for_ settings parts
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

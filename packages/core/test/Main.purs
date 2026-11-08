@@ -143,6 +143,7 @@ baseWorld es =
   , transformations: Map.empty
   , representations: []
   , numeraire: Id "M"
+  , focus: Nothing
   , flowGates: []
   , groups: Map.empty
   , ruleKinds: testKinds

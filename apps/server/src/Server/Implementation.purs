@@ -6,6 +6,7 @@ module Server.Implementation (implement) where
 
 import Prelude
 
+import Data.Array (mapMaybe)
 import Data.Either (Either(..), either)
 import Effects.Api (ApiRequest(..))
 import Handlers.Api.Route (Implementation)
@@ -25,7 +26,7 @@ implement :: Premises -> StoreBackend -> Cache -> Implementation
 implement premises store cache = case _ of
   ListRuns { archived } -> runSummaries archived store >>= ok Keys.runList <<< Overview.runList
   Premise -> premiseInfo premises store >>= ok Keys.premises
-  Glossary -> ok Keys.glossary glossary
+  Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus premises))
   LaunchRun l -> writing (either (pure <<< Left) (\p -> launch p store l) (chosen premises l.premise) >>= either (failWith 400) (ok launchedShape))
   Entities id -> entitiesView cache store id
   Entity id entity -> entityView cache store id entity

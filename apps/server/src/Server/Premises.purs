@@ -1,4 +1,4 @@
--- | The premises a server has loaded (docs/06_simulator.md §8.1): every composition found under the
+-- | The premises a server has loaded (docs/06_simulator.md §8.1): every setting found under the
 -- | premise root. A launch names one, and a stored run is served from its own, through its `Spec.gameId`.
 module Server.Premises
   ( Premises
@@ -17,7 +17,7 @@ import Schema.Gameboard (Gameboard, gameIdOf)
 import Schema.Run (Spec)
 import Views.Common (StoredRun)
 
--- | Every loaded composition, in the order the launch form offers them.
+-- | Every loaded setting, in the order the launch form offers them.
 type Premises = Array GameboardParts
 
 -- | The premise a request names by its id, or the first one when it names none.

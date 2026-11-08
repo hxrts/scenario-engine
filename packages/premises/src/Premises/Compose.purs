@@ -1,8 +1,8 @@
--- | What a premise is made of, and the generic operations on one (docs/03): a `Composition` is a
+-- | What a premise is made of, and the generic operations on one (docs/03): a `Setting` is a
 -- | complete premise as authored, `files` splits it into the sections the loader reads, and `parts`
 -- | decodes and checks those sections exactly as the loader does. Nothing here names a premise.
 module Premises.Compose
-  ( Composition
+  ( Setting
   , directory
   , files
   , presetsJson
@@ -29,7 +29,7 @@ import Schema.Premise.Strategy (presetsShape)
 
 -- | A premise as authored: its identity, its Gameboard, how it is instantiated, and the seat presets
 -- | it offers.
-type Composition =
+type Setting =
   { id :: String
   , version :: String
   , gameboard :: Gameboard
@@ -37,16 +37,16 @@ type Composition =
   , presets :: PresetBinding
   }
 
--- | A composition's directory under the premise root (`meridian/v0`).
-directory :: Composition -> String
+-- | A setting's directory under the premise root (`meridian/v0`).
+directory :: Setting -> String
 directory c = c.id <> "/" <> c.version
 
 -- | One JSON file per section, as the loader reads them: each section is the keys it owns in the
 -- | Gameboard's encoding, and the instantiation configuration is its own file. The presets file is
 -- | `presetsJson`.
-files :: Composition -> Array (Tuple String Json)
+files :: Setting -> Array (Tuple String Json)
 files c =
-  [ section L.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
+  [ section L.premiseFile [ "id", "version", "numeraire", "focus", "horizon", "roundRange", "label" ]
   , section L.resourcesFile [ "resources" ]
   , section L.marketsFile [ "markets", "flowGates", "groups", "ruleKinds" ]
   , section L.transformationsFile [ "transformations" ]
@@ -61,12 +61,12 @@ files c =
   whole = fromMaybe Object.empty (toObject (encodeWith Premise gameboardShape c.gameboard))
   section name keysOf = Tuple name (fromObject (Object.fromFoldable (filter (\(Tuple k _) -> elem k keysOf) (Object.toUnfoldable whole))))
 
--- | A composition's seat presets, as the presets file holds them.
-presetsJson :: Composition -> Json
+-- | A setting's seat presets, as the presets file holds them.
+presetsJson :: Setting -> Json
 presetsJson c = encodeWith Premise presetsShape (presetsOf c.presets)
 
 -- | The compiled premise, decoded and checked as the loader reads it.
-parts :: Composition -> Either String GameboardParts
+parts :: Setting -> Either String GameboardParts
 parts c = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) (files c)))
   presets <- decodePresets (presetsJson c)

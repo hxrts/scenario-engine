@@ -1,6 +1,6 @@
 -- | The seat-policy presets (docs/06_simulator.md §4.2): one shared set of strategies that each
--- | composition binds to its own names and thresholds, so results stay comparable across compositions.
--- | A part of a binding a composition does not have leaves that preset with nothing to do there.
+-- | setting binds to its own names and thresholds, so results stay comparable across settings.
+-- | A part of a binding a setting does not have leaves that preset with nothing to do there.
 module Premises.Kit.Presets
   ( PresetBinding
   , Thresholds
@@ -26,7 +26,7 @@ type Thresholds =
   , random :: { quantity :: Expr, buyLimit :: Expr, sellQuantity :: Expr, sellLimit :: Expr }
   }
 
--- | The shared numbers. A composition binds other ones only to say something different.
+-- | The shared numbers. A setting binds other ones only to say something different.
 standardThresholds :: Thresholds
 standardThresholds =
   { conservative: { stockBelow: lit 30, price: lit "2.5", quantity: lit 5 }
@@ -37,7 +37,7 @@ standardThresholds =
   , random: { quantity: lit 5, buyLimit: lit 3, sellQuantity: lit (-5), sellLimit: lit 2 }
   }
 
--- | What a composition binds: the staple the market strategies trade, the numeraire, and what building,
+-- | What a setting binds: the staple the market strategies trade, the numeraire, and what building,
 -- | investing, and deploying mean in it.
 type PresetBinding =
   { staple :: String

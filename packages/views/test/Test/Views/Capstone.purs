@@ -7,6 +7,8 @@ module Test.Views.Capstone (spec) where
 
 import Prelude
 
+import Core.Types (Id(..), ResourceTag)
+
 import Test.Views.Support (toStored)
 
 import Core.Num as Q
@@ -133,19 +135,19 @@ spec context = describe "Capstone (DSL-authored run)" do
     same Keys.drivers (Drivers.drivers sr)
     same Keys.balance (Balance.balanceView ctx.gameboard sr)
     either fail (same Keys.events) (Balances.events sr 1)
-    reads Keys.glossary glossary
+    reads Keys.glossary (glossary meridianFocus)
 
   it "no column lacks a definition, and every column a view shows has one in the glossary" do
     ctx <- context
     cap <- load
     r <- runOf cap.playerSeed cap.game
-    Array.filter (\c -> c.definition == "") allColumns `shouldEqual` []
+    Array.filter (\c -> c.definition == "") (allColumns meridianFocus) `shouldEqual` []
     let
       sr = toStored "capstone" r
       other = sr { id = "other", name = "other" }
       runs = [ sr, other ]
-      dynamic name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern glossary.round.prefix) name)
-      undefined' t = Array.filter (\name -> not (Object.member name glossary.definitions || dynamic name)) t.columns
+      dynamic name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern (glossary meridianFocus).round.prefix) name)
+      undefined' t = Array.filter (\name -> not (Object.member name (glossary meridianFocus).definitions || dynamic name)) t.columns
       tables =
         [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.gameboard sr ]
           <>
@@ -178,3 +180,6 @@ differenceOf :: SimRun -> SimRun -> Difference
 differenceOf base other = case base.final, other.final of
   Right a, Right b -> differenceOfWorlds a b
   _, _ -> { holdings: [], prices: [] }
+
+meridianFocus :: Array { resource :: Id ResourceTag, label :: String }
+meridianFocus = [ { resource: Id "E", label: "Energy" } ]

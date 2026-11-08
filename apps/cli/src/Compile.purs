@@ -20,7 +20,7 @@ import Exit (fail)
 import Compile.Render (compile, compileOnly)
 import Core.Shape (Format(Snapshot), encodeWith, listOf, prettyJson, stringShape)
 import Views.Overview (runList)
-import Premises.Catalog (compositions)
+import Premises.Catalog (settings)
 import Premises.Compose (directory)
 import Premises.Layout as L
 
@@ -31,13 +31,13 @@ main = do
     [ "--only", id ] -> writeOnly id
     _ -> writeAll
 
--- | One composition's files, for a production build (`just build-prod`).
+-- | One setting's files, for a production build (`just build-prod`).
 writeOnly :: String -> Effect Unit
 writeOnly id = case compileOnly id of
   Left e -> fail ("invalid premise: " <> e)
   Right files -> do
     root <- premiseRoot fileOps
-    for_ (filter (\c -> c.id == id) compositions) \c -> mkdir' (root <> directory c) { recursive: true, mode: permsAll }
+    for_ (filter (\c -> c.id == id) settings) \c -> mkdir' (root <> directory c) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
     log ("compiled " <> show (length files) <> " files of " <> id)
 
@@ -46,7 +46,7 @@ writeAll = case compile of
   Left e -> fail ("invalid premise: " <> e)
   Right files -> do
     root <- premiseRoot fileOps
-    for_ (map directory compositions <> [ L.fixturesDir, L.capstoneDir ]) \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
+    for_ (map directory settings <> [ L.fixturesDir, L.capstoneDir ]) \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
     -- the tables the dashboard's mocks answer with: their headings come from the views
     mkdir' "apps/dashboard/e2e/generated" { recursive: true, mode: permsAll }

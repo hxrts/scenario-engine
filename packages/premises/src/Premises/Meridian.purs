@@ -48,7 +48,7 @@ import Premises.Meridian.Policies (policies)
 import Schema.Build.Base (keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey, emptyWorld, noFacility, noResource, resourcesOf)
-import Premises.Compose (Composition)
+import Premises.Compose (Setting)
 import Premises.Kit (MarketTerms, flowsOf, market, requirementsOf, (~>))
 import Premises.Kit as Kit
 import Premises.Meridian.Entities.Capabilities (defenceAccess)
@@ -89,6 +89,7 @@ gameboard =
   , authored: { circulation, reservable, decays }
   , world: emptyWorld
       { numeraire = Id n.money
+      , focus = Just { resource: Id n.energy, label: "Energy" }
       , resources = resources
       , markets = markets
       , transformations = transformations
@@ -100,8 +101,8 @@ gameboard =
       }
   }
 
--- | The reference premise as a composition.
-meridian :: Composition
+-- | The reference premise as a setting.
+meridian :: Setting
 meridian = { id: gameboard.id, version: gameboard.version, gameboard, config: instantiation, presets: presetBinding }
 
 -- | What Meridian's seat presets act on.

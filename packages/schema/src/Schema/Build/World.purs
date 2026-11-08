@@ -101,6 +101,7 @@ emptyWorld =
   , transformations: Map.empty
   , representations: []
   , numeraire: Id ""
+  , focus: Nothing
   , flowGates: []
   , groups: Map.empty
   , ruleKinds: Map.empty

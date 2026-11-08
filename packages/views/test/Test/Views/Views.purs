@@ -5,6 +5,8 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
+import Core.Types (Id(..), ResourceTag)
+
 import Testkit.Edit (onEntity)
 
 import Test.Views.Support (toStored)
@@ -128,7 +130,7 @@ spec context = describe "Views and error paths" do
     (balanceBars runs).gini.unit `shouldEqual` "index, 0 to 1 − 1/n"
 
   it "the Gini's upper end is stated as 1 − 1/n wherever the glossary names it" do
-    Object.lookup "Gini" glossary.definitions `shouldEqual` Just "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
+    Object.lookup "Gini" (glossary meridianFocus).definitions `shouldEqual` Just "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
 
   it "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" do
     ctx <- context
@@ -248,3 +250,6 @@ spec context = describe "Views and error paths" do
     , source: Nothing
     , sourceDeleted: false
     }
+
+meridianFocus :: Array { resource :: Id ResourceTag, label :: String }
+meridianFocus = [ { resource: Id "E", label: "Energy" } ]

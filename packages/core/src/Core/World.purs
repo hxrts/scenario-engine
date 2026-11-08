@@ -33,6 +33,7 @@ type WorldFields r =
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
   , numeraire :: ResourceId -- the premise's unit of account; only the views read it
+  , focus :: Maybe Focus -- the Resource the premise's market views centre on; only the views read it
   , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
@@ -378,6 +379,12 @@ lapse round proposal = Lapsed { round, proposal }
 orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event
 orderRemoved round proposal reason = OrderRemoved { round, proposal, reason }
 
+-- | The Resource a premise's market views centre on, and what they call it.
+type Focus = { resource :: ResourceId, label :: String }
+
+focusShape :: Shape Focus
+focusShape = recordShape "Focus" { resource: idShape, label: stringShape }
+
 -- | Everything the engine records. The round record is the list of a round's events.
 data Event
   = Lapsed { round :: RoundIndex, proposal :: ProposalId }
@@ -667,7 +674,7 @@ flowGateShape :: Shape FlowGate
 flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

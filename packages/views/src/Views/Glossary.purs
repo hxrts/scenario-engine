@@ -7,6 +7,7 @@ module Views.Glossary (Glossary, allColumns, glossary) where
 
 import Prelude
 
+import Core.World (Focus)
 import Data.Array (concatMap, nubBy, sortBy)
 import Data.Function (on)
 import Data.Maybe (maybe)
@@ -34,19 +35,19 @@ type Glossary =
   , round :: { prefix :: String, definition :: String }
   }
 
--- | Every column the views use, in name order, each once.
-allColumns :: Array Column
-allColumns = nubBy (compare `on` _.name)
+-- | Every column the views use over the loaded premises' focus Resources, in name order, each once.
+allColumns :: Array Focus -> Array Column
+allColumns foci = nubBy (compare `on` _.name)
   ( sortBy (compare `on` _.name)
       ( sharedColumns <> concatMap identity
-          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, Drivers.columns, Representation.columns, Representation.procedureColumns, Actions.columns, Markets.columns, Compare.columns ]
+          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Actions.columns, concatMap Markets.columns foci, Compare.columns ]
       )
   )
 
-glossary :: Glossary
-glossary =
-  { definitions: Object.fromFoldable (map (\c -> Tuple c.name c.definition) allColumns)
-  , reasons: Object.fromFoldable (concatMap (\c -> maybe [] (\r -> [ Tuple c.name r ]) c.emptyReason) allColumns)
+glossary :: Array Focus -> Glossary
+glossary foci =
+  { definitions: Object.fromFoldable (map (\c -> Tuple c.name c.definition) (allColumns foci))
+  , reasons: Object.fromFoldable (concatMap (\c -> maybe [] (\r -> [ Tuple c.name r ]) c.emptyReason) (allColumns foci))
   , unnamed:
       { definition: "The value of {name} for this row. This column is a compared run's id."
       , reason: { label: "not recorded", reason: "The server gave no value for {name} in this run." }

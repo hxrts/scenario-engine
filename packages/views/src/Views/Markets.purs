@@ -17,6 +17,9 @@ module Views.Markets
   ) where
 
 import Prelude
+import Core.World (Focus)
+import Core.Types (idText)
+import Views.Common (focusOf)
 
 import Core.Map (sumInto)
 
@@ -45,18 +48,14 @@ type MarketPrice = { market :: MarketId, price :: Q }
 marketPrices :: WorldState -> Array MarketPrice
 marketPrices w = map (\(Tuple id m) -> { market: id, price: marketPrice m }) (Map.toUnfoldable w.markets)
 
--- | The Energy Resource and the money numeraire the Energy Markets quote in; their units are the
--- | manifest's, so the chart units are not spelled out here.
-energy :: ResourceId
-energy = Id "E"
-
 markets :: StoredRun -> Array Chart
 markets r =
-  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r energy, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.market) p.price) (marketPrices w)) exact }
-  , { title: "Energy reserves", unit: unitOf r energy, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) exact }
-  , { title: "Traded volume", unit: unitOf r energy, kind: Quantity, series: volume }
+  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r focus.resource, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.market) p.price) (marketPrices w)) exact }
+  , { title: focus.label <> " reserves", unit: unitOf r focus.resource, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) exact }
+  , { title: "Traded volume", unit: unitOf r focus.resource, kind: Quantity, series: volume }
   ]
   where
+  focus = focusOf r
   volume = map
     ( \(Tuple id _) ->
         { name: show id
@@ -150,21 +149,21 @@ rejectedColumn = column "Rejected" ("Proposals the engine rejected in the round 
 lapsedColumn :: Column
 lapsedColumn = column "Lapsed" ("Proposals whose signature rule was not met in the round, so they lapsed without executing. Computed as: " <> describeSlice lapsedCount <> ".")
 
-consumedColumn :: Column
-consumedColumn = column "Consumed (E)" ("Energy consumed in the round. Computed as: " <> describeSlice consumedTotal <> ".")
+consumedColumn :: Focus -> Column
+consumedColumn f = column ("Consumed (" <> idText f.resource <> ")") (f.label <> " consumed in the round. Computed as: " <> describeSlice consumedTotal <> ".")
 
 decayedColumn :: Column
 decayedColumn = column "Decayed" ("Quantity that decayed in the round. Computed as: " <> describeSlice decayedTotal <> ".")
 
 -- | The columns this module defines.
-columns :: Array Column
-columns = [ facilityColumn, orderedBy, quantityColumn, paidColumn, fromColumn, toColumn, moneyColumn, rejectedColumn, lapsedColumn, consumedColumn, decayedColumn ]
+columns :: Focus -> Array Column
+columns f = [ facilityColumn, orderedBy, quantityColumn, paidColumn, fromColumn, toColumn, moneyColumn, rejectedColumn, lapsedColumn, consumedColumn f, decayedColumn ]
 
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table
 pressure r =
   { title: "Pressure"
-  , columns: names [ col.round, shortfallsColumn, rejectedColumn, lapsedColumn, consumedColumn, decayedColumn ]
+  , columns: names [ col.round, shortfallsColumn (focusOf r), rejectedColumn, lapsedColumn, consumedColumn (focusOf r), decayedColumn ]
   , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) (records r)
   }
 

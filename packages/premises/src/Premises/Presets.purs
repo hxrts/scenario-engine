@@ -1,6 +1,6 @@
--- | The names of the seat-policy presets (docs/06_simulator.md §4.2), shared by every composition, and
+-- | The names of the seat-policy presets (docs/06_simulator.md §4.2), shared by every setting, and
 -- | the ones a caller plays when it names none. The strategies are `Premises.Kit.Presets`, a function
--- | of each composition's binding.
+-- | of each setting's binding.
 module Premises.Presets (presetId, presetNames, defaultPresets) where
 
 -- | Each preset's name.

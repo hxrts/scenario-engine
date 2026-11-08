@@ -16,6 +16,7 @@ module Schema.Premise.World
   ) where
 
 import Prelude
+import Core.World (focusShape)
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
@@ -297,6 +298,7 @@ worldFields :: RecF PremiseWorld (Map EntityId Entity -> PremiseWorld)
 worldFields = mk
   <$> fieldOf "round" "the starting round (default 1)" (defaultsTo 1 intShape) _.world.round
   <*> fieldOf "numeraire" "the unit of account, which the views use for net worth" idShape _.world.numeraire
+  <*> fieldOf "focus" "the Resource the market views centre on" (optionalOf focusShape) _.world.focus
   <*> fieldOf "resources" "the Resources" (idMap resourceEntry) entriesOf
   <*> fieldOf "markets" "the Markets" (idMapWith marketShape) _.world.markets
   <*> fieldOf "transformations" "the facilities" (idMapWith facilityShape) _.world.transformations
@@ -308,14 +310,14 @@ worldFields = mk
   <*> fieldOf "circulation" "the recurring economic cycle" circulationShape _.authored.circulation
   where
   gateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape } :: Shape FlowGate
-  mk round numeraire entries markets transformations flowGates groups ruleKinds rules representations circulation entities =
+  mk round numeraire focus entries markets transformations flowGates groups ruleKinds rules representations circulation entities =
     let
       decays = mapMaybe (\(Tuple k e) -> (\rate -> { resource: k, rate }) <$> e.decay) (Map.toUnfoldable entries)
       reservable = map (\(Tuple k _) -> k) (filter (\(Tuple _ e) -> e.reservable) (Map.toUnfoldable entries))
       resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability } :: ResourceDefinition)) entries
     in
       { authored: { circulation, reservable, decays }
-      , world: { round, numeraire, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, scheduled: Map.empty, deliveries: [], factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
+      , world: { round, numeraire, focus, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, scheduled: Map.empty, deliveries: [], factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
       }
 
 -- | The whole World, with its Entities by key: a fixture's.

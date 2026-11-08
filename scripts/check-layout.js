@@ -25,7 +25,7 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
-    name: "the server loads what the premise root contains: it imports no composition, Kit, or Catalog",
+    name: "the server loads what the premise root contains: it imports no setting, Kit, or Catalog",
     files: (f) => f.startsWith("apps/server/src/"),
     bad: (line) => /^import Premises\.(Meridian|Kit|Catalog)\b/.test(line),
   },

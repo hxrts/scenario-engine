@@ -1,4 +1,4 @@
--- | Generic premise definitions (docs/03): the pieces a composition is written with. Nothing here
+-- | Generic premise definitions (docs/03): the pieces a setting is written with. Nothing here
 -- | names a premise: every Resource, name, table, and threshold is given by the caller.
 module Premises.Kit
   ( Cover(..)

@@ -16,6 +16,7 @@ module Views.Common
   , col
   , sharedColumns
   , StoredRun
+  , focusOf
   , RunHeader
   , storedRun
   , records
@@ -48,6 +49,8 @@ module Views.Common
   ) where
 
 import Prelude
+import Core.World (Focus)
+import Core.Types (idText)
 
 import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
@@ -171,6 +174,10 @@ type StoredRun =
   , rounds :: Array RoundResult
   , assertions :: Array (Array Failure)
   }
+
+-- | The Resource a run's market views centre on: the one its premise declares, else its numeraire.
+focusOf :: StoredRun -> Focus
+focusOf r = fromMaybe { resource: r.manifest.initial.numeraire, label: idText r.manifest.initial.numeraire } r.manifest.initial.focus
 
 -- | A stored run from its header, its rounds, and each round's assertions.
 storedRun :: RunHeader -> Array RoundResult -> Array (Array Failure) -> StoredRun

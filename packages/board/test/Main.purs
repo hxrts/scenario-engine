@@ -90,6 +90,7 @@ coverageGameboard =
     , transformations: Map.singleton (Id "fac") facility
     , representations: []
     , numeraire: money
+    , focus: Nothing
     , flowGates: []
     , groups: Map.empty
     , ruleKinds: testKinds
