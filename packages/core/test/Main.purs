@@ -19,7 +19,7 @@ import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RejectReason(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
-import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -227,7 +227,7 @@ fillsOf who r = concatMap
 fillIn :: String -> String -> Either EngineError RoundResult -> Q
 fillIn marketId who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == marketId) (fillsOf who r)))
 
--- | The Market record as hand-written fields, which `recordShape` must reproduce (format pin, work/7 S5).
+-- | The Market record as hand-written fields, which `recordShape` must reproduce (format pin).
 marketObject :: Shape Market
 marketObject = object "Market"
   ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
@@ -671,10 +671,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       moneyAfter (penalised 8) `shouldEqual` q "104.5"
       -- nothing unmet: the flow arrives in full
       moneyAfter (penalised 10) `shouldEqual` Q.fromInt 105
-    it "a Proposal id gives back its author and its index" do
-      proposalAuthor (proposalId 3 (Id "US") 1) `shouldEqual` Just (Id "US")
+    it "a Proposal id gives back its index" do
       submissionIndex (proposalId 3 (Id "US") 1) `shouldEqual` Just 1
-      proposalAuthor (Id "not-a-proposal-id") `shouldEqual` Nothing
     it "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" do
       let
         uk = (actor "UK" [ MayEnact (Id "withholding") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }

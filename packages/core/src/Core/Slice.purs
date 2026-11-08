@@ -10,7 +10,6 @@ module Core.Slice
   , orKind
   , whereEq
   , whereGt
-  , whereIn
   , whereNamed
   , read
   , Slice
@@ -39,7 +38,6 @@ module Core.Slice
   , class HandlerRow
   , class Handles
   , handles
-  , matchEvent
   , foldEvents
   , ignore
   ) where
@@ -51,7 +49,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
 import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
-import Data.Array (concatMap, elem, filter, foldl, head, index, length, nubEq, snoc)
+import Data.Array (concatMap, filter, foldl, head, index, length, nubEq, snoc)
 import Data.Foldable (any, maximum)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), Sum(..), from)
@@ -126,12 +124,6 @@ whereEq x = whereNamed (reflectSymbol f <> " = " <> show x) (\r -> Record.get f 
 -- | The Events whose field is above the value: `whereGt @"quantity" Q.zero`.
 whereGt :: forall @field r b tail. IsSymbol field => Row.Cons field b tail r => Ord b => Show b => b -> Select (Record r) -> Select (Record r)
 whereGt x = whereNamed (reflectSymbol f <> " > " <> show x) (\r -> Record.get f r > x)
-  where
-  f = Proxy :: Proxy field
-
--- | The Events whose field is one of the values, shown by their names.
-whereIn :: forall @field r b tail. IsSymbol field => Row.Cons field b tail r => Eq b => String -> Array b -> Select (Record r) -> Select (Record r)
-whereIn label xs = whereNamed (reflectSymbol f <> " in " <> label) (\r -> elem (Record.get f r) xs)
   where
   f = Proxy :: Proxy field
 

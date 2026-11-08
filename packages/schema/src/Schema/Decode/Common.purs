@@ -2,7 +2,10 @@
 -- | `fromJsonString`; section decoding lives in `Schema.Setting.*`.
 module Schema.Decode.Common
   ( decodeError
+  , decodeErrorAt
   ) where
+
+import Prelude
 
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
 import Data.Bifunctor (lmap)
@@ -11,3 +14,7 @@ import Data.Either (Either)
 -- | A JSON decode error, as the text it prints.
 decodeError :: forall a. Either JsonDecodeError a -> Either String a
 decodeError = lmap printJsonDecodeError
+
+-- | The same, named by what did not decode.
+decodeErrorAt :: forall a. String -> Either JsonDecodeError a -> Either String a
+decodeErrorAt what = lmap (\e -> what <> ": " <> printJsonDecodeError e)

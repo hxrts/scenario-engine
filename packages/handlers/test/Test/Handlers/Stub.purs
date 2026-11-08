@@ -34,8 +34,8 @@ import Foreign.Object as Object
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call, backend)
-import Schema.Joint (ProposedJoint)
-import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
+import Schema.Joint (ProposedJoint, jointReplyShape)
+import Handlers.Llm.Wire (textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
 -- | The stub digest: sixteen characters, as the adapter's is, with no hashing.

@@ -14,8 +14,6 @@ module Handlers.Llm.Wire
   , jointRequestShape
   , narrateRequestShape
   , speakRequestShape
-  , jointReplyShape
-  , proposedJointsShape
   , textReplyShape
   , correctionShape
   , decodeJoint
@@ -26,7 +24,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Core.Num as Q
-import Schema.Joint (ProposedJoint, Transcript, proposedJointShape, transcriptShape)
+import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, encodeWith, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
@@ -72,18 +70,6 @@ speakRequestShape = object "SpeakRequest"
       <$> fieldOf "actor" "the seat" idShape _.actor
       <*> fieldOf "briefing" "the seat's role" stringShape _.briefing
       <*> fieldOf "view" "what the seat can see" viewShape _.view
-  )
-
--- | The Proposals of a joint pass as the model states them: what its reply carries and what the
--- | recording keeps.
-proposedJointsShape :: Shape (Array ProposedJoint)
-proposedJointsShape = arrayOf proposedJointShape
-
--- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
-jointReplyShape :: Shape { proposals :: Array ProposedJoint }
-jointReplyShape = object "JointReply"
-  ( (\p -> { proposals: p })
-      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape) _.proposals
   )
 
 -- | A narrator's or seat's reply: one object with a `text` string.

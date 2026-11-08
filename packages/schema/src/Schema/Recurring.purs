@@ -20,7 +20,6 @@ module Schema.Recurring
   , flowRule
   , shareRule
   , requirementRule
-  , decayRule
   , isRequirement
   ) where
 

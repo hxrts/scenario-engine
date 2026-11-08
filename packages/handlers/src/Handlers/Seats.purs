@@ -6,7 +6,6 @@
 module Handlers.Seats
   ( SeatEnv
   , seatEnv
-  , seatEnvFor
   , handleSeats
   , RecordSink
   , playPure

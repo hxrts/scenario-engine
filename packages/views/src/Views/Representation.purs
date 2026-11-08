@@ -16,10 +16,11 @@ import Core.Query (tradesOf)
 import Core.Slice (event, exchanges, read, runSlice, select, total, whereEq, whereGt)
 import Core.Types (EntityId)
 import Core.World (RoundRecord)
+import Data.String (joinWith)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Column, Procedure, StoredRun, Table, col, column, joinComma, names, outcomeLabel, proceduresOf, quantity, ratio, records)
+import Views.Common (Column, Procedure, StoredRun, Table, col, column, names, outcomeLabel, proceduresOf, quantity, ratio, records)
 
 -- | The four-stage record's columns after the round; the glossary reads them.
 columns :: Array Column
@@ -90,4 +91,4 @@ procedures r =
   }
   where
   row :: Procedure -> Array String
-  row p = [ show p.round, show p.proposal, joinComma (map show p.signers), ratio p.support, ratio p.threshold, outcomeLabel p.executed ]
+  row p = [ show p.round, show p.proposal, joinWith ", " (map show p.signers), ratio p.support, ratio p.threshold, outcomeLabel p.executed ]

@@ -31,7 +31,7 @@ import Core.Types (EntityId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
 import Data.Maybe (Maybe(..), maybe)
-import Views.Common (Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, roundResults, col, column, names)
+import Views.Common (Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, col, column, names)
 import Views.Standings (netWorths)
 
 spreadStat :: Statistic
@@ -137,7 +137,7 @@ measures r =
 type Completion = { actor :: EntityId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
 
 completionOf :: Gameboard -> StoredRun -> Array Completion
-completionOf gb r = map row (evaluateObjectives gb (roundResults r))
+completionOf gb r = map row (evaluateObjectives gb r.rounds)
   where
   row o =
     let

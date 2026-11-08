@@ -16,6 +16,7 @@ module Adapters.SQLite
   , Db
   ) where
 
+import Schema.Decode.Common (decodeErrorAt)
 import Prelude
 
 import Core.Invariants (failureShape)
@@ -25,7 +26,6 @@ import Schema.Joint (transcriptShape)
 import Schema.Run (RunStatus, Spec, deriveKindName, runStatusName, runStatusShape, specShape)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
-import Data.Bifunctor (lmap)
 import Data.Either (either)
 import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, Fn9, runFn1, runFn2, runFn3, runFn4, runFn8, runFn9)
 import Data.Nullable (Nullable, toMaybe, toNullable)
@@ -101,7 +101,7 @@ shapeText s = stringify <<< encodeWith Snapshot s
 
 -- | A described record's stored text, decoded through its shape.
 fromShape :: forall a. Shape a -> String -> String -> Stored a
-fromShape s what text = lmap (\e -> what <> ": " <> printJsonDecodeError e) (parse Snapshot s text)
+fromShape s what text = decodeErrorAt what (parse Snapshot s text)
 
 -- | A stored specification to its text, in the setting form: an absent field is not written.
 specText :: Spec -> String
@@ -109,7 +109,7 @@ specText = stringify <<< encodeWith Authored specShape
 
 -- | A stored specification's text, read through its shape.
 specOf :: String -> Stored Spec
-specOf text = lmap (\e -> "spec: " <> printJsonDecodeError e) (parse Authored specShape text)
+specOf text = decodeErrorAt "spec" (parse Authored specShape text)
 
 -- | A row's status text as the type the program reads. Only this module writes the column, so text
 -- | outside the set is a damaged store: an exception, not a guess.

@@ -51,8 +51,5 @@ capstoneDir = "capstone"
 fixturePath :: String -> String
 fixturePath name = fixturesDir <> "/" <> name <> ".json"
 
-capstoneRunFile :: String
-capstoneRunFile = capstoneDir <> "/run.json"
-
 capstoneTranscriptFile :: String
 capstoneTranscriptFile = capstoneDir <> "/transcript.json"

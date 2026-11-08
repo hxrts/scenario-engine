@@ -1,5 +1,7 @@
 module Test.Board.Main where
 
+import Testkit.Meridian (orThrow)
+import Schema.Build.Decision (passive)
 import Prelude
 
 import Testkit.Edit (onEntity)
@@ -45,7 +47,7 @@ coverageGameboard =
   , horizon: 1
   , rounds: { min: 1, max: 4 }
   , label: Nothing
-  , policies: Map.singleton (Id "p") { rules: [], sign: [] }
+  , policies: Map.singleton (Id "p") passive
   }
   where
   us = Id "US" :: EntityId
@@ -216,13 +218,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Instantiation" do
     it "a decoded Gameboard's world carries no seed; instantiation sets it" do
-      case decodeGameboard (json (minimalGameboard "[4, 8]")), decodeConfig (json """{ "seed": 9, "rounds": 4 }""") of
-        Left e, _ -> fail (show e)
-        _, Left e -> fail (show e)
-        Right raw, Right config -> do
-          case instantiate raw config of
-            Left es -> fail (show es)
-            Right initial -> show initial.world.seed `shouldEqual` "9"
+      raw <- orThrow (decodeGameboard (json (minimalGameboard "[4, 8]")))
+      config <- orThrow (decodeConfig (json """{ "seed": 9, "rounds": 4 }"""))
+      initial <- orThrow (instantiate raw config)
+      show initial.world.seed `shouldEqual` "9"
 
 -- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v

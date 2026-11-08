@@ -1,7 +1,8 @@
--- | Primitive flows, instantiated purely through the setting DSL (work/7 S13 proof): a trade, a levy, a
+-- | Primitive flows, instantiated purely through the setting DSL (docs/02 §5): a trade, a levy, a
 -- | decay, and a wage, compiled over `Coupled`, against hand-computed values.
 module Test.Settings.Flows (spec) where
 
+import Testkit.Meridian (orThrow)
 import Prelude
 
 import Core.Draw (Seed(..))
@@ -11,7 +12,6 @@ import Core.Query (holding)
 import Core.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
 import Core.Types (Capability(..), Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), RuleForm(..), proposalId)
 import Core.World (UnseededWorld, Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
-import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
@@ -21,7 +21,7 @@ import Schema.Setting.World (rulesFromList)
 import Schema.Recurring (Circulation, compileIn, kinds)
 import Data.Map as Map
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (fail, shouldEqual)
+import Test.Spec.Assertions (shouldEqual)
 
 -- | Everything authored as the setting format's document, compiled by the DSL.
 circulation :: Circulation
@@ -93,23 +93,21 @@ spec = describe "Primitive flows through the DSL" do
       , coupled 1 [ { from: Held c, to: Sink, resource: e, owed: Q.div (Q.fromInt 1) (Q.fromInt 2), moved: Q.div (Q.fromInt 1) (Q.fromInt 2) } ] Nothing (OfRecurring { rule: Id "decay-0", kind: kinds.decay })
       ]
   it "the engine's settlements are the setting's worked values, leg by leg" do
-    case resolved of
-      Left err -> fail (show err)
-      Right r -> do
-        map Coupled (select (event @"Coupled") r.record.events) `shouldEqual` expected
-        -- each flow read through the slices the views use
-        map _.owed (select levies r.record.events) `shouldEqual` [ Q.div (Q.fromInt 1) (Q.fromInt 2) ]
-        map _.quantity (select transfers r.record.events) `shouldEqual` [ Q.fromInt 5, Q.fromInt 8 ]
-        map _.quantity (select shortfalls r.record.events) `shouldEqual` [ Q.fromInt 2 ]
-        runSlice (total (read @"amount" levies)) r.record.events `shouldEqual` Q.div (Q.fromInt 1) (Q.fromInt 2)
-        for_
-          [ { e: a, res: e, is: Q.div (Q.fromInt 27) (Q.fromInt 2) }
-          , { e: a, res: m, is: Q.div (Q.fromInt 199) (Q.fromInt 2) }
-          , { e: b, res: e, is: Q.div (Q.fromInt 9) (Q.fromInt 5) }
-          , { e: b, res: m, is: Q.fromInt 96 }
-          , { e: c, res: e, is: Q.div (Q.fromInt 9) (Q.fromInt 2) }
-          , { e: c, res: m, is: Q.div (Q.fromInt 1) (Q.fromInt 2) }
-          , { e: emp, res: m, is: Q.fromInt 0 }
-          , { e: wrk, res: m, is: Q.fromInt 8 }
-          ]
-          \x -> holding r.world x.e x.res `shouldEqual` x.is
+    r <- orThrow (resolved)
+    map Coupled (select (event @"Coupled") r.record.events) `shouldEqual` expected
+    -- each flow read through the slices the views use
+    map _.owed (select levies r.record.events) `shouldEqual` [ Q.div (Q.fromInt 1) (Q.fromInt 2) ]
+    map _.quantity (select transfers r.record.events) `shouldEqual` [ Q.fromInt 5, Q.fromInt 8 ]
+    map _.quantity (select shortfalls r.record.events) `shouldEqual` [ Q.fromInt 2 ]
+    runSlice (total (read @"amount" levies)) r.record.events `shouldEqual` Q.div (Q.fromInt 1) (Q.fromInt 2)
+    for_
+      [ { e: a, res: e, is: Q.div (Q.fromInt 27) (Q.fromInt 2) }
+      , { e: a, res: m, is: Q.div (Q.fromInt 199) (Q.fromInt 2) }
+      , { e: b, res: e, is: Q.div (Q.fromInt 9) (Q.fromInt 5) }
+      , { e: b, res: m, is: Q.fromInt 96 }
+      , { e: c, res: e, is: Q.div (Q.fromInt 9) (Q.fromInt 2) }
+      , { e: c, res: m, is: Q.div (Q.fromInt 1) (Q.fromInt 2) }
+      , { e: emp, res: m, is: Q.fromInt 0 }
+      , { e: wrk, res: m, is: Q.fromInt 8 }
+      ]
+      \x -> holding r.world x.e x.res `shouldEqual` x.is

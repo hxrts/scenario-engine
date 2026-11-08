@@ -1,4 +1,4 @@
--- | The checks a round makes (§13 Phase 6): `RoundF f p`, one record of what a round
+-- | The checks a round makes: `RoundF f p`, one record of what a round
 -- | holds, with the filling at the leaves and `p` for a named Proposal. `Observed` is what the engine's
 -- | round produced (`Checks.Round.observe`); `Expect` is what a setting asserts, with sparse maps (an
 -- | absent key or a `Nothing` leaf asserts nothing) and a `Nothing` field asserting nothing, and

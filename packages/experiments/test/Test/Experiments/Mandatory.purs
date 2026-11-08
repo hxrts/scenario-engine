@@ -8,7 +8,8 @@ import Prelude
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
-import Testkit.Meridian (orThrow, seats, everySeat, initialOf, run, valid)
+import Settings.Meridian.Names (seatActors)
+import Testkit.Meridian (orThrow, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 import Testkit.Json (strategyOrThrow)
 
@@ -33,7 +34,7 @@ import Settings.Literal (literalGame)
 import Simulator.Simulate (simulate)
 import Game.Setting (GameboardParts)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (fail, shouldEqual)
+import Test.Spec.Assertions (shouldEqual)
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
@@ -58,37 +59,31 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "14 Agency: every role has a measurable effect and its objectives are reported" do
     ctx <- context
     random <- everySeat ctx "RandomValid"
-    case agency ctx.gameboard ctx.presets (Seed 1) random "Aggressive" (map Id seats) of
-      Left e -> fail (show e)
-      Right ps -> do
-        length ps `shouldEqual` 15
-        -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
-        map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
+    ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) random "Aggressive" (map Id seatActors))
+    length ps `shouldEqual` 15
+    -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
+    map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
     g <- everySeat ctx "Conservative"
-    case agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seats) of
-      Left e -> fail (show e)
-      Right profiles -> do
-        -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
-        -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
-        -- is asserted on the RandomValid baseline. Pinned here so a setting change is noticed.
-        map _.actor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
-        base <- run (Seed 1) g
-        -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
-        map (\o -> show o.actor <> ":" <> show o.outcome) (evaluateObjectives ctx.gameboard base.records)
-          `shouldEqual`
-            [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
+    profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seatActors))
+    -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
+    -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
+    -- is asserted on the RandomValid baseline. Pinned here so a setting change is noticed.
+    map _.actor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
+    base <- run (Seed 1) g
+    -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
+    map (\o -> show o.actor <> ":" <> show o.outcome) (evaluateObjectives ctx.gameboard base.records)
+      `shouldEqual`
+        [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 
   it "player seeds vary seat behaviour while every Game-stream draw stays identical" do
     ctx <- context
     g <- everySeat ctx "RandomValid"
-    case playerSeedRuns g (range 1 10) of
-      Left e -> fail (show e)
-      Right runs -> do
-        for_ runs \r -> valid (initialOf r) r
-        length (nubEq (map (map _.world <<< _.records) runs)) `shouldEqual` 10
-        -- every in-world draw is unchanged by the player seed: Fixture C5's noisy Representation is the
-        -- only draw in its game, its seats are scripted, and only the player seed differs between the runs
-        literal <- orThrow =<< liftEffect (map (_ >>= loadLiteral "C5") (readRootFile fileOps (fixturePath "C5")))
-        game <- orThrow (literalGame literal)
-        c5 <- traverse (\s -> orThrow (simulate (Seed s) game)) [ 1, 2, 3 ]
-        length (nubEq (map (map _.world <<< _.records) c5)) `shouldEqual` 1
+    runs <- orThrow (playerSeedRuns g (range 1 10))
+    for_ runs \r -> valid (initialOf r) r
+    length (nubEq (map (map _.world <<< _.records) runs)) `shouldEqual` 10
+    -- every in-world draw is unchanged by the player seed: Fixture C5's noisy Representation is the
+    -- only draw in its game, its seats are scripted, and only the player seed differs between the runs
+    literal <- orThrow =<< liftEffect (map (_ >>= loadLiteral "C5") (readRootFile fileOps (fixturePath "C5")))
+    game <- orThrow (literalGame literal)
+    c5 <- traverse (\s -> orThrow (simulate (Seed s) game)) [ 1, 2, 3 ]
+    length (nubEq (map (map _.world <<< _.records) c5)) `shouldEqual` 1

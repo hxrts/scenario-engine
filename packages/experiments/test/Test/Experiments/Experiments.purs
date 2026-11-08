@@ -1,13 +1,15 @@
--- | Phase 9: the variant experiments of docs/06_simulator.md §11 on Meridian,
+-- | The variant experiments of docs/06_simulator.md §11 on Meridian,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
 -- | every invariant; the printed table is the balancing evidence for docs/05 §28–§29.
 module Test.Experiments.Experiments (spec) where
 
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Core.Map (values)
 
-import Testkit.Meridian (orThrow, seats, run)
+import Settings.Meridian.Names (seatActors)
+import Testkit.Meridian (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
@@ -18,7 +20,6 @@ import Core.Num as Q
 import Core.Types (Id(..))
 import Core.Slice (event, matches, exchanges, conversions)
 import Data.Array (concatMap, elem, filter, last, length, range)
-import Data.Either (Either(..))
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
 import Data.Maybe (fromMaybe, maybe)
@@ -37,7 +38,7 @@ import Game.Override (Override(..))
 import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Game)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
+import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
 -- | A variant: each seat's preset by name, the overrides, and the player seed.
 type Variant = { preset :: String -> String, overrides :: Array Override, seed :: Int }
@@ -48,7 +49,7 @@ spec' preset overrides seed = { preset, overrides, seed }
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
 gameOf :: GameboardParts -> Variant -> Aff Game
 gameOf p v = do
-  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) (map Id seats))
+  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) (map Id seatActors))
   orThrow (assemble (GameboardSetting p) bindings v.overrides)
 
 play :: GameboardParts -> Variant -> Aff SimRun
@@ -119,11 +120,9 @@ spec context = describe "Experiments (§11) and performance" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      case agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seats) of
-        Left e -> fail (show e)
-        Right ps -> do
-          log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
-          length ps `shouldEqual` 15
+      ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seatActors))
+      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
+      length ps `shouldEqual` 15
   it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do
     ctx <- context
     t0 <- millis
@@ -136,6 +135,4 @@ spec context = describe "Experiments (§11) and performance" do
     -- bound is ten times the target: a regression of an order of magnitude is what this catches
     (t1 - t0) `shouldSatisfy` (_ < 10000.0)
     (t2 - t1) `shouldSatisfy` (_ < 600000.0)
-  where
-  q s = fromMaybe Q.zero (Q.parse s)
 

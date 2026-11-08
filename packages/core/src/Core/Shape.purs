@@ -4,6 +4,9 @@
 -- | the same combinator calls.
 module Core.Shape
   ( Format(..)
+  , sumArms
+  , sumWrite
+  , recordFields
   , prettyJson
   , decodeJsonWith
   , Shape
@@ -25,7 +28,6 @@ module Core.Shape
   , requiredMaybe
   , PCtor
   , oneKey
-  , kindArg
   , bare
   , literal
   , embedded
@@ -33,8 +35,6 @@ module Core.Shape
   , At
   , class SumRow
   , class SumCtors
-  , sumArms
-  , sumWrite
   , Arm
   , class Payload
   , toPayload
@@ -58,13 +58,11 @@ module Core.Shape
   , contramapRec
   , object
   , class RecordFields
-  , recordFields
   , recordShape
   , nameShape
   , pairOf
   , keyedOf
   , listOf
-  , keyedAlways
   , recursive
   , iso
   , partialIso
@@ -736,10 +734,6 @@ keyedOf s =
 -- | A required list: always written (even when empty), and a missing key is an error.
 listOf :: forall a. Shape a -> Shape (Array a)
 listOf s = (arrayOf s) { absent = const false, missing = Nothing }
-
--- | A required keyed list: always written (even when empty), and a missing key is an error.
-keyedAlways :: forall a. Shape a -> Shape (Array (Tuple String a))
-keyedAlways s = (keyedOf s) { absent = const false, missing = Nothing }
 
 -- | A recursive description. `f` receives the description it defines; its codec reaches back into
 -- | it only when a value is read or written, so a recursive form is finite.

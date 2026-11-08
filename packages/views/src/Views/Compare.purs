@@ -24,6 +24,7 @@ import Schema.Gameboard (Gameboard)
 import Core.Num (Kind(..))
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)
+import Data.String (joinWith)
 import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, mapMaybe, nub, sortWith, uncons)
 import Data.Either (hush)
 import Schema.Run (Spec, specKey, specPairs)
@@ -35,7 +36,7 @@ import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniCell, giniUnit, measuresOf, spreadCell)
-import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, unitOf)
+import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -107,7 +108,7 @@ compatible runs =
   sameCell first f r = if f.same first r then "same" else "differs"
   verdict first r = case map _.name (filter (\f -> not (f.same first r)) fields) of
     [] -> "yes"
-    ms -> "no: flagged, not combined (" <> joinComma ms <> ")"
+    ms -> "no: flagged, not combined (" <> joinWith ", " ms <> ")"
 
 engineColumn :: Column
 engineColumn = column "Engine" "The version of the round engine that resolved each round."

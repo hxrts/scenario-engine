@@ -3,6 +3,8 @@
 -- | bound Strategy, and the overrides' JSON round trip.
 module Test.Game.Main where
 
+import Schema.Build.Decision (passive)
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Core.Draw (Seed(..))
@@ -21,7 +23,7 @@ import Effect (Effect)
 import Foreign.Object as Object
 import Data.Tuple (Tuple(..))
 import Game.Bindings (scriptBindings)
-import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, unknownSeats)
+import Game.Assemble (assemble, assemblePreset, presetBindings, unknownSeats)
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
 import Game.Setting (Setting(..))
@@ -34,7 +36,7 @@ import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
 import Game.Patch (setCapacity, setCurve)
-import Testkit.Meridian (setting)
+import Testkit.Meridian (orThrow, setting, silent)
 import Testkit.Json (strategyOrThrow)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -58,9 +60,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case presetBindings Object.empty (const "Missing") [ Id "US" ] of
         Left e -> renderGameError e `shouldEqual` "unknown preset Missing"
         Right _ -> fail "expected an unknown-preset error"
-      case presetBindings (Object.singleton "Passive" { rules: [], sign: [] }) (const "Passive") [ Id "US", Id "DE" ] of
-        Left e -> fail (show e)
-        Right bs -> Map.size bs `shouldEqual` 2
+      bs <- orThrow (presetBindings (Object.singleton "Passive" passive) (const "Passive") [ Id "US", Id "DE" ])
+      Map.size bs `shouldEqual` 2
 
   describe "Script bindings" do
     it "a seat's scripted Proposals are in submission order, not the order written" do
@@ -80,7 +81,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Assembly (docs/06 §4.3)" do
     let
       assembled p bindings = map (const unit) (assemble (GameboardSetting p) bindings [])
-      silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
     it "a binding for something that is not a configured seat is rejected" do
       p <- setting
       assembled p (Map.insert (Id "CN") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "CN"))
@@ -107,9 +107,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a literal setting takes no overrides" do
       p <- setting
       let world = (_.world) <$> assemble (GameboardSetting p) (silent p) []
-      case world of
-        Left e -> fail (show e)
-        Right w -> map (const unit) (assemble (LiteralSetting { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
+      w <- orThrow (world)
+      map (const unit) (assemble (LiteralSetting { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
     it "an override naming an unknown Entity is an error" do
       p <- setting
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
@@ -132,11 +131,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       unknownNames scope [ Tuple PolicyRef firstPolicy, Tuple RuleKindRef "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
       p <- setting
-      case assemble (GameboardSetting p) (Map.insert (Id "US") Agent (silent p)) [] of
-        Left e -> fail (show e)
-        Right g -> case simulate (Seed 1) g of
-          Left e -> e `shouldEqual` NotSimulable (Id "US")
-          Right _ -> fail "expected NotSimulable"
+      g <- orThrow (assemble (GameboardSetting p) (Map.insert (Id "US") Agent (silent p)) [])
+      case simulate (Seed 1) g of
+        Left e -> e `shouldEqual` NotSimulable (Id "US")
+        Right _ -> fail "expected NotSimulable"
 
   describe "Overrides (docs/06 §3.1)" do
     it "encode then decode reproduces every override kind" do
@@ -145,7 +143,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           [ GameSeed 3
           , Parameter "tariff" (Q.fromInt 2)
           , Capacity (Id "ENCO") (Id "energy") (Q.fromInt 7)
-          , Shrinkage "sme-energy-sample" (fromMaybe Q.zero (Q.parse "0.1"))
+          , Shrinkage "sme-energy-sample" (q "0.1")
           , Implicit (Id "AID")
           ]
       case decodeOverrides (encodeOverrides overrides) of

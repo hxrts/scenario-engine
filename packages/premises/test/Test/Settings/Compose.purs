@@ -1,6 +1,7 @@
 -- | Filtering a setting, and the law that a setting split into its section files merges back whole.
 module Test.Settings.Compose (spec) where
 
+import Testkit.Meridian (orThrow)
 import Prelude
 
 import Board.Error (ValidationError(..))
@@ -35,12 +36,11 @@ spec = do
 
   describe "restrict" do
     it "keeping everything is the identity" do
-      withSetting \p -> case restrict (everything p.gameboard) p of
-        Left e -> fail (show e)
-        Right r -> do
-          stringify (encodeWith Authored gameboardShape r.gameboard) `shouldEqual` stringify (encodeWith Authored gameboardShape p.gameboard)
-          stringify (encodeWith Authored configShape r.config) `shouldEqual` stringify (encodeWith Authored configShape p.config)
-          Object.keys r.presets `shouldEqual` Object.keys p.presets
+      withSetting \p -> do
+        r <- orThrow (restrict (everything p.gameboard) p)
+        stringify (encodeWith Authored gameboardShape r.gameboard) `shouldEqual` stringify (encodeWith Authored gameboardShape p.gameboard)
+        stringify (encodeWith Authored configShape r.config) `shouldEqual` stringify (encodeWith Authored configShape p.config)
+        Object.keys r.presets `shouldEqual` Object.keys p.presets
 
     it "a dropped Entity takes what belongs to it, and the rest still checks" do
       withSetting \p ->
@@ -48,23 +48,22 @@ spec = do
           dropped = Id n.ng
           s = (everything p.gameboard) { entities = filter (_ /= dropped) (everything p.gameboard).entities }
         in
-          case restrict s p of
-            Left e -> fail (show e)
-            Right r -> do
-              Map.member dropped r.gameboard.world.entities `shouldEqual` false
-              Map.member dropped r.gameboard.actors `shouldEqual` false
-              Map.member dropped r.config.seats `shouldEqual` false
-              any (\m -> dropped `elem` m.access) r.gameboard.world.markets `shouldEqual` false
-              any (\f -> f.to == dropped || f.from == dropped) r.gameboard.authored.circulation.flows `shouldEqual` false
+          do
+            r <- orThrow (restrict s p)
+            Map.member dropped r.gameboard.world.entities `shouldEqual` false
+            Map.member dropped r.gameboard.actors `shouldEqual` false
+            Map.member dropped r.config.seats `shouldEqual` false
+            any (\m -> dropped `elem` m.access) r.gameboard.world.markets `shouldEqual` false
+            any (\f -> f.to == dropped || f.from == dropped) r.gameboard.authored.circulation.flows `shouldEqual` false
 
     it "accounts can be narrowed for one Entity" do
       withSetting \p ->
         let
           s = (everything p.gameboard) { accounts = Map.singleton (Id n.us) [ Id n.money ] }
         in
-          case restrict s p of
-            Left e -> fail (show e)
-            Right r -> map (Map.keys <<< _.accounts) (Map.lookup (Id n.us) r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton (Id n.money) unit))
+          do
+            r <- orThrow (restrict s p)
+            map (Map.keys <<< _.accounts) (Map.lookup (Id n.us) r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton (Id n.money) unit))
 
     it "a kept thing that refers to a dropped one is an error" do
       withSetting \p ->
@@ -91,9 +90,9 @@ spec = do
         let
           s = (everything p.gameboard) { transformations = filter (_ /= Id n.energyShipping) (everything p.gameboard).transformations }
         in
-          case restrict s (engineOnly p) of
-            Left e -> fail (show e)
-            Right r -> r.gameboard.world.flowGates `shouldEqual` []
+          do
+            r <- orThrow (restrict s (engineOnly p))
+            r.gameboard.world.flowGates `shouldEqual` []
 
     it "a name the setting does not have is an error" do
       withSetting \p ->

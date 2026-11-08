@@ -133,8 +133,8 @@ The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World
 
 ### 7.3 Seeds and randomness
 
-- **Game seed.** The configuration's `seed`, stored as the World State's `seed`. It keys every in-world draw: Representation sampling noise and `Choose` in NPC and Aggregate Policies ([Type System §9.1](02_type_system.md#91-numerics-and-randomness)).
-- **Player seed.** A separate seed for seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs)) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
+- **[Game seed](02_type_system.md#25-glossary).** Read from the configuration's `seed` and stored as the World State's `seed`. It keys every in-world draw: Representation sampling noise and `Choose` in NPC and Aggregate Policies ([Type System §9.1](02_type_system.md#91-numerics-and-randomness)).
+- **[Player seed](02_type_system.md#25-glossary).** Keys the draws of seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs)) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
 - **Keyed draws.** A draw's value depends only on its key (round, source, Entity, category, index), so replays and resumed runs match ([06 §5](06_simulator.md#5-deterministic-randomness)).
 
 ## 8. Time and Session

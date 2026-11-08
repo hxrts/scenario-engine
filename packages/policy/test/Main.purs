@@ -1,5 +1,6 @@
 module Test.Policy.Main where
 
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Core.Num as Q
@@ -18,10 +19,9 @@ import Test.QuickCheck (Result, (<?>))
 import Test.QuickCheck.Gen (Gen, elements, oneOf)
 import Test.Spec.QuickCheck (quickCheck)
 import Testkit.Meridian (unseated)
-import Data.Argonaut.Decode (JsonDecodeError)
-import Data.Either (Either(..), either, isLeft)
+import Data.Either (either, isLeft)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', maybe)
+import Data.Maybe (Maybe(..), fromMaybe', maybe)
 import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
@@ -130,10 +130,10 @@ env = { view: seat, params: Object.empty, random: const Q.zero, market: nameOnly
 
 -- | Every draw except index 0 is 0.9.
 highDraws :: Int -> Q.Q
-highDraws i = if i == 0 then Q.zero else fromMaybe Q.zero (Q.parse "0.9")
+highDraws i = if i == 0 then Q.zero else q "0.9"
 
 trade :: String -> String -> Intent
-trade m quantity = Trade { market: Id m, quantity: fromMaybe Q.zero (Q.parse quantity), limitPrice: Nothing }
+trade m quantity = Trade { market: Id m, quantity: q quantity, limitPrice: Nothing }
 
 intentsOf :: Array ProposalBody -> Array (Array Intent)
 intentsOf = map _.intents
@@ -141,12 +141,6 @@ intentsOf = map _.intents
 -- | The Drafts a text Strategy proposes in an environment.
 drafts :: String -> Env -> Array ProposalBody
 drafts text e = propose (strategyOrThrow text) e
-
--- | What a decode produced, for a failure message.
-outcome :: Either JsonDecodeError Strategy -> String
-outcome = case _ of
-  Left e -> show e
-  Right _ -> "a decoded strategy"
 
 -- | Two Choose blocks, each with two options of different size.
 chooseTwice :: String
@@ -289,7 +283,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
       let
         text = """{ "rules": [ { "when": [ { "recorded": { "query": { "legs": { "party": "US", "window": "lastRound", "side": "outgoing", "cause": { "conversionOf": "major-military-action" }, "aggregate": "largestUnits" } }, "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
+        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (q threshold) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []
       strategyParams (strategyOrThrow text) `shouldEqual` [ "threshold" ]
@@ -298,7 +292,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ [ trade "energy-atlantic" "5" ] ]
     it "a Factor uses the stored factor" do
       let
-        e = env { view = seat { factors = Map.fromFoldable [ Tuple (Id "E") (fromMaybe Q.zero (Q.parse "0.5")) ] } }
+        e = env { view = seat { factors = Map.fromFoldable [ Tuple (Id "E") (q "0.5") ] } }
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" e)
         `shouldEqual` [ [ trade "energy-atlantic" "2.5" ] ]
     it "a Param the setting does not define evaluates to zero, so an order of that size is dropped" do

@@ -223,7 +223,6 @@
         "core": {
           "dependencies": [
             "arrays",
-            "either",
             "foldable-traversable",
             "maybe",
             "ordered-collections",
@@ -239,7 +238,6 @@
           "dependencies": [
             "arrays",
             "effect",
-            "either",
             "sp-handlers",
             "sp-simulator",
             "sp-testkit",
@@ -290,10 +288,14 @@
         "core": {
           "dependencies": [
             "arrays",
+            "console",
+            "effect",
             "either",
+            "foldable-traversable",
             "foreign-object",
             "integers",
             "maybe",
+            "node-process",
             "prelude"
           ]
         },

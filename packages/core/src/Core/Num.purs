@@ -29,7 +29,6 @@ module Core.Num
   , Kind(..)
   , display
   , displayQuantity
-  , formatMinimal
   , displayRatio
   , displayTick
   ) where

@@ -5,7 +5,6 @@
 //   check-derived.js                     compare the hits with scripts/check-derived.baseline (the gate)
 //   check-derived.js --list              print every hit as `file:line rule-id text`, with a count per rule
 //   check-derived.js --samples           run each rule on its samples in scripts/check-derived-samples
-//   check-derived.js --validate          compare the hits with scripts/check-derived.known
 //   check-derived.js --lower-baseline    record counts that fell; refuses a count that rose
 //   check-derived.js --write-baseline    create the baseline when there is none
 //   --root DIR                        read the sources of another checkout
@@ -14,6 +13,7 @@
 const fs = require("fs");
 const path = require("path");
 const { walk } = require("./lib/walk");
+const { viewNames: readViewNames, sourceFiles: walkSources } = require("./lib/paths");
 
 const scriptsDir = __dirname;
 const rootArg = process.argv.indexOf("--root");
@@ -22,7 +22,6 @@ const flag = (f) => process.argv.includes(f);
 
 const baselineFile = path.join(scriptsDir, "check-derived.baseline");
 const allowFile = path.join(scriptsDir, "check-derived.allow");
-const knownFile = path.join(scriptsDir, "check-derived.known");
 const samplesDir = path.join(scriptsDir, "check-derived-samples");
 
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
@@ -143,7 +142,7 @@ function loadContext() {
   const routeSymbols = symbolsOf(route.bare);
   const inRoute = (name) => route.strings.filter((s) => routeSymbols[s.line - 1] === name).map((s) => s.value);
   // a view's path segment is its constructor (Schema.View) in lower case
-  const viewNames = need("constructors of Schema.View's View", [...((/^data View\n([\s\S]*?)\n\n/m.exec(read(viewFile)) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase()));
+  const viewNames = need("constructors of Schema.View's View", readViewNames(root));
   // the literal segments of the endpoint table's paths
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
@@ -313,8 +312,7 @@ function scan(file, text, ctx) {
 
 function sourceFiles() {
   const keep = (n) => n.endsWith(".purs");
-  const purs = ["packages", "apps"].flatMap((d) => fs.readdirSync(path.join(root, d)).flatMap((n) =>
-    ["src", "test"].flatMap((t) => walk(path.join(root, d, n, t), keep))));
+  const purs = walkSources(keep, root);
   const e2e = walk(path.join(root, "apps/dashboard/e2e"), (n) => n.endsWith(".js"));
   return [...purs, ...e2e].map((f) => path.relative(root, f)).sort();
 }
@@ -389,35 +387,6 @@ function runSamples(ctx) {
   console.log(`check-derived samples ok (${ruleIds.length} rules)`);
 }
 
-function runValidate(hits) {
-  // recall is over the findings; the section after the marker holds hits reviewed and added later
-  const [findingsText, reviewedText = ""] = fs.readFileSync(knownFile, "utf8").split(/^# REVIEWED.*$/m);
-  const entries = (t) => t.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
-  const findings = entries(findingsText);
-  const raw = [...findings, ...entries(reviewedText)];
-  const want = new Map();
-  for (const l of raw) { const t = l.trim().split(/\s+/).slice(0, 3).join(" "); want.set(t, (want.get(t) || 0) + 1); }
-  const got = new Map();
-  for (const h of hits) { const t = `${h.rule} ${h.file} ${h.symbol}`; got.set(t, (got.get(t) || 0) + 1); }
-  const left = new Map(got);
-  let found = 0;
-  const missed = new Map();
-  for (const l of findings) {
-    const t = l.trim().split(/\s+/).slice(0, 3).join(" ");
-    if ((left.get(t) || 0) > 0) { left.set(t, left.get(t) - 1); found++; } else missed.set(t, (missed.get(t) || 0) + 1);
-  }
-  const misses = [...missed].map(([t, n]) => `${t} (${n} not reported)`);
-  let extra = 0;
-  const extras = [];
-  for (const [t, n] of got) if (n > (want.get(t) || 0)) { extra += n - (want.get(t) || 0); extras.push(`${t} (reported ${n}, known ${want.get(t) || 0})`); }
-  const stale = [...want].filter(([t, n]) => n > (got.get(t) || 0) && !missed.has(t)).map(([t]) => t);
-  if (stale.length) console.log(`reviewed entries no longer reported:\n  ${stale.join("\n  ")}`);
-  const total = findings.length;
-  console.log(misses.length ? `misses:\n  ${misses.join("\n  ")}` : "misses: none");
-  console.log(extras.length ? `reported, not in the manifest:\n  ${extras.join("\n  ")}` : "reported, not in the manifest: none");
-  console.log(`recall ${found}/${total} finding occurrences; ${hits.length} reported; ${extra} reported hits outside the manifest`);
-}
-
 function main() {
   const ctx = loadContext();
   if (flag("--samples")) { runSamples(ctx); return; }
@@ -428,7 +397,6 @@ function main() {
     console.log(`total ${hits.length}`);
     return;
   }
-  if (flag("--validate")) { runValidate(hits); return; }
 
   const { allowed, problems } = readAllow(hits);
   const counted = hits.filter((h) => !allowed.has(`${h.rule}\t${h.file}\t${h.symbol}`));

@@ -1,6 +1,6 @@
 -- | The Meridian setting the views, experiments and simulator test suites share, and the fifteen seats every test
 -- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (price, everySeat, run, valid, initialOf, setting, anyRounds, seats, unseated, presetGame, presetSeats, orThrow) where
+module Testkit.Meridian (silent, price, everySeat, run, valid, initialOf, setting, anyRounds, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
 
@@ -27,7 +27,7 @@ import Game.Override (Override)
 import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Settings.Load (loadFrom)
-import Settings.Meridian.Names (meridianDir, seatActors)
+import Settings.Meridian.Names (meridianDir)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
 silent :: GameboardParts -> Bindings
@@ -44,10 +44,6 @@ unseated :: Aff Game
 unseated = do
   p <- setting
   orThrow (assemble (GameboardSetting p) (silent p) [])
-
--- | The Meridian seats every test plays.
-seats :: Array String
-seats = seatActors
 
 -- | The setting with its supported round counts opened up, for suites that play a game shorter than the
 -- | setting allows and read something else from it.

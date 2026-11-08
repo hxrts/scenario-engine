@@ -7,6 +7,7 @@ module Schema.Joint
   , ProposedJoint
   , transcriptShape
   , proposedJointShape
+  , jointReplyShape
   , numberJoint
   , jointProposalsOf
   , jointProposals
@@ -15,7 +16,7 @@ module Schema.Joint
 import Prelude
 
 import Core.Proposal (ProposalBody, proposalAt)
-import Core.Shape (Shape, arrayOf, fieldOf, object, stringShape)
+import Core.Shape (Shape, arrayOf, fieldOf, object, requiredOf, stringShape)
 import Core.Types (EntityId, Intent, Proposal, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
@@ -51,6 +52,17 @@ proposedJointShape = object "ProposedJoint"
       <*> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
       <*> fieldOf "signers" "the other Entities the joint Proposal asks for" (arrayOf idShape) _.signers
       <*> fieldOf "agreed" "the seats whose transcripts describe it" (arrayOf idShape) _.agreed
+  )
+
+-- | The Proposals of a reply; one malformed entry fails only the reply it is in.
+proposedJointsShape :: Shape (Array ProposedJoint)
+proposedJointsShape = arrayOf proposedJointShape
+
+-- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
+jointReplyShape :: Shape { proposals :: Array ProposedJoint }
+jointReplyShape = object "JointReply"
+  ( (\p -> { proposals: p })
+      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape) _.proposals
   )
 
 -- | The joint pass's Proposals, each numbered after the author's `own` Proposals of the round and

@@ -1,5 +1,7 @@
 module Test.Schema.Main where
 
+import Testkit.Meridian (orThrow)
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Data.Map as Map
@@ -57,12 +59,6 @@ intent = decodeJsonWith Authored intentShape
 -- | A setting shape reports a failed form as text: the message names the sum that failed.
 isTemplateError :: String -> Boolean
 isTemplateError m = contains (Pattern "Template form") m
-
--- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
-outcome :: Either JsonDecodeError Strategy -> String
-outcome = case _ of
-  Left e -> show e
-  Right _ -> "a decoded strategy"
 
 -- | Two Choose blocks, each with two options of different size.
 
@@ -194,7 +190,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Intents" do
     it "decodes a trade with an optional limit" do
       intent (json """{ "trade": { "market": "energy-atlantic", "quantity": "10", "limit": "2.04" } }""")
-        `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
+        `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (q "2.04") })
     it "a Trade has no form in a joint Proposal: it cannot be built by `joint` (a compile error), and as JSON does not read as one" do
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"joint":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
 
@@ -205,7 +201,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "decodes a routed trade, with a null market, by its pair" do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
-        `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
+        `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (q "2.04") })
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
@@ -248,9 +244,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Gameboard documents" do
     it "decodes a minimal valid Gameboard and its roundQ range" do
-      case decodeGameboard (json (minimalGameboard "[4, 8]")) of
-        Left e -> fail (show e)
-        Right gb -> gb.rounds `shouldEqual` { min: 4, max: 8 }
+      gb <- orThrow (decodeGameboard (json (minimalGameboard "[4, 8]")))
+      gb.rounds `shouldEqual` { min: 4, max: 8 }
     it "rejects a roundQ range that is malformed, not ordered, or below one" do
       isLeft (decodeGameboard (json (minimalGameboard "[8, 4]"))) `shouldEqual` true
       isLeft (decodeGameboard (json (minimalGameboard "[0, 4]"))) `shouldEqual` true
@@ -266,9 +261,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left _ -> pure unit
         Right _ -> fail "a negative flow decoded"
     it "a zero flow amount is valid" do
-      case decodeGameboard (json (withFlow "\"0\"")) of
-        Left e -> fail (show e)
-        Right gb -> map _.amount gb.world.recurring `shouldEqual` [ FixedAmount Q.zero ]
+      gb <- orThrow (decodeGameboard (json (withFlow "\"0\"")))
+      map _.amount gb.world.recurring `shouldEqual` [ FixedAmount Q.zero ]
     it "a decoded Gameboard never carries a negative flow, so the allocate guard is not reachable from it" do
       case decodeGameboard (json (withFlow "\"-0.0001\"")) of
         Left _ -> pure unit
@@ -278,20 +272,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
-        other -> fail ("expected a multi-key template error, got " <> outcome other)
+        other -> fail ("expected a multi-key template error, got " <> show (map (const "a decoded strategy") other))
       case decodeText """{ "rules": [ { "propose": [ {} ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
-        other -> fail ("expected an empty template error, got " <> outcome other)
+        other -> fail ("expected an empty template error, got " <> show (map (const "a decoded strategy") other))
     it "an expression with two keys is rejected" do
       isLeft (decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": { "round": null, "param": "x" } } } ] } ] }""")
         `shouldEqual` true
     it "an unknown tag is a typed error naming its kind" do
       case decodeText """{ "rules": [ { "propose": [ { "bogus": {} } ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
-        other -> fail ("expected a template error, got " <> outcome other)
+        other -> fail ("expected a template error, got " <> show (map (const "a decoded strategy") other))
       case decodeText """{ "rules": [ { "when": [ { "bogus": [] } ], "propose": [] } ] }""" of
         Left (TypeMismatch m) | contains (Pattern "Cond form") m -> pure unit
-        other -> fail ("expected a condition error, got " <> outcome other)
+        other -> fail ("expected a condition error, got " <> show (map (const "a decoded strategy") other))
     it "a well-formed strategy decodes" do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
         `shouldEqual` false

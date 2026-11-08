@@ -15,7 +15,8 @@ import Effect.Console (log)
 import Flags (flagNames, flagOr, intFlag, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
-import Node.Process (argv, exit')
+import Exit (fail, usageError)
+import Node.Process (argv)
 import Settings.Load (loadAll)
 import Server.Cache (newCache)
 import Server.Launch (failInterrupted)
@@ -35,10 +36,7 @@ main = do
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
           cache <- newCache
           serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement settings store cache))
-        Left e -> log e *> exit' 1
+        Left e -> fail e
       Left e -> usage e
   where
-  usage e = do
-    log ("error: " <> e)
-    log "usage: server [--db <file>] [--port <1-65535>] [--static <dir>]"
-    exit' 1
+  usage = usageError [ "usage: server [--db <file>] [--port <1-65535>] [--static <dir>]" ]

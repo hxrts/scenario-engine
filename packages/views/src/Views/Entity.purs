@@ -20,12 +20,13 @@ import Core.Map as CoreMap
 import Core.Num as Q
 import Core.Query (accountsOf, holding, isAggregate)
 import Core.Types (EntityId, ResourceId)
+import Data.String (joinWith)
 import Data.Array (any, concatMap, cons, filter, find, fromFoldable, head, nub, range, sort)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, col, completed, exact, joinComma, names, quantity, series, unitOf, worlds)
+import Views.Common (Chart, StoredRun, Table, col, completed, exact, names, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings
@@ -58,7 +59,7 @@ entityList r =
 entityHistory :: StoredRun -> EntityId -> Either String History
 entityHistory r e
   | not (Map.member e r.manifest.initial.entities) =
-      Left ("unknown entity " <> show e <> "; the entities are " <> joinComma (map show (entityIds r)))
+      Left ("unknown entity " <> show e <> "; the entities are " <> joinWith ", " (map show (entityIds r)))
   | otherwise =
       Right
         { table:

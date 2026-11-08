@@ -1,6 +1,6 @@
 -- | Representation estimates (docs/02_type_system.md §7). The engine only computes and
 -- | stores this round's adjustment factors; the Aggregate's Policy applies them next round.
-module Core.Represent (estimate, adjustedTarget) where
+module Core.Represent (estimate) where
 
 import Prelude
 
@@ -62,7 +62,3 @@ estimate w ps =
     events = map (\e -> Estimated { round: w.round, aggregate: e.aggregate, domain: e.domain, factor: e.factor }) estimates
   in
     { factors, events }
-
--- | The next round's target: the baseline replaced by the stored factor, exactly once.
-adjustedTarget :: Q -> Ratio -> Q
-adjustedTarget = Q.mul

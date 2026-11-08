@@ -41,7 +41,7 @@ The simulator is a development component, not a fourth layer of economic semanti
 
 The simulator plays the same `Game` that live play runs, assembled by `game`. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
 
-The simulator is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Sim`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed), and the round writes reach the Run Store through `RECORD`. The replay handler (`Handlers.Replay`) feeds recorded Proposals and signatures instead. The round runner and engine are the same as in live play.
+The simulator is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Sim`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed), and the round writes reach the Run Store through `RECORD`. Replay feeds recorded inputs instead ([04 §11.1](04_instantiated_game.md#111-round-record)). The round runner and engine are the same as in live play.
 
 The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The simulator only generates inputs, records results, and evaluates them. The Dashboard reads through the read API and never alters authoritative state or run histories. Changing any parameter creates a new run. Resume (§8.1) is the one operation that adds rounds to an existing run.
 
@@ -135,7 +135,7 @@ Draws come from two streams (Type System [§9.1](02_type_system.md#91-numerics-a
 | Stream | Seed | Used for |
 |---|---|---|
 | `Game` | Game seed (`InstantiationConfig`) | Every in-world draw: estimator sampling noise, declared Policy randomness, declared shocks |
-| `Player` | Player seed (`SimulationSpec`) | Every seat-Policy draw: `RandomValid` and any stochastic preset. AI agents receive it where their provider supports seeding, but are still reproduced from recorded input |
+| `Player` | Player seed (the run's `Spec`) | Every seat-Policy draw: `RandomValid` and any stochastic preset. AI agents receive it where their provider supports seeding, but are still reproduced from recorded input |
 
 The streams never share draws. Varying the player seed never changes an in-world draw, and varying the game seed never changes seat-Policy behavior. Live play has no player seed.
 
@@ -320,7 +320,7 @@ Operation rules:
 
 - **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec and its own columns.
 - **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `==`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
-- **Sessions.** A live session stores no preset. `variant` and `counterfactual` from one are refused with 400, and so is `resume`. `duplicate` and `rerun` replay its recorded Proposals and signatures (`Handlers.Replay`), so they reproduce it without a model call.
+- **Sessions.** A live session stores no preset. `variant` and `counterfactual` from one are refused with 400, and so is `resume`. `duplicate` and `rerun` replay it ([04 §11.1](04_instantiated_game.md#111-round-record)), so they reproduce it without a model call.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
 

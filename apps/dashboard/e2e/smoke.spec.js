@@ -1,4 +1,4 @@
-// Phase 7 gate, against a freshly seeded Run Store (playwright.config.js). The seeded runs are fixed:
+// The dashboard smoke test, against a freshly seeded Run Store (playwright.config.js). The seeded runs are fixed:
 //   run-1 base     Conservative, player seed 1, 5 rounds
 //   run-2 seed     Conservative, player seed 2, 5 rounds
 //   run-3 variant  Aggressive,   player seed 1, 5 rounds

@@ -3,14 +3,14 @@
 -- | `Entities.Aggregates`) take their accounts and capacities from here, and the fixtures take
 -- | the accounts they need from here, so no Entity's holdings are copied. Expected values in the
 -- | fixtures stay literal; only the inputs are shared.
-module Settings.Meridian.Holdings (holdings, accountsOf, capacitiesOf, capacityHolders) where
+module Settings.Meridian.Holdings (holdings, accountsOf, capacityHolders) where
 
-import Settings.Kit (HoldingTable, accountsIn, capacitiesIn, capacityHoldersIn)
+import Settings.Kit (HoldingTable, accountsIn, capacityHoldersIn)
 import Settings.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
-import Core.Types (Capacities, Holdings)
+import Core.Types (Holdings)
 
 -- | Every Entity's holding, in catalog order (`Settings.Meridian.Entities`).
 holdings :: HoldingTable
@@ -43,10 +43,6 @@ holdings =
 -- | An Entity's accounts, as the Entity declares them.
 accountsOf :: String -> Holdings
 accountsOf = accountsIn holdings
-
--- | An Entity's capacities, as the Entity declares them.
-capacitiesOf :: String -> Capacities
-capacitiesOf = capacitiesIn holdings
 
 -- | The Entities that hold a capacity, in catalog order.
 capacityHolders :: String -> Array String

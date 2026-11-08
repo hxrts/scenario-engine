@@ -1,5 +1,5 @@
 -- | A second Setting, built only from the Kit: compiled, loaded, played, viewed, and compared with Meridian
--- | as a batch (work/7 P8, P11).
+-- | as a batch.
 module Test.Server.Settings (spec) where
 
 import Prelude

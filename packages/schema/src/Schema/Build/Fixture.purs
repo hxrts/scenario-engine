@@ -7,7 +7,6 @@ module Schema.Build.Fixture
   , balances
   , proposal
   , ref
-  , refAt
   , procedureOutcome
   , noRound
   ) where
@@ -36,10 +35,6 @@ proposal p = { proposal: { id: unnumbered, author: Id p.author, intents: p.inten
 -- | A Proposal named in an expectation: its author's first Proposal in the round.
 ref :: String -> ProposalRef
 ref author = { author: Id author, index: 0 }
-
--- | The Proposal at a position among its author's Proposals in the round.
-refAt :: String -> Int -> ProposalRef
-refAt author index = { author: Id author, index }
 
 -- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
 procedureOutcome :: ProposalRef -> Q -> Boolean -> ProcedureOf ProposalRef

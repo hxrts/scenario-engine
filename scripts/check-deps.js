@@ -76,9 +76,8 @@ const rules = [
     forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
 ];
 
-const root = path.join(__dirname, "..");
-const dirs = ["packages", "apps"].flatMap((d) =>
-  fs.readdirSync(path.join(root, d)).map((n) => path.join(root, d, n)));
+const { root, packageDirs } = require("./lib/paths");
+const dirs = packageDirs();
 
 // Every `import` line of a PureScript file: its module and the text of its import list (nested parens kept).
 function importsOf(text) {

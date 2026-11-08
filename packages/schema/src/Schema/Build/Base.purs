@@ -12,7 +12,6 @@ module Schema.Build.Base
   , mayEnact
   , coverage
   , institutional
-  , omission
   , holdingOf
   , capacityOf
   , shortfallOf
@@ -72,9 +71,6 @@ coverage a = ImplicitCoverage (Id a)
 -- | The same accounts, driven by an in-world Policy.
 institutional :: String -> Fallback
 institutional p = InstitutionalPolicy (Id p)
-
-omission :: Fallback
-omission = PermittedOmission
 
 -- Measures and spans -----------------------------------------------------------------------
 

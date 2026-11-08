@@ -26,7 +26,7 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 
-import Schema.Joint (ProposedJoint, jointProposals)
+import Schema.Joint (ProposedJoint, jointProposals, jointReplyShape)
 import Core.Shape (Format(..), Shape, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
@@ -42,7 +42,7 @@ import Effect.Aff (Aff, attempt, delay)
 import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, correctionShape, decodeJointReply, decodeText, interpretPrompt, jointReplyShape, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, correctionShape, decodeJointReply, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of

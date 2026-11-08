@@ -11,8 +11,6 @@ module Policy.Strategy
   , foldExpr
   , foldCond
   , foldTemplate
-  , foldSign
-  , foldStrategy
   , strategyRefs
   ) where
 

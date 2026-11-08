@@ -3,7 +3,6 @@
 module Experiments.Agency
   ( difference
   , counterfactual
-  , counterfactualFrom
   , playerSeedRuns
   , agency
   ) where

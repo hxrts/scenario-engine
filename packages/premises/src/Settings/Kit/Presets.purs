@@ -14,7 +14,7 @@ import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Settings.Presets (presetId)
-import Schema.Build.Decision (orderAt, selfTransform, asTemplate, cheapest, choose, costliest, joint, gt, holding, le, lit, noAction, priceAt, named, rule, signAll)
+import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, cheapest, choose, costliest, joint, gt, holding, le, lit, noAction, priceAt, named, rule, signAll)
 
 -- | The limits and quantities the strategies act on.
 type Thresholds =
@@ -76,8 +76,6 @@ presetsOf b =
 
   -- Shared by Trader and Opportunistic.
   sellHigh = sellAbove t.trader.sellAbove t.trader.sellQuantity t.trader.sellAbove
-
-  passive = { rules: [], sign: [] }
 
   conservative =
     { rules:

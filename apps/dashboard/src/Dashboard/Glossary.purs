@@ -2,7 +2,7 @@
 -- | `Views.Glossary`): this module only finds the entry for a name and fills its placeholders.
 -- | The app provides the loaded glossary through `glossaryContext`, and renders nothing until it is loaded,
 -- | so a lookup without one is blank.
-module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyCell, emptyValue) where
+module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyValue) where
 
 import Prelude
 

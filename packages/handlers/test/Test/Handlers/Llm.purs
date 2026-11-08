@@ -7,7 +7,7 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Schema.Joint (JointProposal, ProposedJoint, Transcript, proposedJointShape)
+import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
 import Core.Engine.Prepare (observe)
 import Core.Num as Q
 import Core.Types (Id(..), Intent, IntentF(..), intentShape)
@@ -26,7 +26,7 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
-import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplyShape, narratePrompt, speakPrompt)
+import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)

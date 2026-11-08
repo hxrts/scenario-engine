@@ -36,7 +36,6 @@ module Settings.Kit
   , FixtureContext
   , KeptEntity
   , Cut
-  , cutOf
   , FixtureSpec
   , fixture
   ) where

@@ -1,5 +1,6 @@
 module Test.Settings.Main where
 
+import Testkit.Meridian (orThrow)
 import Prelude
 
 import Testkit.Edit (onActor, onEntity, onMarket, onTransformation)
@@ -47,7 +48,7 @@ import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named
 import Adapters.Filesystem (fileOps)
 import Schema.Setting.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Settings.Load (decodePresets, fromFiles, loadFrom)
+import Settings.Load (presetsFrom, fromFiles, loadFrom)
 import Settings.Meridian.Names (meridianDir)
 import Game.Setting (GameboardParts, checkSetting)
 import Data.Bifunctor (lmap)
@@ -108,7 +109,7 @@ loaded = do
 -- | The reference instance's Meridian files, as name-and-JSON sections.
 -- | Meridian's presets, encoded and decoded exactly as a compiled setting is read.
 shippedPresets :: Either String (Object Strategy)
-shippedPresets = decodePresets (Compose.presetsJson (meridian defaultDials))
+shippedPresets = presetsFrom (Compose.presetsJson (meridian defaultDials))
 
 sections :: Array { name :: String, json :: Json }
 sections = map (\(Tuple name json) -> { name, json }) (Compose.files (meridian defaultDials))
@@ -199,14 +200,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           { rules: [ rule [] [ asTemplate (selfTransform { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) }) ] ]
           , sign: [ signProcedures [ "EU" ] ]
           }
-      case decodeStrategy (encodeStrategy p) of
-        Left e -> fail (show e)
-        Right prog -> do
-          (prog == p) `shouldEqual` true
-          length prog.rules `shouldEqual` 1
-          case prog.sign of
-            [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
-            _ -> fail "expected one procedures sign rule"
+      prog <- orThrow (decodeStrategy (encodeStrategy p))
+      (prog == p) `shouldEqual` true
+      length prog.rules `shouldEqual` 1
+      case prog.sign of
+        [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
+        _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
       case decodeJsonWith Authored intentShape (encodeWith Authored intentShape (accessBan.enact { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
@@ -214,7 +213,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           a.governor `shouldEqual` Id "US"
           a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
-    it "tariffRule decodes to a Tariff" do
+    it "a tariff Rule decodes to a Levy" do
       case decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (tariff.rule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (FlowRule { scope: t }) -> do
@@ -239,13 +238,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a joint Proposal decodes, and the parties and Resource it names are reported" do
       let
         p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
-      case decodeStrategy (encodeStrategy p) of
-        Left e -> fail (show e)
-        Right prog -> do
-          (prog == p) `shouldEqual` true
-          let refs = strategyRefs prog
-          namesOf ResourceRef refs `shouldEqual` [ "E" ]
-          namesOf EntityRef refs `shouldEqual` [ "DE", "DE" ]
+      prog <- orThrow (decodeStrategy (encodeStrategy p))
+      (prog == p) `shouldEqual` true
+      let refs = strategyRefs prog
+      namesOf ResourceRef refs `shouldEqual` [ "E" ]
+      namesOf EntityRef refs `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
       let m = own "CN" (holdingOf "Mil")
       stringify (encodeWith Authored boundShape (matching m)) `shouldEqual` stringify (encodeWith Authored metricShape m)
@@ -257,9 +254,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right d -> stringify (encodeWith Authored fixtureShape d) `shouldEqual` stringify j
     it "the Meridian Gameboard decodes and encodes back to the same JSON" do
       let j = encodeWith Authored gameboardShape gameboard
-      case decodeJsonWith Authored gameboardShape j of
-        Left e -> fail (show e)
-        Right d -> stringify (encodeWith Authored gameboardShape d) `shouldEqual` stringify j
+      d <- orThrow (decodeJsonWith Authored gameboardShape j)
+      stringify (encodeWith Authored gameboardShape d) `shouldEqual` stringify j
 
   describe "Meridian" do
     let
@@ -476,7 +472,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               at u = map _.intents (propose p (envWith sme u))
             -- three options: noAction, buy 5 at 3, sell 5 at 2; a draw of 0.9 picks the last
             at Q.zero `shouldEqual` []
-            at (fromMaybe Q.zero (Q.parse "0.9")) `shouldEqual` [ [ Trade { market: Id "energy-asia", quantity: Q.fromInt (-5), limitPrice: Just (Q.fromInt 2) } ] ]
+            at (q "0.9") `shouldEqual` [ [ Trade { market: Id "energy-asia", quantity: Q.fromInt (-5), limitPrice: Just (Q.fromInt 2) } ] ]
 
   describe "Reservations in the DSL" do
     it "the shipped military-deployment reserves Mil per unit and consumes and produces nothing" do
@@ -495,7 +491,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Just p -> do
             let
               us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTrade (Id "defence-goods") ] }, markets = chinaView.markets <> [ { id: Id "defence-goods", base: Id "D", quote: Id "M" } ] }
-              at price = map _.intents (propose p (envWith (us { prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (fromMaybe Q.zero (Q.parse price)) ] }) Q.zero))
+              at price = map _.intents (propose p (envWith (us { prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (q price) ] }) Q.zero))
             at "3" `shouldEqual` []
             -- one Proposal per template: the deployment, then the Mil sale it competes with
             at "3.01" `shouldEqual`
@@ -538,17 +534,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
-      case decodeStrategy (encodeStrategy bad) of
-        Left e -> fail (show e)
-        Right p -> map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
-          `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
+      p <- orThrow (decodeStrategy (encodeStrategy bad))
+      map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
+        `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do
       isLeft (decodeLiteral (json """{ "setting": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
-      case decodeLiteral (json """{ "setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
-        Left e -> fail (show e)
-        Right d -> show d.world.seed `shouldEqual` "7"
+      d <- orThrow (decodeLiteral (json """{ "setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }"""))
+      show d.world.seed `shouldEqual` "7"
     it "an expectation must name a round that has a binding" do
       let world = """"setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
       isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true

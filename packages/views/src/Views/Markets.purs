@@ -3,9 +3,6 @@
 -- | pressure indicators, and a Market's price trajectory across runs. Pure.
 module Views.Markets
   ( marketPrices
-  , consumedTotal
-  , decayedTotal
-  , lapsedCount
   , roundPressure
   , markets
   , facilities

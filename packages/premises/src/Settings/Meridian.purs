@@ -79,7 +79,7 @@ defaultDials :: Dials
 defaultDials = { curve: \_ c -> c, flow: identity, holding: \_ _ v -> v, requirement: identity }
 
 -- | Meridian's four Premises. Soft power and military cut across the seats, so the Entities stay with
--- | the Setting (work/7 §10).
+-- | the Setting.
 energy :: Premise
 energy = premise emptyParts
   { resources = only [ n.money, n.energy ] resources

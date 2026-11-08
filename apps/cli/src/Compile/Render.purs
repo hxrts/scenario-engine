@@ -7,24 +7,22 @@ module Compile.Render
   , compileOnly
   ) where
 
+import Schema.Decode.Common (decodeErrorAt)
 import Prelude
 
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull)
-import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (concatMap, find, sortWith)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
-import Settings.Meridian.Capstone as Capstone
 import Settings.Meridian.Fixtures as Fixtures
 import Settings.Catalog (settings)
 import Settings.Compose (Setting, directory, files, parts, presetsJson)
 import Schema.Setting.Fixture (decodeLiteral)
-import Settings.Layout (capstoneRunFile, fixturePath, presetsFile)
+import Settings.Layout (fixturePath, presetsFile)
 
 -- | A compiled file: its path under the setting root, and its text.
 type Output = { path :: String, text :: String }
@@ -48,7 +46,6 @@ outputs :: Array (Tuple String Json)
 outputs =
   concatMap settingFiles settings
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
-    <> [ Tuple capstoneRunFile Capstone.file ]
 
 -- | One setting's files under the setting root.
 settingFiles :: Setting -> Array (Tuple String Json)
@@ -59,7 +56,7 @@ settingFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (
 validate :: Either String Unit
 validate = do
   for_ settings parts
-  for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeLiteral j)
+  for_ Fixtures.fixtures \(Tuple name j) -> decodeErrorAt name (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.
 render :: Json -> String

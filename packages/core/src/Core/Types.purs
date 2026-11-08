@@ -716,14 +716,6 @@ instance DecodeJson (IntentF MarketId Q) where
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
 proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
 
--- | The author a Proposal id was built with: the segment before its index. Nothing for an id that
--- | `proposalId` could not have made.
-proposalAuthor :: ProposalId -> Maybe EntityId
-proposalAuthor (Id s) = case split (Pattern "/") s of
-  [ _, author, _ ] -> Just (Id author)
-  _ -> Nothing
-
--- | The id the engine gives the `i`th Rule a Proposal enacts.
 ruleIdOf :: ProposalId -> Int -> RuleId
 ruleIdOf p i = Id (show p <> "/rule-" <> show i)
 

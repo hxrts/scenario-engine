@@ -190,7 +190,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Round record** | The append-only record of one round's inputs, proposed and executed actions, and events. |
 | **Effect** | A declared impure operation: seat input, interpretation, narration, recording, Run Store reads and writes, or an API call ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
-| **Player seed** | A second seed, used only by the simulator, from which all seat-Policy randomness is derived. |
+| **Player seed** | A second seed, separate from the Game seed, from which all seat-Policy randomness is derived. Simulated and live runs both have one. |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
 | **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
 | **Setting** | The whole thing a game is launched from, such as Meridian: the authored configuration a game is assembled from: the Gameboard, its instantiation configuration, the seat strategies, and the uncertainties it contains. Every scenario of a set shares it. A literal setting (`LiteralSetting`) writes its World State out in full, as a fixture does ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)). |
@@ -206,7 +206,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Joint Proposal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
 | **Offer** | A joint Proposal as its author publishes it, before the other signers answer. |
 | **Unilateral action** | A Proposal that needs no signature but its author's. |
-| **Joint pass** | The one interpretation call that reads all of a round's transcripts together into Proposals ([§8.1](#81-canonical-resolution-sequence)). |
+| **Joint pass** | The interpretation step that reads all of a round's transcripts together into Proposals: one model call and at most two corrections ([§8.1](#81-canonical-resolution-sequence)). |
 | **Run Store** | The persistent store of runs: manifests, specs, round records, snapshots, assertions, and metrics ([06 §8](06_simulator.md#8-persistence)). |
 | **Spec** | A run's stored specification: the string fields it was launched or derived with, beside its manifest. |
 | **Venue** | A Market as a Policy sees it in its View: its id, base, and quote ([§4](#4-policies)). |

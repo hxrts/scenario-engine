@@ -3,6 +3,7 @@
 -- | difference in a seat's proposals is the shock's doing.
 module Test.Simulator.Shock (spec) where
 
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Core.Query (priceOf)
@@ -23,7 +24,8 @@ import Settings.Presets (presetNames)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Testkit.Meridian (run, presetGame, seats)
+import Settings.Meridian.Names (seatActors)
+import Testkit.Meridian (run, presetGame)
 
 -- | The Presets whose behaviour the shock is checked on (Passive proposes nothing, so it cannot flip).
 shockPresets :: Array String
@@ -35,7 +37,7 @@ shockPresets = filter (_ /= "Passive") presetNames
 roundKinds :: SimRun -> Int -> Array String
 roundKinds r i = case index r.records i of
   Nothing -> []
-  Just rr -> nub (concatMap (\x -> if elem (show x.proposal.author) seats then map kindOf x.proposal.intents else []) rr.record.inputs)
+  Just rr -> nub (concatMap (\x -> if elem (show x.proposal.author) seatActors then map kindOf x.proposal.intents else []) rr.record.inputs)
   where
   kindOf = case _ of
     Trade o -> (if o.quantity < Q.zero then "sell " else "buy ") <> show o.market
@@ -74,7 +76,7 @@ spec setting = describe "Major shock (docs/05 §13.6)" do
     range' (prices' "energy-asia" shocked) `shouldEqual` Just { min: q "2.48", max: q "2.88" }
 
 shockOverrides :: Array Override
-shockOverrides = map (\(Tuple name value) -> Parameter name (fromMaybe Q.zero (Q.parse value))) majorShock
+shockOverrides = map (\(Tuple name value) -> Parameter name (q value)) majorShock
 
 -- | The end-of-round price of a Market across a run.
 prices' :: String -> SimRun -> Array Q.Q
@@ -88,9 +90,6 @@ range' :: Array Q.Q -> Maybe { min :: Q.Q, max :: Q.Q }
 range' xs = case minimum xs, maximum xs of
   Just a, Just b -> Just { min: a, max: b }
   _, _ -> Nothing
-
-q :: String -> Q.Q
-q s = fromMaybe Q.zero (Q.parse s)
 
 -- | Every seat plays `preset`, with the given overrides, under player seed 1.
 play :: GameboardParts -> String -> Array Override -> Aff SimRun

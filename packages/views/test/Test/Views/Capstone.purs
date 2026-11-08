@@ -1,5 +1,5 @@
--- | The analysis checks of the capstone (packages/premises/src/Settings/Capstone.purs): an
--- | eight-round run authored in the DSL, decoded from `capstone/run.json`, checked against the
+-- | The analysis checks of the capstone (`Settings.Meridian.Capstone`): an
+-- | eight-round run authored in the DSL, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
 -- | The simulator's own checks on the run are in the simulator suite (Test.Simulator.Capstone).
 -- | Nothing about the run is built in this module.

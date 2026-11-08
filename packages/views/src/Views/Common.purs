@@ -29,7 +29,6 @@ module Views.Common
   , quantity
   , price
   , ratio
-  , ratioUnit
   , unitOf
   , ofCount
   , supportThreshold
@@ -43,9 +42,7 @@ module Views.Common
   , Procedure
   , asProcedure
   , proceduresOf
-  , joinComma
   , players
-  , roundResults
   ) where
 
 import Prelude
@@ -62,7 +59,6 @@ import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub
 import Data.Foldable (lookup)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 
 -- | The fields of a table, extended by the view models that are a table with more beside it.
@@ -214,10 +210,6 @@ price = Q.displayQuantity
 ratio :: Q -> String
 ratio = Q.displayRatio
 
--- | The unit every ratio and share is shown in (Gini, influence, shrinkage, factors, support).
-ratioUnit :: String
-ratioUnit = "index, 0 to 1"
-
 -- | A Resource's unit, from the run's manifest; empty for a Resource the manifest does not name.
 unitOf :: StoredRun -> ResourceId -> String
 unitOf r res = maybe "" _.unit (Map.lookup res r.manifest.initial.resources)
@@ -274,18 +266,10 @@ recordPoints r f = mapWithIndex (\i rec -> { round: i + 1, value: f rec }) (reco
 outcomeLabel :: Boolean -> String
 outcomeLabel executed = if executed then "executed" else "lapsed"
 
-joinComma :: Array String -> String
-joinComma = joinWith ", "
-
 -- | The players of a World State: its Actors, every Entity except the Aggregates (which are residual
 -- | representations, not players), in Entity order.
 players :: WorldState -> Array EntityId
 players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (Map.toUnfoldable w.entities :: Array _))
-
--- | Each record with the World State it leaves behind (round i+1 pairs with record i), as the
--- | objectives are evaluated over a run.
-roundResults :: StoredRun -> Array RoundResult
-roundResults r = r.rounds
 
 -- | A collective procedure the run recorded: its Proposal, the members who signed it, and whether it
 -- | executed, with its support against its threshold. Drivers and Representation both render their

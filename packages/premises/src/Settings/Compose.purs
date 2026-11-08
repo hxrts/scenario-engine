@@ -21,7 +21,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Game.Setting (GameboardParts, checkSetting)
 import Settings.Kit.Presets (PresetBinding, presetsOf)
-import Settings.Load (decodePresets, fromFiles)
+import Settings.Load (presetsFrom, fromFiles)
 import Settings.Layout as L
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Setting.Gameboard (configShape, gameboardShape)
@@ -69,5 +69,5 @@ presetsJson c = encodeWith Authored presetsShape (presetsOf c.presets)
 parts :: Setting -> Either String GameboardParts
 parts c = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) (files c)))
-  presets <- decodePresets (presetsJson c)
+  presets <- presetsFrom (presetsJson c)
   lmap show (checkSetting { gameboard: loaded.gameboard, config: loaded.config, presets })

@@ -71,7 +71,7 @@ settingDirs ops = do
     Right names | elem settingFile names -> Just (id <> "/" <> version)
     _ -> Nothing
 
--- | A file's text at a path under the root (`presets.json`, `capstone/run.json`). A failure names
+-- | A file's text at a path under the root (`presets.json`, `capstone/transcript.json`). A failure names
 -- | the full path.
 readRootFile :: forall m. Monad m => FileOps m -> String -> m (Either String String)
 readRootFile ops rel = do

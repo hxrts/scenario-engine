@@ -2,6 +2,8 @@
 -- | use the shared checker; game tests compose `simulate`.
 module Test.Simulator.Main where
 
+import Schema.Build.Decision (passive)
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Game.Bindings (strategyBindings)
@@ -102,11 +104,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- setting
       g <- everySeat p "RandomValid"
       a <- run (Seed 1) g
-      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g of
-        Left e -> fail (show e)
-        Right out -> do
-          map _.world out.records `shouldEqual` map _.world a.records
-          map _.record out.records `shouldEqual` map _.record a.records
+      out <- orThrow (runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g)
+      map _.world out.records `shouldEqual` map _.world a.records
+      map _.record out.records `shouldEqual` map _.record a.records
 
     it "3 Submission order: permuting every recorded round's inputs changes nothing" do
       p <- setting
@@ -131,14 +131,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "6 SME Representation: Fixture C, and shrinkage 0 leaves the baseline" do
       for_ [ "C1", "C2", "C3" ] fixture
-      liftEffect (map (_ >>= loadLiteral "C1") (readRootFile fileOps (fixturePath "C1"))) >>= case _ of
-        Left e -> fail (show e)
-        Right f -> do
-          let
-            zero = f.world { representations = map (\r -> r { estimator = r.estimator { shrinkage = Q.zero } }) f.world.representations }
-          case resolveRound zero (fromMaybe [] (_.inputs <$> index f.rounds 0)) of
-            Right r -> (Map.lookup (Id "GLOBAL_SMES") r.world.factors >>= Map.lookup (Id "E")) `shouldEqual` Just (Q.fromInt 1)
-            Left e -> fail (show e)
+      f <- liftEffect (map (_ >>= loadLiteral "C1") (readRootFile fileOps (fixturePath "C1"))) >>= orThrow
+      let
+        zero = f.world { representations = map (\r -> r { estimator = r.estimator { shrinkage = Q.zero } }) f.world.representations }
+      r <- orThrow (resolveRound zero (fromMaybe [] (_.inputs <$> index f.rounds 0)))
+      (Map.lookup (Id "GLOBAL_SMES") r.world.factors >>= Map.lookup (Id "E")) `shouldEqual` Just (Q.fromInt 1)
 
     it "7b Reservation: fixtures R and R-alone (DSL-authored) show a deployment reserving Mil against a Mil sale" do
       -- R: the deployment reserves 60 and the 40-unit sale scales to 38 on the 95 Mil held, which
@@ -178,7 +175,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           (pickOf (exchanges) >=> \t -> if t.entity == Id "US" && t.market == Id "defence-goods" then Just t else Nothing)
           rec.record.events
         usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
-        parse x = fromMaybe Q.zero (Q.parse x)
       -- the price is below 3 at the start of rounds 1 to 3, so the seat holds its Mil
       ordered 0 "military-deployment" `shouldEqual` Nothing
       ordered 2 "military-deployment" `shouldEqual` Nothing
@@ -187,14 +183,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- deployment reserves 57 and the sale is 38 Mil at the uniform price 2.81 (C(-38) - C(0)) / -38
       ordered 3 "military-deployment" `shouldEqual` Just (Q.fromInt 57)
       map _.quantity (sold 3) `shouldEqual` Just (Q.fromInt (-38))
-      map _.price (sold 3) `shouldEqual` Just (parse "2.81")
+      map _.price (sold 3) `shouldEqual` Just (q "2.81")
       usMil 3 `shouldEqual` Just (Q.fromInt 57)
       -- round 5 (index 4): 57 Mil held against 100 claimed, so both scale by 0.57: the deployment
       -- reserves 34.2 and the sale is 22.8 Mil at 2.506 on the curve now at -38
-      ordered 4 "military-deployment" `shouldEqual` Just (parse "34.2")
-      map _.quantity (sold 4) `shouldEqual` Just (parse "-22.8")
-      map _.price (sold 4) `shouldEqual` Just (parse "2.506")
-      usMil 4 `shouldEqual` Just (parse "34.2")
+      ordered 4 "military-deployment" `shouldEqual` Just (q "34.2")
+      map _.quantity (sold 4) `shouldEqual` Just (q "-22.8")
+      map _.price (sold 4) `shouldEqual` Just (q "2.506")
+      usMil 4 `shouldEqual` Just (q "34.2")
 
     it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
       p <- setting
@@ -320,14 +316,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         enco = map (\e -> e { capabilities = e.capabilities <> [ MayTrade (Id "defence-goods") ] }) (Map.lookup (Id "ENCO") w.entities)
         world = maybe w (\e -> w { entities = Map.insert (Id "ENCO") e w.entities }) enco
         order who = { proposal: { id: proposalId 1 (Id who) 0, author: Id who, intents: [ Trade { market: Id "defence-goods", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }, signatures: [] }
-      case resolveRound world [ order "ENCO", order "US" ] of
-        Left e -> fail (show e)
-        Right r -> do
-          concatMap
-            (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
-            r.record.events `shouldEqual` [ "ENCO has no access to defence-goods" ]
-          holding r.world (Id "ENCO") (Id "Mil") `shouldEqual` holding world (Id "ENCO") (Id "Mil")
-          (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true
+      r <- orThrow (resolveRound world [ order "ENCO", order "US" ])
+      concatMap
+        (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
+        r.record.events `shouldEqual` [ "ENCO has no access to defence-goods" ]
+      holding r.world (Id "ENCO") (Id "Mil") `shouldEqual` holding world (Id "ENCO") (Id "Mil")
+      (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true
 
     it "INV-29 Engine reuse: resolving each round's recorded inputs through the engine reproduces the simulated round" do
       p <- setting
@@ -343,7 +337,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       conservative <- everySeat p "Conservative"
       a <- run (Seed 1) g
       b <- run (Seed 1) conservative
-      c <- run (Seed 1) (withStrategy g "US" { rules: [], sign: [] })
+      c <- run (Seed 1) (withStrategy g "US" passive)
       let
         definitionOf w = map (\e -> { capabilities: e.capabilities, kind: e.kind }) (Map.lookup (Id "US") w.entities)
         final r = fromMaybe (initialOf r) (map _.world (last r.records))
@@ -363,6 +357,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       full <- run (Seed 1) g
       case index full.records 2 of
         Nothing -> fail "rounds"
-        Just r3 -> case simulate (Seed 1) (fromCheckpoint g ({ world: r3.world, done: 3 } :: Checkpoint)) of
-          Left e -> fail (show e)
-          Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 3 full.records)
+        Just r3 -> do
+          rest <- orThrow (simulate (Seed 1) (fromCheckpoint g ({ world: r3.world, done: 3 } :: Checkpoint)))
+          map _.world rest.records `shouldEqual` map _.world (drop 3 full.records)

@@ -4,7 +4,6 @@
 module Server.Read
   ( runSummaries
   , loadRun
-  , withRun
   , runInfo
   , getView
   , entitiesView

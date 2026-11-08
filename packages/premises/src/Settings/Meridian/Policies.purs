@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Strategy)
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (asTemplate, each, factor, ge, gt, holding, le, lit, mulQ, named, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, rule, selfTransform, signFacility, subQ, tradeAt, transformedLastRound)
+import Schema.Build.Decision (passive, asTemplate, each, factor, ge, gt, holding, le, lit, mulQ, named, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, rule, selfTransform, signFacility, subQ, tradeAt, transformedLastRound)
 import Schema.Build.Intent (transfer)
 import Settings.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Settings.Meridian.Names (n)
@@ -88,11 +88,11 @@ energySuppliers = { rules: offers n.energyAtlantic supplierAtlantic.names <> off
   offers = supplierOffers { disruptionRound, highPrice: supplierHighPrice }
 
 governmentDefault :: Strategy
-governmentDefault = { rules: [], sign: [] }
+governmentDefault = passive
 
 -- | The solidarity pool has no policy: it only gives Energy when the EU's procedure draws on it.
 solidarityPool :: Strategy
-solidarityPool = { rules: [], sign: [] }
+solidarityPool = passive
 
 -- | A firm sells its Energy surplus (above 30) on every Energy Market it has access to.
 firmDefault :: Strategy

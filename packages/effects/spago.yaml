@@ -6,7 +6,6 @@ package:
     - sp-core
     - sp-policy
     - arrays
-    - either
     - foldable-traversable
     - maybe
     - ordered-collections
@@ -18,7 +17,6 @@ package:
       - effect
       - spec
       - spec-node
-      - either
       - arrays
       - sp-handlers
       - sp-simulator

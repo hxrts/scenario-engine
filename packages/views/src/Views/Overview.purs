@@ -17,11 +17,12 @@ import Prelude
 
 import Schema.Gameboard (Gameboard)
 import Schema.Run (RunStatus(..), runStatusName)
+import Data.String (joinWith)
 import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Checks.Objectives (evaluateObjectives)
-import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, joinComma, names, ofCount, quantity, roundResults, target)
+import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, names, ofCount, quantity, target)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
@@ -147,6 +148,6 @@ objectives :: Gameboard -> StoredRun -> Table
 objectives gb r =
   { title: "Objectives"
   , columns: names [ col.actor, col.objective, criterionColumn, col.outcome, valuesColumn, boundColumn ]
-  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map quantity c.values), joinComma (map quantity c.bound) ]) o.criteria)
-      (evaluateObjectives gb (roundResults r))
+  , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinWith ", " (map quantity c.values), joinWith ", " (map quantity c.bound) ]) o.criteria)
+      (evaluateObjectives gb r.rounds)
   }

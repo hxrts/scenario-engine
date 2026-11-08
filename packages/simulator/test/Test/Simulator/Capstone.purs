@@ -3,6 +3,7 @@
 -- | (objectives, counterfactual, view models) are in the analysis suite (Test.Views.Capstone).
 module Test.Simulator.Capstone (spec) where
 
+import Testkit.Meridian (orThrow, run)
 import Prelude
 
 import Checks.Round (checkRound)
@@ -21,7 +22,6 @@ import Simulator.Simulate (Checkpoint, fromCheckpoint, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Capstone (load)
-import Testkit.Meridian (run)
 
 spec :: Spec Unit
 spec = describe "Capstone (DSL-authored run)" do
@@ -54,11 +54,9 @@ spec = describe "Capstone (DSL-authored run)" do
   it "replays byte-identically from its records" do
     cap <- load
     r <- run cap.playerSeed cap.game
-    case runReplay (seatEnv cap.playerSeed cap.game) cap.rounds (map _.record r.records) cap.game of
-      Left e -> fail (show e)
-      Right out -> do
-        map _.world out.records `shouldEqual` map _.world r.records
-        map _.record out.records `shouldEqual` map _.record r.records
+    out <- orThrow (runReplay (seatEnv cap.playerSeed cap.game) cap.rounds (map _.record r.records) cap.game)
+    map _.world out.records `shouldEqual` map _.world r.records
+    map _.record out.records `shouldEqual` map _.record r.records
 
   it "a run resumed from round 4's snapshot matches the uninterrupted run" do
     cap <- load
@@ -67,6 +65,5 @@ spec = describe "Capstone (DSL-authored run)" do
       Nothing -> fail "rounds"
       Just r4 -> do
         let snap = { world: r4.world, done: 4 } :: Checkpoint
-        case simulate cap.playerSeed (fromCheckpoint cap.game snap) of
-          Left e -> fail (show e)
-          Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 4 full.records)
+        rest <- orThrow (simulate cap.playerSeed (fromCheckpoint cap.game snap))
+        map _.world rest.records `shouldEqual` map _.world (drop 4 full.records)

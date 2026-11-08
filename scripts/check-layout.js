@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-// Named concept rules that imports cannot express (docs/07 §5; the rule set is). Each rule
-// names where its concept may live today. A rule with a transitional home says so, and is tightened
-// when that home is created (the phase that creates it is named in the rule).
+// Named concept rules that imports cannot express (docs/07 §5). Each rule names where its concept may live.
 const fs = require("fs");
 const path = require("path");
 const { walk } = require("./lib/walk");
 
-const root = path.join(__dirname, "..");
+const { root, viewFile, viewNames: readViewNames, sourceFiles } = require("./lib/paths");
 
 // The rules are checked on PureScript source: its src/ trees, and its test/ trees for a rule that says so
 // (each rule's `files` predicate names its scope). A rule with `js: true` also reads the JavaScript beside it.
@@ -19,8 +17,7 @@ const tagKinds = walk(schemaSrc, isPurs).flatMap((p) =>
 
 // The API's view names: a view's path segment is its constructor (Schema.View) in lower case.
 const routeTable = "packages/handlers/src/Handlers/Api/Route.purs";
-const viewFile = "packages/schema/src/Schema/View.purs";
-const viewNames = [...((/^data View\n([\s\S]*?)\n\n/m.exec(fs.readFileSync(path.join(root, viewFile), "utf8")) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase());
+const viewNames = readViewNames();
 if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found in data View`); process.exit(1); }
 
 const rules = [
@@ -110,10 +107,7 @@ const rules = [
 ];
 
 const isJs = (n) => /\.(js|mjs|cjs)$/.test(n);
-const files = ["packages", "apps"].flatMap((d) =>
-  fs.readdirSync(path.join(root, d)).flatMap((n) =>
-    ["src", "test"].flatMap((t) => walk(path.join(root, d, n, t), (name) => isPurs(name) || isJs(name)))))
-  .map((f) => path.relative(root, f));
+const files = sourceFiles((name) => isPurs(name) || isJs(name)).map((f) => path.relative(root, f));
 
 const errors = [];
 // FFI is a device (docs/07 §1): a `.js`, `.mjs` or `.cjs` file beside a module lives only in adapters or an app. Every other

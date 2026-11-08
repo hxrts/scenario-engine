@@ -2,7 +2,7 @@
 -- | Gameboard's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.
-module Game.Override (Override(..), overrideShape, overrideRefs, resolve, encodeOverrides, decodeOverrides) where
+module Game.Override (Override(..), resolve, encodeOverrides, decodeOverrides) where
 
 import Prelude
 

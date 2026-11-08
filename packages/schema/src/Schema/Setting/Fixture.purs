@@ -13,7 +13,6 @@ module Schema.Setting.Fixture
   , unnumbered
   , fixtureShape
   , proposalShape
-  , expectShape
   , roundShape
   , toRound
   , decodeLiteral

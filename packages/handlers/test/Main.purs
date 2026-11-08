@@ -1,5 +1,8 @@
 module Test.Handlers.Main where
 
+import Testkit.Meridian (orThrow, unseated, price)
+import Schema.Build.Decision (passive)
+import Schema.Build.Quantity (q)
 import Prelude
 
 import Testkit.Edit (onMarket)
@@ -29,7 +32,6 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
-import Testkit.Meridian (unseated, price)
 import Game.Types (Game)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
@@ -53,14 +55,10 @@ play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
 play g n strategies = do
   let
     out = playPure (seatEnv (Seed 1) g) (strategyBindings (Map.toUnfoldable strategies)) g.inWorld n g.world
-  case out.value of
-    Left e -> fail (show e)
-    Right _ -> pure unit
+  _ <- orThrow (out.value)
+  pure unit
   checkRun g.world out.records `shouldEqual` []
   pure out.records
-
-seats :: Array String
-seats = seatActors
 
 -- | Stand-in metric rows: the handler stores whatever `metricsOf` returns, so the test needs no definitions.
 stubMetrics :: forall r. r -> Array { metric :: String, version :: String, value :: String }
@@ -125,8 +123,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case presets of
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
-          let p = fromMaybe { rules: [], sign: [] } (Object.lookup name ps)
-          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple (Id s) p) seats))
+          let p = fromMaybe passive (Object.lookup name ps)
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple (Id s) p) seatActors))
           length records `shouldEqual` 5
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
@@ -165,7 +163,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         )
       let events = concatMap (_.record.events) records
       any
-        (matches (event @"ProcedureOutcome") (\o -> o.executed && o.support == fromMaybe Q.zero (Q.parse "0.6")))
+        (matches (event @"ProcedureOutcome") (\o -> o.executed && o.support == q "0.6"))
         events `shouldEqual` true
       any
         (matches (transfers) (\t -> t.from == Id "CN" && t.to == Id "SA" && t.quantity == Q.fromInt 25))

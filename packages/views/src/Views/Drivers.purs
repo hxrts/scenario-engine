@@ -3,7 +3,6 @@
 -- | is the one definition of a shortfall total. Pure.
 module Views.Drivers
   ( driversStat
-  , shortfallSum
   , shortfallTotal
   , drivers
   , columns

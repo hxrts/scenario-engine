@@ -5,7 +5,6 @@ module Options
   , sessionOptions
   , number
   , numberFrom
-  , seedFlag
   ) where
 
 import Prelude

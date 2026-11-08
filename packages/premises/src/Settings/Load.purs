@@ -5,11 +5,10 @@
 -- | against itself and its Strategies, so bad data fails before any game is assembled.
 module Settings.Load
   ( fromFiles
-  , loadSetting
   , loadFrom
   , loadAll
   , loadPresets
-  , decodePresets
+  , presetsFrom
   , loadLiteral
   ) where
 
@@ -18,7 +17,7 @@ import Prelude
 import Core.Shape (decodeJsonWith, Format(..))
 import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, parseJson)
+import Data.Argonaut.Decode (parseJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, find, foldl)
 import Data.Bifunctor (lmap)
@@ -29,27 +28,20 @@ import Foreign.Object as Object
 import Game.Setting (GameboardParts, checkSetting)
 import Settings.Layout (instantiationFile, presetsFile)
 import Settings.Tree as Tree
-import Schema.Decode.Common (decodeError)
+import Schema.Decode.Common (decodeError, decodeErrorAt)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Setting.Fixture (Literal, decodeLiteral)
 import Schema.Setting.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Setting.Strategy (presetsShape)
 import Data.Maybe (Maybe(..))
 
--- | A decode failure, named by what did not decode.
-undecodable :: String -> JsonDecodeError -> String
-undecodable what e = what <> ": " <> printJsonDecodeError e
-
 -- | The seat-policy presets (docs/06_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object Strategy)
-loadPresets t = jsonParser t >>= decodePresets
-
-decodePresets :: Json -> Either String (Object Strategy)
-decodePresets = presetsFrom
+loadPresets t = jsonParser t >>= presetsFrom
 
 presetsFrom :: Json -> Either String (Object Strategy)
 presetsFrom j = do
-  pairs <- lmap (undecodable presetsFile) (decodeJsonWith Authored presetsShape j)
+  pairs <- decodeErrorAt presetsFile (decodeJsonWith Authored presetsShape j)
   pure (Object.fromFoldable pairs)
 
 -- | A setting directory decoded and checked: the Gameboard setting a game is assembled from.
@@ -84,9 +76,9 @@ loadLiteral name text = decodeError (parseJson text >>= decodeNamed)
 fromFiles :: Array { name :: String, json :: Json } -> Either String { gameboard :: Gameboard, config :: InstantiationConfig }
 fromFiles files = do
   configJson <- note (instantiationFile <> ": missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
-  config <- lmap (undecodable instantiationFile) (decodeConfig configJson)
+  config <- decodeErrorAt instantiationFile (decodeConfig configJson)
   merged <- merge (filter (\f -> f.name /= instantiationFile) files)
-  gameboard <- lmap (undecodable "the Gameboard") (decodeGameboard merged)
+  gameboard <- decodeErrorAt "the Gameboard" (decodeGameboard merged)
   pure { gameboard, config }
   where
   headOf = case _ of

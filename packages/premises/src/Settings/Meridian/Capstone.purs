@@ -1,17 +1,13 @@
 -- | The capstone run: a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat strategy for each seat that exercises the features the audit found
 -- | untested together. It is a Gameboard setting with Strategy bindings (`seatBindings`); the
--- | counterfactual replaces one seat (`counterfactualBindings`). `just _premises` also compiles the
--- | same seats, expectations and objectives to `capstone/run.json`, a record of them for readers; no
--- | code decodes that file. The world and the Entity Policies are the shipped ones; only the seat
+-- | counterfactual replaces one seat (`counterfactualBindings`). The world and the Entity Policies are the shipped ones; only the seat
 -- | strategies and the expectations are here.
 module Settings.Meridian.Capstone
-  ( file
-  , rounds
+  ( rounds
   , playerSeed
-  , seatBindings
   , game
-  , counterfactualBindings
+  , counterfactualGame
   , expectations
   , baseObjectives
   , counterfactualObjectives
@@ -23,10 +19,10 @@ module Settings.Meridian.Capstone
   , matchesExpect
   ) where
 
-import Prelude (map, ($), (<<<), (<>), (==))
+import Prelude (map, (<>), (==))
 import Settings.Meridian.Names (n, seatActors)
 import Settings.Meridian.Rules (accessBan, withholding)
-import Game.Assemble (assemble)
+import Game.Assemble (assemble, withRounds)
 import Game.Bindings (strategyBindings)
 import Game.Error (GameError)
 import Game.Setting (GameboardParts, Setting(..))
@@ -34,27 +30,28 @@ import Game.Types (Bindings, Game)
 import Data.Bifunctor (lmap)
 import Data.Map as Map
 
-import Schema.Joint (JointProposal)
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
-import Data.Argonaut.Encode (encodeJson)
+import Schema.Joint (JointProposal, jointReplyShape)
+import Data.Argonaut.Core (Json)
 import Data.Array (find, sort)
+import Foreign.Object as Object
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (EntityId, Id(..), idText)
+import Core.Types (EntityId, Id(..), Intent, idText, proposalId, ruleIdOf)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
 import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, joint, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
-import Schema.Build.Intent (repeal)
-import Schema.Setting.Strategy (presetsShape)
+import Schema.Build.Intent (repeal, trade)
 import Schema.Round (Authored, Expect, ProposalRef, atRound)
 import Core.Shape (encodeWith, Format(..))
 import Schema.Build.Fixture (noExpect)
-import Schema.Setting.Fixture (expectShape)
+
+-- | The id the engine gives the first Rule of an Entity's first Proposal in a round.
+firstRuleOf :: Int -> String -> String
+firstRuleOf r e = idText (ruleIdOf (proposalId r (Id e) 0) 0)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int
@@ -83,7 +80,7 @@ usWithoutDeployment :: Strategy
 usWithoutDeployment =
   { rules:
       [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: n.india }) ]
-      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
+      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: firstRuleOf 2 n.us }) ]
       ]
   , sign: []
   }
@@ -146,7 +143,7 @@ chip :: Strategy
 chip =
   { rules:
       [ rule [ eqQ roundQ (lit 4) ] [ asTemplate (withholding.enact { capacity: n.semiconductors, units: lit 5 }) ]
-      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
+      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: firstRuleOf 4 n.chip }) ]
       ]
   , sign: []
   }
@@ -232,7 +229,14 @@ counterfactualObjectives = map (\e -> objective e (if e == n.us then Met else No
 
 -- | The capstone's game: the shipped Meridian at its default configuration, with the capstone's seats.
 game :: GameboardParts -> Either GameError Game
-game p = assemble (GameboardSetting p) seatBindings []
+game p = assembled p seatBindings
+
+-- | The counterfactual's game: the same, with the US's Strategy replaced.
+counterfactualGame :: GameboardParts -> Either GameError Game
+counterfactualGame p = assembled p counterfactualBindings
+
+assembled :: GameboardParts -> Bindings -> Either GameError Game
+assembled p bindings = map (withRounds (Just rounds)) (assemble (GameboardSetting p) bindings [])
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
@@ -242,69 +246,21 @@ seatBindings = strategyBindings (map (lmap Id) (seats us))
 counterfactualBindings :: Bindings
 counterfactualBindings = Map.union (strategyBindings [ Tuple (Id n.us) usWithoutDeployment ]) seatBindings
 
--- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
--- | and every objective's expected outcome in each case, in the setting's spelling.
-file :: Json
-file = encodeJson
-  { label: "capstone"
-  , rounds
-  , playerSeed
-  , seats: encodeWith Authored presetsShape (seats us)
-  , counterfactual: encodeWith Authored presetsShape [ Tuple n.us usWithoutDeployment ]
-  , expectations: map roundJson authoredExpectations
-  , objectives: map objectiveJson baseObjectives
-  , counterfactualObjectives: map objectiveJson counterfactualObjectives
-  }
-  where
-  roundJson r = encodeJson { round: r.round, expect: encodeWith Authored expectShape r.expect }
-  objectiveJson o = { entity: idText o.entity, outcome: word o.outcome }
-  word = case _ of
-    Met -> "met"
-    NotMet -> "notMet"
-    NotEvaluated -> "notEvaluated"
-
 -- | the recording port and writes `capstone/transcript.json`; the handler suite replays that file.
-type JointLine = { text :: String, reply :: Json, expect :: Array Json }
-
-obj :: Array (Tuple String Json) -> Json
-obj = fromObject <<< Object.fromFoldable
-
--- | An Intent in the engine's encoding: a tagged object with its `values` and its `tag`.
-intent :: String -> Array Json -> Json
-intent t vs = obj [ Tuple "values" (fromArray vs), Tuple "tag" (fromString t) ]
+type JointLine = { text :: String, reply :: Json, expect :: Array Intent }
 
 -- | The model's reply to one transcript: one Proposal by `author`, agreed by its own seat.
-proposalReply :: String -> Json -> Json
-proposalReply author i = obj
-  [ Tuple "proposals" $ fromArray
-      [ obj
-          [ Tuple "author" (fromString author)
-          , Tuple "intents" (fromArray [ i ])
-          , Tuple "signers" (fromArray [])
-          , Tuple "agreed" (fromArray [ fromString author ])
-          ]
-      ]
-  ]
+proposalReply :: String -> Intent -> Json
+proposalReply author i = encodeWith Snapshot jointReplyShape
+  { proposals: [ { author: Id author, intents: [ i ], signers: [], agreed: [ Id author ] } ] }
 
--- | The US's ban on shipments into India, as the joint pass reads it: a rule change that enacts an
--- | access ban on IN.
-banIntent :: Json
-banIntent = intent "ChangeRule"
-  [ intent "Enact"
-      [ intent "FlowRule"
-          [ obj
-              [ Tuple "scope" (obj [ Tuple "over" (fromArray [ fromString n.energy ]), Tuple "governor" (fromString n.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString n.india) ])
-              , Tuple "kind" (fromString "accessBan")
-              , Tuple "effect" (intent "Block" [])
-              ]
-          ]
-      ]
-  ]
+-- | The US's ban on shipments into India, as the joint pass reads it.
+banIntent :: Intent
+banIntent = accessBan.enact { jurisdiction: n.us, target: n.india }
 
 -- | The US buying ten Energy in the Atlantic market at no limit price.
-tradeIntent :: Json
-tradeIntent = intent "Trade"
-  [ obj [ Tuple "quantity" (fromString "10.0000"), Tuple "market" (fromString n.energyAtlantic), Tuple "limitPrice" jsonNull ] ]
+tradeIntent :: Intent
+tradeIntent = trade { market: n.energyAtlantic, quantity: q 10, limit: Nothing }
 
 -- | The capstone's joint-pass exchanges, in the order the recording holds them.
 jointLines :: Array JointLine
@@ -313,9 +269,9 @@ jointLines =
   , { text: "buy ten energy", reply: proposalReply n.us tradeIntent, expect: [ tradeIntent ] }
   ]
 
--- | Whether a joint pass gave exactly the Intents a line expects, compared in the engine's JSON encoding.
-matchesExpect :: forall r. { expect :: Array Json | r } -> Array JointProposal -> Boolean
-matchesExpect l js = map (\j -> stringify (encodeJson j.draft.intents)) js == [ stringify (encodeJson l.expect) ]
+-- | Whether a joint pass gave exactly the Intents a line expects.
+matchesExpect :: forall r. { expect :: Array Intent | r } -> Array JointProposal -> Boolean
+matchesExpect l js = map _.draft.intents js == [ l.expect ]
 
 -- | The line whose transcript a joint call's payload names: the model's reply to that call.
 jointLineFor :: String -> Maybe JointLine

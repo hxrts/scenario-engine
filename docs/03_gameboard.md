@@ -272,7 +272,7 @@ Gameboard `parameters` are fixed for a Gameboard. A simulation may override them
 5. Check every Policy's names against the Gameboard.
 6. Check every seat preset's names against the Gameboard.
 
-Load failures are `LoadError` values (`Settings.Load`): `Unreadable`, `NotAnObject`, `DuplicateKey`, and `Undecodable` (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`). `checkSetting` returns `GameError` values: `Invalid` (validation errors) and `Unresolved` (a Policy or preset names something the Gameboard lacks).
+Load failures are messages (`Settings.Load`, `Either String`) naming the file or the decode error: an unreadable file, a section that is not an object, a duplicate key, or a decode failure (missing or ill-typed keys, unknown tags, a `roundRange` that fails `1 <= min <= max`). `checkSetting` returns `GameError` values: `Invalid` (validation errors) and `Unresolved` (a Policy or preset names something the Gameboard lacks).
 
 ```purescript
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard

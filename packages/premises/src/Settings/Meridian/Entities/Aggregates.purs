@@ -1,6 +1,6 @@
 -- | Meridian's Aggregates (docs/05_test_instance.md §10 Aggregate Catalog): the
 -- | collective Actors and the Representation Aggregates, with the EU's collective procedures.
-module Settings.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, euPoolAggregate, globalSmesAggregate) where
+module Settings.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds) where
 
 import Prelude ((<>))
 import Settings.Meridian.Rules (tariff)
