@@ -179,6 +179,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "accessBan": { "jurisdiction": "US", "target": "CN" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (AccessBan { jurisdiction: Id "US", target: Id "CN" })))
+    it "a Repeal round-trips through the premise form, as one key naming the Rule" do
+      intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
+      intent (encodeWith Premise intentShape (repeal { rule: "r2/US/0/rule-0" })) `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
+
     it "rejects an intent with two keys" do
       case intent (json """{ "trade": { "market": "m", "quantity": "1" }, "transfer": { "from": "a", "to": "b", "resource": "E", "quantity": "1" } }""") of
         Left _ -> pure unit

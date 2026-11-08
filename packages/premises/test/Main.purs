@@ -36,7 +36,6 @@ import Policy.Interpret (Env, nameOnly, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape)
-import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)

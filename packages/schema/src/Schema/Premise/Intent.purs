@@ -29,6 +29,9 @@ transformTag = "transform"
 enactTag :: String
 enactTag = "enact"
 
+repealTag :: String
+repealTag = "repeal"
+
 -- | The Rule, under `enact`: `{ "tariff": ... }`, `{ "accessBan": ... }`, `{ "withholding": ... }`.
 ruleShape :: Shape (RuleF Q)
 ruleShape = premiseSum "Rule"
@@ -53,7 +56,7 @@ ruleShape = premiseSum "Rule"
   ]
 
 -- | An Intent. A `trade` with a null market is a routed order (docs/02 §5.2): it names its pair by
--- | `base` and `quote`. A Repeal has no premise tag (Phase 2), so it does not encode.
+-- | `base` and `quote`.
 intentShape :: Shape Intent
 intentShape = premiseSum "Intent"
   [ oneKey tradeTag "an order in a Market, or a routed order on a pair of Resources" tradeBody
@@ -81,8 +84,12 @@ intentShape = premiseSum "Intent"
           _ -> Nothing
       )
       (\r -> ChangeRule (Enact r))
+  , oneKey repealTag "repeal a Rule by the id the engine gave it" repealBody repealOf (\r -> ChangeRule (Repeal r.rule))
   ]
   where
+  repealBody = object "Repeal" ((\r -> { rule: r }) <$> fieldOf "rule" "the Rule, by the id the engine gave it" idShape _.rule)
+  repealOf (ChangeRule (Repeal r)) = Just { rule: r }
+  repealOf _ = Nothing
   transformBody = object "Transform"
     ( mk3 <$> fieldOf "by" "the Entity that runs it" idShape _.by
         <*> fieldOf "transformation" "the transformation" idShape _.transformation
