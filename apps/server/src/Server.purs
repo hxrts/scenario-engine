@@ -27,7 +27,7 @@ main = do
   args <- drop 2 <$> argv
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
-    -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port reads
+    -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port.sh reads
     Right flags -> case intFlag "--port" 8787 (\p -> p > 0 && p < 65536) "a port number" flags of
       Right port -> loadFrom fileOps meridianDir >>= case _ of
         Right ctx -> do

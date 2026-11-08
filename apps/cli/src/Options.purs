@@ -31,7 +31,7 @@ runOptions fs = do
   pure { preset: flagOr "--preset" "Passive" fs, rounds, seed }
 
 -- | The player seed flag: absent means draw one at start; given, it must be a whole number (the one
--- | seed rule: `scripts/validate` mirrors it, negative values included).
+-- | seed rule: `scripts/validate.sh` mirrors it, negative values included).
 seedFlag :: Object String -> Either String (Maybe Seed)
 seedFlag fs = map Seed <$> optionalInt "--seed" (const true) "a whole number" fs
 

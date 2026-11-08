@@ -18,7 +18,7 @@ test: _premises
 # Test one package
 [positional-arguments]
 test-pkg *args:
-    @scripts/validate test-pkg "$@"
+    @scripts/validate.sh test-pkg "$@"
     @just _premises
     spago test -p sp-"$1"
 
@@ -52,14 +52,14 @@ all: check dashboard-test
 # Simulate a game
 [positional-arguments]
 sim *args:
-    @scripts/validate sim "$@"
+    @scripts/validate.sh sim "$@"
     @just _premises
     spago run -p sp-cli -- run "$@"
 
 # Live facilitator session
 [positional-arguments]
 session *args:
-    @scripts/validate session "$@"
+    @scripts/validate.sh session "$@"
     @just _premises
     spago run -p sp-cli -- session "$@"
 
@@ -118,9 +118,9 @@ _dashboard: _ui
 # Serve the API and dashboard
 [positional-arguments]
 serve *args:
-    @scripts/validate serve "$@"
+    @scripts/validate.sh serve "$@"
     @just _premises _dashboard
-    @scripts/free-port "$@"
+    @scripts/free-port.sh "$@"
     spago run -p sp-server -- "$@"
 
 # One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.

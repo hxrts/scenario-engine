@@ -2,7 +2,7 @@
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
 -- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
--- | errors (exit status 1). `presets` prints the shipped preset names, one per line (`scripts/validate` reads them).
+-- | errors (exit status 1). `presets` prints the shipped preset names, one per line (`scripts/validate.sh` reads them).
 module Main (main) where
 
 import Prelude
