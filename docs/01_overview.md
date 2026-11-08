@@ -20,15 +20,15 @@ The world has two parts: explicitly represented participants, and an implicit ec
 | Simulated period | 5 years |
 | World | One shared timeline |
 | Player roles | Countries, institutions, corporations, and smaller economic participants |
-| Primary mechanic | Strategic decisions and signed deals affecting interconnected markets |
+| Primary mechanic | Strategic decisions and signed joint Proposals affecting interconnected markets |
 | Input | Out-of-band negotiation, oral announcements, and AI-interpreted actions |
 | Output | Economic outcomes, balance sheets, and a fictional financial-news front page |
 
 Each round runs the engine's canonical resolution sequence, defined once in [02 §8.1](02_type_system.md#81-canonical-resolution-sequence). The session procedure is in [04 §11](04_instantiated_game.md#11-round-execution). The list below is the player's view of a round, not the engine's steps.
 
 1. **Briefing.** Players receive the current state of the world.
-2. **Negotiation.** Players talk freely and strike deals. Negotiation happens entirely out of band. The system has no negotiation protocol.
-3. **Submission.** Players talk with each other in private, then each human submits one transcript of what they intend to do this round (**Planned:** as an audio recording, transcribed first; the current build takes the transcript typed at the prompt). A trade may be described by one party, by both, or by neither. Once submitted, a human has no further input in that round. Interpretation then reads every transcript together. A transcript that describes a deal is that party's agreement to it, and the interpreter reconciles matching descriptions into one Proposal, adjusting details slightly where needed. Informal transcripts are loose by nature, and a player who did not want a deal would not have described it. A deal that only one side describes lapses, as any Proposal whose signatures are missing does.
+2. **Negotiation.** Players talk freely and strike joint Proposals. Negotiation happens entirely out of band. The system has no negotiation protocol.
+3. **Submission.** Players talk with each other in private, then each human submits one transcript of what they intend to do this round (**Planned:** as an audio recording, transcribed first; the current build takes the transcript typed at the prompt). A trade may be described by one party, by both, or by neither. Once submitted, a human has no further input in that round. Interpretation then reads every transcript together. A transcript that describes a joint Proposal is that party's agreement to it, and the interpreter reconciles matching descriptions into one Proposal, adjusting details slightly where needed. Informal transcripts are loose by nature, and a player who did not want a joint Proposal would not have described it. A joint Proposal that only one side describes lapses, as any Proposal whose signatures are missing does.
 4. **Resolution.** The engine resolves every player, NPC, and implicit-economy action together as one round update.
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
@@ -87,7 +87,7 @@ Strategies are reproducible from their seed. AI agents and humans are reproducib
 
 An NPC's Policy is part of the premise, such as a government that retaliates against tariffs. A seat's Policy comes from outside, so the simulator can replace a human with an agent or strategy without changing the game. In-world Policies are fixed at initialization, but their actions change as the world changes. A player who changes a rule changes the conditions the Policies respond to, never the Policies themselves.
 
-**Negotiation is propose, then sign.** Each round, every Policy publishes Proposals and then signs the ones that name it and that it endorses. Publishing implies the author's signature. A deal is a Proposal that also needs the counterparty's signature, so the two sides cannot disagree about terms. An unsigned deal lapses, and a counteroffer is a new Proposal for the next round ([02 §3.3](02_type_system.md#33-proposals-and-signatures)).
+**Negotiation is propose, then sign.** Each round, every Policy publishes Proposals and then signs the ones that name it and that it endorses. Publishing implies the author's signature. A joint Proposal is a Proposal that also needs the counterparty's signature, so the two sides cannot disagree about terms. An unsigned joint Proposal lapses, and a counteroffer is a new Proposal for the next round ([02 §3.3](02_type_system.md#33-proposals-and-signatures)).
 
 ## 8. Representation and Collective Procedures
 
@@ -100,7 +100,7 @@ For Representation the engine computes and stores the estimate, and the Aggregat
 
 ## 9. Resolution
 
-Seat decisions, NPC decisions, Aggregate behaviour, and signed deals all become Intents in signed Proposals. These resolve together as one bundled round update with uniform market prices. The engine never authors or rewrites an Intent, nothing is ordered within a round, and everything a round computes becomes visible in the next round. The canonical sequence is [02 §8.1](02_type_system.md#81-canonical-resolution-sequence).
+Seat decisions, NPC decisions, Aggregate behaviour, and signed joint Proposals all become Intents in signed Proposals. These resolve together as one bundled round update with uniform market prices. The engine never authors or rewrites an Intent, nothing is ordered within a round, and everything a round computes becomes visible in the next round. The canonical sequence is [02 §8.1](02_type_system.md#81-canonical-resolution-sequence).
 
 ## 10. AI Interface and Reporting
 
@@ -118,7 +118,7 @@ Every role should have a meaningful capability, a dependency that others can pro
 
 - **One world, many scales.** Players, NPCs, and the implicit economy share one economy. A premise can be played at any resolution, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_type_system.md#inv-14)).
 - **Same rules for everyone.** Every participant, human or not, acts through the same kinds of decision under the same rules. No seat gets special mechanics ([INV-01](02_type_system.md#inv-01)).
-- **Diplomacy is free. Deals are binding.** Players negotiate, persuade, and bluff however they like. Only what is proposed and signed by every party takes effect, and every deal must be paid for.
+- **Diplomacy is free. Joint Proposals are binding.** Players negotiate, persuade, and bluff however they like. Only what is proposed and signed by every party takes effect, and every joint Proposal must be paid for.
 - **Unequal but interdependent.** Power, resources, and authority are deliberately unequal, yet every role has a capability, a dependency others control, and an objective others can help or obstruct (§11).
 - **Small players matter.** Representation and collective procedures let a small business or a member state shift a larger economy, with influence that is real but bounded (§8).
 - **A living economy.** Production, trade, income, and investment recur every round, so the world sustains itself across five years and scarcity comes from choices, not from accounting gaps (§6).

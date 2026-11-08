@@ -79,7 +79,7 @@ data RecordQuery
 -- | Entity in any entity position, and a `MarketRef` names a Market (`Policy.Interpret`).
 data Template
   = IntentT IntentTemplate -- one Intent (docs/02 §3)
-  | ProposalT (ProposalF MarketRef Expr) -- a Deal (no procedure), or a Procedure (its id); its Intents are Intent templates
+  | ProposalT (ProposalF MarketRef Expr) -- a joint Proposal (no procedure), or a Procedure (its id); its Intents are Intent templates
   | Mirror { governor :: EntityId, counterparty :: EntityId } -- each Rule of a `RulesEnacted` query, turned back on its governor
   | Choose (Array Template) -- one option, picked by a seeded draw
   | NoAction -- propose nothing (an option for Choose)

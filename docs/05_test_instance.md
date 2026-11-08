@@ -25,7 +25,7 @@ The instance should demonstrate that:
 6. Prices respond to players and the implicit economy, and trade restrictions have identifiable effects.
 7. Every Actor has a distinct capability, a dependency, and a measurable objective ([INV-19](02_type_system.md#inv-19)).
 8. Policies respond to conditions without being rewritten during play ([INV-12](02_type_system.md#inv-12)).
-9. Out-of-band deals settle atomically once every required signer signs ([INV-10](02_type_system.md#inv-10)).
+9. Out-of-band joint Proposals settle atomically once every required signer signs ([INV-10](02_type_system.md#inv-10)).
 10. One Gameboard supports different levels of explicitness with consistent resolution ([INV-14](02_type_system.md#inv-14)).
 
 ---
@@ -145,7 +145,7 @@ Investments change future capacity. They never create Energy or Military directl
 
 ## 5. Intents and Capabilities
 
-Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-intents-and-economic-actions)). Deals between players are Proposals bundling each side's Transfers ([§13.5](#135-proposals-and-signatures)). Governments act only within their jurisdictions. Corporations trade and transform the capacities they own but cannot regulate or deploy Military. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed deals, and Representation, and never acquire the authority of the populations they represent ([INV-03](02_type_system.md#inv-03)).
+Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-intents-and-economic-actions)). Joint Proposals between players are Proposals bundling each side's Transfers ([§13.5](#135-proposals-and-signatures)). Governments act only within their jurisdictions. Corporations trade and transform the capacities they own but cannot regulate or deploy Military. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed joint Proposals, and Representation, and never acquire the authority of the populations they represent ([INV-03](02_type_system.md#inv-03)).
 
 ---
 
@@ -489,7 +489,7 @@ Soft Power is produced by campaigns and aid, spent on strikes, and decays at the
 
 ### 13.5 Proposals and signatures
 
-Out-of-band deals enter as Proposals whose signers are every party. Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
+Out-of-band joint Proposals enter as Proposals whose signers are every party. Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
 
 ### 13.6 Energy disruption
 
@@ -588,7 +588,7 @@ Every numerical parameter is stated where it takes effect (§§3, 8, 11–13). N
 | Round | Year | Central test |
 |---|---|---|
 | 1 | 1 | Market discovery, diplomacy, allocation |
-| 2 | 2 | Policy responses, first deliveries, investment, first signed deals |
+| 2 | 2 | Policy responses, first deliveries, investment, first signed joint Proposals |
 | 3 | 3 | Energy disruption and strategic stress |
 | 4 | 4 | Adaptation, military competition, recovery or decline |
 | 5 | 5 | Final decisions and resolution |
@@ -738,8 +738,8 @@ The Proposal settles atomically in the round batch, assuming no other balance ch
 | JP | 150 | 102 | 40 | 60 |
 
 - **G2 (unsigned):** JP does not sign. The Proposal lapses, balances are unchanged, and the rest of the round resolves.
-- **G3 (cross-region):** the same deal with Germany. SA proposes [Transfer 20 E SA → DE, Transfer 48 M DE → SA, Transform `energy-shipping` 20 by SA], signers [SA, DE, SHIP]. The shipping fee is 0.3 × 20 = 6 M, paid by SA to SHIP: SA 155 → 197 M, 110 → 90 E. DE 125 → 77 M, 38 → 58 E. SHIP 110 → 116 M. Under an `AccessBan` covering the route the Proposal is fully signed but the shipping order is infeasible, so it is rejected as a unit while the rest of the round resolves. If SHIP signs shipments totalling more than 60 E in a round, all of that round's shipping Proposals are rejected ([§3.2](#32-transport-capacity-and-trade-restrictions)).
-- **G4 (out-of-band strike deal):** LABOR, ENCO, and DEF agree off-system that LABOR will not strike. In Round 2 LABOR declares no strike and ENCO and DEF each Transfer 10 M to LABOR. The engine sees ordinary Transfers. Nothing binds LABOR in later rounds.
+- **G3 (cross-region):** the same joint Proposal with Germany. SA proposes [Transfer 20 E SA → DE, Transfer 48 M DE → SA, Transform `energy-shipping` 20 by SA], signers [SA, DE, SHIP]. The shipping fee is 0.3 × 20 = 6 M, paid by SA to SHIP: SA 155 → 197 M, 110 → 90 E. DE 125 → 77 M, 38 → 58 E. SHIP 110 → 116 M. Under an `AccessBan` covering the route the Proposal is fully signed but the shipping order is infeasible, so it is rejected as a unit while the rest of the round resolves. If SHIP signs shipments totalling more than 60 E in a round, all of that round's shipping Proposals are rejected ([§3.2](#32-transport-capacity-and-trade-restrictions)).
+- **G4 (out-of-band strike joint Proposal):** LABOR, ENCO, and DEF agree off-system that LABOR will not strike. In Round 2 LABOR declares no strike and ENCO and DEF each Transfer 10 M to LABOR. The engine sees ordinary Transfers. Nothing binds LABOR in later rounds.
 - **G5 (three-party):** SA proposes [Transfer 20 E SA → JP, Transfer 48 M JP → SA, Transfer 10 M JP → SHIP (service fee)], signers [SA, JP, SHIP]. JP and SHIP sign: SA 155 → 203 M, 110 → 90 E. JP 150 → 92 M, 40 → 60 E. SHIP 110 → 120 M. If SHIP does not sign, the whole Proposal lapses and no balance changes.
 
 Verifies signature completeness, lapsing, atomic settlement of bundled Intents, and that the engine enforces no promises ([INV-10](02_type_system.md#inv-10)).
@@ -783,7 +783,7 @@ Vary one parameter at a time from the baseline before combining changes.
 3. **Do Markets produce interesting choices?** Do regional prices and restrictions encourage trade, coordination, and investment without making Markets unusable?
 4. **Are implicit Policies credible?** Do Aggregates and the NPC respond coherently without improvisation?
 5. **Does the economy stay functional for five years?** Does Money keep moving rather than settling in reserves?
-6. **Are results understandable?** Can players trace balance-sheet changes to actions, signed deals, and rules?
+6. **Are results understandable?** Can players trace balance-sheet changes to actions, signed joint Proposals, and rules?
 7. **Is five rounds enough?** Do early decisions and investments matter later?
 
 ## 30. Measurements

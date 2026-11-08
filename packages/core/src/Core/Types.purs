@@ -296,11 +296,11 @@ type Rule = RuleF Q
 type RuleKindId = Id RuleKindTag
 type RuleChange = RuleChangeF Q
 
--- | Whether a Deal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
+-- | Whether a joint Proposal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
 -- | change of Rule are one party's own action (docs/02 §3.3). The one statement of the rule: screening,
--- | the premise shape of a Deal, and the prompt's wording all follow it.
-dealIntent :: forall m v. IntentF m v -> Boolean
-dealIntent = case _ of
+-- | the premise shape of a joint Proposal, and the prompt's wording all follow it.
+jointIntent :: forall m v. IntentF m v -> Boolean
+jointIntent = case _ of
   Transfer _ -> true
   Transform _ -> true
   Trade _ -> false
@@ -309,7 +309,7 @@ dealIntent = case _ of
 
 -- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
--- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF MarketRef Expr`.
+-- | Intent kind (docs/02 §3). A Strategy's Joint and Procedure templates are `ProposalF MarketRef Expr`.
 type ProposalF m v =
   { intents :: Array (IntentF m v)
   , signers :: Array EntityId
@@ -353,7 +353,7 @@ type Transformation =
   , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , payee :: Maybe EntityId
   , delay :: RoundOffset
-  , minimum :: Quantity -- smallest order accepted, e.g. a major military action
+  , minimum :: Quantity -- smallest order accepted
   , maximum :: Maybe Quantity -- largest order accepted per Entity per round
   , capacityUse :: Quantity -- capacity drawn per unit ordered
   , ownerSigns :: Boolean -- the capacity's owner must sign every order

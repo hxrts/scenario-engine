@@ -214,7 +214,7 @@ A scheme is a template. Which representatives are active, and their weights, are
 
 ### 10.1 Proposal rules
 
-Agreements reach the engine as Proposals that name more than one signer, such as deals and procedure Proposals ([INV-10](02_type_system.md#inv-10)). Two Gameboard rules govern what they can move: Resource transferability ([§5.1](#51-resources)) and each Entity's capabilities ([§6.2](#62-actor-definitions)). A switch restricting multi-signer Proposals by Resource or Entity category is planned.
+Agreements reach the engine as Proposals that name more than one signer, such as joint Proposals and procedure Proposals ([INV-10](02_type_system.md#inv-10)). Two Gameboard rules govern what they can move: Resource transferability ([§5.1](#51-resources)) and each Entity's capabilities ([§6.2](#62-actor-definitions)). A switch restricting multi-signer Proposals by Resource or Entity category is planned.
 
 Aggregates do not sign Proposals in the round runner. Procedure Proposals are signed by their members ([04 §11](04_instantiated_game.md#11-round-execution)).
 

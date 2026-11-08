@@ -15,7 +15,7 @@ import Data.Array as Array
 import Schema.Premise.Tags as Tags
 import Core.Shape (Desc(..), Format(..), Shape, encodeWith, decodeJsonWith, prose)
 import Data.Foldable (for_)
-import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
+import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
 import Schema.Build.Intent (enactRule, repeal, route, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
@@ -94,7 +94,7 @@ roundTripStrategies =
     }
   , { rules:
         [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
-        , D.rule [] [ deal { signers: [ "DE", "IN" ], transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "t", quantity: lit 1 } ] } ]
+        , D.rule [] [ joint { signers: [ "DE", "IN" ], transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "t", quantity: lit 1 } ] } ]
         ]
     , sign: []
     }
@@ -140,13 +140,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let
       known e = e == Id "US" || e == Id "EU"
       said = [ { seat: Id "US", text: "I will buy ten energy" } ]
-      deal = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
+      joint = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
     it "drops a Proposal whose author did not speak, and one with no Intents" do
-      map _.author (jointProposals known said [ deal { author = Id "EU" }, deal { intents = [] } ]) `shouldEqual` []
+      map _.author (jointProposals known said [ joint { author = Id "EU" }, joint { intents = [] } ]) `shouldEqual` []
     it "keeps a speaker's Proposal, and signs for speakers only" do
-      map _.signed (jointProposals known said [ deal ]) `shouldEqual` [ [ Id "US" ] ]
+      map _.signed (jointProposals known said [ joint ]) `shouldEqual` [ [ Id "US" ] ]
     it "keeps as signers only known Entities other than the author" do
-      map _.draft.signers (jointProposals known said [ deal { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
+      map _.draft.signers (jointProposals known said [ joint { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
   describe "Capability tags" do
     it "decodes each capability kind" do
@@ -180,8 +180,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes a trade with an optional limit" do
       intent (json """{ "trade": { "market": "energy-atlantic", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
-    it "a Trade has no form in a Deal: it cannot be built by `deal` (a compile error), and as JSON does not read as one" do
-      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"deal":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
+    it "a Trade has no form in a joint Proposal: it cannot be built by `joint` (a compile error), and as JSON does not read as one" do
+      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"joint":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
 
     it "a routed order's template must state its limit: no limit, or a null one, does not decode" do
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1"}}]}]}""")) `shouldEqual` true

@@ -67,7 +67,7 @@ Module map: every `src` module, one line per package, from `find packages apps -
 packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Digest, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
 packages/board:      Board.Error, Board.Gameboard.Instantiate, Board.Gameboard.Reconcile, Board.Gameboard.Validate
 packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
-packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Schema.Run, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Schema.View, Core.World
+packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Core.World
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
 packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types

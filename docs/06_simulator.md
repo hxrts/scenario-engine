@@ -111,7 +111,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `Trader` | Buys 5 Energy at the cheapest Market at a limit of 2.2 while that price is at most 2.2. Sells 5 at the costliest Market at a limit of 3 while that price is above 3. The bands are fixed in the preset. |
 | `Cooperative` | Proposes nothing. Signs every Proposal addressed to it. |
 | `Opportunistic` | Sells 5 Energy at the costliest Market at a limit of 3 while that price is above 3. Signs every Proposal addressed to it. |
-| `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100, as a deal that CHIP co-signs. |
+| `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100, as a joint Proposal that CHIP co-signs. |
 | `CrisisResponse` | Buys 3 Energy at the cheapest Market at a limit of 4 while that price is above 3.5 and its Energy holding is below 20. |
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
@@ -173,7 +173,7 @@ An invariant violation is reported, not blocked: the round's assertions are stor
 
 A failed run is never left `running`. At startup the server fails its own leftovers, runs with no recorded owner, and runs whose creating process has gone. A live session's run is left alone. It is marked `failed` with its reason in each of these cases: an engine error or invariant violation (the reason is the error). An exception while simulating or saving a round, such as a store fault (the reason is the exception). A live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures. A joint-pass reply that does not decode is corrected: the model gets its previous reply and the decode error, at most two times. If the last reply still does not decode, it becomes an empty submission (the speakers are told) and the round proceeds. A narrator or seat reply that does not decode becomes a plain event listing or an empty transcript. A run records the process that created it (`owner`: its role, process id, and start time). At server startup, runs still marked `running` that a server left (by a process that stopped) are marked failed with the reason `interrupted`, and so are older rows with no owner. A run owned by another role, such as a live CLI session on the same store, is left alone.
 
-Live play has no confirmation step. Every transcript of the round, human and AI, is interpreted together into Intents. A description of a deal in a transcript counts as that party's signature, and the interpreter adjusts matching descriptions slightly so that they become one Proposal. The transcripts and the Intents are recorded with the round, so replay uses the recorded Intents and does not re-interpret.
+Live play has no confirmation step. Every transcript of the round, human and AI, is interpreted together into Intents. A description of a joint Proposal in a transcript counts as that party's signature, and the interpreter adjusts matching descriptions slightly so that they become one Proposal. The transcripts and the Intents are recorded with the round, so replay uses the recorded Intents and does not re-interpret.
 
 ### 6.2 Entry points and flags
 
@@ -249,7 +249,7 @@ Text-to-Intent interpretation is tested separately: the handlers suite (`Test.Ha
 The interpretation suite contains:
 
 - text inputs paired with their expected canonical Intents.
-- cross-player cases, where a deal described by both parties reconciles into one Proposal with both as signers, and a deal described by one party alone lapses.
+- cross-player cases, where a joint Proposal described by both parties reconciles into one Proposal with both as signers, and a joint Proposal described by one party alone lapses.
 - inadmissible cases, such as claimed resources or authority the Actor lacks, where the engine rejects the Intent as a `Rejected` event with its reason ([04 §11.2](04_instantiated_game.md#112-live-session)).
 
 Accepted canonical Intents are the replay boundary.
@@ -358,7 +358,7 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 2. **Marginal prices.** The marginal price of each Market after every round (`markets`, first chart).
 3. **Standings.** Each player's net worth after the final round, its change from the start, and its rank (`standings`).
 4. **Net worth over time.** One line per player, from round 0 to the final round (`networth`).
-5. **Actions.** Per player: trades, transforms, transfers paid, deals signed, and proposals rejected, as a bar chart and totals table (`actions`). Round-by-round counts are API-only.
+5. **Actions.** Per player: trades, transforms, transfers paid, joint Proposals signed, and proposals rejected, as a bar chart and totals table (`actions`). Round-by-round counts are API-only.
 6. **Drivers.** A table by round of the rules enacted and repealed, the collective procedure outcomes (executed or lapsed, with support and threshold), and the shortfalls per Resource (`drivers`).
 7. **Balance measures.** The spread and the Gini coefficient of final net worth (`balance`).
 8. **Objectives.** Each Actor's objective criteria as met, not met, or not evaluated, with the measured values (`objectives`). A criterion is not evaluated when the run has no rounds or its series is empty. It is never reported as met.
@@ -375,7 +375,7 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 
 **Event order (API-only).** `events?round=n` lists a round's events in canonical phase order: round preparation. Proposals, signatures, and lapses. Seat Intents and signatures. NPC and Aggregate outputs. Procedure Proposals with support and outcome. Stored Representation estimates. Validation results with partial fills. The economic cycle and settlement. Resource changes. And triggered assertions.
 
-**Planned** on the run page: the lineage section ("Derived from" and "Derived runs", the list's Source column already links to the source). The representation and procedure views. The event inspector. And the flows, signed deals, and non-Resource state (capacities, market access) in the balance sheets.
+**Planned** on the run page: the lineage section ("Derived from" and "Derived runs", the list's Source column already links to the source). The representation and procedure views. The event inspector. And the flows, signed joint Proposals, and non-Resource state (capacities, market access) in the balance sheets.
 
 ### 9.3 Prepare
 
@@ -483,7 +483,7 @@ The indicators below are the target. Actions, balance measures, and objectives a
 | Strategic diversity | Variety of chosen and successful action patterns |
 | Policy responsiveness | NPCs and Aggregates react when relevant conditions change |
 | Representation and procedure impact | Attributable Aggregate change, influence ratio, and procedure outcomes changed by member signatures |
-| Deal activity | Multi-signer Proposals published, signed, and lapsed |
+| Joint Proposal activity | Multi-signer Proposals published, signed, and lapsed |
 | Agency | Per-Actor sensitivity to seat-Policy changes ([§10.5](#105-agency-analysis)) |
 | Circulation health | Money and Energy keep moving rather than pooling |
 | Path dependence | Early decisions shape later opportunities |
@@ -519,19 +519,19 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 8 | Scarcity | Runs [Fixture E](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction) (Round 3 disruption and regional prices). | Qualitative: the fixture's expected propagation holds. [INV-05](02_type_system.md#inv-05), [INV-06](02_type_system.md#inv-06). |
 | 8b | Major shock | Every seat plays each preset, calm and with the [§13.6](05_test_instance.md#136-energy-disruption) major shock as overrides, same seats and player seed. A preset flips when its seats propose different kinds of action in some round. | At least four presets flip. The shock is deterministic under the fixed player seed ([INV-13](02_type_system.md#inv-13)). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills. [INV-11](02_type_system.md#inv-11). |
-| 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, G3, and G5. | Fully signed Proposals settle atomically with fixture values. Unsigned ones lapse while the round resolves. A shipped deal pays SHIP and is rejected as a unit under an `AccessBan` ([INV-10](02_type_system.md#inv-10)). |
+| 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, G3, and G5. | Fully signed Proposals settle atomically with fixture values. Unsigned ones lapse while the round resolves. A shipped joint Proposal pays SHIP and is rejected as a unit under an `AccessBan` ([INV-10](02_type_system.md#inv-10)). |
 | 11 | Trade restriction | The US enacts an `AccessBan` on China, effective next round ([Fixture E2](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction)). | Shipping orders on the route become infeasible. The EU publishes and passes its tariff Proposal in the round the ban is in force, and the tariff applies from the next round. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test). | [INV-14](02_type_system.md#inv-14). |
 | 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run ([INV-31](02_type_system.md#inv-31)). |
 | 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect and its objective criteria are reported. Failures are reported as balancing findings. |
 
-**Live interpretation check (one-off, billed, not in CI).** `just live-interpret` makes one real model call over a fixed set of transcripts (`packages/adapters/test/Test/Adapters/LiveInterpret.purs`). It passes when the reply decodes and the two transcripts that describe one deal reconcile into one Proposal signed by both. It refuses to run unless `ALLOW_BILLED_LIVE=1` is set, and no suite (`spago test -p`, `just test`, `just check`, `just all`, `just dashboard-test`) runs it.
+**Live interpretation check (one-off, billed, not in CI).** `just live-interpret` makes one real model call over a fixed set of transcripts (`packages/adapters/test/Test/Adapters/LiveInterpret.purs`). It passes when the reply decodes and the two transcripts that describe one joint Proposal reconcile into one Proposal signed by both. It refuses to run unless `ALLOW_BILLED_LIVE=1` is set, and no suite (`spago test -p`, `just test`, `just check`, `just all`, `just dashboard-test`) runs it.
 
 ---
 
 ## 15. Summary
 
-The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset strategies, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for deals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
+The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset strategies, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for joint Proposals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
 
 The development loop is:
 

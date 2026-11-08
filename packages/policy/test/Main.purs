@@ -186,9 +186,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intentsOf (drafts text env { random = highDraws }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
 
   describe "Templates" do
-    it "a Deal drafts its transfers with self bound to the author, and its signers" do
+    it "a joint Proposal drafts its transfers with self bound to the author, and its signers" do
       let
-        text = """{ "rules": [ { "propose": [ { "deal": { "signers": ["DE"], "transfers": [ { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } ] } } ] } ] }"""
+        text = """{ "rules": [ { "propose": [ { "joint": { "signers": ["DE"], "transfers": [ { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } ] } } ] } ] }"""
       drafts text env `shouldEqual`
         [ { intents: [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ], signers: [ Id "DE" ], procedure: Nothing } ]
     it "a Procedure drafts its intents, its signers and its id" do
@@ -196,14 +196,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         text = """{ "rules": [ { "propose": [ { "procedure": { "id": "eu-solidarity", "signers": ["DE"], "intents": [ { "trade": { "market": "energy-atlantic", "quantity": "-8" } } ] } } ] } ] }"""
       drafts text env `shouldEqual`
         [ { intents: [ trade "energy-atlantic" "-8" ], signers: [ Id "DE" ], procedure: Just (Id "eu-solidarity") } ]
-    it "a Procedure may not contain a nested Procedure, Deal or Choose" do
+    it "a Procedure may not contain a nested Procedure, Joint or Choose" do
       let nested inner = """{ "rules": [ { "propose": [ { "procedure": { "id": "p", "signers": [], "intents": [ """ <> inner <> """ ] } } ] } ] }"""
-      isLeft (decodeText (nested """{ "deal": { "signers": [], "transfers": [] } }""")) `shouldEqual` true
+      isLeft (decodeText (nested """{ "joint": { "signers": [], "transfers": [] } }""")) `shouldEqual` true
       isLeft (decodeText (nested """{ "choose": [] }""")) `shouldEqual` true
       isLeft (decodeText (nested """{ "procedure": { "id": "q", "signers": [], "intents": [] } }""")) `shouldEqual` true
     it "noAction proposes nothing" do
       drafts """{ "rules": [ { "propose": [ { "noAction": null } ] } ] }""" env `shouldEqual` []
-    it "a standalone transfer from self resolves to the acting Entity, as a Deal's does" do
+    it "a standalone transfer from self resolves to the acting Entity, as a joint Proposal's does" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } } ] } ] }""" env { view = seat { self = seat.self { capabilities = [ MayTransfer (Id "E") ] } } })
         `shouldEqual` [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ] ]
     it "every entity position resolves self, including a condition's jurisdiction" do
@@ -321,7 +321,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       signedBy [ SignAll ] `shouldEqual` [ procP.id, facP.id, plainP.id ]
       signedBy [] `shouldEqual` []
 
-  describe "Decision language: bans, withholding, repeal, conditional signing, deal transforms" do
+  describe "Decision language: bans, withholding, repeal, conditional signing, joint transforms" do
     let
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
@@ -347,8 +347,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intentsOf (drafts text (as Free [])) `shouldEqual` give
       intentsOf (drafts text (as Restricted [])) `shouldEqual` []
       intentsOf (drafts text (as Restricted [ MayTransfer (Id "M") ])) `shouldEqual` give
-    it "a Deal bundles its transforms with its transfers, all by the author" do
-      let text = """{ "rules": [ { "propose": [ { "deal": { "signers": [ "EU", "IN" ], "transfers": [], "transforms": [ { "transformation": "energy-shipping", "quantity": "5" } ] } } ] } ] }"""
+    it "a joint Proposal bundles its transforms with its transfers, all by the author" do
+      let text = """{ "rules": [ { "propose": [ { "joint": { "signers": [ "EU", "IN" ], "transfers": [], "transforms": [ { "transformation": "energy-shipping", "quantity": "5" } ] } } ] } ] }"""
       intentsOf (drafts text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]
     it "signIf signs a Proposal only while its conditions hold" do
       let

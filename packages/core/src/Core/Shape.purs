@@ -288,7 +288,7 @@ literal s proj inj =
   }
 
 -- | A constructor written as another shape's value, with no tag of its own: the value is the
--- | sub-shape's form (a Deal's transfers are written as plain Transfer objects). It reads whenever the
+-- | sub-shape's form (a joint Proposal's transfers are written as plain Transfer objects). It reads whenever the
 -- | sub-shape reads, so it belongs after the tagged constructors of its sum.
 embedded :: forall a b. Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
 embedded s proj inj =

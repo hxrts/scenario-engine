@@ -15,7 +15,7 @@ module Handlers.Llm.Wire
   , narrateRequestShape
   , speakRequestShape
   , jointReplyShape
-  , proposedDealsShape
+  , proposedJointsShape
   , textReplyShape
   , correctionShape
   , decodeJoint
@@ -26,7 +26,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Core.Num as Q
-import Schema.Joint (ProposedDeal, Transcript, proposedDealShape, transcriptShape)
+import Schema.Joint (ProposedJoint, Transcript, proposedJointShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, encodeWith, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
@@ -76,14 +76,14 @@ speakRequestShape = object "SpeakRequest"
 
 -- | The Proposals of a joint pass as the model states them: what its reply carries and what the
 -- | recording keeps.
-proposedDealsShape :: Shape (Array ProposedDeal)
-proposedDealsShape = arrayOf proposedDealShape
+proposedJointsShape :: Shape (Array ProposedJoint)
+proposedJointsShape = arrayOf proposedJointShape
 
 -- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
-jointReplyShape :: Shape { proposals :: Array ProposedDeal }
+jointReplyShape :: Shape { proposals :: Array ProposedJoint }
 jointReplyShape = object "JointReply"
   ( (\p -> { proposals: p })
-      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedDealsShape) _.proposals
+      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape) _.proposals
   )
 
 -- | A narrator's or seat's reply: one object with a `text` string.
@@ -123,7 +123,7 @@ replySchemaOf s = "\nReply schema: " <> prose s.desc
 
 -- | The system prompt of the joint pass.
 interpretPrompt :: String
-interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats (a Proposal with a signer other than its author) bundles only Transfer and Transform Intents; a Trade, a Route, or a ChangeRule is one seat's own action, in a Proposal with no other signer. Every Intent is an object with a \"tag\" and a \"values\" array, for example " <> intentExample <> "; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchemaOf jointReplyShape
+interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a joint Proposal is that seat's agreement to it, and a seat that described a joint Proposal wanted it. Where transcripts describe the same joint Proposal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A joint Proposal between seats (a Proposal with a signer other than its author) bundles only Transfer and Transform Intents; a Trade, a Route, or a ChangeRule is one seat's own action, in a Proposal with no other signer. Every Intent is an object with a \"tag\" and a \"values\" array, for example " <> intentExample <> "; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchemaOf jointReplyShape
 
 -- | The system prompt of the narrator.
 narratePrompt :: String
@@ -131,7 +131,7 @@ narratePrompt = common <> "\nTask: write the round's front page: a short newspap
 
 -- | The system prompt of an AI-agent seat.
 speakPrompt :: String
-speakPrompt = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply with `text`: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any deal you propose and the party it is with." <> replySchemaOf textReplyShape
+speakPrompt = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply with `text`: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any joint Proposal you propose and the party it is with." <> replySchemaOf textReplyShape
 
 -- | The first balanced {...} object in a reply (models sometimes wrap JSON in prose or fences).
 -- | Braces inside JSON strings do not count. Text with no balanced object is returned whole.
@@ -161,11 +161,11 @@ decodeReply s = decodeError <<< parse Snapshot s <<< firstObject
 
 -- | A joint pass's reply text: its Proposals, as the model states them. Entries are not checked
 -- | here; the handler drops what the engine cannot use.
-decodeJoint :: String -> Either String (Array ProposedDeal)
+decodeJoint :: String -> Either String (Array ProposedJoint)
 decodeJoint = map _.proposals <<< decodeJointReply
 
 -- | A joint pass's reply as the model wrote it, the form the recording keeps.
-decodeJointReply :: String -> Either String { proposals :: Array ProposedDeal }
+decodeJointReply :: String -> Either String { proposals :: Array ProposedJoint }
 decodeJointReply = decodeReply jointReplyShape
 
 -- | A narrator or seat reply's text.

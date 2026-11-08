@@ -116,13 +116,13 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       let tied = setHolding final de money (Q.fromInt 120)
       rowOf (standings (runWith base start tied)) "DE" `shouldEqual` Just [ "DE", "120", "120", "1" ]
   describe "Actions" do
-    it "counts trades, transforms, transfers paid, deals signed and rejections per player" do
+    it "counts trades, transforms, transfers paid, joint Proposals signed and rejections per player" do
       ctx <- context
       base <- baseRun ctx
       let
         p1 = Id "p1"
         d1 = Id "d1"
-        deal = { id: d1, author: us, intents: [ Transfer { from: us, to: de, resource: money, quantity: Q.fromInt 5 } ], signers: [ us, de ], procedure: Nothing }
+        joint = { id: d1, author: us, intents: [ Transfer { from: us, to: de, resource: money, quantity: Q.fromInt 5 } ], signers: [ us, de ], procedure: Nothing }
         own = { id: p1, author: us, intents: [], signers: [], procedure: Nothing }
 
         tradeE = coupled 1
@@ -135,7 +135,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
         round :: RoundRecord
         round =
           { round: 1
-          , inputs: [ { proposal: own, signatures: [] }, { proposal: deal, signatures: [ us, de ] } ]
+          , inputs: [ { proposal: own, signatures: [] }, { proposal: joint, signatures: [ us, de ] } ]
           , events:
               [ tradeE
               , tradeE
@@ -150,7 +150,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       rowOf totals "US" `shouldEqual` Just [ "US", "2", "1", "1", "1", "1", "6" ]
       rowOf totals "DE" `shouldEqual` Just [ "DE", "0", "0", "0", "1", "0", "1" ]
       map _.label view.chart.kinds `shouldEqual`
-        [ "Market trades (buys and sells)", "Production and procurement", "Payments to other players", "Deals signed", "Proposals rejected" ]
+        [ "Market trades (buys and sells)", "Production and procurement", "Payments to other players", "Joint Proposals signed", "Proposals rejected" ]
       -- one bar per player, highest total first; the players with no actions follow in seat order
       length view.chart.bars `shouldEqual` length view.totals.rows
       map (\b -> Tuple b.player b.total) (take 2 view.chart.bars) `shouldEqual` [ Tuple "US" 6, Tuple "DE" 1 ]

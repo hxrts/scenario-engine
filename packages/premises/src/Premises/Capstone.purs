@@ -49,7 +49,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
+import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, joint, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
 import Schema.Build.Intent (repeal)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
@@ -95,20 +95,20 @@ usWithoutDeployment =
 de :: Strategy
 de = { rules: [], sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
 
--- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
+-- | Japan proposes a two-party joint in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then
--- | (its requirement takes 8 a round), so the deal is funded.
+-- | (its requirement takes 8 a round), so the joint Proposal is funded.
 jp :: Strategy
 jp =
   { rules:
       [ rule [ eqQ roundQ (lit 3) ]
-          [ deal { signers: [ N.jp, N.india ], transfers: [ { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ], transforms: [] } ]
+          [ joint { signers: [ N.jp, N.india ], transfers: [ { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ], transforms: [] } ]
       ]
   , sign: []
   }
 
 -- | Enco ships Energy into India across regions in rounds 4 and 7: a transport order (its own
--- | energy-shipping facility, which SHIP signs) and a deal that India signs. The US ban on
+-- | energy-shipping facility, which SHIP signs) and a joint Proposal that India signs. The US ban on
 -- | shipments into India blocks round 4; the repeal in round 6 lets round 7 through.
 enco :: Strategy
 enco =
@@ -120,7 +120,7 @@ enco =
   }
   where
   shipment =
-    [ deal
+    [ joint
         { signers: [ N.enco, N.india, N.ship ]
         , transfers: [ { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 5 } ]
         , transforms: [ { transformation: N.energyShipping, quantity: lit 5 } ]

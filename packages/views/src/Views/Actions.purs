@@ -1,5 +1,5 @@
 -- | Player actions (docs/06_simulator.md §9.2): per Actor and round, the trades, transforms,
--- | transfers paid, deals signed and Proposals rejected, counted from the recorded events. This is
+-- | transfers paid, joint Proposals signed and Proposals rejected, counted from the recorded events. This is
 -- | the one definition of those counts; the run chart, the totals and the Overview's rejection count
 -- | read it. Pure.
 module Views.Actions
@@ -29,8 +29,8 @@ actionsStat :: Statistic
 actionsStat =
   { name: "Actions"
   , question: "What do players do over the run?"
-  , definition: "Per player, over the whole run: market trades (buys and sells), production and procurement, payments to other players, deals signed, and proposals rejected."
-  , formula: "trades = " <> describeSlice (tradesBy actor) <> "; transforms = " <> describeSlice (transformsBy actor) <> "; transfers = " <> describeSlice (transfersBy actor) <> "; deals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
+  , definition: "Per player, over the whole run: market trades (buys and sells), production and procurement, payments to other players, joint Proposals signed, and proposals rejected."
+  , formula: "trades = " <> describeSlice (tradesBy actor) <> "; transforms = " <> describeSlice (transformsBy actor) <> "; transfers = " <> describeSlice (transfersBy actor) <> "; joint Proposals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
   }
 
 -- | The Actor a formula names: the slices below render their filter's value.
@@ -54,7 +54,7 @@ rejectedOwn :: (ProposalId -> Boolean) -> Slice Int
 rejectedOwn own = count (whereNamed "the Proposal is the Actor's own" (own <<< _.proposal) rejectedEvents)
 
 -- | One Actor's counts of each kind of action, over a round or a whole run.
-type Counts = { trades :: Int, transforms :: Int, transfers :: Int, deals :: Int, rejected :: Int }
+type Counts = { trades :: Int, transforms :: Int, transfers :: Int, joints :: Int, rejected :: Int }
 
 -- | The kinds of action counted, in stacking order, with the plain-language label each is shown
 -- | under, the short column heading of the per-round table, and the count it takes from a player's
@@ -63,8 +63,8 @@ actionKinds :: Array { key :: String, label :: String, short :: String, definiti
 actionKinds =
   [ { key: "trades", label: "Market trades (buys and sells)", short: "Trades", definition: "Market trades the player made: buys and sells on a Market.", count: _.trades }
   , { key: "transforms", label: "Production and procurement", short: "Transforms", definition: "Productions and procurements the player made through a Transformation.", count: _.transforms }
-  , { key: "transfers", label: "Payments to other players", short: "Transfers", definition: "Payments the player made to other players, including those inside a deal.", count: _.transfers }
-  , { key: "deals", label: "Deals signed", short: "Deals signed", definition: "Deals the player signed.", count: _.deals }
+  , { key: "transfers", label: "Payments to other players", short: "Transfers", definition: "Payments the player made to other players, including those inside a joint Proposal.", count: _.transfers }
+  , { key: "joint Proposals", label: "Joint Proposals signed", short: "Joint Proposals signed", definition: "Joint Proposals the player signed.", count: _.joints }
   , { key: "rejected", label: "Proposals rejected", short: "Proposals rejected", definition: ("Proposals of the player the engine rejected. Computed as: " <> describeSlice rejections <> "."), count: _.rejected }
   ]
 
@@ -92,9 +92,9 @@ rejectionCount rec = runSlice rejections rec.events
 proposalOf :: RoundRecord -> ProposalId -> Maybe Proposal
 proposalOf rec pid = map _.proposal (find (\s -> s.proposal.id == pid) rec.inputs)
 
--- | A deal: a Proposal with several signers that moves Money, Resources or goods.
-isDeal :: Proposal -> Boolean
-isDeal p = length p.signers >= 2 && any movesStuff p.intents
+-- | A joint Proposal: a Proposal with several signers that moves Money, Resources or goods.
+isJoint :: Proposal -> Boolean
+isJoint p = length p.signers >= 2 && any movesStuff p.intents
   where
   movesStuff = case _ of
     Transfer _ -> true
@@ -106,11 +106,11 @@ countsOf rec e =
   { trades: runSlice (tradesBy e) rec.events
   , transforms: runSlice (transformsBy e) rec.events
   , transfers: runSlice (transfersBy e) rec.events
-  , deals: length (filter signedDeal rec.inputs)
+  , joints: length (filter signedJoint rec.inputs)
   , rejected: runSlice (rejectedOwn ownProposal) rec.events
   }
   where
-  signedDeal s = elem e s.signatures && isDeal s.proposal && not (elem s.proposal.id dropped)
+  signedJoint s = elem e s.signatures && isJoint s.proposal && not (elem s.proposal.id dropped)
   dropped = droppedProposals rec.events
   ownProposal pid = maybe false (\p -> p.author == e) (proposalOf rec pid)
 
@@ -118,14 +118,14 @@ rejectedEvents :: Select { round :: Int, proposal :: ProposalId, reason :: Rejec
 rejectedEvents = orKind (event @"Rejected") (event @"OrderRemoved")
 
 zeroCounts :: Counts
-zeroCounts = { trades: 0, transforms: 0, transfers: 0, deals: 0, rejected: 0 }
+zeroCounts = { trades: 0, transforms: 0, transfers: 0, joints: 0, rejected: 0 }
 
 addCounts :: Counts -> Counts -> Counts
 addCounts a b =
   { trades: a.trades + b.trades
   , transforms: a.transforms + b.transforms
   , transfers: a.transfers + b.transfers
-  , deals: a.deals + b.deals
+  , joints: a.joints + b.joints
   , rejected: a.rejected + b.rejected
   }
 
@@ -150,7 +150,7 @@ shortColumn :: forall r. { short :: String, definition :: String | r } -> Column
 shortColumn k = column k.short k.definition
 
 totalColumn :: Column
-totalColumn = column "Total" "The sum of the five kinds. A deal that is also a payment is counted in both."
+totalColumn = column "Total" "The sum of the five kinds. A joint Proposal that is also a payment is counted in both."
 
 -- | The columns this module defines.
 columns :: Array Column
@@ -168,7 +168,7 @@ actions r = { chart, totals, byRound }
     , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) (records r)
     }
   totals =
-    { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a deal that is also a payment is counted in both."
+    { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a joint Proposal that is also a payment is counted in both."
     , columns: names ([ col.player ] <> map labelColumn actionKinds <> [ totalColumn ])
     , rows: map (\x -> [ show x.player ] <> cellsOf x.counts <> [ show x.total ]) totalsRows
     }

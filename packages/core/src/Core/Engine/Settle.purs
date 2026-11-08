@@ -77,8 +77,8 @@ settle w scaled0 =
   let
     allocation = allocate w scaled0
     afterPools = filter (\s -> s.item.proposal.id `notElem` allocation.rejected) scaled0
-    -- a deal settles as a unit (docs/02 §3.3), so its inputs are checked before any leg moves
-    { yes: short, no: scaled } = partition (dealShort w allocation) afterPools
+    -- a joint Proposal settles as a unit (docs/02 §3.3), so its inputs are checked before any leg moves
+    { yes: short, no: scaled } = partition (jointShort w allocation) afterPools
     shortEvents = concatMap (\s -> map (rejection w.round s.item.proposal.id <<< InputsNotHeld) (shortInputs w allocation s)) short
     start = { ledger: Map.empty, positions: Map.empty, deliveries: [], scheduled: Map.empty, events: allocation.events <> shortEvents }
   in
@@ -88,8 +88,8 @@ settle w scaled0 =
       , \acc -> foldl (transfersAndRules w) acc scaled
       ]
 
--- | The Transformations whose inputs a deal's filled Transforms need and its executors do not hold.
--- | Escrow funds a deal's inputs, so this is a backstop.
+-- | The Transformations whose inputs a joint Proposal's filled Transforms need and its executors do not hold.
+-- | Escrow funds a joint Proposal's inputs, so this is a backstop.
 shortInputs :: WorldState -> Allocation -> Scaled -> Array TransformationId
 shortInputs w allocation s = concat (mapWithIndex one s.item.proposal.intents)
   where
@@ -100,10 +100,10 @@ shortInputs w allocation s = concat (mapWithIndex one s.item.proposal.intents)
       , any (\(Tuple r u) -> holding w t.by r < Q.mul u q) (entries tr.inputs) -> [ t.transformation ]
     _ -> []
 
-dealShort :: WorldState -> Allocation -> Scaled -> Boolean
-dealShort w allocation s = s.item.deal && not (null (shortInputs w allocation s))
+jointShort :: WorldState -> Allocation -> Scaled -> Boolean
+jointShort w allocation s = s.item.joint && not (null (shortInputs w allocation s))
 
--- | Transformation fills per pool. Deals that would exceed a pool are rejected as a unit; single-author
+-- | Transformation fills per pool. Joint Proposals that would exceed a pool are rejected as a unit; single-author
 -- | orders share what remains pro rata.
 allocate :: WorldState -> Array Scaled -> Allocation
 allocate w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (entries groups)
@@ -112,7 +112,7 @@ allocate w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empt
 
 type ConversionOrder =
   { key :: Tuple ProposalId Int
-  , deal :: Boolean
+  , joint :: Boolean
   , quantity :: Q
   , use :: Q -- capacity drawn per unit ordered: `capacityUse`, or one unit per unit of a pool of its own
   , group :: Either TransformationId CapacityRef
@@ -131,10 +131,10 @@ conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.propo
           Right _ -> tr.capacityUse
           Left _ -> Q.fromInt 1
       in
-        [ { key: Tuple s.item.proposal.id i, deal: s.item.deal, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation } ]
+        [ { key: Tuple s.item.proposal.id i, joint: s.item.joint, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation } ]
     _ -> []
 
--- | One pool: deals fill in full or are rejected as a unit; single orders share the remaining
+-- | One pool: joint Proposals fill in full or are rejected as a unit; single orders share the remaining
 -- | capacity pro rata, in whole units of capacity. Each order's quantity is its share divided by
 -- | its `use`, floored to the 0.0001 grid, so an order never draws more than its share. The
 -- | sub-grid remainder stays unfilled. A capped pool's capacity is its cap; an uncapped Transformation's
@@ -142,24 +142,24 @@ conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.propo
 allocateGroup :: WorldState -> Allocation -> Tuple (Either TransformationId CapacityRef) (Array ConversionOrder) -> Allocation
 allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
-  , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else deals <> singles) fills)
-  , rejected: acc.rejected <> rejectedDeals
-  , events: acc.events <> map (\pid -> rejection w.round pid CapacityExceeded) rejectedDeals
+  , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else joints <> singles) fills)
+  , rejected: acc.rejected <> rejectedJoints
+  , events: acc.events <> map (\pid -> rejection w.round pid CapacityExceeded) rejectedJoints
   }
   where
   cap = case group of
     Right ref -> capacityOf w ref
     Left tid -> fromMaybe (Q.sumQ (map _.quantity os)) (Map.lookup tid w.transformations >>= poolCeiling w)
-  { yes: deals, no: singles } = partition _.deal os
+  { yes: joints, no: singles } = partition _.joint os
   used o = Q.mul o.use o.quantity
-  dealTotal = Q.sumQ (map used deals)
-  overflow = dealTotal > cap
-  rejectedDeals = if overflow then nub (map (fst <<< _.key) deals) else []
-  room = if overflow then cap else Q.sub cap dealTotal
+  jointTotal = Q.sumQ (map used joints)
+  overflow = jointTotal > cap
+  rejectedJoints = if overflow then nub (map (fst <<< _.key) joints) else []
+  room = if overflow then cap else Q.sub cap jointTotal
   singleFills
     | Q.sumQ (map used singles) > room = zipWith (\o u -> fromMaybe Q.zero (Q.divFloor u o.use)) singles (Q.proRataWhole room (map used singles))
     | otherwise = map _.quantity singles
-  fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) deals) <> zipWith (\o q -> Tuple o.key q) singles singleFills
+  fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) joints) <> zipWith (\o q -> Tuple o.key q) singles singleFills
 
 type Allocation =
   { fills :: Map (Tuple ProposalId Int) Q

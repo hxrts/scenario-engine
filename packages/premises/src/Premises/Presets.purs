@@ -8,7 +8,7 @@ import Premises.Names as N
 import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (orderAt, selfTransform, asTemplate, cheapest, choose, costliest, deal, gt, holding, le, lit, noAction, priceAt, named, rule, signAll)
+import Schema.Build.Decision (orderAt, selfTransform, asTemplate, cheapest, choose, costliest, joint, gt, holding, le, lit, noAction, priceAt, named, rule, signAll)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2), in the order the launch form offers them.
 presets :: Array (Tuple String Strategy)
@@ -96,14 +96,14 @@ opportunistic =
   , sign: [ signAll ]
   }
 
--- | Invests in energy capacity while holding more than 100 Mil. The investment is a deal with the
+-- | Invests in energy capacity while holding more than 100 Mil. The investment is a joint with the
 -- | capacity's owner (CHIP, in Meridian) as a signer, because the owner of an `ownerSigns` capacity
 -- | must sign the order. The preset signs what is put to it, so an Investor owner signs too.
 investor :: Strategy
 investor =
   { rules:
       [ rule [ gt (holding N.money) (lit 100) ]
-          [ deal { signers: [ N.chip ], transfers: [], transforms: [ { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
+          [ joint { signers: [ N.chip ], transfers: [], transforms: [ { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
       ]
   , sign: [ signAll ]
   }

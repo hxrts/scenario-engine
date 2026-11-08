@@ -1,6 +1,6 @@
 -- | The one-off, billed check of the joint pass against the real `pi` backend (docs/06 §14). It
 -- | makes exactly one model call over a fixed set of transcripts, and checks that the reply
--- | decodes and that the two transcripts that describe one deal reconcile into one Proposal with
+-- | decodes and that the two transcripts that describe one joint Proposal reconcile into one Proposal with
 -- | both seats signing. It is not part of any suite (`spago test -p`, `just test`, `just check`,
 -- | `just all`, `just dashboard-test`). Run it with `just live-interpret`, which needs
 -- | ALLOW_BILLED_LIVE=1; this module refuses to run without it.

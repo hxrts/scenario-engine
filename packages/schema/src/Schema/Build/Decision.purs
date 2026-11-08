@@ -21,7 +21,7 @@ module Schema.Build.Decision
   , selfTransform
   , selfEnact
   , procedure
-  , deal
+  , joint
   , reciprocate
   , choose
   , noAction
@@ -160,16 +160,16 @@ selfEnact r = ChangeRule (Enact { kind: Id r.kind, scope: r.scope, effect: r.eff
 procedure :: { id :: String, signers :: Array String, intents :: Array IntentTemplate } -> Template
 procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
 
--- | A Deal: a Proposal with no procedure, bundling only transfers and transforms (`dealIntent`). Its
--- | transfers come first, then its transforms, each run by the acting Entity. A Deal of any other
+-- | A joint Proposal: a Proposal with no procedure, bundling only transfers and transforms (`jointIntent`). Its
+-- | transfers come first, then its transforms, each run by the acting Entity. A joint Proposal of any other
 -- | Intent has no form here, so it does not typecheck.
-deal
+joint
   :: { signers :: Array String
      , transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr }
      , transforms :: Array { transformation :: String, quantity :: Expr }
      }
   -> Template
-deal r = ProposalT
+joint r = ProposalT
   { signers: map Id r.signers
   , intents: map (\x -> Transfer { from: Id x.from, to: Id x.to, resource: Id x.resource, quantity: x.quantity }) r.transfers <> map selfTransform r.transforms
   , procedure: Nothing

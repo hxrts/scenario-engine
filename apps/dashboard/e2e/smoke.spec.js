@@ -51,7 +51,7 @@ test("the Actions section charts one bar per player, with plain-language legend 
     "Market trades (buys and sells)",
     "Production and procurement",
     "Payments to other players",
-    "Deals signed",
+    "Joint Proposals signed",
     "Proposals rejected",
   ];
   await page.goto("/#/runs/run-1");

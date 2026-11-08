@@ -17,7 +17,7 @@ import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWi
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfName)
 import Schema.Premise.Intent (ruleBody)
-import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, dealIntent, idShape, transferBody)
+import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, jointIntent, idShape, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
@@ -87,11 +87,11 @@ recordQueryShape = genericPremiseSum "RecordQuery"
 
 type TransformRec = { transformation :: TransformationId, quantity :: Expr }
 
--- | A Transfer as a plain object: how a Deal writes its transfers.
+-- | A Transfer as a plain object: how a joint Proposal writes its transfers.
 transferObject :: Shape { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }
 transferObject = transferBody exprShape
 
--- | A transform as a plain object: how a Deal writes its transforms, run by the acting Entity.
+-- | A transform as a plain object: how a joint Proposal writes its transforms, run by the acting Entity.
 transformObject :: Shape TransformRec
 transformObject = object "Transform"
   ( mk2 <$> fieldOf "transformation" "the transformation" idShape _.transformation
@@ -175,9 +175,9 @@ procedureIntentsShape = iso Array.catMaybes (map Just) (arrayOf procedureIntent)
     , embedded intentTemplateShape identity Just
     ]
 
--- | Whether a Deal's Intents are its transfers, then its transforms, all run by the acting Entity.
-dealShaped :: Array IntentTemplate -> Boolean
-dealShaped xs = Array.all dealIntent xs && Array.all isSelfTransform fs && xs == ts <> fs
+-- | Whether a joint Proposal's Intents are its transfers, then its transforms, all run by the acting Entity.
+jointShaped :: Array IntentTemplate -> Boolean
+jointShaped xs = Array.all jointIntent xs && Array.all isSelfTransform fs && xs == ts <> fs
   where
   ts = Array.filter isTransfer xs
   fs = Array.filter isTransform xs
@@ -212,8 +212,8 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
           _ -> Nothing
       )
       Mirror
-  , oneKey "deal" "a Proposal with no procedure: its transfers, then its transforms" dealBody
-      dealOf
+  , oneKey "joint" "a Proposal with no procedure: its transfers, then its transforms" jointBody
+      jointOf
       (\r -> ProposalT { signers: r.signers, intents: r.intents, procedure: Nothing })
   , oneKey "procedure" "a Procedure's Proposal, under its collective procedure" procedureBody
       procedureOf
@@ -228,11 +228,11 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
   where
   mirrorBody = recordShape "Mirror" { governor: idShape, counterparty: idShape }
 
-  dealOf :: Template -> Maybe { signers :: Array EntityId, intents :: Array IntentTemplate }
-  dealOf = case _ of
-    ProposalT p | Nothing <- p.procedure, dealShaped p.intents -> Just { signers: p.signers, intents: p.intents }
+  jointOf :: Template -> Maybe { signers :: Array EntityId, intents :: Array IntentTemplate }
+  jointOf = case _ of
+    ProposalT p | Nothing <- p.procedure, jointShaped p.intents -> Just { signers: p.signers, intents: p.intents }
     _ -> Nothing
-  dealBody = object "Deal"
+  jointBody = object "Joint"
     ( mk3 <$> fieldOf "signers" "the Entities asked to sign" (arrayOf idShape) _.signers
         <*> fieldOf "transfers" "the Transfers" (omittedWhen (const false) (arrayOf transferObject)) (\r -> transfersOf r.intents)
         <*> fieldOf "transforms" "the Transforms, if any" (omittedWhen Array.null (arrayOf transformObject)) (\r -> map (\x -> { transformation: x.transformation, quantity: x.quantity }) (transformsOf r.intents))

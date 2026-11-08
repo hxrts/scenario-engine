@@ -20,7 +20,7 @@ import Core.Represent as Represent
 import Core.Slice (conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
 import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
-import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -476,18 +476,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = baseWorld [ eu ]
       rejections (resolveRound w [ procedureSubmit (Id "DE") ]) `shouldEqual` [ "a Rule of kind tariff applies only to its governing Entity or owner, and only in its declared form" ]
       rejections (resolveRound w [ procedureSubmit (Id "EU") ]) `shouldEqual` []
-    it "a deal bundles Transfers and Transforms, and only those" do
+    it "a joint Proposal bundles Transfers and Transforms, and only those" do
       let
         w = (baseWorld [ actor "A" [ MayTrade (Id "EM"), MayTransform (Id "plant") ], actor "B" [] ]) { markets = Map.singleton (Id "EM") (market [ "A" ]) }
-        deal intents = { proposal: { id: proposalId 1 (Id "A") 0, author: Id "A", intents, signers: [ Id "B" ], procedure: Nothing }, signatures: [ Id "B" ] }
+        joint intents = { proposal: { id: proposalId 1 (Id "A") 0, author: Id "A", intents, signers: [ Id "B" ], procedure: Nothing }, signatures: [ Id "B" ] }
         give = Transfer { from: Id "A", to: Id "B", resource: Id "M", quantity: Q.fromInt 1 }
         run = Transform { by: Id "A", transformation: Id "plant", quantity: Q.fromInt 1 }
         order = Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing }
-        bundled = [ "deals bundle only Transfers and Transforms" ]
-      rejections (resolveRound w [ deal [ give, order ] ]) `shouldEqual` bundled
-      -- a Transform passes the deal rule: any rejection is the unknown Transformation, not the bundle
-      rejections (resolveRound w [ deal [ give, run ] ]) `shouldNotEqual` bundled
-      map dealIntent [ give, run, order ] `shouldEqual` [ true, true, false ]
+        bundled = [ "joint Proposals bundle only Transfers and Transforms" ]
+      rejections (resolveRound w [ joint [ give, order ] ]) `shouldEqual` bundled
+      -- a Transform passes the joint Proposal rule: any rejection is the unknown Transformation, not the bundle
+      rejections (resolveRound w [ joint [ give, run ] ]) `shouldNotEqual` bundled
+      map jointIntent [ give, run, order ] `shouldEqual` [ true, true, false ]
 
     it "a procedure's Intents face the same market access check" do
       let
@@ -784,16 +784,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (Right r) `shouldEqual` []
       -- the Proposal is not dropped from INV-02: a stripped capability is caught
       invariantsOf (w { entities = map (\e -> e { capabilities = [] }) w.entities }) r `shouldContain` "INV-02"
-    it "a deal with one leg lacking inputs settles nothing" do
+    it "a joint with one leg lacking inputs settles nothing" do
       let
         fac = transport { id = Id "F", inputs = Map.singleton (Id "E") (Q.fromInt 1) }
         a = (actor "A" [ MayTransfer (Id "M"), MayTransform (Id "F") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 1) ] }
         w = (baseWorld [ a, actor "B" [] ]) { transformations = Map.singleton (Id "F") fac }
-        deal =
+        joint =
           { proposal: { id: proposalId 1 (Id "A") 0, author: Id "A", intents: [ Transfer { from: Id "A", to: Id "B", resource: Id "M", quantity: Q.fromInt 5 }, Transform { by: Id "A", transformation: Id "F", quantity: Q.fromInt 5 } ], signers: [ Id "B" ], procedure: Nothing }
           , signatures: [ Id "B" ]
           }
-        r = resolved w [ deal ]
+        r = resolved w [ joint ]
       holding r.world (Id "B") (Id "M") `shouldEqual` Q.fromInt 100
       holding r.world (Id "A") (Id "E") `shouldEqual` Q.fromInt 1
       length (rejections (Right r)) `shouldEqual` 1

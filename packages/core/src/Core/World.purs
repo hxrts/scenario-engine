@@ -247,7 +247,7 @@ data RejectReason
   | MarketCannotPaySellers
   | InputsNotHeld TransformationId
   | PartyCannotFund
-  | DealBundlesOnlyTransfers
+  | JointBundlesOnlyTransfers
   | DuplicateProposalId
   | OutsideProcedureAuthority
   | UnknownProcedure
@@ -287,8 +287,8 @@ renderReason = case _ of
   LimitPriceNotMet -> "limit price not met"
   MarketCannotPaySellers -> "the market cannot pay its sellers"
   InputsNotHeld t -> show t <> ": inputs are not held"
-  PartyCannotFund -> "a party cannot fund the deal"
-  DealBundlesOnlyTransfers -> "deals bundle only Transfers and Transforms"
+  PartyCannotFund -> "a party cannot fund the joint Proposal"
+  JointBundlesOnlyTransfers -> "joint Proposals bundle only Transfers and Transforms"
   DuplicateProposalId -> "duplicate proposal id"
   OutsideProcedureAuthority -> "outside the procedure's authority"
   UnknownProcedure -> "unknown procedure"

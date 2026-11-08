@@ -1,5 +1,5 @@
 -- | Engine phase 4–5 funding (docs/02_type_system.md §3.2, §8.2): every screened Item escrows its
--- | claims from opening holdings at full requested size. Deals a party cannot fund are rejected
+-- | claims from opening holdings at full requested size. Joint Proposals a party cannot fund are rejected
 -- | as a unit, and single-author Items are scaled pro rata to what their author can fund. Transformation
 -- | prices and pools are in Core.Query, which Fund and Settle share.
 module Core.Engine.Fund
@@ -25,7 +25,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..), fst)
 
--- | An Item with the factor each Entity's funding scales what it executes by. A deal, which is
+-- | An Item with the factor each Entity's funding scales what it executes by. A joint Proposal, which is
 -- | never scaled, and an Entity with room to spare have no entry.
 type Scaled = { item :: Item, scales :: Map EntityId Q }
 
@@ -35,19 +35,19 @@ scaleOf s e = fromMaybe Q.one (Map.lookup e s.scales)
 
 type Claim = { entity :: EntityId, resource :: ResourceId, amount :: Q }
 
--- | Reject deals a party cannot fund: every deal of a party whose total deal demand exceeds its
+-- | Reject joint Proposals a party cannot fund: every joint Proposal of a party whose total joint demand exceeds its
 -- | holdings goes, even if one alone could be funded (docs/02 §8.2). Scale other Items pro rata to
--- | what the Entities they draw on can fund. Deals are never scaled.
+-- | what the Entities they draw on can fund. Joint Proposals are never scaled.
 fund :: WorldState -> Array Item -> { items :: Array Scaled, events :: Array Event }
 fund w items =
   let
-    { yes: deals, no: singles } = partition _.deal items
+    { yes: joints, no: singles } = partition _.joint items
     total xs = foldl (\m c -> sumInto (Tuple c.entity c.resource) c.amount m) Map.empty (concatMap (claims w) xs)
-    dealDemand = total deals
+    jointDemand = total joints
     short (Tuple e r) amt = amt > holding w e r
-    shortKeys = Map.keys (Map.filterWithKey short dealDemand)
+    shortKeys = Map.keys (Map.filterWithKey short jointDemand)
     unfunded d = any (\c -> Tuple c.entity c.resource `elem` fromFoldable shortKeys) (claims w d)
-    { yes: dropped, no: kept } = partition unfunded deals
+    { yes: dropped, no: kept } = partition unfunded joints
     keptDemand = total kept
     singleDemand = total singles
     room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)

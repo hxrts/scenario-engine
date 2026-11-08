@@ -7,7 +7,7 @@ module Test.Handlers.Stub
   ( answering
   , backendOf
   , digest
-  , dealOf
+  , jointOf
   , replayCall
   , replyJoint
   , replyText
@@ -34,7 +34,7 @@ import Foreign.Object as Object
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call, backend)
-import Schema.Joint (ProposedDeal)
+import Schema.Joint (ProposedJoint)
 import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
@@ -53,12 +53,12 @@ answering counter answer = backendOf \system input -> do
   pure { text: answer system input, raw: "" }
 
 -- | A Proposal that transfers ten Energy from `author` to Germany, with the signers and agreed seats given.
-dealOf :: EntityId -> Array EntityId -> Array EntityId -> ProposedDeal
-dealOf author signers agreed =
+jointOf :: EntityId -> Array EntityId -> Array EntityId -> ProposedJoint
+jointOf author signers agreed =
   { author, intents: [ Transfer { from: author, to: Id "DE", resource: Id "E", quantity: Q.fromInt 10 } ], signers, agreed }
 
 -- | The Proposal that trades ten Energy in the Atlantic market.
-tradeTenEnergy :: ProposedDeal
+tradeTenEnergy :: ProposedJoint
 tradeTenEnergy =
   { author: Id "US"
   , intents: [ Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Nothing } ]
@@ -67,7 +67,7 @@ tradeTenEnergy =
   }
 
 -- | The reply text of a joint pass with these Proposals, as the model writes it.
-replyJoint :: Array ProposedDeal -> String
+replyJoint :: Array ProposedJoint -> String
 replyJoint ps = stringify (encodeWith Snapshot jointReplyShape { proposals: ps })
 
 -- | The reply text of a narrator or seat with this text.

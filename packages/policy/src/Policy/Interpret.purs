@@ -239,7 +239,7 @@ intentsOf env = case _ of
     OnCapacity _ -> Nothing
 
 -- | A Proposal template, evaluated. A Procedure's Intents drop zero quantities, as its single Intents
--- | do; a Deal's do not (docs/02 §3).
+-- | do; a joint Proposal's do not (docs/02 §3).
 proposalOf :: Env -> ProposalF MarketRef Expr -> ProposalBody
 proposalOf env p =
   { intents: mapMaybe (\x -> evalIntent env x >>= keep) p.intents

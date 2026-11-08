@@ -4,9 +4,9 @@
 module Schema.Joint
   ( Transcript
   , JointProposal
-  , ProposedDeal
+  , ProposedJoint
   , transcriptShape
-  , proposedDealShape
+  , proposedJointShape
   , numberJoint
   , jointProposalsOf
   , jointProposals
@@ -34,22 +34,22 @@ transcriptShape = object "Transcript"
       <*> fieldOf "text" "what it said" stringShape _.text
   )
 
--- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the deal
+-- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the joint Proposal
 -- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for
 -- | `signed` (and the author) and lapses the Proposal when a signer is missing.
 type JointProposal = { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId }
 
 -- | One Proposal as the model states it in a joint pass's reply, before the engine's checks: its
--- | author, its Intents, the other signers the deal asks for, and the seats whose transcripts describe
+-- | author, its Intents, the other signers the joint Proposal asks for, and the seats whose transcripts describe
 -- | it. `jointProposals` reconciles these into JointProposals.
-type ProposedDeal = { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId }
+type ProposedJoint = { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId }
 
-proposedDealShape :: Shape ProposedDeal
-proposedDealShape = object "ProposedDeal"
+proposedJointShape :: Shape ProposedJoint
+proposedJointShape = object "ProposedJoint"
   ( (\a i s g -> { author: a, intents: i, signers: s, agreed: g })
       <$> fieldOf "author" "the seat that submits it" idShape _.author
       <*> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
-      <*> fieldOf "signers" "the other Entities the deal asks for" (arrayOf idShape) _.signers
+      <*> fieldOf "signers" "the other Entities the joint Proposal asks for" (arrayOf idShape) _.signers
       <*> fieldOf "agreed" "the seats whose transcripts describe it" (arrayOf idShape) _.agreed
   )
 
@@ -75,7 +75,7 @@ jointProposalsOf = either (const []) identity
 -- | Intents, are dropped. Signers are kept only when `known` says they are Entities of the World, and
 -- | the author is never its own signer. Only speakers can be recorded as signing: `signed` is the
 -- | author and those of the agreed Entities who spoke.
-jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array ProposedDeal -> Array JointProposal
+jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array ProposedJoint -> Array JointProposal
 jointProposals known transcripts = mapMaybe joint
   where
   speakers = map _.seat transcripts

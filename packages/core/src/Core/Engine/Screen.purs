@@ -16,7 +16,7 @@ import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleKindId, Scope(..), Direction(..), EffectF(..), SignedProposal, dealIntent)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleKindId, Scope(..), Direction(..), EffectF(..), SignedProposal, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, filter, find, length, nub)
 import Data.Foldable (for_)
@@ -36,7 +36,7 @@ type Levy = { kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Q 
 
 type Item =
   { proposal :: Proposal
-  , deal :: Boolean
+  , joint :: Boolean
   , levies :: Array Levy
   , outcome :: Array Event -- the procedure outcome, for a passed procedure Proposal
   , routes :: Map Int (Array MarketId)
@@ -68,15 +68,15 @@ screen w duplicated { proposal: p, signatures } =
   let
     signed = nub ([ p.author ] <> signatures)
     signers = nub ([ p.author ] <> p.signers)
-    deal = isNothing p.procedure && any (_ /= p.author) p.signers
+    joint = isNothing p.procedure && any (_ /= p.author) p.signers
     reject reason = Left [ rejection w.round p.id reason ]
     ownCaps = capabilitiesOf w p.author
     ordinary
       | not (all (_ `elem` signed) signers) = Left [ lapse w.round p.id ]
-      | deal && not (all dealIntent p.intents) = reject DealBundlesOnlyTransfers
+      | joint && not (all jointIntent p.intents) = reject JointBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
-          Right levies -> Right { proposal: p, deal, levies, outcome: [], routes: routesOf w p.author ownCaps p.intents }
+          Right levies -> Right { proposal: p, joint, levies, outcome: [], routes: routesOf w p.author ownCaps p.intents }
   in
     if p.id `elem` duplicated then reject DuplicateProposalId
     else case p.procedure of
@@ -127,7 +127,7 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
         Left reason -> reject reason
         Right levies
           | not passes -> Left [ outcome, lapse w.round p.id ]
-          | otherwise -> Right { proposal: p, deal: false, levies, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
+          | otherwise -> Right { proposal: p, joint: false, levies, outcome: [ outcome ], routes: routesOf w p.author proc.authorizes p.intents }
   _ -> reject UnknownProcedure
   where
   reject reason = Left [ rejection w.round p.id reason ]

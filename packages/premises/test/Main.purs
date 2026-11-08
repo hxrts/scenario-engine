@@ -42,7 +42,7 @@ import Schema.Build.Quantity (q)
 import Premises.Rules (enactAccessBan, enactWithholding, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, tariffRule, withholdingRule)
 import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
-import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
+import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
@@ -224,14 +224,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
           Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
-    it "a Deal of a Transfer and a Transform round-trips through the premise form" do
+    it "a joint Proposal of a Transfer and a Transform round-trips through the premise form" do
       let
-        p = { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "plant", quantity: lit 1 } ] } ] ], sign: [] }
+        p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "plant", quantity: lit 1 } ] } ] ], sign: [] }
       (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
 
-    it "a deal decodes, and the parties and Resource it names are reported" do
+    it "a joint Proposal decodes, and the parties and Resource it names are reported" do
       let
-        p = { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
+        p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
       case decodeStrategy (encodeStrategy p) of
         Left e -> fail (show e)
         Right prog -> do

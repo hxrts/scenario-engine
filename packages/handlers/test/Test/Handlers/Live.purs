@@ -27,13 +27,13 @@ import Effect.Ref as Ref
 import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
-import Schema.Joint (ProposedDeal)
+import Schema.Joint (ProposedJoint)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
 import Game.Types (Game, SeatBinding(..))
 import Handlers.Replay (runReplay)
 import Partial.Unsafe (unsafeCrashWith)
-import Test.Handlers.Stub (answering, dealOf, replyJoint, replyText, tradeTenEnergy)
+import Test.Handlers.Stub (answering, jointOf, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Core.Num as Q
@@ -53,7 +53,7 @@ withAnswers answer = do
   pure (answering counter answer)
 
 -- | The model's answers when the joint pass proposes `ps` and the rest answer as `model` does.
-jointAnswers :: Array ProposedDeal -> String -> String -> String
+jointAnswers :: Array ProposedJoint -> String -> String -> String
 jointAnswers ps template input
   | template == interpretPrompt = replyJoint ps
   | otherwise = model template input
@@ -158,24 +158,24 @@ spec = do
       length executed `shouldEqual` 1
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
 
-    it "a one-sided deal lapses; a deal both sides describe is signed by both" do
+    it "a one-sided joint lapses; a joint Proposal both sides describe is signed by both" do
       g <- unseated
       let
-        deal t i
-          | t == interpretPrompt && contains (Pattern "I agree") i = replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ]
-          | t == interpretPrompt && contains (Pattern "I sell") i = replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ]
+        joint t i
+          | t == interpretPrompt && contains (Pattern "I agree") i = replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ]
+          | t == interpretPrompt && contains (Pattern "I sell") i = replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ]
           | t == interpretPrompt = replyJoint []
           | otherwise = model t i
 
         says :: String -> Aff String
         says prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "nothing")
-      backendOne <- withAnswers deal
+      backendOne <- withAnswers joint
       one <- liveWith g 1 (const Human) says backendOne
       map (lapsed (Id "r1/US/0")) one.records `shouldEqual` [ true ]
       let
         agreeing :: String -> Aff String
         agreeing prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "I agree")
-      backendBoth <- withAnswers deal
+      backendBoth <- withAnswers joint
       both <- liveWith g 1 (const Human) agreeing backendBoth
       map (lapsed (Id "r1/US/0")) both.records `shouldEqual` [ false ]
       let

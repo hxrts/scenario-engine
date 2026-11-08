@@ -157,7 +157,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       records <- play g 1
         ( Map.fromFoldable
             [ Tuple (Id "DE") (strategyOrThrow """{"sign":[{"procedures":["eu-solidarity"]}]}""")
-            , Tuple (Id "SA") (strategyOrThrow """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
+            , Tuple (Id "SA") (strategyOrThrow """{"rules":[{"propose":[{"joint":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
             ]
         )
       let events = concatMap (_.record.events) records

@@ -244,7 +244,7 @@ inv09 before r = concatMap one (select (event @"Estimated") r.record.events)
       if maybe false (delta < _) below || maybe false (delta > _) above then [ failure INV09 (show e.aggregate <> " factor " <> show e.factor <> " outside its bounds") ]
       else []
 
--- | INV-10 Signature completeness: a deal executes only if every required signer signed, and a
+-- | INV-10 Signature completeness: a joint Proposal executes only if every required signer signed, and a
 -- | procedure Proposal only if its support exceeds the threshold.
 inv10 :: WorldState -> RoundResult -> Array Failure
 inv10 before r = concatMap one (executed r)

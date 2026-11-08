@@ -7,7 +7,7 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Schema.Joint (JointProposal, ProposedDeal, Transcript, proposedDealShape)
+import Schema.Joint (JointProposal, ProposedJoint, Transcript, proposedJointShape)
 import Core.Engine.Prepare (observe)
 import Core.Num as Q
 import Core.Types (Id(..), Intent, IntentF(..), intentShape)
@@ -33,7 +33,7 @@ import Testkit.Meridian (unseated)
 import Game.Types (Game)
 import Data.Argonaut.Decode (fromJsonString)
 import Schema.Decode.Common (decodeError)
-import Test.Handlers.Stub (answering, backendOf, dealOf, replayCall, replyJoint, replyText, tradeTenEnergy)
+import Test.Handlers.Stub (answering, backendOf, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), encodeWith, prose)
@@ -78,7 +78,7 @@ oneRound g = do
 example :: Intent
 example = Transfer { from: Id "US", to: Id "DE", resource: Id "M", quantity: Q.fromInt 10 }
 
-sample :: ProposedDeal
+sample :: ProposedJoint
 sample = { author: Id "US", intents: [], signers: [ Id "DE" ], agreed: [ Id "US" ] }
 
 spec :: Spec Unit
@@ -98,12 +98,12 @@ spec = do
       contains (Pattern (prose jointReplyShape.desc)) interpretPrompt `shouldEqual` true
       contains (Pattern "agreed") interpretPrompt `shouldEqual` true
 
-    it "the joint pass's prompt states the Deal rule screening applies" do
+    it "the joint pass's prompt states the joint Proposal rule screening applies" do
       contains (Pattern "bundles only Transfer and Transform Intents") interpretPrompt `shouldEqual` true
 
   describe "Reply decoding" do
     it "a joint reply decodes into its Proposals, as the model states them" do
-      case decodeJoint ("{\"proposals\":[" <> stringify (encodeWith Snapshot proposedDealShape sample) <> "]}") of
+      case decodeJoint ("{\"proposals\":[" <> stringify (encodeWith Snapshot proposedJointShape sample) <> "]}") of
         Right [ d ] -> do
           d.author `shouldEqual` Id "US"
           d.signers `shouldEqual` [ Id "DE" ]
@@ -130,16 +130,16 @@ spec = do
       isLeft (decodeText "{\"proposals\":[]}") `shouldEqual` true
 
   describe "Joint pass (§7.4)" do
-    it "two transcripts describing one deal reconcile into one Proposal with both as signers" do
+    it "two transcripts describing one joint Proposal reconcile into one Proposal with both as signers" do
       g <- unseated
-      backend <- answerWith (replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ])
+      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ])
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
       j.author `shouldEqual` Id "US"
       j.signed `shouldEqual` [ Id "US", Id "DE" ]
 
     it "a one-sided description keeps only its author as signer" do
       g <- unseated
-      backend <- answerWith (replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ])
+      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ])
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "nothing" ]
       j.signed `shouldEqual` [ Id "US" ]
 
@@ -156,7 +156,7 @@ spec = do
         backend = backendOf \system input -> do
           liftEffect (Ref.modify_ (_ <> [ { system, input } ]) calls)
           n <- liftEffect (Ref.read calls)
-          pure { text: if length n == 1 then "not json" else replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ], raw: "" }
+          pure { text: if length n == 1 then "not json" else replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ], raw: "" }
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
       j.signed `shouldEqual` [ Id "US", Id "DE" ]
       seen <- liftEffect (Ref.read calls)
@@ -181,23 +181,23 @@ spec = do
     it "a valid first reply makes exactly one call, with no correction" do
       g <- unseated
       counter <- liftEffect (Ref.new 0)
-      _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ])) [ tr "US" "I sell DE ten energy" ]
+      _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ])) [ tr "US" "I sell DE ten energy" ]
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 1
 
     it "an author who did not speak is dropped" do
       g <- unseated
-      backend <- answerWith (replyJoint [ dealOf (Id "SA") [ Id "DE" ] [ Id "SA" ] ])
+      backend <- answerWith (replyJoint [ jointOf (Id "SA") [ Id "DE" ] [ Id "SA" ] ])
       out <- jointWith g backend [ tr "US" "I sell DE ten energy" ]
       out `shouldEqual` Right []
 
     it "an empty Intent list, and a signer that is not an Entity, are dropped from the Proposal" do
       g <- unseated
-      let bare = (dealOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ]) { intents = [] }
+      let bare = (jointOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ]) { intents = [] }
       empty <- answerWith (replyJoint [ bare ])
       out <- jointWith g empty [ tr "US" "nothing" ]
       out `shouldEqual` Right []
-      named <- answerWith (replyJoint [ dealOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ] ])
+      named <- answerWith (replyJoint [ jointOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ] ])
       j <- single =<< jointWith g named [ tr "US" "I sell DE ten energy" ]
       j.draft.signers `shouldEqual` [ Id "DE" ]
 

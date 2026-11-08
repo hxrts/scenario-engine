@@ -26,7 +26,7 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 
-import Schema.Joint (ProposedDeal, jointProposals)
+import Schema.Joint (ProposedJoint, jointProposals)
 import Core.Shape (Format(..), Shape, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
@@ -113,7 +113,7 @@ correction request previous err = encodeWith Snapshot correctionShape { request,
 -- | The joint pass: one call, then up to `maxCorrections` corrections while the reply does not decode.
 -- | The first reply that decodes is the result. If the last correction does not decode either, the
 -- | result is that decode error (the caller tells the speakers and submits nothing).
-joint :: Backend -> Key -> JointRequest -> Aff (Either String (Array ProposedDeal))
+joint :: Backend -> Key -> JointRequest -> Aff (Either String (Array ProposedJoint))
 joint b key request = go 0 original
   where
   original = encodeWith Snapshot jointRequestShape request
