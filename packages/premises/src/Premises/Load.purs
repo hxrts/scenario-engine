@@ -4,8 +4,7 @@
 -- | not here: `loadPremise` hands the decoded premise to `Game.Premise.checkPremise`, which checks it
 -- | against itself and its Strategies, so bad data fails before any game is assembled.
 module Premises.Load
-  ( LoadError(..)
-  , fromFiles
+  ( fromFiles
   , loadPremise
   , loadFrom
   , loadPresets
@@ -38,21 +37,9 @@ import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Schema.Premise.Strategy (presetsShape)
 import Data.Maybe (Maybe(..))
 
--- | Why a premise, its presets, or a fixture does not decode.
-data LoadError
-  = Unreadable String String -- a file that cannot be read or parsed, and why
-  | NotAnObject String -- a section file whose JSON is not an object
-  | DuplicateKey String String -- a section file defines a key another section already defines
-  | Undecodable String JsonDecodeError -- something that does not decode, and the decoder's error
-
-derive instance Eq LoadError
-
-instance Show LoadError where
-  show = case _ of
-    Unreadable f why -> f <> ": " <> why
-    NotAnObject f -> f <> ": a section must be a JSON object"
-    DuplicateKey f k -> f <> ": key " <> k <> " is already defined by another section"
-    Undecodable what e -> what <> ": " <> printJsonDecodeError e
+-- | A decode failure, named by what did not decode.
+undecodable :: String -> JsonDecodeError -> String
+undecodable what e = what <> ": " <> printJsonDecodeError e
 
 -- | The seat-policy presets (docs/06_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object Strategy)
@@ -63,22 +50,22 @@ shippedPresets :: Either String (Object Strategy)
 shippedPresets = decodePresets (encodeWith Premise presetsShape Presets.presets)
 
 decodePresets :: Json -> Either String (Object Strategy)
-decodePresets j = lmap show (presetsFrom j)
+decodePresets = presetsFrom
 
-presetsFrom :: Json -> Either LoadError (Object Strategy)
+presetsFrom :: Json -> Either String (Object Strategy)
 presetsFrom j = do
-  pairs <- lmap (Undecodable presetsFile) (decodeJsonWith Premise presetsShape j)
+  pairs <- lmap (undecodable presetsFile) (decodeJsonWith Premise presetsShape j)
   pure (Object.fromFoldable pairs)
 
 -- | A premise directory decoded and checked: the Gameboard premise a game is assembled from.
 loadPremise :: Tree.Premise -> Either String GameboardParts
 loadPremise s = do
-  files <- traverse (\f -> { name: f.name, json: _ } <$> lmap (\why -> show (Unreadable f.path why)) (jsonParser f.text)) s.sections
-  decoded <- lmap show (fromFiles files)
-  presets <- lmap show (presetsOf s.presets)
+  files <- traverse (\f -> { name: f.name, json: _ } <$> lmap (\why -> f.path <> ": " <> why) (jsonParser f.text)) s.sections
+  decoded <- fromFiles files
+  presets <- presetsOf s.presets
   lmap show (checkPremise { gameboard: decoded.gameboard, config: decoded.config, presets })
   where
-  presetsOf p = lmap (Unreadable p.path) (jsonParser p.text) >>= presetsFrom
+  presetsOf p = lmap (\why -> p.path <> ": " <> why) (jsonParser p.text) >>= presetsFrom
 
 -- | A premise directory read through the file operations given, decoded and checked.
 loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String GameboardParts)
@@ -92,12 +79,12 @@ loadLiteral name text = readJsonWith decodeNamed text
 
 -- | Decode a premise's sections, each a JSON object, merged into one Gameboard; `instantiation.json` is
 -- | the configuration. Undecoded, unvalidated: `checkPremise` does that.
-fromFiles :: Array { name :: String, json :: Json } -> Either LoadError { gameboard :: Gameboard, config :: InstantiationConfig }
+fromFiles :: Array { name :: String, json :: Json } -> Either String { gameboard :: Gameboard, config :: InstantiationConfig }
 fromFiles files = do
-  configJson <- note (Unreadable instantiationFile "missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
-  config <- lmap (Undecodable instantiationFile) (decodeConfig configJson)
+  configJson <- note (instantiationFile <> ": missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
+  config <- lmap (undecodable instantiationFile) (decodeConfig configJson)
   merged <- merge (filter (\f -> f.name /= instantiationFile) files)
-  gameboard <- lmap (Undecodable "the Gameboard") (decodeGameboard merged)
+  gameboard <- lmap (undecodable "the Gameboard") (decodeGameboard merged)
   pure { gameboard, config }
   where
   headOf = case _ of
@@ -106,12 +93,12 @@ fromFiles files = do
 
 -- | Every section object merged into one. A section that is not an object, or a key that two
 -- | sections both define, fails: nothing is overwritten silently.
-merge :: Array { name :: String, json :: Json } -> Either LoadError Json
+merge :: Array { name :: String, json :: Json } -> Either String Json
 merge files = map fromObject (foldl step (Right Object.empty) files)
   where
   step acc f = do
     o <- acc
-    x <- note (NotAnObject f.name) (toObject f.json)
+    x <- note (f.name <> ": a section must be a JSON object") (toObject f.json)
     case find (\k -> Object.member k o) (Object.keys x) of
-      Just k -> Left (DuplicateKey f.name k)
+      Just k -> Left (f.name <> ": key " <> k <> " is already defined by another section")
       Nothing -> Right (Object.union o x)

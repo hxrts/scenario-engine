@@ -1,5 +1,5 @@
 -- | Meridian's Entities: Actors with their objectives, and Aggregates with their
--- | procedures. `just premises` compiles them to `packages/premises/meridian/v0/entities.json`.
+-- | procedures. `just _premises` compiles them to `packages/premises/meridian/v0/entities.json`.
 -- |
 -- | This module is the catalog. The seats are in `Entities.Seats`, the Aggregates in
 -- | `Entities.Aggregates`, and the capability sets they are built from in `Entities.Capabilities`.

@@ -8,12 +8,14 @@ module Effects.Round
 
 import Prelude
 
+import Core.Map (values)
+
 import Core.Engine.Commit (EngineError, resolveRound)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Proposal (assembleSigned, jointProposalsOf, numberJoint, proposalsOf, signableBy)
 import Core.Types (Entity)
 import Core.World (RoundResult, View, WorldState)
-import Data.Array (concat, filter, fromFoldable, mapMaybe, null)
+import Data.Array (concat, filter, mapMaybe, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
@@ -36,7 +38,7 @@ runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + REC
 runRound inWorld w0 = do
   let
     w = prepareRound w0
-    entities = fromFoldable (Map.values w.entities)
+    entities = values w.entities
     view e = observe w e
   spoken <- for (filter (\e -> isNothing (policyOf inWorld e)) entities) \e -> do
     said <- lift _seatInput (Speak e.id (view e) identity)

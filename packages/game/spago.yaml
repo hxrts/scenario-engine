@@ -7,7 +7,6 @@ package:
     - sp-board
     - sp-policy
     - argonaut-core
-    - argonaut-codecs
     - arrays
     - either
     - foldable-traversable
@@ -25,4 +24,3 @@ package:
       - spec-node
       - sp-testkit
       - sp-simulator
-      - sp-board

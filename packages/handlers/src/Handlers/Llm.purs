@@ -20,6 +20,8 @@ module Handlers.Llm
 
 import Prelude
 
+import Core.Map (values)
+
 import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
@@ -29,7 +31,7 @@ import Core.Shape (Format(..), Shape, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Argonaut.Core (Json, stringify)
-import Data.Array (fromFoldable, null)
+import Data.Array (null)
 import Data.Either (Either(..), either)
 import Data.Int (toNumber)
 import Data.Map as Map
@@ -131,13 +133,13 @@ interpreter :: Backend -> WorldState -> InterpretF ~> Aff
 interpreter b w (Interpret round transcripts k) = k <$> do
   let
     request :: JointRequest
-    request = { round, transcripts, entities: map _.id (fromFoldable (Map.values w.entities)), markets: markets w }
+    request = { round, transcripts, entities: map _.id (values w.entities), markets: markets w }
     key = { round, seats: map (\t -> seatText t.seat) transcripts }
   r <- joint b key request
   pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
 
 markets :: WorldState -> Array MarketId
-markets w = map _.id (fromFoldable (Map.values w.markets))
+markets w = map _.id (values w.markets)
 
 -- | The round's front page. A round whose joint pass did not decode, and a model reply that does
 -- | not decode, get the plain listing of the round's events, and a round whose joint pass did not

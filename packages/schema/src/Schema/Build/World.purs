@@ -62,10 +62,6 @@ noFacility =
 noEntity :: EntityDoc
 noEntity = { accounts: [], capabilities: [], capacities: Nothing, definition: Nothing, aggregate: Nothing }
 
--- | An Actor definition with none of its keys written.
-noDefinition :: DefinitionDoc
-noDefinition = { required: Nothing, seat: Nothing, npc: Nothing, fallback: Nothing, objective: Nothing, description: Nothing, dependency: Nothing }
-
 -- | A criterion's bound: a fixed quantity (`atLeast 200`), or a metric the Entity must match.
 class ToBound a where
   bound :: a -> BoundDoc

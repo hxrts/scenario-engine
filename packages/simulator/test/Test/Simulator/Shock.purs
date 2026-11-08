@@ -5,11 +5,11 @@ module Test.Simulator.Shock (spec) where
 
 import Prelude
 
+import Core.Query (priceOf)
+
 import Core.Draw (Seed(..))
-import Core.Market (marginal)
 import Core.Num as Q
 import Core.Types (Id(..), IntentF(..))
-import Data.Map as Map
 import Data.Array (concatMap, elem, filter, index, length, nub, range)
 import Data.Foldable (any, maximum, minimum)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -79,7 +79,7 @@ shockOverrides = map (\(Tuple name value) -> Parameter name (fromMaybe Q.zero (Q
 
 -- | The end-of-round price of a Market across a run.
 prices' :: String -> SimRun -> Array Q.Q
-prices' m r = map (\x -> fromMaybe Q.zero (Map.lookup (Id m) x.world.markets <#> \y -> marginal y.cost y.position)) r.records
+prices' m r = map (\x -> fromMaybe Q.zero (priceOf x.world (Id m))) r.records
 
 -- | The same, as the two-decimal display (docs/05 §13.6 prints them so).
 prices :: String -> SimRun -> Array String

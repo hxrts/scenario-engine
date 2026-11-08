@@ -3,7 +3,7 @@
 -- | instantiations of one economy. Realization owns these; the premise format does not.
 module Board.Error
   ( ValidationError(..)
-  , Difference(..)
+  , Inconsistency(..)
   ) where
 
 import Prelude
@@ -25,7 +25,7 @@ data ValidationError
   | ControllerNotAllowed EntityId
   | ProcedureExceedsAuthority EntityId
   | IneligibleRepresentative EntityId
-  | ResolutionInconsistent EntityId (Array Difference) -- implicit coverage would change the economy
+  | ResolutionInconsistent EntityId (Array Inconsistency) -- implicit coverage would change the economy
   | CoverageNotAggregate EntityId EntityId -- an Actor's coverage fallback names a non-Aggregate
   | SchemeTargetNotAggregate String EntityId -- a Representation scheme's target is not an Aggregate
   | RoundsOutOfRange { rounds :: Int, min :: Int, max :: Int }
@@ -53,15 +53,15 @@ instance Show ValidationError where
     RoundsOutOfRange r -> "configured " <> show r.rounds <> " rounds is outside the supported range " <> show r.min <> " to " <> show r.max
 
 -- | A difference between two instantiations of the same economy (§14.2).
-data Difference
+data Inconsistency
   = StockDiffers ResourceId Q Q
   | CapacityDiffers CapacityRef Q Q
   | WeightDiffers CollectiveProcedureId Q Q
   | AuthorityDiffers
 
-derive instance Eq Difference
+derive instance Eq Inconsistency
 
-instance Show Difference where
+instance Show Inconsistency where
   show = case _ of
     StockDiffers k l r -> "stock " <> show k <> ": " <> show l <> " vs " <> show r
     CapacityDiffers k l r -> "capacity " <> show k <> ": " <> show l <> " vs " <> show r

@@ -1,4 +1,4 @@
--- | Seat-policy presets (docs/06_simulator.md §4.2), shared by every premise. `just premises`
+-- | Seat-policy presets (docs/06_simulator.md §4.2), shared by every premise. `just _premises`
 -- | compiles them to `packages/premises/presets.json`.
 module Premises.Presets (presets, presetNames) where
 

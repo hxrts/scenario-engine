@@ -9,6 +9,8 @@ module Board.Gameboard.Instantiate
 
 import Prelude
 
+import Core.Map (sumMaps)
+
 import Schema.Gameboard (Fallback(..), Gameboard, InitialWorld, InstantiationConfig)
 import Board.Error (ValidationError(..))
 import Core.Num (Q)
@@ -106,8 +108,8 @@ mergeInto agg e w = case Map.lookup e w.entities of
   c = w.circulation
   retarget x = if x == e then agg else x
   absorb gone a = a
-    { accounts = Map.unionWith Q.add a.accounts gone.accounts
-    , capacities = Map.unionWith Q.add a.capacities gone.capacities
+    { accounts = sumMaps a.accounts gone.accounts
+    , capacities = sumMaps a.capacities gone.capacities
     , kind = foldWeights a
     }
   -- a member's procedure weight folds into the Aggregate's residual weight

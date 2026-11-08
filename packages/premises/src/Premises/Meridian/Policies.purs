@@ -1,5 +1,5 @@
 -- | Meridian's in-world Policy catalog: the China NPC, Aggregate baselines, and
--- | institutional fallbacks (docs/05_test_instance.md §11). `just premises` compiles it to
+-- | institutional fallbacks (docs/05_test_instance.md §11). `just _premises` compiles it to
 -- | `packages/premises/meridian/v0/policies.json`.
 module Premises.Meridian.Policies (policies) where
 

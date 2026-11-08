@@ -4,17 +4,14 @@
 module Policy.InWorld
   ( inWorldOf
   , policyOf
-  , acts
   ) where
-
-import Prelude
 
 import Core.Num (Q)
 import Core.Strategy (InWorld, Strategy)
 import Core.Types (Controller(..), Entity, EntityKind(..), PolicyId)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..))
 import Foreign.Object (Object)
 
 -- | The in-world view of a Gameboard's typed catalog and parameters.
@@ -29,10 +26,3 @@ policyOf inWorld e = case e.kind of
   Aggregate a -> Map.lookup a.policy inWorld.strategies
   Actor (Seat _) -> Nothing
 
--- | An Entity that acts in a round: a seat, or an Entity whose Policy runs.
-acts :: InWorld -> Entity -> Boolean
-acts inWorld e = isSeat || isJust (policyOf inWorld e)
-  where
-  isSeat = case e.kind of
-    Actor (Seat _) -> true
-    _ -> false

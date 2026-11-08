@@ -213,7 +213,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Rerun** | The zero-change derivation of a run: its resolved configuration and both seeds with nothing changed, so its records must equal the source's. |
 | **Counterfactual** | A derivation of a run that changes one thing by override and compares the result with the source. |
 | **Propose deadline** | The end of a round's window for human transcripts in live play ([04 §8](04_instantiated_game.md)). |
-| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format, its JSON Schema, and its prose ([§8.4](#84-effects-and-handlers)). |
+| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose ([§8.4](#84-effects-and-handlers)). |
 
 ## 3. Intents and Economic Actions
 

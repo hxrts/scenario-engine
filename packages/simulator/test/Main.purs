@@ -4,6 +4,8 @@ module Test.Simulator.Main where
 
 import Prelude
 
+import Core.Map (values)
+
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Core.Draw (Seed(..))
@@ -13,7 +15,7 @@ import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), RuleF(..), proposalId)
 import Core.World (Event(..), RejectReason(..), renderReason)
-import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, last, length, reverse, take, zip)
+import Data.Array (any, concatMap, drop, findMap, index, last, length, reverse, take, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -306,7 +308,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
                 Tariff t -> t.jurisdiction == Id "EU" && t.origin == Id "US"
                 _ -> false
             )
-            (fromFoldable (Map.values rec.world.rules))
+            (values rec.world.rules)
           Nothing -> false
       procedureRan `shouldEqual` true
       tariffOnUs `shouldEqual` true
@@ -317,7 +319,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- everySeat p "Passive"
       let
         banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enactAccessBan":{"target":"CN"}}]}]}"""
-        rules i r = maybe [] (\rec -> fromFoldable (Map.values rec.world.rules)) (index r.records i)
+        rules i r = maybe [] (\rec -> values rec.world.rules) (index r.records i)
         isBan a b = case _ of
           AccessBan x -> x.jurisdiction == Id a && x.target == Id b
           _ -> false

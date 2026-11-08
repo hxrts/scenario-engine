@@ -13,7 +13,6 @@ module Policy.Strategy
   , foldSign
   , foldStrategy
   , strategyRefs
-  , strategyParams
   ) where
 
 import Prelude
@@ -23,7 +22,7 @@ import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy,
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF(..), ProposalF, RefKind(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idText)
 import Data.Array (concat, concatMap, filter)
 import Data.Maybe (maybe)
-import Data.Tuple (Tuple(..), fst, snd)
+import Data.Tuple (Tuple(..))
 
 -- | What each constructor of the Strategy AST becomes. Adding a constructor to `Expr`, `Cond`,
 -- | `Template` or `SignRule` changes one fold, and the compiler then names every algebra that lacks it.
@@ -199,6 +198,3 @@ marketRefs = case _ of
   Cheapest r -> [ Tuple ResourceRef (idText r) ]
   Costliest r -> [ Tuple ResourceRef (idText r) ]
 
--- | The premise parameters a Strategy reads.
-strategyParams :: Strategy -> Array String
-strategyParams = map snd <<< filter ((_ == ParameterRef) <<< fst) <<< strategyRefs

@@ -10,13 +10,14 @@ import Data.Either (Either(..), isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), Replacement(..), replaceAll)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Foreign.Object as Object
 import Core.Proposal (ProposalBody)
 import Policy.Interpret (Env, nameOnly, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
-import Policy.Strategy (strategyParams, strategyRefs)
+import Data.Array as Array
+import Policy.Strategy (strategyRefs)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -80,6 +81,9 @@ chooseTwice =
 ] }"""
 
 -- Tests -------------------------------------------------------------------------------
+
+strategyParams :: Strategy -> Array String
+strategyParams = map snd <<< Array.filter ((_ == ParameterRef) <<< fst) <<< strategyRefs
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

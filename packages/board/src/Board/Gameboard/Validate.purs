@@ -8,6 +8,8 @@ module Board.Gameboard.Validate
 
 import Prelude
 
+import Core.Map (values)
+
 import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
@@ -37,9 +39,9 @@ validateGameboard gb config =
     if null errors then Right gb else Left errors
   where
   w = gb.world
-  entities = fromFoldable (Map.values w.entities)
-  markets = fromFoldable (Map.values w.markets)
-  facilities = fromFoldable (Map.values w.transformations)
+  entities = values w.entities
+  markets = values w.markets
+  facilities = values w.transformations
   aggregates = mapMaybe (\e -> map { entity: e, aggregate: _ } (aggregateOf e)) entities
   -- whether the Entity with this id is an Aggregate (an unknown id is not)
   isAggregateId e = maybe false isAggregate (Map.lookup e w.entities)
@@ -87,7 +89,7 @@ validateGameboard gb config =
       <> unknownEntity (map _.entity w.circulation.requirements)
       <> unknownResource (map _.resource w.circulation.requirements)
       <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.jurisdiction :: Array _))
-      <> concatMap ruleRefs (fromFoldable (Map.values w.rules))
+      <> concatMap ruleRefs (values w.rules)
       <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transport :: Array _))
       <> unknownTransformation (map (\(Tuple _ t) -> t) (Map.toUnfoldable w.transport :: Array _))
       <> unknownEntity (map _.target gb.schemes)
@@ -95,8 +97,8 @@ validateGameboard gb config =
       <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
       <> unknownEntity (concatMap _.aggregate.members aggregates)
       <> unknownEntity
-        (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (fromFoldable (Map.values x.aggregate.procedures))) aggregates)
-      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (fromFoldable (Map.values gb.actors)) <> fallbackPolicies))
+        (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)
+      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
@@ -106,7 +108,7 @@ validateGameboard gb config =
     Withholding x -> unknownCapacity [ x.capacity ]
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
   -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
-  fallbackPolicies = concatMap institutional (mapMaybe _.fallback (fromFoldable (Map.values gb.actors)) <> fromFoldable (Map.values config.fallbacks))
+  fallbackPolicies = concatMap institutional (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks)
   institutional = case _ of
     InstitutionalPolicy p -> [ p ]
     _ -> []
@@ -128,7 +130,7 @@ validateGameboard gb config =
   fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
   procedures = concatMap
-    (\x -> if any (\p -> not (all (_ `elem` x.entity.capabilities) p.authorizes)) (fromFoldable (Map.values x.aggregate.procedures)) then [ ProcedureExceedsAuthority x.entity.id ] else [])
+    (\x -> if any (\p -> not (all (_ `elem` x.entity.capabilities) p.authorizes)) (values x.aggregate.procedures) then [ ProcedureExceedsAuthority x.entity.id ] else [])
     aggregates
   roundCount =
     if config.rounds < gb.rounds.min || config.rounds > gb.rounds.max then [ RoundsOutOfRange { rounds: config.rounds, min: gb.rounds.min, max: gb.rounds.max } ]

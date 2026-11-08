@@ -5,6 +5,8 @@ module Test.Experiments.Experiments (spec) where
 
 import Prelude
 
+import Core.Map (values)
+
 import Testkit.Meridian (orThrow, seats)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
@@ -15,7 +17,7 @@ import Core.Query (priceOf)
 import Core.Num as Q
 import Core.Types (Id(..))
 import Core.World (Event(..))
-import Data.Array (concatMap, elem, filter, fromFoldable, last, length, range)
+import Data.Array (concatMap, elem, filter, last, length, range)
 import Data.Either (Either(..))
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
@@ -74,7 +76,7 @@ indicators ctx r = { row, failures }
   proposals = length (concatMap _.record.inputs r.records)
   final = fromMaybe r.manifest.initial (map _.world (last r.records))
   price w m = maybe "—" Q.displayPrice (priceOf w (Id m))
-  money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (fromFoldable (Map.values w.entities))
+  money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (values w.entities)
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in maybe "—" Q.displayRatio (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
   met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.gameboard r.records))

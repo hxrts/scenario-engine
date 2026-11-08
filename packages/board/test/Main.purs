@@ -2,6 +2,8 @@ module Test.Board.Main where
 
 import Prelude
 
+import Core.Map (values)
+
 import Board.Error (ValidationError(..))
 import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
@@ -10,7 +12,7 @@ import Core.Num as Q
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleF(..), RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (UnseededWorld)
 import Data.Argonaut.Core (Json)
-import Data.Array (concatMap, elem, filter, fromFoldable, mapMaybe)
+import Data.Array (concatMap, elem, filter, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -109,9 +111,9 @@ worldEntityRefs :: forall r. { transformations :: Map.Map TransformationId Trans
 worldEntityRefs w =
   mapMaybe _.payee transforms
     <> concatMap (\t -> mapMaybe _.holder t.effects) transforms
-    <> concatMap ruleEntities (map Just (fromFoldable (Map.values w.rules)) <> fromFoldable (Map.values w.scheduled))
+    <> concatMap ruleEntities (map Just (values w.rules) <> values w.scheduled)
   where
-  transforms = fromFoldable (Map.values w.transformations)
+  transforms = values w.transformations
 
   ruleEntities :: Maybe Rule -> Array EntityId
   ruleEntities = case _ of
@@ -138,7 +140,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left es -> fail (show es)
         Right initial -> do
           filter (\e -> not (Map.member e initial.world.entities)) (worldEntityRefs initial.world) `shouldEqual` []
-          map _.payee (fromFoldable (Map.values initial.world.transformations)) `shouldEqual` [ Just (Id "EU") ]
+          map _.payee (values initial.world.transformations) `shouldEqual` [ Just (Id "EU") ]
           -- the Aggregate's member list does not name the Actor it now is
           map membersOf (Map.lookup (Id "EU") initial.world.entities) `shouldEqual` Just []
     it "a Representation scheme whose target is an Actor is a validation error" do

@@ -2,6 +2,8 @@ module Test.Premises.Main where
 
 import Prelude
 
+import Core.Map (values)
+
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.Actor (boundShape, metricShape)
 import Core.Shape (Format(..), encodeWith, decodeJsonWith)
@@ -9,7 +11,7 @@ import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (Fallback(..), Gameboard, InstantiationConfig)
-import Board.Error (Difference(..), ValidationError(..))
+import Board.Error (Inconsistency(..), ValidationError(..))
 import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
@@ -18,7 +20,7 @@ import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..
 import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (any, elem, filter, fromFoldable, length)
+import Data.Array (any, elem, filter, length)
 import Data.Either (Either(..), isLeft, isRight)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -44,7 +46,7 @@ import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Premises.Load (LoadError(..), fromFiles, loadFrom, shippedPresets)
+import Premises.Load (fromFiles, loadFrom, shippedPresets)
 import Premises.Names (meridianDir)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
@@ -130,13 +132,13 @@ policyNamed gb name = case Map.lookup (Id name) gb.policies of
   Just p -> pure p
 
 -- | A load outcome without its (non-comparable) premise, for equality checks.
-outcome :: forall a. Either LoadError a -> Either LoadError Unit
+outcome :: forall a. Either String a -> Either String Unit
 outcome = map (const unit)
 
 -- | A load outcome, checked as the game checks it: the decoded sections, then `checkPremise` (the error text).
 checked :: Array { name :: String, json :: Json } -> Either String Unit
 checked files = do
-  d <- lmap show (fromFiles files)
+  d <- (fromFiles files)
   map (const unit) (lmap show (checkPremise { gameboard: d.gameboard, config: d.config, presets: Object.empty }))
 
 -- Edits for the validation tests --------------------------------------------------------
@@ -275,7 +277,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         w = initial.world
         listed = map (\p -> capacity w (unwrap p.entity) (unwrap p.capacity)) gameboard.world.circulation.production
-        held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.capacities)) (fromFoldable (Map.values w.entities))
+        held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.capacities)) (values w.entities)
       Q.sumQ listed `shouldEqual` Q.sumQ held
 
     it "reconciles Germany explicit against Germany implicit (§14.2)" do
@@ -479,10 +481,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Premise loader: files and policies fail at load time" do
     it "a key that two section files both define is an error, not an overwrite" do
       outcome (fromFiles (sections <> [ { name: "extra.json", json: encodeJson { resources: Object.empty :: Object Json } } ]))
-        `shouldEqual` Left (DuplicateKey "extra.json" "resources")
+        `shouldEqual` Left "extra.json: key resources is already defined by another section"
     it "a section that is not a JSON object is an error" do
       outcome (fromFiles (withSection "premise.json" (encodeJson "not an object")))
-        `shouldEqual` Left (NotAnObject "premise.json")
+        `shouldEqual` Left "premise.json: a section must be a JSON object"
     it "a policy that names an unknown market fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }

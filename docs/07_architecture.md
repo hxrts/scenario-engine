@@ -67,18 +67,18 @@ Module map: every `src` module, one line per package, from `find packages apps -
 packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Digest, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
 packages/board:      Board.Error, Board.Gameboard.Instantiate, Board.Gameboard.Reconcile, Board.Gameboard.Validate
 packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
-packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Strategy, Core.Types, Core.World
+packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Strategy, Core.Types, Core.World
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
 packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
 packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Handlers.Llm, Handlers.Llm.Wire, Handlers.Recording, Handlers.Replay, Handlers.Seats, Handlers.Store
 packages/policy:     Policy.Interpret, Policy.InWorld, Policy.Strategy
 packages/premises:   Premises.Capstone, Premises.Fixtures, Premises.Fixtures.Circulation, Premises.Fixtures.Common, Premises.Fixtures.ConflictingActions, Premises.Fixtures.GermanyEu, Premises.Fixtures.MarketExchange, Premises.Fixtures.NpcResponse, Premises.Fixtures.Reservation, Premises.Fixtures.SignedProposals, Premises.Fixtures.SmeRepresentation, Premises.Literal, Premises.Load, Premises.Meridian, Premises.Meridian.Entities, Premises.Meridian.Entities.Aggregates, Premises.Meridian.Entities.Capabilities, Premises.Meridian.Entities.Seats, Premises.Meridian.Holdings, Premises.Meridian.Parameters, Premises.Meridian.Policies, Premises.Names, Premises.Presets, Premises.Tree
-packages/schema:     Schema.Build.Base, Schema.Build.Decision, Schema.Build.Fixture, Schema.Build.Intent, Schema.Build.Quantity, Schema.Build.World, Schema.Decode.Common, Schema.Gameboard, Schema.Premise.Actor, Schema.Premise.Fixture, Schema.Premise.Gameboard, Schema.Premise.Intent, Schema.Premise.Strategy, Schema.Premise.World, Schema.Round
+packages/schema:     Schema.Build.Base, Schema.Build.Decision, Schema.Build.Fixture, Schema.Build.Intent, Schema.Build.Quantity, Schema.Build.World, Schema.Decode.Common, Schema.Gameboard, Schema.Premise.Actor, Schema.Premise.Fixture, Schema.Premise.Gameboard, Schema.Premise.Tags, Schema.Premise.Intent, Schema.Premise.Strategy, Schema.Premise.World, Schema.Round
 packages/simulator:  Simulator.Records, Simulator.Simulate
-packages/testkit:    Testkit.Capstone, Testkit.Fixture, Testkit.Meridian
+packages/testkit:    Testkit.Capstone, Testkit.Fixture, Testkit.Gameboard, Testkit.Json, Testkit.Meridian, Testkit.Suite
 packages/views:      Views.Actions, Views.Agency, Views.Balance, Views.Balances, Views.Common, Views.Compare, Views.Difference, Views.Drivers, Views.Entity, Views.Glossary, Views.Markets, Views.Metrics, Views.Overview, Views.Representation, Views.Standings
-apps/cli:            Compile, Compile.Render, Main, Session, Transcript
+apps/cli:            Compile, Compile.Render, Exit, Main, Options, Session, Transcript
 apps/flags:          Flags (shared by apps/cli and apps/server)
 apps/dashboard:      Dashboard.Api, Dashboard.Chart, Dashboard.Client, Dashboard.Components, Dashboard.DataTable, Dashboard.Entity, Dashboard.Glossary, Dashboard.Launch, Dashboard.Layout, Dashboard.Main, Dashboard.Palette, Dashboard.Results, Dashboard.Route, Dashboard.RunActions, Dashboard.RunForms, Dashboard.Runs, Dashboard.Theme, Dashboard.UI
 apps/server:         Http, Server, Server.Cache, Server.Derive, Server.Errors, Server.Implementation, Server.Launch, Server.Read
@@ -123,7 +123,7 @@ sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 
 `View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature, and its `markets` field the Markets the Entity has access to, which the Strategy language's Market selectors (`MarketRef`) pick from.
 
-**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, its JSON Schema, and its prose. `Described` instances sit beside their types:
+**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. `Described` instances sit beside their types:
 
 ```purescript
 data Format = Premise | Snapshot          -- authored premise files; stored runs and model replies
@@ -191,11 +191,13 @@ runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
 
 ```purescript
 type Call = String -> String -> Aff { text :: String, raw :: String }  -- Handlers.Llm: system prompt and payload in, reply text out
-type Backend = { model :: String, call :: Call, digest :: String -> String, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }  -- Handlers.Llm: the call, the digest device, and the evidence and recording sinks
+type Backend = { model :: String, call :: Call, digest :: String -> String, timeoutMs :: Int, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }  -- Handlers.Llm: the call, the digest device, and the evidence and recording sinks
 type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendRound -> Effect Unit, readRounds :: String -> Effect (Array StoredRound), ... }  -- Handlers.Store: one primitive per operation
 ```
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Digest.sha256` is the `digest`, which the handler applies to each call's template and payload for its evidence. `Adapters.SQLite` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `packages/premises/capstone/transcript.json`; neither is production code.
+
+**Round records and run rows.** `Core.Run` holds `RunStatus` and `DeriveKind`; the store's text is converted only at the `Adapters.SQLite` boundary. A round record's events include `OrderRemoved` for one order removed at settlement and `Tariffed` for a tariff paid. The `runs` table's `owner` column names the role, process, and start time that created a row, and server startup fails only `running` rows of the `server` role or with no owner. `Core.Map` holds the shared Map helpers; `Game.Bindings` builds seat bindings; `Shape.parse` is the one text-to-value entry point for a described type.
 
 **Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. A status is `Core.Run.RunStatus` everywhere but the store's text, which `Adapters.SQLite` converts; a derivation's kind is `Core.Run.DeriveKind`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
@@ -218,7 +220,7 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 ## 5. Coupling Rules
 
 - Only `core` changes the economy.
-- Each described type is described once: `core` for engine types, `schema` for premise-format types, and `effects` for operation payloads (plain records today, see [02 §8.4](02_type_system.md#84-effects-and-handlers)). Its codec, JSON Schema, prose, and `EncodeJson`/`DecodeJson` come from that one description. Each operation is declared once, in `effects`. Action lists, routes, and decoders come from those declarations.
+- Each described type is described once: `core` for engine types, `schema` for premise-format types, and `effects` for operation payloads (plain records today, see [02 §8.4](02_type_system.md#84-effects-and-handlers)). Its codec, prose, and `EncodeJson`/`DecodeJson` come from that one description. Each operation is declared once, in `effects`. Action lists, routes, and decoders come from those declarations.
 - `core` imports no effect library and no IO. Its JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type, because PureScript forbids orphan instances. The engine never calls them.
 - Capabilities are rows. A read program has only `OBSERVE`, and a `ProposalBody` carries no author.
 - Policies never touch World State. They receive a `View` and return Proposals and signatures.

@@ -1,5 +1,5 @@
 -- | *Meridian* (docs/05_test_instance.md), authored in the premise DSL.
--- | `just premises` compiles it to `packages/premises/meridian/v0/*.json`.
+-- | `just _premises` compiles it to `packages/premises/meridian/v0/*.json`.
 --
 -- | NPC list decision (Packet F): the instantiation `npcs` is written by hand, and it is
 -- | the one place that names who starts as an NPC. Seat Covers do not derive it: `NpcOnly` is the

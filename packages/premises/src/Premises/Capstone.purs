@@ -1,7 +1,7 @@
 -- | The capstone run: a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat strategy for each seat that exercises the features the audit found
 -- | untested together. It is a Gameboard premise with Strategy bindings (`seatBindings`); the
--- | counterfactual replaces one seat (`counterfactualBindings`). `just premises` also compiles the
+-- | counterfactual replaces one seat (`counterfactualBindings`). `just _premises` also compiles the
 -- | same seats, expectations and objectives to `capstone/run.json`, a record of them for readers; no
 -- | code decodes that file. The world and the Entity Policies are the shipped ones; only the seat
 -- | strategies and the expectations are here.
@@ -67,7 +67,7 @@ playerSeed = 7
 -- | The US: bans shipments into India in round 2 (in force from round 3), and repeals the ban in
 -- | round 6. Its first Proposal in round 2 is the ban, so the Rule's id is `r2/US/0/rule-0`.
 -- | Whenever the Atlantic price is above 3 it reserves 60 Mil for a deployment and orders a
--- | 40-unit major action (the shipped Deployer clause).
+-- | 40-unit Mil sale (the shipped Deployer clause).
 us :: Strategy
 us = usWithoutDeployment
   { rules = usWithoutDeployment.rules <>

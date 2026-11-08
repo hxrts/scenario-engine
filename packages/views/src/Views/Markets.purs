@@ -14,6 +14,8 @@ module Views.Markets
 
 import Prelude
 
+import Core.Map (sumInto)
+
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
@@ -102,7 +104,7 @@ moneyFlows r =
   where
   w0 = r.manifest.initial
   add acc = case _ of
-    Transferred t | t.resource == w0.numeraire -> Map.insertWith Q.add (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
+    Transferred t | t.resource == w0.numeraire -> sumInto (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
     _ -> acc
 
 -- | One round's pressure: shortfalls, consumption and decay, and the Proposals rejected or lapsed.

@@ -310,7 +310,6 @@
         "path": "packages/game",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
             "argonaut-core",
             "arrays",
             "either",
@@ -331,7 +330,6 @@
         "test": {
           "dependencies": [
             "effect",
-            "sp-board",
             "sp-simulator",
             "sp-testkit",
             "spec",

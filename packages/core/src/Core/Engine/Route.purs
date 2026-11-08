@@ -12,6 +12,8 @@ module Core.Engine.Route
 
 import Prelude
 
+import Core.Map (sumInto)
+
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
@@ -90,7 +92,7 @@ route w st r = { net: done.net, slices: done.slices }
         let
           signed = if buy then x else Q.neg x
         in
-          { net: Map.insertWith Q.add c.id signed acc.net
+          { net: sumInto c.id signed acc.net
           , slices: snoc acc.slices { market: c.id, entity: r.entity, pid: r.pid, quantity: signed, limitPrice: Just r.limitPrice }
           , left: Q.sub acc.left x
           }
