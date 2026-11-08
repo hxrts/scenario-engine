@@ -279,16 +279,17 @@ Live sessions also keep evidence of each language-model call: the effect, model 
 
 The initial record is written before Round 1. After each round, the round record, snapshot, assertions, and metrics are saved in one transaction. If Round 4 fails, Rounds 1–3 remain available.
 
-**Schema.** The store is SQLite, accessed through the primitives of `Adapters.SQLite` and interpreted by `Handlers.Store`. Its schema version is `PRAGMA user_version`, and the migrations are ordered and append-only:
+**Schema.** The store is SQLite, accessed through the primitives of `Adapters.SQLite` and interpreted by `Handlers.Store`. Its schema version is `PRAGMA user_version`, and there is one schema, version 1:
 
-1. Tables `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`), `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`. Key `run`, `round`), and `metrics` (`run`, `metric`, `version`, `round`, `value`. Key `run`, `metric`, `version`, `round`).
-2. `runs.reason`.
-3. `runs.archived` (default 0), `runs.source`, and `runs.kind`.
-4. `rounds.transcripts`: the round's seat transcripts as a JSON array, stored in the round's transaction (default `[]`).
+- `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `archived` default 0, `source`, `kind`, `owner`).
+- `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`, `transcripts` as a JSON array. Key `run`, `round`).
+- `metrics` (`run`, `metric`, `version`, `round`, `value`. Key `run`, `metric`, `version`, `round`).
+
+There are no migrations. A change to the schema starts a new store.
 
 **Backend.** The `StoreBackend` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Adapters.SQLite` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
 
-**Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
+**Access.** Opening read-write creates the store if the file is new. A store at any other schema version is refused, read-write or read-only, with a message saying to move the file aside and start a new store. A read-only open never creates a file: a missing store is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
 
 **Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs. The round must exist.
 

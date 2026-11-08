@@ -192,7 +192,7 @@ Each adapter implements one backend's primitives: a model call, a digest, the st
 
 **Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only at the adapter boundary. Server startup fails `running` rows it can tell were interrupted.
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

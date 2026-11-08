@@ -2,8 +2,8 @@
 -- | primitives as one `StoreBackend`, which `Handlers.Store` interprets the `STORE` operations over.
 -- | This module does the JSON: a typed value is encoded to the text the store keeps, and a stored text
 -- | is decoded back, or is a `Left` naming what failed (`Effects.Signatures.Stored`). The SQL is in
--- | `SQLite.js`. Runs are append-only; the schema is versioned with PRAGMA user_version and migrated in
--- | order when the store is opened read-write.
+-- | `SQLite.js`. Runs are append-only; the schema has one version (PRAGMA user_version), and a store at
+-- | any other is refused.
 module Adapters.SQLite
   ( open
   , openReadOnly
@@ -57,18 +57,18 @@ type ManifestRow = { spec :: String, manifest :: String }
 
 type RoundRow = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
 
--- | Open the store read-write: created and migrated if needed. Other connections' locks are
--- | waited for (busy timeout) rather than failing at once. A failed migration closes the handle.
+-- | Open the store read-write: created if new, refused at another schema version. Other connections'
+-- | locks are waited for (busy timeout) rather than failing at once. A refused open closes the handle.
 foreign import open :: String -> Effect Db
 
 -- | Open an existing store read-only. A missing file, or a schema other than the current one,
--- | is an exception: a read never creates or migrates a store.
+-- | is an exception: a read never creates a store.
 foreign import openReadOnly :: String -> Effect Db
 
 -- | Close a connection. It must not be used again.
 foreign import close :: Db -> Effect Unit
 
--- | The number of migrations applied to the store.
+-- | The store's schema version.
 foreign import schemaVersion :: Db -> Effect Int
 
 -- | The busy timeout a connection reports (PRAGMA busy_timeout): read back to check it is set.

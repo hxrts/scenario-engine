@@ -3,7 +3,7 @@
 module Test.Adapters.Files
   ( fileExists
   , removeFile
-  , createV1Store
+  , createStoreAtVersion
   , setRawSpec
   , tempDir
   , removeTree
@@ -29,8 +29,8 @@ fileExists = exists
 removeFile :: String -> Effect Unit
 removeFile path = rm' path { force: true, maxRetries: 0, recursive: false, retryDelay: 100 }
 
--- | A store file as schema version 1 wrote it, with one run (run-1), for upgrade tests.
-foreign import createV1Store :: String -> Effect Unit
+-- | A store file at a given schema version, for the refusal tests.
+foreign import createStoreAtVersion :: String -> Int -> Effect Unit
 
 -- | Overwrite a run's stored spec with raw text, below the typed port: the store then holds text that
 -- | does not decode, which the port must report as unreadable in that row.

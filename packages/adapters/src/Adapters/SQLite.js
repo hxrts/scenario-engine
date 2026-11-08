@@ -3,31 +3,30 @@
 import { DatabaseSync } from "node:sqlite";
 import { existsSync } from "node:fs";
 
-// Ordered, append-only migrations. The schema version is PRAGMA user_version: the number of
-// migrations applied. A migration is never edited once released; add a new one instead.
-const migrations = [
-  `create table runs (
+// The one schema. The version is PRAGMA user_version. There is no upgrade path: a store at any
+// other version is refused. A change to the schema raises schemaVersionCurrent and starts a new store.
+const schema = `create table runs (
      id text primary key, name text not null, status text not null,
-     spec text not null, manifest text not null, created text not null);
+     spec text not null, manifest text not null, created text not null,
+     reason text,
+     archived integer not null default 0, -- 1 hides a run from the default list
+     source text, -- the run this one was derived from (docs/06_simulator.md §10.4)
+     kind text, -- duplicate, rerun, variant or counterfactual
+     owner text not null); -- the process that created the run (role:pid:start time)
    create table rounds (
      run text not null, round integer not null, record text not null, snapshot text not null,
-     assertions text not null, primary key (run, round));
+     assertions text not null,
+     transcripts text not null, -- the round's seat transcripts, as JSON
+     primary key (run, round));
    create table metrics (
      run text not null, metric text not null, version text not null, round integer not null,
-     value text not null, primary key (run, metric, version, round));`,
-  `alter table runs add column reason text;`,
-  // archived: 1 hides a run from the default list; source: the run this one was derived from
-  // (docs/06_simulator.md §10.4); kind: duplicate, rerun, variant or counterfactual.
-  `alter table runs add column archived integer not null default 0;
-   alter table runs add column source text;
-   alter table runs add column kind text;`,
-  // transcripts: the round's seat transcripts (JSON array of { seat, text }) read by the joint pass
-  `alter table rounds add column transcripts text not null default '[]';`,
-  // owner: the process that created the run (role:pid:start time); null for a run made before this migration
-  `alter table runs add column owner text;`,
-];
+     value text not null, primary key (run, metric, version, round));`;
 
-export const latestVersion = migrations.length;
+const schemaVersionCurrent = 1;
+
+// The message for a store this build cannot use, naming what to do.
+const refused = (path, v) =>
+  `run store ${path} has schema version ${v}; this build reads only version ${schemaVersionCurrent}. Move the file aside and start a new store; its runs can be launched again from their seeds.`;
 
 // How long a writer waits for a lock held by another connection before SQLite reports busy.
 export const configuredBusyTimeout = 5000;
@@ -56,23 +55,24 @@ const transaction = (db, body) => {
   }
 };
 
-const migrate = (db) => {
-  const current = userVersion(db);
-  if (current > migrations.length) throw new Error(`run store schema version ${current} is newer than this build (${migrations.length})`);
-  for (let v = current; v < migrations.length; v++) {
-    transaction(db, () => {
-      db.exec(migrations[v]);
-      db.exec(`pragma user_version = ${v + 1}`);
-    });
-  }
+// An empty file becomes the current schema; a store already at it is left alone; anything else is refused.
+const prepare = (db, path) => {
+  const v = userVersion(db);
+  if (v === schemaVersionCurrent) return;
+  const empty = statement(db, "select count(*) as n from sqlite_master").get().n === 0;
+  if (v !== 0 || !empty) throw new Error(refused(path, v));
+  transaction(db, () => {
+    db.exec(schema);
+    db.exec(`pragma user_version = ${schemaVersionCurrent}`);
+  });
 };
 
-// Open for reading and writing, creating and migrating the store as needed.
+// Open for reading and writing, creating the store if it is new.
 export const open = (path) => () => {
   const db = new DatabaseSync(path);
   try {
     db.exec(`pragma busy_timeout = ${configuredBusyTimeout}`);
-    migrate(db);
+    prepare(db, path);
   } catch (e) {
     db.close();
     throw e;
@@ -83,15 +83,15 @@ export const open = (path) => () => {
 export const close = (db) => () => db.close();
 
 // Open an existing store read-only: a missing file is an error (never created), and so is a
-// store whose schema is not the current one (open it read-write once to migrate it).
+// store whose schema is not the current one.
 export const openReadOnly = (path) => () => {
   if (!existsSync(path)) throw new Error(`run store not found: ${path}`);
   const db = new DatabaseSync(path, { readOnly: true });
   db.exec(`pragma busy_timeout = ${configuredBusyTimeout}`);
   const v = userVersion(db);
-  if (v !== latestVersion) {
+  if (v !== schemaVersionCurrent) {
     db.close();
-    throw new Error(`run store ${path} has schema version ${v}, expected ${latestVersion}; open it read-write to migrate`);
+    throw new Error(refused(path, v));
   }
   return db;
 };

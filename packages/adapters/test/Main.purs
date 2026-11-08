@@ -13,14 +13,14 @@ import Core.World (Manifest)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
-import Data.Either (Either(..), isLeft, isRight)
+import Data.Either (Either(..), either, isLeft, isRight)
 import Data.String (Pattern(..), contains)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (try)
+import Effect.Exception (message, try)
 import Foreign.Object as Object
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
@@ -30,7 +30,7 @@ import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
-import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
+import Test.Adapters.Files (createStoreAtVersion, fileExists, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
 import Test.Adapters.Primitives as PrimitiveTests
@@ -90,14 +90,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       manifest <- liftEffect (runObserve port (readManifest "run-1"))
       (manifest <#> \_ -> unit) `shouldEqual` Just unit
 
-    it "a new store is created and migrated; a failed run keeps its reason" do
+    it "a new store is created at the current schema; a failed run keeps its reason" do
       let path = "run-store-migrate-test.db"
       liftEffect (removeFile path)
       manifest <- manifestOf
       db <- liftEffect (open path)
       let port = sqliteBackend db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 5
+      version `shouldEqual` 1
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest, source: Nothing, kind: Nothing })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
@@ -112,7 +112,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       exists <- liftEffect (fileExists path)
       exists `shouldEqual` false
 
-    it "a read-only open sees a migrated store" do
+    it "a read-only open sees a store" do
       let path = "run-store-readonly-test.db"
       liftEffect (removeFile path)
       manifest <- manifestOf
@@ -160,26 +160,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rows <- liftEffect (runObserve port (readRounds "run-1"))
       map _.transcripts rows `shouldEqual` [ Right said, Right [] ]
 
-    it "a version 1 store upgrades in place: its runs survive, and they gain the archive, source and reason fields" do
-      let path = "run-store-v1-test.db"
+    it "a store at any other schema version is refused, read-write and read-only, with what to do" do
+      let path = "run-store-other-version-test.db"
       liftEffect (removeFile path)
-      liftEffect (createV1Store path)
-      db <- liftEffect (open path)
-      let port = sqliteBackend db
-      version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 5
-      runs <- liftEffect (runObserve port listRuns)
-      map (\r -> { id: r.id, status: r.status, reason: r.reason }) runs `shouldEqual` [ { id: "run-1", status: Completed, reason: Nothing } ]
-      sums <- liftEffect (runObserve port listSummaries)
-      map (\r -> { archived: r.archived, source: r.source }) sums `shouldEqual` [ { archived: false, source: Nothing } ]
-      -- the upgraded store takes the new operations, and a read-only open sees the new version
-      liftEffect (runStore port (setArchived "run-1" true))
-      sums' <- liftEffect (runObserve port listSummaries)
-      map _.archived sums' `shouldEqual` [ true ]
-      reader' <- liftEffect (openReadOnly path)
-      version' <- liftEffect (schemaVersion reader')
-      version' `shouldEqual` 5
-      liftEffect (close reader' *> close db *> removeFile path)
+      liftEffect (createStoreAtVersion path 5)
+      opened <- liftEffect (try (open path))
+      either (contains (Pattern "Move the file aside") <<< message) (const false) opened `shouldEqual` true
+      read <- liftEffect (try (openReadOnly path))
+      either (contains (Pattern "schema version 5") <<< message) (const false) read `shouldEqual` true
+      liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
       g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
