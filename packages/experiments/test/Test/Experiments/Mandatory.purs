@@ -9,7 +9,7 @@ import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfTransform)
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
-import Settings.Meridian.Names (seatActors)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Testkit.Meridian (orThrow, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 

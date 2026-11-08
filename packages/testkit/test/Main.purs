@@ -8,7 +8,7 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-import Settings.Meridian.Names (seatActors)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Testkit.Meridian (setting, unseated)
 
 main :: Effect Unit

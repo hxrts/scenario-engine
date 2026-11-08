@@ -16,9 +16,6 @@ import Core.World (FlowGate)
 import Settings.Meridian.Names (n)
 import Core.Num (Q)
 
-
-
-
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 
@@ -28,16 +25,10 @@ import Schema.Build.World (byKey)
 
 import Settings.Kit.Markets (MarketTerms, market)
 
-
-
 import Settings.Meridian.Entities.Capabilities (defenceAccess)
-
-
-
 
 import Core.Types (EntityId, Holdings, Id(..), Market, MarketId)
 import Data.Map (Map)
-
 
 markets :: Map MarketId Market
 markets = byKey

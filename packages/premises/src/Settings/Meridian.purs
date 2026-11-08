@@ -16,8 +16,8 @@ module Settings.Meridian
 
 import Prelude (identity, map, negate, not, show, (+), (<>))
 
-
-import Settings.Meridian.Names (n, seatActors)
+import Settings.Meridian.Names (n)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Settings.Meridian.Rules (ruleKinds)
 
 import Core.Num (Q)
@@ -38,8 +38,6 @@ import Schema.Build.World (emptyWorld)
 import Settings.Compose (Setting)
 
 import Settings.Kit.Compose (Premise, assemble, emptyParts, premise)
-
-
 
 import Settings.Kit.Presets (PresetBinding, standardThresholds)
 import Schema.Build.Decision (lit)

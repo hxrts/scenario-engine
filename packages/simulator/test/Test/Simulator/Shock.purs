@@ -24,7 +24,7 @@ import Settings.Presets (presetNames)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Settings.Meridian.Names (seatActors)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Testkit.Meridian (run, presetGame)
 
 -- | The Presets whose behaviour the shock is checked on (Passive proposes nothing, so it cannot flip).

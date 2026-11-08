@@ -138,6 +138,3 @@ meridianDir = "meridian/v0"
 
 -- Seats ---------------------------------------------------------------------------------------
 
--- | The fifteen seat Actors, in catalog order: the one list every seat enumeration uses.
-seatActors :: Array String
-seatActors = [ n.us, n.de, n.india, n.jp, n.uk, n.br, n.sa, n.ng, n.enco, n.chip, n.ship, n.def, n.labor, n.sme, n.aid ]

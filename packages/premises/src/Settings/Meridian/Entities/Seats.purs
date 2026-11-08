@@ -2,9 +2,9 @@
 -- | accounts, capabilities, capacities, objective and fallback. `Entities` lists them.
 -- | A seat is built by `seat`, from a `SeatSpec`; the seat's default Policy is named once,
 -- | and both its NPC Policy and its fallback derive from that name.
-module Settings.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid, cn) where
+module Settings.Meridian.Entities.Seats (seats, seatActors, cn) where
 
-import Prelude (negate, (<>))
+import Prelude (map, negate, (<>))
 
 import Settings.Kit.Seats (Cover(..))
 import Settings.Kit.Seats as Kit
@@ -16,10 +16,21 @@ import Schema.Build.Base (capacityOf, cumulative, final, holdingOf, mayTrade, ma
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
 import Schema.Gameboard (ActorDefinition)
 import Core.Types (Capability, Entity)
-import Data.Tuple (Tuple)
+import Data.Tuple (Tuple, fst)
 
-seat :: String -> Kit.SeatSpec -> Tuple Entity ActorDefinition
+type CatalogSeat = Tuple String (Tuple Entity ActorDefinition)
+
+seat :: String -> Kit.SeatSpec -> CatalogSeat
 seat = Kit.seat holdings
+
+-- | The fifteen seat Actors, in catalog order: the one list every seat enumeration uses. Seat
+-- | numbers follow this order (`seat-<n>` in the instantiation), so a reorder changes the compiled files.
+seats :: Array CatalogSeat
+seats = [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ]
+
+-- | The seat Actors' names, in catalog order.
+seatActors :: Array String
+seatActors = map fst seats
 
 -- | The two regional Energy Markets, by name.
 atlantic :: String
@@ -32,7 +43,7 @@ asia = n.energyAsia
 investment :: Array Capability
 investment = [ mayTransform n.energyCapacityInvestment ]
 
-us :: Tuple Entity ActorDefinition
+us :: CatalogSeat
 us = seat n.us
   { capabilities: government atlantic n.defenseProcurement <> allied n.us
   , required: true
@@ -46,7 +57,7 @@ us = seat n.us
   , dependency: "Energy above its holdings; procurement capacity"
   }
 
-de :: Tuple Entity ActorDefinition
+de :: CatalogSeat
 de = seat n.de
   { capabilities: dealer atlantic <> allied n.de <> [ mayTransform n.publicAttention, mayTransform n.humanitarianAid, mayTransform n.militaryDeployment, mayTransfer n.mil, mayTransfer n.energy ] <> shipping
   , required: false
@@ -60,7 +71,7 @@ de = seat n.de
   , dependency: "Atlantic Energy; tax revenue from the EU residual"
   }
 
-india :: Tuple Entity ActorDefinition
+india :: CatalogSeat
 india = seat n.india
   { capabilities: government asia n.defenseProcurement <> investment
   , required: false
@@ -74,7 +85,7 @@ india = seat n.india
   , dependency: "Asia Energy prices"
   }
 
-jp :: Tuple Entity ActorDefinition
+jp :: CatalogSeat
 jp = seat n.jp
   { capabilities: government asia n.defenseProcurement <> allied n.jp
   , required: false
@@ -88,7 +99,7 @@ jp = seat n.jp
   , dependency: "Imports and transport; no production"
   }
 
-uk :: Tuple Entity ActorDefinition
+uk :: CatalogSeat
 uk = seat n.uk
   { capabilities: government atlantic n.defenseProcurement <> allied n.uk
   , required: false
@@ -102,7 +113,7 @@ uk = seat n.uk
   , dependency: "Atlantic Energy"
   }
 
-br :: Tuple Entity ActorDefinition
+br :: CatalogSeat
 br = seat n.br
   { capabilities: government atlantic n.defenseProcurement <> investment
   , required: false
@@ -113,7 +124,7 @@ br = seat n.br
   , dependency: "Semiconductor units for investment"
   }
 
-sa :: Tuple Entity ActorDefinition
+sa :: CatalogSeat
 sa = seat n.sa
   { capabilities: government asia n.defenseProcurement <> investment
   , required: false
@@ -127,7 +138,7 @@ sa = seat n.sa
   , dependency: "Transport for Atlantic sales"
   }
 
-ng :: Tuple Entity ActorDefinition
+ng :: CatalogSeat
 ng = seat n.ng
   { capabilities: government atlantic n.defenseProcurement <> investment
   , required: false
@@ -141,7 +152,7 @@ ng = seat n.ng
   , dependency: "Semiconductor units; investment"
   }
 
-enco :: Tuple Entity ActorDefinition
+enco :: CatalogSeat
 enco = seat n.enco
   { capabilities: dealer atlantic <> investment <> [ mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -155,7 +166,7 @@ enco = seat n.enco
   , dependency: "Semiconductor units; strikes"
   }
 
-chip :: Tuple Entity ActorDefinition
+chip :: CatalogSeat
 chip = seat n.chip
   { capabilities: dealer asia <> [ withholding.may, mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -169,7 +180,7 @@ chip = seat n.chip
   , dependency: "6 E/round operating Energy"
   }
 
-ship :: Tuple Entity ActorDefinition
+ship :: CatalogSeat
 ship = seat n.ship
   { capabilities: [ mayTrade atlantic, mayTrade asia, mayTransfer n.money, mayTransfer n.energy, mayTransform n.logisticsInvestment, mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -183,7 +194,7 @@ ship = seat n.ship
   , dependency: "4 E/round fuel; shipment bans"
   }
 
-def :: Tuple Entity ActorDefinition
+def :: CatalogSeat
 def = seat n.def
   { capabilities: dealer atlantic <> [ mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -194,7 +205,7 @@ def = seat n.def
   , dependency: "CHIP's semiconductor capacity; strikes"
   }
 
-labor :: Tuple Entity ActorDefinition
+labor :: CatalogSeat
 labor = seat n.labor
   { capabilities: dealer atlantic <> [ mayTransform n.strike, mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -208,7 +219,7 @@ labor = seat n.labor
   , dependency: "Dues; Soft Power"
   }
 
-sme :: Tuple Entity ActorDefinition
+sme :: CatalogSeat
 sme = seat n.sme
   { capabilities: dealer atlantic <> shipping
   , required: false
@@ -222,7 +233,7 @@ sme = seat n.sme
   , dependency: "Atlantic prices; small cash"
   }
 
-aid :: Tuple Entity ActorDefinition
+aid :: CatalogSeat
 aid = seat n.aid
   { capabilities: dealer atlantic <> [ mayTransform n.humanitarianAid, mayTransform n.publicAttention ] <> shipping
   , required: false
@@ -236,7 +247,7 @@ aid = seat n.aid
   , dependency: "EU donations; Energy purchases"
   }
 
-cn :: Tuple Entity ActorDefinition
+cn :: CatalogSeat
 cn = seat n.cn
   { capabilities: government asia n.defenseProcurementCn
   , required: true

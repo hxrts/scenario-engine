@@ -42,17 +42,19 @@ type SeatSpec =
   , dependency :: String
   }
 
--- | A seat Actor named by its key in the holding table: an Entity whose definition is a seat, with
--- | its accounts and capacities from the table.
-seat :: HoldingTable -> String -> SeatSpec -> Tuple Entity ActorDefinition
-seat table key s = Tuple
-  ( noEntity
-      { accounts = accountsIn table key
-      , capabilities = s.capabilities
-      , capacities = capacitiesIn table key
-      }
+-- | A seat Actor under its name, which is also its key in the holding table: an Entity whose definition is a
+-- | seat, with its accounts and capacities from the table.
+seat :: HoldingTable -> String -> SeatSpec -> Tuple String (Tuple Entity ActorDefinition)
+seat table key s = Tuple key
+  ( Tuple
+      ( noEntity
+          { accounts = accountsIn table key
+          , capabilities = s.capabilities
+          , capacities = capacitiesIn table key
+          }
+      )
+      (definitionOf s)
   )
-  (definitionOf s)
 
 -- | An Aggregate named by its key in the holding table.
 aggregateEntity :: HoldingTable -> String -> { capabilities :: Array Capability, kind :: EntityKind } -> Entity

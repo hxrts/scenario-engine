@@ -6,28 +6,13 @@ module Settings.Meridian.Resources
   , coreResources
   ) where
 
-
-
 import Settings.Meridian.Names (n)
-
-
-
-
-
 
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noResource, resourcesOf)
-
-
-
-
-
-
-
-
 
 import Core.Types (Id(..), ResourceDefinition, ResourceId, Transferability(..))
 import Data.Map (Map)

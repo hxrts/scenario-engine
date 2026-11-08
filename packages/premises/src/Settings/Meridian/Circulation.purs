@@ -8,31 +8,12 @@ module Settings.Meridian.Circulation
   ) where
 
 import Prelude (map)
-
 import Settings.Meridian.Names (n)
-
-
-
-
-
-
-
-
 import Settings.Meridian.Holdings (capacityHolders)
 import Schema.Build.Base (payee, sales, (:=))
 import Schema.Build.Quantity (q)
-
-
-
-
 import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
-
-
-
-
-
 import Core.Types (Id(..))
-
 import Schema.Recurring (Circulation, Flow, Production, Requirement, Share)
 
 -- | The Entities that produce Energy: every Entity that holds an energy-production capacity

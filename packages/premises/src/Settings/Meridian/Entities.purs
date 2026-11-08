@@ -6,8 +6,7 @@
 module Settings.Meridian.Entities (entities, actors) where
 
 import Prelude (map, (<>))
-import Settings.Meridian.Names (n, seatActors)
-import Data.Array (zip)
+import Settings.Meridian.Names (n)
 import Data.Tuple (Tuple(..), fst, snd)
 import Core.Types (Entity, EntityId)
 import Data.Map (Map)
@@ -15,11 +14,11 @@ import Schema.Build.Base (keyed)
 import Schema.Build.World (entitiesOf)
 import Schema.Gameboard (ActorDefinition)
 import Settings.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
-import Settings.Meridian.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
+import Settings.Meridian.Entities.Seats (cn, seats)
 
--- | The Entities with an Actor definition, in the order of `seatActors`, then CN.
+-- | The Entities with an Actor definition: the seats in catalog order, then CN.
 seated :: Array (Tuple String (Tuple Entity ActorDefinition))
-seated = zip seatActors [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ] <> [ Tuple n.cn cn ]
+seated = seats <> [ cn ]
 
 -- | Every Actor's definition.
 actors :: Map EntityId ActorDefinition

@@ -20,7 +20,10 @@ module Settings.Meridian.Capstone
   ) where
 
 import Prelude (map, (<>), (==))
-import Settings.Meridian.Names (n, seatActors)
+import Data.Set as Set
+import Settings.Meridian.Names (n)
+import Settings.Meridian.Entities (actors)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Settings.Meridian.Rules (accessBan, withholding)
 import Game.Assemble (assemble, withRounds)
 import Game.Bindings (strategyBindings)
@@ -32,7 +35,7 @@ import Data.Map as Map
 
 import Schema.Joint (JointProposal, jointReplyShape)
 import Data.Argonaut.Core (Json)
-import Data.Array (find, sort)
+import Data.Array (find)
 import Foreign.Object as Object
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
@@ -215,7 +218,7 @@ objective e o = { entity: Id e, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
 allActors :: Array String
-allActors = sort (seatActors <> [ n.cn ])
+allActors = map idText (Set.toUnfoldable (Map.keys actors))
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.

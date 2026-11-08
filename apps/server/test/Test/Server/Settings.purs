@@ -43,7 +43,7 @@ table =
   ]
 
 seats :: Array (Tuple String (Tuple Entity ActorDefinition))
-seats = map (\k -> Tuple k (seat table k spec')) [ "A", "B" ]
+seats = map (\k -> seat table k spec') [ "A", "B" ]
   where
   spec' =
     { capabilities: [ mayTrade "corn", mayTransfer "G", mayTransfer "C" ]

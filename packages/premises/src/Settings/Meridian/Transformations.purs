@@ -9,13 +9,7 @@ module Settings.Meridian.Transformations
   , majorMilitaryAction
   ) where
 
-
-
 import Settings.Meridian.Names (n)
-
-
-
-
 
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -24,17 +18,10 @@ import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey, noFacility)
 
-
-
-
 import Settings.Kit.Markets as Kit
-
-
-
 
 import Core.Types (CostFunction, EntityId, Id(..), Payment, Transformation, TransformationId)
 import Data.Map (Map)
-
 
 transformations :: Map TransformationId Transformation
 transformations = byKey

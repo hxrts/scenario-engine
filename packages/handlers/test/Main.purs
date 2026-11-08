@@ -11,7 +11,8 @@ import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
 import Settings.Layout (presetsFile)
-import Settings.Meridian.Names (meridianDir, seatActors)
+import Settings.Meridian.Names (meridianDir)
+import Settings.Meridian.Entities.Seats (seatActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)

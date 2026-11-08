@@ -20,7 +20,6 @@ import Prelude ((<>))
 import Settings.Meridian.Names (n)
 import Core.Num (Q)
 
-
 import Foreign.Object as Object
 
 import Data.Maybe (Maybe(..))
@@ -29,20 +28,11 @@ import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
 import Schema.Build.Quantity (q)
 
-
-
-
-
-
-
-
 import Schema.Gameboard (Scheme)
 
 import Core.Types (Estimator, Id(..))
 
-
 import Prelude
-
 
 import Settings.Kit.Strategies (Supplier, supplier)
 

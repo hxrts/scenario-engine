@@ -8,7 +8,7 @@ import Prelude
 
 import Core.Map (values)
 
-import Settings.Meridian.Names (seatActors)
+import Settings.Meridian.Entities.Seats (seatActors)
 import Testkit.Meridian (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
