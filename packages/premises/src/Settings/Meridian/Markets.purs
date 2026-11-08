@@ -23,18 +23,18 @@ import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey)
 
-import Settings.Kit.Markets (MarketTerms, market)
+import Settings.Kit.Markets (MarketTerms, accessIn, market)
 
-import Settings.Meridian.Entities.Capabilities (defenceAccess)
+import Settings.Meridian.Entities (entities)
 
 import Core.Types (EntityId, Holdings, Id(..), Market, MarketId)
 import Data.Map (Map)
 
 markets :: Map MarketId Market
 markets = byKey
-  [ Tuple n.energyAtlantic (atlanticMarket [ n.us, n.de, n.uk, n.br, n.ng, n.enco, n.def, n.labor, n.sme, n.aid, n.eu, n.euPool, n.usWorkers, n.globalSmes, n.ship, n.energySuppliers ])
-  , Tuple n.energyAsia (asiaMarket [ n.cn, n.india, n.jp, n.sa, n.chip, n.cnPrivate, n.worldHouseholds, n.ship, n.energySuppliers ])
-  , Tuple n.defenceGoods (market defenceTerms defenceAccess)
+  [ Tuple n.energyAtlantic (atlanticMarket (accessIn entities n.energyAtlantic [ n.euPool ]))
+  , Tuple n.energyAsia (asiaMarket (accessIn entities n.energyAsia []))
+  , Tuple n.defenceGoods (market defenceTerms (accessIn entities n.defenceGoods []))
   ]
 
 -- | The Atlantic Energy Market with these access holders.
@@ -49,7 +49,7 @@ asiaMarket access = market asiaTerms access
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
 -- | the same order as the Energy Markets. Its reserves hold 60 Mil, so the upper bound sits 40
 -- | below that reserve (the Energy Markets sit 50 below theirs); the lower bound is the Energy
--- | Markets' −80, and the Money reserve of 300 pays sellers. Access is `defenceAccess`.
+-- | Markets' −80, and the Money reserve of 300 pays sellers. Access comes from who holds the capability.
 defenceTerms :: MarketTerms
 defenceTerms = { base: n.mil, quote: n.money, cost: { intercept: q 3, slope: q "0.01", domain: { lo: q (-80), hi: q 20 } }, reserves: keyed [ n.money := 300, n.mil := 60 ] }
 
