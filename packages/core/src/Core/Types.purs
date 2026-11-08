@@ -4,8 +4,8 @@ module Core.Types where
 
 import Prelude
 
-import Core.Num (Q)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, qShape, sumOf, unitShape)
+import Core.Num (Q, qShape)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, sumOf, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)

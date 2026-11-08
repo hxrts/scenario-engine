@@ -13,6 +13,8 @@ module Game.Assemble
 
 import Prelude
 
+import Game.Bindings (strategyBindings)
+
 import Board.Gameboard.Instantiate (instantiate)
 import Core.Strategy (InWorld, Strategy)
 import Core.World (manifestOf)
@@ -96,9 +98,9 @@ configuredSeats config = fromFoldable (Map.keys config.seats)
 -- | Every listed seat bound to the preset its name picks. A preset that does not exist is an error, not
 -- | a seat that silently submits nothing.
 presetBindings :: Object Strategy -> (EntityId -> String) -> Array EntityId -> Either GameError Bindings
-presetBindings presets preset ids = Map.fromFoldable <$> traverse bind ids
+presetBindings presets preset ids = strategyBindings <$> traverse bind ids
   where
-  bind e = (\s -> Tuple e (Strategy s)) <$> lookup (preset e)
+  bind e = Tuple e <$> lookup (preset e)
   lookup name = maybe (Left (UnknownPreset name)) Right (Object.lookup name presets)
 
 -- | The game a Gameboard premise plays with every configured seat bound to one preset, under overrides,

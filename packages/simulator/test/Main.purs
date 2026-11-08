@@ -4,6 +4,9 @@ module Test.Simulator.Main where
 
 import Prelude
 
+import Game.Bindings (strategyBindings)
+import Data.Tuple (Tuple(..))
+
 import Core.Map (values)
 
 import Board.Gameboard.Instantiate (instantiate)
@@ -21,7 +24,6 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
-import Data.Tuple (Tuple(..))
 import Premises.Presets (presetNames)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -36,7 +38,7 @@ import Premises.Tree (readRootFile)
 import Premises.Load (loadLiteral)
 import Game.Assemble (presetBindings, withRounds)
 import Game.Premise (GameboardParts)
-import Game.Types (Game, SeatBinding(..))
+import Game.Types (Game)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow, premise, presetGame)
 import Testkit.Suite (price, everySeat, fixture, initialOf, run, strategyOrThrow, valid)
@@ -56,7 +58,7 @@ someSeats p preset ids = do
 
 -- | The game with the named seat replaced by a Strategy.
 withStrategy :: Game -> String -> Strategy -> Game
-withStrategy g e s = g { seats = Map.insert (Id e) (Strategy s) g.seats }
+withStrategy g e s = g { seats = Map.union (strategyBindings [ Tuple (Id e) s ]) g.seats }
 
 -- | Three orderings of a round's inputs, none the written one unless the round has too few.
 permuted :: forall a. Array a -> Array (Array a)

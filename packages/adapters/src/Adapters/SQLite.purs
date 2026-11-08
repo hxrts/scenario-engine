@@ -18,12 +18,12 @@ module Adapters.SQLite
 
 import Prelude
 
-import Schema.Decode.Common (readJson)
+import Data.Argonaut.Decode (fromJsonString, class DecodeJson, printJsonDecodeError)
+import Schema.Decode.Common (decodeError)
 import Data.Argonaut.Core (fromString, stringify)
 import Core.Run (RunStatus, deriveKindName, runStatusName, runStatusShape)
 import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
-import Data.Argonaut.Decode (class DecodeJson, printJsonDecodeError)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
 import Data.Either (either)
@@ -101,7 +101,7 @@ toText = stringify <<< encodeJson
 
 -- | Decode a stored text, naming what it was when it fails (the label is the reader's message prefix).
 fromText :: forall a. DecodeJson a => String -> String -> Stored a
-fromText what text = lmap (\e -> what <> ": " <> e) (readJson text)
+fromText what text = lmap (\e -> what <> ": " <> e) (decodeError (fromJsonString text))
 
 -- | A described record to its stored text, in the snapshot form.
 shapeText :: forall a. Shape a -> a -> String

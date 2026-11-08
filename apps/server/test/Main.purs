@@ -5,7 +5,8 @@ import Prelude
 import Adapters.SQLite (open, sqliteBackend)
 import Effects.Observe (readManifest, readRounds)
 import Handlers.Store (runObserve)
-import Schema.Decode.Common (readJson)
+import Data.Argonaut.Decode (fromJsonString)
+import Schema.Decode.Common (decodeError)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
@@ -127,7 +128,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- an absent seed is drawn once at launch; the reply names the seed used
           drawn <- api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"Conservative\",\"rounds\":3}"
           drawn.status `shouldEqual` 200
-          let reply = readJson drawn.body :: Either String Launched
+          let reply = decodeError (fromJsonString drawn.body) :: Either String Launched
           seed <- case reply of
             Right r -> pure r.playerSeed
             Left e -> fail ("no seed in reply " <> drawn.body <> ": " <> e) *> pure 0
@@ -386,6 +387,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail e
   where
   decodeOr :: String -> Aff Derived
-  decodeOr body = case readJson body of
+  decodeOr body = case decodeError (fromJsonString body) of
     Right d -> pure d
     Left e -> fail ("unreadable reply " <> body <> ": " <> e) *> pure { id: "", source: "", kind: "" }

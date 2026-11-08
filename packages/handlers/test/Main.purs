@@ -2,6 +2,9 @@ module Test.Handlers.Main where
 
 import Prelude
 
+import Game.Bindings (strategyBindings)
+import Data.Tuple (Tuple(..))
+
 import Premises.Names (seatActors)
 
 import Core.Draw (Seed(..))
@@ -17,14 +20,13 @@ import Data.String (joinWith)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Traversable (for_)
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
-import Game.Types (Game, SeatBinding(..))
+import Game.Types (Game)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
@@ -45,7 +47,7 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
 play g n strategies = do
   let
-    out = playPure (seatEnv (Seed 1) g) (g { seats = map Strategy strategies }).seats g.inWorld n g.world
+    out = playPure (seatEnv (Seed 1) g) (strategyBindings (Map.toUnfoldable strategies)) g.inWorld n g.world
   case out.value of
     Left e -> fail (show e)
     Right _ -> pure unit

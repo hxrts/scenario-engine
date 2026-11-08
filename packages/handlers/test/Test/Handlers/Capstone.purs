@@ -27,14 +27,15 @@ import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
 import Premises.Capstone (JointLine, jointLines, matchesExpect)
-import Schema.Decode.Common (readJson)
+import Data.Argonaut.Decode (fromJsonString)
+import Schema.Decode.Common (decodeError)
 import Test.Handlers.Stub (backendOf, replayCall)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | `packages/premises/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
-recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< readJson
+recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< decodeError <<< fromJsonString
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))

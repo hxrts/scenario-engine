@@ -13,7 +13,8 @@ module Schema.Premise.Strategy
 import Prelude
 
 import Core.Query (transfersOf, transformsOf)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, qShape, recursive, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, stringShape, unitShape)
+import Core.Num (qShape)
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
 import Data.Argonaut.Core (Json)

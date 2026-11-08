@@ -18,7 +18,7 @@ import Prelude
 import Core.Shape (decodeJsonWith, Format(..), encodeWith)
 import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
-import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError)
+import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, parseJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, find, foldl)
 import Data.Bifunctor (lmap)
@@ -30,7 +30,7 @@ import Game.Premise (GameboardParts, checkPremise)
 import Premises.Names (instantiationFile, presetsFile)
 import Premises.Presets as Presets
 import Premises.Tree as Tree
-import Schema.Decode.Common (readJsonWith)
+import Schema.Decode.Common (decodeError)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
@@ -73,7 +73,7 @@ loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
 
 -- | A literal premise's file text, decoded and named `name`.
 loadLiteral :: String -> String -> Either String Literal
-loadLiteral name text = readJsonWith decodeNamed text
+loadLiteral name text = decodeError (parseJson text >>= decodeNamed)
   where
   decodeNamed j = map (_ { name = name }) (decodeLiteral j)
 

@@ -9,8 +9,8 @@ module Schema.Premise.Intent
 
 import Prelude
 
-import Core.Num (Q)
-import Core.Shape (Shape, fieldOf, kindArg, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, qShape, requiredOf)
+import Core.Num (Q, qShape)
+import Core.Shape (Shape, fieldOf, kindArg, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, requiredOf)
 import Core.Types (Capability(..), Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF(..), RuleKind, accessBanBody, idShape, ruleKindShape, tariffBody, transferBody, withholdingBody)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))

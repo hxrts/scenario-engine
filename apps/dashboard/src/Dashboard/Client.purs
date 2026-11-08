@@ -22,21 +22,21 @@ import Prelude
 import Dashboard.Api (fetch)
 import Effects.Api (ApiRequest(..), Launch, View(..), call)
 import Handlers.Api.Client (replyText, runApi)
-import Schema.Decode.Common (readJson)
+import Data.Argonaut.Decode (fromJsonString, class DecodeJson)
+import Schema.Decode.Common (decodeError)
 import Views.Compare (CompareView)
 import Views.Entity (EntityList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
 import Views.Premise (Premise)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
 
 -- | One operation: its reply's body, decoded as the typed value it names.
 typed :: forall a. DecodeJson a => ApiRequest -> Aff (Either String a)
-typed req = (\reply -> replyText reply >>= readJson) <$> runApi fetch (call req)
+typed req = (\reply -> replyText reply >>= decodeError <<< fromJsonString) <$> runApi fetch (call req)
 
 -- | The run list. `archived` adds the archived runs (every run, the default list without them).
 runs :: Boolean -> Aff (Either String RunList)

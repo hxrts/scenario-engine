@@ -18,6 +18,8 @@ module Core.Num
   , sumQ
   , parse
   , format
+  , qShape
+  , kindShape
   , proRata
   , proRataWhole
   , floorInt
@@ -36,8 +38,10 @@ module Core.Num
 import Prelude hiding (add, sub, mul, div, zero, one)
 import Prelude as P
 
+import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeJsonWith, prim)
+
 import Data.Argonaut.Core (fromString, toString) as J
-import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..))
+import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Array (all, any, findIndex, foldl, mapWithIndex, sortBy, zipWith)
 import Data.Char (toCharCode)
@@ -62,10 +66,24 @@ instance Show Q where
   show = format
 
 instance EncodeJson Q where
-  encodeJson = J.fromString <<< format
+  encodeJson = encodeJsonWith Snapshot qShape
 
 instance DecodeJson Q where
-  decodeJson j = note (TypeMismatch "fixed-point decimal string") (J.toString j >>= parse)
+  decodeJson = decodeJsonWith Snapshot qShape
+
+-- | A fixed-point quantity, written as a decimal string. The two formats spell the same value
+-- | differently: the snapshot writes four decimals (`Q.format`); the premise format writes the
+-- | minimal decimal the author wrote (`10`, `2.04`), which is what the compiled fixtures hold.
+qShape :: Shape Q
+qShape =
+  { desc: DPrim "Q"
+  , codec: \fmt ->
+      { enc: \q -> J.fromString (if fmt == Premise then formatMinimal q else format q)
+      , dec: \j -> note "expected a decimal quantity string" (J.toString j >>= parse)
+      }
+  , absent: \_ -> false
+  , missing: Nothing
+  }
 
 scale :: BigInt
 scale = BI.fromInt 10000
@@ -237,15 +255,19 @@ kindName = case _ of
   Price -> "price"
   Ratio -> "ratio"
 
+-- | A display kind, written as its name.
+kindShape :: Shape Kind
+kindShape = prim "Kind" (J.fromString <<< kindName) \j -> case J.toString j of
+  Just "quantity" -> Right Quantity
+  Just "price" -> Right Price
+  Just "ratio" -> Right Ratio
+  _ -> Left "display kind: quantity, price or ratio"
+
 instance EncodeJson Kind where
-  encodeJson = J.fromString <<< kindName
+  encodeJson = encodeJsonWith Snapshot kindShape
 
 instance DecodeJson Kind where
-  decodeJson j = case J.toString j of
-    Just "quantity" -> Right Quantity
-    Just "price" -> Right Price
-    Just "ratio" -> Right Ratio
-    _ -> Left (TypeMismatch "display kind: quantity, price or ratio")
+  decodeJson = decodeJsonWith Snapshot kindShape
 
 -- | The text of a value under its display kind.
 display :: Kind -> Q -> String

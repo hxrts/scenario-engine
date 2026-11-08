@@ -17,8 +17,8 @@ module Schema.Premise.Actor
 
 import Prelude
 
-import Core.Num (Q)
-import Core.Shape (Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
+import Core.Num (Q, qShape)
+import Core.Shape (Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, stringShape)
 import Core.Types (EntityId, PolicyId, idShape)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..), fromMaybe)

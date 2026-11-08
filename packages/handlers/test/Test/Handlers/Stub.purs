@@ -35,7 +35,7 @@ import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call, backend)
 import Core.Proposal (ProposedDeal)
-import Handlers.Llm.Wire (jointReplyShape, proposedDealsShape, textReplyShape)
+import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
 -- | The stub digest: sixteen characters, as the adapter's is, with no hashing.
@@ -80,7 +80,7 @@ replyTextOf :: Exchange -> String
 replyTextOf x = case toObject x.reply >>= Object.lookup "value" of
   Nothing -> ""
   Just v
-    | x.effect == "interpret" -> either (const "") (\ps -> replyJoint ps) (decodeJsonWith Snapshot proposedDealsShape v)
+    | x.effect == "interpret" -> either (const "") (\r -> replyJoint r.proposals) (decodeJsonWith Snapshot jointReplyShape v)
     | otherwise -> either (const "") replyText (decodeJsonWith Snapshot stringShape v)
 
 -- | What a call is keyed on: its effect, round and seats. The payload says them: a joint pass

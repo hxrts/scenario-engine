@@ -19,6 +19,7 @@ module Handlers.Llm.Wire
   , textReplyShape
   , correctionShape
   , decodeJoint
+  , decodeJointReply
   , decodeText
   ) where
 
@@ -153,7 +154,11 @@ decodeReply s = decodeError <<< parse Snapshot s <<< firstObject
 -- | A joint pass's reply text: its Proposals, as the model states them. Entries are not checked
 -- | here; the handler drops what the engine cannot use.
 decodeJoint :: String -> Either String (Array ProposedDeal)
-decodeJoint text = map _.proposals (decodeReply jointReplyShape text)
+decodeJoint = map _.proposals <<< decodeJointReply
+
+-- | A joint pass's reply as the model wrote it, the form the recording keeps.
+decodeJointReply :: String -> Either String { proposals :: Array ProposedDeal }
+decodeJointReply = decodeReply jointReplyShape
 
 -- | A narrator or seat reply's text.
 decodeText :: String -> Either String String

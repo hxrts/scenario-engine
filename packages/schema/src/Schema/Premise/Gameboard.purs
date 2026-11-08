@@ -15,9 +15,9 @@ module Schema.Premise.Gameboard
 import Prelude
 
 import Core.Draw (Seed(..))
-import Core.Num (Q)
+import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, contramapRec, fieldOf, intShape, iso, keyedAlways, listOf, object, optionalOf, pairOf, qShape, refined, stringShape, Format(..), decodeJsonWith)
+import Core.Shape (RecF, Shape, contramapRec, fieldOf, intShape, iso, keyedAlways, listOf, object, optionalOf, pairOf, refined, stringShape, Format(..), decodeJsonWith)
 import Core.Strategy (Strategy)
 import Core.Types (Id(..))
 import Data.Array as Array

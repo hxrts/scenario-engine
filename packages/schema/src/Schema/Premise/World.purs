@@ -34,9 +34,9 @@ module Schema.Premise.World
 
 import Prelude
 
-import Core.Num (Q)
+import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, bare, boolShape, contramapRec, fieldOf, intShape, keyedAlways, kindArg, listOf, object, optionalOf, premiseSum, qShape, refined, stringShape)
+import Core.Shape (RecF, Shape, bare, boolShape, contramapRec, fieldOf, intShape, keyedAlways, kindArg, listOf, object, optionalOf, premiseSum, refined, stringShape)
 import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
 import Core.Types as Types
 import Core.World (Circulation, ShareSource(..), UnseededWorld)

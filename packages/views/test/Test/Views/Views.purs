@@ -5,6 +5,8 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
+import Test.Views.Support (toStored)
+
 import Core.Run (DeriveKind(..), RunStatus(..), runStatusName)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
@@ -30,7 +32,7 @@ import Foreign.Object as Object
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (orThrow)
 import Views.Balances (balances, events)
-import Views.Common (StoredRun, Table, completed, defaultMetricSpec, final, quantity, specKeys, specValue, storedRun)
+import Views.Common (Table, completed, defaultMetricSpec, final, quantity, specKeys, specValue)
 import Views.Balance (measures)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Entity (entityHistory)
@@ -48,21 +50,6 @@ everySeat preset rounds = { preset, rounds, overrides: [], seed: 1 }
 
 conservative :: Int -> Setup
 conservative = everySeat "Conservative"
-
--- | A simulated run as the Run Store reads it back: the same records and snapshots.
-toStored :: String -> SimRun -> StoredRun
-toStored id r = storedRun
-  { id
-  , name: id
-  , status: Completed
-  , manifest: r.manifest
-  , playerSeed: case r.playerSeed of
-      Seed n -> show n
-  , spec: []
-  , sourceDeleted: false
-  }
-  r.records
-  (map (const []) r.records)
 
 -- | The verdict column of a compatibility table.
 verdicts :: Table -> Array String

@@ -5,7 +5,8 @@ module Test.Views.Statistics (spec) where
 
 import Prelude
 
-import Core.Run (RunStatus(..))
+import Test.Views.Support (toStoredWith)
+
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
@@ -17,13 +18,12 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Simulator.Simulate (SimRun)
 import Game.Premise (GameboardParts)
 import Testkit.Meridian (presetGame)
 import Testkit.Capstone (runOf)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
-import Views.Common (StoredRun, Table, players, storedRun)
+import Views.Common (StoredRun, Table, players)
 import Views.Compare (sameSpecification)
 import Views.Standings (netWorth, standings)
 import Test.Spec (Spec, describe, it)
@@ -47,20 +47,7 @@ baseRun :: GameboardParts -> Aff StoredRun
 baseRun p = do
   g <- presetGame p "Conservative" [] (Just 2)
   r <- runOf (Seed 1) g
-  pure (toStored r)
-  where
-  toStored :: SimRun -> StoredRun
-  toStored r = storedRun
-    { id: "base"
-    , name: "base"
-    , status: Completed
-    , manifest: r.manifest
-    , playerSeed: "1"
-    , spec: [ Tuple "preset" "Conservative", Tuple "playerSeed" "1" ]
-    , sourceDeleted: false
-    }
-    r.records
-    (map (const []) r.records)
+  pure (toStoredWith [ Tuple "preset" "Conservative", Tuple "playerSeed" "1" ] "base" r)
 
 -- | A holding set to an amount in one Entity's account.
 setHolding :: WorldState -> EntityId -> ResourceId -> Q -> WorldState

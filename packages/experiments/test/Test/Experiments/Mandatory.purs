@@ -5,6 +5,9 @@ module Test.Experiments.Mandatory (spec) where
 
 import Prelude
 
+import Game.Bindings (strategyBindings)
+import Data.Tuple (Tuple(..))
+
 import Testkit.Meridian (orThrow, seats)
 import Testkit.Suite (everySeat, fixture, initialOf, run, strategyOrThrow, valid)
 
@@ -28,7 +31,6 @@ import Premises.Load (loadLiteral)
 import Premises.Literal (literalGame)
 import Simulator.Simulate (simulate)
 import Game.Premise (GameboardParts)
-import Game.Types (SeatBinding(..))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -49,7 +51,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
             x.record.events
         )
         r.records
-    cf <- case counterfactual (Seed 1) base { seats = Map.singleton (Id "US") (Strategy deploy) } (\g -> g { seats = Map.empty }) of
+    cf <- case counterfactual (Seed 1) base { seats = strategyBindings [ Tuple (Id "US") deploy ] } (\g -> g { seats = Map.empty }) of
       Right x -> pure x
       Left e -> throwError (error (show e))
     china cf.base `shouldEqual` true

@@ -16,7 +16,6 @@ module Core.Shape
   , TagForm(..)
   , Ctor
   , prim
-  , qShape
   , unitShape
   , intShape
   , stringShape
@@ -59,8 +58,6 @@ module Core.Shape
 
 import Prelude
 
-import Core.Num (Q)
-import Core.Num as Q
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, stringifyWithIndent, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Decode.Error as J
 import Data.Argonaut.Decode.Parser (parseJson)
@@ -146,20 +143,6 @@ prim :: forall a. String -> (a -> Json) -> (Json -> Either String a) -> Shape a
 prim name enc dec =
   { desc: DPrim name
   , codec: \_ -> { enc, dec }
-  , absent: \_ -> false
-  , missing: Nothing
-  }
-
--- | A fixed-point quantity, written as a decimal string. The two formats spell the same value
--- | differently: the snapshot writes four decimals (`Q.format`); the premise format writes the
--- | minimal decimal the author wrote (`10`, `2.04`), which is what the compiled fixtures hold.
-qShape :: Shape Q
-qShape =
-  { desc: DPrim "Q"
-  , codec: \fmt ->
-      { enc: \q -> fromString (if fmt == Premise then Q.formatMinimal q else Q.format q)
-      , dec: \j -> note "expected a decimal quantity string" (toString j >>= Q.parse)
-      }
   , absent: \_ -> false
   , missing: Nothing
   }

@@ -10,6 +10,9 @@ module Experiments.Agency
 
 import Prelude
 
+import Game.Bindings (strategyBindings)
+import Data.Tuple (Tuple(..))
+
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Query (eventsOf)
@@ -26,7 +29,7 @@ import Foreign.Object as Object
 import Core.Strategy (Strategy)
 import Schema.Gameboard (Gameboard)
 import Game.Error (GameError(..))
-import Game.Types (Game, SeatBinding(..))
+import Game.Types (Game)
 import Simulator.Simulate (SimRun, simulate)
 import Views.Agency (AgencyProfile)
 import Views.Common (players)
@@ -66,7 +69,7 @@ agency gameboard presets seed game alternative actors = do
   traverse (profile base replacement) actors
   where
   profile base replacement actor = do
-    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.insert actor (Strategy replacement) g.seats })
+    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.union (strategyBindings [ Tuple actor replacement ]) g.seats })
     let
       isAggregate e = maybe false (\w -> not (elem e (players w))) (finalWorld base)
       absSum xs = Q.sumQ (map Q.abs xs)

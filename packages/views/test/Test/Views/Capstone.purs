@@ -7,8 +7,8 @@ module Test.Views.Capstone (spec) where
 
 import Prelude
 
-import Core.Run (RunStatus(..))
-import Core.Draw (Seed(..))
+import Test.Views.Support (toStored)
+
 import Core.Num as Q
 import Core.Types (Id(..))
 import Data.Array (length, sortWith)
@@ -41,21 +41,6 @@ checkObjectives ctx r expected = do
     actual = sortWith _.entity (map (\o -> { entity: o.actor, outcome: o.outcome }) (evaluateObjectives ctx.gameboard r.records))
     wanted = sortWith _.entity (map (\o -> { entity: o.entity, outcome: o.outcome }) expected)
   actual `shouldEqual` wanted
-
--- | A simulated run as the Run Store reads it back: the same records and snapshots.
-toStored :: String -> SimRun -> Common.StoredRun
-toStored id r = Common.storedRun
-  { id
-  , name: id
-  , status: Completed
-  , manifest: r.manifest
-  , playerSeed: case r.playerSeed of
-      Seed n -> show n
-  , spec: []
-  , sourceDeleted: false
-  }
-  r.records
-  (map (const []) r.records)
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run)" do

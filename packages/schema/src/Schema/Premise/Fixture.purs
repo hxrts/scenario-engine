@@ -28,8 +28,8 @@ module Schema.Premise.Fixture
 import Prelude
 
 import Core.Draw (Seed(..))
-import Core.Num (Q)
-import Core.Shape (Format(..), RecF, Shape, boolShape, contramapRec, decodeJsonWith, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape)
+import Core.Num (Q, qShape)
+import Core.Shape (Format(..), RecF, Shape, boolShape, contramapRec, decodeJsonWith, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum)
 import Core.Types (CollectiveProcedureId, EntityId, Id, Intent, ProposalId, ResourceId, RoundIndex, SignedProposal, idShape, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, elem, find, groupBy, length, mapWithIndex, nub, range, sortWith)

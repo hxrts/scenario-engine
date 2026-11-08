@@ -42,7 +42,7 @@ import Effect.Aff (Aff, attempt, delay)
 import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, correctionShape, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, proposedDealsShape, speakPrompt, speakRequestShape)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, correctionShape, decodeJointReply, decodeText, interpretPrompt, jointReplyShape, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
@@ -118,9 +118,9 @@ joint b key request = go 0 original
   where
   original = encodeWith Snapshot jointRequestShape request
   go n payload = do
-    out <- send b "interpret" key interpretPrompt payload proposedDealsShape decodeJoint
+    out <- send b "interpret" key interpretPrompt payload jointReplyShape decodeJointReply
     case out.decoded of
-      Right ps -> pure (Right ps)
+      Right r -> pure (Right r.proposals)
       Left err
         | n < maxCorrections -> go (n + 1) (correction original out.text err)
         | otherwise -> pure (Left err)
