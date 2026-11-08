@@ -75,6 +75,17 @@ spec = describe "API status rules, startup and cache" do
     spaced <- env.api "GET" "/api/runs/a%20b/overview" ""
     spaced.status `shouldEqual` 404
     spaced.body `shouldSatisfy` contains (Pattern "no run a b")
+  it "a derive body that is not a derive request is a 400 from the route" do
+    env <- setup
+    launch env 2
+    notJson <- env.api "POST" "/api/runs/run-1/derive" "not json"
+    notJson.status `shouldEqual` 400
+    notObject <- env.api "POST" "/api/runs/run-1/derive" "[1]"
+    notObject.status `shouldEqual` 400
+    noKind <- env.api "POST" "/api/runs/run-1/derive" "{\"name\":\"x\"}"
+    noKind.status `shouldEqual` 400
+    badSeed <- env.api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"playerSeed\":\"one\"}"
+    badSeed.status `shouldEqual` 400
   it "resume of a run that is not completed is a 400, and a rerun of one is a 409" do
     env <- setup
     launch env 2
@@ -144,6 +155,25 @@ spec = describe "API status rules, startup and cache" do
     liftEffect (clear c)
     read run
     count >>= (_ `shouldEqual` 4)
+  it "the comparison categorises configuration rows, marks cells server-side, and lists a skipped run" do
+    env <- setup
+    _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
+    _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Aggressive\",\"playerSeed\":2,\"rounds\":2}"
+    r <- liftEffect (route (implement env.ctx env.store env.cache) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
+    r.status `shouldEqual` 200
+    r.body `shouldSatisfy` contains (Pattern "[\"seat Policy\",\"preset\",\"Conservative\",\"Aggressive\"]")
+    r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")
+    r.body `shouldSatisfy` contains (Pattern "\"marked\":[[false,false,false,true]")
+    r.body `shouldSatisfy` contains (Pattern "\"skipped\":[\"run-9: not found\"]")
+  it "the overview says whether a run can be resumed: completed, not failed" do
+    env <- setup
+    launch env 2
+    done <- env.api "GET" "/api/runs/run-1/overview" ""
+    done.body `shouldSatisfy` contains (Pattern "\"resumable\":true")
+    liftEffect (runStore env.store (failRun "run-1" "boom"))
+    liftEffect (clear env.cache)
+    failed <- env.api "GET" "/api/runs/run-1/overview" ""
+    failed.body `shouldSatisfy` contains (Pattern "\"resumable\":false")
   it "the agency cache keeps a success and not a failure" do
     c <- liftEffect newCache
     loads <- liftEffect (Ref.new 0)

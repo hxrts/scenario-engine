@@ -104,7 +104,7 @@ spec context = describe "Capstone (DSL-authored run, )" do
     table "representation" (Representation.representation sr)
     table "procedures" (Representation.procedures sr)
     table "objectives" (Overview.objectives ctx.gameboard sr)
-    table "final state" (Compare.finalState [ sr ])
+    table "final state" (Compare.finalState [ sr ]).table
     (length (Markets.markets sr) > 0) `shouldEqual` true
     (length (Markets.economy sr).totals.series > 0) `shouldEqual` true
 

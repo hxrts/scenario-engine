@@ -310,7 +310,7 @@ The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Rout
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200 `{deleted}`. 400 without a matching `confirm`. 404 |
-| `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's column). | 200. 400 when no run is valid or `market` is unknown |
+| `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory`, `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's column). `final` and `config` are tables with a `marked` flag per cell, set where the cell differs from the baseline. | 200. 400 when no run is valid or `market` is unknown |
 | `GET /api/glossary` | The glossary the dashboard shows: `definitions` and `reasons` by column or field name, `unnamed` (the text for a name with no entry, with `{name}`), and `price` (the prefix and text of the overview's `Final price` fields, with `{market}`). Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency[?playerSeed=n&preset=p&alternative=a]` | Agency analysis: every seat plays `preset` (default `Conservative`), then each Actor in turn plays `alternative` (default `Aggressive`). `playerSeed` defaults to 1. | 200. 400 for a bad seed or an unknown preset |
 
@@ -344,7 +344,7 @@ The run list is a sortable table, one row per stored run in creation order. Its 
 
 - A **Show archived runs** toggle adds the archived runs. Without it they are hidden.
 - Selecting a row (or opening `#/runs/:id`) shows that run's results beside the list. With no selection, the latest readable run is shown. Selecting a run gives it its own address.
-- **Resume** appears on the run page only while the run has fewer rounds than its target, and takes the round count to run to.
+- **Resume** appears on the run page only for a completed run, which it extends to the round count it is given. Resume never continues a failed or interrupted run; the overview's `resumable` field says which runs qualify.
 - **Archive** / **Unarchive** and **Delete** (one click, the request's `confirm` names the run) are on the run page under "Manage this run".
 - **Run** on the Prepare page launches a run (§9.3).
 
@@ -352,7 +352,7 @@ The server performs and validates every operation. The dashboard sends the reque
 
 ### 9.2 Run Details
 
-The page opens with a compact header: run id, then the overview's facts (name, Scenario (the premise), status, rounds completed out of target, and game id). Resume is offered from the overview's `rounds` and `target`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
+The page opens with a compact header: run id, then the overview's facts (name, Scenario (the premise), status, rounds completed out of target, and game id). Resume is offered from the overview's `resumable`. Then the sections below appear in this order, each full width with one purpose line and no disclosure control. Each section after the first draws on one read API view (§8.1).
 
 1. **Key figures.** The five statistics the sections answer with, each with its question, definition, and formula. Each is a `Statistic` record in the module that computes it, and the dashboard renders that record. No view computes an economic statistic in the browser.
 2. **Marginal prices.** The marginal price of each Market after every round (`markets`, first chart).
@@ -420,7 +420,7 @@ The Compare page takes any number of ticked runs, with the first as the baseline
 - **Trajectory:** one metric across runs, for example each Market's price (`markets`) or each player's net worth.
 - **Final state:** ending holdings side by side, with differing values highlighted.
 - **Difference from baseline:** the holdings that differ from the baseline, as absolute changes. **Planned:** percentage differences.
-- **Configuration diff:** the parameter differences between runs, with deliberate changes distinguished from version, seat-Policy, or seed differences.
+- **Configuration diff:** the parameter differences between runs, one row each, categorised as version (`gameId`, `gameboard`, `engine`), seat Policy (`preset`), seed (`game seed`, `player seed`), or other (a deliberate change, such as overrides), so deliberate changes are distinguished from the rest.
 
 ### 10.3 Actor and whole-economy views
 

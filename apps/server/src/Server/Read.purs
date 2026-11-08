@@ -177,20 +177,21 @@ compareView cache ctx store { runs: ids, market } = do
     Just { head: base, tail: others } -> case Markets.trajectories good (fromMaybe defaultMetricSpec.market market) of
       Left e -> failWith 400 e
       Right trajectory -> ok
-        { compatibility: Compare.compatible good
-        , trajectory
-        , markets: Markets.marketCharts good
-        , netWorth: Compare.netWorthCharts good
-        , standings: Compare.standingsBars good
-        , balance: Compare.balanceBars good
-        , keyValues: Compare.keyValues ctx.gameboard good
-        , final: Compare.finalState good
-        , baseline: base.id
-        , diff: Compare.baselineDiff base others
-        , config: Compare.configDiff base others
-        , seeds: Balance.seedVariation (Compare.sameSpecification good)
-        , skipped
-        }
+        ( { compatibility: Compare.compatible good
+          , trajectory
+          , markets: Markets.marketCharts good
+          , netWorth: Compare.netWorthCharts good
+          , standings: Compare.standingsBars good
+          , balance: Compare.balanceBars good
+          , keyValues: Compare.keyValues ctx.gameboard good
+          , final: Compare.finalState good
+          , baseline: base.id
+          , diff: Compare.baselineDiff base others
+          , config: Compare.configDiff base others
+          , seeds: Balance.seedVariation (Compare.sameSpecification good)
+          , skipped
+          } :: Compare.CompareView
+        )
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.

@@ -7,14 +7,14 @@ module Dashboard.Entity (mkEntity) where
 import Prelude
 
 import Dashboard.Api (useLoad)
-import Dashboard.Client (History, entities, entity)
+import Dashboard.Client (entities, entity)
 import Dashboard.Components (metricChart, stale, status)
 import Dashboard.Layout as Layout
 import Data.Array (elem)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Views.Entity (EntityList)
+import Views.Entity (EntityList, History)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler)
@@ -29,19 +29,19 @@ shown chosen l = case chosen of
   _ -> if l.default == "" then Nothing else Just l.default
 
 -- | The section: a selector of the run's Entities, then the chosen Entity's plots.
-mkEntity :: Component { id :: String }
+mkEntity :: Component { id :: String, version :: Int }
 mkEntity = do
   history <- mkHistory
   component "EntitySection" \p -> React.do
-    list <- useLoad p.id (entities p.id)
+    list <- useLoad (Tuple p.id p.version) (entities p.id)
     chosen /\ setChosen <- useState' (Nothing :: Maybe String)
     pure $ Layout.section
       { title: "Entity balance sheet"
       , purpose: "One Entity's balance sheet round by round: its holding of each Resource and its net worth, from the start (round 0) to the final round."
-      , children: [ body history p.id list chosen setChosen ]
+      , children: [ body history p list chosen setChosen ]
       }
   where
-  body history id list chosen setChosen = case list.value of
+  body history p list chosen setChosen = case list.value of
     Nothing -> status Nothing
     Just (Left e) -> status (Just e)
     Just (Right l) -> case shown chosen l of
@@ -50,7 +50,7 @@ mkEntity = do
         { className: "flex min-w-0 flex-col gap-stack"
         , children:
             [ selector l e setChosen
-            , history { id, entity: e }
+            , history { id: p.id, version: p.version, entity: e }
             , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Each line in the holdings plot is one Resource's holding after a round, in that Resource's own unit (Money in M, the others as the Gameboard defines them). Net worth is Money plus each held Resource valued at its Market's marginal price, the same definition as Standings." ] }
             ]
         }
@@ -67,9 +67,9 @@ mkEntity = do
     }
 
 -- | The history of one Entity: its plots, stale while the next Entity's history loads.
-mkHistory :: Component { id :: String, entity :: String }
+mkHistory :: Component { id :: String, version :: Int, entity :: String }
 mkHistory = component "EntityHistory" \p -> React.do
-  h <- useLoad (Tuple p.id p.entity) (entity p.id p.entity)
+  h <- useLoad { id: p.id, version: p.version, entity: p.entity } (entity p.id p.entity)
   pure $ stale h.busy case h.value of
     Nothing -> status Nothing
     Just (Left e) -> status (Just e)

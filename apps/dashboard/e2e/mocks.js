@@ -14,8 +14,10 @@ export const listed = (rows) => ({
 export const ACTIVE = ["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
 export const ARCHIVED = ["run-9", "old", "meridian@v0", "26021", "4", "3", "completed", "0", "", "yes", "run-1"];
 
-// run-1's overview: three rounds completed, and a target of `target` rounds. The header facts are the server's.
-export const overview = (target) => ({
+// A run's overview: three rounds completed, of a target of `target`. Resume is offered only for a completed
+// run (the server's `resumable`). The header facts are the server's.
+export const overview = (target, { id = "run-1", status = "completed" } = {}) => ({
+  id,
   title: "Overview",
   columns: ["Field", "Value"],
   rows: [
@@ -28,10 +30,11 @@ export const overview = (target) => ({
   ],
   rounds: 3,
   target,
+  resumable: status === "completed",
   facts: [
     { label: "Name", value: "base" },
     { label: "Scenario", value: "meridian@v0" },
-    { label: "Status", value: "completed" },
+    { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },
     { label: "Game ID", value: "meridian/meridian-test-01" },
   ],
@@ -43,8 +46,8 @@ export const archivedQuery = (url) => url.pathname === "/api/runs" && url.search
 
 // The read side of the pages under test: the run list (with and without archived runs) and run-1's overview.
 // `active` is the list of rows for the default list (run-1 by default).
-export async function mockReads(page, { target = 3, archived = [], active = [ACTIVE] } = {}) {
+export async function mockReads(page, { target = 3, status = "completed", archived = [], active = [ACTIVE] } = {}) {
   await page.route(isPath("/api/runs"), (route) => route.fulfill(json(listed(active))));
   await page.route(archivedQuery, (route) => route.fulfill(json(listed(archived))));
-  await page.route(isPath("/api/runs/run-1/overview"), (route) => route.fulfill(json(overview(target))));
+  await page.route(isPath("/api/runs/run-1/overview"), (route) => route.fulfill(json(overview(target, { status }))));
 }

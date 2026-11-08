@@ -28,9 +28,10 @@ import React.Basic.DOM as D
 import React.Basic.Hooks (Component, JSX, component, useContext)
 import React.Basic.Hooks as React
 
--- | The run whose results are shown, and its overview as the run page loaded it (dimmed while the next
--- | run's loads). Comparison is chosen on the Compare page, not here.
-type Props = { id :: String, overview :: Loaded (Either String RunOverview) }
+-- | The run whose results are shown, its version (bumped by an action on it, so every section refetches),
+-- | and its overview as the run page loaded it (dimmed while the next run's loads). Comparison is chosen
+-- | on the Compare page, not here.
+type Props = { id :: String, version :: Int, overview :: Loaded (Either String RunOverview) }
 
 -- | The actions view model's run chart and run totals (`/api/runs/:id/actions`). The per-round counts
 -- | are in the API only.
@@ -48,7 +49,8 @@ titled grid t = D.div
   }
 
 -- | The compact header: the run's id, then its facts (name, scenario, status, rounds completed out of
--- | its target, game id). An empty fact says what it means, with the reason on hover.
+-- | its target, game id), both from the same overview, so a run switch never shows a new name over the
+-- | old facts. An empty fact says what it means, with the reason on hover.
 header :: Lookup -> String -> Array Fact -> JSX
 header glossary id facts = D.div
   { className: "flex min-w-0 flex-col gap-2"
@@ -80,16 +82,17 @@ mkRunResults grid = do
       Just (Left e) -> status (Just e)
       Just (Right o) -> D.div
         { className: "flex min-w-0 flex-col gap-section"
-        , children: [ header glossary p.id (o.facts), body { id: p.id } ]
+        , children: [ header glossary o.id (o.facts), body { id: p.id, version: p.version } ]
         }
 
-type BodyProps = { id :: String }
+type BodyProps = { id :: String, version :: Int }
 
 -- | The sections, in the order of the five questions. Each has one purpose line.
 mkBody :: DataTable -> Component BodyProps
 mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResultsBody" \b -> React.do
   let
-    view name render = fetch { key: b.id <> "/" <> name, load: runView b.id name Nothing, render }
+    keyed path = b.id <> "/" <> path <> "@" <> show b.version
+    view name render = fetch { key: keyed name, load: runView b.id name Nothing, render }
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-section"
     , children:
@@ -136,8 +139,8 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
         , Layout.section
             { title: "Final balance sheet"
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
-            , children: [ fetch { key: b.id <> "/balances", load: runView b.id "balances" Nothing, render: as \(t :: Table) -> titled grid t } ]
+            , children: [ fetch { key: keyed "balances", load: runView b.id "balances" Nothing, render: as \(t :: Table) -> titled grid t } ]
             }
-        , entity { id: b.id }
+        , entity { id: b.id, version: b.version }
         ]
     }

@@ -3,7 +3,9 @@
 -- | analysis. The key values and the charts read typed values from the views that define them, never
 -- | a rendered cell. Pure.
 module Views.Compare
-  ( compatible
+  ( CompareView
+  , Marked
+  , compatible
   , finalState
   , baselineDiff
   , configDiff
@@ -21,7 +23,7 @@ import Schema.Gameboard (Gameboard)
 import Core.Num (Kind(..))
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)
-import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, length, mapMaybe, mapWithIndex, nub, notElem, sortWith, uncons)
+import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, length, mapMaybe, mapWithIndex, nub, notElem, sortWith, uncons)
 import Data.Either (hush)
 import Data.Foldable (any, sum)
 import Data.Map as Map
@@ -34,6 +36,28 @@ import Views.Balance (completionOf, measuresOf)
 import Views.Common (Bars, Chart, StoredRun, Table, exact, final, joinComma, ofCount, players, price, quantity, ratio, ratioUnit, specValue, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (Standing, netWorths, standingsOf)
+
+-- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
+-- | differ from the baseline run. The view decides what differs; the dashboard only shades.
+type Marked = { table :: Table, marked :: Array (Array Boolean) }
+
+-- | The comparison view model (`GET /api/compare`). `baseline` names the first run's column. `skipped`
+-- | lists each requested run that could not be read, with the reason.
+type CompareView =
+  { compatibility :: Table
+  , trajectory :: Chart
+  , markets :: Array Chart
+  , netWorth :: Array { player :: String, chart :: Chart }
+  , standings :: Bars
+  , balance :: { spread :: Bars, gini :: Bars, unit :: String }
+  , keyValues :: Table
+  , final :: Marked
+  , baseline :: String
+  , diff :: Table
+  , config :: Marked
+  , seeds :: Table
+  , skipped :: Array String
+  }
 
 -- | A field two runs must agree on to be combined: its name in the verdict, and whether two runs agree
 -- | on it. The compatibility table shows each one, and the verdict names the ones that differ.
@@ -88,14 +112,19 @@ compatible runs =
 perRunRow :: Array StoredRun -> Array String -> (StoredRun -> String) -> Array String
 perRunRow runs leading cell = leading <> map cell runs
 
--- | Every run's final holdings, one column per run, for each Entity and Resource account.
-finalState :: Array StoredRun -> Table
+-- | Every run's final holdings, one column per run, for each Entity and Resource account. A cell is
+-- | marked where the holding differs from the first run's.
+finalState :: Array StoredRun -> Marked
 finalState runs =
-  { title: "Final state"
-  , columns: [ "Entity", "Resource" ] <> map _.id runs
-  , rows: map (\(Tuple e res) -> perRunRow runs [ show e, show res ] (\r -> quantity (holding (final r) e res))) keys
+  { table:
+      { title: "Final state"
+      , columns: [ "Entity", "Resource" ] <> map _.id runs
+      , rows: map (\k@(Tuple e res) -> perRunRow runs [ show e, show res ] (cell k)) keys
+      }
+  , marked: map (\k -> [ false, false ] <> differsFromBaseline runs (cell k)) keys
   }
   where
+  cell (Tuple e res) r = quantity (holding (final r) e res)
   keys = case index runs 0 of
     Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\e -> map (Tuple e) (fromFoldable (Map.keys (accountsOf (final r) e)))) (fromFoldable (Map.keys (final r).entities)))
     Nothing -> []
@@ -109,20 +138,52 @@ baselineDiff base others =
   , rows: concatMap (\r -> map (\h -> [ r.id, show h.entity, show h.resource, quantity h.delta ]) (differenceOfWorlds (final base) (final r)).holdings) others
   }
 
--- | Exact specification differences between runs.
-configDiff :: StoredRun -> Array StoredRun -> Table
+-- | Per run: whether its value differs from the first run's.
+differsFromBaseline :: forall a. Eq a => Array StoredRun -> (StoredRun -> a) -> Array Boolean
+differsFromBaseline runs value = map (\r -> Just (value r) /= (value <$> head runs)) runs
+
+-- | What kind of setting a configuration row is (docs/06_simulator.md §10.2): versions, the seat
+-- | Policy, the seeds, or a deliberate change. Listed in that order.
+data Category = Version | SeatPolicy | Seeds | Other
+
+derive instance Eq Category
+derive instance Ord Category
+
+categoryLabel :: Category -> String
+categoryLabel = case _ of
+  Version -> "version"
+  SeatPolicy -> "seat Policy"
+  Seeds -> "seed"
+  Other -> "other"
+
+categoryOf :: String -> Category
+categoryOf k
+  | k `elem` [ "gameId", "gameboard", "engine" ] = Version
+  | k == "preset" = SeatPolicy
+  | k `elem` [ "game seed", "player seed" ] = Seeds
+  | otherwise = Other
+
+-- | Exact specification differences between runs, each row with its category and its cells marked
+-- | where they differ from the baseline run.
+configDiff :: StoredRun -> Array StoredRun -> Marked
 configDiff base others =
-  { title: "Configuration differences"
-  , columns: [ "Parameter", base.id ] <> map _.id others
-  , rows: map (\k -> perRunRow allRuns [ k ] (\r -> value r k)) (filter differs keys)
+  { table:
+      { title: "Configuration differences"
+      , columns: [ "Category", "Parameter", base.id ] <> map _.id others
+      , rows: map (\k -> perRunRow allRuns [ categoryLabel (categoryOf k), k ] (\r -> value r k)) shown
+      }
+  , marked: map (\k -> [ false, false ] <> differsFromBaseline allRuns (\r -> value r k)) shown
   }
   where
+  shown = sortWith categoryOf (filter differs keys)
   allRuns = [ base ] <> others
   -- a parameter differs when some run's value is not the baseline's
   differs k = any (\r -> value r k /= value base k) allRuns
   -- the player seed is its own row, so the specification's copy of it is not listed again
-  keys = filter (_ /= "playerSeed") (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) allRuns <> [ "game seed", "player seed" ]))
+  keys = filter (_ /= "playerSeed") (nub (concatMap (\r -> map (\(Tuple k _) -> k) r.spec) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ]))
   value r k
+    | k == "gameboard" = r.manifest.gameboard
+    | k == "engine" = r.manifest.engine
     | k == "game seed" = show r.manifest.initial.seed
     | k == "player seed" = r.playerSeed
     | otherwise = fromMaybe "—" (specValue r.spec k)
@@ -204,11 +265,11 @@ keyValues gb runs =
 
 -- | One chart per Player: its net worth in each run, one line per run, from round 0 to the final round.
 -- | The Player is the record's key, so a view can show one Player's chart.
-netWorthCharts :: Array StoredRun -> Array { player :: EntityId, chart :: Chart }
+netWorthCharts :: Array StoredRun -> Array { player :: String, chart :: Chart }
 netWorthCharts runs = map chartOf (playerIds runs)
   where
   chartOf p =
-    { player: p
+    { player: show p
     , chart: { title: "Net worth, " <> show p, unit: numeraireUnit runs, kind: Quantity, series: map (seriesOf p) runs }
     }
   seriesOf p r =

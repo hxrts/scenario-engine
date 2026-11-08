@@ -9,7 +9,6 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
-import Dashboard.Client (CompareView)
 import Dashboard.Client as Client
 import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, overlayChart, placeholderFrame, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, mkDataTable)
@@ -36,6 +35,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
+import Views.Compare (CompareView)
 import Views.Common (Table)
 import Views.Overview (RunList, RunOverview)
 import React.Basic.DOM as D
@@ -250,7 +250,7 @@ mkRunPage grid = do
     pure $ D.div
       { className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
       , children:
-          [ results { id: p.id, overview }
+          [ results { id: p.id, version: p.version, overview }
           , Layout.panel
               { span: 12
               , title: "Manage this run"
@@ -261,15 +261,15 @@ mkRunPage grid = do
       }
   where
   manage actions p = case _ of
-    Just (Right (o :: RunOverview)) -> actions { id: p.id, archived: p.archived, rounds: o.rounds, target: o.target, onChanged: p.onChanged }
+    Just (Right (o :: RunOverview)) -> actions { id: p.id, archived: p.archived, resumable: o.resumable, onChanged: p.onChanged }
     Just (Left e) -> status (Just e)
     Nothing -> status Nothing
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
 -- | selection, the latest readable run. The selected run's results come first; its lineage and its
 -- | manage actions are stacked under them. Selecting a row changes the route, so a selected run has
--- | its own address. Archive, resume and delete bump `version`, which reloads the list and remounts
--- | the selected run's page.
+-- | its own address. Archive, resume and delete bump `version`, which reloads the list, the selected
+-- | run's overview, and every section of it.
 mkRuns :: DataTable -> Component { selected :: Maybe String }
 mkRuns grid = do
   runPage <- mkRunPage grid
@@ -352,7 +352,7 @@ mkComparison grid fetch = component "Comparison" \ids -> React.do
 plots :: DataTable -> Fetch -> Array String -> Maybe (Either String CompareView) -> Maybe String -> (Maybe String -> Effect Unit) -> JSX
 plots grid fetch ids shown picked setPicked = D.div
   { className: "flex min-w-0 flex-col gap-section"
-  , children:
+  , children: skippedRuns <>
       [ Layout.section
           { title: "Prices by market"
           , purpose: "How each Market's marginal price moves after every round: one line per run, on the same axes."
@@ -387,9 +387,9 @@ plots grid fetch ids shown picked setPicked = D.div
           , purpose: "The comparison's full tables, one tab each."
           , children:
               [ tabbed
-                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: c.baseline } c.final ] } }
+                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
-                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid { baseline: c.baseline } c.config ] } }
+                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
                   , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: Client.agency, render: as \(t :: Table) -> tableOf grid t } }
@@ -399,6 +399,17 @@ plots grid fetch ids shown picked setPicked = D.div
       ]
   }
   where
+  -- the requested runs that could not be read, each with its reason (docs/06_simulator.md §10.1)
+  skippedRuns = case shown of
+    Just (Right c) | not (null c.skipped) ->
+      [ Layout.section
+          { title: "Skipped runs"
+          , purpose: "These runs could not be read and are not in the comparison."
+          , children: [ D.ul { className: "list-disc pl-5 text-sm", children: c.skipped <#> \s -> D.li { key: s, children: [ D.text s ] } } ]
+          }
+      ]
+    _ -> []
+
   message = if null ids then "Tick runs in the list above to compare them as a scenario set." else "Loading the comparison…"
   waiting = placeholderFrame message
 

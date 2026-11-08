@@ -82,14 +82,16 @@ sourceCell source deleted = case source of
 -- | A header fact: its label and its value ("" when the run does not record it).
 type Fact = { label :: String, value :: String }
 
--- | The overview of one run (`GET /api/runs/:id/overview`). `rounds` is the completed rounds and
--- | `target` the rounds the run was launched for; `facts` is the header's fields in order. The table
--- | is the same overview as a table, with a row per field.
-type RunOverview = { title :: String, columns :: Array String, rows :: Array (Array String), rounds :: Int, target :: Int, facts :: Array Fact }
+-- | The overview of one run (`GET /api/runs/:id/overview`). `id` names the run these figures are of;
+-- | `rounds` is the completed rounds, `target` the rounds the run was launched for, and `resumable`
+-- | whether Resume may be offered (docs/06_simulator.md §9.1: only a completed run can be extended);
+-- | `facts` is the header's fields in order. The table is the same overview as a table, with a row per field.
+type RunOverview = { id :: String, title :: String, columns :: Array String, rows :: Array (Array String), rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact }
 
 overview :: MetricSpec -> StoredRun -> RunOverview
 overview spec r =
-  { title: "Overview"
+  { id: r.id
+  , title: "Overview"
   , columns: [ "Field", "Value" ]
   , rows:
       [ [ "Run", r.id ]
@@ -105,7 +107,7 @@ overview spec r =
       , [ "Game seed", show r.manifest.initial.seed ]
       , [ "Player seed", r.playerSeed ]
       , [ "Rounds", show rounds ]
-      -- the round count the run was launched for; a run shorter than it can be resumed to it
+      -- the round count the run was launched for
       , [ "Rounds target", show target ]
       , [ "Assertions failing", show (length (concat r.assertions)) ]
       , [ "Rejected Proposals", show (sum (map rejectionCount r.records)) ]
@@ -113,6 +115,7 @@ overview spec r =
       ] <> map (\p -> [ "Final price " <> show p.market, price p.price ]) (marketPrices (final r))
   , rounds
   , target
+  , resumable: r.status == "completed"
   , facts:
       [ { label: "Name", value: r.name }
       , { label: "Scenario", value: r.manifest.gameboard }

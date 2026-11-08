@@ -2,9 +2,7 @@
 -- | Each sends an `API` operation through `Handlers.Api.Client` over the dashboard's fetch device and
 -- | decodes the reply's JSON as the view it names. The paths are `Handlers.Api.Route`'s.
 module Dashboard.Client
-  ( CompareView
-  , History
-  , runs
+  ( runs
   , launch
   , premise
   , glossary
@@ -26,8 +24,8 @@ import Dashboard.Launch (LaunchRequest, Premise)
 import Effects.Api (ApiRequest(..), call)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode.Common (readJson)
-import Views.Common (Bars, Chart, Table)
-import Views.Entity (EntityList)
+import Views.Compare (CompareView)
+import Views.Entity (EntityList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
 import Data.Argonaut.Core (Json)
@@ -35,25 +33,6 @@ import Data.Argonaut.Decode (class DecodeJson)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
-
--- | The comparison view model (`GET /api/compare`). `baseline` names the first run's column, which the
--- | difference tables mark their changes against.
-type CompareView =
-  { markets :: Array Chart
-  , netWorth :: Array { player :: String, chart :: Chart }
-  , standings :: Bars
-  , balance :: { spread :: Bars, gini :: Bars, unit :: String }
-  , keyValues :: Table
-  , final :: Table
-  , diff :: Table
-  , config :: Table
-  , compatibility :: Table
-  , seeds :: Table
-  , baseline :: String
-  }
-
--- | An Entity's history (`GET /api/runs/:id/entity/:entity`): its holdings and net worth as charts.
-type History = { chart :: Chart, netWorth :: Chart }
 
 -- | One operation: its reply's body, decoded as the typed value it names.
 typed :: forall a. DecodeJson a => ApiRequest -> Aff (Either String a)

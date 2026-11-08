@@ -6,6 +6,7 @@
 -- | one definition. Pure.
 module Views.Entity
   ( entityHistory
+  , History
   , EntityList
   , entityList
   , EntityChoice
@@ -26,6 +27,10 @@ import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series, unitOf)
 import Views.Standings (netWorth)
+
+-- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings
+-- | and net worth as charts.
+type History = { table :: Table, chart :: Chart, netWorth :: Chart }
 
 -- | Every Entity in the run's initial World State, in Entity order: the names `entityHistory` accepts.
 entityIds :: StoredRun -> Array EntityId
@@ -53,7 +58,7 @@ entityList r =
 
 -- | An Entity's balance sheet after every round, from round 0 to the final round. An Entity the run
 -- | does not have is an error that lists the valid ones.
-entityHistory :: StoredRun -> EntityId -> Either String { table :: Table, chart :: Chart, netWorth :: Chart }
+entityHistory :: StoredRun -> EntityId -> Either String History
 entityHistory r e
   | not (Map.member e r.manifest.initial.entities) =
       Left ("unknown entity " <> show e <> "; the entities are " <> joinComma (map show (entityIds r)))
