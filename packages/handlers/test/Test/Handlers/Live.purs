@@ -24,7 +24,7 @@ import Effect.Aff (Aff, delay)
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Effects.Signatures (NarrateF(..))
+
 import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Narrate (listing, narrator)

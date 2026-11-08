@@ -18,8 +18,7 @@ package:
     - sp-core
     - sp-schema
     - sp-game
-    - sp-premises
-    - sp-effects
+    - sp-settings
     - sp-handlers
     - sp-adapters
     - sp-simulator
@@ -34,6 +33,5 @@ package:
       - effect
       - spec
       - spec-node
-      - foreign-object
       - tuples
       - sp-core

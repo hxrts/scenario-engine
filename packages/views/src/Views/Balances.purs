@@ -17,7 +17,7 @@ import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Views.Common (Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, at, col, column, kindOf, names, outOfRange, quantity, records)
+import Views.Common (Column, Field, StoredRun, Table, at, cellOf, col, column, columnsOf, kindOf, outOfRange, quantity, records, tableOf)
 
 initialColumn :: Column
 initialColumn = column "Initial" "The holding before round 1."

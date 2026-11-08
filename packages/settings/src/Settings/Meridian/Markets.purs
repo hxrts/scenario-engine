@@ -27,7 +27,7 @@ import Settings.Kit.Markets (MarketTerms, accessIn, market)
 
 import Settings.Meridian.Entities (entities)
 
-import Core.Types (EntityId, Holdings, Id(..), Market, MarketId)
+import Core.Types (EntityId, Holdings, Market, MarketId)
 import Data.Map (Map)
 
 markets :: Map MarketId Market

@@ -16,7 +16,7 @@ package:
     - sp-game
     - sp-simulator
     - sp-checks
-    - sp-premises
+    - sp-settings
     - sp-adapters
     - spec
     - partial

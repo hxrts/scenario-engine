@@ -1,5 +1,5 @@
 package:
-  name: sp-premises
+  name: sp-settings
   dependencies:
     - prelude
     - sp-core

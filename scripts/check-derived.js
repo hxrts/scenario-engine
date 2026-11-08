@@ -160,7 +160,7 @@ function loadContext() {
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
 const viewFile = "packages/schema/src/Schema/View.purs";
-const presetsFile = "packages/premises/src/Settings/Presets.purs";
+const presetsFile = "packages/settings/src/Settings/Presets.purs";
 const specFile = "packages/schema/src/Schema/Run.purs";
 
 // Rules ----------------------------------------------------------------------------------------------

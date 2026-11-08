@@ -26,7 +26,7 @@ import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse
 import Core.Types (EntityId, MarketId, RoundIndex, idShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json)
-import Data.Either (Either(..))
+import Data.Either (Either)
 import Data.Array (drop, length, zip, (..))
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..), isJust, maybe)

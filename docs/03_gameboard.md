@@ -22,7 +22,7 @@ Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type S
 
 ## 2. Gameboard Structure
 
-A setting is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian setting uses these files under `packages/premises/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
+A setting is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian setting uses these files under `packages/settings/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
 
 | File | Sections | Keys |
 |---|---|---|
@@ -37,7 +37,7 @@ A setting is a directory of JSON section files. The loader merges every file exc
 | `policies.json` | Policy catalog (§8) | `policies` |
 | `instantiation.json` | Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `packages/premises/presets.json` holds the seat-policy presets shared by all settings ([06 §4.2](06_simulator.md#42-presets)). `packages/premises/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
+Outside the Gameboard: `packages/settings/presets.json` holds the seat-policy presets shared by all settings ([06 §4.2](06_simulator.md#42-presets)). `packages/settings/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
 
 A `representations` key in a Gameboard section is decoded but ignored: instantiation sets the Representations from `instantiation.json` ([04 §5](04_instantiated_game.md#5-representation-assignment)). The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
@@ -321,7 +321,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Settings/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _premises` runs `apps/cli`'s `Compile`, which checks each setting with `checkSetting` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
+Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/settings/src/Settings/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _settings` runs `apps/cli`'s `Compile`, which checks each setting with `checkSetting` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
 
 ## 12a. How settings are made
 

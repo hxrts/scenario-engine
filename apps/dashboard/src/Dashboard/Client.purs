@@ -20,7 +20,7 @@ module Dashboard.Client
 import Prelude
 
 import Dashboard.Api (fetch)
-import Core.Shape (Format(Snapshot), Shape, parse, prim, recordShape, stringShape)
+import Core.Shape (Format(Snapshot), Shape, parse, prim)
 import Effects.Api (ApiRequest(..), Launch, call)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode (decodeError)

@@ -15,7 +15,7 @@ package:
     dependencies:
       - aff
       - effect
-      - sp-premises
+      - sp-settings
       - sp-testkit
       - sp-checks
       - sp-adapters

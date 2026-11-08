@@ -8,7 +8,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Data.Tuple (Tuple(..))
-import Foreign.Object as Object
+
 import Handlers.Store (validRunId)
 import Options (runFlags, sessionFlags)
 import Flags (parseWith)

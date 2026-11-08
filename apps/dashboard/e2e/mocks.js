@@ -5,7 +5,7 @@ const COLUMNS_JSON = JSON.parse(readFileSync(new URL("./generated/columns.json",
 // Shared fixtures for the dashboard tests. Every request these tests depend on is answered by page.route,
 // so they do not depend on the e2e server's seeded data: each mock answers the contract (apps/server).
 
-// The run list's headings, generated from the views by `just _premises` (Compile).
+// The run list's headings, generated from the views by `just _settings` (Compile).
 export const COLUMNS = COLUMNS_JSON;
 
 // The run list as the server answers it: the table, and the typed flags of each run in the same order.

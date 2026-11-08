@@ -26,7 +26,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf, col, column, names)
+import Views.Common (Chart, Column, Field, Statistic, StoredRun, Table, cellOf, col, column, columnsOf, completed, final, players, quantity, series, tableOf, unitOf)
 
 netWorthStat :: Statistic
 netWorthStat =

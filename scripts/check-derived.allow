@@ -17,8 +17,8 @@ hand-instance packages/game/src/Game/Error.purs instance-Show-GameError the text
 hand-instance packages/schema/src/Schema/Gameboard.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
 # JSON handled as JSON, not a payload with a type behind it.
 hand-json apps/cli/src/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
-hand-json packages/premises/src/Settings/Load.purs merge merges setting files as JSON objects before decoding
-hand-json packages/premises/src/Settings/Compose.purs files splits a compiled document into its setting files by key
+hand-json packages/settings/src/Settings/Load.purs merge merges setting files as JSON objects before decoding
+hand-json packages/settings/src/Settings/Compose.purs files splits a compiled document into its setting files by key
 # Not renames: each fixes a type or names a DSL word.
 alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
 alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; settings read better for it
@@ -34,7 +34,7 @@ implicit-codec packages/simulator/test/Test/Simulator/Capstone.purs spec format-
 implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
 implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
-implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed setting files
+implicit-codec packages/settings/test/Main.purs main format-pinning test: deliberately malformed setting files
 intent-walk packages/core/src/Core/Types.purs jointIntent which Intents a joint Proposal may bundle; a per-kind rule, nothing to traverse
 # Guarded or merged constructors of a setting sum: not a one-to-one image of the type's constructors (S6).
 sum-projection packages/schema/src/Schema/Setting/Intent.purs intentShape a trade and a route share one setting form, and enact and repeal are separate tags over ChangeRule

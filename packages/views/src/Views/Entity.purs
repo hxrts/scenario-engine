@@ -26,7 +26,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, col, completed, exact, names, quantity, series, unitOf, worlds)
+import Views.Common (Chart, StoredRun, Table, col, completed, names, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings

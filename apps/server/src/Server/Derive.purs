@@ -24,7 +24,7 @@ import Effect (Effect)
 import Effects.Api (DeriveRequest)
 import Effects.Signatures (RunError(..), Stored, StoredRound)
 import Effects.Observe (readManifest, readRounds)
-import Effects.Store (deleteRun, setArchived, setSpec, setStatus, createRun)
+import Effects.Store (deleteRun, setArchived, setSpec, setStatus)
 import Views.Keys as Keys
 import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, openRun, recorder, runObserve, runStore)

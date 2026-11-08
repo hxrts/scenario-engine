@@ -8,7 +8,7 @@ module Settings.Meridian.Rules
   , withholding
   ) where
 
-import Core.Types (FlowGovernance(..), Id(..), ResourceId, RuleForm(..), RuleKindDecl, RuleKindId)
+import Core.Types (FlowGovernance(..), ResourceId, RuleForm(..), RuleKindDecl, RuleKindId)
 import Data.Map (Map)
 import Data.Tuple (Tuple(..))
 import Settings.Kit.RuleKinds (BlockKit, LevyKit, ReduceKit, blockRule, levyRule, reduceRule)

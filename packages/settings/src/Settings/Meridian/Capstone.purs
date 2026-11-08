@@ -30,13 +30,13 @@ import Game.Bindings (strategyBindings)
 import Game.Error (GameError)
 import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Bindings, Game)
-import Data.Bifunctor (lmap)
+
 import Data.Map as Map
 
 import Schema.Joint (JointProposal, jointReplyShape)
 import Data.Argonaut.Core (Json)
 import Data.Array (find)
-import Foreign.Object as Object
+
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Core.Num (Q)

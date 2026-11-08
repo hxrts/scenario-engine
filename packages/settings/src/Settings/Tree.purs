@@ -78,10 +78,10 @@ readRootFile ops rel = do
   root <- settingRoot ops
   map (lmap unreadable) (ops.read (root <> rel))
 
--- | The setting root with a trailing slash: `PREMISES_DIR` if it is set, else `packages/premises`,
+-- | The setting root with a trailing slash: `SETTINGS_DIR` if it is set, else `packages/settings`,
 -- | relative to the working directory (the repository root, where `just` runs).
 settingRoot :: forall m. Functor m => FileOps m -> m String
-settingRoot ops = map (withSlash <<< fromMaybe "packages/premises") (ops.env "PREMISES_DIR")
+settingRoot ops = map (withSlash <<< fromMaybe "packages/settings") (ops.env "SETTINGS_DIR")
   where
   withSlash dir = if isJust (stripSuffix (Pattern "/") dir) then dir else dir <> "/"
 

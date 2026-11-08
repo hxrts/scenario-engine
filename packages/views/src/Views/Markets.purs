@@ -16,7 +16,7 @@ module Views.Markets
 import Prelude
 import Core.World (Focus, RoundRecord, WorldState)
 import Core.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
-import Views.Common (Field, cellOf, columnsOf, tableOf, focusOf, Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
+import Views.Common (Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
 
 import Core.Map (sumInto)
 

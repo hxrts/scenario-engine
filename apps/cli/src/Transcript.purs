@@ -1,4 +1,4 @@
--- | `just _premises` (after `Compile`): writes the capstone's joint-pass recording,
+-- | `just _settings` (after `Compile`): writes the capstone's joint-pass recording,
 -- | `capstone/transcript.json` under the setting root. Each exchange the DSL defines
 -- | (`Settings.Meridian.Capstone.jointLines`) runs through the real handler (prompt, decode, evidence) over a
 -- | stub model that answers with the DSL's reply text (`jointLineFor`); the handler reports each exchange, which is kept. Each Intent set is
@@ -24,7 +24,7 @@ import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (error, message)
 import Effect.Ref as Ref
-import Effects.Signatures (InterpretF(..))
+
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Backend (backend)
 import Handlers.Recording (encodeRecording)

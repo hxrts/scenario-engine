@@ -24,7 +24,7 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 const rules = [
   {
     name: "a fixture's world is a restrict of its setting plus named patches: no fixture module builds an Entity, Market, Transformation, or World",
-    files: (f) => f.startsWith("packages/premises/src/Settings/Meridian/Fixtures"),
+    files: (f) => f.startsWith("packages/settings/src/Settings/Meridian/Fixtures"),
     bad: (line) => /\b(noEntity|noMarket|noFacility|emptyWorld|byKey|entitiesOf|pickAccounts|Map\.(union|fromFoldable))\b/.test(line),
   },
   {
@@ -34,7 +34,7 @@ const rules = [
   },
   {
     name: "Settings.Kit is generic: it imports no setting (Settings.Meridian)",
-    files: (f) => f.startsWith("packages/premises/src/Settings/Kit"),
+    files: (f) => f.startsWith("packages/settings/src/Settings/Kit"),
     bad: (line) => /^import Settings\.Meridian\b/.test(line),
   },
   {
@@ -129,9 +129,9 @@ for (const rule of rules) {
 // A module beside a directory of its name is a choice: a catalog, or an app's entry point. Anything else is a
 // module that should be the directory's parts. A directory holding one module is that module with a longer name.
 const moduleDirs = {
-  "packages/premises/src/Settings/Meridian": "a catalog: it composes the Setting from the tables and Premises beneath it",
-  "packages/premises/src/Settings/Meridian/Entities": "a catalog: it lists the Entities defined beneath it",
-  "packages/premises/src/Settings/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
+  "packages/settings/src/Settings/Meridian": "a catalog: it composes the Setting from the tables and Premises beneath it",
+  "packages/settings/src/Settings/Meridian/Entities": "a catalog: it lists the Entities defined beneath it",
+  "packages/settings/src/Settings/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
   "apps/server/src/Server": "the app's entry point; the directory holds its parts",
 };
 for (const d of packageDirs().flatMap((p) => walkDirs(path.join(p, "src")))) {

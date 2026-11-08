@@ -34,7 +34,7 @@
             "console",
             "effect",
             "exceptions",
-            "sp-premises",
+            "sp-settings",
             "sp-simulator",
             "sp-testkit",
             "sp-views",
@@ -113,12 +113,11 @@
             "refs",
             "sp-adapters",
             "sp-core",
-            "sp-effects",
             "sp-flags",
             "sp-game",
             "sp-handlers",
-            "sp-premises",
             "sp-schema",
+            "sp-settings",
             "sp-simulator",
             "sp-views",
             "strings",
@@ -128,7 +127,6 @@
         "test": {
           "dependencies": [
             "effect",
-            "foreign-object",
             "sp-core",
             "spec",
             "spec-node",
@@ -184,7 +182,6 @@
             "functions",
             "integers",
             "maybe",
-            "parallel",
             "prelude",
             "react-basic",
             "react-basic-dom",
@@ -377,7 +374,7 @@
             "partial",
             "sp-adapters",
             "sp-checks",
-            "sp-premises",
+            "sp-settings",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -409,43 +406,6 @@
             "spec",
             "spec-node",
             "spec-quickcheck"
-          ]
-        }
-      },
-      "sp-premises": {
-        "path": "packages/premises",
-        "core": {
-          "dependencies": [
-            "argonaut-core",
-            "arrays",
-            "either",
-            "foldable-traversable",
-            "foreign-object",
-            "maybe",
-            "partial",
-            "prelude",
-            "sp-core",
-            "sp-game",
-            "sp-schema",
-            "strings",
-            "tuples"
-          ]
-        },
-        "test": {
-          "dependencies": [
-            "aff",
-            "argonaut-codecs",
-            "arrays",
-            "effect",
-            "maybe",
-            "ordered-collections",
-            "partial",
-            "sp-adapters",
-            "sp-board",
-            "sp-policy",
-            "sp-testkit",
-            "spec",
-            "spec-node"
           ]
         }
       },
@@ -504,8 +464,8 @@
             "sp-flags",
             "sp-game",
             "sp-handlers",
-            "sp-premises",
             "sp-schema",
+            "sp-settings",
             "sp-simulator",
             "sp-views",
             "strings",
@@ -517,6 +477,43 @@
             "aff-promise",
             "argonaut-codecs",
             "effect",
+            "sp-testkit",
+            "spec",
+            "spec-node"
+          ]
+        }
+      },
+      "sp-settings": {
+        "path": "packages/settings",
+        "core": {
+          "dependencies": [
+            "argonaut-core",
+            "arrays",
+            "either",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "partial",
+            "prelude",
+            "sp-core",
+            "sp-game",
+            "sp-schema",
+            "strings",
+            "tuples"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "aff",
+            "argonaut-codecs",
+            "arrays",
+            "effect",
+            "maybe",
+            "ordered-collections",
+            "partial",
+            "sp-adapters",
+            "sp-board",
+            "sp-policy",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -545,7 +542,7 @@
             "effect",
             "sp-adapters",
             "sp-checks",
-            "sp-premises",
+            "sp-settings",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -570,8 +567,8 @@
             "sp-checks",
             "sp-core",
             "sp-game",
-            "sp-premises",
             "sp-schema",
+            "sp-settings",
             "sp-simulator",
             "spec",
             "transformers"

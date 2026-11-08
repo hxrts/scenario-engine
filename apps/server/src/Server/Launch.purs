@@ -33,7 +33,7 @@ import Effect (Effect)
 import Effect.Exception (error, throwException, try)
 import Effects.Api (Launch, LaunchBatch)
 import Effects.Observe (listSummaries)
-import Effects.Store (createRun, failRunning)
+import Effects.Store (failRunning)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Views.Setting (Setting)

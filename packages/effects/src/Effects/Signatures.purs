@@ -36,7 +36,7 @@ import Prelude
 import Core.Invariants (Failure)
 import Core.Proposal (ProposalBody)
 import Schema.Joint (JointProposal, Transcript)
-import Schema.Run (DeriveKind, RunStatus, Spec)
+import Schema.Run (RunStatus, Spec)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)

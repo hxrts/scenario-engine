@@ -62,7 +62,7 @@ loadFrom ops dir = map (_ >>= loadSetting) (Tree.readSetting ops dir)
 loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array GameboardParts))
 loadAll ops = Tree.settingDirs ops >>= case _ of
   Left e -> pure (Left e)
-  Right [] -> pure (Left "no setting under the setting root; run `just _premises`")
+  Right [] -> pure (Left "no setting under the setting root; run `just _settings`")
   Right dirs -> map sequence (traverse (loadFrom ops) dirs)
 
 -- | A literal setting's file text, decoded and named `name`.

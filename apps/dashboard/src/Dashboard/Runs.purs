@@ -7,7 +7,7 @@ import Prelude
 import Views.Overview (RunFlags, RunList)
 import Data.Array (filter, find, reverse, zip)
 import Data.Tuple (fst, snd)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe)
 
 -- | The list without its archived runs, unless `archived` asks for them too.
 shownRuns :: Boolean -> RunList -> RunList

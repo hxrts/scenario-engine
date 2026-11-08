@@ -1,6 +1,6 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
-packages := "core schema checks board policy game premises effects handlers adapters simulator views experiments testkit flags cli server dashboard"
+packages := "core schema checks board policy game settings effects handlers adapters simulator views experiments testkit flags cli server dashboard"
 
 _default:
     @just --list
@@ -10,7 +10,7 @@ build:
     spago build --strict
 
 # Run every package's test suite
-test: _premises
+test: _settings
     #!/usr/bin/env bash
     set -euo pipefail
     for p in {{packages}}; do spago test -p sp-$p; done
@@ -19,7 +19,7 @@ test: _premises
 [positional-arguments]
 test-pkg *args:
     @scripts/validate.sh test-pkg "$@"
-    @just _premises
+    @just _settings
     spago test -p sp-"$1"
 
 # Format all PureScript sources
@@ -44,7 +44,7 @@ _derived:
     node scripts/check-derived.js
 
 # Compile the setting DSL to JSON, then generate the capstone recording (no model call)
-_premises:
+_settings:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript
 
@@ -52,7 +52,7 @@ _premises:
 check: _fmt-check build _deps _layout _derived test _docs
 
 # docs/05's marked tables against the compiled setting
-_docs: _premises
+_docs: _settings
     node scripts/check-docs.js
 
 # check + dashboard smoke test
@@ -62,14 +62,14 @@ all: check dashboard-test
 [positional-arguments]
 sim *args:
     @scripts/validate.sh sim "$@"
-    @just _premises
+    @just _settings
     spago run -p sp-cli -- run "$@"
 
 # Live facilitator session
 [positional-arguments]
 session *args:
     @scripts/validate.sh session "$@"
-    @just _premises
+    @just _settings
     spago run -p sp-cli -- session "$@"
 
 
@@ -128,28 +128,28 @@ _dashboard: _ui
 [positional-arguments]
 serve *args:
     @scripts/validate.sh serve "$@"
-    @just _premises _dashboard
+    @just _settings _dashboard
     @scripts/free-port.sh "$@"
     spago run -p sp-server -- "$@"
 
-# A production build of one setting: only its compiled files, under build/premises/<id>, with no
-# fixtures and no capstone. Serve it with PREMISES_DIR=build/premises/<id> (docs/06 §8.1).
+# A production build of one setting: only its compiled files, under build/settings/<id>, with no
+# fixtures and no capstone. Serve it with SETTINGS_DIR=build/settings/<id> (docs/06 §8.1).
 [positional-arguments]
 build-prod setting: _ui _dashboard
-    rm -rf build/premises/{{setting}}
-    mkdir -p build/premises/{{setting}}
-    PREMISES_DIR=build/premises/{{setting}} spago run -p sp-cli --main Compile -- --only {{setting}}
+    rm -rf build/settings/{{setting}}
+    mkdir -p build/settings/{{setting}}
+    SETTINGS_DIR=build/settings/{{setting}} spago run -p sp-cli --main Compile -- --only {{setting}}
 
 # One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.
 live-interpret:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ "${ALLOW_BILLED_LIVE:-}" != "1" ]; then echo "refused: this makes a billed model call; set ALLOW_BILLED_LIVE=1"; exit 2; fi
-    just _premises
+    just _settings
     spago test -p sp-adapters -m Test.Adapters.LiveInterpret
 
 # Dashboard smoke test (Playwright). Needs the browser binaries once: `cd apps/dashboard && npx playwright install`.
-dashboard-test: _premises _dashboard
+dashboard-test: _settings _dashboard
     cd apps/dashboard && playwright test
 
 _clean:

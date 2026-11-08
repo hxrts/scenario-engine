@@ -17,7 +17,7 @@ const allowed = {
   policy: ["core", "schema"],
   // the one domain package where board and policy meet: assembly
   game: ["core", "schema", "board", "policy"],
-  premises: ["core", "schema", "game"],
+  settings: ["core", "schema", "game"],
   effects: ["core", "schema", "board", "policy"],
   handlers: ["core", "schema", "board", "policy", "game", "effects"],
   adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
@@ -29,7 +29,7 @@ const allowed = {
   experiments: ["core", "schema", "checks", "views", "game", "simulator"],
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge
-  testkit: ["core", "schema", "premises", "game", "adapters", "simulator", "checks"],
+  testkit: ["core", "schema", "settings", "game", "adapters", "simulator", "checks"],
   // the flag parser both apps read their arguments with (no workspace dependency)
   flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
@@ -47,7 +47,7 @@ const isTypeImport = (n) => /^[A-Z]/.test(n) && !n.includes("..");
 
 // Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
 const rules = [
-  { name: "pure packages import no effectful module", packages: pure.concat(["premises"]),
+  { name: "pure packages import no effectful module", packages: pure.concat(["settings"]),
     forbid: (m) => IMPURE_MODULE.test(m) },
   { name: "board imports no JSON library: the premise format is decoded in schema", packages: ["board"],
     forbid: (m) => /^Data\.Argonaut(\.|$)/.test(m) },
@@ -65,7 +65,7 @@ const rules = [
     forbid: (m) => /^(Settings|Simulator|Handlers|Adapters|Views|Experiments|Testkit)(\.|$)/.test(m) },
   { name: "the simulator imports no board or policy: a Game is all it sees", packages: ["simulator"],
     forbid: (m) => /^(Board|Policy|Settings|Views|Experiments)(\.|$)/.test(m) },
-  { name: "premises import no board or policy: assembly and checking are in game", packages: ["premises"],
+  { name: "settings import no board or policy: assembly and checking are in game", packages: ["settings"],
     forbid: (m) => /^(Board|Policy|Simulator|Handlers)(\.|$)/.test(m) },
   { name: "the composition roots instantiate and bind no seat: no board, policy, or seat-handler import", packages: ["cli", "server"],
     forbid: (m) => /^(Board|Policy|Handlers\.Seats)(\.|$)/.test(m) },
@@ -174,7 +174,7 @@ for (const dir of dirs) {
     }
   }
   // board and policy meet in game (§12.3); the declarations and interpreters that take both
-  // (effects, handlers, adapters) are listed, and no domain package (premises, simulator, views, experiments, testkit) is
+  // (effects, handlers, adapters) are listed, and no domain package (settings, simulator, views, experiments, testkit) is
   if (deps.includes("sp-board") && deps.includes("sp-policy") && !["game", "effects", "handlers", "adapters"].includes(name)) {
     errors.push(`${name} depends on both board and policy: they meet only in game, and in the interpreters docs/07 §3 lists`);
   }

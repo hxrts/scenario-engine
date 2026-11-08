@@ -1,5 +1,5 @@
--- | `just _premises`: compiles the setting DSL (`Render`) and writes the JSON files
--- | under the setting root (`PREMISES_DIR`, default `packages/premises`). An invalid setting
+-- | `just _settings`: compiles the setting DSL (`Render`) and writes the JSON files
+-- | under the setting root (`SETTINGS_DIR`, default `packages/settings`). An invalid setting
 -- | exits 1 and writes nothing.
 module Compile (main) where
 

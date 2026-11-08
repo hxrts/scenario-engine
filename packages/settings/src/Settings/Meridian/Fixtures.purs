@@ -1,6 +1,6 @@
 -- | The engine-level golden fixtures (docs/05_test_instance.md §21–§27). Every expected
 -- | value is a literal from the worked examples: the DSL shares the world pieces, never
--- | the answers. `just _premises` compiles them to `packages/premises/fixtures/*.json`.
+-- | the answers. `just _settings` compiles them to `packages/settings/fixtures/*.json`.
 -- |
 -- | The fixtures are grouped by family in `Settings.Meridian.Fixtures.*`; this module is the only
 -- | list of them, and the golden test and the compiler both enumerate it.

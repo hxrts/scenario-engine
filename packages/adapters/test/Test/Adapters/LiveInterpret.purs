@@ -23,7 +23,7 @@ import Effect.Aff (Aff, attempt, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Exception (error, message)
-import Effects.Signatures (InterpretF(..))
+
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Backend (backend)
 import Node.Process (exit', lookupEnv)

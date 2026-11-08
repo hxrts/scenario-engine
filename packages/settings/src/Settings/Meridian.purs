@@ -1,5 +1,5 @@
 -- | *Meridian* (docs/05_test_instance.md), authored in the setting DSL.
--- | `just _premises` compiles it to `packages/premises/meridian/v0/*.json`.
+-- | `just _settings` compiles it to `packages/settings/meridian/v0/*.json`.
 --
 -- | NPC list decision (Packet F): the instantiation `npcs` is written by hand, and it is
 -- | the one place that names who starts as an NPC. Seat Covers do not derive it: `NpcOnly` is the
@@ -43,7 +43,7 @@ import Settings.Kit.Presets (PresetBinding, standardThresholds)
 import Schema.Build.Decision (lit)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Core.Draw (Seed(..))
-import Core.Types (CostFunction, EntityId, Id(..), MarketId, ResourceId)
+import Core.Types (CostFunction, EntityId, Id, MarketId, ResourceId)
 import Data.Map (Map)
 import Schema.Recurring (Flow, Requirement, compileIn)
 import Settings.Meridian.Resources (resources, reservable, decays)

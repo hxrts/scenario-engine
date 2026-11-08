@@ -28,7 +28,7 @@ package:
     dependencies:
       - avar
       - effect
-      - sp-premises
+      - sp-settings
       - sp-checks
       - sp-adapters
       - sp-testkit

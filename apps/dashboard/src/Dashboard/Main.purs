@@ -28,8 +28,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Control.Apply (lift2)
-import Control.Parallel (parallel, sequential)
+
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)

@@ -1,6 +1,6 @@
 -- | Meridian's in-world Policy catalog: the China NPC, Aggregate baselines, and
--- | institutional fallbacks (docs/05_test_instance.md §11). `just _premises` compiles it to
--- | `packages/premises/meridian/v0/policies.json`.
+-- | institutional fallbacks (docs/05_test_instance.md §11). `just _settings` compiles it to
+-- | `packages/settings/meridian/v0/policies.json`.
 module Settings.Meridian.Policies (policies) where
 
 import Core.Types (EntityId, PolicyId)

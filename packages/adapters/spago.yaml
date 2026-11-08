@@ -31,7 +31,7 @@ package:
       - effect
       - exceptions
       - sp-simulator
-      - sp-premises
+      - sp-settings
       - strings
       - argonaut-core
       - spec

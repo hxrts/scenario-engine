@@ -20,7 +20,7 @@ import Data.String (joinWith)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex, zipWith)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (names, Field, cellOf, columnsOf, tableOf, Column, Procedure, StoredRun, Table, col, column, outcomeLabel, proceduresOf, quantity, ratio, records)
+import Views.Common (Column, Field, Procedure, StoredRun, Table, cellOf, col, column, names, outcomeLabel, proceduresOf, quantity, ratio, records, tableOf)
 
 -- | The four-stage record's columns after the round; the glossary reads them.
 columns :: Array Column

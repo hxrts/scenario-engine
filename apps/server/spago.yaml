@@ -19,7 +19,7 @@ package:
     - sp-core
     - sp-schema
     - sp-game
-    - sp-premises
+    - sp-settings
     - sp-effects
     - sp-handlers
     - sp-adapters

@@ -627,7 +627,7 @@ The canonical phases are defined in [Type System §8.1](02_type_system.md#81-can
 
 Every fixture is filtered from the reference setting with `restrict` ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) plus named patches: an Entity's capabilities, a stated account or Market position, the fixture's Rules and Representations. Its decisions are its Proposals, so a fixture keeps no Actors, Policies or seats. Expected values stay literal.
 
-Each fixture is a `Setting`: a literal setting (`LiteralSetting`) that writes its World State out in full. Each seat that proposes or signs in its rounds is bound to a `Script` of those answers, and an `Expect` gives the values each round is checked against. The expected values are literals taken from the worked examples below, never computed. The families are in `packages/premises/src/Settings/Fixtures/`, and each compiles to `packages/premises/fixtures/<name>.json`. The file has three parts: `setting` (the seed and the World), `bindings` (one per round, in order, each with its Proposals), and `expectations` (each naming its round and giving its `expect`).
+Each fixture is a `Setting`: a literal setting (`LiteralSetting`) that writes its World State out in full. Each seat that proposes or signs in its rounds is bound to a `Script` of those answers, and an `Expect` gives the values each round is checked against. The expected values are literals taken from the worked examples below, never computed. The families are in `packages/settings/src/Settings/Fixtures/`, and each compiles to `packages/settings/fixtures/<name>.json`. The file has three parts: `setting` (the seed and the World), `bindings` (one per round, in order, each with its Proposals), and `expectations` (each naming its round and giving its `expect`).
 
 Unless stated otherwise, fixtures disable circulation, production, and operating requirements to isolate the mechanism under test. Amounts are exact at the precision of Type System [§9.1](02_type_system.md#91-numerics-and-randomness).
 
@@ -820,10 +820,10 @@ Recorded each round. Dashboard metrics are versioned projections of snapshots an
 
 ## 31. Configuration Package
 
-The instance is a versioned configuration package with no new foundational types. Its files are compiled from the DSL by `just _premises`:
+The instance is a versioned configuration package with no new foundational types. Its files are compiled from the DSL by `just _settings`:
 
 ```text
-packages/premises/
+packages/settings/
   meridian/v0/   setting  resources  markets  transformations  circulation
                         entities  representations  game-rules  policies  instantiation
   presets.json          the seat presets, shared by every setting (docs/06 §4.2)
