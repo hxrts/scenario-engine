@@ -1,6 +1,9 @@
--- | The Intent builders, one per kind (docs/02_type_system.md §3). Each is polymorphic in its
--- | filling: a fixture's Intent takes `Q` quantities, a Strategy's template takes `Expr`. A Strategy
--- | lifts one into its template with `Schema.Build.Decision.intent`.
+-- | The Intent builders, one per kind (docs/02_type_system.md §3). `trade`, `route`, `transfer`,
+-- | `enactWithholding` and `repeal` are polymorphic in their filling: a fixture's Intent takes `Q`
+-- | quantities, a Strategy's template takes `Expr` and is lifted with `Schema.Build.Decision.asTemplate`.
+-- | `transform`, `enactTariff` and `enactAccessBan` name their actor, which the premise format of a
+-- | template cannot write, so they take `Q` only; a Strategy uses `Decision.selfTransform`,
+-- | `selfTariff` and `selfAccessBan` (a template naming another actor is a compile error, not a crash).
 module Schema.Build.Intent
   ( trade
   , route
@@ -12,7 +15,8 @@ module Schema.Build.Intent
   , repeal
   ) where
 
-import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
+import Core.Num (Q)
+import Core.Types (Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..))
 import Data.Maybe (Maybe)
 
 -- | An order on a Market; `limit` is the optional limit price.
@@ -27,13 +31,13 @@ route r = Route { pair: { base: Id r.base, quote: Id r.quote }, quantity: r.quan
 transfer :: forall v. { from :: String, to :: String, resource :: String, quantity :: v } -> IntentF v
 transfer r = Transfer { from: Id r.from, to: Id r.to, resource: Id r.resource, quantity: r.quantity }
 
-transform :: forall v. { by :: String, transformation :: String, quantity :: v } -> IntentF v
+transform :: { by :: String, transformation :: String, quantity :: Q } -> Intent
 transform r = Transform { by: Id r.by, transformation: Id r.transformation, quantity: r.quantity }
 
-enactTariff :: forall v. { jurisdiction :: String, origin :: String, rate :: v } -> IntentF v
+enactTariff :: { jurisdiction :: String, origin :: String, rate :: Q } -> Intent
 enactTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id r.jurisdiction, origin: Id r.origin, rate: r.rate }))
 
-enactAccessBan :: forall v. { jurisdiction :: String, target :: String } -> IntentF v
+enactAccessBan :: { jurisdiction :: String, target :: String } -> Intent
 enactAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id r.jurisdiction, target: Id r.target }))
 
 enactWithholding :: forall v. { capacity :: String, units :: v } -> IntentF v

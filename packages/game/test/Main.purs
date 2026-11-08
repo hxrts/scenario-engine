@@ -1,5 +1,6 @@
 -- | The game package's tests: seat confinement (a ProposalBody carries no author, and the runner assigns
--- | the seat it asked), the seat presets' name check, and the overrides' JSON round trip.
+-- | the seat it asked), the seat presets' name check, assembly's checks over the bindings and every
+-- | bound Strategy, and the overrides' JSON round trip.
 module Test.Game.Main where
 
 import Prelude
@@ -9,13 +10,21 @@ import Core.Proposal (proposalAt)
 import Core.Types (Id(..))
 import Data.Argonaut.Core (stringify)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Effect (Effect)
 import Foreign.Object as Object
-import Game.Assemble (presetBindings)
-import Game.Error (renderGameError)
+import Board.Error (RefKind(..))
+import Core.Draw (Seed(..))
+import Data.Tuple (Tuple(..))
+import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings)
+import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
+import Game.Premise (Premise(..))
+import Game.Types (SeatBinding(..))
+import Simulator.Simulate (simulate)
+import Testkit.Meridian (premise)
+import Testkit.Suite (strategyOrThrow)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -39,12 +48,58 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail (show e)
         Right bs -> Map.size bs `shouldEqual` 2
 
+  describe "Assembly (docs/06 §4.3)" do
+    let
+      assembled p bindings = map (const unit) (assemble (GameboardPremise p) bindings [])
+      silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
+    it "a binding for something that is not a configured seat is rejected" do
+      p <- premise
+      assembled p (Map.insert (Id "CN") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "CN"))
+      assembled p (Map.insert (Id "NOBODY") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "NOBODY"))
+    it "a configured seat with no binding is rejected" do
+      p <- premise
+      assembled p (Map.delete (Id "AID") (silent p)) `shouldEqual` Left (UnboundSeat (Id "AID"))
+    it "an implicit seat is neither bound nor required: the preset game of a run with it implicit assembles" do
+      p <- premise
+      map _.rounds (assemblePreset p "Passive" [ Implicit (Id "AID") ] (Just 1)) `shouldEqual` Right 1
+    it "a bound Strategy's names are checked: a misspelled parameter is an error, not a zero" do
+      p <- premise
+      let
+        typo = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"no-such-parameter"},"0"]}],"propose":[]}]}"""
+        bindings = Map.insert (Id "US") (Strategy typo) (silent p)
+      assembled p bindings `shouldEqual` Left (Unresolved "seat US" ParameterRef "no-such-parameter")
+    it "a bound Strategy naming an unknown Market or Entity is an error" do
+      p <- premise
+      let
+        market = strategyOrThrow """{"rules":[{"when":[],"propose":[{"trade":{"market":"energy-nowhere","quantity":"1"}}]}]}"""
+        entity = strategyOrThrow """{"rules":[{"when":[{"restrictionInForce":{"by":"ATLANTIS"}}],"propose":[]}]}"""
+      assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" Market "energy-nowhere")
+      assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" EntityRef "ATLANTIS")
+    it "a literal premise takes no overrides" do
+      p <- premise
+      let world = (_.world) <$> assemble (GameboardPremise p) (silent p) []
+      case world of
+        Left e -> fail (show e)
+        Right w -> map (const unit) (assemble (LiteralPremise { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
+    it "an override naming an unknown Entity is an error" do
+      p <- premise
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (UnknownEntity (Id "NOBODY"))
+    it "an Agent or Human seat cannot be simulated" do
+      p <- premise
+      case assemble (GameboardPremise p) (Map.insert (Id "US") Agent (silent p)) [] of
+        Left e -> fail (show e)
+        Right g -> case simulate (Seed 1) g of
+          Left e -> e `shouldEqual` NotSimulable (Id "US")
+          Right _ -> fail "expected NotSimulable"
+
   describe "Overrides (docs/06 §3.1)" do
     it "encode then decode reproduces every override kind" do
       let
         overrides =
           [ GameSeed 3
           , Parameter "tariff" (Q.fromInt 2)
+          , Capacity (Id "ENCO") (Id "energy") (Q.fromInt 7)
+          , Shrinkage "sme-energy-sample" (fromMaybe Q.zero (Q.parse "0.1"))
           , Implicit (Id "AID")
           ]
       case decodeOverrides (encodeOverrides overrides) of

@@ -13,7 +13,6 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
 import Core.Proposal (ProposalBody)
 import Policy.Interpret (Env, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
@@ -22,6 +21,7 @@ import Schema.Premise.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
+import Testkit.Suite (strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- Fixtures ----------------------------------------------------------------------------
@@ -31,13 +31,6 @@ decodeText :: String -> Either JsonDecodeError Strategy
 decodeText text = case jsonParser text of
   Left e -> Left (TypeMismatch e)
   Right j -> decodeStrategy j
-
--- | Decode, crashing the test on any error: a strategy that fails to decode must never yield
--- | an empty strategy that passes vacuously.
-strategy :: String -> Strategy
-strategy text = case decodeText text of
-  Left e -> unsafeCrashWith ("strategy does not decode: " <> show e)
-  Right p -> p
 
 -- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
 seat :: View
@@ -85,8 +78,18 @@ chooseTwice =
 
 -- Tests -------------------------------------------------------------------------------
 
+strategy :: String -> Strategy
+strategy = strategyOrThrow
+
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "Unknown parameters" do
+    it "a clause reading a parameter the premise lacks does not fire, even under not" do
+      let
+        reads = strategy """{"rules":[{"when":[{"gt":[{"param":"missing"},"0"]}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
+        negated = strategy """{"rules":[{"when":[{"not":{"gt":[{"param":"missing"},"0"]}}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
+      propose reads env `shouldEqual` []
+      propose negated env `shouldEqual` []
   describe "Choose draws" do
     it "two Choose blocks in one strategy draw independently" do
       intentsOf (propose (strategy chooseTwice) env { random = highDraws })

@@ -5,11 +5,10 @@ module Premises.Presets (presets, presetNames) where
 import Prelude (map, negate)
 import Premises.Names as N
 
-import Core.Strategy (Clause, Expr, Strategy, Template)
+import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (choose, deal, gt, holding, asTemplate, le, lit, noAction, price, rule, selfEntity, signAll, strategy, homeMarket)
-import Schema.Build.Intent (trade, transform)
+import Schema.Build.Decision (orderAt, selfTransform, choose, deal, gt, holding, asTemplate, le, lit, noAction, price, rule, signAll, strategy, homeMarket)
 
 -- | Seat-policy presets (docs/06_simulator.md §4.2), in the order the launch form offers them.
 presets :: Array (Tuple String Strategy)
@@ -31,18 +30,14 @@ presets =
 presetNames :: Array String
 presetNames = map (\(Tuple k _) -> k) presets
 
--- | An order on the home Market at a limit price.
-homeTrade :: Expr -> Expr -> Template
-homeTrade quantity limit = asTemplate (trade { market: homeMarket, quantity, limit: Just limit })
-
 -- | Buy `quantity` on the home Market while its price is at or below `threshold`, at a limit of `limit`.
 buyBelow :: Expr -> Expr -> Expr -> Clause
-buyBelow threshold quantity limit = rule [ le (price homeMarket) threshold ] [ homeTrade quantity limit ]
+buyBelow threshold quantity limit = rule [ le (price homeMarket) threshold ] [ orderAt homeMarket quantity (Just limit) ]
 
 -- | Trade `quantity` on the home Market while its price is above `threshold`, at a limit of `limit`
 -- | (a negative quantity sells).
 sellAbove :: Expr -> Expr -> Expr -> Clause
-sellAbove threshold quantity limit = rule [ gt (price homeMarket) threshold ] [ homeTrade quantity limit ]
+sellAbove threshold quantity limit = rule [ gt (price homeMarket) threshold ] [ orderAt homeMarket quantity (Just limit) ]
 
 passive :: Strategy
 passive = strategy { rules: [], sign: [] }
@@ -51,7 +46,7 @@ conservative :: Strategy
 conservative = strategy
   { rules:
       [ rule [ gt (lit 30) (holding N.energy), le (price homeMarket) (lit "2.5") ]
-          [ homeTrade (lit 5) (lit "2.5") ]
+          [ orderAt homeMarket (lit 5) (Just (lit "2.5")) ]
       ]
   , sign: []
   }
@@ -60,7 +55,7 @@ aggressive :: Strategy
 aggressive = strategy
   { rules:
       [ rule []
-          [ asTemplate (transform { by: selfEntity, transformation: N.defenseProcurement, quantity: lit 4 }) ]
+          [ asTemplate (selfTransform { transformation: N.defenseProcurement, quantity: lit 4 }) ]
       ]
   , sign: []
   }
@@ -101,7 +96,7 @@ investor :: Strategy
 investor = strategy
   { rules:
       [ rule [ gt (holding N.money) (lit 100) ]
-          [ deal { signers: [ N.chip ], intents: [ transform { by: selfEntity, transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
+          [ deal { signers: [ N.chip ], intents: [ selfTransform { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
       ]
   , sign: [ signAll ]
   }
@@ -110,7 +105,7 @@ crisisresponse :: Strategy
 crisisresponse = strategy
   { rules:
       [ rule [ gt (price homeMarket) (lit "3.5"), gt (lit 20) (holding N.energy) ]
-          [ homeTrade (lit 3) (lit 4) ]
+          [ orderAt homeMarket (lit 3) (Just (lit 4)) ]
       ]
   , sign: []
   }
@@ -119,7 +114,7 @@ randomvalid :: Strategy
 randomvalid = strategy
   { rules:
       [ rule []
-          [ choose [ noAction, homeTrade (lit 5) (lit 3), homeTrade (lit (-5)) (lit 2) ] ]
+          [ choose [ noAction, orderAt homeMarket (lit 5) (Just (lit 3)), orderAt homeMarket (lit (-5)) (Just (lit 2)) ] ]
       ]
   , sign: []
   }
@@ -133,8 +128,8 @@ deployer :: Strategy
 deployer = strategy
   { rules:
       [ rule [ gt (price N.energyAtlantic) (lit 3) ]
-          [ asTemplate (transform { by: selfEntity, transformation: N.militaryDeployment, quantity: lit 60 })
-          , asTemplate (trade { market: N.defenceGoods, quantity: lit (-40), limit: Just (lit "2.4") })
+          [ asTemplate (selfTransform { transformation: N.militaryDeployment, quantity: lit 60 })
+          , orderAt N.defenceGoods (lit (-40)) (Just (lit "2.4"))
           ]
       ]
   , sign: []

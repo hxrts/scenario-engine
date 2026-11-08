@@ -19,6 +19,7 @@ package:
   test:
     main: Test.Schema.Main
     dependencies:
+      - sp-testkit
       - effect
       - partial
       - unsafe-coerce

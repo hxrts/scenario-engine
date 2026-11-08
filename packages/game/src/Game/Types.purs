@@ -29,7 +29,8 @@ data SeatBinding
 -- | The runner assigns the author (`proposalAt`), so a script cannot submit as another seat.
 type ScriptRound = { round :: RoundIndex, propose :: Array ProposalBody, sign :: Array ProposalId }
 
--- | The seat bindings of a game, by seat. A seat without a binding submits nothing.
+-- | The seat bindings of a game, by seat: exactly the configured seats (`Game.Assemble.assemble`
+-- | rejects anything else). A seat that should stay silent is bound explicitly, `Script []`.
 type Bindings = Map EntityId SeatBinding
 
 -- | A game ready to run: the manifest, the initial world, the in-world Strategies, the rounds to play,

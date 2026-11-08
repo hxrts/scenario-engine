@@ -4,23 +4,24 @@ module Policy.Interpret (Env, envFor, propose, sign) where
 
 import Prelude
 
+import Control.Apply (lift2)
 import Core.Authority (authorized)
 import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
-import Core.Strategy (Cond(..), Expr(..), SignRule(..), Strategy, Template(..), selfName, homeMarketName)
+import Core.Strategy (Cond, Expr, SignRule(..), Strategy, Template(..), selfName, homeMarketName)
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, Rule, RuleChangeF(..), RuleF(..))
 import Core.World (View)
 import Data.Array (all, any, filter, foldl, index, length, mapMaybe, null)
-import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Policy.Strategy (ExprAlg, foldCond, foldExpr)
 
 -- | `home` is the Entity's home market, which names `$home`; Nothing when it has none. `random`
 -- | draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to every
@@ -43,7 +44,7 @@ propose :: Strategy -> Env -> Array ProposalBody
 propose strategy env = (foldl clause { next: 0, drafts: [] } strategy.rules).drafts
   where
   clause acc r
-    | all (holds env) r.when = foldl (\a t -> let d = draft env a.next t in { next: d.next, drafts: a.drafts <> d.drafts }) acc r.propose
+    | fires env r.when = foldl (\a t -> let d = draft env a.next t in { next: d.next, drafts: a.drafts <> d.drafts }) acc r.propose
     | otherwise = acc
 
 sign :: Strategy -> Env -> Array ProposalId
@@ -58,34 +59,44 @@ sign strategy env = map _.id (filter (\p -> any (matches p) strategy.sign) env.v
       )
       p.intents
     SignAll -> true
-    SignIf x -> all (holds env) x.when && matches p x.rule
+    SignIf x -> fires env x.when && matches p x.rule
   elem' x xs = any (_ == x) xs
 
-eval :: Env -> Expr -> Q
-eval env = case _ of
-  Lit q -> q
-  -- Strategy.params checks every name against the Gameboard at load time, so the default is unreachable
-  Param name -> fromMaybe Q.zero (Object.lookup name env.params)
-  Round -> Q.fromInt env.view.round
-  -- an Entity with no home market never runs a `$home` condition: `Game.Assemble.checkHomes` rejects it at startup
-  Price m -> maybe Q.zero (\x -> lookupQ x env.view.prices) (resolveMarket env m)
-  Holding r -> lookupQ r env.view.self.accounts
-  -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)
-  Factor d -> fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors)
-  Mul a b -> Q.mul (eval env a) (eval env b)
-  Sub a b -> Q.sub (eval env a) (eval env b)
-  Max a b -> max (eval env a) (eval env b)
+-- | Every condition holds. A condition reading an unknown parameter does not hold, so its clause does not fire.
+fires :: Env -> Array Cond -> Boolean
+fires env = all (\c -> holds env c == Just true)
 
-holds :: Env -> Cond -> Boolean
-holds env = case _ of
-  Gt a b -> eval env a > eval env b
-  Ge a b -> eval env a >= eval env b
-  Le a b -> eval env a <= eval env b
-  Eq a b -> eval env a == eval env b
-  Not c -> not (holds env c)
-  TransformedLastRound c -> transformedLastRound env.view.round (entityRef env c.by) c.transformation (eval env c.atLeast) env.view.events
-  RestrictedLastRound c -> not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events))
-  RestrictionInForce c -> any (\r -> jurisdictionOf r == Just (entityRef env c.by)) env.view.rules
+-- | An expression's value; Nothing when it reads a parameter the premise lacks.
+eval :: Env -> Expr -> Maybe Q
+eval env = foldExpr (evalAlg env)
+
+evalAlg :: Env -> ExprAlg (Maybe Q)
+evalAlg env =
+  { lit: Just
+  , param: \name -> Object.lookup name env.params
+  , round: Just (Q.fromInt env.view.round)
+  -- an Entity with no home market never runs a `$home` condition: `Game.Assemble.checkHomes` rejects it at startup
+  , price: \m -> Just (maybe Q.zero (\x -> lookupQ x env.view.prices) (resolveMarket env m))
+  , holding: \r -> Just (lookupQ r env.view.self.accounts)
+  -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)
+  , factor: \d -> Just (fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors))
+  , mul: lift2 Q.mul
+  , sub: lift2 Q.sub
+  , max: lift2 max
+  }
+
+-- | Whether a condition holds; Nothing when it reads a parameter the premise lacks.
+holds :: Env -> Cond -> Maybe Boolean
+holds env = foldCond (evalAlg env)
+  { gt: lift2 (>)
+  , ge: lift2 (>=)
+  , le: lift2 (<=)
+  , eq: lift2 (==)
+  , not: map not
+  , transformedLastRound: \c -> map (\least -> transformedLastRound env.view.round (entityRef env c.by) c.transformation least env.view.events) c.atLeast
+  , restrictedLastRound: \c -> Just (not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events)))
+  , restrictionInForce: \c -> Just (any (\r -> jurisdictionOf r == Just (entityRef env c.by)) env.view.rules)
+  }
 
 jurisdictionOf :: Rule -> Maybe EntityId
 jurisdictionOf = case _ of
@@ -100,7 +111,10 @@ draft env n t = case t of
   Choose options -> case index options (pick (length options)) of
     Just o -> draft env (n + 1) o
     Nothing -> { next: n + 1, drafts: [] }
-  ProposalT p -> { next: n, drafts: [ proposalOf env p ] }
+  ProposalT p
+    | all (isJust <<< traverse (eval env)) p.intents -> { next: n, drafts: [ proposalOf env p ] }
+    -- a parameter the premise lacks: the Proposal is dropped whole, never sent short of a leg
+    | otherwise -> { next: n, drafts: [] }
   _ ->
     { next: n
     , drafts: map single (filter (authorized env.view.self.capabilities env.view.self.id) (intentsOf env t))
@@ -140,10 +154,11 @@ proposalOf env p =
 
 -- | Evaluates one Intent template: `self` is resolved as an entity position, `$home` as a market
 -- | (Nothing when the Entity has no home), and every quantity by `traverse`, so no field is missed.
+-- | An Intent whose quantity reads a parameter the premise lacks is dropped.
 evalIntent :: Env -> IntentF Expr -> Maybe Intent
 evalIntent env t = do
   resolved <- resolveHome env.view.self.id env.home t
-  pure (unwrap (traverse (\e -> Identity (eval env e)) resolved))
+  traverse (eval env) resolved
 
 -- | The entity slots of an Intent that name `self` resolve to the acting Entity.
 resolveSelf :: EntityId -> IntentF Expr -> IntentF Expr

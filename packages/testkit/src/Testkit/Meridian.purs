@@ -9,16 +9,21 @@ import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe)
+import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Core.Types (Id(..))
-import Game.Assemble (assemble, assemblePreset, presetBindings, withRounds)
+import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, withRounds)
 import Game.Override (Override)
 import Game.Premise (GameboardParts, Premise(..))
-import Game.Types (Game)
+import Game.Types (Bindings, Game, SeatBinding(..))
 import Premises.Load (loadPremise)
 import Premises.Tree (readPremise)
+
+-- | Every configured seat bound to the empty script: it submits and signs nothing.
+silent :: GameboardParts -> Bindings
+silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
 
 -- | The Meridian premise: its Gameboard, configuration and presets, checked.
 premise :: Aff GameboardParts
@@ -26,11 +31,11 @@ premise = do
   loaded <- liftEffect (map (_ >>= loadPremise) (readPremise fileOps "meridian/v0"))
   orThrow loaded
 
--- | The Meridian game with no seat bound.
+-- | The Meridian game with every seat bound to an empty script (silent).
 unseated :: Aff Game
 unseated = do
   p <- premise
-  orThrow (assemble (GameboardPremise p) Map.empty [])
+  orThrow (assemble (GameboardPremise p) (silent p) [])
 
 -- | The Meridian seats every test plays.
 seats :: Array String
@@ -41,12 +46,12 @@ presetGame :: GameboardParts -> String -> Array Override -> Maybe Int -> Aff Gam
 presetGame p preset overrides rounds = orThrow (assemblePreset p preset overrides rounds)
 
 -- | The Meridian game with the named seats playing one preset, and the round count (or the configuration's).
--- | Unlike `presetGame`, only the listed seats are bound (the adapter suites play a few seats).
+-- | Unlike `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
 presetSeats :: Array String -> String -> Maybe Int -> Aff Game
 presetSeats ids preset rounds = do
   p <- premise
-  bindings <- orThrow (presetBindings p.presets (const preset) (map Id ids))
-  g <- orThrow (assemble (GameboardPremise p) bindings [])
+  listed <- orThrow (presetBindings p.presets (const preset) (map Id ids))
+  g <- orThrow (assemble (GameboardPremise p) (Map.union listed (silent p)) [])
   pure (withRounds rounds g)
 
 -- | A value or the error it failed with, as an Aff error.

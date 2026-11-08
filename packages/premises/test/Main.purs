@@ -40,7 +40,7 @@ import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
-import Schema.Build.Decision (asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
+import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', param, strategy, rule, signProcedures)
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
@@ -177,7 +177,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "max' and signProcedures compile to a strategy the decoder accepts" do
       let
         p = strategy
-          { rules: [ rule [] [ asTemplate (I.transform { by: "self", transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) }) ] ]
+          { rules: [ rule [] [ asTemplate (selfTransform { transformation: "defense-procurement", quantity: max' (lit 1) (lit 2) }) ] ]
           , sign: [ signProcedures [ "EU" ] ]
           }
       case decodeStrategy (encodeStrategy p) of
@@ -426,9 +426,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "china-strategic-v0 procures after a major US action, and only with the capability" do
       { gameboard } <- loaded
       p <- policyNamed gameboard "china-strategic-v0"
-      map _.intents (propose p (envWith chinaView Q.zero))
+      let shipped env = env { params = Object.singleton "major-action-threshold" (Q.fromInt 12) }
+      map _.intents (propose p (shipped (envWith chinaView Q.zero)))
         `shouldEqual` [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
-      map _.intents (propose p (envWith (chinaView { self = chinaView.self { capabilities = [] } }) Q.zero)) `shouldEqual` []
+      map _.intents (propose p (shipped (envWith (chinaView { self = chinaView.self { capabilities = [] } }) Q.zero))) `shouldEqual` []
     it "china-strategic-v0's major-action threshold is a parameter: a sweep changes whether China responds" do
       { gameboard } <- loaded
       p <- policyNamed gameboard "china-strategic-v0"
@@ -489,7 +490,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
-        `shouldEqual` Left (show (Unresolved "policy bad-v0" MarketRef "energy-nowhere"))
+        `shouldEqual` Left (show (Unresolved "policy bad-v0" Market "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
         bad = strategy { rules: [ rule [] [ asTemplate (I.trade { market: "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
@@ -498,7 +499,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
-      let bad = strategy { rules: [ rule [] [ asTemplate (I.transform { by: "self", transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
+      let bad = strategy { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
       case decodeStrategy (encodeStrategy bad) of
         Left e -> fail (show e)
         Right p -> map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))

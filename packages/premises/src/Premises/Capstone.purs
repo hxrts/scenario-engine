@@ -28,20 +28,20 @@ import Data.Map as Map
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (find, index, mapMaybe)
-import Data.String (Pattern(..), contains, split)
+import Data.Array (find, mapMaybe)
+import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (EntityId, Id(..), ProposalId, proposalId, submissionIndex)
+import Core.Types (BehaviorDomain, EntityId, Id(..), MarketId, ResourceId, proposalId)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (deal, eq, ge, gt, asTemplate, lit, price, rule, round, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
-import Schema.Build.Intent (enactAccessBan, enactWithholding, repeal, trade, transfer, transform)
+import Schema.Build.Decision (orderAt, selfAccessBan, selfTransform, deal, eqQ, ge, gt, asTemplate, lit, price, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures, strategy)
+import Schema.Build.Intent (enactWithholding, repeal, transfer)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
 import Core.Shape (encodeWith, Format(..))
@@ -62,11 +62,11 @@ playerSeed = 7
 us :: Strategy
 us = strategy
   { rules:
-      [ rule [ eq round (lit 2) ] [ asTemplate (enactAccessBan { jurisdiction: selfEntity, target: N.india }) ]
-      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
+      [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfAccessBan { target: N.india }) ]
+      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
       , rule [ gt (price N.energyAtlantic) (lit 3) ]
-          [ asTemplate (transform { by: selfEntity, transformation: N.militaryDeployment, quantity: lit 60 })
-          , asTemplate (transform { by: selfEntity, transformation: N.majorMilitaryAction, quantity: lit 40 })
+          [ asTemplate (selfTransform { transformation: N.militaryDeployment, quantity: lit 60 })
+          , asTemplate (selfTransform { transformation: N.majorMilitaryAction, quantity: lit 40 })
           ]
       ]
   , sign: []
@@ -76,8 +76,8 @@ us = strategy
 usWithoutDeployment :: Strategy
 usWithoutDeployment = strategy
   { rules:
-      [ rule [ eq round (lit 2) ] [ asTemplate (enactAccessBan { jurisdiction: selfEntity, target: N.india }) ]
-      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
+      [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfAccessBan { target: N.india }) ]
+      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
       ]
   , sign: []
   }
@@ -86,7 +86,7 @@ usWithoutDeployment = strategy
 -- | procedure when the Atlantic price is above 3: round 4 starts above 3, Germany does not sign,
 -- | and the procedure lapses; round 5 starts above 3 again, Germany signs, and it executes.
 de :: Strategy
-de = strategy { rules: [], sign: [ signIf [ ge round (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
+de = strategy { rules: [], sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ N.euSolidarity ]), signProcedures [ N.euTrade ] ] }
 
 -- | Japan proposes a two-party deal in round 3: 20 Energy to India, which signs it too. Both are
 -- | in the Asian region, so the Transfer needs no transport order. JP holds 24 Energy by then
@@ -94,7 +94,7 @@ de = strategy { rules: [], sign: [ signIf [ ge round (lit 5) ] (signProcedures [
 jp :: Strategy
 jp = strategy
   { rules:
-      [ rule [ eq round (lit 3) ]
+      [ rule [ eqQ roundQ (lit 3) ]
           [ deal { signers: [ N.jp, N.india ], intents: [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
       ]
   , sign: []
@@ -106,8 +106,8 @@ jp = strategy
 enco :: Strategy
 enco = strategy
   { rules:
-      [ rule [ eq round (lit 4) ] shipment
-      , rule [ eq round (lit 7) ] shipment
+      [ rule [ eqQ roundQ (lit 4) ] shipment
+      , rule [ eqQ roundQ (lit 7) ] shipment
       ]
   , sign: []
   }
@@ -117,7 +117,7 @@ enco = strategy
         { signers: [ N.enco, N.india, N.ship ]
         , intents:
             [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 5 }
-            , transform { by: selfEntity, transformation: N.energyShipping, quantity: lit 5 }
+            , selfTransform { transformation: N.energyShipping, quantity: lit 5 }
             ]
         }
     ]
@@ -126,7 +126,7 @@ enco = strategy
 -- | Representation (sme-energy-sample) estimates from, so GLOBAL_SMES' factor moves: the sample
 -- | reference is 5, so the deviation is negative and the factor falls below 1.
 sme :: Strategy
-sme = strategy { rules: [ rule [] [ asTemplate (trade { market: N.energyAtlantic, quantity: lit 4, limit: Nothing }) ] ], sign: [] }
+sme = strategy { rules: [ rule [] [ orderAt N.energyAtlantic (lit 4) Nothing ] ], sign: [] }
 
 -- | The shipping facility's owner signs every shipment that orders it.
 shipping :: Strategy
@@ -141,8 +141,8 @@ india = strategy { rules: [], sign: [ signAll ] }
 chip :: Strategy
 chip = strategy
   { rules:
-      [ rule [ eq round (lit 4) ] [ asTemplate (enactWithholding { capacity: N.semiconductors, units: lit 5 }) ]
-      , rule [ eq round (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
+      [ rule [ eqQ roundQ (lit 4) ] [ asTemplate (enactWithholding { capacity: N.semiconductors, units: lit 5 }) ]
+      , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
       ]
   , sign: []
   }
@@ -173,11 +173,40 @@ seats usStrategy =
 -- | One round's expectation: the round, and the checks it makes.
 type RoundExpect = { round :: Int, expect :: Expect }
 
+-- | A Proposal as the capstone authors it: its round, its author, and its position among the author's
+-- | Proposals that round. The run file writes the author and position; the checks use the id.
+type AuthoredRef = { round :: Int, author :: String, position :: Int }
+
+-- | An `Expect` with its Proposal references left as `p`.
+type ExpectOf p =
+  { accounts :: Map.Map EntityId (Map.Map ResourceId (Maybe Q))
+  , reserves :: Map.Map MarketId (Map.Map ResourceId (Maybe Q))
+  , factors :: Map.Map EntityId (Map.Map BehaviorDomain (Maybe Q))
+  , deliveries :: Maybe (Array Delivery)
+  , rejected :: Maybe (Array p)
+  , lapsed :: Maybe (Array p)
+  , procedures :: Maybe (Array { proposal :: p, support :: Q, executed :: Boolean })
+  , scheduled :: Maybe Int
+  }
+
+-- | The expectation the checks read: each authored reference becomes the Proposal's id.
+toExpect :: ExpectOf AuthoredRef -> Expect
+toExpect e = e
+  { rejected = map (map idOf) e.rejected
+  , lapsed = map (map idOf) e.lapsed
+  , procedures = map (map (\p -> p { proposal = idOf p.proposal })) e.procedures
+  }
+  where
+  idOf r = proposalId r.round (Id r.author) r.position
+
 -- | Round expectations, checked by the simulator: the capstone run's own values (the seat strategies
 -- | above on the shipped economics). Each one is explained by its mechanism in the comment, and the
 -- | simulator fails if any drifts.
 expectations :: Array RoundExpect
-expectations =
+expectations = map (\r -> { round: r.round, expect: toExpect r.expect }) authoredExpectations
+
+authoredExpectations :: Array { round :: Int, expect :: ExpectOf AuthoredRef }
+authoredExpectations =
   [ roundExp 2 (none { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
   , roundExp 3 (none { procedures = Just [ { proposal: at 3 N.eu 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
   , roundExp 4
@@ -200,16 +229,16 @@ expectations =
   , roundExp 8 (none { factors = single N.globalSmes N.energy "0.9406" })
   ]
   where
-  roundExp :: Int -> Expect -> RoundExpect
+  roundExp :: Int -> ExpectOf AuthoredRef -> { round :: Int, expect :: ExpectOf AuthoredRef }
   roundExp r e = { round: r, expect: e }
 
 -- | The expectation that checks nothing: every field is absent.
-none :: Expect
+none :: ExpectOf AuthoredRef
 none = { accounts: Map.empty, reserves: Map.empty, factors: Map.empty, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, procedures: Nothing, scheduled: Nothing }
 
 -- | A Proposal by its author and its position among the author's Proposals in `round`.
-at :: Int -> String -> Int -> ProposalId
-at r author i = proposalId r (Id author) i
+at :: Int -> String -> Int -> AuthoredRef
+at r author i = { round: r, author, position: i }
 
 -- | One balance (or factor) of one Entity: the leaf the expectation checks.
 single :: forall a b. String -> String -> String -> Map.Map (Id a) (Map.Map (Id b) (Maybe Q))
@@ -255,7 +284,7 @@ file = encodeJson
   , playerSeed
   , seats: encodeWith Premise presetsShape (seats us)
   , counterfactual: encodeWith Premise presetsShape [ Tuple N.us usWithoutDeployment ]
-  , expectations: map roundJson expectations
+  , expectations: map roundJson authoredExpectations
   , objectives: map objectiveJson baseObjectives
   , counterfactualObjectives: map objectiveJson counterfactualObjectives
   }
@@ -267,9 +296,8 @@ file = encodeJson
     NotMet -> "notMet"
     NotEvaluated -> "notEvaluated"
 
--- | An expectation in the premise's spelling: the inverse of the builders above (`proposalId` is
--- | read back as its author and position), so `capstone/run.json` keeps its written form.
-expectDoc :: Expect -> ExpectDoc
+-- | An expectation in the premise's spelling, so `capstone/run.json` keeps its written form.
+expectDoc :: ExpectOf AuthoredRef -> ExpectDoc
 expectDoc e =
   { accounts: keyedOf e.accounts
   , reserves: keyedOf e.reserves
@@ -289,24 +317,17 @@ keyedOf m
       where
       leaf (Tuple (Id k) v) = map (Tuple k) v
 
-refOf :: ProposalId -> ProposalRefDoc
-refOf p = Right { author: authorOf p, index: Just (positionOf p) }
+refOf :: AuthoredRef -> ProposalRefDoc
+refOf r = Right { author: r.author, index: Just r.position }
 
-procedureDoc :: { proposal :: ProposalId, support :: Q, executed :: Boolean } -> ProcedureDoc
-procedureDoc p = { author: authorOf p.proposal, index: Just (positionOf p.proposal), support: p.support, executed: p.executed }
+procedureDoc :: { proposal :: AuthoredRef, support :: Q, executed :: Boolean } -> ProcedureDoc
+procedureDoc p = { author: p.proposal.author, index: Just p.proposal.position, support: p.support, executed: p.executed }
 
 deliveryDoc :: Delivery -> DeliveryDoc
 deliveryDoc d = { entity: unId d.entity, resource: unId d.resource, quantity: d.quantity }
 
 unId :: forall a. Id a -> String
 unId (Id s) = s
-
--- | The author of a Proposal id: the segment after the round, before the position.
-authorOf :: ProposalId -> String
-authorOf p = fromMaybe "" (index (split (Pattern "/") (unId p)) 1)
-
-positionOf :: ProposalId -> Int
-positionOf p = fromMaybe 0 (submissionIndex p)
 
 -- Joint pass ------------------------------------------------------------------------------
 

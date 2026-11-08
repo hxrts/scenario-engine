@@ -120,7 +120,7 @@ The Dashboard's launch form offers the same names: `GET /api/premise` sends them
 
 ### 4.3 Coverage
 
-Every seat has exactly one bound seat Policy. A seat Policy that produces nothing yields an explicit `NoAction`. The simulator never invents default decisions. A diagnostic mode may deliberately leave seats inactive.
+Every seat has exactly one bound seat Policy. A binding for an NPC, an Aggregate, or an unknown id is an error (`GameError.NotASeat`), and so is a configured seat with no binding (`GameError.UnboundSeat`). A seat meant to stay silent is bound explicitly to an empty `Script`. A literal premise has no seat configuration, so any Entity it writes answers for may be bound. A seat Policy that produces nothing yields an explicit `NoAction`. The simulator never invents default decisions.
 
 ## 5. Deterministic Randomness
 

@@ -4,20 +4,24 @@
 module Schema.Build.Decision
   ( lit
   , param
-  , round
+  , roundQ
   , price
   , holding
   , factor
-  , mul
-  , sub
+  , mulQ
+  , subQ
   , gt
   , ge
   , le
-  , eq
+  , eqQ
   , transformedLastRound
   , restrictedLastRound
   , restrictionInForce
   , asTemplate
+  , orderAt
+  , selfTransform
+  , selfTariff
+  , selfAccessBan
   , procedure
   , deal
   , reciprocate
@@ -41,7 +45,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Cond(..), Expr(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
-import Core.Types (Id(..), IntentF)
+import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF(..))
 import Schema.Build.Quantity (class ToQty, q)
 
 -- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
@@ -61,8 +65,8 @@ lit = Lit <<< q
 param :: String -> Expr
 param = Param
 
-round :: Expr
-round = Round
+roundQ :: Expr
+roundQ = Round
 
 price :: String -> Expr
 price = Price <<< Id
@@ -73,11 +77,11 @@ holding = Holding <<< Id
 factor :: String -> Expr
 factor = Factor <<< Id
 
-mul :: Expr -> Expr -> Expr
-mul = Mul
+mulQ :: Expr -> Expr -> Expr
+mulQ = Mul
 
-sub :: Expr -> Expr -> Expr
-sub = Sub
+subQ :: Expr -> Expr -> Expr
+subQ = Sub
 
 max' :: Expr -> Expr -> Expr
 max' = Max
@@ -93,8 +97,8 @@ ge = Ge
 le :: Expr -> Expr -> Cond
 le = Le
 
-eq :: Expr -> Expr -> Cond
-eq = Eq
+eqQ :: Expr -> Expr -> Cond
+eqQ = Eq
 
 not' :: Cond -> Cond
 not' = Not
@@ -114,6 +118,24 @@ restrictionInForce r = RestrictionInForce { by: Id r.by }
 -- | One Intent, with its quantities as expressions, as a template.
 asTemplate :: IntentF Expr -> Template
 asTemplate = IntentT
+
+-- | An order on a Market as a template; `limit` is the optional limit price.
+orderAt :: String -> Expr -> Maybe Expr -> Template
+orderAt market quantity limit = IntentT (Trade { market: Id market, quantity, limitPrice: limit })
+
+-- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the premise
+-- | format writes no `by` for a template, so these three builders take none. (`Schema.Build.Intent`'s
+-- | `transform`, `enactTariff` and `enactAccessBan` are the fixture forms, with `Q` quantities.)
+selfTransform :: { transformation :: String, quantity :: Expr } -> IntentF Expr
+selfTransform r = Transform { by: Id S.selfName, transformation: Id r.transformation, quantity: r.quantity }
+
+-- | Enact a tariff as the acting Entity's jurisdiction.
+selfTariff :: { origin :: String, rate :: Expr } -> IntentF Expr
+selfTariff r = ChangeRule (Enact (Tariff { jurisdiction: Id S.selfName, origin: Id r.origin, rate: r.rate }))
+
+-- | Enact an access ban as the acting Entity's jurisdiction.
+selfAccessBan :: { target :: String } -> IntentF Expr
+selfAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id S.selfName, target: Id r.target }))
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).

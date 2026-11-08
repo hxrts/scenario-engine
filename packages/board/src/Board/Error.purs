@@ -15,7 +15,7 @@ import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, ResourceId, Tra
 -- | The kind of thing a reference names, for `UnknownReference`.
 data RefKind
   = ResourceRef
-  | MarketRef
+  | Market
   | TransformationRef
   | EntityRef
   | CapacityName
@@ -28,7 +28,7 @@ derive instance Eq RefKind
 instance Show RefKind where
   show = case _ of
     ResourceRef -> "resource"
-    MarketRef -> "market"
+    Market -> "market"
     TransformationRef -> "transformation"
     EntityRef -> "entity"
     CapacityName -> "capacity"

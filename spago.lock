@@ -140,10 +140,13 @@
         "test": {
           "dependencies": [
             "effect",
+            "foreign-object",
             "quickcheck",
+            "sp-core",
             "spec",
             "spec-node",
-            "spec-quickcheck"
+            "spec-quickcheck",
+            "tuples"
           ]
         }
       },
@@ -256,8 +259,13 @@
         },
         "test": {
           "dependencies": [
+            "arrays",
             "effect",
+            "either",
             "quickcheck",
+            "sp-handlers",
+            "sp-simulator",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -316,7 +324,11 @@
           ]
         },
         "test": {
-          "dependencies": []
+          "dependencies": [
+            "effect",
+            "spec",
+            "spec-node"
+          ]
         }
       },
       "sp-game": {
@@ -345,6 +357,9 @@
           "dependencies": [
             "effect",
             "quickcheck",
+            "sp-board",
+            "sp-simulator",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -424,6 +439,7 @@
             "node-fs",
             "partial",
             "quickcheck",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -498,6 +514,7 @@
             "effect",
             "partial",
             "quickcheck",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck",
@@ -610,6 +627,7 @@
             "foldable-traversable",
             "maybe",
             "ordered-collections",
+            "partial",
             "prelude",
             "sp-adapters",
             "sp-checks",
@@ -618,6 +636,7 @@
             "sp-premises",
             "sp-schema",
             "sp-simulator",
+            "spec",
             "transformers"
           ]
         },

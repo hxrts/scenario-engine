@@ -25,3 +25,6 @@ package:
       - spec-node
       - quickcheck
       - spec-quickcheck
+      - sp-testkit
+      - sp-simulator
+      - sp-board

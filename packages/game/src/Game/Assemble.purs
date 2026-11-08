@@ -17,32 +17,39 @@ import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (drawVersion)
 import Core.Query (homeMarket)
 import Core.Strategy (InWorld, Strategy)
-import Core.Types (Entity, EntityId)
+import Core.Num (Q)
+import Core.Types (Entity, EntityId, MarketId, ResourceId, TransformationId)
 import Data.Array (elem, find, fromFoldable, null)
 import Core.World (WorldState)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
+import Data.Foldable (traverse_)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isNothing, maybe)
+import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Error (GameError(..))
 import Game.Override (Override, resolve)
-import Game.Premise (GameboardParts, Premise(..))
+import Game.Premise (GameboardParts, Premise(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.InWorld (acts, inWorldOf)
 import Schema.Gameboard (Gameboard, InitialWorld, InstantiationConfig)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
--- | names something the baseline lacks, when the world does not instantiate, or when a seat that acts
--- | has no home market (checked before any round).
+-- | names something the baseline lacks, when the world does not instantiate, when a seat that acts
+-- | has no home market, when the bindings are not exactly the configured seats (`checkSeats`), or
+-- | when a bound Strategy names something the premise lacks (checked before any round).
 assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
 assemble premise bindings overrides = case premise of
   GameboardPremise p -> do
     resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
     { initial, inWorld } <- startOf resolved.gameboard resolved.config
+    checkSeats (configuredSeats resolved.config) bindings
+    checkStrategies resolved.gameboard.world resolved.gameboard.parameters bindings
     pure
       { manifest: initial.manifest
       , world: initial.world
@@ -53,7 +60,9 @@ assemble premise bindings overrides = case premise of
       }
   LiteralPremise p
     | not (null overrides) -> Left LiteralOverrides
-    | otherwise ->
+    | otherwise -> do
+        -- a literal premise has no seat configuration: any Entity it writes answers may be bound
+        checkStrategies p.world (Object.empty :: Object Q) bindings
         pure
           { manifest: { gameboard: "literal", engine: "sp-engine/v1", draw: drawVersion, initial: p.world }
           , world: p.world
@@ -62,6 +71,27 @@ assemble premise bindings overrides = case premise of
           , parameters: Object.empty
           , seats: bindings
           }
+
+-- | Every configured seat has exactly one binding and nothing else is bound (docs/06 §4.3): a binding
+-- | for an NPC, an Aggregate, or an unknown id is an error, and so is a seat left unbound.
+checkSeats :: Array EntityId -> Bindings -> Either GameError Unit
+checkSeats seats bindings = do
+  traverse_ (\e -> if elem e seats then Right unit else Left (NotASeat e)) (Map.keys bindings)
+  traverse_ (\e -> if Map.member e bindings then Right unit else Left (UnboundSeat e)) seats
+
+-- | Every Strategy bound to a seat names only what the premise has. A catalog Policy or preset was
+-- | checked at load; a Strategy bound directly (the capstone's, an `assemble` caller's) is checked here.
+checkStrategies
+  :: forall e m r t p rest
+   . { entities :: Map EntityId e, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
+  -> Object p
+  -> Bindings
+  -> Either GameError Unit
+checkStrategies world parameters bindings = traverse_ check (Map.toUnfoldable bindings :: Array _)
+  where
+  check (Tuple e binding) = case binding of
+    Strategy s -> checkRefs ("seat " <> unwrap e) world parameters s
+    _ -> Right unit
 
 -- | A Gameboard under its configuration: the initial world and the in-world Policies. Fails when the
 -- | world does not instantiate, or when a seat that acts has no home market.
@@ -96,7 +126,9 @@ presetBindings presets preset ids = Map.fromFoldable <$> traverse bind ids
 -- | with the round count given (or the configuration's when Nothing). An unknown preset is an error.
 assemblePreset :: GameboardParts -> String -> Array Override -> Maybe Int -> Either GameError Game
 assemblePreset p preset overrides rounds = do
-  bindings <- presetBindings p.presets (const preset) (configuredSeats p.config)
+  -- an `Implicit` override removes a seat, so the seats to bind are those left after the overrides
+  resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
+  bindings <- presetBindings p.presets (const preset) (configuredSeats resolved.config)
   game <- assemble (GameboardPremise p) bindings overrides
   pure (withRounds rounds game)
 

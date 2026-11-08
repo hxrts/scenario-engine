@@ -1,6 +1,6 @@
 module Test.Schema.Main where
 
-import Prelude hiding (eq, mul, sub)
+import Prelude
 
 import Data.Map as Map
 
@@ -10,9 +10,9 @@ import Core.Num as Q
 import Core.Strategy (Strategy)
 import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
 import Data.Foldable (for_)
-import Schema.Build.Decision (asTemplate, choose, deal, eq, factor, ge, gt, holding, le, lit, max', mul, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, round, signAll, signFacility, signIf, signProcedures, sub, transformedLastRound)
+import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, price, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
-import Schema.Build.Intent (enactAccessBan, enactTariff, enactWithholding, repeal, route, trade, transfer, transform)
+import Schema.Build.Intent (enactWithholding, repeal, route, trade, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
@@ -23,13 +23,14 @@ import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
-import Partial.Unsafe (unsafeCrashWith)
 import Schema.Premise.Fixture (roundShape, toRound)
 import Schema.Round (Expect)
 import Schema.Premise.Gameboard (decodeGameboard)
+import Partial.Unsafe (unsafeCrashWith)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
+import Testkit.Suite (strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Parse JSON text, crashing the test on a syntax error.
@@ -65,13 +66,6 @@ decodeText text = case jsonParser text of
   Left e -> Left (TypeMismatch e)
   Right j -> decodeStrategy j
 
--- | Decode, crashing the test on any error: a strategy that fails to decode must never yield
--- | an empty strategy that passes vacuously.
-strategy :: String -> Strategy
-strategy text = case decodeText text of
-  Left e -> unsafeCrashWith ("strategy does not decode: " <> show e)
-  Right p -> p
-
 -- | A premise shape reports a failed form as text: the message names the sum that failed.
 isTemplateError :: String -> Boolean
 isTemplateError m = contains (Pattern "Template form") m
@@ -94,26 +88,26 @@ roundTripStrategies =
   [ D.strategy { rules: [ D.rule [] [ asTemplate (trade { market: "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
   , D.strategy
       { rules:
-          [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (round) (lit 3), eq (factor "d") (lit 0) ]
+          [ D.rule [ gt (price "m") (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
               [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: Just (lit 2) })
-              , asTemplate (transform { by: "self", transformation: "t", quantity: mul (lit 2) (max' (lit 1) (sub (lit 4) (lit 3))) })
+              , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
               , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
-              , asTemplate (enactTariff { jurisdiction: "self", origin: "CN", rate: lit "0.5" })
-              , asTemplate (enactAccessBan { jurisdiction: "self", target: "CN" })
+              , asTemplate (selfTariff { origin: "CN", rate: lit "0.5" })
+              , asTemplate (selfAccessBan { target: "CN" })
               , asTemplate (enactWithholding { capacity: "c", units: lit 2 })
               , asTemplate (repeal { rule: "r2/US/0/rule-0" })
               ]
-          , D.rule [ not' (eq (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
+          , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
               [ reciprocate { target: "US" }
               , choose [ noAction, asTemplate (trade { market: "m", quantity: lit 1, limit: Just (lit 3) }) ]
               ]
           ]
-      , sign: [ signIf [ ge round (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
+      , sign: [ signIf [ ge roundQ (lit 5) ] (signProcedures [ "p" ]), signFacility "f", signAll ]
       }
   , D.strategy
       { rules:
           [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
-          , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, transform { by: "self", transformation: "t", quantity: lit 1 } ] } ]
+          , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, selfTransform { transformation: "t", quantity: lit 1 } ] } ]
           ]
       , sign: []
       }
@@ -141,6 +135,9 @@ roundTripCapabilities =
   , MayEnact AccessBanRule
   , MayEnact WithholdingRule
   ]
+
+strategy :: String -> Strategy
+strategy = strategyOrThrow
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -213,15 +210,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       e.rejected `shouldEqual` Just [ proposalId 1 (Id "US") 0, proposalId 1 (Id "US") 1 ]
 
   describe "Gameboard documents" do
-    it "decodes a minimal valid Gameboard and its round range" do
+    it "decodes a minimal valid Gameboard and its roundQ range" do
       case decodeGameboard (json (minimalGameboard "[4, 8]")) of
         Left e -> fail (show e)
         Right gb -> gb.rounds `shouldEqual` { min: 4, max: 8 }
-    it "rejects a round range that is malformed, not ordered, or below one" do
+    it "rejects a roundQ range that is malformed, not ordered, or below one" do
       isLeft (decodeGameboard (json (minimalGameboard "[8, 4]"))) `shouldEqual` true
       isLeft (decodeGameboard (json (minimalGameboard "[0, 4]"))) `shouldEqual` true
       isLeft (decodeGameboard (json (minimalGameboard "[4]"))) `shouldEqual` true
-    it "has no default round range" do
+    it "has no default roundQ range" do
       isLeft (decodeGameboard (json """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
 
   describe "Circulation flows" do

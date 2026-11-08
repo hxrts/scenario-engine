@@ -16,6 +16,7 @@ package:
   test:
     main: Test.Policy.Main
     dependencies:
+      - sp-testkit
       - effect
       - node-buffer
       - node-fs

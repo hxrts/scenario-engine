@@ -398,7 +398,7 @@ procedureIntentsShape =
 
 -- | Whether a Deal's Intents are its transfers, then its transforms, all run by the acting Entity.
 dealShaped :: Array (IntentF Expr) -> Boolean
-dealShaped xs = Array.all isTransfer ts && Array.all isSelfTransform fs && Array.length xs == Array.length ts + Array.length fs && xs == ts <> fs
+dealShaped xs = Array.all isSelfTransform fs && xs == ts <> fs
   where
   ts = Array.filter isTransfer xs
   fs = Array.filter isTransform xs
