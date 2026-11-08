@@ -4,8 +4,10 @@
 -- | any engine phase.
 module Core.Authority
   ( executor
+  , Facts
+  , worldFacts
+  , viewFacts
   , authorized
-  , authorizedIn
   , governs
   , kindOf
   ) where
@@ -13,8 +15,8 @@ module Core.Authority
 import Prelude
 
 import Core.Query (owner)
-import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), Transferability(..))
-import Core.World (WorldState)
+import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, ResourceId, Rule, RuleF(..), RuleChangeF(..), RuleId, RuleKind(..), Transferability(..))
+import Core.World (View, WorldState)
 import Data.Array (any, elem)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Map as Map
@@ -26,31 +28,36 @@ executor p = case _ of
   Transform t -> t.by
   _ -> p.author
 
--- | Whether `caps` authorize `who` to execute the Intent (§2.4). A Repeal needs only some
--- | enactment capability here; `authorizedIn` also requires the capability for the repealed Rule's kind.
-authorized :: Array Capability -> EntityId -> Intent -> Boolean
-authorized caps who = case _ of
+-- | What authority depends on besides the capabilities: each Resource's transferability and each
+-- | Rule in force. The engine reads them from the World State, a Strategy from its View, so the two
+-- | answer every question identically.
+type Facts =
+  { transferability :: ResourceId -> Maybe Transferability
+  , rule :: RuleId -> Maybe Rule
+  }
+
+worldFacts :: WorldState -> Facts
+worldFacts w = { transferability: \r -> _.transferability <$> Map.lookup r w.resources, rule: \id -> Map.lookup id w.rules }
+
+viewFacts :: View -> Facts
+viewFacts v = { transferability: \r -> Map.lookup r v.transferability, rule: \id -> Map.lookup id v.rules }
+
+-- | Whether `caps` authorize `who` to execute the Intent (§2.4). The one authority predicate: screening,
+-- | the invariants, and the Strategy interpreter all ask it.
+authorized :: Facts -> Array Capability -> EntityId -> Intent -> Boolean
+authorized facts caps who = case _ of
   Trade o -> MayTrade o.market `elem` caps
   -- a routed order needs some trade capability here; `routeCandidates` checks the Market it uses
   Route _ -> any isTrade caps
-  Transfer t -> MayTransfer t.resource `elem` caps && t.from == who
+  -- only a Restricted Resource's transfer is authority-gated (§2.3)
+  Transfer t -> t.from == who && (facts.transferability t.resource == Just Free || MayTransfer t.resource `elem` caps)
   Transform t -> MayTransform t.transformation `elem` caps && t.by == who
   ChangeRule (Enact r) -> MayEnact (kindOf r) `elem` caps
-  ChangeRule (Repeal _) -> any isEnact caps
+  -- an unknown Rule is not authorized to be repealed
+  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (kindOf r) `elem` caps) (facts.rule id)
   where
-  isEnact (MayEnact _) = true
-  isEnact _ = false
   isTrade (MayTrade _) = true
   isTrade _ = false
-
--- | `authorized`, with a Repeal also requiring enactment authority over the kind of the Rule it
--- | repeals. An unknown Rule is not authorized to be repealed.
-authorizedIn :: WorldState -> Array Capability -> EntityId -> Intent -> Boolean
-authorizedIn w caps who i = case i of
-  -- only a Restricted Resource's transfer is authority-gated (§2.3)
-  Transfer t | (_.transferability <$> Map.lookup t.resource w.resources) == Just Free -> t.from == who
-  ChangeRule (Repeal id) -> authorized caps who i && maybe false (\r -> MayEnact (kindOf r) `elem` caps) (Map.lookup id w.rules)
-  _ -> authorized caps who i
 
 kindOf :: Rule -> RuleKind
 kindOf = case _ of

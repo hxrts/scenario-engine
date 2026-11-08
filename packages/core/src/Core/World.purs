@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, sumOf, unitShape)
-import Core.Types (CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Types (Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -81,7 +81,8 @@ type View =
   { round :: RoundIndex
   , self :: Entity
   , prices :: Map MarketId Price
-  , rules :: Array Rule
+  , rules :: Map RuleId Rule -- the Rules in force, by the id a repeal names
+  , transferability :: Map ResourceId Transferability
   , events :: Array Event
   , factors :: Map BehaviorDomain Ratio
   , toSign :: Array Proposal
@@ -478,11 +479,12 @@ eventShape = sumOf "Event"
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
 viewShape = object "View"
-  ( (\r s p rs e f t m -> { round: r, self: s, prices: p, rules: rs, events: e, factors: f, toSign: t, markets: m })
+  ( (\r s p rs tr e f t m -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m })
       <$> fieldOf "round" "the round" intShape _.round
       <*> fieldOf "self" "the Entity seeing it" entityShape _.self
       <*> fieldOf "prices" "the price of each Market" (mapOf idShape qShape) _.prices
-      <*> fieldOf "rules" "the Rules in force" (arrayOf ruleShape) _.rules
+      <*> fieldOf "rules" "the Rules in force, by id" (mapOf idShape ruleShape) _.rules
+      <*> fieldOf "transferability" "how each Resource may move" (mapOf idShape transferabilityShape) _.transferability
       <*> fieldOf "events" "the public history" (arrayOf eventShape) _.events
       <*> fieldOf "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors
       <*> fieldOf "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign

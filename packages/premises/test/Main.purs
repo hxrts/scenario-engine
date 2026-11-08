@@ -114,7 +114,8 @@ chinaView =
   { round: 2
   , self: { id: Id "CN", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTransform (Id "defense-procurement-cn"), MayTrade (Id "energy-asia") ], kind: Actor (NPC (Id "china-strategic-v0")) }
   , prices: Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 2) ]
-  , rules: []
+  , rules: Map.empty
+  , transferability: Map.empty
   , events: [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 12, paid: Q.zero } ]
   , factors: Map.empty
   , toSign: []

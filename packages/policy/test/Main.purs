@@ -3,7 +3,7 @@ module Test.Policy.Main where
 import Prelude
 
 import Core.Num as Q
-import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
+import Core.Types (Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
 import Core.World (Event(..), View)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Either (Either(..), isLeft)
@@ -32,7 +32,8 @@ seat =
   { round: 3
   , self: { id: Id "EU", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTrade (Id "energy-atlantic"), MayEnact AccessBanRule ], kind: Actor (Seat (Id "EU")) }
   , prices: Map.fromFoldable [ Tuple (Id "energy-atlantic") (Q.fromInt 2) ]
-  , rules: []
+  , rules: Map.empty
+  , transferability: Map.empty
   , events: []
   , factors: Map.empty
   , toSign: []
@@ -192,9 +193,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "restrictionInForce holds when a rule by that jurisdiction is in force" do
       let
         text = """{ "rules": [ { "when": [ { "restrictionInForce": { "by": "US" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        at rules = intentsOf (drafts text env { view = seat { rules = rules } })
-      at [ AccessBan { jurisdiction: Id "US", target: Id "CN" } ] `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
-      at [ Tariff { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero } ] `shouldEqual` []
+        at r = intentsOf (drafts text env { view = seat { rules = Map.singleton (Id "r") r } })
+      at (AccessBan { jurisdiction: Id "US", target: Id "CN" }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+      at (Tariff { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero }) `shouldEqual` []
 
   describe "Parameters and factors" do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
@@ -243,8 +244,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ [ ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 5 })) ] ]
     it "repeal drafts a repeal of the named rule, and needs enactment authority" do
       let text = """{ "rules": [ { "propose": [ { "repeal": { "rule": "r2/US/0/rule-0" } } ] } ] }"""
-      intentsOf (drafts text (enacting [ MayEnact AccessBanRule ])) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
-      intentsOf (drafts text (enacting [])) `shouldEqual` []
+      let inForce e = e { view = e.view { rules = Map.singleton (Id "r2/US/0/rule-0") (AccessBan { jurisdiction: Id "EU", target: Id "CN" }) } }
+      intentsOf (drafts text (inForce (enacting [ MayEnact AccessBanRule ]))) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
+      intentsOf (drafts text (inForce (enacting []))) `shouldEqual` []
+      -- the engine also needs the capability for the repealed Rule's kind, and a Rule in force
+      intentsOf (drafts text (inForce (enacting [ MayEnact TariffRule ]))) `shouldEqual` []
+      intentsOf (drafts text (enacting [ MayEnact AccessBanRule ])) `shouldEqual` []
+    it "a Free Resource is drafted without a capability, and a Restricted one needs it" do
+      let
+        text = """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "DE", "resource": "M", "quantity": "2" } } ] } ] }"""
+        as t caps = (enacting caps) { view = (enacting caps).view { transferability = Map.singleton (Id "M") t } }
+        give = [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "M", quantity: Q.fromInt 2 } ] ]
+      intentsOf (drafts text (as Free [])) `shouldEqual` give
+      intentsOf (drafts text (as Restricted [])) `shouldEqual` []
+      intentsOf (drafts text (as Restricted [ MayTransfer (Id "M") ])) `shouldEqual` give
     it "a Deal bundles its transforms with its transfers, all by the author" do
       let text = """{ "rules": [ { "propose": [ { "deal": { "signers": [ "EU", "IN" ], "transfers": [], "transforms": [ { "transformation": "energy-shipping", "quantity": "5" } ] } } ] } ] }"""
       intentsOf (drafts text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]

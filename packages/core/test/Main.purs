@@ -6,7 +6,9 @@ import JS.BigInt (BigInt)
 import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
 import Core.Engine.Commit (EngineError, resolveRound)
-import Core.Engine.Prepare (prepareRound)
+import Core.Authority (authorized, viewFacts, worldFacts)
+import Core.Engine.Prepare (observe, prepareRound)
+import Data.Foldable (for_)
 import Core.Invariants (check)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q)
@@ -774,6 +776,21 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r = resolved w [ submit "G" 0 [ Transfer { from: Id "G", to: Id "U", resource: Id "E", quantity: Q.fromInt 10 } ] ]
       holding r.world (Id "U") (Id "E") `shouldEqual` Q.fromInt 5
       invariantsOf w r `shouldEqual` []
+
+  describe "One authority predicate" do
+    it "a World State and an Entity's View of it answer every Intent the same" do
+      let
+        rule = AccessBan { jurisdiction: Id "A", target: Id "B" }
+        base = baseWorld [ actor "A" [ MayEnact TariffRule, MayTransfer (Id "E"), MayTrade (Id "EM") ], actor "B" [] ]
+        w = prepareRound (base { rules = Map.singleton (Id "ban") rule, resources = Map.update (\x -> Just x { transferability = Restricted }) (Id "E") base.resources })
+        a = fromMaybe (actor "A" []) (Map.lookup (Id "A") w.entities)
+        move res = Transfer { from: Id "A", to: Id "B", resource: Id res, quantity: Q.fromInt 1 }
+
+        intents :: Array Intent
+        intents = [ move "M", move "E", move "unknown", ChangeRule (Repeal (Id "ban")), ChangeRule (Repeal (Id "gone")), ChangeRule (Enact rule), Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ]
+        ask facts caps = map (authorized facts caps (Id "A")) intents
+      for_ [ a.capabilities, [], [ MayEnact AccessBanRule ], [ MayTransfer (Id "M") ] ] \caps ->
+        ask (viewFacts (observe w a)) caps `shouldEqual` ask (worldFacts w) caps
 
   describe "Tampered results trip each invariant (work/6)" do
     let

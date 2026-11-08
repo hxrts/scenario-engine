@@ -13,7 +13,7 @@ module Core.Engine.Screen
 
 import Prelude
 
-import Core.Authority (authorizedIn, executor, governs)
+import Core.Authority (authorized, executor, governs, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
@@ -113,7 +113,7 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
   caps = case standing of
     OwnAuthority -> capabilitiesOf w who
     ProcedureAuthority cs -> cs
-  authority = if authorizedIn w caps who i then Right unit else Left (NotAuthorized who)
+  authority = if authorized (worldFacts w) caps who i then Right unit else Left (NotAuthorized who)
   transformation t = Map.lookup t.transformation w.transformations
   known = case i of
     Trade o | not (Map.member o.market w.markets) -> Left (UnknownMarket o.market)

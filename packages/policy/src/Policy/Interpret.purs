@@ -10,8 +10,10 @@ module Policy.Interpret (Env, DrawContext, envFor, nameOnly, propose, sign, cand
 
 import Prelude
 
+import Core.Map (values)
+
 import Control.Apply (lift2)
-import Core.Authority (authorized)
+import Core.Authority (authorized, viewFacts)
 import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
@@ -202,7 +204,7 @@ holds env = foldCond (evalAlg env)
   , not: map not
   , transformedLastRound: \c -> map (\least -> transformedLastRound env.view.round (entityRef env c.by) c.transformation least env.view.events) c.atLeast
   , restrictedLastRound: \c -> Just (not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events)))
-  , restrictionInForce: \c -> Just (any (\r -> jurisdictionOf r == Just (entityRef env c.by)) env.view.rules)
+  , restrictionInForce: \c -> Just (any (\r -> jurisdictionOf r == Just (entityRef env c.by)) (values env.view.rules))
   }
 
 jurisdictionOf :: Rule -> Maybe EntityId
@@ -224,7 +226,7 @@ draft env n t = case t of
     | otherwise -> { next: n, drafts: [] }
   _ ->
     { next: n
-    , drafts: map single (filter (authorized env.view.self.capabilities env.view.self.id) (intentsOf env t))
+    , drafts: map single (filter (authorized (viewFacts env.view) env.view.self.capabilities env.view.self.id) (intentsOf env t))
     }
   where
   -- index ⌊u × n⌋ for a draw u in [0, 1)

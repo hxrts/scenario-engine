@@ -14,7 +14,7 @@ import Prelude
 
 import Core.Map (entries, sumInto, sumMaps)
 
-import Core.Authority (authorizedIn, executor)
+import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, facilitiesOf, marketsOf)
@@ -75,7 +75,7 @@ inv02 w r = concatMap one (executed r)
         Just pid -> procedureAuthority pid p.author
         Nothing -> capabilitiesOf w who
     in
-      if authorizedIn w caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
+      if authorized (worldFacts w) caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
   procedureAuthority pid author = case Map.lookup author w.entities >>= aggregateOf of
     Just a -> maybe [] _.authorizes (Map.lookup pid a.procedures)
     Nothing -> []

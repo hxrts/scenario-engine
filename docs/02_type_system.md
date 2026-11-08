@@ -124,10 +124,10 @@ data Capability
 
 data RuleKind = TariffRule | AccessBanRule | WithholdingRule
 
-authorized :: Array Capability -> EntityId -> Intent -> Boolean   -- INV-02
+authorized :: Facts -> Array Capability -> EntityId -> Intent -> Boolean   -- INV-02
 ```
 
-`authorized` is the matching function checked during Intent validation. A Repeal additionally needs enactment authority over the kind of the Rule it repeals (`authorizedIn`). Enacting or repealing a Rule also requires that the acting Entity governs it: its jurisdiction, or the owner of the capacity a Withholding withholds ([§3](#3-intents-and-economic-actions)). For example, a government may enact a tariff within its jurisdiction, while a small business may invest its own capital.
+`authorized` is the one matching function: screening, the invariants, and the Strategy interpreter all ask it. Its `Facts` are each Resource's transferability and each Rule in force, read from the World State by the engine and from the View by a Strategy. A Repeal needs enactment authority over the kind of the Rule it repeals. Enacting or repealing a Rule also requires that the acting Entity governs it: its jurisdiction, or the owner of the capacity a Withholding withholds ([§3](#3-intents-and-economic-actions)). For example, a government may enact a tariff within its jurisdiction, while a small business may invest its own capital.
 
 Institutional capabilities stay with the institutional Entity or rule mechanism that holds them. If an institution is not explicitly played, its capabilities remain with its Aggregate's collective procedures or with a declared rule, and never transfer automatically to a population Aggregate. Membership, Representation, and signing a procedure Proposal never transfer capabilities to the member or representative Actor.
 
@@ -323,7 +323,8 @@ type View =                              -- what a Policy sees (INV-16)
   { round :: RoundIndex
   , self :: Entity
   , prices :: Map MarketId Price         -- beginning-of-round
-  , rules :: Array Rule                  -- Rules in force
+  , rules :: Map RuleId Rule             -- the Rules in force, by id
+  , transferability :: Map ResourceId Transferability
   , events :: Array Event                -- every recorded event, from prior rounds
   , factors :: Map BehaviorDomain Ratio  -- adjustment factors stored last round, for an Aggregate's Policy
   , toSign :: Array Proposal             -- Proposals requiring its signature (empty in Propose)

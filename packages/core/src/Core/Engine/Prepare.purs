@@ -12,7 +12,7 @@ import Prelude
 import Core.Map (entries)
 
 import Core.Num as Q
-import Core.Query (lookupQ, priceOf, marketsOf, rulesOf)
+import Core.Query (lookupQ, marketsOf, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
 import Core.World (Delivery, Event(..), Target(..), View, WorldState)
 import Data.Array (elem, filter, foldl, partition)
@@ -72,7 +72,8 @@ observe w self =
   { round: w.round
   , self
   , prices: Map.mapMaybeWithKey (\id _ -> priceOf w id) w.markets
-  , rules: rulesOf w
+  , rules: w.rules
+  , transferability: map _.transferability w.resources
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
