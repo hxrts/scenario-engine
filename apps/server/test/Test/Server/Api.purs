@@ -3,10 +3,16 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
+import Views.Keys (ViewKey)
+import Views.Keys as Keys
+import Schema.Decode (decodeError)
+import Core.Shape as Shape
+
 import Schema.Run (emptySpec, RunStatus(..))
 import Adapters.SQLite (Db, open, sqliteBackend)
 import Core.Draw (Seed(..))
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
+import Data.Array (length)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
@@ -66,6 +72,35 @@ spec = describe "API status rules, startup and cache" do
     for_ [ "overview", "balances", "markets", "facilities", "economy", "representation", "procedures", "objectives", "standings", "networth", "actions", "drivers", "balance", "events" ] \view -> do
       r <- env.api "GET" ("/api/runs/run-1/" <> view) ""
       r.status `shouldEqual` 200
+  it "the views with no dashboard caller, and the reply parts no page reads, decode through their key" do
+    env <- setup
+    launch env 3
+    let
+      decoded :: forall a. String -> ViewKey a -> Aff a
+      decoded view k = do
+        r <- env.api "GET" ("/api/runs/run-1/" <> view) ""
+        r.status `shouldEqual` 200
+        either (\e -> liftEffect (throw (view <> ": " <> e))) pure (decodeError (Shape.parse Shape.Snapshot k.shape r.body))
+    facilities <- decoded "facilities" Keys.facilities
+    length facilities.columns `shouldSatisfy` (_ > 0)
+    economy <- decoded "economy" Keys.economy
+    length economy.totals.series `shouldSatisfy` (_ > 0)
+    representation <- decoded "representation" Keys.representation
+    length representation.columns `shouldSatisfy` (_ > 0)
+    procedures <- decoded "procedures" Keys.procedures
+    length procedures.columns `shouldSatisfy` (_ > 0)
+    events <- decoded "events" Keys.events
+    length events.columns `shouldSatisfy` (_ > 0)
+    actions <- decoded "actions" Keys.actions
+    length actions.byRound.rows `shouldSatisfy` (_ > 0)
+    balance <- decoded "balance" Keys.balance
+    length balance.completion.columns `shouldSatisfy` (_ > 0)
+    markets <- decoded "markets" Keys.markets
+    length markets `shouldSatisfy` (_ > 1)
+    entity <- env.api "GET" "/api/runs/run-1/entity/US" ""
+    entity.status `shouldEqual` 200
+    history <- either (\e -> liftEffect (throw ("entity: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot Keys.history entity.body))
+    length history.table.rows `shouldSatisfy` (_ > 0)
   it "the agency analysis answers 200, and the same reply is kept for the same query" do
     env <- setup
     a <- env.api "GET" "/api/agency" ""
