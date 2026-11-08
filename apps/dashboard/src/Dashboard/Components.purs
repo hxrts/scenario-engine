@@ -181,10 +181,10 @@ placeholderFrame message = element UI.region
   }
 
 -- | Runs on the same axes: one line per run, each in its run's colour and named in the legend. The
--- | baseline (the first run) is drawn thicker. The axes name the round and the unit.
-overlayChart :: Array String -> Chart -> JSX
-overlayChart ids c = plotFrame c.title $ element UI.chartContainer
-  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel ids s.name, color: runColour ids s.name }) c.series)
+-- | baseline (`CompareView.baseline`) is drawn thicker. The axes name the round and the unit.
+overlayChart :: Array String -> String -> Chart -> JSX
+overlayChart ids baseline c = plotFrame c.title $ element UI.chartContainer
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) c.series)
   , className: "h-full w-full"
   , children:
       [ element UI.lineChart
@@ -196,16 +196,16 @@ overlayChart ids c = plotFrame c.title $ element UI.chartContainer
               , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
               , element UI.chartLegend { content: element UI.chartLegendContent {} }
               ]
-                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: runColour ids s.name, strokeWidth: if index ids 0 == Just s.name then 3 else 2, dot: false, isAnimationActive: false }) c.series
+                <> map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: runColour ids s.name, strokeWidth: if s.name == baseline then 3 else 2, dot: false, isAnimationActive: false }) c.series
           }
       ]
   }
 
 -- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
 -- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
-groupedBars :: Array String -> String -> Bars -> JSX
-groupedBars ids xLabel b = plotFrame b.title $ element UI.chartContainer
-  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel ids s.name, color: runColour ids s.name }) b.series)
+groupedBars :: Array String -> String -> String -> Bars -> JSX
+groupedBars ids baseline xLabel b = plotFrame b.title $ element UI.chartContainer
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) b.series)
   , className: "h-full w-full"
   , children:
       [ element UI.groupedBarChart

@@ -9,6 +9,7 @@ import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
 import Views.Premise (RoundRange, Premise)
 import Dashboard.Route (Route(..), route)
+import Dashboard.Palette (runLabel)
 import Dashboard.RunForms (rounds)
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Effects.Api as Api
@@ -123,6 +124,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rounds " 6 " `shouldEqual` Right 6
       rounds "12" `shouldEqual` Right 12
       rounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+  describe "Compare labels" do
+    it "the baseline label follows CompareView.baseline, not the order ticked" do
+      runLabel "run-2" "run-2" `shouldEqual` "run-2 (baseline)"
+      runLabel "run-2" "run-1" `shouldEqual` "run-1"
   describe "Run actions: form rules" do
     it "resume rounds are a whole number of at least 1" do
       rounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."

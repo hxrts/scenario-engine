@@ -29,7 +29,7 @@ module Views.Keys
 
 import Core.Num (kindShape)
 import Core.Run (runStatusShape)
-import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, recordShape, stringShape)
+import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, optionalOf, recordShape, stringShape)
 import Core.View (View(..))
 import Views.Actions (ActionsChart, ActionsView)
 import Views.Balance (BalanceView)
@@ -149,7 +149,7 @@ marked = recordShape "Marked" { table, marked: listOf (listOf boolShape) }
 compare :: Shape CompareView
 compare = recordShape "CompareView"
   { compatibility: table
-  , trajectory: chart
+  , trajectory: optionalOf chart
   , markets: listOf chart
   , netWorth: listOf (recordShape "PlayerChart" { player: stringShape, chart })
   , standings: bars

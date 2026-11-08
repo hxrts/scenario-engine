@@ -19,7 +19,7 @@ import Data.Array (all, filter, find, index, length, mapWithIndex)
 import Data.Map as Map
 import Data.Either (Either(..), isLeft)
 import Data.Foldable (any, for_)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -33,11 +33,12 @@ import Foreign.Object as Object
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (orThrow)
 import Views.Balances (balances, events)
-import Views.Common (Table, completed, final, quantity)
-import Views.Balance (measures)
+import Views.Common (Table, completed, exact, final, quantity)
+import Views.Balance (measures, measuresOf)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Entity (entityHistory)
-import Views.Standings (standings)
+import Views.Standings (standings, standingsOf)
+import Views.Glossary (glossary)
 import Views.Overview (overview, runList)
 import Views.Representation (representation)
 import Test.Spec (Spec, describe, it)
@@ -118,6 +119,14 @@ spec context = describe "Views and error paths" do
     length bars.categories `shouldEqual` length (standings r1).rows
     map _.name bars.series `shouldEqual` [ "run-1", "run-2" ]
     (balanceBars runs).gini.categories `shouldEqual` [ "Gini" ]
+    -- bars are sent exact: the chart keeps full precision and a value under 0.01 keeps its height
+    map _.values bars.series `shouldEqual` map (\r -> map (\p -> maybe "" (exact <<< _.netWorth) (find (\s -> s.player == Id p) (standingsOf r))) bars.categories) runs
+    map _.values (balanceBars runs).gini.series `shouldEqual` map (\r -> [ maybe "n/a" exact (measuresOf r).gini ]) runs
+    map _.values (balanceBars runs).spread.series `shouldEqual` map (\r -> [ maybe "n/a" exact (measuresOf r).spread ]) runs
+    (balanceBars runs).gini.unit `shouldEqual` "index, 0 to 1 − 1/n"
+
+  it "the Gini's upper end is stated as 1 − 1/n wherever the glossary names it" do
+    Object.lookup "Gini" glossary.definitions `shouldEqual` Just "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
 
   it "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" do
     ctx <- context

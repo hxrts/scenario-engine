@@ -34,8 +34,8 @@ import Data.Tuple (Tuple(..), fst)
 import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
-import Views.Balance (completionOf, giniCell, measuresOf, spreadCell)
-import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, ratioUnit, unitOf)
+import Views.Balance (completionOf, giniCell, giniUnit, measuresOf, spreadCell)
+import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -43,11 +43,11 @@ import Views.Standings (netWorths, standingsOf)
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
 type Marked = { table :: Table, marked :: Array (Array Boolean) }
 
--- | The comparison view model (`GET /api/compare`). `baseline` names the first run's column. `skipped`
+-- | The comparison view model (`GET /api/compare`). `baseline` is the first run's id. `skipped`
 -- | lists each requested run that could not be read, with the reason.
 type CompareView =
   { compatibility :: Table
-  , trajectory :: Chart
+  , trajectory :: Maybe Chart -- only when a Market is asked for
   , markets :: Array Chart
   , netWorth :: Array { player :: String, chart :: Chart }
   , standings :: Bars
@@ -303,7 +303,7 @@ keyValues gb runs =
     (playerIds runs)
 
   spreadRow = row [ "Spread of final net worth", numeraireUnit runs ] (spreadCell <<< _.spread <<< _.measures)
-  giniRow = row [ "Gini of final net worth", ratioUnit ] (giniCell <<< _.gini <<< _.measures)
+  giniRow = row [ "Gini of final net worth", giniUnit ] (giniCell <<< _.gini <<< _.measures)
 
   objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
   roles = nub (concatMap (map _.actor <<< _.completion) perRun)
@@ -336,7 +336,7 @@ netWorthCharts runs = map chartOf (playerIds runs)
 -- | Final net worth by Player: one group per Player, one bar per run.
 standingsBars :: Array StoredRun -> Bars
 standingsBars runs =
-  { title: "Final net worth by player", unit: numeraireUnit runs, kind: Quantity, categories: map show ps, series: map (\r -> let ss = standingsOf r in { name: r.id, values: map (\p -> maybe "" (quantity <<< _.netWorth) (find (\s -> s.player == p) ss)) ps }) runs }
+  { title: "Final net worth by player", unit: numeraireUnit runs, kind: Quantity, categories: map show ps, series: map (\r -> let ss = standingsOf r in { name: r.id, values: map (\p -> maybe "" (exact <<< _.netWorth) (find (\s -> s.player == p) ss)) ps }) runs }
   where
   ps = playerIds runs
 
@@ -346,7 +346,7 @@ balanceBars :: Array StoredRun -> { spread :: Bars, gini :: Bars, unit :: String
 balanceBars runs =
   { unit: numeraireUnit runs
   , spread:
-      { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ spreadCell (measuresOf r).spread ] }) runs }
+      { title: "Spread of final net worth", unit: numeraireUnit runs, kind: Quantity, categories: [ "Spread" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (measuresOf r).spread ] }) runs }
   , gini:
-      { title: "Gini of final net worth", unit: ratioUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ giniCell (measuresOf r).gini ] }) runs }
+      { title: "Gini of final net worth", unit: giniUnit, kind: Ratio, categories: [ "Gini" ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (measuresOf r).gini ] }) runs }
   }

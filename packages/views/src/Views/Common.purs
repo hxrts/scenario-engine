@@ -25,8 +25,6 @@ module Views.Common
   , target
   , pointsOf
   , recordPoints
-  , MetricSpec
-  , defaultMetricSpec
   , quantity
   , price
   , ratio
@@ -198,17 +196,6 @@ completed r = length r.rounds
 -- | The rounds the run was launched for; a run whose spec does not say is at its completed rounds.
 target :: StoredRun -> Int
 target r = fromMaybe (completed r) r.spec.rounds
-
--- | The premise-specific names the metric views use. The default is the reference premise
--- | (docs/05_test_instance.md); a caller passes its own to view another premise.
-type MetricSpec =
-  { market :: String -- the Market a trajectory comparison shows by default
-  }
-
-defaultMetricSpec :: MetricSpec
-defaultMetricSpec =
-  { market: "energy-atlantic"
-  }
 
 -- | Display (docs/02 §9.1): a count of units (Money, Resource holdings and flows) as a cell.
 quantity :: Q -> String

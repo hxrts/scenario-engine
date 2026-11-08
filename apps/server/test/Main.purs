@@ -19,6 +19,7 @@ import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
 import Testkit.Meridian (anyRounds, premise)
 import Core.Types (Id(..))
+import Data.Map as Map
 import Core.World (Event(..), RoundRecord)
 import Simulator.Records (recordsEqual)
 import Server.Launch (Launched)
@@ -29,7 +30,7 @@ import Test.Server.Api as Api
 import Test.Server.Http as HttpDevice
 import Core.Run (DeriveKind(Counterfactual))
 import Test.Spec (describe, it)
-import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
+import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
@@ -73,6 +74,25 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           resumed.status `shouldEqual` 200
           duplicate <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"duplicate\"}"
           duplicate.status `shouldEqual` 201
+        Left (_ :: String) -> fail "unreachable"
+    it "a premise without the reference premise's Market can compare; a trajectory appears only when a Market is asked for" do
+      map Right premise >>= case _ of
+        Right ctx0 -> do
+          let
+            ctx = ctx0 { gameboard = ctx0.gameboard { world = ctx0.gameboard.world { markets = Map.delete (Id "energy-atlantic") ctx0.gameboard.world.markets } } }
+          db <- liftEffect (open ":memory:")
+          cache <- liftEffect newCache
+          let api method path query body = liftEffect (route (implement ctx (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          _ <- api "POST" "/api/runs" [] "{\"name\":\"a\",\"preset\":\"Passive\",\"playerSeed\":1,\"rounds\":4}"
+          _ <- api "POST" "/api/runs" [] "{\"name\":\"b\",\"preset\":\"Passive\",\"playerSeed\":2,\"rounds\":4}"
+          plain <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" } ] ""
+          plain.status `shouldEqual` 200
+          plain.body `shouldSatisfy` contains (Pattern "\"trajectory\":null")
+          asked <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "market", v: "energy-asia" } ] ""
+          asked.status `shouldEqual` 200
+          asked.body `shouldNotSatisfy` contains (Pattern "\"trajectory\":null")
+          unknown <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "market", v: "energy-atlantic" } ] ""
+          unknown.status `shouldEqual` 400
         Left (_ :: String) -> fail "unreachable"
     it "launches a run, then serves its views and a comparison" do
       map (Right <<< anyRounds) premise >>= case _ of

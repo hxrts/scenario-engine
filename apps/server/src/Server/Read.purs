@@ -40,7 +40,7 @@ import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
-import Views.Common (StoredRun, completed, defaultMetricSpec, storedRun)
+import Views.Common (StoredRun, completed, storedRun)
 import Views.Compare as Compare
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
@@ -186,7 +186,7 @@ compareView cache ctx store { runs: ids, market } = do
     skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
   case uncons good of
     Nothing -> failWith 400 (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
-    Just { head: base, tail: others } -> case Markets.trajectories good (fromMaybe defaultMetricSpec.market market) of
+    Just { head: base, tail: others } -> case traverse (Markets.trajectories good) market of
       Left e -> failWith 400 e
       Right trajectory -> ok Keys.compare
         ( { compatibility: Compare.compatible good

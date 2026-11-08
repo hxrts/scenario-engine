@@ -301,23 +301,27 @@ mkCompare grid = do
   comparison <- mkComparison grid fetch
   component "Compare" \ids -> React.do
     everyRun <- useRunList 0
+    let chooser baseline = loaded everyRun.value \t -> choices t ids baseline
     pure $ Layout.page
       { title: "Compare a scenario set"
       , purpose: "Runs of one scenario set side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
-          [ loaded everyRun.value \t -> choices t ids
-          , if null ids then plots grid fetch [] Nothing Nothing (\_ -> pure unit)
-            else comparison ids
+          [ if null ids then React.fragment [ chooser Nothing, plots grid fetch [] Nothing Nothing (\_ -> pure unit) ]
+            else comparison { ids, chooser }
           ]
       }
 
 -- | The comparison of the ticked runs, fetched for their ids. The view stays mounted while the ids change
 -- | (so the last comparison shows until the next arrives); the player picked for net worth is kept here.
-mkComparison :: DataTable -> Fetch -> Component (Array String)
-mkComparison grid fetch = component "Comparison" \ids -> React.do
+mkComparison :: DataTable -> Fetch -> Component { ids :: Array String, chooser :: Maybe String -> JSX }
+mkComparison grid fetch = component "Comparison" \{ ids, chooser } -> React.do
   comparison <- useLoad (String.joinWith "," ids) (Client.compare ids)
   picked /\ setPicked <- useState' (Nothing :: Maybe String)
-  pure $ plots grid fetch ids comparison.value picked setPicked
+  pure $ React.fragment [ chooser (baselineOf comparison.value), plots grid fetch ids comparison.value picked setPicked ]
+  where
+  baselineOf = case _ of
+    Just (Right c) -> Just c.baseline
+    _ -> Nothing
 
 -- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
 -- | order: how each Market's price moves, how each player's net worth moves, who ends ahead, how even
@@ -332,7 +336,7 @@ plots grid fetch ids shown picked setPicked = D.div
           { title: "Prices by market"
           , purpose: "How each Market's marginal price moves after every round: one line per run, on the same axes."
           , children: loadedWith (Layout.grid [ item "Prices by market" waiting ]) \c ->
-              [ Layout.grid (c.markets <#> \m -> item m.title (overlayChart ids m)) ]
+              [ Layout.grid (c.markets <#> \m -> item m.title (overlayChart ids c.baseline m)) ]
           }
       , Layout.section
           { title: "Net worth over time"
@@ -345,12 +349,12 @@ plots grid fetch ids shown picked setPicked = D.div
       , Layout.section
           { title: "Final standings"
           , purpose: "Each player's net worth after the final round: one group per player, with one bar per run."
-          , children: loadedWith waiting \c -> [ groupedBars ids "Player" c.standings ]
+          , children: loadedWith waiting \c -> [ groupedBars ids c.baseline "Player" c.standings ]
           }
       , Layout.section
           { title: "Spread and Gini"
           , purpose: balancePurpose
-          , children: loadedWith (balance waiting waiting) \c -> [ balance (groupedBars ids "Measure" c.balance.spread) (groupedBars ids "Measure" c.balance.gini) ]
+          , children: loadedWith (balance waiting waiting) \c -> [ balance (groupedBars ids c.baseline "Measure" c.balance.spread) (groupedBars ids c.baseline "Measure" c.balance.gini) ]
           }
       , Layout.section
           { title: "Key values"
@@ -407,12 +411,12 @@ plots grid fetch ids shown picked setPicked = D.div
   inUnit = maybe "" (\u -> ", in " <> u) spreadUnit
   balancePurpose = "How even final net worth is among the players in each run. "
     <> maybe "The" (\u -> "The spread is in " <> u <> "; the") spreadUnit
-    <> " Gini coefficient runs from 0 (equal) to 1 (one player holds everything)."
+    <> " Gini coefficient runs from 0 (equal) to 1 − 1/n (one player holds everything)."
 
   -- the two balance plots side by side, each in its own panel
   balance spreadPlot giniPlot = Layout.grid
     [ Layout.panel { span: 6, title: "Spread", purpose: "Highest minus lowest final net worth" <> inUnit <> ".", children: [ spreadPlot ] }
-    , Layout.panel { span: 6, title: "Gini coefficient", purpose: "Inequality of final net worth, from 0 to 1.", children: [ giniPlot ] }
+    , Layout.panel { span: 6, title: "Gini coefficient", purpose: "Inequality of final net worth, from 0 to 1 − 1/n.", children: [ giniPlot ] }
     ]
 
   playerPicker c = D.label
@@ -425,7 +429,7 @@ plots grid fetch ids shown picked setPicked = D.div
 
   netWorthPlot c = case find (\nw -> nw.player == chosen c) c.netWorth of
     Nothing -> [ waiting ]
-    Just nw -> [ overlayChart ids nw.chart ]
+    Just nw -> [ overlayChart ids c.baseline nw.chart ]
 
   -- the player shown: the one picked, when the comparison has them, else the first
   chosen c = case picked of
@@ -436,8 +440,8 @@ plots grid fetch ids shown picked setPicked = D.div
 -- | comparison (the route's ids, in the order ticked; the first is the baseline), and unticking removes
 -- | it: a run is removed only by unticking it. Each tick changes the route. A ticked run shows the
 -- | colour its plots and tables use.
-choices :: RunList -> Array String -> JSX
-choices t ids = Layout.section
+choices :: RunList -> Array String -> Maybe String -> JSX
+choices t ids baseline = Layout.section
   { title: "Choose runs"
   , purpose: "Every readable run. Tick the runs of a scenario set to compare them; untick one to remove it. The first run ticked is the baseline."
   , children:
@@ -453,7 +457,7 @@ choices t ids = Layout.section
                       }
                   , D.span { className: "size-3 shrink-0 rounded-full " <> runSwatch ids id }
                   , D.span { className: "font-medium", children: [ D.text id ] }
-                  , D.span { className: "text-muted-foreground", children: [ D.text (if index ids 0 == Just id then "baseline" else "") ] }
+                  , D.span { className: "text-muted-foreground", children: [ D.text (if baseline == Just id then "baseline" else "") ] }
                   ]
               }
           }

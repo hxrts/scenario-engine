@@ -51,7 +51,7 @@ function comparison(ids, skipped = []) {
     skipped,
     compatibility: table("Compatibility", ["Run", "Comparable with the first"], ids.map((id, i) => [header(id), i === 0 ? "yes" : "yes"])),
     seeds: table("Seed-to-seed variation", ["Run"], [["one run of this specification"]]),
-    baseline: header(ids[0]),
+    baseline: ids[0],
   };
 }
 

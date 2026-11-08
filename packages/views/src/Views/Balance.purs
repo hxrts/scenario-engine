@@ -11,6 +11,7 @@ module Views.Balance
   , measures
   , spreadCell
   , giniCell
+  , giniUnit
   , BalanceView
   , balanceView
   , completionOf
@@ -108,7 +109,11 @@ notEvaluatedColumn :: Column
 notEvaluatedColumn = column "Not evaluated" "How many of the objective's criteria could not be evaluated, because the run has no rounds or no data."
 
 giniColumn :: Column
-giniColumn = column "Gini" "The Gini coefficient of final net worth, from 0 (even) to 1 (one player holds everything)."
+giniColumn = column "Gini" "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
+
+-- | The unit of a Gini coefficient: its range is the unit (0 to 1 − 1/n, for n players).
+giniUnit :: String
+giniUnit = "index, 0 to 1 − 1/n"
 
 -- | The columns this module defines.
 columns :: Array Column

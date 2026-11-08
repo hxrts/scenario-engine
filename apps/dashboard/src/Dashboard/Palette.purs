@@ -7,7 +7,7 @@ module Dashboard.Palette (seriesColour, runColour, runSwatch, runLabel) where
 import Prelude
 
 import Data.Array (elemIndex)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (fromMaybe)
 
 -- | The colour of the i-th metric series: a distinct hue, spaced by the golden angle so neighbours
 -- | differ. Lightness and saturation are fixed so every hue reads on both themes.
@@ -31,6 +31,6 @@ runSwatch ids id = case slot ids id of
   3 -> "bg-[var(--chart-4)]"
   _ -> "bg-[var(--chart-5)]"
 
--- | A run's legend label: its id, and the word `baseline` for the first run (the baseline).
-runLabel :: Array String -> String -> String
-runLabel ids id = if elemIndex id ids == Just 0 then id <> " (baseline)" else id
+-- | A run's legend label: its id, and the word `baseline` for the comparison's baseline run.
+runLabel :: String -> String -> String
+runLabel baseline id = if id == baseline then id <> " (baseline)" else id
