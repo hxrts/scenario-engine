@@ -17,7 +17,7 @@ import Game.Types (Bindings, Game)
 import Premises.Capstone as C
 import Premises.Capstone (ObjectiveExpect, RoundExpect)
 import Simulator.Simulate (SimRun, simulate)
-import Testkit.Meridian (orThrow, premise)
+import Testkit.Meridian (orThrow, premise, run)
 
 type Capstone =
   { rounds :: Int
@@ -50,8 +50,4 @@ load = do
 
 -- | Play a game to its end under a player seed; a simulation or engine failure is an error.
 runOf :: Seed -> Game -> Aff SimRun
-runOf seed g = do
-  r <- orThrow (simulate seed g)
-  case r.final of
-    Left e -> throwError (error (show e))
-    Right _ -> pure r
+runOf = run

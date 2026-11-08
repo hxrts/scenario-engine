@@ -1,14 +1,22 @@
 -- | The Meridian premise the views, experiments and simulator test suites share, and the fifteen seats every test
 -- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (premise, seats, unseated, presetGame, presetSeats, orThrow) where
+module Testkit.Meridian (price, everySeat, run, valid, initialOf, premise, seats, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
+
+import Checks.Run (checkRun)
+import Core.Draw (Seed)
+import Core.Num as Q
+import Core.Query (priceOf)
+import Core.World (RoundResult, WorldState)
+import Data.Maybe (fromMaybe, Maybe)
+import Simulator.Simulate (SimRun, simulate)
+import Test.Spec.Assertions (shouldEqual)
 
 import Adapters.Filesystem (fileOps)
 import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -59,3 +67,26 @@ orThrow :: forall e a. Show e => Either e a -> Aff a
 orThrow = case _ of
   Left e -> throwError (error (show e))
   Right x -> pure x
+
+-- | A Market's marginal price at the end of a round; an unknown Market reads as zero.
+price :: RoundResult -> String -> Q.Q
+price r m = fromMaybe Q.zero (priceOf r.world (Id m))
+
+-- | Every configured seat plays one preset, for the configuration's rounds.
+everySeat :: GameboardParts -> String -> Aff Game
+everySeat p preset = presetGame p preset [] Nothing
+
+-- | Play a game to its end under a player seed; a failure is an error.
+run :: Seed -> Game -> Aff SimRun
+run seed g = do
+  r <- orThrow (simulate seed g)
+  case r.final of
+    Left e -> throwError (error (show e))
+    Right _ -> pure r
+
+-- | Every round's invariants hold.
+valid :: WorldState -> SimRun -> Aff Unit
+valid initial r = checkRun initial r.records `shouldEqual` []
+
+initialOf :: SimRun -> WorldState
+initialOf r = r.manifest.initial

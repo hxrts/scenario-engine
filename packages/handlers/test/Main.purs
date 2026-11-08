@@ -25,7 +25,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
-import Testkit.Meridian (unseated)
+import Testkit.Meridian (unseated, price)
 import Game.Types (Game)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
@@ -40,7 +40,7 @@ import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Suite (price, strategyOrThrow)
+import Testkit.Json (strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.

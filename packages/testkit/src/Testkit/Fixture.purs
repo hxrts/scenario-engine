@@ -1,9 +1,17 @@
 -- | The shared path for a literal premise (fixture): it plays through `simulate` with its Proposals
 -- | and signatures as Script bindings, and the records are checked against the premise's rounds. Every
 -- | suite that checks a fixture (the golden tests, the views, experiments and simulator suites) calls this.
-module Testkit.Fixture (checkLiteral) where
+module Testkit.Fixture (fixture, checkLiteral) where
 
 import Prelude
+
+import Adapters.Filesystem (fileOps)
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Premises.Load (loadLiteral)
+import Premises.Names (fixturePath)
+import Premises.Tree (readRootFile)
+import Test.Spec.Assertions (fail, shouldEqual)
 
 import Checks.Round (Failure(..), Field(..), checkRound)
 import Checks.Run (checkRun)
@@ -49,3 +57,9 @@ roundChecks r rr = checkRound r.expect rr <> inputsCheck
 -- | The Proposals of a round by id, each with the sorted Entities that signed it.
 summary :: Array SignedProposal -> Array (Tuple ProposalId (Array EntityId))
 summary xs = sortWith (show <<< fst) (map (\s -> Tuple s.proposal.id (sort s.signatures)) xs)
+
+-- | A named fixture file, played through the shared checker: every expectation holds.
+fixture :: String -> Aff Unit
+fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps (fixturePath name))) >>= case _ of
+  Left e -> fail (show e)
+  Right f -> checkLiteral f `shouldEqual` []

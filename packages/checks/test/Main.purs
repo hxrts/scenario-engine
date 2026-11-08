@@ -9,8 +9,7 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-import Testkit.Meridian (unseated)
-import Testkit.Suite (initialOf, run)
+import Testkit.Meridian (unseated, initialOf, run)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

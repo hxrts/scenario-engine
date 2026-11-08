@@ -21,8 +21,7 @@ import Policy.Strategy (strategyRefs)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Suite (strategyOrThrow)
-import Testkit.Json (decodeText)
+import Testkit.Json (strategyOrThrow, decodeText)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- Fixtures ----------------------------------------------------------------------------

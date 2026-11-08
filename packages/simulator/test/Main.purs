@@ -40,8 +40,9 @@ import Game.Assemble (presetBindings, withRounds)
 import Game.Premise (GameboardParts)
 import Game.Types (Game)
 import Testkit.Capstone (load)
-import Testkit.Meridian (orThrow, premise, presetGame)
-import Testkit.Suite (price, everySeat, fixture, initialOf, run, strategyOrThrow, valid)
+import Testkit.Meridian (orThrow, premise, presetGame, price, everySeat, initialOf, run, valid)
+import Testkit.Fixture (fixture)
+import Testkit.Json (strategyOrThrow)
 import Test.Spec (describe, it)
 import Test.Simulator.Shock as ShockTests
 import Test.Simulator.Capstone as CapstoneTests

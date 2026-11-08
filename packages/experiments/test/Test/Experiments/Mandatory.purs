@@ -8,8 +8,9 @@ import Prelude
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
-import Testkit.Meridian (orThrow, seats)
-import Testkit.Suite (everySeat, fixture, initialOf, run, strategyOrThrow, valid)
+import Testkit.Meridian (orThrow, seats, everySeat, initialOf, run, valid)
+import Testkit.Fixture (fixture)
+import Testkit.Json (strategyOrThrow)
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
