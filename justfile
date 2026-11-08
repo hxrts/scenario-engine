@@ -49,7 +49,11 @@ _premises:
     spago run -p sp-cli --main Transcript
 
 # fmt-check, deps, layout, derived, build, test
-check: _fmt-check build _deps _layout _derived test
+check: _fmt-check build _deps _layout _derived test _docs
+
+# docs/05's marked tables against the compiled setting
+_docs: _premises
+    node scripts/check-docs.js
 
 # check + dashboard smoke test
 all: check dashboard-test

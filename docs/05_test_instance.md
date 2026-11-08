@@ -63,10 +63,12 @@ Markets and facilities price through the shared CostFunction primitive. Faciliti
 
 ### 3.1 Regional Energy Markets
 
+<!-- check-docs: markets -->
+
 | Market ID | Region | Entities with access | Money reserve | Energy reserve | Operational interval |
 |---|---|---|---:|---:|---|
-| `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, EU_POOL, US_WORKERS, GLOBAL_SMES | 700 M | 350 E | −80 ≤ x ≤ 300 |
-| `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS | 500 M | 250 E | −80 ≤ x ≤ 200 |
+| `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, EU_POOL, US_WORKERS, GLOBAL_SMES, SHIP, ENERGY_SUPPLIERS | 700 M | 350 E | −80 ≤ x ≤ 300 |
+| `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS, SHIP, ENERGY_SUPPLIERS | 500 M | 250 E | −80 ≤ x ≤ 200 |
 
 SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy. Other Entities have access to one node only. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
 
@@ -116,6 +118,8 @@ Germany holds no tariff authority of its own. EU-wide restrictions belong to the
 ### 3.5 Defence-goods market
 
 **Market ID:** `defence-goods`, an exchange Market ([Type System §5.2](02_type_system.md#52-exchange-markets)) trading Military for Money.
+
+<!-- check-docs: defence-market -->
 
 | Market ID | Base / quote | Money reserve | Military reserve | Access | Operational interval |
 |---|---|---:|---:|---|---|
@@ -192,6 +196,8 @@ Each round's single update evaluates the economic cycle together with every othe
 ### 8.1 Energy production
 
 Production is computed during economic resolution and delivered at the Prepare phase of the following round.
+
+<!-- check-docs: producers -->
 
 | Producer | Capacity (E/round) |
 |---|---:|
@@ -281,24 +287,26 @@ At the end of every round the engine checks [INV-05](02_type_system.md#inv-05): 
 
 The reference instantiation selects all fifteen seat roles plus China as an NPC. This table is the one description of each Actor. Quantities appear once, in the section named.
 
+<!-- check-docs: actors -->
+
 | ID | Actor | Category | Region | Distinctive capability | Dependency | Objective ([§9.3](#93-objectives)) |
 |---|---|---|---|---|---|---|
-| US | US Head of State | Government | Atlantic | Tariffs, shipment bans, deployment, Military sales. Largest procurement budget | Energy. Procurement capacity | Military leadership, solvent |
-| DE | German Chancellor | Government | Atlantic | Signs EU procedure Proposals. Optional solidarity contributions | Atlantic Energy. EU residual tax revenue | Energy security |
+| US | US Head of State | Government | Atlantic | Tariffs, shipment bans, deployment, Military sales. Largest procurement budget | Energy above its holdings; procurement capacity | Military leadership, solvent |
+| DE | German Chancellor | Government | Atlantic | Signs EU procedure Proposals. Optional solidarity contributions | Atlantic Energy; tax revenue from the EU residual | Energy security |
 | IN | Indian Prime Minister | Government | Asia | Energy production ([§8.1](#81-energy-production)). Tariffs | Asia Energy prices | Industrial autonomy |
-| JP | Japanese Prime Minister | Government | Asia | Tariffs. Procurement. Large Asia purchasing | Imports and transport. No production | Energy security, credible defense |
+| JP | Japanese Prime Minister | Government | Asia | Tariffs. Procurement. Large Asia purchasing | Imports and transport; no production | Energy security, credible defense |
 | UK | UK Prime Minister | Government | Atlantic | Tariffs. Procurement. Campaigns | Atlantic Energy | Diplomatic influence |
-| BR | Brazilian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units | Stronger finances |
+| BR | Brazilian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units for investment | Stronger finances |
 | SA | Saudi Energy Minister | Government | Asia | Largest government production | Transport for Atlantic sales | Energy wealth |
-| NG | Nigerian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units. Investment | National capacity |
-| ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production. Capacity investment | Semiconductor units. Strikes | Profit and supply growth |
-| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-economic-state-that-is-not-a-resource)). May withhold or sell units | Operating Energy | Secure Energy inputs |
-| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)). Chooses which shipments to sign. Arbitrage | Fuel. Shipment bans | Open routes, high throughput |
-| DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement. Receives non-Chinese revenue | CHIP's semiconductor capacity. Strikes | Procurement revenue |
-| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues. Soft Power | Workers' position and influence |
-| SME | Small-Business Owner | Small participant | Atlantic | Representation of Global SME demand ([§12.2](#122-small-business-owner--global-smes-representation)) | Atlantic prices. Small cash | Business viability |
-| AID | Humanitarian Alliance Director | Civil institution | Atlantic | Aid. Energy relief to Aggregates in shortfall. Soft Power | EU donations. Energy purchases | Limit crisis damage |
-| CN | Chinese Head of State | Government | Asia | Tariffs, shipment bans, deployment | Asia Energy prices. CN_PRIVATE tax base | Military parity, solvent |
+| NG | Nigerian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units; investment | National capacity |
+| ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production. Capacity investment | Semiconductor units; strikes | Profit and supply growth |
+| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-economic-state-that-is-not-a-resource)). May withhold or sell units | 6 E/round operating Energy | Secure Energy inputs |
+| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)). Chooses which shipments to sign. Arbitrage | 4 E/round fuel; shipment bans | Open routes, high throughput |
+| DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement. Receives non-Chinese revenue | CHIP's semiconductor capacity; strikes | Procurement revenue |
+| LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues; Soft Power | Workers' position and influence |
+| SME | Small-Business Owner | Small participant | Atlantic | Representation of Global SME demand ([§12.2](#122-small-business-owner--global-smes-representation)) | Atlantic prices; small cash | Business viability |
+| AID | Humanitarian Alliance Director | Civil institution | Atlantic | Aid. Energy relief to Aggregates in shortfall. Soft Power | EU donations; Energy purchases | Limit crisis damage |
+| CN | Chinese Head of State | Government | Asia | Tariffs, shipment bans, deployment | Asia Energy prices; CN_PRIVATE tax base | Military parity, solvent |
 
 ### 9.1 Semiconductor capacity
 
