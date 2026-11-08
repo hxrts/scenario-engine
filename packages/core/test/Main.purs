@@ -18,8 +18,8 @@ import Core.Shape as Shape
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RejectReason(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
-import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalId, ruleIdOf, submissionIndex)
+import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Target(..), Window(..), costFunctionShape, coupled, renderReason)
+import Core.Types (Capability(..), Controller(..), Direction(..), EntityId, EntityKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketTag, Proposal, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -35,6 +35,7 @@ import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
+import Test.Core.Build (actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldContain, shouldEqual, shouldNotEqual)
 import Test.Spec.QuickCheck (quickCheck)
@@ -88,11 +89,6 @@ genKind = oneOf $ cons' (Actor <<< Seat <$> genId)
 roundTrip :: forall a. Eq a => Show a => EncodeJson a => DecodeJson a => Gen a -> Gen Result
 roundTrip g = g <#> \x -> decodeJson (encodeJson x) === Right x
 
-q :: String -> Q
-q s = case Q.parse s of
-  Just x -> x
-  Nothing -> Q.zero
-
 -- | A displayed value is within half a hundredth of the exact one and has at most two decimals: a
 -- | fixed kind keeps exactly two, a trimmed kind keeps none that are trailing zeros. The "<0.01"
 -- | marker stands only for a non-zero value under a hundredth.
@@ -119,47 +115,6 @@ bigAbs :: BigInt -> BigInt
 bigAbs x = if x < BI.fromInt 0 then negate x else x
 
 -- Engine fixtures -----------------------------------------------------------------
-
--- | An Actor holding 100 of the numeraire M and the given capabilities.
-actor :: String -> Array Capability -> Entity
-actor name caps =
-  { id: Id name
-  , accounts: Map.singleton (Id "M") (Q.fromInt 100)
-  , capacities: Map.empty
-  , capabilities: caps
-  , kind: Actor (Seat (Id name))
-  }
-
--- | A World State over the given Entities, with resources M (numeraire) and E, no markets, and
--- | no rules, in round 1.
-baseWorld :: Array Entity -> WorldState
-baseWorld es =
-  { round: 1
-  , seed: Seed 1
-  , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
-  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free }) [ "M", "E" ])
-  , markets: Map.empty
-  , transformations: Map.empty
-  , representations: []
-  , numeraire: Id "M"
-  , focus: Nothing
-  , flowGates: []
-  , groups: Map.empty
-  , ruleKinds: testKinds
-  , rules: Map.empty
-  , scheduled: Map.empty
-  , deliveries: []
-  , factors: Map.empty
-  , recurring: []
-  , events: []
-  }
-
--- | An ordinary, unsigned-by-others Proposal from `author`, numbered `index` in round 1.
-submit :: String -> Int -> Array Intent -> SignedProposal
-submit author index intents =
-  { proposal: { id: proposalId 1 (Id author) index, author: Id author, intents, signers: [], procedure: Nothing }
-  , signatures: []
-  }
 
 -- | A trade's settlement, its base and quote legs built from the signed quantity and price.
 tradeE :: Id MarketTag -> EntityId -> Q -> Q -> Event
@@ -201,18 +156,6 @@ eventsOf = case _ of
   Right r -> r.record.events
   Left _ -> []
 
--- | A Market `id` for `base` against M at a flat price, with reserves of 50 of each, and the given access.
-priced :: String -> String -> Array String -> String -> Market
-priced id base access p =
-  { id: Id id
-  , base: Id base
-  , quote: Id "M"
-  , cost: { intercept: q p, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
-  , position: Q.zero
-  , reserves: Map.fromFoldable [ Tuple (Id base) (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
-  , access: map Id access
-  }
-
 -- | A routed buy (positive) or sell (negative) of `n` E for M, at `limit`.
 routed :: String -> Int -> String -> Intent
 routed base n limit = Route { pair: { base: Id base, quote: Id "M" }, quantity: Q.fromInt n, limitPrice: Just (q limit) }
@@ -239,18 +182,6 @@ marketObject = object "Market"
       <*> fieldOf "reserves" "" (mapOf idShape qShape) _.reserves
       <*> fieldOf "access" "" (Shape.arrayOf idShape) _.access
   )
-
--- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
-market :: Array String -> Market
-market access =
-  { id: Id "EM"
-  , base: Id "E"
-  , quote: Id "M"
-  , cost: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
-  , position: Q.zero
-  , reserves: Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
-  , access: map Id access
-  }
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -511,7 +442,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> show e `shouldEqual` "a round"
     it "caps an uncapped facility's fills at its ceiling, so escrow bounds the settled price" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, resource: Id "M", to: Id "PAYEE" }, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = (transformation "F") { payment = Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, resource: Id "M", to: Id "PAYEE" } }
         w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], actor "UK" [ MayTransform (Id "F") ] ]) { transformations = Map.singleton (Id "F") fac }
         order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
         filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
@@ -546,7 +477,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)
     it "a Representation with a zero reference contributes no estimate" do
       let
-        rep = { id: Id "r", actor: Id "US", aggregate: Id "EU", domain: Id "E", observes: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero } }
+        rep = representation { actor: "US", aggregate: "EU", domain: "E", observes: "E", estimator: { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero } }
         w = (baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]), representations = [ rep ] }
         p = { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }
       (Represent.estimate w [ p ]).events `shouldEqual` []
@@ -618,8 +549,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Reservations (docs/02 §2.3, §8.2)" do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
       let
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free }
-        dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        mil = resource "Mil"
+        dep = (transformation "dep") { escrowPerUnit = Map.singleton (Id "Mil") (Q.fromInt 3) }
         us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
         -- 2 units reserve 6 Mil and the Transfer asks 10: 16 escrowed against 10 held, so both scale by 5/8
@@ -640,9 +571,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             Right next -> holding next.world (Id "US") (Id "Mil") `shouldEqual` Q.zero
     it "a reservation alongside inputs leaves the reserved Resource unchanged and still consumes the inputs" do
       let
-        dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.singleton (Id "Mil") (Q.fromInt 3), payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        dep = (transformation "dep") { inputs = Map.singleton (Id "E") (Q.fromInt 1), escrowPerUnit = Map.singleton (Id "Mil") (Q.fromInt 3) }
         us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free }
+        mil = resource "Mil"
         w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
       case resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ] ] of
         Left e -> show e `shouldEqual` "a round"
@@ -687,7 +618,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a capacity effect changes only its named holder's capacity, for its rounds" do
       let
         -- each unit ordered adds one unit of plant to JP in the round after the order, for two rounds
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
+        fac = (transformation "F") { effects = [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
         w = (baseWorld [ actor "UK" [ MayTransform (Id "F") ], actor "JP" [], actor "US" [] ]) { transformations = Map.singleton (Id "F") fac }
         held e world = capacityHeld (prepareRound world) (Id e) (Id "plant")
         round2 = advance w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 3 } ] ]
@@ -700,7 +631,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       held "US" round2 `shouldEqual` Q.zero
     it "a facility whose owner does not sign is rejected, and accepted once the owner signs" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: true, effects: [] }
+        fac = (transformation "F") { capacity = Just (Id "plant"), ownerSigns = true }
         w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
         order = Transform { by: Id "US", transformation: Id "F", quantity: Q.fromInt 1 }
         p signers =
@@ -720,7 +651,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Funding, shipping, the record, and ownership" do
     let
-      transport = { id: Id "ship", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+      transport = transformation "ship"
       holder name = (actor name [ MayTransform (Id "ship") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 50) ] }
       shipWorld = (baseWorld [ holder "A", holder "B", holder "C" ]) { transformations = Map.singleton (Id "ship") transport, flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "ship") } ] }
       send to n = Transfer { from: Id "A", to: Id to, resource: Id "E", quantity: Q.fromInt n }
@@ -892,18 +823,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       invariantsOf w grown `shouldContain` "INV-05"
     it "INV-06: a fill above the pool's capacity" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = (transformation "F") { capacity = Just (Id "plant") }
         w = (baseWorld [ (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (withEvent (convE (Id "UK") (Id "F") (Q.fromInt 11)) (empty w)) `shouldContain` "INV-06"
     it "INV-08: two positive holders of a facility's capacity" do
       let
-        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+        fac = (transformation "F") { capacity = Just (Id "plant") }
         holds n = (actor n []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
         w = (baseWorld [ holds "UK", holds "JP" ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (empty w) `shouldContain` "INV-08"
     it "INV-09: a factor outside its estimators' bounds" do
       let
-        rep = { id: Id "r", actor: Id "A", aggregate: Id "G", domain: Id "energy-demand", observes: Id "E", weight: Q.fromInt 1, estimator: { reference: Q.fromInt 1, shrinkage: q "0.5", deviationBound: Just { lo: q "-0.2", hi: q "0.2" }, noiseSpread: Q.zero } }
+        rep = representation { actor: "A", aggregate: "G", domain: "energy-demand", observes: "E", estimator: { reference: Q.fromInt 1, shrinkage: q "0.5", deviationBound: Just { lo: q "-0.2", hi: q "0.2" }, noiseSpread: Q.zero } }
         w = (baseWorld [ actor "A" [], actor "G" [] ]) { representations = [ rep ] }
       invariantsOf w (withEvent (Estimated { round: 1, aggregate: Id "G", domain: Id "energy-demand", factor: q "1.2" }) (empty w)) `shouldContain` "INV-09"
       invariantsOf w (withEvent (Estimated { round: 1, aggregate: Id "G", domain: Id "energy-demand", factor: q "1.05" }) (empty w)) `shouldEqual` []
@@ -918,7 +849,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Order bounds and payment legs (C10)" do
     let
-      fac = { id: Id "F", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+      fac = (transformation "F") { inputs = Map.singleton (Id "E") (Q.fromInt 1) }
       runner e = (actor "A" [ MayTransform (Id "F") ]) { accounts = Map.singleton (Id "E") (Q.fromInt e) }
       order n = Transform { by: Id "A", transformation: Id "F", quantity: Q.fromInt n }
       worldOf tr e = (baseWorld [ runner e ]) { transformations = Map.singleton (Id "F") tr }
@@ -1031,24 +962,3 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "the snapshot form of a rule enactment nests the Rule the same way" do
       stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
         `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
-
--- | Change one Entity of a World.
-onEntity :: EntityId -> (Entity -> Entity) -> WorldState -> WorldState
-onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
-
--- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
-
-banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
-
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
-
-testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
-testKinds = Map.fromFoldable
-  [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
-  , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
-  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
-  ]

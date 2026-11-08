@@ -1,6 +1,10 @@
 module Test.Policy.Main where
 
+import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfEntity, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)
+import Schema.Build.Intent (repeal, route, transfer)
 import Schema.Build.Quantity (q)
+import Schema.Build.World (byKey, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
+import Core.World (seeded, Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
 import Prelude
 
 import Core.Num as Q
@@ -8,9 +12,8 @@ import Core.Draw (Seed(..))
 import Core.Map (values)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Engine.Screen (screen)
-import Core.Types (LevyBasis(..), LevyRecipient(..), CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), EntityId, Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleChangeF(..), proposalId, samePositions, traverseIntent)
+import Core.Types (Capability(..), CapacityTag, Direction(..), EntityId, EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), proposalId, samePositions, traverseIntent)
 import Core.Slice (event, pickOf)
-import Core.World (Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
 import Data.Newtype (un)
@@ -22,7 +25,6 @@ import Testkit.Meridian (unseated)
 import Data.Either (either, isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe', maybe)
-import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Foreign.Object as Object
@@ -34,7 +36,7 @@ import Policy.Strategy (strategyRefs)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Json (strategyOrThrow, decodeText)
+import Testkit.Json (decodeText)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- The agreement property ----------------------------------------------------------------
@@ -100,21 +102,20 @@ agreement w = do
 
 -- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
 seat :: View
-seat =
-  { ruleKinds: testKinds
-  , round: 3
-  , self: { id: Id "EU", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTrade (Id "energy-atlantic"), MayEnact (Id "accessBan") ], kind: Actor (Seat (Id "EU")) }
-  , prices: Map.fromFoldable [ Tuple (Id "energy-atlantic") (Q.fromInt 2) ]
-  , rules: Map.empty
-  , transferability: Map.fromFoldable [ Tuple (Id "E") Free, Tuple (Id "M") Free ]
-  , events: []
-  , factors: Map.empty
-  , toSign: []
-  , entities: [ Id "CN", Id "DE", Id "EU" ]
-  , transformations: Map.singleton (Id "t") { minimum: Q.zero, maximum: Nothing }
-  , ownedCapacities: [ Id "semiconductors" ]
-  , markets: [ { id: Id "energy-atlantic", base: Id "E", quote: Id "M" } ]
-  }
+seat = observe w (fromMaybe' (\_ -> unsafeCrashWith "no EU") (Map.lookup (Id "EU") w.entities))
+  where
+  w = seeded (Seed 1) emptyWorld
+    { round = 3
+    , ruleKinds = testKinds
+    , entities = entitiesOf
+        [ Tuple "CN" noEntity
+        , Tuple "DE" noEntity
+        , Tuple "EU" noEntity { capacities = Map.singleton (Id "semiconductors") (Q.fromInt 1), capabilities = [ MayTrade (Id "energy-atlantic"), MayEnact (Id "accessBan") ] }
+        ]
+    , resources = resourcesOf [ Tuple "E" noResource, Tuple "M" noResource ]
+    , markets = byKey [ Tuple "energy-atlantic" noMarket { base = Id "E", quote = Id "M", cost = { intercept: Q.fromInt 2, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, access = [ Id "EU" ] } ]
+    , transformations = byKey [ Tuple "t" noFacility ]
+    }
 
 -- | The seat with access to two Energy Markets, Atlantic at 2 and Asia at 3, and a defence Market at 5.
 twoMarkets :: View
@@ -138,17 +139,10 @@ trade m quantity = Trade { market: Id m, quantity: q quantity, limitPrice: Nothi
 intentsOf :: Array ProposalBody -> Array (Array Intent)
 intentsOf = map _.intents
 
--- | The Drafts a text Strategy proposes in an environment.
-drafts :: String -> Env -> Array ProposalBody
-drafts text e = propose (strategyOrThrow text) e
-
 -- | Two Choose blocks, each with two options of different size.
-chooseTwice :: String
+chooseTwice :: Strategy
 chooseTwice =
-  """{ "rules": [
-  { "propose": [ { "choose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } }, { "trade": { "market": "energy-atlantic", "quantity": "2" } } ] } ] },
-  { "propose": [ { "choose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } }, { "trade": { "market": "energy-atlantic", "quantity": "2" } } ] } ] }
-] }"""
+  { rules: [ rule [] [ choose [ orderAt (named "energy-atlantic") (lit 1) Nothing, orderAt (named "energy-atlantic") (lit 2) Nothing ] ], rule [] [ choose [ orderAt (named "energy-atlantic") (lit 1) Nothing, orderAt (named "energy-atlantic") (lit 2) Nothing ] ] ], sign: [] }
 
 -- Tests -------------------------------------------------------------------------------
 
@@ -160,87 +154,81 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Unknown parameters" do
     it "a clause reading a parameter the setting lacks does not fire, even under not" do
       let
-        reads = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"missing"},"0"]}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
-        negated = strategyOrThrow """{"rules":[{"when":[{"not":{"gt":[{"param":"missing"},"0"]}}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
+        reads = ({ rules: [ rule [ gt (param "missing") (lit 0) ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] })
+        negated = ({ rules: [ rule [ not' (gt (param "missing") (lit 0)) ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] })
       propose reads env `shouldEqual` []
       propose negated env `shouldEqual` []
   describe "Choose draws" do
     it "two Choose blocks in one strategy draw independently" do
-      intentsOf (propose (strategyOrThrow chooseTwice) env { random = highDraws })
+      intentsOf (propose (chooseTwice) env { random = highDraws })
         `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
     it "a Choose in a clause whose condition fails draws nothing" do
       let
         text =
-          """{ "rules": [
-          { "when": [ { "gt": [ "1", "2" ] } ], "propose": [ { "choose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] },
-          { "propose": [ { "choose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } }, { "trade": { "market": "energy-atlantic", "quantity": "2" } } ] } ] }
-        ] }"""
+          { rules: [ rule [ gt (lit 1) (lit 2) ] [ choose [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], rule [] [ choose [ orderAt (named "energy-atlantic") (lit 1) Nothing, orderAt (named "energy-atlantic") (lit 2) Nothing ] ] ], sign: [] }
       -- the skipped clause draws nothing, so the second clause's first draw (index 0) picks option 1
-      intentsOf (drafts text env { random = highDraws }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+      intentsOf (propose text env { random = highDraws }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
 
   describe "Templates" do
     it "a joint Proposal drafts its transfers with self bound to the author, and its signers" do
       let
-        text = """{ "rules": [ { "propose": [ { "joint": { "signers": ["DE"], "transfers": [ { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } ] } } ] } ] }"""
-      drafts text env `shouldEqual`
+        text = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
+      propose text env `shouldEqual`
         [ { intents: [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ], signers: [ Id "DE" ], procedure: Nothing } ]
     it "a Procedure drafts its intents, its signers and its id" do
       let
-        text = """{ "rules": [ { "propose": [ { "procedure": { "id": "eu-solidarity", "signers": ["DE"], "intents": [ { "trade": { "market": "energy-atlantic", "quantity": "-8" } } ] } } ] } ] }"""
-      drafts text env `shouldEqual`
+        text = { rules: [ rule [] [ procedure { id: "eu-solidarity", signers: [ "DE" ], intents: [ tradeAt { market: (named "energy-atlantic"), quantity: lit (-8), limit: Nothing } ] } ] ], sign: [] }
+      propose text env `shouldEqual`
         [ { intents: [ trade "energy-atlantic" "-8" ], signers: [ Id "DE" ], procedure: Just (Id "eu-solidarity") } ]
+    -- Pins the Strategy JSON format: a Procedure rejects nested forms (docs/02 §4.4).
     it "a Procedure may not contain a nested Procedure, Joint or Choose" do
       let nested inner = """{ "rules": [ { "propose": [ { "procedure": { "id": "p", "signers": [], "intents": [ """ <> inner <> """ ] } } ] } ] }"""
       isLeft (decodeText (nested """{ "joint": { "signers": [], "transfers": [] } }""")) `shouldEqual` true
       isLeft (decodeText (nested """{ "choose": [] }""")) `shouldEqual` true
       isLeft (decodeText (nested """{ "procedure": { "id": "q", "signers": [], "intents": [] } }""")) `shouldEqual` true
     it "noAction proposes nothing" do
-      drafts """{ "rules": [ { "propose": [ { "noAction": null } ] } ] }""" env `shouldEqual` []
+      propose ({ rules: [ rule [] [ noAction ] ], sign: [] }) env `shouldEqual` []
     it "a standalone transfer from self resolves to the acting Entity, as a joint Proposal's does" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "DE", "resource": "E", "quantity": "2" } } ] } ] }""" env { view = seat { self = seat.self { capabilities = [ MayTransfer (Id "E") ] } } })
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 }) ] ], sign: [] }) env { view = seat { self = seat.self { capabilities = [ MayTransfer (Id "E") ] } } })
         `shouldEqual` [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ] ]
     it "every entity position resolves self, including a condition's jurisdiction" do
       let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesEnacted": { "governor": "CN", "counterparty": "self" } }, "atLeast": "1" } } ], "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e)
+      intentsOf (propose ({ rules: [ rule [ restrictedLastRound { by: "CN", target: "self" } ] [ reciprocate { target: "CN" } ] ], sign: [] }) e)
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "each runs the clause once per accessible Market for the Resource, in id order" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "3" } } ] } ] }""" env { view = twoMarkets })
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (each "E") (lit 3) Nothing ] ], sign: [] }) env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-asia" "3" ], [ trade "energy-atlantic" "3" ] ]
     it "cheapest and costliest pick by price, and the condition and the order see the same Market" do
-      intentsOf (drafts """{ "rules": [ { "when": [ { "le": [ { "price": { "cheapest": "E" } }, "2" ] } ], "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "3" } } ] } ] }""" env { view = twoMarkets })
+      intentsOf (propose ({ rules: [ rule [ le (priceAt (cheapest "E")) (lit 2) ] [ orderAt (cheapest "E") (lit 3) Nothing ] ], sign: [] }) env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-atlantic" "3" ] ]
-      intentsOf (drafts """{ "rules": [ { "when": [ { "gt": [ { "price": { "costliest": "E" } }, "2" ] } ], "propose": [ { "trade": { "market": { "costliest": "E" }, "quantity": "-3" } } ] } ] }""" env { view = twoMarkets })
+      intentsOf (propose ({ rules: [ rule [ gt (priceAt (costliest "E")) (lit 2) ] [ orderAt (costliest "E") (lit (-3)) Nothing ] ], sign: [] }) env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-asia" "-3" ] ]
     it "two selectors in one clause range over the product of their picks" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } }, { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" env { view = twoMarkets })
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (cheapest "E") (lit 1) Nothing, orderAt (each "E") (lit 2) Nothing ] ], sign: [] }) env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-asia" "2" ], [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
     it "a selector with no accessible Market proposes nothing, and a named Market the Entity has no access to is not drafted" do
       let none = env { view = seat { markets = [] } }
-      intentsOf (drafts """{ "rules": [ { "when": [ { "le": [ { "price": { "cheapest": "E" } }, "9" ] } ], "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "3" } } ] }, { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }""" none)
+      intentsOf (propose ({ rules: [ rule [ le (priceAt (cheapest "E")) (lit 9) ] [ orderAt (cheapest "E") (lit 3) Nothing ], rule [] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }) none)
         `shouldEqual` []
     it "a price selector skips a Market with no price; each does not" do
       let unpriced = env { view = twoMarkets { prices = Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 3) ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } } ] }, { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" unpriced)
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (cheapest "E") (lit 1) Nothing ], rule [] [ orderAt (each "E") (lit 2) Nothing ] ], sign: [] }) unpriced)
         `shouldEqual` [ [ trade "energy-asia" "1" ], [ trade "energy-asia" "2" ], [ trade "energy-atlantic" "2" ] ]
     it "a one-Market selector draws as a named Market does" do
-      let one = """{ "rules": [ { "propose": [ { "choose": [ { "noAction": null }, { "trade": { "market": MARKET, "quantity": "3" } } ] } ] } ] }"""
-      drafts (replaceAll (Pattern "MARKET") (Replacement "{ \"each\": \"E\" }") one) env { random = highDraws } `shouldEqual` drafts (replaceAll (Pattern "MARKET") (Replacement "\"energy-atlantic\"") one) env { random = highDraws }
+      let one m = { rules: [ rule [] [ choose [ noAction, orderAt m (lit 3) Nothing ] ] ], sign: [] }
+      propose (one (each "E")) env { random = highDraws } `shouldEqual` propose (one (named "energy-atlantic")) env { random = highDraws }
     it "an unknown Market id is a load-time name" do
-      strategyRefs (strategyOrThrow """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""") `shouldEqual` [ Tuple Market "$home" ]
+      strategyRefs (({ rules: [ rule [] [ orderAt (named "$home") (lit 3) Nothing ] ], sign: [] })) `shouldEqual` [ Tuple Market "$home" ]
     it "a route drafts a routed Trade with its pair and limit" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (route { base: "E", quote: "M", quantity: lit 3, limit: lit 2 }) ] ], sign: [] }) env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
     it "a zero quantity yields no Trade or Transform; a Transform below its minimum is not drafted" do
       let
         text =
-          """{ "rules": [ { "propose": [
-          { "trade": { "market": "energy-atlantic", "quantity": "0" } },
-          { "transform": { "transformation": "t", "quantity": "0" } },
-          { "transform": { "transformation": "t", "quantity": "-1" } }
-        ] } ] }"""
+          { rules: [ rule [] [ orderAt (named "energy-atlantic") (lit 0) Nothing, asTemplate (selfTransform { transformation: "t", quantity: lit 0 }), asTemplate (selfTransform { transformation: "t", quantity: lit (-1) }) ] ], sign: [] }
       let
         e = env { view = seat { self = seat.self { capabilities = [ MayTransform (Id "t") ] } } }
-      intentsOf (drafts text e) `shouldEqual` []
+      intentsOf (propose text e) `shouldEqual` []
 
   describe "One validity rule" do
     it "over generated Intents, the interpreter drafts exactly those that screening does not refuse for a static reason" do
@@ -258,48 +246,48 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "reciprocate enacts the mirror of a restriction enacted against this Entity last round" do
       let
         e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e)
+      intentsOf (propose ({ rules: [ rule [] [ reciprocate { target: "CN" } ] ], sign: [] }) e)
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "reciprocate draws nothing when the restriction was enacted at an earlier boundary" do
       let
         e = env { view = seat { events = [ Enacted { round: 2, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e) `shouldEqual` []
+      intentsOf (propose ({ rules: [ rule [] [ reciprocate { target: "CN" } ] ], sign: [] }) e) `shouldEqual` []
     it "restrictedLastRound holds only for a restriction enacted at this round's boundary" do
       let
-        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesEnacted": { "governor": "CN", "counterparty": "EU" } }, "atLeast": "1" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires events = intentsOf (propose (strategyOrThrow text) env { view = seat { events = events } })
+        text = { rules: [ rule [ restrictedLastRound { by: "CN", target: "EU" } ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }
+        fires events = intentsOf (propose (text) env { view = seat { events = events } })
         fired = [ Enacted { round: 3, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
         stale = [ Enacted { round: 2, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
       fires fired `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       fires stale `shouldEqual` []
     it "restrictionInForce holds when a rule by that jurisdiction is in force" do
       let
-        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesInForce": { "governor": "US" } }, "atLeast": "1" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        at r = intentsOf (drafts text env { view = seat { rules = Map.singleton (Id "r") r } })
+        text = { rules: [ rule [ restrictionInForce { by: "US" } ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }
+        at r = intentsOf (propose text env { view = seat { rules = Map.singleton (Id "r") r } })
       at (banR { jurisdiction: Id "US", target: Id "CN" }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       at (tariffR { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero }) `shouldEqual` []
 
   describe "Parameters and factors" do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
       let
-        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "legs": { "party": "US", "window": "lastRound", "side": "outgoing", "cause": { "conversionOf": "major-military-action" }, "aggregate": "largestUnits" } }, "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (q threshold) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
+        text = { rules: [ rule [ transformedLastRound { by: "US", transformation: "major-military-action", atLeast: param "threshold" } ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }
+        fires threshold = propose text env { params = Object.fromFoldable [ Tuple "threshold" (q threshold) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []
-      strategyParams (strategyOrThrow text) `shouldEqual` [ "threshold" ]
+      strategyParams (text) `shouldEqual` [ "threshold" ]
     it "a Factor with no stored factor is 1" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" env)
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (named "energy-atlantic") (mulQ (lit 5) (factor "E")) Nothing ] ], sign: [] }) env)
         `shouldEqual` [ [ trade "energy-atlantic" "5" ] ]
     it "a Factor uses the stored factor" do
       let
         e = env { view = seat { factors = Map.fromFoldable [ Tuple (Id "E") (q "0.5") ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" e)
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (named "energy-atlantic") (mulQ (lit 5) (factor "E")) Nothing ] ], sign: [] }) e)
         `shouldEqual` [ [ trade "energy-atlantic" "2.5" ] ]
     it "a Param the setting does not define evaluates to zero, so an order of that size is dropped" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "param": "missing" } } } ] } ] }""" env)
+      intentsOf (propose ({ rules: [ rule [] [ orderAt (named "energy-atlantic") (param "missing") Nothing ] ], sign: [] }) env)
         `shouldEqual` []
     it "strategyParams lists every setting parameter a Strategy reads" do
-      strategyParams (strategyOrThrow """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
+      strategyParams (({ rules: [ rule [ gt (param "limit") (lit 1) ] [ orderAt (named "m") (param "size") Nothing ] ], sign: [] }))
         `shouldEqual` [ "limit", "size" ]
 
   describe "Signing" do
@@ -319,40 +307,40 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
     it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "flows": { "kind": "accessBan", "scope": { "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } } ] } ] }""" (enacting [ MayEnact (Id "accessBan") ]))
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { jurisdiction: Id selfEntity, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "5" } } } ] } ] }""" (enacting [ MayEnact (Id "withholding") ]))
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (holdR { capacity: Id "semiconductors", units: lit 5 })) ] ], sign: [] }) (enacting [ MayEnact (Id "withholding") ]))
         `shouldEqual` [ [ ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 5 })) ] ]
     it "repeal drafts a repeal of the named rule, and needs enactment authority" do
-      let text = """{ "rules": [ { "propose": [ { "repeal": { "rule": "r2/US/0/rule-0" } } ] } ] }"""
+      let text = { rules: [ rule [] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ] ], sign: [] }
       let inForce e = e { view = e.view { rules = Map.singleton (Id "r2/US/0/rule-0") (banR { jurisdiction: Id "EU", target: Id "CN" }) } }
-      intentsOf (drafts text (inForce (enacting [ MayEnact (Id "accessBan") ]))) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
-      intentsOf (drafts text (inForce (enacting []))) `shouldEqual` []
+      intentsOf (propose text (inForce (enacting [ MayEnact (Id "accessBan") ]))) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
+      intentsOf (propose text (inForce (enacting []))) `shouldEqual` []
       -- the engine also needs the capability for the repealed Rule's kind, and a Rule in force
-      intentsOf (drafts text (inForce (enacting [ MayEnact (Id "tariff") ]))) `shouldEqual` []
-      intentsOf (drafts text (enacting [ MayEnact (Id "accessBan") ])) `shouldEqual` []
+      intentsOf (propose text (inForce (enacting [ MayEnact (Id "tariff") ]))) `shouldEqual` []
+      intentsOf (propose text (enacting [ MayEnact (Id "accessBan") ])) `shouldEqual` []
     it "a Free Resource is drafted without a capability, and a Restricted one needs it" do
       let
-        text = """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "DE", "resource": "M", "quantity": "2" } } ] } ] }"""
+        text = { rules: [ rule [] [ asTemplate (transfer { from: "self", to: "DE", resource: "M", quantity: lit 2 }) ] ], sign: [] }
         as t caps = (enacting caps) { view = (enacting caps).view { transferability = Map.singleton (Id "M") t } }
         give = [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "M", quantity: Q.fromInt 2 } ] ]
-      intentsOf (drafts text (as Free [])) `shouldEqual` give
-      intentsOf (drafts text (as Restricted [])) `shouldEqual` []
-      intentsOf (drafts text (as Restricted [ MayTransfer (Id "M") ])) `shouldEqual` give
+      intentsOf (propose text (as Free [])) `shouldEqual` give
+      intentsOf (propose text (as Restricted [])) `shouldEqual` []
+      intentsOf (propose text (as Restricted [ MayTransfer (Id "M") ])) `shouldEqual` give
     it "a joint Proposal bundles its transforms with its transfers, all by the author" do
-      let text = """{ "rules": [ { "propose": [ { "joint": { "signers": [ "EU", "IN" ], "transfers": [], "transforms": [ { "transformation": "energy-shipping", "quantity": "5" } ] } } ] } ] }"""
-      intentsOf (drafts text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]
+      let text = { rules: [ rule [] [ joint { signers: [ "EU", "IN" ], transfers: [], transforms: [ { transformation: "energy-shipping", quantity: lit 5 } ] } ] ], sign: [] }
+      intentsOf (propose text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]
     it "signIf signs a Proposal only while its conditions hold" do
       let
         procP = { id: proposalId 3 (Id "A") 0, author: Id "A", intents: [], signers: [], procedure: Just (Id "eu-solidarity") }
-        signedIn r = sign (strategyOrThrow """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
+        signedIn r = sign (({ rules: [], sign: [ signIf [ ge roundQ (lit 4) ] (signProcedures [ "eu-solidarity" ]) ] })) env { view = seat { round = r, toSign = [ procP ] } }
       signedIn 3 `shouldEqual` []
       signedIn 4 `shouldEqual` [ procP.id ]
 
   describe "Load-time references" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
-      strategyRefs (strategyOrThrow """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
+      strategyRefs (({ rules: [ rule [] [ asTemplate (transfer { from: "self", to: "bogus", resource: "E", quantity: lit 2 }) ] ], sign: [] })) `shouldEqual`
         [ Tuple ResourceRef "E", Tuple EntityRef "bogus" ]
 
 -- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).

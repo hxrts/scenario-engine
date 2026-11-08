@@ -4,6 +4,7 @@
 module Test.Experiments.Mandatory (spec) where
 
 import Prelude
+import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfTransform)
 
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
@@ -11,7 +12,6 @@ import Data.Tuple (Tuple(..))
 import Settings.Meridian.Names (seatActors)
 import Testkit.Meridian (orThrow, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
-import Testkit.Json (strategyOrThrow)
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
@@ -43,7 +43,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     base <- everySeat ctx "Passive"
     fixture "D"
     let
-      deploy = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""
+      deploy = ({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "major-military-action", quantity: lit 12 }) ] ], sign: [] })
       china r = any
         ( \x -> any
             (matches (conversions) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn"))

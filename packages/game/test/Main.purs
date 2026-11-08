@@ -3,7 +3,7 @@
 -- | bound Strategy, and the overrides' JSON round trip.
 module Test.Game.Main where
 
-import Schema.Build.Decision (passive)
+import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restrictionInForce, rule)
 import Schema.Build.Quantity (q)
 import Prelude
 
@@ -37,7 +37,6 @@ import Game.Types (SeatBinding(..))
 import Simulator.Simulate (simulate)
 import Game.Patch (setCapacity, setCurve)
 import Testkit.Meridian (orThrow, setting, silent)
-import Testkit.Json (strategyOrThrow)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -94,14 +93,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a bound Strategy's names are checked: a misspelled parameter is an error, not a zero" do
       p <- setting
       let
-        typo = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"no-such-parameter"},"0"]}],"propose":[]}]}"""
+        typo = ({ rules: [ rule [ gt (param "no-such-parameter") (lit 0) ] [] ], sign: [] })
         bindings = Map.insert (Id "US") (Strategy typo) (silent p)
       assembled p bindings `shouldEqual` Left (Unresolved "seat US" ParameterRef "no-such-parameter")
     it "a bound Strategy naming an unknown Market or Entity is an error" do
       p <- setting
       let
-        market = strategyOrThrow """{"rules":[{"when":[],"propose":[{"trade":{"market":"energy-nowhere","quantity":"1"}}]}]}"""
-        entity = strategyOrThrow """{"rules":[{"when":[{"recorded":{"query":{"rulesInForce":{"governor":"ATLANTIS"}},"atLeast":"1"}}],"propose":[]}]}"""
+        market = ({ rules: [ rule [] [ orderAt (named "energy-nowhere") (lit 1) Nothing ] ], sign: [] })
+        entity = ({ rules: [ rule [ restrictionInForce { by: "ATLANTIS" } ] [] ], sign: [] })
       assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" Market "energy-nowhere")
       assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" EntityRef "ATLANTIS")
     it "a literal setting takes no overrides" do
@@ -116,6 +115,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- setting
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" CapacityName "no-such-capacity")
       map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+    -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
     it "a recipe read back from a stored spec checks its overrides when it is played" do
       p <- setting
       case decodeOverrides =<< jsonParser """[{"type":"implicit","entity":"NOBODY"}]""" of
@@ -149,6 +149,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeOverrides (encodeOverrides overrides) of
         Left e -> fail e
         Right back -> stringify (encodeOverrides back) `shouldEqual` stringify (encodeOverrides overrides)
+    -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
     it "the stored form is byte-identical to specs written before the shape" do
       -- the literal is the output of the hand-written encoder this shape replaced
       let

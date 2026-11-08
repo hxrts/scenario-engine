@@ -2,6 +2,7 @@ module Test.Board.Main where
 
 import Testkit.Meridian (orThrow)
 import Schema.Build.Decision (passive)
+import Schema.Build.World (emptyWorld, noResource)
 import Prelude
 
 import Testkit.Edit (onEntity)
@@ -13,7 +14,7 @@ import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (LevyBasis(..), LevyRecipient(..), CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
+import Core.Types (Capability(..), CapacityTag, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), LevyBasis(..), LevyRecipient(..), RefKind(..), Rule, RuleF(..), RuleForm(..), RuleId, RuleKindDecl, RuleKindTag, Transformation, TransformationId)
 import Core.World (RecurringAmount(..), UnseededWorld)
 import Schema.Recurring (requirementRule)
 import Data.Array (concatMap, elem, filter, mapMaybe)
@@ -81,27 +82,18 @@ coverageGameboard =
     }
 
   world :: UnseededWorld
-  world =
-    { round: 0
-    , entities: Map.fromFoldable [ Tuple us usEntity, Tuple eu euEntity ]
-    , resources: Map.singleton money { id: money, unit: "USD", transferability: Free }
-    , markets: Map.empty
-    , transformations: Map.singleton (Id "fac") facility
-    , representations: []
-    , numeraire: money
-    , focus: Nothing
-    , flowGates: []
-    , groups: Map.empty
-    , ruleKinds: testKinds
-    , rules: Map.fromFoldable
+  world = emptyWorld
+    { round = 0
+    , entities = Map.fromFoldable [ Tuple us usEntity, Tuple eu euEntity ]
+    , resources = Map.singleton money noResource { id = money, unit = "USD" }
+    , transformations = Map.singleton (Id "fac") facility
+    , numeraire = money
+    , ruleKinds = testKinds
+    , rules = Map.fromFoldable
         [ Tuple (Id "tariff") (tariffR { jurisdiction: eu, origin: us, rate: Q.fromInt 1 })
         , Tuple (Id "ban") (banR { jurisdiction: eu, target: us })
         ]
-    , scheduled: Map.singleton (Id "later") (Just (banR { jurisdiction: eu, target: us }))
-    , deliveries: []
-    , factors: Map.empty
-    , recurring: []
-    , events: []
+    , scheduled = Map.singleton (Id "later") (Just (banR { jurisdiction: eu, target: us }))
     }
 
 -- | An Aggregate's member list; an Actor has none.
@@ -217,6 +209,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       reports (coverageGameboard { world = w { numeraire = Id "gold" } }) config [ ref ResourceRef "gold" ]
 
   describe "Instantiation" do
+    -- Pins the instantiation configuration file format (docs/03 §5.2).
     it "a decoded Gameboard's world carries no seed; instantiation sets it" do
       raw <- orThrow (decodeGameboard (json (minimalGameboard "[4, 8]")))
       config <- orThrow (decodeConfig (json """{ "seed": 9, "rounds": 4 }"""))

@@ -2,9 +2,10 @@
 -- | use the shared checker; game tests compose `simulate`.
 module Test.Simulator.Main where
 
-import Schema.Build.Decision (passive)
+import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)
 import Schema.Build.Quantity (q)
 import Prelude
+import Settings.Meridian.Rules (accessBan)
 
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
@@ -46,7 +47,6 @@ import Game.Types (Game)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow, setting, presetGame, price, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
-import Testkit.Json (strategyOrThrow)
 import Test.Spec (describe, it)
 import Test.Simulator.Shock as ShockTests
 import Test.Simulator.Capstone as CapstoneTests
@@ -196,7 +196,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- setting
       g <- everySeat p "Passive"
       let
-        labor = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"public-attention","quantity":"5"}}]},{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"transform":{"transformation":"strike","quantity":"1"}}]}]}"""
+        labor = ({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "public-attention", quantity: lit 5 }) ], rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfTransform { transformation: "strike", quantity: lit 1 }) ] ], sign: [] })
 
       r <- run (Seed 1) (withStrategy g "LABOR" labor)
       valid (initialOf r) r
@@ -284,7 +284,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- setting
       g <- everySeat p "Passive"
       let
-        banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enact":{ "flows": { "kind": "accessBan", "scope": {"counterparty":"CN","direction":"eitherWay", "over": ["E"]}, "effect": "block" } }}]}]}"""
+        banChina = ({ rules: [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: "CN" }) ] ], sign: [] })
         rules i r = maybe [] (\rec -> values rec.world.rules) (index r.records i)
         isBan a b = case _ of
           FlowRule { scope: f, effect: Block } -> f.governor == Id a && f.counterparty == Id b

@@ -20,14 +20,14 @@ import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
-import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled)
+import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled, seeded)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..), isLeft, isRight)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
 import Data.Newtype (unwrap)
 import Data.Traversable (for_)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -41,9 +41,12 @@ import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Setting.Strategy (decodeStrategy, encodeStrategy, policiesShape)
 import Schema.Build.Quantity (q)
+import Schema.Build.World (byKey, emptyWorld, noEntity, noFacility, noMarket, matching, own)
+import Core.Engine.Prepare (observe)
+import Core.Draw (Seed(..))
+import Partial.Unsafe (unsafeCrashWith)
 import Settings.Meridian.Rules (accessBan, tariff, withholding)
 import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
-import Schema.Build.World (matching, own)
 import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
 import Adapters.Filesystem (fileOps)
 import Schema.Setting.Fixture (decodeLiteral, fixtureShape)
@@ -124,21 +127,15 @@ conversionEvent round by t units = coupled round [] Nothing (OfIntent { proposal
 
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
 chinaView :: View
-chinaView =
-  { ruleKinds: Map.empty
-  , round: 2
-  , self: { id: Id "CN", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTransform (Id "defense-procurement-cn"), MayTrade (Id "energy-asia") ], kind: Actor (NPC (Id "china-strategic-v0")) }
-  , prices: Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 2) ]
-  , rules: Map.empty
-  , transferability: Map.empty
-  , events: [ conversionEvent 1 "US" "major-military-action" 12 ]
-  , factors: Map.empty
-  , toSign: []
-  , entities: []
-  , transformations: Map.fromFoldable [ Tuple (Id "defense-procurement-cn") { minimum: Q.zero, maximum: Nothing }, Tuple (Id "military-deployment") { minimum: Q.zero, maximum: Nothing } ]
-  , ownedCapacities: []
-  , markets: [ { id: Id "energy-asia", base: Id "E", quote: Id "M" } ]
-  }
+chinaView = observe w (fromMaybe' (\_ -> unsafeCrashWith "no CN") (Map.lookup (Id "CN") w.entities))
+  where
+  w = seeded (Seed 1) emptyWorld
+    { round = 2
+    , entities = Map.singleton (Id "CN") noEntity { id = Id "CN", capabilities = [ MayTransform (Id "defense-procurement-cn"), MayTrade (Id "energy-asia") ], kind = Actor (NPC (Id "china-strategic-v0")) }
+    , markets = byKey [ Tuple "energy-asia" noMarket { base = Id "E", quote = Id "M", cost = { intercept: Q.fromInt 2, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, access = [ Id "CN" ] } ]
+    , transformations = byKey [ Tuple "defense-procurement-cn" noFacility, Tuple "military-deployment" noFacility ]
+    , events = [ conversionEvent 1 "US" "major-military-action" 12 ]
+    }
 
 -- | An environment whose every draw is `u`.
 envWith :: View -> Q -> Env
@@ -539,10 +536,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
 
   describe "Fixture documents" do
+    -- Pins a setting file as `Settings.Load` reads it (docs/03).
     it "a fixture requires its seed" do
       isLeft (decodeLiteral (json """{ "setting": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
       d <- orThrow (decodeLiteral (json """{ "setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }"""))
       show d.world.seed `shouldEqual` "7"
+    -- Pins a setting file as `Settings.Load` reads it (docs/03).
     it "an expectation must name a round that has a binding" do
       let world = """"setting": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
       isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true

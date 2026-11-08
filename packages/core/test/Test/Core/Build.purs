@@ -1,0 +1,128 @@
+-- | The core suite's test inputs: `core` depends on nothing, so its tests cannot use `Schema.Build`.
+module Test.Core.Build where
+
+import Prelude
+import Core.Draw (Seed(..))
+import Core.Num (Q)
+import Core.Num as Q
+import Core.World (WorldState)
+import Core.Types (Capability, CapacityTag, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Market, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedProposal, Transferability(..), Transformation, proposalId)
+import Data.Tuple (Tuple(..))
+import Data.Map as Map
+import Data.Maybe (Maybe(..))
+
+q :: String -> Q
+q s = case Q.parse s of
+  Just x -> x
+  Nothing -> Q.zero
+
+-- | An Actor holding 100 of the numeraire M and the given capabilities.
+actor :: String -> Array Capability -> Entity
+actor name caps =
+  { id: Id name
+  , accounts: Map.singleton (Id "M") (Q.fromInt 100)
+  , capacities: Map.empty
+  , capabilities: caps
+  , kind: Actor (Seat (Id name))
+  }
+
+-- | A World State over the given Entities, with resources M (numeraire) and E, no markets, and
+-- | no rules, in round 1.
+baseWorld :: Array Entity -> WorldState
+baseWorld es =
+  { round: 1
+  , seed: Seed 1
+  , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
+  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free }) [ "M", "E" ])
+  , markets: Map.empty
+  , transformations: Map.empty
+  , representations: []
+  , numeraire: Id "M"
+  , focus: Nothing
+  , flowGates: []
+  , groups: Map.empty
+  , ruleKinds: testKinds
+  , rules: Map.empty
+  , scheduled: Map.empty
+  , deliveries: []
+  , factors: Map.empty
+  , recurring: []
+  , events: []
+  }
+
+-- | An ordinary, unsigned-by-others Proposal from `author`, numbered `index` in round 1.
+submit :: String -> Int -> Array Intent -> SignedProposal
+submit author index intents =
+  { proposal: { id: proposalId 1 (Id author) index, author: Id author, intents, signers: [], procedure: Nothing }
+  , signatures: []
+  }
+
+-- | A Market `id` for `base` against M at a flat price, with reserves of 50 of each, and the given access.
+priced :: String -> String -> Array String -> String -> Market
+priced id base access p =
+  { id: Id id
+  , base: Id base
+  , quote: Id "M"
+  , cost: { intercept: q p, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
+  , position: Q.zero
+  , reserves: Map.fromFoldable [ Tuple (Id base) (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
+  , access: map Id access
+  }
+
+-- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
+market :: Array String -> Market
+market access =
+  { id: Id "EM"
+  , base: Id "E"
+  , quote: Id "M"
+  , cost: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }
+  , position: Q.zero
+  , reserves: Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
+  , access: map Id access
+  }
+
+-- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
+tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
+
+banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+
+holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
+holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+
+testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
+testKinds = Map.fromFoldable
+  [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
+  , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
+  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
+  ]
+
+-- | Change one Entity of a World.
+onEntity :: EntityId -> (Entity -> Entity) -> WorldState -> WorldState
+onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
+
+-- | A Resource, freely transferable, whose unit is its id.
+resource :: String -> ResourceDefinition
+resource r = { id: Id r, unit: r, transferability: Free }
+
+-- | A Transformation that does nothing and accepts any order: a test updates what it is about.
+transformation :: String -> Transformation
+transformation name =
+  { id: Id name
+  , inputs: Map.empty
+  , outputs: Map.empty
+  , escrowPerUnit: Map.empty
+  , payment: Nothing
+  , capacity: Nothing
+  , delay: 0
+  , minimum: Q.zero
+  , maximum: Nothing
+  , capacityUse: Q.fromInt 1
+  , ownerSigns: false
+  , effects: []
+  }
+
+-- | A Representation `r` of an Aggregate's domain, at weight 1.
+representation :: { actor :: String, aggregate :: String, domain :: String, observes :: String, estimator :: Estimator } -> Representation
+representation r = { id: Id "r", actor: Id r.actor, aggregate: Id r.aggregate, domain: Id r.domain, observes: Id r.observes, weight: Q.fromInt 1, estimator: r.estimator }

@@ -1,7 +1,7 @@
 module Test.Handlers.Main where
 
 import Testkit.Meridian (orThrow, unseated, price)
-import Schema.Build.Decision (passive)
+import Schema.Build.Decision (asTemplate, eqQ, joint, lit, passive, roundQ, rule, selfTransform, signAll, signProcedures)
 import Schema.Build.Quantity (q)
 import Prelude
 
@@ -23,7 +23,6 @@ import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.String (joinWith)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Traversable (for_)
@@ -47,7 +46,6 @@ import Settings.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Json (strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
@@ -105,8 +103,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a round with eleven proposals by one author replays into the same ids and order as recorded" do
       g <- unseated
       let
-        propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show (i + 20) <> "\"}}"
-        eleven = strategyOrThrow ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
+        eleven = { rules: [ rule [ eqQ roundQ (lit 1) ] (map (\i -> asTemplate (selfTransform { transformation: "major-military-action", quantity: lit (i + 20) })) (range 1 11)) ], sign: [] }
       records <- play g 1 (Map.singleton (Id "US") eleven)
       case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) g of
         Left e -> fail e
@@ -129,7 +126,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
       g <- unseated
-      records <- play g 3 (Map.singleton (Id "US") (strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
+      records <- play g 3 (Map.singleton (Id "US") (({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "major-military-action", quantity: lit 12 }) ] ], sign: [] })))
       let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.entities >>= \x -> Map.lookup (Id e) x.accounts)
       case index records 0, index records 1, index records 2 of
         Just r1, Just r2, Just r3 -> do
@@ -153,12 +150,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         g = g0
           { world = onMarket (Id "energy-atlantic") (\m -> m { position = Q.fromInt 60 }) g0.world
-          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (strategyOrThrow """{"sign":[{"all":null}]}""") g0.inWorld.strategies }
+          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (({ rules: [], sign: [ signAll ] })) g0.inWorld.strategies }
           }
       records <- play g 1
         ( Map.fromFoldable
-            [ Tuple (Id "DE") (strategyOrThrow """{"sign":[{"procedures":["eu-solidarity"]}]}""")
-            , Tuple (Id "SA") (strategyOrThrow """{"rules":[{"propose":[{"joint":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
+            [ Tuple (Id "DE") (({ rules: [], sign: [ signProcedures [ "eu-solidarity" ] ] }))
+            , Tuple (Id "SA") (({ rules: [ rule [] [ joint { signers: [ "CN" ], transfers: [ { from: "self", to: "CN", resource: "E", quantity: lit 10 }, { from: "CN", to: "self", resource: "M", quantity: lit 25 } ], transforms: [] } ] ], sign: [] }))
             ]
         )
       let events = concatMap (_.record.events) records

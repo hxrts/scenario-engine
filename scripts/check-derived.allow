@@ -40,3 +40,4 @@ intent-walk packages/core/src/Core/Types.purs jointIntent which Intents a joint 
 sum-projection packages/schema/src/Schema/Setting/Intent.purs intentShape a trade and a route share one setting form, and enact and repeal are separate tags over ChangeRule
 sum-projection packages/schema/src/Schema/Setting/Strategy.purs intentTemplateShape self is implicit, so a Transform or an enactment by another Entity has no setting form
 sum-projection packages/schema/src/Schema/Setting/Strategy.purs templateShape a joint Proposal and a Procedure share one Template constructor, split by their procedure and shape
+test-literal packages/policy/test/Main.purs main format-pinning test: a nested Procedure in Strategy JSON must not decode

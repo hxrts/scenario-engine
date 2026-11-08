@@ -144,6 +144,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.draft.signers (jointProposals known said [ joint { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
   describe "Reservations are checked on the setting document" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a facility may not escrow a Resource the document does not mark reservable" do
       let
         doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "markets": {}, "transformations": { "dep": { "escrowPerUnit": { "M": "1" } } }, "entities": {} }"""
@@ -155,6 +156,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.desc (Array.filter (\p -> p.setting == "Restricted") Tags.transferabilityTags) `shouldEqual` [ "transferred only by an Entity with the matching transfer capability" ]
 
   describe "Rule forms" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a combination that would do nothing has no form" do
       isLeft (decodeJsonWith Authored ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
       isLeft (decodeJsonWith Authored ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
@@ -174,45 +176,56 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (capability "trade") `shouldEqual` true
 
   describe "Rules" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "decodes each rule key, including withholding" do
       rule (json """{ "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "3" } }""")
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
       rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } }""")
         `shouldEqual` Right (banR { jurisdiction: Id "US", target: Id "CN" })
+    -- Pins the setting format the schema decoders read (docs/03).
     it "rejects an unknown rule key with a typed error" do
       case rule (json """{ "embargo": {} }""") of
         Left _ -> pure unit
         other -> fail ("expected a rule error, got " <> show (map (const "a rule") other))
+    -- Pins the setting format the schema decoders read (docs/03).
     it "rejects a rule object with two keys" do
       isLeft (rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "sideways" }, "effect": "block" } }"""))
         `shouldEqual` true
 
   describe "Intents" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "decodes a trade with an optional limit" do
       intent (json """{ "trade": { "market": "energy-atlantic", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (q "2.04") })
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a Trade has no form in a joint Proposal: it cannot be built by `joint` (a compile error), and as JSON does not read as one" do
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"joint":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
 
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a routed order's template must state its limit: no limit, or a null one, does not decode" do
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1"}}]}]}""")) `shouldEqual` true
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1","limit":null}}]}]}""")) `shouldEqual` true
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1","limit":"2"}}]}]}""")) `shouldEqual` false
 
+    -- Pins the setting format the schema decoders read (docs/03).
     it "decodes a routed trade, with a null market, by its pair" do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (q "2.04") })
+    -- Pins the setting format the schema decoders read (docs/03).
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a Repeal round-trips through the setting form, as one key naming the Rule" do
       intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
       intent (encodeWith Authored intentShape (repeal { rule: "r2/US/0/rule-0" })) `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
 
+    -- Pins the setting format the schema decoders read (docs/03).
     it "rejects an intent with two keys" do
       case intent (json """{ "trade": { "market": "m", "quantity": "1" }, "transfer": { "from": "a", "to": "b", "resource": "E", "quantity": "1" } }""") of
         Left _ -> pure unit
         other -> fail ("expected an intent error, got " <> show (map (const "an intent") other))
+    -- Pins the setting format the schema decoders read (docs/03).
     it "rejects an unknown intent key" do
       isLeft (intent (json """{ "gift": {} }""")) `shouldEqual` true
 
@@ -231,12 +244,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       contains (Pattern "quantity") (prose intentShape.desc) `shouldEqual` true
 
   describe "Round expectations" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "an absent expectation is absent, and an empty list is a checked empty list" do
       let
         e = expectOf """{ "expect": { "deliveries": [] } }"""
       e.deliveries `shouldEqual` Just []
       e.accounts `shouldEqual` Map.empty
       e.rejected `shouldEqual` Nothing
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a proposal is named by its author, or by author and index" do
       let
         e = expectOf """{ "expect": { "rejected": [ "US", { "author": "US", "index": 1 } ] } }"""
@@ -250,6 +265,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeGameboard (json (minimalGameboard "[8, 4]"))) `shouldEqual` true
       isLeft (decodeGameboard (json (minimalGameboard "[0, 4]"))) `shouldEqual` true
       isLeft (decodeGameboard (json (minimalGameboard "[4]"))) `shouldEqual` true
+    -- Pins the setting format the schema decoders read (docs/03).
     it "has no default roundQ range" do
       isLeft (decodeGameboard (json """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }""")) `shouldEqual` true
 
@@ -269,6 +285,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right gb -> fail ("a negative flow reached a decoded Gameboard: " <> show (map _.amount gb.world.recurring))
 
   describe "Decoding" do
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a tagged object must have exactly one key" do
       case decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": "1" }, "transform": { "transformation": "t", "quantity": "1" } } ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
@@ -276,9 +293,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeText """{ "rules": [ { "propose": [ {} ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
         other -> fail ("expected an empty template error, got " <> show (map (const "a decoded strategy") other))
+    -- Pins the setting format the schema decoders read (docs/03).
     it "an expression with two keys is rejected" do
       isLeft (decodeText """{ "rules": [ { "propose": [ { "trade": { "market": "m", "quantity": { "round": null, "param": "x" } } } ] } ] }""")
         `shouldEqual` true
+    -- Pins the setting format the schema decoders read (docs/03).
     it "an unknown tag is a typed error naming its kind" do
       case decodeText """{ "rules": [ { "propose": [ { "bogus": {} } ] } ] }""" of
         Left (TypeMismatch m) | isTemplateError m -> pure unit
@@ -286,6 +305,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeText """{ "rules": [ { "when": [ { "bogus": [] } ], "propose": [] } ] }""" of
         Left (TypeMismatch m) | contains (Pattern "Cond form") m -> pure unit
         other -> fail ("expected a condition error, got " <> show (map (const "a decoded strategy") other))
+    -- Pins the setting format the schema decoders read (docs/03).
     it "a well-formed strategy decodes" do
       isLeft (decodeText """{ "rules": [ { "when": [ { "ge": [ { "round": null }, "1" ] } ], "propose": [ { "noAction": null } ] } ], "sign": [ { "all": null } ] }""")
         `shouldEqual` false

@@ -25,9 +25,3 @@ repeated-idiom packages/simulator/src/Simulator/Simulate.purs 1
 repeated-idiom packages/views/src/Views/Common.purs 1
 repeated-idiom packages/views/src/Views/Markets.purs 1
 repeated-idiom packages/views/src/Views/Standings.purs 1
-test-literal packages/experiments/test/Test/Experiments/Mandatory.purs 1
-test-literal packages/game/test/Main.purs 3
-test-literal packages/handlers/test/Main.purs 5
-test-literal packages/policy/test/Main.purs 37
-test-literal packages/premises/test/Main.purs 1
-test-literal packages/simulator/test/Main.purs 2
