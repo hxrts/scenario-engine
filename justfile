@@ -40,8 +40,8 @@ _layout:
 
 # Manual implementations of what should be derived (docs/07 §3)
 _derived:
-    node scripts/check-derived --samples
-    node scripts/check-derived
+    node scripts/check-derived.js --samples
+    node scripts/check-derived.js
 
 # Compile the premise DSL to JSON, then generate the capstone recording (no model call)
 _premises:

@@ -2,12 +2,12 @@
 // Finds manual implementations of something that should be derived from one description (docs/07 §3):
 // a hand projection of a sum, a hand codec, a slice of the Events written as a `case`, a name written twice.
 //
-//   check-derived                     compare the hits with scripts/check-derived.baseline (the gate)
-//   check-derived --list              print every hit as `file:line rule-id text`, with a count per rule
-//   check-derived --samples           run each rule on its samples in scripts/check-derived-samples
-//   check-derived --validate          compare the hits with scripts/check-derived.known
-//   check-derived --lower-baseline    record counts that fell; refuses a count that rose
-//   check-derived --write-baseline    create the baseline when there is none
+//   check-derived.js                     compare the hits with scripts/check-derived.baseline (the gate)
+//   check-derived.js --list              print every hit as `file:line rule-id text`, with a count per rule
+//   check-derived.js --samples           run each rule on its samples in scripts/check-derived-samples
+//   check-derived.js --validate          compare the hits with scripts/check-derived.known
+//   check-derived.js --lower-baseline    record counts that fell; refuses a count that rose
+//   check-derived.js --write-baseline    create the baseline when there is none
 //   --root DIR                        read the sources of another checkout
 //
 // Hits named in scripts/check-derived.allow are correct to keep and are not counted.
@@ -27,7 +27,7 @@ const samplesDir = path.join(scriptsDir, "check-derived-samples");
 
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 const fail = (msg) => { console.error(`check-derived: ${msg}`); process.exit(1); };
-const need = (what, xs) => { if (xs.length === 0) fail(`no ${what} found: the source it is read from has moved; update its reader in scripts/check-derived`); return xs; };
+const need = (what, xs) => { if (xs.length === 0) fail(`no ${what} found: the source it is read from has moved; update its reader in scripts/check-derived.js`); return xs; };
 
 // Lexing -----------------------------------------------------------------------------------------
 
@@ -434,7 +434,7 @@ function main() {
     console.log(`wrote the baseline: ${counted.length} hits`);
     return;
   }
-  if (!fs.existsSync(baselineFile)) fail("no scripts/check-derived.baseline: run `node scripts/check-derived --write-baseline` once");
+  if (!fs.existsSync(baselineFile)) fail("no scripts/check-derived.baseline: run `node scripts/check-derived.js --write-baseline` once");
   const base = readBaseline();
 
   if (flag("--lower-baseline")) {
@@ -455,7 +455,7 @@ function main() {
       const added = counted.filter((h) => h.rule === rule && h.file === file).map((h) => `    ${h.file}:${h.line} ${h.text}`).join("\n");
       errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: new code added a manual implementation.\n  fix: ${fixes[rule]}\n  hits:\n${added}`);
     } else if (now < was) {
-      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: the count fell.\n  fix: run \`node scripts/check-derived --lower-baseline\` and commit scripts/check-derived.baseline`);
+      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: the count fell.\n  fix: run \`node scripts/check-derived.js --lower-baseline\` and commit scripts/check-derived.baseline`);
     }
   }
   console.log(`check-derived: ${counted.length} hits, ${hits.length - counted.length} allowed\n${summary(counted)}`);
