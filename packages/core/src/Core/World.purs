@@ -362,6 +362,10 @@ instance EncodeJson RejectReason where
 instance DecodeJson RejectReason where
   decodeJson = decodeJsonWith Snapshot rejectReasonShape
 
+-- | Append events to whatever carries the record being built.
+addEvents :: forall r. Array Event -> { events :: Array Event | r } -> { events :: Array Event | r }
+addEvents es x = x { events = x.events <> es }
+
 -- | A Rejected event for a Proposal the engine turned down in `round`.
 rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
 rejection round proposal reason = Rejected { round, proposal, reason }

@@ -14,7 +14,7 @@ import Core.Map (entries)
 import Core.Num as Q
 import Core.Query (lookupQ, marketsOf, owner, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
-import Core.World (Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
+import Core.World (addEvents, Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
@@ -32,12 +32,11 @@ prepareRound w =
     rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries w.scheduled)
     ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (Map.toUnfoldable w.scheduled)
   in
-    w
+    addEvents (applied.events <> ruleEvents) w
       { entities = applied.entities
       , deliveries = later
       , rules = rules
       , scheduled = Map.empty
-      , events = w.events <> applied.events <> ruleEvents
       }
 
 type Applied = { entities :: Map EntityId Entity, events :: Array Event }

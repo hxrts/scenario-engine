@@ -22,7 +22,7 @@ import Core.Num as Q
 import Core.Proposal (submissionOrder)
 import Core.Represent as Represent
 import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, SignedProposal)
-import Core.World (rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
+import Core.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
 import Data.Array (concatMap, elem, filter, find, findMap, sortWith)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
@@ -90,14 +90,13 @@ commit w inputs screenEvents factors st = do
   let
     events = screenEvents <> st.events
     -- Prepare's events are already in the world's history; the round's record carries them too (docs/04 §11.1)
-    world = w
+    world = addEvents events w
       { round = w.round + 1
       , entities = entities
       , markets = Map.fromFoldable marketList
       , deliveries = w.deliveries <> st.deliveries
       , scheduled = Map.union st.scheduled w.scheduled
       , factors = factors
-      , events = w.events <> events
       }
   pure { world, record: { round: w.round, inputs, events: filter (prepared w.round) w.events <> events } }
 

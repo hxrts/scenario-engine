@@ -16,7 +16,7 @@ import Core.Num as Q
 import Core.Query (capacityHeld, entitiesOf, lookupQ)
 import Core.Slice (runLegQuery)
 import Core.Types (EntityId, ResourceId)
-import Core.World (Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Target(..), WorldState, coupled)
+import Core.World (addEvents, Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Target(..), WorldState, coupled)
 import Data.Array (filter, findIndex, foldl, fromFoldable, index, length)
 import Data.Map (Map)
 import Data.Map as Map
@@ -52,9 +52,8 @@ step w acc r =
       legs = [ { from: Held from, to: Sink, resource: r.resource, owed: needed, moved } ]
       events = if needed > Q.zero then [ coupled w.round legs Nothing (causeOf r) ] else []
     in
-      { st: acc.st
+      { st: addEvents events acc.st
           { ledger = adjust (Ent from) r.resource (Q.neg moved) acc.st.ledger
-          , events = acc.st.events <> events
           }
       , offsets: case r.onShortfall of
           OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
@@ -102,9 +101,8 @@ eachHolder w st0 = foldl lose st0 holdings
       lost = minOwedHeld (fractionOf rule held) held
     in
       if lost == Q.zero then acc
-      else acc
+      else addEvents [ coupled w.round [ { from: Held e, to: Sink, resource: rule.resource, owed: lost, moved: lost } ] Nothing (causeOf rule) ] acc
         { ledger = adjust (Ent e) rule.resource (Q.neg lost) acc.ledger
-        , events = acc.events <> [ coupled w.round [ { from: Held e, to: Sink, resource: rule.resource, owed: lost, moved: lost } ] Nothing (causeOf rule) ]
         }
   fractionOf rule held = case rule.amount of
     FractionHeld f -> Q.mul f held

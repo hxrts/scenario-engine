@@ -27,7 +27,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityOf, conversionPrice, holding, lookupQ, poolCeiling, poolOf)
 import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RoundIndex, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
-import Core.World (Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), Target(..), WorldState, coupled, orderRemoved, rejection)
+import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), Target(..), WorldState, coupled, orderRemoved, rejection)
 import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -218,9 +218,8 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
         let
           paid = Q.mul r.price f.quantity
         in
-          a
+          addEvents [ coupled w.round (legsOf f paid) (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.intent, mechanism: Curve id }) ] a
             { ledger = move (Mkt id) (Ent f.order.entity) m.base f.quantity (move (Ent f.order.entity) (Mkt id) m.quote paid a.ledger)
-            , events = a.events <> [ coupled w.round (legsOf f paid) (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.intent, mechanism: Curve id }) ]
             }
       -- the base leg first, then the quote leg; a negative quantity is a sale, so each leg's direction flips
       legsOf f paid
@@ -238,12 +237,8 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
         let
           filled = foldl fill acc r.fills
         in
-          filled
-            { positions = Map.insert id (Q.add m.position r.net) acc.positions
-            , events = filled.events
-                <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected
-                <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) unpaid
-            }
+          addEvents (map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) unpaid)
+            filled { positions = Map.insert id (Q.add m.position r.net) filled.positions }
 
 -- | Settle one Proposal's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule capacity effects.
@@ -297,7 +292,7 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
             )
             now
         in
-          if not inputsHeld then a { events = a.events <> [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] }
+          if not inputsHeld then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
           else
             let
               { afterPay, paymentLeg } = case tr.payment of
@@ -305,10 +300,9 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
                 Just p -> case pay w t.by (Just p.to) p.resource owed a of
                   Tuple paid st -> { afterPay: st, paymentLeg: if owed > Q.zero then [ leg (Held t.by) (Held p.to) p.resource owed paid ] else [] }
             in
-              afterPay
+              addEvents [ coupled w.round (inputLegs <> outputLegs <> paymentLeg) Nothing cause ] afterPay
                 { ledger = produce (consume afterPay.ledger)
                 , deliveries = afterPay.deliveries <> later <> effects cause t tr q
-                , events = afterPay.events <> [ coupled w.round (inputLegs <> outputLegs <> paymentLeg) Nothing cause ]
                 }
       _ -> a
     _ -> a
@@ -326,7 +320,7 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     in
       case pay w t.from t.to t.in owed a' of
         Tuple paid after
-          | owed > Q.zero -> after { events = after.events <> [ coupled w.round [ leg (Held t.from) (maybe Sink Held t.to) t.in owed paid ] Nothing (OfRule { kind: t.kind }) ] }
+          | owed > Q.zero -> addEvents [ coupled w.round [ leg (Held t.from) (maybe Sink Held t.to) t.in owed paid ] Nothing (OfRule { kind: t.kind }) ] after
           | otherwise -> after
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w (OfIntent { proposal: p.id, intent: i, mechanism: Direct }) t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a
@@ -357,7 +351,7 @@ transfer :: WorldState -> Cause -> EntityId -> EntityId -> ResourceId -> Q -> Se
 transfer w cause from to resource quantity st
   | quantity == Q.zero = st
   | otherwise = case pay w from (Just to) resource quantity st of
-      Tuple paid st' -> st' { events = st'.events <> [ coupled w.round [ leg (Held from) (Held to) resource quantity paid ] Nothing cause ] }
+      Tuple paid st' -> addEvents [ coupled w.round [ leg (Held from) (Held to) resource quantity paid ] Nothing cause ] st'
 
 -- | What an Entity holds after the settlement so far.
 net :: WorldState -> EntityId -> ResourceId -> Settlement -> Q
