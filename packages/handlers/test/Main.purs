@@ -62,8 +62,7 @@ memoryStore :: Ref.Ref (Array AppendRound) -> StoreBackend
 memoryStore saved =
   { createRun: \_ -> pure unit
   , appendRound: \r -> Ref.modify_ (_ <> [ r ]) saved
-  , setStatus: \_ _ -> pure unit
-  , failRun: \_ _ -> pure unit
+  , setStatus: \_ _ _ -> pure unit
   , failRunning: \_ -> pure 0
   , setSpec: \_ _ -> pure unit
   , setArchived: \_ _ -> pure unit

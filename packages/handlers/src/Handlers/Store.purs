@@ -22,6 +22,7 @@ import Prelude
 import Core.Engine.Commit (EngineError)
 import Core.Invariants (Failure, checkAfter)
 import Core.Proposal (Transcript)
+import Core.Run (RunStatus)
 import Handlers.Seats (RecordSink)
 import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Array (all, any, length, uncons)
@@ -55,8 +56,7 @@ type AppendRound =
 type StoreBackend =
   { createRun :: NewRun -> Effect Unit
   , appendRound :: AppendRound -> Effect Unit
-  , setStatus :: String -> String -> Effect Unit
-  , failRun :: String -> String -> Effect Unit
+  , setStatus :: String -> RunStatus -> Maybe String -> Effect Unit
   , failRunning :: { role :: String, reason :: String } -> Effect Int
   , setSpec :: String -> Spec -> Effect Unit
   , setArchived :: String -> Boolean -> Effect Unit
@@ -70,8 +70,7 @@ type StoreBackend =
 interpretStore :: StoreBackend -> StoreF ~> Effect
 interpretStore b = case _ of
   CreateRun n k -> k <$> b.createRun n
-  SetStatus id s k -> k <$> b.setStatus id s
-  FailRun id reason k -> k <$> b.failRun id reason
+  SetStatus id s reason k -> k <$> b.setStatus id s reason
   FailRunning reason k -> k <$> b.failRunning reason
   SetSpec id spec k -> k <$> b.setSpec id spec
   SetArchived id archived k -> k <$> b.setArchived id archived

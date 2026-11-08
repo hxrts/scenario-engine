@@ -1,6 +1,6 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results, lineage and actions), Prepare (launch a run of the premise), and Compare (runs side by
+-- | results and actions), Prepare (launch a run of the premise), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
 -- | glossary once, before any page renders.
 module Dashboard.Main (main) where
@@ -249,8 +249,8 @@ mkRunPage grid = do
   manage actions p o = loaded o \(v :: RunOverview) -> actions { id: p.id, archived: p.archived, resumable: v.resumable, onChanged: p.onChanged }
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
--- | selection, the latest readable run. The selected run's results come first; its lineage and its
--- | manage actions are stacked under them. Selecting a row changes the route, so a selected run has
+-- | selection, the latest readable run. The selected run's results come first; its manage
+-- | actions are stacked under them. Selecting a row changes the route, so a selected run has
 -- | its own address. Archive, resume and delete bump `version`, which reloads the list, the selected
 -- | run's overview, and every section of it.
 mkRuns :: DataTable -> Component { selected :: Maybe String }

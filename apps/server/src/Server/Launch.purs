@@ -5,6 +5,7 @@ module Server.Launch
   ( Launched
   , launch
   , start
+  , checkRunId
   , play
   , failInterrupted
   , premiseInfo
@@ -34,11 +35,11 @@ import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Views.Premise (Premise)
 import Premises.Presets (presetNames)
-import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle)
+import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle, validRunId)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
-import Game.Recipe (Derivation, encodeSpec, kindName)
+import Game.Recipe (Derivation, encodeSpec)
 import Simulator.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
@@ -73,8 +74,19 @@ launch p store l = start p store { name: l.name, preset: l.preset, playerSeed: l
 -- | value. Nothing is stored unless the game assembles. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
 start :: GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
-start p store l = do
-  id <- nextRunId store
+start p store l = nextRunId store >>= checkRunId >>> case _ of
+  Left e -> pure (Left e)
+  Right id -> startAs id p store l
+
+-- | A minted id, or why it may not name a run. The rule is `Handlers.Store.validRunId`, the one the CLI's
+-- | `--id` obeys: an id names a directory under runs/ as well as a row.
+checkRunId :: String -> Either String String
+checkRunId id
+  | validRunId id = Right id
+  | otherwise = Left ("not a valid run id: " <> id)
+
+startAs :: String -> GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
+startAs id p store l = do
   seed <- resolveSeed (Seed <$> l.playerSeed)
   case assemblePreset p l.preset l.overrides l.rounds of
     Left e -> pure (Left (show e))
@@ -82,7 +94,7 @@ start p store l = do
       let
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
         source = _.source <$> l.derivation
-        kind = (kindName <<< _.kind) <$> l.derivation
+        kind = _.kind <$> l.derivation
       created <- nowIso
       owner <- processOwner serverRole
       attempt <- play store id $ simulateWith seed game \manifest -> do

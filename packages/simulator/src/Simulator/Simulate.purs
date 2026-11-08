@@ -4,7 +4,7 @@
 -- | premise, board, or policy module: a Game is all it sees.
 module Simulator.Simulate
   ( SimRun
-  , Snapshot
+  , Checkpoint
   , simulate
   , resumeFrom
   , simulateWith
@@ -31,7 +31,7 @@ import Handlers.Seats (RecordSink, playPure, playWith, seatEnv)
 type SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 
 -- | A saved World State after `done` completed rounds (docs/06 §8).
-type Snapshot = { world :: WorldState, done :: Int }
+type Checkpoint = { world :: WorldState, done :: Int }
 
 -- | A game with a human or agent seat cannot be simulated: its answers come from live play.
 machineOnly :: Game -> Either GameError Unit
@@ -51,11 +51,11 @@ simulate seed g = do
 
 -- | Continue a game from a saved snapshot. `rounds` is the game's total, so the snapshot's completed
 -- | rounds are subtracted. Seat randomness is keyed by round, so a resumed run matches the uninterrupted one.
-resumeFrom :: Seed -> Game -> Snapshot -> Either GameError SimRun
-resumeFrom seed g snap = simulate seed (fromSnapshot g snap)
+resumeFrom :: Seed -> Game -> Checkpoint -> Either GameError SimRun
+resumeFrom seed g snap = simulate seed (fromCheckpoint g snap)
 
-fromSnapshot :: Game -> Snapshot -> Game
-fromSnapshot g snap = g { world = snap.world, rounds = g.rounds - snap.done }
+fromCheckpoint :: Game -> Checkpoint -> Game
+fromCheckpoint g snap = g { world = snap.world, rounds = g.rounds - snap.done }
 
 -- | Play a game under the Sim runner, persisting each round through `store` as it completes. `store` runs
 -- | only once the game is machine-playable, so a rejected game leaves the caller's store untouched.
@@ -67,5 +67,5 @@ simulateWith seed g store = case machineOnly g of
     Right <$> playWith (seatEnv seed g) g.seats persist g.inWorld g.rounds g.world
 
 -- | Continue a stored run from its snapshot under the Sim runner, persisting the new rounds through `store`.
-resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
-resumeWith seed g snap store = simulateWith seed (fromSnapshot g snap) store
+resumeWith :: Seed -> Game -> Checkpoint -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
+resumeWith seed g snap store = simulateWith seed (fromCheckpoint g snap) store

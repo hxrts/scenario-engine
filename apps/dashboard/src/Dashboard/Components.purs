@@ -158,7 +158,7 @@ stackedBars c = Layout.captioned c.title
                   , element UI.yAxis { allowDecimals: false }
                   , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
                   , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                  ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: seriesColour i, isAnimationActive: false }) c.kinds
+                  ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "stacked", fill: seriesColour i, isAnimationActive: false }) c.kinds
               }
           ]
       }

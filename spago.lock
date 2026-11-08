@@ -8,7 +8,6 @@
             "aff",
             "argonaut-codecs",
             "argonaut-core",
-            "arrays",
             "bifunctors",
             "effect",
             "either",
@@ -22,13 +21,9 @@
             "node-process",
             "nullable",
             "prelude",
-            "refs",
-            "run",
-            "sp-board",
             "sp-core",
             "sp-effects",
             "sp-handlers",
-            "sp-policy",
             "sp-schema"
           ]
         },
@@ -36,19 +31,15 @@
           "dependencies": [
             "aff",
             "argonaut-core",
+            "console",
             "effect",
             "exceptions",
-            "ordered-collections",
-            "partial",
-            "quickcheck",
-            "refs",
             "sp-premises",
             "sp-simulator",
             "sp-testkit",
             "sp-views",
             "spec",
             "spec-node",
-            "spec-quickcheck",
             "strings"
           ]
         }
@@ -59,26 +50,20 @@
           "dependencies": [
             "arrays",
             "either",
-            "foldable-traversable",
-            "foreign-object",
             "maybe",
             "ordered-collections",
             "prelude",
             "sp-core",
             "sp-schema",
-            "strings",
             "tuples"
           ]
         },
         "test": {
           "dependencies": [
             "effect",
-            "partial",
-            "quickcheck",
             "sp-testkit",
             "spec",
             "spec-node",
-            "spec-quickcheck",
             "unsafe-coerce"
           ]
         }
@@ -99,7 +84,12 @@
           ]
         },
         "test": {
-          "dependencies": []
+          "dependencies": [
+            "effect",
+            "sp-testkit",
+            "spec",
+            "spec-node"
+          ]
         }
       },
       "sp-cli": {
@@ -115,7 +105,6 @@
             "exceptions",
             "foldable-traversable",
             "foreign-object",
-            "integers",
             "maybe",
             "newtype",
             "node-fs",
@@ -141,11 +130,9 @@
           "dependencies": [
             "effect",
             "foreign-object",
-            "quickcheck",
             "sp-core",
             "spec",
             "spec-node",
-            "spec-quickcheck",
             "tuples"
           ]
         }
@@ -156,7 +143,6 @@
           "dependencies": [
             "argonaut-codecs",
             "argonaut-core",
-            "argonaut-generic",
             "arrays",
             "either",
             "foldable-traversable",
@@ -198,7 +184,6 @@
             "foreign-object",
             "functions",
             "integers",
-            "js-uri",
             "maybe",
             "parallel",
             "prelude",
@@ -207,7 +192,6 @@
             "react-basic-hooks",
             "routing",
             "routing-duplex",
-            "sp-board",
             "sp-core",
             "sp-effects",
             "sp-handlers",
@@ -223,14 +207,11 @@
         "test": {
           "dependencies": [
             "argonaut-core",
-            "arrays",
             "effect",
             "either",
             "foldable-traversable",
             "foreign-object",
             "maybe",
-            "node-fs",
-            "numbers",
             "routing-duplex",
             "spec",
             "spec-node"
@@ -241,7 +222,6 @@
         "path": "packages/effects",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
             "arrays",
             "either",
             "foldable-traversable",
@@ -253,7 +233,6 @@
             "sp-core",
             "sp-policy",
             "tuples",
-            "type-equality",
             "typelevel-prelude"
           ]
         },
@@ -262,13 +241,11 @@
             "arrays",
             "effect",
             "either",
-            "quickcheck",
             "sp-handlers",
             "sp-simulator",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -288,14 +265,12 @@
             "sp-game",
             "sp-schema",
             "sp-simulator",
-            "sp-views",
-            "transformers"
+            "sp-views"
           ]
         },
         "test": {
           "dependencies": [
             "aff",
-            "argonaut-core",
             "console",
             "datetime",
             "effect",
@@ -306,7 +281,6 @@
             "sp-game",
             "sp-simulator",
             "sp-testkit",
-            "sp-views",
             "spec",
             "spec-node"
           ]
@@ -319,6 +293,7 @@
             "arrays",
             "either",
             "foreign-object",
+            "integers",
             "maybe",
             "prelude"
           ]
@@ -356,13 +331,11 @@
         "test": {
           "dependencies": [
             "effect",
-            "quickcheck",
             "sp-board",
             "sp-simulator",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -384,7 +357,6 @@
             "prelude",
             "refs",
             "run",
-            "sp-board",
             "sp-core",
             "sp-effects",
             "sp-game",
@@ -392,7 +364,6 @@
             "sp-schema",
             "strings",
             "tuples",
-            "type-equality",
             "typelevel-prelude"
           ]
         },
@@ -405,14 +376,12 @@
             "effect",
             "exceptions",
             "partial",
-            "quickcheck",
             "sp-adapters",
             "sp-checks",
             "sp-premises",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -420,31 +389,21 @@
         "path": "packages/policy",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
-            "argonaut-core",
             "arrays",
-            "either",
             "foldable-traversable",
             "foreign-object",
             "maybe",
             "ordered-collections",
             "prelude",
-            "sp-core",
-            "sp-schema",
-            "tuples"
+            "sp-core"
           ]
         },
         "test": {
           "dependencies": [
             "effect",
-            "node-buffer",
-            "node-fs",
-            "partial",
-            "quickcheck",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -460,13 +419,11 @@
             "maybe",
             "partial",
             "prelude",
-            "record",
             "sp-core",
             "sp-game",
             "sp-schema",
             "strings",
-            "tuples",
-            "typelevel-prelude"
+            "tuples"
           ]
         },
         "test": {
@@ -475,18 +432,15 @@
             "argonaut-codecs",
             "arrays",
             "effect",
-            "exceptions",
             "maybe",
             "ordered-collections",
             "partial",
-            "quickcheck",
             "sp-adapters",
             "sp-board",
             "sp-policy",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -505,9 +459,7 @@
             "ordered-collections",
             "partial",
             "prelude",
-            "record",
             "sp-core",
-            "strings",
             "tuples"
           ]
         },
@@ -515,12 +467,9 @@
           "dependencies": [
             "effect",
             "partial",
-            "quickcheck",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck",
-            "unsafe-coerce"
+            "spec-node"
           ]
         }
       },
@@ -529,7 +478,6 @@
         "core": {
           "dependencies": [
             "argonaut-codecs",
-            "argonaut-core",
             "arrays",
             "console",
             "effect",
@@ -542,7 +490,6 @@
             "maybe",
             "newtype",
             "node-process",
-            "nullable",
             "ordered-collections",
             "prelude",
             "refs",
@@ -565,11 +512,9 @@
           "dependencies": [
             "aff-promise",
             "effect",
-            "quickcheck",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -577,44 +522,29 @@
         "path": "packages/simulator",
         "core": {
           "dependencies": [
-            "argonaut-codecs",
-            "argonaut-core",
             "arrays",
             "effect",
             "either",
             "foldable-traversable",
-            "foreign-object",
-            "maybe",
-            "newtype",
             "ordered-collections",
             "prelude",
-            "run",
             "sp-core",
-            "sp-effects",
             "sp-game",
             "sp-handlers",
-            "strings",
-            "tuples",
-            "typelevel-prelude"
+            "tuples"
           ]
         },
         "test": {
           "dependencies": [
             "aff",
             "argonaut-core",
-            "datetime",
             "effect",
-            "exceptions",
-            "newtype",
-            "now",
-            "quickcheck",
             "sp-adapters",
             "sp-checks",
             "sp-premises",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -628,7 +558,6 @@
             "arrays",
             "effect",
             "exceptions",
-            "foldable-traversable",
             "maybe",
             "ordered-collections",
             "partial",
@@ -645,14 +574,15 @@
           ]
         },
         "test": {
-          "dependencies": []
+          "dependencies": [
+            "spec-node"
+          ]
         }
       },
       "sp-views": {
         "path": "packages/views",
         "core": {
           "dependencies": [
-            "argonaut-core",
             "arrays",
             "either",
             "foldable-traversable",
@@ -671,18 +601,11 @@
         "test": {
           "dependencies": [
             "aff",
-            "argonaut-core",
-            "datetime",
             "effect",
-            "exceptions",
-            "newtype",
-            "now",
-            "quickcheck",
             "sp-checks",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       }
@@ -1438,22 +1361,6 @@
         "prelude",
         "strings",
         "tailrec"
-      ]
-    },
-    "argonaut-generic": {
-      "type": "registry",
-      "version": "8.0.0",
-      "integrity": "sha256-qUuZpoEip2knLFPT14OnRc1BkZcr3Nyy+GSfqVQGM9c=",
-      "dependencies": [
-        "argonaut-codecs",
-        "argonaut-core",
-        "arrays",
-        "bifunctors",
-        "control",
-        "either",
-        "foreign-object",
-        "partial",
-        "prelude"
       ]
     },
     "arraybuffer-types": {

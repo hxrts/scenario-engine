@@ -99,8 +99,8 @@ fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.fr
     in
       zipWith (\f k -> Tuple f (Q.sub f.amount k)) fs (Q.proRata cut (map _.amount fs))
 
--- | Decay of every decaying Resource held. The rate is per round; instances scale annual rates
--- | to the round length (INV-28).
+-- | Decay of every decaying Resource held. The rate is per round, as declared; scaling annual
+-- | rates to round length (INV-28) is Planned (docs/03 §10.2).
 decay :: WorldState -> Settlement -> Settlement
 decay w st0 = foldl lose st0 holdings
   where

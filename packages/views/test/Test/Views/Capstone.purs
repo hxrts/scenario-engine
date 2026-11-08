@@ -7,6 +7,7 @@ module Test.Views.Capstone (spec) where
 
 import Prelude
 
+import Core.Run (RunStatus(..))
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Types (Id(..))
@@ -46,7 +47,7 @@ toStored :: String -> SimRun -> Common.StoredRun
 toStored id r = Common.storedRun
   { id
   , name: id
-  , status: "completed"
+  , status: Completed
   , manifest: r.manifest
   , playerSeed: case r.playerSeed of
       Seed n -> show n
@@ -57,7 +58,7 @@ toStored id r = Common.storedRun
   (map (const []) r.records)
 
 spec :: Aff GameboardParts -> Spec Unit
-spec context = describe "Capstone (DSL-authored run, )" do
+spec context = describe "Capstone (DSL-authored run)" do
   it "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" do
     ctx <- context
     cap <- load

@@ -11,6 +11,7 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
+import Core.Run (RunStatus(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Ref (Ref)
@@ -31,7 +32,7 @@ cached c id load = Map.lookup id <$> Ref.read c.runs >>= case _ of
   Nothing -> do
     r <- load
     case r of
-      Right run | run.status /= "running" -> Ref.modify_ (Map.insert id run) c.runs
+      Right run | run.status /= Running -> Ref.modify_ (Map.insert id run) c.runs
       _ -> pure unit
     pure r
 

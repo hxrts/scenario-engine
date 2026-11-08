@@ -132,13 +132,9 @@ export const appendRoundImpl = (db, id, round, record, snapshot, assertions, tra
     for (const x of metrics) m.run(id, x.metric, x.version, round, x.value);
   });
 
-export const setStatusImpl = (db, id, status) => () => {
-  statement(db, "update runs set status = ? where id = ?").run(status, id);
-};
-
-// A run that did not finish: status failed, with the reason.
-export const failRunImpl = (db, id, reason) => () => {
-  statement(db, "update runs set status = 'failed', reason = ? where id = ?").run(reason, id);
+// A run's new status with its failure reason (null clears it).
+export const setStatusImpl = (db, id, status, reason) => () => {
+  statement(db, "update runs set status = ?, reason = ? where id = ?").run(status, reason, id);
 };
 
 // Every run still marked running that a process of the role created becomes failed with the reason.

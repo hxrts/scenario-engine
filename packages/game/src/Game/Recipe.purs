@@ -5,10 +5,6 @@
 module Game.Recipe
   ( Recipe
   , Derivation
-  , Kind(..)
-  , allKinds
-  , kindName
-  , parseKind
   , specKeys
   , specRounds
   , encodeSpec
@@ -19,9 +15,10 @@ module Game.Recipe
 import Prelude
 
 import Core.Draw (Seed)
+import Core.Run (DeriveKind(..), deriveKindName)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, find, null)
+import Data.Array (filter, null)
 import Data.Either (Either(..), note)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -39,28 +36,8 @@ type Spec = Object String
 -- | (Nothing is the configuration's), and overrides. It is what a run's stored spec records.
 type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, overrides :: Array Override }
 
--- | How a run is derived from another.
-data Kind = Duplicate | Rerun | Variant | Counterfactual
-
-derive instance Eq Kind
-
-allKinds :: Array Kind
-allKinds = [ Duplicate, Rerun, Variant, Counterfactual ]
-
--- | A kind's name, as a request and a stored spec write it.
-kindName :: Kind -> String
-kindName = case _ of
-  Duplicate -> "duplicate"
-  Rerun -> "rerun"
-  Variant -> "variant"
-  Counterfactual -> "counterfactual"
-
--- | The kind a name stands for.
-parseKind :: String -> Maybe Kind
-parseKind s = find (\k -> kindName k == s) allKinds
-
 -- | The run a derived run came from, and how it was derived.
-type Derivation = { source :: String, kind :: Kind }
+type Derivation = { source :: String, kind :: DeriveKind }
 
 -- | The keys of a stored specification.
 specKeys
@@ -91,7 +68,7 @@ encodeSpec r = Object.fromFoldable $
   , Tuple specKeys.playerSeed (show (unwrap r.playerSeed))
   , Tuple specKeys.rounds (maybe "default" show r.rounds)
   , Tuple specKeys.overrides (stringify (encodeOverrides r.overrides))
-  ] <> maybe [] (\d -> [ Tuple specKeys.source d.source, Tuple specKeys.kind (kindName d.kind) ]) r.derivation
+  ] <> maybe [] (\d -> [ Tuple specKeys.source d.source, Tuple specKeys.kind (deriveKindName d.kind) ]) r.derivation
     <> maybe [] (pure <<< Tuple specKeys.model) r.model
     <> maybe [] (pure <<< Tuple specKeys.humans) r.humans
 
@@ -99,7 +76,7 @@ encodeSpec r = Object.fromFoldable $
 -- | the request's kind is parsed before this is called). Absent fields keep the source's values.
 deriveRecipe
   :: forall r
-   . Kind
+   . DeriveKind
   -> { preset :: Maybe String, playerSeed :: Maybe (Maybe Int), rounds :: Maybe Int, overrides :: Maybe Json | r }
   -> Recipe
   -> Either String Recipe
@@ -131,7 +108,7 @@ deriveRecipe kind body base = case kind of
   unchanged :: Array { name :: String, given :: Boolean } -> Either String Unit
   unchanged fields = case filter _.given fields of
     [] -> pure unit
-    xs -> Left (kindName kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
+    xs -> Left (deriveKindName kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
 
 -- | The recipe a stored specification was played with.
 decodeSpec :: Object String -> Either String Recipe

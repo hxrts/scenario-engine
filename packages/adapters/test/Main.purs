@@ -5,6 +5,7 @@ module Test.Adapters.Main where
 
 import Prelude
 
+import Core.Run (DeriveKind(..), RunStatus(..))
 import Adapters.SQLite (busyTimeout, close, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
@@ -71,9 +72,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         runStore port (createRun { owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "RandomValid", manifest, source: Nothing, kind: Nothing })
         recorder port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
-      liftEffect (runStore port (setStatus "run-1" "completed"))
+      liftEffect (runStore port (setStatus "run-1" Completed Nothing))
       runs <- liftEffect (runObserve port listRuns)
-      map _.status runs `shouldEqual` [ "completed" ]
+      map _.status runs `shouldEqual` [ Completed ]
       rows <- liftEffect (runObserve port (readRounds "run-1"))
       length rows `shouldEqual` 5
       -- the stored records and snapshots read back typed, as the run wrote them
@@ -100,7 +101,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Nothing, kind: Nothing })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
-      map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "boom" } ]
+      map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: Failed, reason: Just "boom" } ]
       liftEffect (close db *> removeFile path)
 
     it "a read on a missing store fails and creates no file" do
@@ -130,7 +131,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       n <- liftEffect (runStore port (failRunning { role: "server", reason: "interrupted" }))
       n `shouldEqual` 1
       runs <- liftEffect (runObserve port listRuns)
-      map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "interrupted" } ]
+      map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: Failed, reason: Just "interrupted" } ]
 
     it "the busy timeout is set on the store and reads back as configured" do
       let path = "run-store-busy-test.db"
@@ -168,7 +169,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       version <- liftEffect (schemaVersion db)
       version `shouldEqual` 5
       runs <- liftEffect (runObserve port listRuns)
-      map (\r -> { id: r.id, status: r.status, reason: r.reason }) runs `shouldEqual` [ { id: "run-1", status: "completed", reason: Nothing } ]
+      map (\r -> { id: r.id, status: r.status, reason: r.reason }) runs `shouldEqual` [ { id: "run-1", status: Completed, reason: Nothing } ]
       sums <- liftEffect (runObserve port listSummaries)
       map (\r -> { archived: r.archived, source: r.source }) sums `shouldEqual` [ { archived: false, source: Nothing } ]
       -- the upgraded store takes the new operations, and a read-only open sees the new version
@@ -191,7 +192,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         recorder port roundMetrics "run-1" manifest.initial
       _ <- orThrow stored
       manifest <- manifestOf
-      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Just "run-1", kind: Just "duplicate" })
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: Object.singleton "label" "x", manifest, source: Just "run-1", kind: Just Duplicate })
       liftEffect (runStore port (setArchived "run-2" true))
       liftEffect (runStore port (setArchived "run-2" true))
       sums <- liftEffect (runObserve port listSummaries)

@@ -11,8 +11,8 @@ import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 import Routing.Hash (setHash)
 
--- | The pages: Runs (the run list, with the selected run's results, lineage and actions; `Run id`
--- | selects one), Prepare (launch and derive runs), and Compare (runs side by side).
+-- | The pages: Runs (the run list, with the selected run's results and actions; `Run id`
+-- | selects one), Prepare (launch runs), and Compare (runs side by side).
 data Route = Runs | Prepare | Run String | Compare (Array String)
 
 derive instance Generic Route _

@@ -14,7 +14,9 @@ module Effects.Store
 
 import Prelude
 
+import Core.Run (RunStatus(..))
 import Data.Either (Either, either)
+import Data.Maybe (Maybe(..))
 import Effects.Signatures (NewRun, STORE, Spec, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
@@ -22,15 +24,17 @@ import Type.Row (type (+))
 createRun :: forall r. NewRun -> Run (STORE + r) Unit
 createRun n = lift _store (CreateRun n identity)
 
-setStatus :: forall r. String -> String -> Run (STORE + r) Unit
-setStatus id status = lift _store (SetStatus id status identity)
+-- | Set a run's status and its failure reason (`Nothing` clears the reason).
+setStatus :: forall r. String -> RunStatus -> Maybe String -> Run (STORE + r) Unit
+setStatus id status reason = lift _store (SetStatus id status reason identity)
 
+-- | Mark a run failed, with why.
 failRun :: forall r. String -> String -> Run (STORE + r) Unit
-failRun id reason = lift _store (FailRun id reason identity)
+failRun id reason = setStatus id Failed (Just reason)
 
 -- | Mark a finished run completed, or failed with the error as its reason.
 finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
-finish id = either (failRun id <<< show) (const (setStatus id "completed"))
+finish id = either (failRun id <<< show) (const (setStatus id Completed Nothing))
 
 -- | Fail every run still marked running that a process of this role created (its leftovers, since a
 -- | process of another role, such as a live session on the same store, may still be running its own),
