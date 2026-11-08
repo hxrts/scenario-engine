@@ -127,6 +127,7 @@ data RejectReason
   | ShipmentBanned
   | Recorded String -- a reason read back from the store: the text is all the record keeps
 
+-- | Stored as text by decision (docs/02 §9, "Rejection reasons in records").
 -- | Two reasons are equal when their texts are: a reason read back from the store is its text, so
 -- | a stored event compares equal to the event that was recorded.
 instance Eq RejectReason where
