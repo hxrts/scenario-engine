@@ -5,6 +5,7 @@
 -- | that passes the engine but fails a check is reported, not blocked.
 module Core.Invariants
   ( Failure
+  , failureShape
   , check
   , checkAfter
   , Invariant(..)
@@ -17,6 +18,7 @@ import Core.Map (entries, sumInto, sumMaps)
 import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
+import Core.Shape (Shape, recordShape, stringShape)
 import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, transformationsOf, marketsOf)
 import Core.Types (IntentF(..), SignedProposal)
 import Core.Slice (conversions, event, foldEvents, ignore, select)
@@ -47,6 +49,10 @@ instance Show Invariant where
 
 -- | A failed check: the invariant's name as it prints, and what failed.
 type Failure = { invariant :: String, detail :: String }
+
+-- | How a failed check is stored.
+failureShape :: Shape Failure
+failureShape = recordShape "Failure" { invariant: stringShape, detail: stringShape }
 
 check :: WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) [ inv01, inv02, inv03, inv04, inv05, inv06, inv08, inv09, inv10 ]
