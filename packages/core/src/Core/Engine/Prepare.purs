@@ -12,10 +12,10 @@ import Prelude
 import Core.Map (entries)
 
 import Core.Num as Q
-import Core.Query (lookupQ, marketsOf, priceOf)
+import Core.Query (lookupQ, marketsOf, owner, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
 import Core.World (Delivery, Event(..), Target(..), View, WorldState)
-import Data.Array (elem, filter, foldl, partition)
+import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -78,4 +78,7 @@ observe w self =
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
   , markets: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (filter (\m -> self.id `elem` m.access) (marketsOf w))
+  , entities: fromFoldable (Map.keys w.entities)
+  , transformations: map (\t -> { minimum: t.minimum, maximum: t.maximum }) w.transformations
+  , ownedCapacities: filter (\c -> owner w c == Just self.id) (fromFoldable (Map.keys self.capacities))
   }

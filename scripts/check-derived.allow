@@ -39,3 +39,4 @@ implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pi
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
 implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed premise files
 intent-walk packages/core/src/Core/Types.purs dealIntent which Intents a Deal may bundle; a per-kind rule, nothing to traverse
+event-match packages/policy/test/Main.purs agreement the agreement property classifies why screening refused an Intent; a case over one Event kind until S10 gives it a slice

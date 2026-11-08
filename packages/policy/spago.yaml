@@ -13,6 +13,11 @@ package:
     main: Test.Policy.Main
     dependencies:
       - sp-testkit
+      - quickcheck
+      - spec-quickcheck
+      - partial
+      - identity
+      - newtype
       - effect
       - spec
       - spec-node

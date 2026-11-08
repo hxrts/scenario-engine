@@ -101,7 +101,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a round with eleven proposals by one author replays into the same ids and order as recorded" do
       g <- unseated
       let
-        propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show i <> "\"}}"
+        propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show (i + 20) <> "\"}}"
         eleven = strategyOrThrow ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
       records <- play g 1 (Map.singleton (Id "US") eleven)
       case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) g of

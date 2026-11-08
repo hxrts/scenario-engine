@@ -8,23 +8,22 @@ module Core.Engine.Screen
   , Tariff
   , screen
   , duplicatedIds
-  , routeCandidates
   ) where
 
 import Prelude
 
-import Core.Authority (authorized, executor, governs, worldFacts)
+import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ProposalId, RuleF(..), RuleChangeF(..), SignedProposal, Transferability(..), dealIntent)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), SignedProposal, dealIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, filter, length, nub, null)
+import Data.Array (all, any, concat, elem, filter, length, nub)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 
@@ -42,19 +41,12 @@ type Item =
   , routes :: Map Int (Array MarketId)
   }
 
--- | The Markets a routed order for `pair` may use: those whose base and quote match, to which
--- | `who` has access, and for which `caps` hold the trade capability. In MarketId order.
-routeCandidates :: WorldState -> EntityId -> Array Capability -> Pair -> Array MarketId
-routeCandidates w who caps pair = map _.id (filter usable (marketsOf w))
-  where
-  usable m = m.base == pair.base && m.quote == pair.quote && who `elem` m.access && MayTrade m.id `elem` caps
-
 -- | The candidate Markets of every routed Trade in `intents`, keyed by Intent index.
 routesOf :: WorldState -> EntityId -> Array Capability -> Array Intent -> Map Int (Array MarketId)
 routesOf w who caps intents = Map.fromFoldable (concat (mapWithIndex one intents))
   where
   one i = case _ of
-    Route r -> [ Tuple i (routeCandidates w who caps r.pair) ]
+    Route r -> [ Tuple i (routeMarkets (worldFacts w) who caps r.pair) ]
     _ -> []
 
 -- | Whose authority an Intent is checked against: the executor's own capabilities, for an
@@ -94,53 +86,21 @@ screen w duplicated { proposal: p, signatures } =
 validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either RejectReason (Array Tariff)
 validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> shipping w p
 
--- | One Intent: its executor must sign and be authorized, and the Intent must name known
--- | references and respect market access, transferability, rule scope, the facility's bounds,
--- | and owner signing. `signers` are the Entities whose signatures count for this Proposal.
+-- | One Intent: its executor must exist and sign, it must be valid (`validIntent` over the World State), and
+-- | an owner-signed facility's owner must sign. `signers` are the Entities whose signatures count.
 checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either RejectReason Unit
 checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left (UnknownEntity who)
-  Just e
+  Just _
     | not (who `elem` signers) -> Left (MustSign who)
-    | otherwise -> known *> limited *> authority *> access *> transferable *> scope e *> withinBounds *> ownerSigned
+    | otherwise -> validIntent (worldFacts w) caps who i *> ownerSigned
   where
   who = executor p i
   caps = case standing of
     OwnAuthority -> capabilitiesOf w who
     ProcedureAuthority cs -> cs
-  authority = if authorized (worldFacts w) caps who i then Right unit else Left (NotAuthorized who)
-  transformation t = Map.lookup t.transformation w.transformations
-  known = case i of
-    Trade o | not (Map.member o.market w.markets) -> Left (UnknownMarket o.market)
-    Route r | not (Map.member r.pair.base w.resources) -> Left (UnknownResource r.pair.base)
-    Route r | not (Map.member r.pair.quote w.resources) -> Left (UnknownResource r.pair.quote)
-    Transform t | not (Map.member t.transformation w.transformations) -> Left (UnknownTransformation t.transformation)
-    Transfer t
-      | not (Map.member t.resource w.resources) -> Left (UnknownResource t.resource)
-      | not (Map.member t.to w.entities) -> Left (UnknownEntity t.to)
-    ChangeRule (Repeal id) | not (Map.member id w.rules) -> Left (UnknownRule id)
-    _ -> Right unit
-  -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)
-  limited = case i of
-    Route r | Nothing <- r.limitPrice -> Left RouteNeedsLimit
-    _ -> Right unit
-  access = case i of
-    Trade o | Just m <- Map.lookup o.market w.markets, not (who `elem` m.access) -> Left (NoMarketAccess who o.market)
-    Route r | null (routeCandidates w who caps r.pair) -> Left (NoRouteAccess who r.pair.base r.pair.quote)
-    _ -> Right unit
-  transferable = case i of
-    Transfer t | Just NonTransferable <- _.transferability <$> Map.lookup t.resource w.resources -> Left (NotTransferable t.resource)
-    _ -> Right unit
-  scope e = case i of
-    ChangeRule (Enact r) | not (governs w e.id r) -> Left (OutOfScope r)
-    ChangeRule (Repeal id) | Just r <- Map.lookup id w.rules, not (governs w e.id r) -> Left OnlyGoverningRepeal
-    _ -> Right unit
-  withinBounds = case i of
-    Transform t | Just tr <- transformation t, t.quantity < tr.minimum -> Left (BelowMinimum t.transformation)
-    Transform t | Just tr <- transformation t, maybe false (t.quantity > _) tr.maximum -> Left (AboveMaximum t.transformation)
-    _ -> Right unit
   ownerSigned = case i of
-    Transform t | Just tr <- transformation t, tr.ownerSigns -> case tr.capacity >>= owner w of
+    Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns -> case tr.capacity >>= owner w of
       Just o | o `elem` signers -> Right unit
       _ -> Left (OwnerMustSign t.transformation)
     _ -> Right unit

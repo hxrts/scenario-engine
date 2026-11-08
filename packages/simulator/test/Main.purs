@@ -346,7 +346,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       any isTariff (rules 2 r) `shouldEqual` false
       any isTariff (rules 3 r) `shouldEqual` true
 
-    it "Market access: in the shipped opening round, an Entity outside a Market's access is rejected and the Entity inside it settles" do
+    it "Market access: an order submitted by an Entity outside a Market's access (a human's or an AI agent's; a Strategy does not draft one) is rejected, and the Entity inside it settles" do
       p <- premise
       g <- presetGame p "Passive" [] (Just 1)
       let

@@ -118,6 +118,9 @@ chinaView =
   , events: [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 12, paid: Q.zero } ]
   , factors: Map.empty
   , toSign: []
+  , entities: []
+  , transformations: Map.fromFoldable [ Tuple (Id "defense-procurement-cn") { minimum: Q.zero, maximum: Nothing }, Tuple (Id "military-deployment") { minimum: Q.zero, maximum: Nothing } ]
+  , ownedCapacities: []
   , markets: [ { id: Id "energy-asia", base: Id "E", quote: Id "M" } ]
   }
 
@@ -474,7 +477,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Nothing -> fail "no Deployer preset"
           Just p -> do
             let
-              us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTrade (Id "defence-goods") ] } }
+              us = chinaView { self = chinaView.self { id = Id "US", capabilities = [ MayTransform (Id "military-deployment"), MayTrade (Id "defence-goods") ] }, markets = chinaView.markets <> [ { id: Id "defence-goods", base: Id "D", quote: Id "M" } ] }
               at price = map _.intents (propose p (envWith (us { prices = Map.fromFoldable [ Tuple (Id "energy-atlantic") (fromMaybe Q.zero (Q.parse price)) ] }) Q.zero))
             at "3" `shouldEqual` []
             -- one Proposal per template: the deployment, then the Mil sale it competes with

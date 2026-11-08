@@ -87,7 +87,13 @@ type View =
   , factors :: Map BehaviorDomain Ratio
   , toSign :: Array Proposal
   , markets :: Array Venue -- the Markets the Entity has access to, in id order
+  , entities :: Array EntityId -- the known Entities, in id order
+  , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
+  , ownedCapacities :: Array CapacityRef -- the capacities the Entity owns
   }
+
+-- | A Transformation's order bounds, as a View shows them.
+type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
 
 -- | A Market as a Policy sees it: where a Resource (the base) is traded for the quote.
 type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
@@ -479,7 +485,7 @@ eventShape = sumOf "Event"
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
 viewShape = object "View"
-  ( (\r s p rs tr e f t m -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m })
+  ( (\r s p rs tr e f t m es ts oc -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m, entities: es, transformations: ts, ownedCapacities: oc })
       <$> fieldOf "round" "the round" intShape _.round
       <*> fieldOf "self" "the Entity seeing it" entityShape _.self
       <*> fieldOf "prices" "the price of each Market" (mapOf idShape qShape) _.prices
@@ -489,6 +495,16 @@ viewShape = object "View"
       <*> fieldOf "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors
       <*> fieldOf "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign
       <*> fieldOf "markets" "the Markets the Entity has access to" (arrayOf venueShape) _.markets
+      <*> fieldOf "entities" "the known Entities" (arrayOf idShape) _.entities
+      <*> fieldOf "transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape) _.transformations
+      <*> fieldOf "ownedCapacities" "the capacities the Entity owns" (arrayOf idShape) _.ownedCapacities
+  )
+
+boundsShape :: Shape Bounds
+boundsShape = object "Bounds"
+  ( (\a b -> { minimum: a, maximum: b })
+      <$> fieldOf "minimum" "the smallest order accepted" qShape _.minimum
+      <*> fieldOf "maximum" "the largest order accepted, if any" (optionalOf qShape) _.maximum
   )
 
 venueShape :: Shape Venue

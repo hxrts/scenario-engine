@@ -8,17 +8,20 @@ module Core.Authority
   , worldFacts
   , viewFacts
   , authorized
+  , validIntent
+  , routeMarkets
   , governs
   , kindOf
   ) where
 
 import Prelude
 
-import Core.Query (owner)
-import Core.Types (Capability(..), EntityId, Intent, IntentF(..), Proposal, ResourceId, Rule, RuleF(..), RuleChangeF(..), RuleId, RuleKind(..), Transferability(..))
-import Core.World (View, WorldState)
-import Data.Array (any, elem)
-import Data.Maybe (Maybe(..), maybe)
+import Core.Query (owner, marketsOf)
+import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, Rule, RuleF(..), RuleChangeF(..), RuleId, RuleKind(..), Transferability(..), TransformationId)
+import Core.World (Bounds, RejectReason(..), Venue, View, WorldState)
+import Data.Array (any, elem, filter, null)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Map as Map
 
 -- | The Entity whose resources or authority an Intent uses.
@@ -28,19 +31,43 @@ executor p = case _ of
   Transform t -> t.by
   _ -> p.author
 
--- | What authority depends on besides the capabilities: each Resource's transferability and each
--- | Rule in force. The engine reads them from the World State, a Strategy from its View, so the two
--- | answer every question identically.
+-- | What the validity of an Intent depends on besides the capabilities: the known Entities, Resources
+-- | (with their transferability), Markets (`venues`, and who has `access`), Transformations (with their
+-- | bounds), each Rule in force, and each capacity's owner. The engine reads them from the World State, a
+-- | Strategy from its View, so for the Entity whose View it is the two answer every question identically.
+-- | A View knows only the Markets its Entity has access to, so an inaccessible Market is an unknown one
+-- | there: the Intent is invalid either way, and only the reason differs.
 type Facts =
   { transferability :: ResourceId -> Maybe Transferability
   , rule :: RuleId -> Maybe Rule
+  , entity :: EntityId -> Boolean
+  , venues :: Array Venue
+  , access :: EntityId -> MarketId -> Boolean
+  , transformation :: TransformationId -> Maybe Bounds
+  , capacityOwner :: CapacityRef -> Maybe EntityId
   }
 
 worldFacts :: WorldState -> Facts
-worldFacts w = { transferability: \r -> _.transferability <$> Map.lookup r w.resources, rule: \id -> Map.lookup id w.rules }
+worldFacts w =
+  { transferability: \r -> _.transferability <$> Map.lookup r w.resources
+  , rule: \id -> Map.lookup id w.rules
+  , entity: \e -> Map.member e w.entities
+  , venues: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (marketsOf w)
+  , access: \who m -> maybe false (elem who <<< _.access) (Map.lookup m w.markets)
+  , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
+  , capacityOwner: owner w
+  }
 
 viewFacts :: View -> Facts
-viewFacts v = { transferability: \r -> Map.lookup r v.transferability, rule: \id -> Map.lookup id v.rules }
+viewFacts v =
+  { transferability: \r -> Map.lookup r v.transferability
+  , rule: \id -> Map.lookup id v.rules
+  , entity: \e -> e == v.self.id || e `elem` v.entities
+  , venues: v.markets
+  , access: \who m -> who == v.self.id && any ((_ == m) <<< _.id) v.markets
+  , transformation: \t -> Map.lookup t v.transformations
+  , capacityOwner: \c -> if c `elem` v.ownedCapacities then Just v.self.id else Nothing
+  }
 
 -- | Whether `caps` authorize `who` to execute the Intent (§2.4). The one authority predicate: screening,
 -- | the invariants, and the Strategy interpreter all ask it.
@@ -67,8 +94,55 @@ kindOf = case _ of
 
 -- | Whether an Entity governs a Rule: a Tariff or AccessBan by its jurisdiction, a Withholding by
 -- | the owner of its capacity. Enacting and repealing both require it.
-governs :: WorldState -> EntityId -> Rule -> Boolean
-governs w who = case _ of
+governs :: Facts -> EntityId -> Rule -> Boolean
+governs facts who = case _ of
   Tariff r -> r.jurisdiction == who
   AccessBan r -> r.jurisdiction == who
-  Withholding r -> owner w r.capacity == Just who
+  Withholding r -> facts.capacityOwner r.capacity == Just who
+
+-- | The Markets a routed order for `pair` may use: those whose base and quote match, to which `who` has
+-- | access, and for which `caps` hold the trade capability. In MarketId order.
+routeMarkets :: Facts -> EntityId -> Array Capability -> Pair -> Array MarketId
+routeMarkets facts who caps pair = map _.id (filter usable facts.venues)
+  where
+  usable m = m.base == pair.base && m.quote == pair.quote && facts.access who m.id && MayTrade m.id `elem` caps
+
+-- | Whether `who` may execute the Intent as far as the Facts can tell: it names known references, states a
+-- | routed order's limit, is authorized, respects Market access, transferability, Rule scope, and the facility's
+-- | bounds. The one validity rule: screening checks an Intent with it, over the World State, and the Strategy
+-- | interpreter filters what it drafts with it, over the View. What a View cannot answer (signatures,
+-- | funding, capacity, shipping) stays in the engine.
+validIntent :: Facts -> Array Capability -> EntityId -> Intent -> Either RejectReason Unit
+validIntent facts caps who i = known *> limited *> authority *> access *> transferable *> scope *> withinBounds
+  where
+  knownResource = isJust <<< facts.transferability
+  known = case i of
+    Trade o | not (any ((_ == o.market) <<< _.id) facts.venues) -> Left (UnknownMarket o.market)
+    Route r | not (knownResource r.pair.base) -> Left (UnknownResource r.pair.base)
+    Route r | not (knownResource r.pair.quote) -> Left (UnknownResource r.pair.quote)
+    Transform t | isNothing (facts.transformation t.transformation) -> Left (UnknownTransformation t.transformation)
+    Transfer t
+      | not (knownResource t.resource) -> Left (UnknownResource t.resource)
+      | not (facts.entity t.to) -> Left (UnknownEntity t.to)
+    ChangeRule (Repeal id) | isNothing (facts.rule id) -> Left (UnknownRule id)
+    _ -> Right unit
+  -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)
+  limited = case i of
+    Route r | Nothing <- r.limitPrice -> Left RouteNeedsLimit
+    _ -> Right unit
+  authority = if authorized facts caps who i then Right unit else Left (NotAuthorized who)
+  access = case i of
+    Trade o | not (facts.access who o.market) -> Left (NoMarketAccess who o.market)
+    Route r | null (routeMarkets facts who caps r.pair) -> Left (NoRouteAccess who r.pair.base r.pair.quote)
+    _ -> Right unit
+  transferable = case i of
+    Transfer t | Just NonTransferable <- facts.transferability t.resource -> Left (NotTransferable t.resource)
+    _ -> Right unit
+  scope = case i of
+    ChangeRule (Enact r) | not (governs facts who r) -> Left (OutOfScope r)
+    ChangeRule (Repeal id) | Just r <- facts.rule id, not (governs facts who r) -> Left OnlyGoverningRepeal
+    _ -> Right unit
+  withinBounds = case i of
+    Transform t | Just b <- facts.transformation t.transformation, t.quantity < b.minimum -> Left (BelowMinimum t.transformation)
+    Transform t | Just b <- facts.transformation t.transformation, maybe false (t.quantity > _) b.maximum -> Left (AboveMaximum t.transformation)
+    _ -> Right unit

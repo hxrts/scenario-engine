@@ -3,19 +3,31 @@ module Test.Policy.Main where
 import Prelude
 
 import Core.Num as Q
-import Core.Types (Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
-import Core.World (Event(..), View)
+import Core.Draw (Seed(..))
+import Core.Map (values)
+import Core.Engine.Prepare (observe, prepareRound)
+import Core.Engine.Screen (screen)
+import Core.Types (EntityId, Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId, samePositions, traverseIntent)
+import Core.World (Event(..), RejectReason(..), View, WorldState)
+import Data.Array.NonEmpty as NEA
+import Data.Identity (Identity(..))
+import Data.Newtype (un)
+import Partial.Unsafe (unsafeCrashWith)
+import Test.QuickCheck (Result, (<?>))
+import Test.QuickCheck.Gen (Gen, elements, oneOf)
+import Test.Spec.QuickCheck (quickCheck)
+import Testkit.Meridian (unseated)
 import Data.Argonaut.Decode (JsonDecodeError)
-import Data.Either (Either(..), isLeft)
+import Data.Either (Either(..), either, isLeft)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
 import Data.String (Pattern(..), Replacement(..), replaceAll)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Foreign.Object as Object
 import Core.Proposal (ProposalBody)
-import Policy.Interpret (Env, nameOnly, propose, sign)
-import Core.Strategy (Strategy, SignRule(..))
+import Policy.Interpret (Env, envFor, nameOnly, propose, sign)
+import Core.Strategy (Expr(..), MarketRef(..), Strategy, SignRule(..), Template(..))
 import Data.Array as Array
 import Policy.Strategy (strategyRefs)
 import Test.Spec (describe, it)
@@ -23,6 +35,68 @@ import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Testkit.Json (strategyOrThrow, decodeText)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
+
+-- The agreement property ----------------------------------------------------------------
+
+pick :: forall a. a -> Array a -> Gen a
+pick x xs = elements (NEA.cons' x xs)
+
+-- | Screening's outcome for one Intent is settled by what a View cannot answer: the rest is `validIntent`.
+engineOnly :: RejectReason -> Boolean
+engineOnly = case _ of
+  OwnerMustSign _ -> true
+  CrossRegionNeedsTransport -> true
+  NoTransportFacility -> true
+  ShipmentBanned -> true
+  _ -> false
+
+-- | An Intent over the world's names, plus a name it lacks at every position.
+genIntent :: WorldState -> EntityId -> Gen Intent
+genIntent w self = do
+  let
+    entity = pick self (Array.fromFoldable (Map.keys w.entities) <> [ Id "ghost" ])
+    market = pick (Id "ghost") (Array.fromFoldable (Map.keys w.markets))
+    resource = pick (Id "ghost") (Array.fromFoldable (Map.keys w.resources))
+    facility = pick (Id "ghost") (Array.fromFoldable (Map.keys w.transformations))
+    capacity = pick (Id "semiconductors") [ Id "ghost", Id "energy" ]
+    rule = pick (Id "r-tariff") [ Id "r-held", Id "ghost" ]
+    quantity = map Q.fromInt (pick 1 [ 2, -1, 30, 100 ])
+    limit = pick Nothing [ Just (Q.fromInt 2) ]
+    enacted = oneOf
+      ( NEA.cons'
+          (map Tariff ({ jurisdiction: _, origin: _, rate: _ } <$> entity <*> entity <*> quantity))
+          [ map AccessBan ({ jurisdiction: _, target: _ } <$> entity <*> entity)
+          , map Withholding ({ capacity: _, units: _ } <$> capacity <*> quantity)
+          ]
+      )
+  oneOf
+    ( NEA.cons'
+        (map Trade ({ market: _, quantity: _, limitPrice: _ } <$> market <*> quantity <*> limit))
+        [ map Route ((\base quote qty lim -> { pair: { base, quote }, quantity: qty, limitPrice: lim }) <$> resource <*> resource <*> quantity <*> limit)
+        , map Transfer ({ from: _, to: _, resource: _, quantity: _ } <$> entity <*> entity <*> resource <*> quantity)
+        , map Transform ({ by: _, transformation: _, quantity: _ } <$> entity <*> facility <*> quantity)
+        , map (ChangeRule <<< Enact) enacted
+        , map (ChangeRule <<< Repeal) rule
+        ]
+    )
+
+-- | The interpreter's filter and screening's static checks agree on one generated Intent.
+agreement :: WorldState -> Gen Result
+agreement w = do
+  self <- pick (fromMaybe' (\_ -> unsafeCrashWith "no entities") (Array.head entities)) entities
+  i <- genIntent w self.id
+  let
+    template = un Identity (traverseIntent (samePositions { market = Identity <<< Named, value = Identity <<< Lit }) i)
+    strategy = { rules: [ { when: [], propose: [ IntentT template ] } ], sign: [] }
+    drafted = not (Array.null (propose strategy (envFor { params: Object.empty, seed: Seed 1, source: "property" } self.id (observe w self))))
+    submitted = { proposal: { id: proposalId w.round self.id 0, author: self.id, intents: [ i ], signers: [], procedure: Nothing }, signatures: [] }
+    refused = case _ of
+      Rejected x -> not (engineOnly x.reason)
+      _ -> true
+    accepted = either (not <<< Array.any refused) (const true) (screen w [] submitted)
+  pure (drafted == accepted <?> show i <> " by " <> show self.id <> ": drafted " <> show drafted <> ", accepted " <> show accepted)
+  where
+  entities = values w.entities
 
 -- Fixtures ----------------------------------------------------------------------------
 
@@ -33,10 +107,13 @@ seat =
   , self: { id: Id "EU", accounts: Map.empty, capacities: Map.empty, capabilities: [ MayTrade (Id "energy-atlantic"), MayEnact AccessBanRule ], kind: Actor (Seat (Id "EU")) }
   , prices: Map.fromFoldable [ Tuple (Id "energy-atlantic") (Q.fromInt 2) ]
   , rules: Map.empty
-  , transferability: Map.empty
+  , transferability: Map.fromFoldable [ Tuple (Id "E") Free, Tuple (Id "M") Free ]
   , events: []
   , factors: Map.empty
   , toSign: []
+  , entities: [ Id "CN", Id "DE", Id "EU" ]
+  , transformations: Map.singleton (Id "t") { minimum: Q.zero, maximum: Nothing }
+  , ownedCapacities: [ Id "semiconductors" ]
   , markets: [ { id: Id "energy-atlantic", base: Id "E", quote: Id "M" } ]
   }
 
@@ -144,10 +221,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "two selectors in one clause range over the product of their picks" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } }, { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" env { view = twoMarkets })
         `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-asia" "2" ], [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
-    it "a selector with no accessible Market proposes nothing, and a named Market in the same Strategy still does" do
+    it "a selector with no accessible Market proposes nothing, and a named Market the Entity has no access to is not drafted" do
       let none = env { view = seat { markets = [] } }
       intentsOf (drafts """{ "rules": [ { "when": [ { "le": [ { "price": { "cheapest": "E" } }, "9" ] } ], "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "3" } } ] }, { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }""" none)
-        `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+        `shouldEqual` []
     it "a price selector skips a Market with no price; each does not" do
       let unpriced = env { view = twoMarkets { prices = Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 3) ] } }
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "cheapest": "E" }, "quantity": "1" } } ] }, { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "2" } } ] } ] }""" unpriced)
@@ -160,7 +237,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a route drafts a routed Trade with its pair and limit" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
-    it "a zero quantity yields no Trade or Transform; a negative Transform is passed on for the engine to reject" do
+    it "a zero quantity yields no Trade or Transform; a Transform below its minimum is not drafted" do
       let
         text =
           """{ "rules": [ { "propose": [
@@ -170,7 +247,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         ] } ] }"""
       let
         e = env { view = seat { self = seat.self { capabilities = [ MayTransform (Id "t") ] } } }
-      intentsOf (drafts text e) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "t", quantity: Q.fromInt (-1) } ] ]
+      intentsOf (drafts text e) `shouldEqual` []
+
+  describe "One validity rule" do
+    it "over generated Intents, the interpreter drafts exactly those that screening does not refuse for a static reason" do
+      g <- unseated
+      let
+        w = (prepareRound g.world)
+          { rules = Map.fromFoldable
+              [ Tuple (Id "r-tariff") (Tariff { jurisdiction: Id "US", origin: Id "CN", rate: Q.fromInt 1 })
+              , Tuple (Id "r-held") (Withholding { capacity: Id "semiconductors", units: Q.fromInt 1 })
+              ]
+          }
+      quickCheck (agreement w)
 
   describe "Conditions and restrictions" do
     it "reciprocate enacts the mirror of a restriction enacted against this Entity last round" do

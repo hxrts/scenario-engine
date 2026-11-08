@@ -13,7 +13,7 @@ import Prelude
 import Core.Map (values)
 
 import Control.Apply (lift2)
-import Core.Authority (authorized, viewFacts)
+import Core.Authority (validIntent, viewFacts)
 import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
@@ -23,6 +23,7 @@ import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), S
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
 import Data.Const (Const(..))
+import Data.Either (isRight)
 import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
 import Data.Identity (Identity(..))
 import Data.Map as Map
@@ -220,15 +221,15 @@ draft env n t = case t of
     | otherwise -> { next: n, drafts: [] }
   _ ->
     { next: n
-    , drafts: map single (filter (authorized (viewFacts env.view) env.view.self.capabilities env.view.self.id) (intentsOf env t))
+    , drafts: map single (filter (isRight <<< validIntent (viewFacts env.view) env.view.self.capabilities env.view.self.id) (intentsOf env t))
     }
   where
   -- index ⌊u × n⌋ for a draw u in [0, 1)
   pick count = Q.floorInt (Q.mul (env.random n) (Q.fromInt count))
   single i = { intents: [ i ], signers: [], procedure: Nothing }
 
--- | The Intents one single-Intent template yields. A zero quantity yields nothing; any other quantity
--- | is passed on, and the engine rejects what it cannot settle (a negative transform, for one).
+-- | The Intents one single-Intent template yields. A zero quantity yields nothing; `draft` then keeps those
+-- | the View shows are valid, and the engine rejects what only it can tell.
 intentsOf :: Env -> Template -> Array Intent
 intentsOf env = case _ of
   IntentT x -> maybe [] keep (evalIntent env x)

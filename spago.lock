@@ -401,9 +401,14 @@
         "test": {
           "dependencies": [
             "effect",
+            "identity",
+            "newtype",
+            "partial",
+            "quickcheck",
             "sp-testkit",
             "spec",
-            "spec-node"
+            "spec-node",
+            "spec-quickcheck"
           ]
         }
       },
