@@ -32,6 +32,7 @@ import Handlers.Store (StoreBackend, persister, runObserve, runStore)
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)
 import Server.Launch (start)
+import Server.Cache (Cache)
 import Server.Read (loadRun)
 import Game.Assemble (assemblePreset)
 import Game.Premise (GameboardParts)
@@ -48,8 +49,8 @@ import Simulator.Simulate (resumeWith)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: GameboardParts -> StoreBackend -> String -> String -> Effect Response
-deriveRun premise store sourceId body = case readJson body :: Either String (Object Json) of
+deriveRun :: Cache -> GameboardParts -> StoreBackend -> String -> String -> Effect Response
+deriveRun cache premise store sourceId body = case readJson body :: Either String (Object Json) of
   Left e -> failWith 400 e
   Right o -> case Object.lookup "kind" o >>= toString of
     Just kind | kind `elem` kinds -> do
@@ -58,7 +59,7 @@ deriveRun premise store sourceId body = case readJson body :: Either String (Obj
         Nothing -> failWith 404 ("no run " <> sourceId)
         Just info -> do
           -- a rerun is judged against the source's stored records, so they are read before it starts
-          source <- if kind == "rerun" then Just <$> loadRun store sourceId else pure Nothing
+          source <- if kind == "rerun" then Just <$> loadRun cache store sourceId else pure Nothing
           case source of
             Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
             Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
@@ -86,7 +87,7 @@ deriveRun premise store sourceId body = case readJson body :: Either String (Obj
                       Left e, _ -> failWith 400 e
                       Right l, Just (Right src) -> do
                         -- the new run's records are read back from the store, as the source's are
-                        new <- loadRun store l.id
+                        new <- loadRun cache store l.id
                         case new of
                           Right n -> json 201
                             ( Object.fromFoldable

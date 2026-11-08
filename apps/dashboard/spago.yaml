@@ -15,6 +15,7 @@ package:
     - integers
     - js-uri
     - maybe
+    - parallel
     - react-basic
     - react-basic-dom
     - react-basic-hooks

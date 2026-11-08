@@ -296,7 +296,7 @@ The initial record is written before Round 1. After each round, the round record
 
 ### 8.1 Read API and run operations
 
-The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one route table, `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path is a 404. Replies are 200 unless stated.
+The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one route table, `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path is a 404. Replies are 200 unless stated. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the cache. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
 
 | Method and path | Purpose | Replies |
 |---|---|---|

@@ -15,6 +15,7 @@ package:
     - integers
     - maybe
     - ordered-collections
+    - refs
     - strings
     - tuples
     - sp-core

@@ -30,6 +30,8 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Control.Apply (lift2)
+import Control.Parallel (parallel, sequential)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
@@ -60,13 +62,10 @@ type Fetch = { key :: String, load :: Aff (Either String Json), render :: Render
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | The run list, every run: the default list, then the archived runs (`/api/runs` and `?archived=true`),
--- | merged. The list keeps the default order and lists the archived runs after it.
+-- | The run list, every run: the default list and the archived runs (`/api/runs` and `?archived=true`),
+-- | requested together and merged. The list keeps the default order and lists the archived runs after it.
 listRuns :: Aff (Either String RunList)
-listRuns = do
-  shown <- Client.runs false
-  more <- Client.runs true
-  pure (mergeRuns <$> shown <*> more)
+listRuns = sequential (lift2 mergeRuns <$> parallel (Client.runs false) <*> parallel (Client.runs true))
 
 -- | The run list, loaded for a key: a new key (an archive, a delete, a resume) reloads it. The previous list
 -- | stays on screen, dimmed, until the new one arrives. Every page that lists runs uses this hook.
