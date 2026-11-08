@@ -40,12 +40,14 @@ import Core.Shape (RecF, Shape, nameShape, recordShape, atBare, atKindArg, boolS
 import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
 import Core.Types (EffectKind(..), RuleKindDecl, ScopeKind(..))
 import Core.Types as Types
-import Core.World (Circulation, ShareSource, UnseededWorld)
-import Data.Array (mapWithIndex)
+import Core.World (RecurringFlow, UnseededWorld)
+import Data.Array (mapMaybe, mapWithIndex)
 import Data.Map as Map
-import Data.Maybe (Maybe, fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Gameboard (Scheme)
+import Schema.Recurring (ShareSource)
+import Schema.Recurring as Recurring
 import Schema.Premise.Actor (DefinitionDoc, definitionShape)
 import Schema.Premise.Intent (capabilityShape, ruleShape)
 import Schema.Premise.Tags (premiseEnum, transferabilityTags)
@@ -448,19 +450,18 @@ worldToCore w =
   , scheduled: Map.empty
   , deliveries: []
   , factors: Map.empty
-  , circulation: maybe emptyCirculation circulationToCore w.circulation
+  , recurring: recurringOf w.numeraire (fromMaybe emptyCirculation w.circulation) w.resources
   , events: []
   }
   where
-  emptyCirculation :: Circulation
-  emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
+  emptyCirculation :: CirculationDoc
+  emptyCirculation = { production: Nothing, flows: Nothing, shares: Nothing, requirements: Nothing }
 
 resourceToCore :: String -> ResourceDoc -> ResourceDefinition
 resourceToCore k r =
   { id: Id k
   , unit: k
   , transferability: r.transferability
-  , decay: map (\rate -> { rate }) r.decay
   , reservable: fromMaybe false r.reservable
   }
 
@@ -532,10 +533,15 @@ representationToCore r =
   , estimator: estimatorToCore r.estimator
   }
 
-circulationToCore :: CirculationDoc -> Circulation
-circulationToCore c =
+-- | A premise's recurring cycle and its Resources' decay, as the rules the engine evaluates.
+recurringOf :: ResourceId -> CirculationDoc -> Keyed ResourceDoc -> Array RecurringFlow
+recurringOf numeraire c rs = Recurring.compile
   { production: fromMaybe [] c.production
   , flows: fromMaybe [] c.flows
-  , shares: fromMaybe [] c.shares
+  , shares: map shareToCore (fromMaybe [] c.shares)
   , requirements: map (\r -> r { penalty = fromMaybe Q.zero r.penalty }) (fromMaybe [] c.requirements)
+  , decays: mapMaybe (\(Tuple k r) -> (\rate -> { resource: Id k, rate }) <$> r.decay) rs
   }
+  where
+  -- a share is paid in the premise's numeraire
+  shareToCore s = { from: s.from, to: s.to, resource: numeraire, share: s.share, basis: Recurring.shareBasis s.source }

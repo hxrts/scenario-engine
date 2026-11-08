@@ -17,7 +17,8 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), EffectF(..), Scope(..), proposalId)
-import Core.Slice (event, matches, pickOf)
+import Core.Slice (conversions, event, exchanges, matches, pickOf, shortfalls, sunk)
+import Schema.Recurring (kinds)
 import Core.World (RejectReason(..), renderReason)
 import Data.Array (any, concatMap, drop, findMap, index, last, length, reverse, take, zip)
 import Data.Either (Either(..))
@@ -154,7 +155,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         events = concatMap (\rec -> rec.record.events) r.records
         invested = any
-          (matches (event @"Transformed") (\t -> t.transformation == Id "energy-capacity-investment"))
+          (matches (conversions) (\t -> t.transformation == Id "energy-capacity-investment"))
           events
         unsigned = any
           (matches (event @"Rejected") (\x -> contains (Pattern "must sign") (renderReason x.reason)))
@@ -170,11 +171,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         -- what the US ordered of a Transformation in round i (0-based), if it did
         ordered i name = index r.records i >>= \rec -> findMap
-          (pickOf (event @"Transformed") >=> \t -> if t.by == Id "US" && t.transformation == Id name then Just t.quantity else Nothing)
+          (pickOf (conversions) >=> \t -> if t.by == Id "US" && t.transformation == Id name then Just t.quantity else Nothing)
           rec.record.events
         -- the US's fill on the defence-goods Market in round i, if it traded there
         sold i = index r.records i >>= \rec -> findMap
-          (pickOf (event @"Traded") >=> \t -> if t.entity == Id "US" && t.market == Id "defence-goods" then Just t else Nothing)
+          (pickOf (exchanges) >=> \t -> if t.entity == Id "US" && t.market == Id "defence-goods" then Just t else Nothing)
           rec.record.events
         usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
         parse x = fromMaybe Q.zero (Q.parse x)
@@ -205,11 +206,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       valid (initialOf r) r
       let
         has f = any (\x -> any f x.record.events) r.records
-        did t = has (matches (event @"Transformed") (\x -> x.by == Id "LABOR" && x.transformation == Id t))
+        did t = has (matches (conversions) (\x -> x.by == Id "LABOR" && x.transformation == Id t))
       did "public-attention" `shouldEqual` true
       did "strike" `shouldEqual` true
       has
-        (matches (event @"Decayed") (\x -> x.entity == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
+        (matches (sunk kinds.decay) (\x -> x.entity == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's propagation, as far as the shipped game shows it" do
       p <- premise
@@ -220,13 +221,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         round3 r = fromMaybe [] (index r.records 2 <#> _.record.events)
         boughtBy who r i = findMap
-          (pickOf (event @"Traded") >=> \t -> if t.entity == Id who then Just t.quantity else Nothing)
+          (pickOf (exchanges) >=> \t -> if t.entity == Id who then Just t.quantity else Nothing)
           (fromMaybe [] (index r.records i <#> _.record.events))
         anyShortfall who res evs = any
-          (matches (event @"Shortfall") (\x -> x.entity == Id who && x.resource == Id res))
+          (matches (shortfalls) (\x -> x.entity == Id who && x.resource == Id res))
           evs
         transformedAny name evs = any
-          (matches (event @"Transformed") (\t -> t.transformation == Id name))
+          (matches (conversions) (\t -> t.transformation == Id name))
           evs
         euExecuted evs = findMap
           (pickOf (event @"ProcedureOutcome") >=> \o -> if o.executed then Just o.support else Nothing)

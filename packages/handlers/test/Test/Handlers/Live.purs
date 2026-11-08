@@ -12,7 +12,7 @@ import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
 import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
-import Core.Slice (event, matches, pickOf)
+import Core.Slice (event, matches, pickOf, exchanges)
 import Core.World (RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
@@ -151,7 +151,7 @@ spec = do
           (pickOf (event @"Rejected") >=> \r -> Just { proposal: r.proposal, reason: r.reason })
           events
         executed = filter
-          (matches (event @"Traded") (\t -> t.entity == Id "US" && t.market == Id "energy-atlantic"))
+          (matches (exchanges) (\t -> t.entity == Id "US" && t.market == Id "energy-atlantic"))
           events
       map _.proposal rejections' `shouldEqual` [ Id "r1/US/1" ]
       map (contains (Pattern "no-such-market") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]

@@ -14,7 +14,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Slice (Slice, describeSlice, event, foldEvents, groupBy, ignore, read, runSlice, total)
+import Core.Slice (Slice, describeSlice, foldEvents, groupBy, ignore, read, runSlice, shortfalls, total)
 import Core.Types (EffectF(..), EntityId, ResourceId, Rule, Scope(..))
 import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, length, nub)
@@ -34,11 +34,11 @@ driversStat =
 
 -- | Every Shortfall, grouped by Resource: what `Shortfall(r, resource)` totals.
 shortfallsByResource :: Slice (Array (Tuple ResourceId (Array { round :: Int, entity :: EntityId, resource :: ResourceId, quantity :: Q })))
-shortfallsByResource = groupBy @"resource" (event @"Shortfall")
+shortfallsByResource = groupBy @"resource" shortfalls
 
 -- | Every Shortfall quantity, summed.
 shortfallSum :: Slice Q
-shortfallSum = total (read @"quantity" (event @"Shortfall"))
+shortfallSum = total (read @"quantity" shortfalls)
 
 -- | The round's shortfalls summed over all Resources: an amount owed but not delivered.
 shortfallTotal :: RoundRecord -> Q
@@ -101,17 +101,11 @@ drivers r =
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Traded": ignore
-    , "Transferred": ignore
-    , "Levied": ignore
-    , "Transformed": ignore
-    , "Delivered": ignore
+    , "Coupled": ignore
+    , "CapacityChanged": ignore
     , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText r.manifest.initial e.rule ] ]
     , "Repealed": \e acc -> acc <> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
     , "Estimated": ignore
-    , "Consumed": ignore
-    , "Shortfall": ignore
-    , "Decayed": ignore
     , "ProcedureOutcome": \o acc -> acc <> [ procedureRow (asProcedure rec o) ]
     }
     []

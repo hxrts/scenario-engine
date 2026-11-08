@@ -31,7 +31,8 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Types (Capability(..), Id(..))
-import Core.World (ShareSource)
+import Schema.Recurring (ShareSource)
+import Schema.Recurring as Recurring
 import Core.World as W
 import Data.Tuple (Tuple(..))
 import Schema.Build.Quantity (class ToQty, q)
@@ -108,7 +109,7 @@ cumulative = Cumulative
 -- Share sources ----------------------------------------------------------------------------
 
 sales :: String -> ShareSource
-sales r = W.SalesOf (Id r)
+sales r = Recurring.SalesOf (Id r)
 
 payee :: ShareSource
-payee = W.PayeeReceipts
+payee = Recurring.PayeeReceipts

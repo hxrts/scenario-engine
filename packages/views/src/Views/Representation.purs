@@ -13,7 +13,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (tradesOf)
-import Core.Slice (event, read, runSlice, select, total, whereEq, whereGt)
+import Core.Slice (event, exchanges, read, runSlice, select, total, whereEq, whereGt)
 import Core.Types (EntityId)
 import Core.World (RoundRecord)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex)
@@ -78,7 +78,7 @@ proposedPurchases e rec = Q.sumQ (concatMap (\s -> if s.proposal.author == e the
 
 -- | Quantities an Entity actually bought in a round.
 bought :: EntityId -> RoundRecord -> Q
-bought e rec = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"entity" e (event @"Traded"))))) rec.events
+bought e rec = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"entity" e exchanges)))) rec.events
 
 -- | Every collective procedure in the run: per round, its Proposal, the members who signed, the
 -- | support against the threshold, and whether it executed or lapsed.

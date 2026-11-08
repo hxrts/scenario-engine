@@ -11,7 +11,7 @@ import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(.
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, holding)
-import Core.Slice (count, event, read, runSlice, total, whereEq, whereNamed)
+import Core.Slice (conversionPaymentsTo, conversions, count, read, runSlice, shortfalls, total, whereEq)
 import Core.Types (EntityId)
 import Core.World (RoundResult)
 import Data.Array (all, any, concatMap, last, null, zipWith)
@@ -79,8 +79,7 @@ measureValue msr e r = case msr of
   CapacityAmount c -> capacityHeld r.world e c
   ShortfallOf res -> runSlice (total (read @"quantity" (shortfall res))) r.record.events
   ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
-  PayeeReceipts -> runSlice (total (read @"paid" (whereNamed "paid to the Entity as the facility's payee" payee (event @"Transformed")))) r.record.events
-  VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid (event @"Transformed")))) r.record.events
+  PayeeReceipts -> runSlice (total (read @"moved" (conversionPaymentsTo e))) r.record.events
+  VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid conversions))) r.record.events
   where
-  shortfall res = whereEq @"resource" res (whereEq @"entity" e (event @"Shortfall"))
-  payee t = (Map.lookup t.transformation r.world.transformations >>= _.payee) == Just e
+  shortfall res = whereEq @"resource" res (whereEq @"entity" e shortfalls)

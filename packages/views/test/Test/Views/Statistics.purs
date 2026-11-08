@@ -11,7 +11,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..), ResourceId)
-import Core.World (Event(..), RejectReason(..), RoundRecord, WorldState, rejection)
+import Core.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, coupled, rejection)
 import Data.Array (find, index, length, take)
 import Data.Foldable (foldl)
 import Data.Map as Map
@@ -125,15 +125,22 @@ spec context = describe "Dashboard statistics on hand-built runs" do
         deal = { id: d1, author: us, intents: [ Transfer { from: us, to: de, resource: money, quantity: Q.fromInt 5 } ], signers: [ us, de ], procedure: Nothing }
         own = { id: p1, author: us, intents: [], signers: [], procedure: Nothing }
 
+        tradeE = coupled 1
+          [ { from: InMarket (Id "energy-atlantic"), to: Held us, resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 }
+          , { from: Held us, to: InMarket (Id "energy-atlantic"), resource: money, owed: Q.fromInt 2, moved: Q.fromInt 2 }
+          ]
+          (Just (Q.fromInt 2))
+          (OfIntent { proposal: p1, intent: 0, mechanism: Curve (Id "energy-atlantic") })
+
         round :: RoundRecord
         round =
           { round: 1
           , inputs: [ { proposal: own, signatures: [] }, { proposal: deal, signatures: [ us, de ] } ]
           , events:
-              [ Traded { round: 1, market: Id "energy-atlantic", entity: us, quantity: Q.fromInt 1, price: Q.fromInt 2 }
-              , Traded { round: 1, market: Id "energy-atlantic", entity: us, quantity: Q.fromInt 1, price: Q.fromInt 2 }
-              , Transformed { round: 1, by: us, transformation: Id "defense-procurement", quantity: Q.fromInt 1, paid: Q.fromInt 1 }
-              , Transferred { round: 1, from: us, to: de, resource: money, quantity: Q.fromInt 5 }
+              [ tradeE
+              , tradeE
+              , coupled 1 [ { from: Held us, to: Sink, resource: money, owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { proposal: p1, intent: 0, mechanism: Conversion { by: us, transformation: Id "defense-procurement", units: Q.fromInt 1 } })
+              , coupled 1 [ { from: Held us, to: Held de, resource: money, owed: Q.fromInt 5, moved: Q.fromInt 5 } ] Nothing (OfIntent { proposal: d1, intent: 0, mechanism: Direct })
               , rejection 1 p1 PartyCannotFund
               ]
           }

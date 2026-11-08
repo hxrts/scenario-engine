@@ -24,8 +24,6 @@ alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable
 alias packages/schema/src/Schema/Build/Base.purs keyed DSL word that fixes its argument to the Keyed type
 alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it
 # The engine's own reading of Events.
-silent-default packages/core/src/Core/Engine/Circulate.purs tradedIn engine code: the engine's own reading of the Events it produced
-silent-default packages/core/src/Core/Engine/Circulate.purs revenueShares engine code: the engine's own reading of the Events it produced
 silent-default packages/core/src/Core/Engine/Commit.purs prepared engine code: the engine's own reading of the Events it produced
 # One rule per Intent kind, not a walk of its references.
 intent-walk packages/core/src/Core/Authority.purs authorized the authority rule differs per kind; there is nothing to traverse

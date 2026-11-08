@@ -38,7 +38,7 @@ import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, Scope(..), EffectF(..), Transformation, TransformationId)
-import Core.Slice (event, orKind, read, select)
+import Core.Slice (conversions, event, orKind, read, select)
 import Core.World (Event, WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
@@ -187,7 +187,7 @@ droppedProposals = select (orKind (read @"proposal" (event @"Rejected")) (read @
 
 -- | Whether `by` ran `transformation` in the round before `round` for at least `atLeast` units.
 transformedLastRound :: RoundIndex -> EntityId -> TransformationId -> Quantity -> Array Event -> Boolean
-transformedLastRound round by transformation atLeast = any (\t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast) <<< select (event @"Transformed")
+transformedLastRound round by transformation atLeast = any (\t -> t.round == round - 1 && t.by == by && t.transformation == transformation && t.quantity >= atLeast) <<< select conversions
 
 -- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
 -- | were proposed in the round before: a flows Rule of `by`'s whose counterparty is `target`.

@@ -1,118 +1,129 @@
 -- | Engine phase 6, second half (docs/02_type_system.md §6, §8.2): the recurring stock-flow cycle.
--- | Production, variable revenue shares, operating requirements with shortfall penalties, fixed
--- | flows, and decay are all functions of the batch result, evaluated on each Entity's net
--- | position after settlement. Each component is a step over the Settlement; no rule-specific
--- | paths. `circulate` is the only export.
+-- | Each `RecurringFlow` moves a Resource from its source to its destination, evaluated on each
+-- | Entity's net position after settlement, in list order; the rules from every holder run last, in
+-- | Entity then Resource order. One function over the data, no rule-specific paths. `circulate` is
+-- | the only export.
 module Core.Engine.Circulate
   ( circulate
   ) where
 
 import Prelude
 
-import Core.Engine.Settle (Account(..), Settlement, adjust, consumedOf, minOwedHeld, net, shortfallOf, transfer)
-import Core.Map (entries, groupBy, sumInto)
+import Core.Engine.Settle (Account(..), Settlement, adjust, minOwedHeld, net, transfer)
+import Core.Map (entries, sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityHeld, lookupQ, entitiesOf)
-import Core.Types (EntityId, MarketId, ResourceId)
-import Core.World (Event(..), ShareSource(..), Target(..), WorldState)
-import Data.Array (concatMap, filter, foldl, fromFoldable, zipWith)
+import Core.Query (capacityHeld, entitiesOf, lookupQ)
+import Core.Slice (conversionPaymentsTo, exchanges, select)
+import Core.Types (EntityId, ResourceId)
+import Core.World (Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..), ShortfallEffect(..), Target(..), WorldState, coupled)
+import Data.Array (filter, findIndex, foldl, fromFoldable, index, length, zipWith)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
--- | The recurring cycle, evaluated on the round's batch result: production (delivered next
--- | round), variable revenue shares, operating requirements with shortfall penalties, fixed
--- | flows, and decay. One function over the Circulation data; no rule-specific paths.
+-- | What the cycle accrues against an Entity's incoming offsetable flows.
+type Penalised = { st :: Settlement, offsets :: Map EntityId Q }
+
+-- | The recurring cycle, evaluated on the round's batch result.
 circulate :: WorldState -> Settlement -> Settlement
-circulate w = decay w <<< fixedFlows w <<< requirements w <<< revenueShares w <<< production w
+circulate w st0 = eachHolder w (foldl (step w) { st: st0, offsets: Map.empty } (filter (not <<< isEachHolder) w.recurring)).st
 
--- | Sum a quantity over the round's events.
-sumEvents :: (Event -> Array Q) -> Settlement -> Q
-sumEvents f st = Q.sumQ (concatMap f st.events)
+isEachHolder :: RecurringFlow -> Boolean
+isEachHolder r = r.source == FromEachHolder
 
--- | The base Resource a Market trades.
-marketBase :: WorldState -> MarketId -> Maybe ResourceId
-marketBase w m = _.base <$> Map.lookup m w.markets
-
--- | The Traded events of one Entity in one Resource's Markets, as the quantity and price of each.
-tradedIn :: WorldState -> EntityId -> ResourceId -> Event -> Array { quantity :: Q, price :: Q }
-tradedIn w e r = case _ of
-  Traded t | t.entity == e && marketBase w t.market == Just r -> [ { quantity: t.quantity, price: t.price } ]
-  _ -> []
-
--- | Production capacity becomes a delivery in the next round.
-production :: WorldState -> Settlement -> Settlement
-production w st = st { deliveries = st.deliveries <> map scheduled w.circulation.production }
-  where
-  scheduled p = { round: w.round + 1, entity: p.entity, target: Holding p.resource, quantity: capacityHeld w p.entity p.capacity }
-
--- | Variable shares of sales revenue or payee receipts, paid in the numeraire.
-revenueShares :: WorldState -> Settlement -> Settlement
-revenueShares w st0 = foldl payShare st0 w.circulation.shares
-  where
-  payShare st sh = transfer w sh.from sh.to w.numeraire (Q.mul sh.share (base sh)) st
-  base sh = case sh.source of
-    SalesOf r -> max Q.zero $ sumEvents (\ev -> map (\t -> Q.neg (Q.mul t.price t.quantity)) (tradedIn w sh.from r ev)) st0
-    PayeeReceipts -> sumEvents
-      ( case _ of
-          Transformed t | (Map.lookup t.transformation w.transformations >>= _.payee) == Just sh.from -> [ t.paid ]
-          _ -> []
-      )
-      st0
-
-type Penalised = { st :: Settlement, penalties :: Map EntityId Q }
-
--- | Operating requirements: consume what is held, record any shortfall, and accrue its
--- | penalty against the Entity's incoming fixed flows.
-requirements :: WorldState -> Settlement -> Penalised
-requirements w st0 = foldl meet { st: st0, penalties: Map.empty } w.circulation.requirements
-  where
-  meet acc rq =
-    let
-      purchases = sumEvents (\ev -> map _.quantity (filter (\t -> t.quantity > Q.zero) (tradedIn w rq.entity rq.resource ev))) st0
-      needed = fromMaybe purchases rq.amount
-      consumed = minOwedHeld needed (net w rq.entity rq.resource acc.st)
-      short = Q.sub needed consumed
-      when' cond ev = if cond then [ ev ] else []
-    in
-      { st: acc.st
-          { ledger = adjust (Ent rq.entity) rq.resource (Q.neg consumed) acc.st.ledger
-          , events = acc.st.events
-              <> when' (consumed > Q.zero) (consumedOf w.round rq.entity rq.resource consumed)
-              <> when' (short > Q.zero) (shortfallOf w.round rq.entity rq.resource short)
+-- | One rule's flow, on what the round has settled so far.
+step :: WorldState -> Penalised -> RecurringFlow -> Penalised
+step w acc r
+  | not (conditionHolds w acc.st r) = acc
+  | otherwise =
+      case r.source, r.destination of
+        Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, target: Holding r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
+        FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
+        FromEntity from, ToSink -> consume from
+        _, _ -> acc
+      where
+      paidAmount to = if r.offsetable then offsetShare w acc to r (amountOf w acc.st r) else amountOf w acc.st r
+      consume from =
+        let
+          needed = amountOf w acc.st r
+          moved = minOwedHeld needed (net w from r.resource acc.st)
+          short = Q.sub needed moved
+          legs = [ { from: Held from, to: Sink, resource: r.resource, owed: needed, moved } ]
+          events = if needed > Q.zero then [ coupled w.round legs Nothing (causeOf r) ] else []
+        in
+          { st: acc.st
+              { ledger = adjust (Ent from) r.resource (Q.neg moved) acc.st.ledger
+              , events = acc.st.events <> events
+              }
+          , offsets: case r.onShortfall of
+              OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
+              _ -> acc.offsets
           }
-      , penalties: if short > Q.zero then sumInto rq.entity (Q.mul rq.penalty short) acc.penalties else acc.penalties
-      }
 
--- | Fixed flows, each Entity's incoming flows reduced pro rata by its penalty (payers keep it).
-fixedFlows :: WorldState -> Penalised -> Settlement
-fixedFlows w { st, penalties } = foldl (\acc (Tuple f amount) -> transfer w f.from f.to f.resource amount acc) st (concatMap reduce byRecipient)
-  where
-  byRecipient = entries (groupBy _.to w.circulation.flows)
-  reduce (Tuple to fs) =
-    let
-      incoming = Q.sumQ (map _.amount fs)
-      cut = min incoming (lookupQ to penalties)
-    in
-      zipWith (\f k -> Tuple f (Q.sub f.amount k)) fs (Q.proRata cut (map _.amount fs))
+causeOf :: RecurringFlow -> Cause
+causeOf r = OfRecurring { rule: r.id, kind: r.kind }
 
--- | Decay of every decaying Resource held. The rate is per round, as declared; scaling annual
--- | rates to round length (INV-28) is Planned (docs/03 §10.2).
-decay :: WorldState -> Settlement -> Settlement
-decay w st0 = foldl lose st0 holdings
+-- | Whether a rule's condition holds on what the round has settled so far.
+conditionHolds :: WorldState -> Settlement -> RecurringFlow -> Boolean
+conditionHolds w st r = case r.condition of
+  Nothing -> true
+  Just c -> net w c.holder c.resource st >= c.atLeast
+
+-- | What a rule owes, read from the round so far.
+amountOf :: WorldState -> Settlement -> RecurringFlow -> Q
+amountOf w st r = case r.amount of
+  FixedAmount q -> q
+  CapacityHeld c -> case r.destination of
+    ToEntity to -> capacityHeld w to c
+    ToSink -> Q.zero
+  ShareOf s -> case r.source of
+    FromEntity from -> Q.mul s.ratio (shareBasis w st from s.basis)
+    _ -> Q.zero
+  PurchasesThisRound -> case r.source of
+    FromEntity from -> Q.sumQ (map _.quantity (filter (\t -> t.entity == from && t.resource == r.resource && t.quantity > Q.zero) (select exchanges st.events)))
+    _ -> Q.zero
+  FractionHeld f -> case r.source of
+    FromEntity from -> Q.mul f (max Q.zero (net w from r.resource st))
+    _ -> Q.zero
+
+-- | What a share is a fraction of, for the Entity paying it.
+shareBasis :: WorldState -> Settlement -> EntityId -> ShareBasis -> Q
+shareBasis _ st e = case _ of
+  NetSales r -> max Q.zero (Q.sumQ (map (\t -> Q.neg (Q.mul t.price t.quantity)) (filter (\t -> t.entity == e && t.resource == r) (select exchanges st.events))))
+  PaymentsReceived -> Q.sumQ (map _.moved (select (conversionPaymentsTo e) st.events))
+
+-- | One offsetable flow's amount: the recipient's accrued offset, capped at its incoming total and
+-- | shared pro rata over its offsetable flows in list order, is taken off.
+offsetShare :: WorldState -> Penalised -> EntityId -> RecurringFlow -> Q -> Q
+offsetShare w acc to r amount = Q.sub amount (fromMaybe Q.zero (index cuts position))
   where
-  -- every Resource the Entity has an account for or came to hold this round
-  holdings = concatMap (\e -> map (Tuple e.id) (fromFoldable (Set.union (Map.keys e.accounts) (acquired e.id)))) (entitiesOf w)
+  siblings = filter (\s -> s.offsetable && s.destination == ToEntity to) w.recurring
+  amounts = map (amountOf w acc.st) siblings
+  incoming = Q.sumQ amounts
+  cuts = Q.proRata (min incoming (lookupQ to acc.offsets)) amounts
+  position = fromMaybe (length siblings) (findIndex (\s -> s.id == r.id) siblings)
+
+-- | The rules from every holder of a Resource: each Entity loses what its rule says, of every
+-- | Resource it has an account for or came to hold this round.
+eachHolder :: WorldState -> Settlement -> Settlement
+eachHolder w st0 = foldl lose st0 holdings
+  where
+  holdings = (entitiesOf w) >>= \e -> map (Tuple e.id) (fromFoldable (Set.union (Map.keys e.accounts) (acquired e.id)))
   acquired e = Set.mapMaybe (\(Tuple a r) -> if a == Ent e then Just r else Nothing) (Map.keys st0.ledger)
-  lose acc (Tuple e r) = case Map.lookup r w.resources >>= _.decay of
-    Just d ->
-      let
-        held = max Q.zero (net w e r acc)
-        lost = minOwedHeld (Q.mul d.rate held) held
-      in
-        if lost == Q.zero then acc
-        else acc { ledger = adjust (Ent e) r (Q.neg lost) acc.ledger, events = acc.events <> [ Decayed { round: w.round, entity: e, resource: r, quantity: lost } ] }
-    Nothing -> acc
+  lose acc (Tuple e r) = foldl (loseBy e) acc (filter (\x -> isEachHolder x && x.resource == r) w.recurring)
+  loseBy e acc rule =
+    let
+      held = max Q.zero (net w e rule.resource acc)
+      lost = minOwedHeld (fractionOf rule held) held
+    in
+      if lost == Q.zero then acc
+      else acc
+        { ledger = adjust (Ent e) rule.resource (Q.neg lost) acc.ledger
+        , events = acc.events <> [ coupled w.round [ { from: Held e, to: Sink, resource: rule.resource, owed: lost, moved: lost } ] Nothing (causeOf rule) ]
+        }
+  fractionOf rule held = case rule.amount of
+    FractionHeld f -> Q.mul f held
+    _ -> Q.zero

@@ -22,8 +22,8 @@ import Core.Num as Q
 import Core.Proposal (submissionOrder)
 import Core.Represent as Represent
 import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, SignedProposal)
-import Core.World (Event(..), RoundResult, WorldState)
-import Data.Array (concatMap, filter, find, sortWith)
+import Core.World (Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
+import Data.Array (concatMap, filter, find, findMap, sortWith)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -45,14 +45,21 @@ instance Show EngineError where
 -- | Resolve one round. The World State is prepared first (Phase 1), so the caller passes it in
 -- | either prepared or not; the result is the same.
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
-resolveRound w0 inputs0 = case find (\f -> f.amount < Q.zero) w0.circulation.flows of
-  Just f -> Left (NegativeFlow f.from f.to)
+resolveRound w0 inputs0 = case findMap negativeFixed w0.recurring of
+  Just (Tuple f t) -> Left (NegativeFlow f t)
   Nothing -> resolveValid w0 inputs0
+
+-- | A fixed Entity-to-Entity recurring flow with a negative amount, naming its two Entities.
+negativeFixed :: RecurringFlow -> Maybe (Tuple EntityId EntityId)
+negativeFixed r = case r.source, r.destination, r.amount of
+  FromEntity f, ToEntity t, FixedAmount q | q < Q.zero -> Just (Tuple f t)
+  _, _, _ -> Nothing
 
 -- | The event kinds Prepare writes, in the round being resolved.
 prepared :: RoundIndex -> Event -> Boolean
 prepared round = case _ of
-  Delivered d -> d.round == round
+  Coupled d -> d.delivered && d.round == round
+  CapacityChanged d -> d.round == round
   Enacted e -> e.round == round
   Repealed e -> e.round == round
   _ -> false

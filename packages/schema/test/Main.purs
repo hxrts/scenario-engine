@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Map as Map
 
+import Core.World (RecurringAmount(..))
 import Core.Types (Direction(..), EffectF(..), Scope(..), RuleF, CapacityTag, EntityTag)
 import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
@@ -239,11 +240,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a zero flow amount is valid" do
       case decodeGameboard (json (withFlow "\"0\"")) of
         Left e -> fail (show e)
-        Right gb -> map _.amount gb.world.circulation.flows `shouldEqual` [ Q.zero ]
+        Right gb -> map _.amount gb.world.recurring `shouldEqual` [ FixedAmount Q.zero ]
     it "a decoded Gameboard never carries a negative flow, so the allocate guard is not reachable from it" do
       case decodeGameboard (json (withFlow "\"-0.0001\"")) of
         Left _ -> pure unit
-        Right gb -> fail ("a negative flow reached a decoded Gameboard: " <> show (map _.amount gb.world.circulation.flows))
+        Right gb -> fail ("a negative flow reached a decoded Gameboard: " <> show (map _.amount gb.world.recurring))
 
   describe "Decoding" do
     it "a tagged object must have exactly one key" do

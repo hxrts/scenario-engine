@@ -10,7 +10,7 @@ import Core.Engine.Screen (screen)
 import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
 import Core.Types (EntityId, Transferability(..), Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RefKind(..), RuleChangeF(..), proposalId, samePositions, traverseIntent)
 import Core.Slice (event, pickOf)
-import Core.World (Event(..), RejectReason(..), View, WorldState)
+import Core.World (Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
 import Data.Newtype (un)
@@ -290,7 +290,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
       let
         text = """{ "rules": [ { "when": [ { "transformedLastRound": { "by": "US", "transformation": "major-military-action", "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ Transformed { round: 2, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] } }
+        fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []
       strategyParams (strategyOrThrow text) `shouldEqual` [ "threshold" ]

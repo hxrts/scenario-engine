@@ -12,13 +12,13 @@ import Prelude
 import Core.Map (sumMaps)
 
 import Schema.Gameboard (Fallback(..), Gameboard, InitialWorld, InstantiationConfig)
+import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
-import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
 import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), Scope(..))
-import Core.World (Requirement, UnseededWorld, manifestOf, seeded)
-import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, null)
+import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, seeded)
+import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, nubByEq, null)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -93,20 +93,29 @@ mergeInto agg e w = case Map.lookup e w.entities of
   Just gone -> w
     { entities = map membership (Map.update (Just <<< absorb gone) agg (Map.delete e w.entities))
     , markets = map (\m -> m { access = nub (map retarget m.access) }) w.markets
-    , circulation = c
-        { flows = filter (\f -> f.from /= f.to) (map (\f -> f { from = retarget f.from, to = retarget f.to }) c.flows)
-        , production = nub (map (\p -> p { entity = retarget p.entity }) c.production)
-        , shares = filter (\s -> s.from /= s.to) (map (\s -> s { from = retarget s.from, to = retarget s.to }) c.shares)
-        , requirements = mergeRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
-        }
+    , recurring = normalize (mergeRequirements (dedupProduction (filter notSelfFlow (map retargetRule w.recurring))))
     , groups = map retarget (Map.delete e w.groups)
     , transformations = map facility w.transformations
     , rules = map rule w.rules
     , scheduled = map (map rule) w.scheduled
     }
   where
-  c = w.circulation
   retarget x = if x == e then agg else x
+  retargetRule r = r
+    { source = case r.source of
+        FromEntity x -> FromEntity (retarget x)
+        other -> other
+    , destination = case r.destination of
+        ToEntity x -> ToEntity (retarget x)
+        ToSink -> ToSink
+    , condition = map (\c -> c { holder = retarget c.holder }) r.condition
+    }
+  notSelfFlow r = case r.source, r.destination of
+    FromEntity a, ToEntity b -> a /= b
+    _, _ -> true
+  -- production that became identical once retargeted stays one rule, as a merged Entity holds one capacity
+  dedupProduction = nubByEq sameProduction
+  sameProduction a b = a.kind == kinds.production && b.kind == kinds.production && a.source == b.source && a.destination == b.destination && a.resource == b.resource && a.amount == b.amount
   absorb gone a = a
     { accounts = sumMaps a.accounts gone.accounts
     , capacities = sumMaps a.capacities gone.capacities
@@ -141,23 +150,25 @@ mergeInto agg e w = case Map.lookup e w.entities of
     Just wt -> Map.insert agg (maybe wt (Q.add wt) (Map.lookup agg ws)) (Map.delete e ws)
 
 -- | Requirements of one Entity and Resource, merged as docs/04 §4.2 says: their explicit amounts
--- | are summed. Two requirements that are both "equal to purchases" (Nothing) stay one. An
--- | explicit amount and a purchases-based one cannot be summed into one amount, so they stay
--- | two requirements: each consumes from what the Entity holds and records its own shortfall,
--- | which totals what the sum would.
-mergeRequirements :: Array Requirement -> Array Requirement
+-- | are summed. Two requirements that are both "equal to purchases" stay one. An explicit amount
+-- | and a purchases-based one cannot be summed into one amount, so they stay two requirements:
+-- | each consumes from what the Entity holds and records its own shortfall, which totals what the
+-- | sum would. Every other rule keeps its place.
+mergeRequirements :: Array RecurringFlow -> Array RecurringFlow
 mergeRequirements = foldl add []
   where
-  add acc r = case filter (sameKey r) acc of
-    [ prior ] -> case mergedAmount prior.amount r.amount of
-      Just amount -> map (\x -> if sameKey r x then x { amount = amount } else x) acc
-      Nothing -> acc <> [ r ]
-    _ -> acc <> [ r ]
-  sameKey r x = x.entity == r.entity && x.resource == r.resource
+  add acc r
+    | isRequirement r = case filter (sameKey r) acc of
+        [ prior ] -> case mergedAmount prior.amount r.amount of
+          Just amount -> map (\x -> if sameKey r x then x { amount = amount } else x) acc
+          Nothing -> acc <> [ r ]
+        _ -> acc <> [ r ]
+    | otherwise = acc <> [ r ]
+  sameKey r x = isRequirement x && x.source == r.source && x.resource == r.resource
 
   -- Just the merged amount when one exists, Nothing when the two must stay apart
-  mergedAmount :: Maybe Q -> Maybe Q -> Maybe (Maybe Q)
+  mergedAmount :: RecurringAmount -> RecurringAmount -> Maybe RecurringAmount
   mergedAmount a b = case a, b of
-    Just x, Just y -> Just (Just (Q.add x y))
-    Nothing, Nothing -> Just Nothing
+    FixedAmount x, FixedAmount y -> Just (FixedAmount (Q.add x y))
+    PurchasesThisRound, PurchasesThisRound -> Just PurchasesThisRound
     _, _ -> Nothing

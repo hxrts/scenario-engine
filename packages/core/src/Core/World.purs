@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
-import Core.Types (RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -41,7 +41,7 @@ type WorldFields r =
   , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
   , deliveries :: Array Delivery -- due at Prepare
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
-  , circulation :: Circulation
+  , recurring :: Array RecurringFlow -- the recurring cycle, in the order the engine evaluates it
   , events :: Array Event -- public history
   | r
   )
@@ -55,29 +55,163 @@ type UnseededWorld = Record (WorldFields ())
 seeded :: Seed -> UnseededWorld -> WorldState
 seeded seed w = Record.insert (Proxy :: Proxy "seed") seed w
 
--- | The recurring economic cycle (docs/02_type_system.md §6), as data.
-type Circulation =
-  { production :: Array { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef } -- delivered next round
-  , flows :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Quantity } -- fixed income and expenditure
-  , shares :: Array { from :: EntityId, to :: EntityId, share :: Ratio, source :: ShareSource } -- variable flows
-  , requirements :: Array Requirement -- consumed at commit from the net position
-  }
-
--- | What a variable flow is a share of, from the paying Entity's settlement this round.
-data ShareSource
-  = SalesOf ResourceId -- net Money revenue from selling this Resource on Markets
-  | PayeeReceipts -- Money received as a facility payee
-
-type Requirement =
-  { entity :: EntityId
+-- | One step of the recurring cycle (docs/02_type_system.md §6): a Resource moving from a source to a
+-- | destination each round. The DSL compiles a premise's recurring forms into these; `kind` is the
+-- | name it declares for the form, and Core reads none of them.
+type RecurringFlow =
+  { id :: RecurringFlowId
+  , kind :: RecurringKindId
+  , source :: RecurringSource
+  , destination :: RecurringDestination
   , resource :: ResourceId
-  , amount :: Maybe Quantity -- Nothing: equal to this round's purchases of the Resource
-  , penalty :: Quantity -- reduction of fixed incoming flows per unit unmet
+  , amount :: RecurringAmount
+  , condition :: Maybe { holder :: EntityId, resource :: ResourceId, atLeast :: Quantity } -- the rule applies only while the holder holds at least this much
+  , onShortfall :: ShortfallEffect -- what a shortfall on this rule does
+  , offsetable :: Boolean -- reduced pro rata by the recipient's accrued offset
+  , delay :: Int -- rounds until a created Resource is delivered; 0 delivers in this round
   }
 
--- | A scheduled change to a holding or a capacity, applied at Prepare.
+-- | Where a recurring flow comes from: one Entity, each Entity that holds the Resource, or nowhere.
+data RecurringSource = FromEntity EntityId | FromEachHolder | Created
+
+data RecurringDestination = ToEntity EntityId | ToSink
+
+-- | How much a recurring flow moves.
+data RecurringAmount
+  = FixedAmount Quantity
+  | CapacityHeld CapacityRef -- the destination's holding of this capacity
+  | ShareOf { ratio :: Ratio, basis :: ShareBasis } -- a fraction of what the source received this round
+  | PurchasesThisRound -- what the source bought of the Resource on Markets this round
+  | FractionHeld Ratio -- a fraction of what the source holds
+
+-- | What a share is a fraction of, from the source's settlement this round.
+data ShareBasis
+  = NetSales ResourceId -- net receipts from selling this Resource on Markets
+  | PaymentsReceived -- what it received as the payee of a conversion
+
+-- | What the engine does when a recurring flow cannot move all it owes.
+data ShortfallEffect
+  = NoEffect
+  | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Entity receives
+
+-- | A scheduled change to a holding or a capacity, applied at Prepare. `cause` is what the settlement
+-- | that scheduled it was caused by.
 type Delivery =
-  { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
+  { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity, cause :: Cause }
+
+-- | Where a leg of a settlement starts or ends: an Entity, a Market, nowhere, or nothing.
+data Endpoint = Held EntityId | InMarket MarketId | Source | Sink
+
+derive instance Eq Endpoint
+derive instance Ord Endpoint
+derive instance Generic Endpoint _
+instance Show Endpoint where
+  show = genericShow
+
+-- | One leg: a quantity of a Resource owed from one endpoint to another, and how much of it moved.
+-- | A shortfall is `moved < owed`.
+type Flow = { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Quantity, moved :: Quantity }
+
+-- | How an Intent's quantities were settled: along a Market's curve, as a conversion under a capacity,
+-- | or moved directly.
+data Mechanism
+  = Curve MarketId
+  | Conversion { by :: EntityId, transformation :: TransformationId, units :: Quantity }
+  | Direct
+
+derive instance Eq Mechanism
+derive instance Generic Mechanism _
+instance Show Mechanism where
+  show = genericShow
+
+-- | What produced a settlement: an Intent of a Proposal, a declared Rule kind, or a recurring-flow rule.
+-- | It points at the thing; a premise's name for it is on the thing.
+data Cause
+  = OfIntent { proposal :: ProposalId, intent :: Int, mechanism :: Mechanism }
+  | OfRule { kind :: RuleKindId }
+  | OfRecurring { rule :: RecurringFlowId, kind :: RecurringKindId }
+
+derive instance Eq Cause
+derive instance Generic Cause _
+instance Show Cause where
+  show = genericShow
+
+derive instance Eq RecurringSource
+derive instance Generic RecurringSource _
+instance Show RecurringSource where
+  show = genericShow
+
+derive instance Eq RecurringDestination
+derive instance Generic RecurringDestination _
+instance Show RecurringDestination where
+  show = genericShow
+
+derive instance Eq RecurringAmount
+derive instance Generic RecurringAmount _
+instance Show RecurringAmount where
+  show = genericShow
+
+derive instance Eq ShareBasis
+derive instance Generic ShareBasis _
+instance Show ShareBasis where
+  show = genericShow
+
+derive instance Eq ShortfallEffect
+derive instance Generic ShortfallEffect _
+instance Show ShortfallEffect where
+  show = genericShow
+
+instance EncodeJson Endpoint where
+  encodeJson = encodeJsonWith Snapshot endpointShape
+
+instance DecodeJson Endpoint where
+  decodeJson = decodeJsonWith Snapshot endpointShape
+
+instance EncodeJson Mechanism where
+  encodeJson = encodeJsonWith Snapshot mechanismShape
+
+instance DecodeJson Mechanism where
+  decodeJson = decodeJsonWith Snapshot mechanismShape
+
+instance EncodeJson Cause where
+  encodeJson = encodeJsonWith Snapshot causeShape
+
+instance DecodeJson Cause where
+  decodeJson = decodeJsonWith Snapshot causeShape
+
+instance EncodeJson RecurringSource where
+  encodeJson = encodeJsonWith Snapshot recurringSourceShape
+
+instance DecodeJson RecurringSource where
+  decodeJson = decodeJsonWith Snapshot recurringSourceShape
+
+instance EncodeJson RecurringDestination where
+  encodeJson = encodeJsonWith Snapshot recurringDestinationShape
+
+instance DecodeJson RecurringDestination where
+  decodeJson = decodeJsonWith Snapshot recurringDestinationShape
+
+instance EncodeJson RecurringAmount where
+  encodeJson = encodeJsonWith Snapshot recurringAmountShape
+
+instance DecodeJson RecurringAmount where
+  decodeJson = decodeJsonWith Snapshot recurringAmountShape
+
+instance EncodeJson ShareBasis where
+  encodeJson = encodeJsonWith Snapshot shareBasisShape
+
+instance DecodeJson ShareBasis where
+  decodeJson = decodeJsonWith Snapshot shareBasisShape
+
+instance EncodeJson ShortfallEffect where
+  encodeJson = encodeJsonWith Snapshot shortfallEffectShape
+
+instance DecodeJson ShortfallEffect where
+  decodeJson = decodeJsonWith Snapshot shortfallEffectShape
+
+-- | A settlement of the given legs.
+coupled :: RoundIndex -> Array Flow -> Maybe Ratio -> Cause -> Event
+coupled round legs rate cause = Coupled { round, legs, rate, cause, delivered: false }
 
 data Target = Holding ResourceId | CapacityOf CapacityRef
 
@@ -203,36 +337,19 @@ data Event
   | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
   -- one order of a Proposal removed at settlement; the Proposal's other Intents still settle
   | OrderRemoved { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
-  | Traded { round :: RoundIndex, market :: MarketId, entity :: EntityId, quantity :: Quantity, price :: Price }
-  | Transferred { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
-  | Levied { round :: RoundIndex, kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Quantity }
-  | Transformed { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Quantity, paid :: Quantity }
-  | Delivered { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity }
+  -- one settlement: its legs settle together, at its rate when it has one. `delivered` marks a delivery of
+  -- something settled in an earlier round, applied at Prepare
+  | Coupled { round :: RoundIndex, legs :: Array Flow, rate :: Maybe Ratio, cause :: Cause, delivered :: Boolean }
+  | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
-  | Consumed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
-  -- an amount owed but not delivered: an unpaid payment (Transfer, levy, facility payment),
-  -- or an unmet operating requirement; the resource says which
-  | Shortfall { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
-  | Decayed { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity }
   | ProcedureOutcome { round :: RoundIndex, proposal :: ProposalId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
 
 derive instance Generic Target _
 derive instance Eq Target
 instance Show Target where
   show = genericShow
-
-derive instance Generic ShareSource _
-derive instance Eq ShareSource
-instance Show ShareSource where
-  show = genericShow
-
-instance EncodeJson ShareSource where
-  encodeJson = encodeJsonWith Snapshot shareSourceShape
-
-instance DecodeJson ShareSource where
-  decodeJson = decodeJsonWith Snapshot shareSourceShape
 
 derive instance Generic Event _
 derive instance Eq Event
@@ -275,23 +392,42 @@ targetShape = genericSum "Target"
   , "CapacityOf": atTagged "a capacity of a facility" idShape
   }
 
+endpointShape :: Shape Endpoint
+endpointShape = genericSum "Endpoint"
+  { "Held": atTagged "an Entity's account" idShape
+  , "InMarket": atTagged "a Market's reserves" idShape
+  , "Source": atTagged "where a Resource is created" unitShape
+  , "Sink": atTagged "where a Resource ends" unitShape
+  }
+
+flowShape :: Shape Flow
+flowShape = recordShape "Flow" { from: endpointShape, to: endpointShape, resource: idShape, owed: qShape, moved: qShape }
+
+mechanismShape :: Shape Mechanism
+mechanismShape = genericSum "Mechanism"
+  { "Curve": atTagged "along a Market's curve" idShape
+  , "Conversion": atTagged "a conversion under a capacity" (recordShape "Conversion" { by: idShape, transformation: idShape, units: qShape })
+  , "Direct": atTagged "moved directly" unitShape
+  }
+
+causeShape :: Shape Cause
+causeShape = genericSum "Cause"
+  { "OfIntent": atTagged "an Intent of a Proposal" (recordShape "OfIntent" { proposal: idShape, intent: intShape, mechanism: mechanismShape })
+  , "OfRule": atTagged "a declared Rule kind" (recordShape "OfRule" { kind: idShape })
+  , "OfRecurring": atTagged "a recurring-flow rule" (recordShape "OfRecurring" { rule: idShape, kind: idShape })
+  }
+
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
 eventShape :: Shape Event
 eventShape = genericSum "Event"
   { "Lapsed": atTagged "a Proposal that lapsed" (recordShape "Lapsed" { round: intShape, proposal: idShape })
   , "Rejected": atTagged "a Proposal the engine turned down" (recordShape "Rejected" { round: intShape, proposal: idShape, reason: rejectReasonShape })
   , "OrderRemoved": atTagged "one order of a Proposal removed at settlement" (recordShape "OrderRemoved" { round: intShape, proposal: idShape, reason: rejectReasonShape })
-  , "Traded": atTagged "a Market order filled" (recordShape "Traded" { round: intShape, market: idShape, entity: idShape, quantity: qShape, price: qShape })
-  , "Transferred": atTagged "a Resource moved between Entities" (recordShape "Transferred" { round: intShape, from: idShape, to: idShape, resource: idShape, quantity: qShape })
-  , "Levied": atTagged "a levy paid on a conditioned Transfer" (recordShape "Levied" { round: intShape, kind: idShape, from: idShape, to: idShape, amount: qShape })
-  , "Transformed": atTagged "a run of a transformation" (recordShape "Transformed" { round: intShape, by: idShape, transformation: idShape, quantity: qShape, paid: qShape })
-  , "Delivered": atTagged "a delivery arrived" (recordShape "Delivered" { round: intShape, entity: idShape, target: targetShape, quantity: qShape })
+  , "Coupled": atTagged "one settlement: its legs, its rate, and what caused it" (recordShape "Coupled" { round: intShape, legs: arrayOf flowShape, rate: optionalOf qShape, cause: causeShape, delivered: boolShape })
+  , "CapacityChanged": atTagged "a capacity changed" (recordShape "CapacityChanged" { round: intShape, entity: idShape, capacity: idShape, quantity: qShape })
   , "Enacted": atTagged "a Rule enacted" (recordShape "Enacted" { round: intShape, id: idShape, rule: ruleShape })
   , "Repealed": atTagged "a Rule repealed" (recordShape "Repealed" { round: intShape, id: idShape })
   , "Estimated": atTagged "a representation's factor estimated" (recordShape "Estimated" { round: intShape, aggregate: idShape, domain: idShape, factor: qShape })
-  , "Consumed": atTagged "a Resource consumed" (recordShape "Consumed" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
-  , "Shortfall": atTagged "an amount owed but not delivered" (recordShape "Shortfall" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
-  , "Decayed": atTagged "a Resource lost to decay" (recordShape "Decayed" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
   , "ProcedureOutcome": atTagged "a collective procedure's outcome" (recordShape "ProcedureOutcome" { round: intShape, proposal: idShape, support: qShape, threshold: qShape, executed: boolShape })
   }
 
@@ -380,7 +516,7 @@ transformationShape :: Shape Transformation
 transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, reserves: holdingsShape, cost: (optionalOf costFunctionShape), capacity: (optionalOf idShape), payee: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
-resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, decay: (optionalOf (recordShape "DecayRule" { rate: qShape })), reservable: boolShape }
+resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, reservable: boolShape }
 
 estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
@@ -389,27 +525,61 @@ representationShape :: Shape Representation
 representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, weight: qShape, estimator: estimatorShape }
 
 deliveryShape :: Shape Delivery
-deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, target: targetShape, quantity: qShape }
+deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, target: targetShape, quantity: qShape, cause: causeShape }
 
-shareSourceShape :: Shape ShareSource
-shareSourceShape = genericSum "ShareSource"
-  { "SalesOf": atTagged "sales revenue of a Resource" idShape
-  , "PayeeReceipts": atTagged "what the Entity received as a payee" unitShape
+recurringFlowShape :: Shape RecurringFlow
+recurringFlowShape = recordShape "RecurringFlow"
+  { id: idShape
+  , kind: idShape
+  , source: recurringSourceShape
+  , destination: recurringDestinationShape
+  , resource: idShape
+  , amount: recurringAmountShape
+  , condition: optionalOf (recordShape "Condition" { holder: idShape, resource: idShape, atLeast: qShape })
+  , onShortfall: shortfallEffectShape
+  , offsetable: boolShape
+  , delay: intShape
   }
 
-circulationShape :: Shape Circulation
-circulationShape = recordShape "Circulation" { production: (arrayOf productionShape), flows: (arrayOf flowShape), shares: (arrayOf shareShape), requirements: (arrayOf requirementShape) }
-  where
-  productionShape = recordShape "Production" { entity: idShape, resource: idShape, capacity: idShape }
-  flowShape = recordShape "Flow" { from: idShape, to: idShape, resource: idShape, amount: qShape }
-  shareShape = recordShape "Share" { from: idShape, to: idShape, share: qShape, source: shareSourceShape }
-  requirementShape = recordShape "Requirement" { entity: idShape, resource: idShape, amount: (optionalOf qShape), penalty: qShape }
+recurringSourceShape :: Shape RecurringSource
+recurringSourceShape = genericSum "RecurringSource"
+  { "FromEntity": atTagged "one Entity" idShape
+  , "FromEachHolder": atTagged "each Entity that holds the Resource" unitShape
+  , "Created": atTagged "created in the destination" unitShape
+  }
+
+recurringDestinationShape :: Shape RecurringDestination
+recurringDestinationShape = genericSum "RecurringDestination"
+  { "ToEntity": atTagged "one Entity" idShape
+  , "ToSink": atTagged "nothing receives it" unitShape
+  }
+
+recurringAmountShape :: Shape RecurringAmount
+recurringAmountShape = genericSum "RecurringAmount"
+  { "FixedAmount": atTagged "a fixed quantity" qShape
+  , "CapacityHeld": atTagged "what the destination holds of this capacity" idShape
+  , "ShareOf": atTagged "a share of what the source received" (recordShape "ShareOf" { ratio: qShape, basis: shareBasisShape })
+  , "PurchasesThisRound": atTagged "this round's Market purchases of the Resource" unitShape
+  , "FractionHeld": atTagged "a fraction of what the source holds" qShape
+  }
+
+shareBasisShape :: Shape ShareBasis
+shareBasisShape = genericSum "ShareBasis"
+  { "NetSales": atTagged "net receipts from selling this Resource" idShape
+  , "PaymentsReceived": atTagged "payments received as a payee" unitShape
+  }
+
+shortfallEffectShape :: Shape ShortfallEffect
+shortfallEffectShape = genericSum "ShortfallEffect"
+  { "NoEffect": atTagged "nothing" unitShape
+  , "OffsetIncoming": atTagged "accrue against the flows the Entity receives, per unit short" qShape
+  }
 
 transferConditionShape :: Shape TransferCondition
 transferConditionShape = recordShape "TransferCondition" { bundled: idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transferConditions: (mapOf idShape transferConditionShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), circulation: circulationShape, events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transferConditions: (mapOf idShape transferConditionShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

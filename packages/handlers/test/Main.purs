@@ -11,7 +11,7 @@ import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
-import Core.Slice (event, matches)
+import Core.Slice (event, matches, conversions, transfers)
 import Core.World (RoundResult)
 import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
@@ -134,7 +134,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Just r1, Just r2, Just r3 -> do
           (fromMaybe Q.zero (Map.lookup (Id "US") r1.world.entities >>= \x -> Map.lookup (Id "Mil") x.accounts)) `shouldEqual` Q.fromInt 92
           any
-            (matches (event @"Transformed") (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4))
+            (matches (conversions) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4))
             r2.record.events `shouldEqual` true
           cn r2 "Mil" `shouldEqual` Q.fromInt 88 -- ordered in round 2, delivered at round 3's Prepare
           cn r3 "Mil" `shouldEqual` Q.fromInt 92
@@ -165,5 +165,5 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         (matches (event @"ProcedureOutcome") (\o -> o.executed && o.support == fromMaybe Q.zero (Q.parse "0.6")))
         events `shouldEqual` true
       any
-        (matches (event @"Transferred") (\t -> t.from == Id "CN" && t.to == Id "SA" && t.quantity == Q.fromInt 25))
+        (matches (transfers) (\t -> t.from == Id "CN" && t.to == Id "SA" && t.quantity == Q.fromInt 25))
         events `shouldEqual` true

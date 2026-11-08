@@ -16,7 +16,7 @@ import Checks.Run (checkRun)
 import Core.Query (priceOf)
 import Core.Num as Q
 import Core.Types (Id(..))
-import Core.Slice (event, matches)
+import Core.Slice (event, matches, exchanges, conversions)
 import Data.Array (concatMap, elem, filter, last, length, range)
 import Data.Either (Either(..))
 import Data.Foldable (for_, maximum)
@@ -63,7 +63,7 @@ indicators ctx r = { row, failures }
   where
   events = concatMap _.record.events r.records
   count f = length (filter f events)
-  activity = count \e -> matches (event @"Traded") (const true) e || matches (event @"Transformed") (const true) e
+  activity = count \e -> matches (exchanges) (const true) e || matches (conversions) (const true) e
   rejected = count (matches (event @"Rejected") (const true))
   lapsed = count (matches (event @"Lapsed") (const true))
   proposals = length (concatMap _.record.inputs r.records)

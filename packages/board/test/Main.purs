@@ -11,7 +11,8 @@ import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
 import Core.Types (Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
-import Core.World (UnseededWorld)
+import Core.World (RecurringAmount(..), UnseededWorld)
+import Schema.Recurring (requirementRule)
 import Data.Argonaut.Core (Json)
 import Data.Array (concatMap, elem, filter, mapMaybe)
 import Data.Either (Either(..))
@@ -82,7 +83,7 @@ coverageGameboard =
   world =
     { round: 0
     , entities: Map.fromFoldable [ Tuple us usEntity, Tuple eu euEntity ]
-    , resources: Map.singleton money { id: money, unit: "USD", transferability: Free, decay: Nothing, reservable: false }
+    , resources: Map.singleton money { id: money, unit: "USD", transferability: Free, reservable: false }
     , markets: Map.empty
     , transformations: Map.singleton (Id "fac") facility
     , representations: []
@@ -97,7 +98,7 @@ coverageGameboard =
     , scheduled: Map.singleton (Id "later") (Just (banR { jurisdiction: eu, target: us }))
     , deliveries: []
     , factors: Map.empty
-    , circulation: { production: [], flows: [], shares: [], requirements: [] }
+    , recurring: []
     , events: []
     }
 
@@ -126,13 +127,13 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Requirement merge (docs/04 §4.2)" do
     -- an operating requirement of the US in money, with the given amount
-    let req amount = { entity: Id "US", resource: Id "M", amount, penalty: Q.zero }
+    let req amount = requirementRule { entity: Id "US", resource: Id "M", amount, penalty: Q.zero }
     it "two explicit amounts for one Entity and Resource are summed" do
-      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req (Just (Q.fromInt 4)) ]) `shouldEqual` [ Just (Q.fromInt 7) ]
+      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req (Just (Q.fromInt 4)) ]) `shouldEqual` [ FixedAmount (Q.fromInt 7) ]
     it "an explicit amount and one equal to purchases both survive the merge, neither replaced by the other" do
-      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req Nothing ]) `shouldEqual` [ Just (Q.fromInt 3), Nothing ]
+      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req Nothing ]) `shouldEqual` [ FixedAmount (Q.fromInt 3), PurchasesThisRound ]
     it "two requirements equal to purchases stay one" do
-      map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ Nothing ]
+      map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ PurchasesThisRound ]
 
   describe "Coverage merge retargets references (docs/04 §4.2)" do
     let config = { seed: Seed 1, rounds: 2, seats: Map.empty, npcs: Map.empty, fallbacks: Map.empty, representations: [] }

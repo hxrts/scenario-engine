@@ -18,10 +18,11 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (Direction(..), EffectF(..), Scope(..), RuleF, CapacityTag, EntityTag)
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
-import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
+import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), ShareBasis(..), UnseededWorld, View, coupled)
+import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (any, elem, filter, length)
+import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..), isLeft, isRight)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -107,6 +108,10 @@ sections = map (\(Tuple name json) -> { name, json }) files
 withSection :: String -> Json -> Array { name :: String, json :: Json }
 withSection name json = map (\s -> if s.name == name then s { json = json } else s) sections
 
+-- | A conversion's settlement in a round.
+conversionEvent :: Int -> String -> String -> Int -> Event
+conversionEvent round by t units = coupled round [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id by, transformation: Id t, units: Q.fromInt units } })
+
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
 chinaView :: View
 chinaView =
@@ -116,7 +121,7 @@ chinaView =
   , prices: Map.fromFoldable [ Tuple (Id "energy-asia") (Q.fromInt 2) ]
   , rules: Map.empty
   , transferability: Map.empty
-  , events: [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 12, paid: Q.zero } ]
+  , events: [ conversionEvent 1 "US" "major-military-action" 12 ]
   , factors: Map.empty
   , toSign: []
   , entities: []
@@ -285,7 +290,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       { gameboard, initial } <- instantiated
       let
         w = initial.world
-        listed = map (\p -> capacity w (unwrap p.entity) (unwrap p.capacity)) gameboard.world.circulation.production
+        listed = mapMaybe
+          ( \p -> case p.destination, p.amount of
+              ToEntity e, CapacityHeld c -> Just (capacity w (unwrap e) (unwrap c))
+              _, _ -> Nothing
+          )
+          gameboard.world.recurring
         held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.capacities)) (values w.entities)
       Q.sumQ listed `shouldEqual` Q.sumQ held
 
@@ -348,7 +358,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld (onEntity "EU" \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
       (ProcedureExceedsAuthority (Id "EU"))
     rejects "ProductionWithoutCapacity: a producer that does not hold the capacity it produces from"
-      (editWorld \w -> w { circulation = w.circulation { production = w.circulation.production <> [ { entity: Id "US", resource: Id "E", capacity: Id "energy-production" } ] } })
+      (editWorld \w -> w { recurring = w.recurring <> [ productionRule { entity: Id "US", resource: Id "E", capacity: Id "energy-production" } ] })
       (ProductionWithoutCapacity (Id "US") "energy-production")
     rejects "CoverageNotAggregate: a coverage fallback that names an Entity which is not an Aggregate"
       (\g c -> Tuple g { actors = Map.update (\d -> Just d { fallback = Just (ImplicitCoverage (Id "US")) }) (Id "DE") g.actors } c)
@@ -396,19 +406,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld (onEntity "US" \e -> e { capacities = Map.insert (Id "unused") (Q.fromInt 1) e.capacities }))
       (UnknownReference CapacityName "unused")
     rejects "UnknownReference: a production entry's Resource that does not exist"
-      (editWorld \w -> w { circulation = w.circulation { production = map (\p -> p { resource = Id "X" }) w.circulation.production } })
+      (editWorld \w -> w { recurring = map (\p -> if p.kind == kinds.production then p { resource = Id "X" } else p) w.recurring })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a flow from an Entity that does not exist"
-      (editWorld \w -> w { circulation = w.circulation { flows = w.circulation.flows <> [ { from: Id "NOBODY", to: Id "US", resource: Id "M", amount: Q.fromInt 1 } ] } })
+      (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "NOBODY", to: Id "US", resource: Id "M", amount: Q.fromInt 1 } ] })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a flow of a Resource that does not exist"
-      (editWorld \w -> w { circulation = w.circulation { flows = w.circulation.flows <> [ { from: Id "US", to: Id "DE", resource: Id "X", amount: Q.fromInt 1 } ] } })
+      (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "US", to: Id "DE", resource: Id "X", amount: Q.fromInt 1 } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a share sourced from a Resource that does not exist"
-      (editWorld \w -> w { circulation = w.circulation { shares = w.circulation.shares <> [ { from: Id "US", to: Id "DE", share: Q.fromInt 1, source: SalesOf (Id "X") } ] } })
+      (editWorld \w -> w { recurring = w.recurring <> [ shareRule { from: Id "US", to: Id "DE", resource: Id "M", share: Q.fromInt 1, basis: NetSales (Id "X") } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a requirement on an Entity that does not exist"
-      (editWorld \w -> w { circulation = w.circulation { requirements = w.circulation.requirements <> [ { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] } })
+      (editWorld \w -> w { recurring = w.recurring <> [ requirementRule { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: an access ban whose target is not an Entity"
       (editWorld \w -> w { rules = Map.insert (Id "rule-y") (banR { jurisdiction: Id "US", target: Id "NOBODY" }) w.rules })
@@ -447,7 +457,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- policyNamed gameboard "china-strategic-v0"
       let
         -- a major action of 10 units: below the shipped threshold of 12, above a sweep's 6
-        major = chinaView { events = [ Transformed { round: 1, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] }
+        major = chinaView { events = [ conversionEvent 1 "US" "major-military-action" 10 ] }
         responds threshold = map _.intents (propose p ((envWith major Q.zero) { params = Object.singleton "major-action-threshold" (Q.fromInt threshold) }))
         procures = [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
       responds 6 `shouldEqual` procures

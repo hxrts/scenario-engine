@@ -24,7 +24,8 @@ import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (lookupQ, priceOf, totalHolding)
-import Core.Slice (Slice, count, describeSlice, event, read, runSlice, select, total, whereEq, whereGt)
+import Core.Slice (Slice, conversions, count, describeSlice, event, exchanges, read, runSlice, select, sunk, total, transfers, whereEq, whereGt)
+import Schema.Recurring (kinds)
 import Core.Types (Id(..), Market, MarketId, ResourceId)
 import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
@@ -70,7 +71,7 @@ facilities r =
   , columns: names [ col.round, facilityColumn, orderedBy, col.kind, quantityColumn, paidColumn ]
   , rows: concatMap
       ( \rec -> map (\t -> [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ])
-          (select (event @"Transformed") rec.events)
+          (select conversions rec.events)
       )
       (records r)
   }
@@ -95,23 +96,23 @@ moneyFlows r =
   }
   where
   w0 = r.manifest.initial
-  numeraireMoves = whereEq @"resource" w0.numeraire (event @"Transferred")
+  numeraireMoves = whereEq @"resource" w0.numeraire transfers
   add acc t = sumInto (Tuple (kindOf w0 t.from) (kindOf w0 t.to)) t.quantity acc
 
 -- | One round's pressure: shortfalls, consumption and decay, and the Proposals rejected or lapsed.
 type Pressure = { shortfall :: Q, consumed :: Q, decayed :: Q, rejected :: Int, lapsed :: Int }
 
 consumedTotal :: Slice Q
-consumedTotal = total (read @"quantity" (event @"Consumed"))
+consumedTotal = total (read @"quantity" (sunk kinds.requirement))
 
 decayedTotal :: Slice Q
-decayedTotal = total (read @"quantity" (event @"Decayed"))
+decayedTotal = total (read @"quantity" (sunk kinds.decay))
 
 lapsedCount :: Slice Int
 lapsedCount = count (event @"Lapsed")
 
 boughtVolume :: MarketId -> Slice Q
-boughtVolume id = total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"market" id (event @"Traded"))))
+boughtVolume id = total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"market" id exchanges)))
 
 roundPressure :: RoundRecord -> Pressure
 roundPressure rec =

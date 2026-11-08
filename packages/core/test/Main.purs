@@ -18,10 +18,10 @@ import Core.Shape as Shape
 import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
-import Core.Slice (count, describeSlice, event, items, matches, orKind, pickOf, read, runSlice, total, whereEq)
-import Core.World (Event(..), RoundResult, costFunctionShape, Target(..), WorldState, renderReason)
+import Core.Slice (conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
+import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
 import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -139,7 +139,7 @@ baseWorld es =
   { round: 1
   , seed: Seed 1
   , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
-  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free, decay: Nothing, reservable: false }) [ "M", "E" ])
+  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free, reservable: false }) [ "M", "E" ])
   , markets: Map.empty
   , transformations: Map.empty
   , representations: []
@@ -151,7 +151,7 @@ baseWorld es =
   , scheduled: Map.empty
   , deliveries: []
   , factors: Map.empty
-  , circulation: { production: [], flows: [], shares: [], requirements: [] }
+  , recurring: []
   , events: []
   }
 
@@ -162,9 +162,29 @@ submit author index intents =
   , signatures: []
   }
 
--- | The quantity of a Transformed event.
+-- | A trade's settlement, its base and quote legs built from the signed quantity and price.
+tradeE :: Id MarketTag -> EntityId -> Q -> Q -> Event
+tradeE m e x price = coupled 1
+  [ { from: InMarket m, to: Held e, resource: Id "E", owed: x, moved: x }
+  , { from: Held e, to: InMarket m, resource: Id "M", owed: Q.mul price x, moved: Q.mul price x }
+  ]
+  (Just price)
+  (OfIntent { proposal: Id "none", intent: 0, mechanism: Curve m })
+
+-- | A conversion's settlement of `units`, with no legs.
+convE :: EntityId -> TransformationId -> Q -> Event
+convE by t units = coupled 1 [] Nothing (OfIntent { proposal: Id "none", intent: 0, mechanism: Conversion { by, transformation: t, units } })
+
+testCause :: Cause
+testCause = OfRecurring { rule: Id "r", kind: Id "k" }
+
+-- | A recurring-flow rule of a local kind (core tests cannot use the DSL).
+testRule :: String -> RecurringSource -> RecurringDestination -> ResourceId -> RecurringAmount -> RecurringFlow
+testRule kind source destination resource amount = { id: Id ("test-" <> kind), kind: Id kind, source, destination, resource, amount, condition: Nothing, onShortfall: NoEffect, offsetable: false, delay: 0 }
+
+-- | The quantity of a conversion's settlement.
 transformedQ :: Event -> Array Q
-transformedQ = (\ev_ -> maybe [] (\t -> [ t.quantity ]) (pickOf (event @"Transformed") ev_))
+transformedQ = (\ev_ -> maybe [] (\t -> [ t.quantity ]) (pickOf (conversions) ev_))
 
 -- | The reasons of the Rejected events of a resolved round (or the engine error).
 rejections :: Either EngineError RoundResult -> Array String
@@ -175,7 +195,7 @@ rejections = case _ of
   reason = (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
 
 isShortfall :: Event -> Boolean
-isShortfall = (matches (event @"Shortfall") (const true))
+isShortfall = (matches (shortfalls) (const true))
 
 eventsOf :: Either EngineError RoundResult -> Array Event
 eventsOf = case _ of
@@ -201,7 +221,7 @@ routed base n limit = Route { pair: { base: Id base, quote: Id "M" }, quantity: 
 -- | The (Market, quantity) of each fill of an Entity in a resolved round.
 fillsOf :: String -> Either EngineError RoundResult -> Array (Tuple String Q)
 fillsOf who r = concatMap
-  (\ev_ -> maybe [] (\t -> if t.entity == Id who then [ Tuple (show t.market) t.quantity ] else []) (pickOf (event @"Traded") ev_))
+  (\ev_ -> maybe [] (\t -> if t.entity == Id who then [ Tuple (show t.market) t.quantity ] else []) (pickOf (exchanges) ev_))
   (eventsOf r)
 
 -- | The quantity an Entity filled in one Market.
@@ -508,20 +528,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         -- 8 units of FA (use 1) and 1 unit of FB (use 2) fill the whole capacity of 10: the pool total is 9
         r = resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "FA", quantity: Q.fromInt 8 } ], submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "FB", quantity: Q.fromInt 1 } ] ]
       filter
-        (matches (event @"Shortfall") (const true))
+        (matches (shortfalls) (const true))
         (eventsOf r) `shouldEqual` []
     it "clamps a delivery at zero and records only the change applied" do
       let
         us = (actor "US" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 5) }
-        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-10) } ] }
+        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-10), cause: testCause } ] }
         prepared = prepareRound w
       capacityHeld prepared (Id "US") (Id "plant") `shouldEqual` Q.zero
-      prepared.events `shouldEqual` [ Delivered { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-5) } ]
+      prepared.events `shouldEqual` [ CapacityChanged { round: 1, entity: Id "US", capacity: Id "plant", quantity: Q.fromInt (-5) } ]
     it "a delivery to an unknown Entity applies nothing and records nothing" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", target: Holding (Id "M"), quantity: Q.fromInt 5 } ] }
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", target: Holding (Id "M"), quantity: Q.fromInt 5, cause: testCause } ] }
       (prepareRound w).events `shouldEqual` []
     it "prepareRound is idempotent, and resolveRound applies due deliveries itself" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", target: Holding (Id "M"), quantity: Q.fromInt 7 } ] }
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", target: Holding (Id "M"), quantity: Q.fromInt 7, cause: testCause } ] }
       (prepareRound (prepareRound w)).events `shouldEqual` (prepareRound w).events
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound w []) `shouldEqual` Right (Q.fromInt 107)
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)
@@ -599,7 +619,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Reservations (docs/02 §2.3, §8.2)" do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
       let
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free, decay: Nothing, reservable: true }
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
         dep = { id: Id "dep", inputs: Map.empty, outputs: Map.empty, reserves: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
@@ -613,7 +633,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           holding res.world (Id "JP") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 25) (Q.fromInt 4)
           concatMap transformedQ res.record.events `shouldEqual` [ Q.fromInt 5 `Q.div` Q.fromInt 4 ]
           filter
-            (matches (event @"Consumed") (const true))
+            (matches legs (\l -> l.to == Sink))
             res.record.events `shouldEqual` []
           -- the reservation is released at commit: the next round starts with nothing reserved
           case resolveRound res.world [ submit "US" 0 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.div (Q.fromInt 15) (Q.fromInt 4) } ] ] of
@@ -623,7 +643,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         dep = { id: Id "dep", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, reserves: Map.singleton (Id "Mil") (Q.fromInt 3), cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
-        mil = { id: Id "Mil", unit: "Mil", transferability: Free, decay: Nothing, reservable: true }
+        mil = { id: Id "Mil", unit: "Mil", transferability: Free, reservable: true }
         w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
       case resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ] ] of
         Left e -> show e `shouldEqual` "a round"
@@ -636,12 +656,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let
       -- a flow of 5 M from US to UK, and UK requiring 10 E at a penalty of 0.25 per unit unmet, holding `held` E
       penalised held = (baseWorld [ actor "US" [], (actor "UK" []) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt held) ] } ])
-        { circulation =
-            { production: []
-            , shares: []
-            , flows: [ { from: Id "US", to: Id "UK", resource: Id "M", amount: Q.fromInt 5 } ]
-            , requirements: [ { entity: Id "UK", resource: Id "E", amount: Just (Q.fromInt 10), penalty: q "0.25" } ]
-            }
+        { recurring =
+            [ (testRule "requirement" (FromEntity (Id "UK")) ToSink (Id "E") (FixedAmount (Q.fromInt 10))) { onShortfall = OffsetIncoming (q "0.25") }
+            , (testRule "flow" (FromEntity (Id "US")) (ToEntity (Id "UK")) (Id "M") (FixedAmount (Q.fromInt 5))) { offsetable = true }
+            ]
         }
       -- UK's Money after one round of no Intents
       moneyAfter w = either (const Q.zero) (\r -> holding r.world (Id "UK") (Id "M")) (resolveRound w [])
@@ -745,7 +763,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         blocked = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
         tolled = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") toll }
       rejections (resolveRound blocked [ submit "A" 0 [ send "B" 5, carry 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind embargo" ]
-      length (filter (matches (event @"Levied") (\l -> l.kind == Id "toll")) (eventsOf (resolveRound tolled [ submit "A" 0 [ send "B" 5, carry 5 ] ]))) `shouldEqual` 1
+      length (filter (matches levies (\l -> l.kind == Id "toll")) (eventsOf (resolveRound tolled [ submit "A" 0 [ send "B" 5, carry 5 ] ]))) `shouldEqual` 1
     it "a Rule enacted in one round is in the next round's record" do
       let
         us = actor "US" [ MayEnact (Id "tariff") ]
@@ -781,7 +799,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       holding r.world (Id "A") (Id "E") `shouldEqual` Q.fromInt 1
       length (rejections (Right r)) `shouldEqual` 1
     it "a negative fixed flow is an engine error, not a crash" do
-      let w = (baseWorld [ actor "A" [], actor "B" [] ]) { circulation = { production: [], flows: [ { from: Id "A", to: Id "B", resource: Id "M", amount: Q.fromInt (-1) } ], shares: [], requirements: [] } }
+      let w = (baseWorld [ actor "A" [], actor "B" [] ]) { recurring = [ testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt (-1))) ] }
       rejections (resolveRound w []) `shouldEqual` [ "negative fixed flow: A to B" ]
     it "a capacity's owner is its positive holder, whatever the Map order" do
       let
@@ -800,7 +818,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         giver = (actor "G" [ MayTransfer (Id "E") ]) { accounts = Map.singleton (Id "E") (Q.fromInt 10) }
         base = baseWorld [ giver, actor "U" [] ]
-        w = base { resources = Map.update (\res -> Just res { decay = Just { rate: q "0.5" } }) (Id "E") base.resources }
+        w = base { recurring = [ testRule "decay" FromEachHolder ToSink (Id "E") (FractionHeld (q "0.5")) ] }
         r = resolved w [ submit "G" 0 [ Transfer { from: Id "G", to: Id "U", resource: Id "E", quantity: Q.fromInt 10 } ] ]
       holding r.world (Id "U") (Id "E") `shouldEqual` Q.fromInt 5
       invariantsOf w r `shouldEqual` []
@@ -827,18 +845,24 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       withEvent ev r = r { record = r.record { events = r.record.events <> [ ev ] } }
     it "INV-01: a trade with no Intent behind it" do
       let w = (baseWorld [ actor "US" [] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]) }
-      invariantsOf w (withEvent (Traded { round: 1, market: Id "EM", entity: Id "US", quantity: Q.zero, price: Q.zero }) (empty w)) `shouldContain` "INV-01"
+      invariantsOf w (withEvent (tradeE (Id "EM") (Id "US") Q.zero Q.zero) (empty w)) `shouldContain` "INV-01"
     it "INV-04: holdings that move between Entities with no event, though the totals balance" do
       let
         w = baseWorld [ actor "A" [], actor "B" [] ]
         r = empty w
         moved = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 99) }) (Id "A") (Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) (Id "B") r.world.entities) } }
       invariantsOf w moved `shouldEqual` [ "INV-04", "INV-04" ]
+    it "INV-05: a Resource created with no leg from the source" do
+      let
+        w = baseWorld [ actor "A" [] ]
+        r = empty w
+        grown = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) (Id "A") r.world.entities } }
+      invariantsOf w grown `shouldContain` "INV-05"
     it "INV-06: a fill above the pool's capacity" do
       let
         fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
         w = (baseWorld [ (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
-      invariantsOf w (withEvent (Transformed { round: 1, by: Id "UK", transformation: Id "F", quantity: Q.fromInt 11, paid: Q.zero }) (empty w)) `shouldContain` "INV-06"
+      invariantsOf w (withEvent (convE (Id "UK") (Id "F") (Q.fromInt 11)) (empty w)) `shouldContain` "INV-06"
     it "INV-08: two positive holders of a facility's capacity" do
       let
         fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
@@ -885,20 +909,39 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let
       us = Id "US"
       evs =
-        [ Traded { round: 1, market: Id "m", entity: us, quantity: Q.fromInt 2, price: Q.fromInt 1 }
+        [ tradeE (Id "m") us (Q.fromInt 2) (Q.fromInt 1)
         , Lapsed { round: 1, proposal: Id "p" }
-        , Traded { round: 1, market: Id "m", entity: Id "CN", quantity: Q.fromInt 5, price: Q.fromInt 1 }
+        , tradeE (Id "m") (Id "CN") (Q.fromInt 5) (Q.fromInt 1)
         ]
-      traded = whereEq @"entity" us (event @"Traded")
+      traded = whereEq @"entity" us exchanges
     it "runSlice counts, sums and reads in recorded order" do
       runSlice (count traded) evs `shouldEqual` 1
       runSlice (total (read @"quantity" traded)) evs `shouldEqual` Q.fromInt 2
-      map _.entity (runSlice (items (event @"Traded")) evs) `shouldEqual` [ us, Id "CN" ]
-      runSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" (event @"Traded")))) evs `shouldEqual` 3
+      map _.entity (runSlice (items exchanges) evs) `shouldEqual` [ us, Id "CN" ]
+      runSlice (total (read @"moved" legs)) evs `shouldEqual` Q.fromInt 14
+      runSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" exchanges))) evs `shouldEqual` 3
+    it "selects on a leg's fields and on the cause" do
+      let
+        short = coupled 1 [ { from: Held us, to: Sink, resource: Id "E", owed: Q.fromInt 3, moved: Q.fromInt 1 } ] Nothing testCause
+      runSlice (total (read @"quantity" shortfalls)) (evs <> [ short ]) `shouldEqual` Q.fromInt 2
+      map _.entity (runSlice (items shortfalls) [ short ]) `shouldEqual` [ us ]
+      runSlice
+        ( count
+            ( whereNamed "from a Market"
+                ( \l -> case l.from of
+                    InMarket _ -> true
+                    _ -> false
+                )
+                legs
+            )
+        )
+        evs `shouldEqual` 2
+      -- a delivery is not a shortfall even when the moved quantity is clamped
+      runSlice (count shortfalls) [ Coupled { round: 1, legs: [ { from: Held us, to: Sink, resource: Id "E", owed: Q.fromInt 3, moved: Q.zero } ], rate: Nothing, cause: testCause, delivered: true } ] `shouldEqual` 0
     it "describeSlice renders the slice" do
-      describeSlice (count traded) `shouldEqual` "count of Traded events where entity = US"
-      describeSlice (total (read @"quantity" traded)) `shouldEqual` "sum of quantity of Traded events where entity = US"
-      describeSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" (event @"Traded")))) `shouldEqual` "count of round of Lapsed and Traded events"
+      describeSlice (count traded) `shouldEqual` "count of Coupled events where the cause is an exchange along a Market's curve and entity = US"
+      describeSlice (total (read @"quantity" traded)) `shouldEqual` "sum of quantity of Coupled events where the cause is an exchange along a Market's curve and entity = US"
+      describeSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" exchanges))) `shouldEqual` "count of round of Lapsed and Coupled events where the cause is an exchange along a Market's curve"
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)
@@ -906,7 +949,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "Intent" $ quickCheck (roundTrip genIntent)
     it "Proposal" $ quickCheck (roundTrip genProposal)
     it "EntityKind" $ quickCheck (roundTrip genKind)
-    it "Event" $ quickCheck (roundTrip (genQ <#> \x -> Traded { round: 1, market: Id "energy-atlantic", entity: Id "US", quantity: x, price: x }))
+    it "Event" $ quickCheck (roundTrip (genQ <#> \x -> tradeE (Id "energy-atlantic") (Id "US") x x))
     it "Transferability" $ quickCheck (roundTrip (elements (cons' Free [ Restricted, NonTransferable ])))
     it "the snapshot form of an Intent is the stored record's form" do
       stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))

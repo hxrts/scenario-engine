@@ -14,7 +14,7 @@ import Core.Map (entries)
 import Core.Num as Q
 import Core.Query (lookupQ, marketsOf, owner, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
-import Core.World (Delivery, Event(..), Target(..), View, WorldState)
+import Core.World (Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
@@ -42,7 +42,7 @@ prepareRound w =
 
 type Applied = { entities :: Map EntityId Entity, events :: Array Event }
 
--- | Apply one due delivery, clamped so that no holding or capacity goes negative. The Delivered
+-- | Apply one due delivery, clamped so that no holding or capacity goes negative. Its
 -- | event records the change actually applied, so reversing a delivery later restores exactly
 -- | what was removed. A delivery to an Entity that does not exist applies nothing and records
 -- | nothing.
@@ -63,8 +63,12 @@ applyDelivery round acc d = case Map.lookup d.entity acc.entities of
       if change == Q.zero then acc
       else
         { entities: Map.insert d.entity updated acc.entities
-        , events: acc.events <> [ Delivered { round, entity: d.entity, target: d.target, quantity: change } ]
+        , events: acc.events <> [ deliveredEvent change ]
         }
+  where
+  deliveredEvent change = case d.target of
+    Holding r -> Coupled { round, legs: [ { from: Source, to: Held d.entity, resource: r, owed: d.quantity, moved: change } ], rate: Nothing, cause: d.cause, delivered: true }
+    CapacityOf c -> CapacityChanged { round, entity: d.entity, capacity: c, quantity: change }
 
 -- | The beginning-of-round View of one Entity. `toSign` is filled by the round runner.
 observe :: WorldState -> Entity -> View

@@ -1,4 +1,4 @@
--- | Slices of the round record (docs/02 §5.5; work/7 S10, S11). A selector names an `Event` kind by its
+-- | Slices of the round record (docs/02 §5.5). A selector names an `Event` kind by its
 -- | constructor; the kind name and every field name are checked at compile time against the `Event`
 -- | type. A `Slice` is a value: its kind or kinds, the field filters, the field it reads, and its
 -- | aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a
@@ -19,6 +19,15 @@ module Core.Slice
   , items
   , first
   , groupBy
+  , legs
+  , Leg
+  , exchanges
+  , conversions
+  , conversionPaymentsTo
+  , transfers
+  , levies
+  , shortfalls
+  , sunk
   , runSlice
   , describeSlice
   , select
@@ -39,10 +48,13 @@ import Prelude
 import Control.Alt ((<|>))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.World (Event)
-import Data.Array (elem, filter, foldl, head, length, mapMaybe, nubEq, snoc)
+import Core.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
+import Core.World (Cause(..), Endpoint(..), Event, Flow, Mechanism(..))
+import Data.Array (concatMap, elem, filter, foldl, head, index, length, mapMaybe, nubEq, snoc)
+import Data.Foldable (any)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), Sum(..), from)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Tuple (Tuple(..))
 import Prim.Row as Row
@@ -79,12 +91,12 @@ newtype Select r = Select
   { kinds :: Array String
   , filters :: Array String
   , field :: Maybe String
-  , pick :: Event -> Maybe r
+  , pick :: Event -> Array r
   }
 
 -- | The Events of one kind, read as their record: `event @"Traded"`.
 event :: forall @name b rep. IsSymbol name => Generic Event rep => Pick name rep b => Select b
-event = Select { kinds: [ reflectSymbol p ], filters: [], field: Nothing, pick: pick p <<< from }
+event = Select { kinds: [ reflectSymbol p ], filters: [], field: Nothing, pick: \e -> maybe [] pure (pick p (from e)) }
   where
   p = Proxy :: Proxy name
 
@@ -94,16 +106,14 @@ orKind (Select a) (Select b) = Select
   { kinds: a.kinds <> b.kinds
   , filters: a.filters <> b.filters
   , field: a.field <|> b.field
-  , pick: \e -> a.pick e <|> b.pick e
+  , pick: \e -> a.pick e <> b.pick e
   }
 
 -- | A filter a value cannot state: its own description, and its predicate over what is selected.
 whereNamed :: forall r. String -> (r -> Boolean) -> Select r -> Select r
 whereNamed text p (Select s) = Select s
   { filters = snoc s.filters text
-  , pick = \e -> case s.pick e of
-      Just r | p r -> Just r
-      _ -> Nothing
+  , pick = filter p <<< s.pick
   }
 
 -- | The Events whose field equals the value: `whereEq @"entity" e`.
@@ -132,17 +142,105 @@ read (Select s) = Select { kinds: s.kinds, filters: s.filters, field: Just (refl
 
 -- | Everything selected, in recorded order.
 select :: forall r. Select r -> Array Event -> Array r
-select (Select s) = mapMaybe s.pick
+select (Select s) = concatMap s.pick
 
 -- | What a selector reads from one Event, if the Event is of its kind and passes its filters.
 pickOf :: forall r. Select r -> Event -> Maybe r
-pickOf (Select s) = s.pick
+pickOf (Select s) = head <<< s.pick
 
--- | Whether a selector picks the Event and what it reads satisfies the predicate.
+-- | Whether a selector picks the Event and something it reads satisfies the predicate.
 matches :: forall r. Select r -> (r -> Boolean) -> Event -> Boolean
-matches sel p e = case pickOf sel e of
-  Just r -> p r
-  Nothing -> false
+matches (Select s) p = any p <<< s.pick
+
+-- Legs and causes ---------------------------------------------------------------------------------
+
+-- | One leg of a settlement, with what it was part of.
+type Leg =
+  { round :: RoundIndex
+  , from :: Endpoint
+  , to :: Endpoint
+  , resource :: ResourceId
+  , owed :: Q
+  , moved :: Q
+  , rate :: Maybe Q
+  , cause :: Cause
+  , delivered :: Boolean
+  , position :: Int
+  , count :: Int
+  }
+
+-- | A selector over `Coupled` events, read by a named projection.
+coupledSelect :: forall r. String -> ({ round :: RoundIndex, legs :: Array Flow, rate :: Maybe Q, cause :: Cause, delivered :: Boolean } -> Array r) -> Select r
+coupledSelect text f = case event @"Coupled" of
+  Select s -> Select s { filters = [ text ], pick = concatMap f <<< s.pick }
+
+-- | Every leg of every settlement, in recorded order.
+legs :: Select Leg
+legs = coupledSelect "every leg" \c -> mapWithIndex (\i l -> { round: c.round, from: l.from, to: l.to, resource: l.resource, owed: l.owed, moved: l.moved, rate: c.rate, cause: c.cause, delivered: c.delivered, position: i, count: length c.legs }) c.legs
+
+-- | Market fills: one settlement along a Market's curve, its quantity signed (+ buys, − sells).
+exchanges :: Select { round :: RoundIndex, market :: MarketId, entity :: EntityId, resource :: ResourceId, quantity :: Q, price :: Q, proposal :: ProposalId }
+exchanges = coupledSelect "the cause is an exchange along a Market's curve" \c -> case c.cause, index c.legs 0, c.rate of
+  OfIntent { proposal, mechanism: Curve market }, Just base, Just price
+    | not c.delivered -> case base.from, base.to of
+        InMarket _, Held entity -> [ { round: c.round, market, entity, resource: base.resource, quantity: base.moved, price, proposal } ]
+        Held entity, InMarket _ -> [ { round: c.round, market, entity, resource: base.resource, quantity: Q.neg base.moved, price, proposal } ]
+        _, _ -> []
+  _, _, _ -> []
+
+-- | Conversions: the units run, and what was paid to the payee.
+conversions :: Select { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Q, paid :: Q, proposal :: ProposalId }
+conversions = coupledSelect "the cause is a conversion" \c -> case c.cause of
+  OfIntent { proposal, mechanism: Conversion x }
+    | not c.delivered -> [ { round: c.round, by: x.by, transformation: x.transformation, quantity: x.units, paid: Q.sumQ (map _.moved (filter payment c.legs)), proposal } ]
+  _ -> []
+
+-- | A conversion's payment leg: from an Entity to a payee, or destroyed when it has none.
+payment :: Flow -> Boolean
+payment l = l.from /= Source && l.to /= Sink
+
+-- | The payment legs into an Entity, as what it received as a payee.
+conversionPaymentsTo :: EntityId -> Select Flow
+conversionPaymentsTo e = coupledSelect "payment legs to the Entity from conversions" \c -> case c.cause of
+  OfIntent { mechanism: Conversion _ } | not c.delivered -> filter (\l -> payment l && l.to == Held e) c.legs
+  _ -> []
+
+-- | Single moves between Entities, by an Intent or a recurring rule.
+transfers :: Select { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Q, owed :: Q }
+transfers = coupledSelect "the cause is a direct move or a recurring rule, one leg between Entities" \c -> case c.cause, c.legs of
+  OfIntent { mechanism: Direct }, [ l ] -> oneMove c l
+  OfRecurring _, [ l ] -> oneMove c l
+  _, _ -> []
+  where
+  oneMove c l = case l.from, l.to of
+    Held from, Held to | not c.delivered -> [ { round: c.round, from, to, resource: l.resource, quantity: l.moved, owed: l.owed } ]
+    _, _ -> []
+
+-- | Levies: a single leg paid under a declared Rule kind.
+levies :: Select { round :: RoundIndex, kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Q, owed :: Q }
+levies = coupledSelect "the cause is a declared Rule kind" \c -> case c.cause, c.legs of
+  OfRule { kind }, [ l ] -> case l.from, l.to of
+    Held from, Held to -> [ { round: c.round, kind, from, to, amount: l.moved, owed: l.owed } ]
+    _, _ -> []
+  _, _ -> []
+
+-- | Every leg short of what was owed, from an Entity: the quantity is what did not move.
+shortfalls :: Select { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Q }
+shortfalls = coupledSelect "moved < owed on a leg from an Entity" \c -> concatMap (short c) c.legs
+  where
+  short c l = case l.from of
+    Held entity | l.moved < l.owed && not c.delivered -> [ { round: c.round, entity, resource: l.resource, quantity: Q.sub l.owed l.moved } ]
+    _ -> []
+
+-- | What a recurring rule of a kind took out of an Entity to nowhere.
+sunk :: RecurringKindId -> Select { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Q }
+sunk kind = coupledSelect ("the cause is a recurring rule of kind " <> show kind <> ", from an Entity to the sink") \c -> case c.cause of
+  OfRecurring r | r.kind == kind -> concatMap (one c) c.legs
+  _ -> []
+  where
+  one c l = case l.from, l.to of
+    Held entity, Sink | l.moved > Q.zero -> [ { round: c.round, entity, resource: l.resource, quantity: l.moved } ]
+    _, _ -> []
 
 -- Slices ----------------------------------------------------------------------------------------
 

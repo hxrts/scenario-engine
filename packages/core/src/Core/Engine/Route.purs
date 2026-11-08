@@ -43,6 +43,7 @@ type Slice =
   { market :: MarketId
   , entity :: EntityId
   , pid :: ProposalId
+  , intent :: Int
   , quantity :: Q
   , limitPrice :: Maybe Price
   }
@@ -93,7 +94,7 @@ route w st r = { net: done.net, slices: done.slices }
           signed = if buy then x else Q.neg x
         in
           { net: sumInto c.id signed acc.net
-          , slices: snoc acc.slices { market: c.id, entity: r.entity, pid: r.pid, quantity: signed, limitPrice: Just r.limitPrice }
+          , slices: snoc acc.slices { market: c.id, entity: r.entity, pid: r.pid, intent: r.index, quantity: signed, limitPrice: Just r.limitPrice }
           , left: Q.sub acc.left x
           }
 

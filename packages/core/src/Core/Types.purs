@@ -81,6 +81,8 @@ data PolicyTag
 data SeatTag
 data RepresentationTag
 data DomainTag
+data RecurringFlowTag
+data RecurringKindTag
 
 type EntityId = Id EntityTag
 type ResourceId = Id ResourceTag
@@ -94,6 +96,8 @@ type PolicyId = Id PolicyTag
 type SeatId = Id SeatTag
 type RepresentationId = Id RepresentationTag
 type BehaviorDomain = Id DomainTag
+type RecurringFlowId = Id RecurringFlowTag
+type RecurringKindId = Id RecurringKindTag
 
 type Quantity = Q
 type Price = Q
@@ -143,15 +147,10 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: String
   , transferability :: Transferability
-  , decay :: Maybe DecayRule
   , reservable :: Boolean
   }
 
 data Transferability = Free | Restricted | NonTransferable
-
--- | Fraction of a held Resource lost per round. Scaling annual rates to round length (INV-28) is
--- | Planned (docs/03 §10.2): the rate is taken as declared.
-type DecayRule = { rate :: Ratio }
 
 data Capability
   = MayTrade MarketId

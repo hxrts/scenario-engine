@@ -8,7 +8,7 @@ alias packages/views/src/Views/Common.purs 4
 doc-type packages/schema/src/Schema/Premise/Actor.purs 10
 doc-type packages/schema/src/Schema/Premise/Fixture.purs 13
 doc-type packages/schema/src/Schema/Premise/Gameboard.purs 2
-doc-type packages/schema/src/Schema/Premise/World.purs 31
+doc-type packages/schema/src/Schema/Premise/World.purs 30
 hand-instance packages/core/src/Core/World.purs 2
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
 hand-json apps/dashboard/src/Dashboard/Components.purs 1
@@ -27,7 +27,6 @@ intent-walk packages/policy/src/Policy/Interpret.purs 1
 intent-walk packages/simulator/test/Test/Simulator/Shock.purs 1
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
 name-literal packages/schema/src/Schema/Premise/Fixture.purs 1
-name-literal packages/views/src/Views/Drivers.purs 1
 repeated-idiom packages/board/src/Board/Gameboard/Instantiate.purs 3
 repeated-idiom packages/board/src/Board/Gameboard/Validate.purs 6
 repeated-idiom packages/checks/src/Checks/Objectives.purs 1

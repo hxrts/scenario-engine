@@ -15,7 +15,7 @@ import Testkit.Json (strategyOrThrow)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
-import Core.Slice (event, matches)
+import Core.Slice (event, matches, conversions)
 import Data.Array (any, filter, length, nubEq, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -45,7 +45,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       deploy = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""
       china r = any
         ( \x -> any
-            (matches (event @"Transformed") (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn"))
+            (matches (conversions) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn"))
             x.record.events
         )
         r.records

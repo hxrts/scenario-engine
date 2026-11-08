@@ -19,9 +19,9 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, facilitiesOf, marketsOf)
 import Core.Types (IntentF(..), SignedProposal)
-import Core.Slice (event, foldEvents, ignore, select)
-import Core.World (RoundResult, WorldState)
-import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, nub)
+import Core.Slice (conversions, event, foldEvents, ignore, select)
+import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
+import Data.Array (all, any, concatMap, elem, filter, find, fromFoldable, index, length, nub)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -90,45 +90,46 @@ inv03 before r = concatMap one (entitiesOf (r.world))
     Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
     _ -> []
 
--- | INV-01 Unified action semantics: every Trade, Transform, and Transfer the record shows came
--- | from a signed Intent, or (a Transfer) from a declared recurring flow or share.
+-- | INV-01 Unified action semantics: every settlement the record shows names, by its Cause, the Intent,
+-- | the declared Rule kind, or the recurring-flow rule behind it; the cause is checked against the
+-- | Intent it points at.
 inv01 :: WorldState -> RoundResult -> Array Failure
 inv01 before r = foldEvents
   { "Lapsed": ignore
   , "Rejected": ignore
   , "OrderRemoved": ignore
-  , "Traded": \t acc -> if any (traded t) intents then acc else acc <> unmatched ("a trade by " <> show t.entity <> " on " <> show t.market)
-  , "Transferred": \t acc -> if any (moved t) intents || declared t then acc else acc <> unmatched ("a transfer from " <> show t.from <> " to " <> show t.to)
-  , "Levied": ignore
-  , "Transformed": \t acc -> if any (transformed t) intents then acc else acc <> unmatched ("a run of " <> show t.transformation <> " by " <> show t.by)
-  , "Delivered": ignore
+  , "Coupled": \c acc -> if c.delivered then acc else acc <> behind c.cause c.legs
+  , "CapacityChanged": ignore
   , "Enacted": ignore
   , "Repealed": ignore
   , "Estimated": ignore
-  , "Consumed": ignore
-  , "Shortfall": ignore
-  , "Decayed": ignore
   , "ProcedureOutcome": ignore
   }
   []
   r.record.events
   where
-  proposals = map _.proposal r.record.inputs
-  intents = concatMap (\p -> map (Tuple p.author) p.intents) proposals
+  proposalById id = find (\p -> p.id == id) (map _.proposal r.record.inputs)
+  intentAt c = proposalById c.proposal >>= \p -> Tuple p.author <$> index p.intents c.intent
   baseOf m = _.base <$> Map.lookup m before.markets
   unmatched what = [ failure INV01 (what <> " has no Intent behind it") ]
-  traded t (Tuple author i) = author == t.entity && case i of
-    Trade o -> o.market == t.market
-    Route x -> baseOf t.market == Just x.pair.base
-    _ -> false
-  transformed t (Tuple _ i) = case i of
-    Transform x -> x.by == t.by && x.transformation == t.transformation
-    _ -> false
-  moved t (Tuple _ i) = case i of
-    Transfer x -> x.from == t.from && x.to == t.to && x.resource == t.resource
-    _ -> false
-  declared t = any (\f -> f.from == t.from && f.to == t.to) before.circulation.flows
-    || any (\f -> f.from == t.from && f.to == t.to) before.circulation.shares
+  behind cause ls = case cause of
+    OfIntent c -> case intentAt c of
+      Just (Tuple author i) -> if settled author i c.mechanism ls then [] else unmatched ("settlement of " <> show c.mechanism)
+      Nothing -> unmatched ("settlement of " <> show c.mechanism)
+    OfRule c -> if Map.member c.kind before.ruleKinds then [] else [ failure INV01 ("a levy of undeclared kind " <> show c.kind) ]
+    OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the premise does not declare") ]
+  -- the Intent the cause points at is of the mechanism's kind, and names what the legs moved
+  settled author i mechanism ls = case mechanism of
+    Curve m -> elem (Held author) (map _.to ls <> map _.from ls) && case i of
+      Trade o -> o.market == m
+      Route x -> baseOf m == Just x.pair.base
+      _ -> false
+    Conversion c -> case i of
+      Transform x -> x.by == c.by && x.transformation == c.transformation
+      _ -> false
+    Direct -> case i, ls of
+      Transfer x, [ l ] -> l.from == Held x.from && l.to == Held x.to && l.resource == x.resource
+      _, _ -> false
 
 -- | INV-04 Resource consistency: no negative holdings or reserves, and each Entity's holdings
 -- | change by exactly what the round's events say happened to it.
@@ -154,36 +155,23 @@ inv04 before r =
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Traded": \t acc -> case Map.lookup t.market before.markets of
-        Just m -> add t.entity m.base t.quantity (add t.entity m.quote (Q.neg (Q.mul t.price t.quantity)) acc)
-        Nothing -> acc
-    , "Transferred": \t acc -> add t.to t.resource t.quantity (add t.from t.resource (Q.neg t.quantity) acc)
-    , "Levied": \t acc -> add t.to before.numeraire t.amount (add t.from before.numeraire (Q.neg t.amount) acc)
-    , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
-        Just tr ->
-          let
-            outputs = if tr.delay == 0 then Map.toUnfoldable tr.outputs else []
-            moved = foldl (\a (Tuple res u) -> add t.by res (Q.mul u t.quantity) a) acc (outputs :: Array _)
-            consumed = foldl (\a (Tuple res u) -> add t.by res (Q.neg (Q.mul u t.quantity)) a) moved (entries tr.inputs)
-            paid = add t.by before.numeraire (Q.neg t.paid) consumed
-          in
-            maybe paid (\payee -> add payee before.numeraire t.paid paid) tr.payee
-        Nothing -> acc
-    , "Delivered": ignore
+    , "Coupled": \c acc -> if c.delivered then acc else foldl addLeg acc c.legs
+    , "CapacityChanged": ignore
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
-    , "Consumed": \c acc -> add c.entity c.resource (Q.neg c.quantity) acc
-    , "Shortfall": ignore
-    , "Decayed": \d acc -> add d.entity d.resource (Q.neg d.quantity) acc
     , "ProcedureOutcome": ignore
     }
     Map.empty
     r.record.events
+  -- each leg moves its quantity out of its source and into its destination
+  addLeg acc l = addEnd l.to l.resource l.moved (addEnd l.from l.resource (Q.neg l.moved) acc)
+  addEnd end res q acc = case end of
+    Held e -> add e res q acc
+    _ -> acc
 
--- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what
--- | facilities produced, less what facilities, requirements, and decay consumed (§6).
--- | Transfers and trades net to zero.
+-- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what the
+-- | legs created from the source, less what they sent to the sink (§6). Moves net to zero.
 inv05 :: WorldState -> RoundResult -> Array Failure
 inv05 before r = concatMap one resources
   where
@@ -194,32 +182,21 @@ inv05 before r = concatMap one resources
       expected = lookupQ res flows
     in
       if actual == expected then [] else [ failure INV05 (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
+  -- created from the source, or sent to the sink
+  legFlow acc l = case l.from, l.to of
+    Source, Sink -> acc
+    Source, _ -> sumInto l.resource l.moved acc
+    _, Sink -> sumInto l.resource (Q.neg l.moved) acc
+    _, _ -> acc
   flows = foldEvents
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Traded": ignore
-    , "Transferred": ignore
-    , "Levied": ignore
-    , "Transformed": \t acc -> case Map.lookup t.transformation before.transformations of
-        Just tr ->
-          let
-            now = if tr.delay == 0 then tr.outputs else Map.empty
-            burned = case tr.payee of
-              Nothing -> Map.singleton before.numeraire t.paid
-              Just _ -> Map.empty
-            plus = map (Q.mul t.quantity) now
-            minus = map (Q.mul t.quantity) tr.inputs
-          in
-            sumMaps acc (sumMaps plus (map Q.neg (sumMaps minus burned)))
-        Nothing -> acc
-    , "Delivered": ignore
+    , "Coupled": \c acc -> if c.delivered then acc else foldl legFlow acc c.legs
+    , "CapacityChanged": ignore
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
-    , "Consumed": \c acc -> sumInto c.resource (Q.neg c.quantity) acc
-    , "Shortfall": ignore
-    , "Decayed": \d acc -> sumInto d.resource (Q.neg d.quantity) acc
     , "ProcedureOutcome": ignore
     }
     Map.empty
@@ -233,7 +210,7 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (
   one m =
     if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
     else []
-  transforms = select (event @"Transformed") r.record.events
+  transforms = select conversions r.record.events
   filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of

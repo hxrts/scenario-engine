@@ -18,7 +18,7 @@ module Views.Actions
 import Prelude
 
 import Core.Query (droppedProposals)
-import Core.Slice (Select, Slice, count, describeSlice, event, orKind, runSlice, whereEq, whereNamed)
+import Core.Slice (Select, Slice, conversions, count, describeSlice, event, exchanges, orKind, runSlice, transfers, whereEq, whereNamed)
 import Core.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
 import Core.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
@@ -38,13 +38,13 @@ actor :: EntityId
 actor = Id "the Actor"
 
 tradesBy :: EntityId -> Slice Int
-tradesBy e = count (whereEq @"entity" e (event @"Traded"))
+tradesBy e = count (whereEq @"entity" e exchanges)
 
 transformsBy :: EntityId -> Slice Int
-transformsBy e = count (whereEq @"by" e (event @"Transformed"))
+transformsBy e = count (whereEq @"by" e conversions)
 
 transfersBy :: EntityId -> Slice Int
-transfersBy e = count (whereEq @"from" e (event @"Transferred"))
+transfersBy e = count (whereEq @"from" e transfers)
 
 -- | Every Rejected or OrderRemoved event: the rejections the Overview reports.
 rejections :: Slice Int

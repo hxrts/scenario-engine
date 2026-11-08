@@ -16,10 +16,11 @@ import Core.Map (values)
 import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
+import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
 import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Scope(..), Transformation, TransformationId, domainResource, idText)
-import Core.World (ShareSource(SalesOf))
+import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
@@ -55,7 +56,7 @@ validateGameboard gb config =
   referenced = nub
     ( map show (mapMaybe _.capacity facilities)
         <> concatMap (\t -> map (show <<< _.capacity) t.effects) facilities
-        <> map (show <<< _.capacity) w.circulation.production
+        <> map show (mapMaybe producedFrom w.recurring)
     )
 
   -- An unknown name in any position: one error per name.
@@ -77,21 +78,7 @@ validateGameboard gb config =
       <> unknownEntity (mapMaybe _.payee facilities)
       <> unknownResource (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities)
       <> map (UnknownReference CapacityName) (filter (\c -> not (c `elem` referenced)) held)
-      <> unknownEntity (concatMap (\p -> [ p.entity ]) w.circulation.production)
-      <> unknownResource (concatMap (\p -> [ p.resource ]) w.circulation.production)
-      <> unknownEntity (concatMap (\f -> [ f.from, f.to ]) w.circulation.flows)
-      <> unknownResource (map _.resource w.circulation.flows)
-      <> unknownEntity (concatMap (\s -> [ s.from, s.to ]) w.circulation.shares)
-      <> unknownResource
-        ( concatMap
-            ( \s -> case s.source of
-                SalesOf r -> [ r ]
-                _ -> []
-            )
-            w.circulation.shares
-        )
-      <> unknownEntity (map _.entity w.circulation.requirements)
-      <> unknownResource (map _.resource w.circulation.requirements)
+      <> concatMap recurringRefs w.recurring
       <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.groups :: Array _))
       <> concatMap ruleRefs (values w.rules)
       <> concatMap capabilityRefs (concatMap _.capabilities (values w.entities))
@@ -133,7 +120,7 @@ validateGameboard gb config =
     CapacityAmount c -> unknownCapacity [ c ]
     ShortfallOf r -> unknownResource [ r ]
     ShortfallRounds r -> unknownResource [ r ]
-    PayeeReceipts -> []
+    Schema.PayeeReceipts -> []
     VolumeOf t -> unknownTransformation [ t ]
   -- the Aggregate a coverage fallback names
   coverageOf = case _ of
@@ -146,15 +133,35 @@ validateGameboard gb config =
     InstitutionalPolicy p -> [ p ]
     _ -> []
   aggregatePolicies = map _.aggregate.policy aggregates
-  capacities = concatMap productionHeld w.circulation.production
+  capacities = concatMap productionHeld w.recurring
     <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
     <> concatMap schemeTarget gb.schemes
     <> (map (\g -> DuplicateCapacityOwner (show (NEA.head g))) (filter (\g -> NEA.length g > 1) (group (sort (concatMap (\e -> fromFoldable (Map.keys e.capacities)) entities # filter (\c -> not (sharedProduction c)))))))
   -- production capacity is held by each producer under one name; every other capacity has one owner
-  sharedProduction c = any (\p -> p.capacity == c) w.circulation.production
-  productionHeld p = case Map.lookup p.entity w.entities of
-    Just e | not (Map.member p.capacity e.capacities) -> [ ProductionWithoutCapacity p.entity (show p.capacity) ]
+  sharedProduction c = any (\p -> producedFrom p == Just c) w.recurring
+  productionHeld p = case p.destination, p.amount of
+    ToEntity e, CapacityHeld c | Just x <- Map.lookup e w.entities, not (Map.member c x.capacities) -> [ ProductionWithoutCapacity e (show c) ]
+    _, _ -> []
+  -- the capacity a rule produces from
+  producedFrom r = case r.amount of
+    CapacityHeld c -> Just c
+    _ -> Nothing
+
+  -- every name a recurring rule uses
+  recurringRefs :: RecurringFlow -> Array ValidationError
+  recurringRefs r = unknownResource [ r.resource ] <> unknownEntity (sources r) <> unknownEntity (dests r) <> amountRefs r.amount <> conditionRefs r
+  sources r = case r.source of
+    FromEntity e -> [ e ]
     _ -> []
+  dests r = case r.destination of
+    ToEntity e -> [ e ]
+    ToSink -> []
+  amountRefs = case _ of
+    ShareOf { basis: NetSales res } -> unknownResource [ res ]
+    _ -> []
+  conditionRefs r = case r.condition of
+    Just c -> unknownEntity [ c.holder ] <> unknownResource [ c.resource ]
+    Nothing -> []
   coverageAggregate (Tuple e d) = case d.fallback of
     Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
