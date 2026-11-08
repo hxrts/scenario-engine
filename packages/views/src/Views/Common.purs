@@ -54,7 +54,7 @@ import Core.Num (Kind, Q)
 import Core.Num as Q
 import Core.Query (isAggregate)
 import Core.Slice (event, select)
-import Core.Run (RunStatus, Spec)
+import Schema.Run (RunStatus, Spec)
 import Core.Types (EntityId, ProposalId, ResourceId)
 import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)

@@ -26,7 +26,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Core.Num as Q
-import Core.Proposal (ProposedDeal, Transcript, proposedDealShape, transcriptShape)
+import Schema.Joint (ProposedDeal, Transcript, proposedDealShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, encodeWith, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)

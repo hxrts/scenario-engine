@@ -21,7 +21,7 @@ import Prelude
 import Data.Argonaut.Decode (fromJsonString, class DecodeJson, printJsonDecodeError)
 import Schema.Decode.Common (decodeError)
 import Data.Argonaut.Core (fromString, stringify)
-import Core.Run (RunStatus, Spec, deriveKindName, runStatusName, runStatusShape, specShape)
+import Schema.Run (RunStatus, Spec, deriveKindName, runStatusName, runStatusShape, specShape)
 import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)

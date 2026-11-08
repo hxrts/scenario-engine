@@ -306,8 +306,8 @@ silent-default packages/core/src/Core/Query.purs droppedProposals
 silent-default packages/core/src/Core/Query.purs transformedLastRound
 silent-default packages/core/src/Core/Query.purs restrictedAtBoundary
 alias packages/core/src/Core/Represent.purs adjustedTarget
-hand-instance packages/core/src/Core/Run.purs instance-Show-RunStatus
-hand-instance packages/core/src/Core/Run.purs instance-Show-DeriveKind
+hand-instance packages/schema/src/Schema/Run.purs instance-Show-RunStatus
+hand-instance packages/schema/src/Schema/Run.purs instance-Show-DeriveKind
 hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id
 hand-instance packages/core/src/Core/Types.purs instance-Show-RefKind

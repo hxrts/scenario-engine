@@ -15,7 +15,6 @@ import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, recordShape)
 import Core.Shape as Shape
-import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
@@ -890,18 +889,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r = empty w
         p = { proposal: { id: proposalId 1 (Id "EU") 0, author: Id "EU", intents: [], signers: [], procedure: Just (Id "t") }, signatures: [] }
       invariantsOf w (r { record = r.record { inputs = [ p ] } }) `shouldEqual` [ "INV-10" ]
-
-  describe "Joint pass rule (docs/04 §11)" do
-    let
-      known e = e == Id "US" || e == Id "EU"
-      said = [ { seat: Id "US", text: "I will buy ten energy" } ]
-      deal = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
-    it "drops a Proposal whose author did not speak, and one with no Intents" do
-      map _.author (jointProposals known said [ deal { author = Id "EU" }, deal { intents = [] } ]) `shouldEqual` []
-    it "keeps a speaker's Proposal, and signs for speakers only" do
-      map _.signed (jointProposals known said [ deal ]) `shouldEqual` [ [ Id "US" ] ]
-    it "keeps as signers only known Entities other than the author" do
-      map _.draft.signers (jointProposals known said [ deal { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
   describe "Derived shapes" do
     it "recordShape encodes a Market byte for byte as a hand-written object, in both formats, and reads it back" do

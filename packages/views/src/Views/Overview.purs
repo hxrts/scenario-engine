@@ -16,7 +16,7 @@ module Views.Overview
 import Prelude
 
 import Schema.Gameboard (Gameboard)
-import Core.Run (RunStatus(..), runStatusName)
+import Schema.Run (RunStatus(..), runStatusName)
 import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)

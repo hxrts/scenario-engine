@@ -8,8 +8,8 @@ hand-instance packages/checks/src/Checks/Round.purs instance-Show-Failure the te
 hand-instance packages/core/src/Core/Engine/Commit.purs instance-Show-EngineError the text is the engine's error message
 hand-instance packages/core/src/Core/Invariants.purs instance-Show-Invariant the text is the spec's id (INV-01), which a constructor cannot spell
 hand-instance packages/core/src/Core/Num.purs instance-Show-Q the text is the exact decimal form (Q.format)
-hand-instance packages/core/src/Core/Run.purs instance-Show-RunStatus the text is the status as stored
-hand-instance packages/core/src/Core/Run.purs instance-Show-DeriveKind the text is the kind as stored
+hand-instance packages/schema/src/Schema/Run.purs instance-Show-RunStatus the text is the status as stored
+hand-instance packages/schema/src/Schema/Run.purs instance-Show-DeriveKind the text is the kind as stored
 hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text is the prose name a prompt shows
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
 hand-instance packages/core/src/Core/Types.purs instance-Show-RefKind the text is the lower-case name error messages use
@@ -41,4 +41,3 @@ intent-walk packages/core/src/Core/Types.purs dealIntent which Intents a Deal ma
 sum-projection packages/schema/src/Schema/Premise/Intent.purs intentShape a trade and a route share one premise form, and enact and repeal are separate tags over ChangeRule
 sum-projection packages/schema/src/Schema/Premise/Strategy.purs intentTemplateShape self is implicit, so a Transform or an enactment by another Entity has no premise form
 sum-projection packages/schema/src/Schema/Premise/Strategy.purs templateShape a Deal and a Procedure share one Template constructor, split by their procedure and shape
-banned-word packages/core/src/Core/View.purs View the view's name is the API route segment `facilities`; a rename changes the API (docs/06 §8.1)

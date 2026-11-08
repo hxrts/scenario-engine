@@ -142,12 +142,12 @@ function loadContext() {
   const route = lex(routeText);
   const routeSymbols = symbolsOf(route.bare);
   const inRoute = (name) => route.strings.filter((s) => routeSymbols[s.line - 1] === name).map((s) => s.value);
-  // a view's path segment is its constructor (Core.View) in lower case
-  const viewNames = need("constructors of Core.View's View", [...((/^data View\n([\s\S]*?)\n\n/m.exec(read(viewFile)) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase()));
+  // a view's path segment is its constructor (Schema.View) in lower case
+  const viewNames = need("constructors of Schema.View's View", [...((/^data View\n([\s\S]*?)\n\n/m.exec(read(viewFile)) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase()));
   // the literal segments of the endpoint table's paths
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
-  const specKeys = need("spec keys in Core.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
+  const specKeys = need("spec keys in Schema.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
   const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/Tuple "(\w+)"/g)].map((m) => m[1]));
 
   const columns = new Set();
@@ -160,9 +160,9 @@ function loadContext() {
 }
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
-const viewFile = "packages/core/src/Core/View.purs";
+const viewFile = "packages/schema/src/Schema/View.purs";
 const presetsFile = "packages/premises/src/Premises/Presets.purs";
-const specFile = "packages/core/src/Core/Run.purs";
+const specFile = "packages/schema/src/Schema/Run.purs";
 
 // Rules ----------------------------------------------------------------------------------------------
 
@@ -183,7 +183,7 @@ const fixes = {
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
   "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check-derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
-  "name-literal": "use the name's one source (Core.View.viewName, Core.Run.specKey, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
+  "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Market (entries, sumInto, marketPrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",

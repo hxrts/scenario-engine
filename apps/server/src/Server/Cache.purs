@@ -11,7 +11,7 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
-import Core.Run (RunStatus(..))
+import Schema.Run (RunStatus(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Ref (Ref)

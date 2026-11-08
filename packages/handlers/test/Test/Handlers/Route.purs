@@ -4,8 +4,8 @@ module Test.Handlers.Route (spec) where
 
 import Prelude
 
-import Core.Run (DeriveKind(..))
-import Core.View (View(..), allViews, viewName)
+import Schema.Run (DeriveKind(..))
+import Schema.View (View(..), allViews, viewName)
 import Data.Argonaut.Core (fromString)
 import Data.Array (nub, sort)
 import Data.Array as Array

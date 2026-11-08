@@ -17,7 +17,8 @@ import Prelude
 
 import Core.Draw (Seed)
 import Core.Num (Q)
-import Core.Proposal (ProposalBody, Transcript)
+import Core.Proposal (ProposalBody)
+import Schema.Joint (Transcript)
 import Core.Types (EntityId, ProposalId)
 import Core.World (RoundResult, View, WorldState)
 import Data.Array (find)

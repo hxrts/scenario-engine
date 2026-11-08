@@ -13,7 +13,7 @@ module Game.Recipe
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Run (DeriveKind(..), Spec, deriveKindName, specKey)
+import Schema.Run (DeriveKind(..), Spec, deriveKindName, specKey)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, null)

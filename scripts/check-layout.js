@@ -17,9 +17,9 @@ const isPurs = (n) => n.endsWith(".purs");
 const tagKinds = walk(schemaSrc, isPurs).flatMap((p) =>
   [...fs.readFileSync(p, "utf8").matchAll(/^\w+Tag = "(\w+)"/gm)].map((m) => m[1]));
 
-// The API's view names: a view's path segment is its constructor (Core.View) in lower case.
+// The API's view names: a view's path segment is its constructor (Schema.View) in lower case.
 const routeTable = "packages/handlers/src/Handlers/Api/Route.purs";
-const viewFile = "packages/core/src/Core/View.purs";
+const viewFile = "packages/schema/src/Schema/View.purs";
 const viewNames = [...((/^data View\n([\s\S]*?)\n\n/m.exec(fs.readFileSync(path.join(root, viewFile), "utf8")) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase());
 if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found in data View`); process.exit(1); }
 
@@ -37,14 +37,14 @@ const rules = [
     bad: (line) => /["'`]\/api/.test(line),
   },
   {
-    name: "the dashboard names a view by its constructor (Core.View.View): a view name literal belongs to Core.View's viewName",
+    name: "the dashboard names a view by its constructor (Schema.View.View): a view name literal belongs to Schema.View's viewName",
     files: (f) => f.startsWith("apps/dashboard/src/"),
     js: true,
     bad: (line) => viewNames.some((v) => line.includes(`"${v}"`)),
   },
   {
-    name: "a run's status is Core.Run.RunStatus: its text is spelled in Core.Run and at the store boundary (Adapters.SQLite) only",
-    files: (f) => f !== "packages/core/src/Core/Run.purs" && f !== "packages/adapters/src/Adapters/SQLite.purs",
+    name: "a run's status is Schema.Run.RunStatus: its text is spelled in Schema.Run and at the store boundary (Adapters.SQLite) only",
+    files: (f) => f !== "packages/schema/src/Schema/Run.purs" && f !== "packages/adapters/src/Adapters/SQLite.purs",
     bad: (line) => /"(running|completed|failed)"/.test(line),
   },
   {

@@ -7,7 +7,7 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposedDealShape)
+import Schema.Joint (JointProposal, ProposedDeal, Transcript, proposedDealShape)
 import Core.Engine.Prepare (observe)
 import Core.Num as Q
 import Core.Types (Id(..), Intent, IntentF(..), intentShape)

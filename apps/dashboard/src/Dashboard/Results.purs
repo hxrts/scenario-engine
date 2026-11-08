@@ -18,7 +18,7 @@ import Dashboard.Layout as Layout
 import Data.Array (index)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), maybe)
-import Core.View (viewName)
+import Schema.View (viewName)
 import Views.Actions (actionsStat)
 import Views.Balance (giniStat, spreadStat)
 import Views.Common (Table)

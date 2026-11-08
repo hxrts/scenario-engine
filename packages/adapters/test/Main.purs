@@ -5,7 +5,7 @@ module Test.Adapters.Main where
 
 import Prelude
 
-import Core.Run (emptySpec, DeriveKind(..), RunStatus(..))
+import Schema.Run (emptySpec, DeriveKind(..), RunStatus(..))
 import Adapters.SQLite (busyTimeout, close, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))

@@ -27,7 +27,7 @@ import Effect.Ref as Ref
 import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
-import Core.Proposal (ProposedDeal)
+import Schema.Joint (ProposedDeal)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
 import Game.Types (Game, SeatBinding(..))

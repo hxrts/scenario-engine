@@ -26,7 +26,7 @@ import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, Market, MarketId, ResourceId)
 import Data.Array (concat, concatMap, elem, filter, find, fromFoldable, head, index, mapMaybe, nub, notElem, sortWith, uncons)
 import Data.Either (hush)
-import Core.Run (Spec, specKey, specPairs)
+import Schema.Run (Spec, specKey, specPairs)
 import Data.Foldable (any, lookup, sum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)

@@ -28,7 +28,7 @@ import Server.Cache (newCache)
 import Server.Implementation (implement)
 import Test.Server.Api as Api
 import Test.Server.Http as HttpDevice
-import Core.Run (DeriveKind(Counterfactual))
+import Schema.Run (DeriveKind(Counterfactual))
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)

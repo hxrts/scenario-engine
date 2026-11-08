@@ -3,7 +3,7 @@
 -- | over the recorded transcript is in `Test.Handlers.Capstone`.
 module Test.Adapters.Capstone (spec) where
 
-import Core.Run (emptySpec)
+import Schema.Run (emptySpec)
 import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)

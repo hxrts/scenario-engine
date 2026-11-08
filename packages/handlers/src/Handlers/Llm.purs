@@ -26,7 +26,7 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 
-import Core.Proposal (ProposedDeal, jointProposals)
+import Schema.Joint (ProposedDeal, jointProposals)
 import Core.Shape (Format(..), Shape, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)

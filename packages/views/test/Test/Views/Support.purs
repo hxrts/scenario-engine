@@ -4,7 +4,7 @@ module Test.Views.Support (toStored, toStoredWith) where
 import Prelude
 
 import Core.Draw (Seed(..))
-import Core.Run (RunStatus(..), Spec, emptySpec)
+import Schema.Run (RunStatus(..), Spec, emptySpec)
 import Simulator.Simulate (SimRun)
 import Views.Common (StoredRun, storedRun)
 

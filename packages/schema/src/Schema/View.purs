@@ -1,7 +1,7 @@
 -- | The views of a stored run (`GET /api/runs/:id/:view`, docs/06_simulator.md §8): one closed list. The
 -- | path segment of a view is its constructor's name in lower case, and the list of views is the type's
 -- | constructors, so neither is written a second time.
-module Core.View
+module Schema.View
   ( View(..)
   , allViews
   , viewName

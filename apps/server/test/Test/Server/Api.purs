@@ -3,7 +3,7 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
-import Core.Run (emptySpec, RunStatus(..))
+import Schema.Run (emptySpec, RunStatus(..))
 import Adapters.SQLite (Db, open, sqliteBackend)
 import Core.Draw (Seed(..))
 import Data.Either (Either(..), isLeft)

@@ -18,8 +18,8 @@ module Effects.Api
 
 import Prelude
 
-import Core.Run (DeriveKind)
-import Core.View (View)
+import Schema.Run (DeriveKind)
+import Schema.View (View)
 import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))

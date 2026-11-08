@@ -25,7 +25,7 @@ import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings,
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
 import Game.Premise (Premise(..))
-import Core.Run (specShape)
+import Schema.Run (specShape)
 import Core.Shape as Shape
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Bifunctor (bimap)

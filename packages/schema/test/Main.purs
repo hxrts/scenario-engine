@@ -29,6 +29,7 @@ import Data.String (Pattern(..), contains)
 import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Schema.Premise.Fixture (roundShape, toRound)
+import Schema.Joint (jointProposals)
 import Schema.Round (Expect)
 import Schema.Premise.Gameboard (decodeGameboard)
 import Test.Spec (describe, it)
@@ -134,6 +135,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "every Capability, in the premise format" do
       for_ roundTripCapabilities \c ->
         (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
+
+  describe "Joint pass rule (docs/04 §11)" do
+    let
+      known e = e == Id "US" || e == Id "EU"
+      said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      deal = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
+    it "drops a Proposal whose author did not speak, and one with no Intents" do
+      map _.author (jointProposals known said [ deal { author = Id "EU" }, deal { intents = [] } ]) `shouldEqual` []
+    it "keeps a speaker's Proposal, and signs for speakers only" do
+      map _.signed (jointProposals known said [ deal ]) `shouldEqual` [ [ Id "US" ] ]
+    it "keeps as signers only known Entities other than the author" do
+      map _.draft.signers (jointProposals known said [ deal { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
   describe "Capability tags" do
     it "decodes each capability kind" do

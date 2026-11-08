@@ -11,7 +11,7 @@ import Prelude
 import Adapters.Digest (sha256)
 import Adapters.Pi (defaultModel, pi)
 import Control.Monad.Error.Class (throwError)
-import Core.Proposal (Transcript)
+import Schema.Joint (Transcript)
 import Core.Types (Id(..))
 import Core.World (WorldState)
 import Data.Array (elem, filter, length)

@@ -16,9 +16,9 @@ module Server.Read
 import Prelude
 
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
-import Core.View (View(..))
+import Schema.View (View(..))
 import Effects.Api (Reply)
-import Core.Run (Spec)
+import Schema.Run (Spec)
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
 import Handlers.Store (StoreBackend, runObserve)
 import Server.Cache (Cache, cached, cachedAgency)

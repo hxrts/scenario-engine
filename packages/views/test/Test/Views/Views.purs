@@ -7,7 +7,7 @@ import Prelude
 
 import Test.Views.Support (toStored)
 
-import Core.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec)
+import Schema.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
@@ -27,7 +27,7 @@ import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)
 import Game.Premise (GameboardParts)
-import Core.Run (specPairs)
+import Schema.Run (specPairs)
 import Game.Recipe (encodeSpec)
 import Foreign.Object as Object
 import Testkit.Capstone (runOf)

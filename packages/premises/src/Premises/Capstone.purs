@@ -34,7 +34,7 @@ import Game.Types (Bindings, Game)
 import Data.Bifunctor (lmap)
 import Data.Map as Map
 
-import Core.Proposal (JointProposal)
+import Schema.Joint (JointProposal)
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (find, mapMaybe, sort)

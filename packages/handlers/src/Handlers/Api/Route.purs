@@ -22,8 +22,8 @@ module Handlers.Api.Route
 import Prelude
 
 import Control.Alt ((<|>))
-import Core.Run (deriveKindShape)
-import Core.View (View, parseView, viewName)
+import Schema.Run (deriveKindShape)
+import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
 import Core.Shape (class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)

@@ -14,10 +14,10 @@ module Effects.Store
 
 import Prelude
 
-import Core.Run (RunStatus(..))
+import Schema.Run (RunStatus(..))
 import Data.Either (Either, either)
 import Data.Maybe (Maybe(..))
-import Core.Run (Spec)
+import Schema.Run (Spec)
 import Effects.Signatures (NewRun, STORE, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))

@@ -30,7 +30,7 @@ import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset, checkRounds)
 import Game.Premise (GameboardParts)
-import Core.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Schema.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
 import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)

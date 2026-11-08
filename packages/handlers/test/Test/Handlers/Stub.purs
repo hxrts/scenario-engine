@@ -34,7 +34,7 @@ import Foreign.Object as Object
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call, backend)
-import Core.Proposal (ProposedDeal)
+import Schema.Joint (ProposedDeal)
 import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
