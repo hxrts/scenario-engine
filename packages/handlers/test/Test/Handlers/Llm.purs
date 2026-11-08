@@ -7,9 +7,10 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposalBodyShape, proposedDealShape)
+import Core.Proposal (JointProposal, ProposedDeal, Transcript, proposedDealShape)
 import Core.Engine.Prepare (observe)
-import Core.Types (Id(..), intentShape)
+import Core.Num as Q
+import Core.Types (Id(..), Intent, IntentF(..), intentShape)
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
@@ -73,6 +74,10 @@ oneRound g = do
     [ r ] -> pure r
     _ -> fail "one round should be recorded" *> throwError (error "round")
 
+-- | The Intent the joint prompt renders as its example.
+example :: Intent
+example = Transfer { from: Id "US", to: Id "DE", resource: Id "M", quantity: Q.fromInt 10 }
+
 sample :: ProposedDeal
 sample = { author: Id "US", intents: [], signers: [ Id "DE" ], agreed: [ Id "US" ] }
 
@@ -87,7 +92,9 @@ spec = do
 
     it "the joint pass's prompt renders its action list and its reply schema from the shapes" do
       contains (Pattern (prose intentShape.desc)) interpretPrompt `shouldEqual` true
-      contains (Pattern (prose proposalBodyShape.desc)) interpretPrompt `shouldEqual` true
+      contains (Pattern "{\"tag\":\"Trade\",\"values\":[") interpretPrompt `shouldEqual` true
+      contains (Pattern "{\"Trade\"") interpretPrompt `shouldEqual` false
+      contains (Pattern (stringify (encodeWith Snapshot intentShape example))) interpretPrompt `shouldEqual` true
       contains (Pattern (prose jointReplyShape.desc)) interpretPrompt `shouldEqual` true
       contains (Pattern "agreed") interpretPrompt `shouldEqual` true
 

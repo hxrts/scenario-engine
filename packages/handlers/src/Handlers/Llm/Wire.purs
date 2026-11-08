@@ -25,11 +25,12 @@ module Handlers.Llm.Wire
 
 import Prelude
 
-import Core.Proposal (ProposedDeal, Transcript, proposalBodyShape, proposedDealShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
-import Core.Types (EntityId, MarketId, RoundIndex, idShape, intentShape)
+import Core.Num as Q
+import Core.Proposal (ProposedDeal, Transcript, proposedDealShape, transcriptShape)
+import Core.Shape (Format(..), Shape, arrayOf, encodeWith, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
+import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, stringify)
 import Data.Either (Either(..))
 import Data.Array (drop, length, zip, (..))
 import Data.Foldable (foldl)
@@ -105,9 +106,16 @@ correctionShape = object "Correction"
 common :: String
 common = "You are a component of a scenario-planning game engine. The user message is a JSON payload. Reply with exactly one JSON object and nothing else. Intents use the engine's JSON encoding as it appears in the payload (tagged objects with \"tag\" and \"values\"). Never invent quantities, Entities, Markets, or Resources that are not in the payload."
 
--- | The action list a Proposal is built from, rendered from the Intent and Proposal shapes.
+-- | The action list a Proposal is built from, rendered from the Intent shape.
 actions :: String
-actions = "\nActions (the Intents a Proposal may contain; a Proposal has these fields): " <> prose intentShape.desc <> "\nProposal body: " <> prose proposalBodyShape.desc
+actions = "\nActions (the Intents a Proposal may contain): " <> prose intentShape.desc
+
+-- | One Intent in the wire form, rendered through the shape the reply decodes with.
+intentExample :: String
+intentExample = stringify (encodeWith Snapshot intentShape example)
+  where
+  example :: Intent
+  example = Transfer { from: Id "US", to: Id "DE", resource: Id "M", quantity: Q.fromInt 10 }
 
 -- | A reply's schema, rendered from the shape the reply decodes through.
 replySchemaOf :: forall a. Shape a -> String
@@ -115,7 +123,7 @@ replySchemaOf s = "\nReply schema: " <> prose s.desc
 
 -- | The system prompt of the joint pass.
 interpretPrompt :: String
-interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats is Transfer intents; a Trade is one seat's own action. Every Intent is an object with a \"tag\" and a \"values\" array, for example {\"tag\":\"Transfer\",\"values\":[{\"from\":\"US\",\"to\":\"DE\",\"resource\":\"M\",\"quantity\":\"10\"}]}; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchemaOf jointReplyShape
+interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats is Transfer intents; a Trade is one seat's own action. Every Intent is an object with a \"tag\" and a \"values\" array, for example " <> intentExample <> "; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchemaOf jointReplyShape
 
 -- | The system prompt of the narrator.
 narratePrompt :: String

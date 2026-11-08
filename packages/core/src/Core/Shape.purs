@@ -84,8 +84,9 @@ data Format = Premise | Snapshot
 
 derive instance Eq Format
 
--- | How a sum is written in the premise format. Snapshot always uses the generic form.
-data TagForm = OneKey | KindArg | Bare | Literal | Mixed
+-- | How a sum is written. `Tagged` is the generic snapshot form, `{"tag":..,"values":[..]}`; the others
+-- | are premise forms.
+data TagForm = Tagged | OneKey | KindArg | Bare | Literal | Mixed
 
 derive instance Eq TagForm
 
@@ -207,7 +208,7 @@ ctorOf t s proj inj =
 -- | unmatched value is a programming error, so encoding it crashes.
 sumOf :: forall a. String -> Array (Ctor a) -> Shape a
 sumOf name ctors =
-  { desc: DSum name OneKey (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: OneKey }) ctors)
+  { desc: DSum name Tagged (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: Tagged }) ctors)
   , codec: \_ -> { enc, dec }
   , absent: const false
   , missing: Nothing
@@ -550,8 +551,12 @@ prose = go 0
     DTuple a b -> "pair of " <> go n a <> " and " <> go n b
     DRef name -> name
     DRec name fields -> name <> " { " <> joinWith ", " (map (\f -> f.key <> ": " <> go n f.shape <> noteOf f.desc) fields) <> " }"
-    DSum name form ctors -> name <> " (" <> show form <> "): " <> joinWith " | " (map (\c -> tagOf c.form c <> " " <> go n c.payload <> noteOf c.desc) ctors)
+    DSum name form ctors -> name <> " (" <> show form <> "): " <> joinWith " | " (map (\c -> ctor c <> noteOf c.desc) ctors)
     where
+    ctor c = case c.form of
+      Tagged -> "{\"tag\":\"" <> c.tag <> "\",\"values\":[" <> (if c.payload == DPrim "null" then "" else go n c.payload) <> "]}"
+      _ -> tagOf c.form c <> " " <> go n c.payload
+    tagOf Tagged c = c.tag
     tagOf OneKey c = "{\"" <> c.tag <> "\": ...}"
     tagOf KindArg c = "\"" <> c.tag <> ":<arg>\""
     tagOf Bare c = "\"" <> c.tag <> "\""
@@ -562,6 +567,7 @@ prose = go 0
   joinWith sep xs = foldl (\acc x -> if acc == "" then x else acc <> sep <> x) "" xs
 
 instance showTagForm :: Show TagForm where
+  show Tagged = "tagged"
   show OneKey = "one-key"
   show KindArg = "kind:argument"
   show Bare = "bare string"
