@@ -41,7 +41,7 @@ recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))
 jointAs g text backend =
-  interpreter backend g.world (Interpret 1 [ { seat: Id "US", text } ] identity)
+  interpreter backend g.world 1 [ { seat: Id "US", text } ]
 
 -- | Every recorded line gives the joint pass the Intents the DSL expects, in the engine's JSON encoding.
 check :: JointLine -> Array JointProposal -> Aff Unit
@@ -90,7 +90,7 @@ spec = describe "Capstone: recorded transcript through the joint pass" do
     g <- unseated
     rec <- recording
     replay <- liftEffect (replayCall rec)
-    out <- attempt (interpreter (backendOf replay) g.world (Interpret 2 [ { seat: Id "US", text: "buy ten energy" } ] identity))
+    out <- attempt (interpreter (backendOf replay) g.world 2 [ { seat: Id "US", text: "buy ten energy" } ])
     case out of
       Left e -> (contains (Pattern "no recorded call matches this request") (message e)) `shouldEqual` true
       Right _ -> fail "an unrecorded round must not be answered"

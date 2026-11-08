@@ -50,7 +50,7 @@ main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure u
   ref <- liftEffect (Ref.new [])
   let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) ref }
   for_ jointLines \l -> do
-    out <- interpreter llm w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
+    out <- interpreter llm w 1 [ { seat: Id "US", text: l.text } ]
     case out of
       Left why -> throwError (error ("the capstone exchange \"" <> l.text <> "\" did not decode: " <> why))
       Right js

@@ -10,7 +10,6 @@ import Data.Array (null)
 import Data.Either (either)
 import Data.String (joinWith)
 import Effect.Aff (Aff)
-import Effects.Signatures (NarrateF(..))
 import Handlers.Llm.Call (narrateCall)
 import Handlers.Llm.Wire (NarrateRequest)
 import Handlers.Llm.Backend (Backend, ask)
@@ -18,14 +17,14 @@ import Handlers.Llm.Backend (Backend, ask)
 -- | The round's front page. A round whose joint pass did not decode, and a model reply that does
 -- | not decode, get the plain listing of the round's events, and a round whose joint pass did not
 -- | decode makes no model call (docs/06 §6.1). Otherwise the model narrates from the round's record.
-narrator :: Backend -> Boolean -> NarrateF ~> Aff
-narrator b jointFailed (Narrate r k) = k <$>
-  if jointFailed then pure (listing r)
-  else do
-    let
-      request :: NarrateRequest
-      request = { round: r.record.round, events: r.record.events }
-    either (const (listing r)) identity <$> ask b narrateCall request
+narrator :: Backend -> Boolean -> RoundResult -> Aff String
+narrator b jointFailed r
+  | jointFailed = pure (listing r)
+  | otherwise = do
+      let
+        request :: NarrateRequest
+        request = { round: r.record.round, events: r.record.events }
+      either (const (listing r)) identity <$> ask b narrateCall request
 
 -- | The round's events, one per line, with no interpretation.
 listing :: RoundResult -> String

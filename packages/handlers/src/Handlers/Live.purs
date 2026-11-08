@@ -13,6 +13,7 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 import Core.Types (EntityId, RoundIndex)
+import Schema.Joint (JointProposal, Transcript)
 import Core.World (RoundResult, View, WorldState)
 import Core.Engine.Commit (EngineError)
 import Data.Map as Map
@@ -42,7 +43,7 @@ type Live =
   , window :: Maybe (Aff Unit) -- the propose window: completes when the window has elapsed
   , say :: String -> Effect Unit -- a line for the facilitator
   , notify :: EntityId -> String -> Aff Unit -- a message to the seat that needs no answer
-  , interpret :: InterpretF ~> Aff -- the round's joint pass
+  , interpret :: RoundIndex -> Array Transcript -> Aff (Either String (Array JointProposal)) -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , speak :: EntityId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
   , record :: RecordSink -- persist the round
@@ -138,7 +139,7 @@ runLive live game = do
   -- told so. Nothing is asked back. The round is marked, so its front page is a plain listing.
   joint :: forall b. Ref Boolean -> InterpretF b -> Aff b
   joint failed (Interpret round transcripts k) = do
-    out <- live.interpret (Interpret round transcripts identity)
+    out <- live.interpret round transcripts
     liftEffect (Ref.write (isLeft out) failed)
     case out of
       Left why -> for_ transcripts \t -> case binding t.seat of

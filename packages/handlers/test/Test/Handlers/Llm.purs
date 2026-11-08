@@ -61,7 +61,7 @@ answerWith text = do
 
 -- | One joint pass over the transcripts.
 jointWith :: Game -> Backend -> Array Transcript -> Aff (Either String (Array JointProposal))
-jointWith g backend ts = interpreter backend g.world (Interpret 1 ts identity)
+jointWith g backend ts = interpreter backend g.world 1 ts
 
 -- | The one Proposal a joint pass must return.
 single :: Either String (Array JointProposal) -> Aff JointProposal
@@ -294,7 +294,7 @@ spec = do
       g <- unseated
       r <- oneRound g
       counter <- liftEffect (Ref.new 0)
-      text <- narrator (answering counter (\_ _ -> replyText "Markets moved.")) true (Narrate r identity)
+      text <- narrator (answering counter (\_ _ -> replyText "Markets moved.")) true r
       text `shouldEqual` listing r
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 0
@@ -303,10 +303,10 @@ spec = do
       g <- unseated
       r <- oneRound g
       good <- answerWith (replyText "Markets moved.")
-      narrated <- narrator good false (Narrate r identity)
+      narrated <- narrator good false r
       narrated `shouldEqual` "Markets moved."
       bad <- answerWith "not json"
-      fallback <- narrator bad false (Narrate r identity)
+      fallback <- narrator bad false r
       fallback `shouldEqual` listing r
 
     it "a seat speaks its reply text; a reply that does not decode is an empty transcript" do

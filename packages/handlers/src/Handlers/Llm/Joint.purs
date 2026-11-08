@@ -7,14 +7,13 @@ module Handlers.Llm.Joint
 
 import Prelude
 import Core.Map (values)
-import Schema.Joint (ProposedJoint, jointProposals)
+import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointProposals)
 import Core.Shape (Format(..), encodeWith)
-import Core.Types (MarketId)
+import Core.Types (MarketId, RoundIndex)
 import Core.World (WorldState)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Effect.Aff (Aff)
-import Effects.Signatures (InterpretF(..))
 import Handlers.Llm.Call (interpretCall)
 import Handlers.Llm.Wire (JointRequest)
 import Handlers.Llm.Backend (Backend, maxCorrections, send, correction)
@@ -38,8 +37,8 @@ joint b request = go 0 original
 -- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
 -- | Entries the engine could not use are dropped by the joint pass rule (`Core.Proposal.jointProposals`).
 -- | `w` supplies only the Entity and Market ids, which no round changes, so the initial world serves.
-interpreter :: Backend -> WorldState -> InterpretF ~> Aff
-interpreter b w (Interpret round transcripts k) = k <$> do
+interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointProposal))
+interpreter b w round transcripts = do
   let
     request :: JointRequest
     request = { round, transcripts, entities: map _.id (values w.entities), markets: markets w }

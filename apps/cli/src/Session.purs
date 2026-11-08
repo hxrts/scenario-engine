@@ -36,7 +36,8 @@ import Data.Int (toNumber)
 import Data.Time.Duration (Milliseconds(..))
 import Effect.Aff (attempt, delay, launchAff_)
 import Effect.Class (liftEffect)
-import Effect.Exception (message)
+import Control.Monad.Error.Class (throwError)
+import Effect.Exception (error, message)
 import Effects.Signatures (NarrateF(..))
 import Handlers.Live (runLive)
 import Handlers.Llm.Backend (backend, evidenceShape)
@@ -45,7 +46,7 @@ import Handlers.Llm.Narrate (narrator)
 import Handlers.Llm.Speak (speak)
 import Views.Common (quantity)
 import Views.Metrics (roundMetrics)
-import Handlers.Store (recorder, settle, startRun)
+import Handlers.Store (openRun, settle)
 import Exit (fail)
 import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Game.Setting (Setting(..))
@@ -83,9 +84,10 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       owner <- liftEffect (processOwner "session")
       let
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
-      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, owner })
-      liftEffect $ either (\why -> fail ("error: " <> why)) pure started
-      save <- liftEffect (recorder store roundMetrics o.id w0)
+      opened <- liftEffect $ openRun store roundMetrics { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } w0
+      save <- case opened of
+        Left why -> liftEffect (fail ("error: " <> why)) *> throwError (error why)
+        Right sink -> pure sink
       liftEffect $ writeLine (gameboardRef parts.gameboard <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
       out <- attempt $ runLive
@@ -96,7 +98,7 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
         , notify: \_ text -> liftEffect (writeLine ("  " <> text))
         , interpret: interpreter llm w0
         , narrate: \failed r -> do
-            front <- narrator llm failed (Narrate r identity)
+            front <- narrator llm failed r
             liftEffect (report humans r front)
             pure front
         , speak: speak llm briefing

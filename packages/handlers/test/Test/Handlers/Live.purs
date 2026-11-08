@@ -85,7 +85,7 @@ liveWith g0 n seat input backend = do
     , interpret: interpreter backend g.world
     , speak: speak backend (const "Secure energy at a fair price.")
     , narrate: \failed r -> do
-        t <- narrator backend failed (Narrate r identity)
+        t <- narrator backend failed r
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)
         pure t
     , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
@@ -207,7 +207,7 @@ spec = do
         , notify: \_ _ -> pure unit
         , interpret: interpreter backend g.world
         , speak: speak backend (const "")
-        , narrate: \failed r -> narrator backend failed (Narrate r identity)
+        , narrate: \failed r -> narrator backend failed r
         , record: \_ _ -> pure unit
         }
         base

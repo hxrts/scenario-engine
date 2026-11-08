@@ -11,6 +11,7 @@ module Handlers.Store
   , Metric
   , validRunId
   , startRun
+  , openRun
   , runStore
   , runObserve
   , recorder
@@ -107,6 +108,13 @@ startRun b n = do
   existing <- b.listRuns
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> b.createRun n
+
+-- | Open a run for play: registered under its id (a duplicate is a `Left`, as for `startRun`), with its `RECORD`
+-- | target from the initial World State.
+openRun :: StoreBackend -> (RoundResult -> Array Metric) -> NewRun -> WorldState -> Effect (Either String RecordSink)
+openRun b metricsOf n initial = startRun b n >>= case _ of
+  Left why -> pure (Left why)
+  Right _ -> Right <$> recorder b metricsOf n.id initial
 
 -- | Record how a played run ended: a thrown error fails it, with the message under `prefix`, and a played
 -- | result finishes it (completed, or failed with the engine's error).

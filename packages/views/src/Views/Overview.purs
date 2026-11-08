@@ -23,24 +23,23 @@ import Data.Either (Either(..), either)
 import Record as Record
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Checks.Objectives (CriterionResult, ObjectiveResult, evaluateObjectives)
-import Views.Common (Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
+import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
-type ListedRun =
-  { id :: String
-  , name :: String
-  , status :: RunStatus
-  , reason :: Maybe String
-  , gameboard :: String
-  , gameSeed :: String
-  , playerSeed :: String
-  , rounds :: Int
-  , assertionsFailing :: Int
-  , archived :: Boolean
-  , source :: Maybe String
-  , sourceDeleted :: Boolean
-  }
+type ListedRun = Record
+  ( RunCore
+      ( reason :: Maybe String
+      , gameboard :: String
+      , gameSeed :: String
+      , playerSeed :: String
+      , rounds :: Int
+      , assertionsFailing :: Int
+      , archived :: Boolean
+      , source :: Maybe String
+      , sourceDeleted :: Boolean
+      )
+  )
 
 -- | A stored run that cannot be read: the list shows it with the reason, and keeps the others.
 type Unreadable = { id :: String, name :: String, reason :: String }

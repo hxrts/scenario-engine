@@ -26,11 +26,11 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Foreign.Object (Object)
-import Game.Types (Bindings, Game, SeatBinding(..))
+import Game.Types (Bindings, Game, ScriptRound, SeatBinding(..))
 import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Core.Engine.Commit (EngineError)
-import Core.Strategy (InWorld)
+import Core.Strategy (InWorld, Strategy)
 import Effect (Effect)
 import Effects.Round (runGame)
 import Run (Run, case_, interpret, on, peel, run, send)
@@ -48,20 +48,12 @@ seatEnv seed g = { seed, params: g.inWorld.params }
 seatEnvFor :: SeatEnv -> EntityId -> View -> Env
 seatEnvFor env = envFor { params: env.params, seed: env.seed, source: "seat" }
 
--- | The Proposal bodies a seat submits in a round. Agent and Human seats submit none here.
-proposeFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalBody
-proposeFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.propose p (seatEnvFor env e v)
-  Just (Script rounds) -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
-  Just Agent -> []
-  Just Human -> []
-  Nothing -> []
-
--- | The Proposals a seat signs in a round. Agent and Human seats sign nothing here.
-signFor :: SeatEnv -> Bindings -> EntityId -> View -> Array ProposalId
-signFor env bs e v = case Map.lookup e bs of
-  Just (Strategy p) -> Policy.sign p (seatEnvFor env e v)
-  Just (Script rounds) -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
+-- | What a seat answers in a round, read from its binding: a Strategy through the policy interpreter, a Script
+-- | from the round's entry. Agent and Human seats answer nothing here.
+answer :: forall a. (Strategy -> Env -> Array a) -> (ScriptRound -> Array a) -> SeatEnv -> Bindings -> EntityId -> View -> Array a
+answer policy scripted env bs e v = case Map.lookup e bs of
+  Just (Strategy p) -> policy p (seatEnvFor env e v)
+  Just (Script rounds) -> maybe [] scripted (find (\r -> r.round == v.round) rounds)
   Just Agent -> []
   Just Human -> []
   Nothing -> []
@@ -74,8 +66,8 @@ handleSeats env bs = interpret (on _seatInput handle (on _interpret silent (on _
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
-    Propose e v k -> pure (k (proposeFor env bs e v))
-    Sign e v k -> pure (k (signFor env bs e v))
+    Propose e v k -> pure (k (answer Policy.propose _.propose env bs e v))
+    Sign e v k -> pure (k (answer Policy.sign _.sign env bs e v))
     Speak _ _ k -> pure (k Nothing)
 
   silent :: InterpretF ~> Run r

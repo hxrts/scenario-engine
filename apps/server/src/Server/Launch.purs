@@ -30,7 +30,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
-import Effect.Exception (throwException, try)
+import Effect.Exception (error, throwException, try)
 import Effects.Api (Launch, LaunchBatch)
 import Effects.Observe (listSummaries)
 import Effects.Store (createRun, failRunning)
@@ -38,7 +38,7 @@ import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Views.Setting (Setting)
 import Settings.Presets (presetNames)
-import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle, validRunId)
+import Handlers.Store (StoreBackend, openRun, runObserve, runStore, settle, validRunId)
 import Game.Assemble (assemblePreset, checkRounds)
 import Game.Override (Override)
 import Game.Setting (GameboardParts)
@@ -105,8 +105,7 @@ startAs id p store l = do
       created <- nowIso
       owner <- processOwner serverRole
       attempt <- play store id $ simulateWith seed game \manifest -> do
-        runStore store (createRun { id, name: l.name, created, spec, manifest, owner })
-        recorder store roundMetrics id manifest.initial
+        openRun store roundMetrics { id, name: l.name, created, spec, manifest, owner } manifest.initial >>= either (throwException <<< error) pure
       pure (attempt $> { id, playerSeed: unwrap seed })
 
 -- | Play a stored run to its end and settle it (`Handlers.Store.settle`). A thrown error fails the run,

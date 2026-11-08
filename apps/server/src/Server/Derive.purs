@@ -10,6 +10,8 @@ module Server.Derive
 
 import Prelude
 
+import Effect.Exception (error, throwException)
+
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
 import Data.Array (last, length, null, filter)
@@ -25,7 +27,7 @@ import Effects.Observe (readManifest, readRounds)
 import Effects.Store (deleteRun, setArchived, setSpec, setStatus, createRun)
 import Views.Keys as Keys
 import Views.Metrics (roundMetrics)
-import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
+import Handlers.Store (StoreBackend, openRun, recorder, runObserve, runStore)
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
 import Server.Launch (freshRunId, play, serverRole, start)
 import Game.Setting (Setting(..))
@@ -132,8 +134,7 @@ deriveSession cache settings store sourceId body info spec
               created <- nowIso
               owner <- processOwner serverRole
               attempt <- play store id do
-                runStore store (createRun { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, owner })
-                save <- recorder store roundMetrics id g.world
+                save <- openRun store roundMetrics { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, owner } g.world >>= either (throwException <<< error) pure
                 traverse_ (\r -> save r []) out.records
                 pure (Right out.value :: Either String _)
               case attempt of

@@ -21,7 +21,9 @@ module Views.Common
   , sharedColumns
   , StoredRun
   , focusOf
+  , RunCore
   , RunHeader
+  , RunHeaderRow
   , storedRun
   , records
   , snapshots
@@ -50,6 +52,8 @@ module Views.Common
   ) where
 
 import Prelude
+
+import Record as Record
 import Core.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
 import Core.Types (idText, EntityId, ProposalId, ResourceId)
 
@@ -164,30 +168,24 @@ type Bars = { title :: String, unit :: String, kind :: Kind, categories :: Array
 -- | formula. Each statistic is defined once, in the module that computes it; the dashboard renders it.
 type Statistic = { name :: String, question :: String, definition :: String, formula :: String }
 
+-- | What every read of a run shares: its id, name, and status.
+type RunCore r = (id :: String, name :: String, status :: RunStatus | r)
+
 -- | A run's identity and specification, as read back from the Run Store.
-type RunHeader =
-  { id :: String
-  , name :: String
-  , status :: RunStatus
-  , manifest :: Manifest
-  , playerSeed :: String
-  , spec :: Spec
-  , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
-  }
+type RunHeaderRow r =
+  RunCore
+    ( manifest :: Manifest
+    , playerSeed :: String
+    , spec :: Spec
+    , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
+    | r
+    )
+
+type RunHeader = Record (RunHeaderRow ())
 
 -- | A run as read back from the Run Store, with each round's record and the World State it left
 -- | (single-run views). `records`, `snapshots` and `worlds` read the rounds.
-type StoredRun =
-  { id :: String
-  , name :: String
-  , status :: RunStatus
-  , manifest :: Manifest
-  , playerSeed :: String
-  , spec :: Spec
-  , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
-  , rounds :: Array RoundResult
-  , assertions :: Array (Array Failure)
-  }
+type StoredRun = Record (RunHeaderRow (rounds :: Array RoundResult, assertions :: Array (Array Failure)))
 
 -- | The Resource a run's market views centre on: the one its setting declares, else its numeraire.
 focusOf :: StoredRun -> Focus
@@ -195,8 +193,7 @@ focusOf r = fromMaybe { resource: r.manifest.initial.numeraire, label: idText r.
 
 -- | A stored run from its header, its rounds, and each round's assertions.
 storedRun :: RunHeader -> Array RoundResult -> Array (Array Failure) -> StoredRun
-storedRun h rounds assertions =
-  { id: h.id, name: h.name, status: h.status, manifest: h.manifest, playerSeed: h.playerSeed, spec: h.spec, sourceDeleted: h.sourceDeleted, rounds, assertions }
+storedRun h rounds assertions = Record.disjointUnion h { rounds, assertions }
 
 -- | The run's round records, in round order.
 records :: StoredRun -> Array RoundRecord

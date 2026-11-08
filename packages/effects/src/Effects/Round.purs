@@ -25,7 +25,7 @@ import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Policy.InWorld (policyOf)
-import Core.Strategy (InWorld)
+import Core.Strategy (Strategy, InWorld)
 import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Run (Run, lift)
@@ -65,12 +65,14 @@ runRound inWorld w0 = do
     void (lift _narrate (Narrate r identity))
   pure result
   where
-  proposeFor e v = case policyOf inWorld e of
-    Just strategy -> pure (Policy.propose strategy (env e v))
-    Nothing -> lift _seatInput (Propose e.id v identity)
-  signFor e v = case policyOf inWorld e of
-    Just strategy -> pure (Policy.sign strategy (env e v))
-    Nothing -> lift _seatInput (Sign e.id v identity)
+  proposeFor = decide Policy.propose \e v -> lift _seatInput (Propose e.id v identity)
+  signFor = decide Policy.sign \e v -> lift _seatInput (Sign e.id v identity)
+
+  -- an in-world Entity answers through its Policy, a seat through SEAT_INPUT
+  decide :: forall a. (Strategy -> Env -> Array a) -> (Entity -> View -> Run _ (Array a)) -> Entity -> View -> Run _ (Array a)
+  decide policy ask e v = case policyOf inWorld e of
+    Just strategy -> pure (policy strategy (env e v))
+    Nothing -> ask e v
 
   env :: Entity -> View -> Env
   env e = envFor { params: inWorld.params, seed: w0.seed, source: "policy" } e.id
