@@ -166,18 +166,17 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 ## Gaps in this repo
 
-1. **Entity effects in the capstone.** Facility `effects` are covered at unit level and by the Soft
-   Power test. No capstone round uses them.
-2. **Archive, delete and derive kinds.** These are server behaviours (`apps/server`) and are not
-   exercised by the capstone.
-3. **CLI and dashboard tabs.** Not exercised by the capstone. The view models are checked for
-   non-emptiness only, not for content.
-4. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
-   shipped preset is exercised only by its own test.
-5. **Agency.** The capstone does not compute the agency table. That stays in
-   `Test.Experiments.Mandatory` :: "14 Agency…".
-6. **Invariants.** Only INV-02, 03, 04, 05, 06 and 10 have predicates. The other IDs have none, for
-   the reasons in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics).
+The capstone is one DSL-authored run, so it exercises only what it was written to. The items below are not gaps in the repo: each is covered by the named test. What remains open is listed last.
+
+1. **Entity effects in the capstone.** Not used by any capstone round. Covered by the focused test "a capacity effect changes only its named holder's capacity, for its rounds" (`packages/core/test/Main.purs`) and by the Soft Power test.
+2. **Server archive, delete and derive.** Not in the capstone. Covered by `apps/server/test/Main.purs` ("archive hides a run…", "derive: duplicate, rerun, variant and counterfactual…", "a rerun reports recordsMatch…").
+3. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, by design. The shipped preset is covered by its own tests (`packages/premises/test/Main.purs`, `packages/simulator/test/Main.purs`, "7c Deployer").
+4. **Agency table.** Not in the capstone. Covered by "14 Agency: every role is analysed and its objectives reported" (`packages/experiments/test/Test/Experiments/Mandatory.purs`).
+
+Still open, with the judgement recorded:
+
+5. **CLI and dashboard tabs.** Content is checked for non-emptiness only. Playwright covers the dashboard flows, and CLI parsing is low risk, so neither is closed here.
+6. **Invariants.** Only INV-02, 03, 04, 05, 06 and 10 have predicates. The other IDs have none, for the reasons in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics).
 
 ## Expected numbers
 
