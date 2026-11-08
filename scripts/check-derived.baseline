@@ -28,7 +28,7 @@ intent-walk packages/simulator/test/Test/Simulator/Shock.purs 1
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
 name-literal packages/schema/src/Schema/Premise/Fixture.purs 1
 repeated-idiom packages/board/src/Board/Gameboard/Instantiate.purs 3
-repeated-idiom packages/board/src/Board/Gameboard/Validate.purs 6
+repeated-idiom packages/board/src/Board/Gameboard/Validate.purs 4
 repeated-idiom packages/checks/src/Checks/Objectives.purs 1
 repeated-idiom packages/checks/src/Checks/Round.purs 2
 repeated-idiom packages/game/src/Game/Assemble.purs 1

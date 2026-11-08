@@ -87,8 +87,8 @@ validateGameboard gb config =
       <> concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective (values gb.actors)) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
       <> unknownEntity (concatMap coverageOf (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks))
       <> map (UnknownReference EntityRef <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
-      <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transferConditions :: Array _))
-      <> unknownTransformation (map (\(Tuple _ t) -> t.bundled) (Map.toUnfoldable w.transferConditions :: Array _))
+      <> unknownResource (map _.resource w.flowGates)
+      <> unknownTransformation (mapMaybe _.bundled w.flowGates)
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
       <> map (\s -> UnknownReference ResourceRef (show s.domain)) (filter (\s -> not (Map.member (domainResource s.domain) w.resources)) gb.schemes)
@@ -100,7 +100,7 @@ validateGameboard gb config =
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.escrowPerUnit)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
   ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
-    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ]
+    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over
     CapacityRule x -> unknownCapacity [ x.capacity ]
   unknownKind k = [ UnknownReference RuleKindRef (show k) ]
   -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind

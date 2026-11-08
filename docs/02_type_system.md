@@ -158,7 +158,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
 | **Rule** | An institutional condition the engine interprets: a flows Rule (`{ kind, scope, effect }`, its effect `Levy` or `Block`) or a capacity Rule (`{ kind, capacity, reduce }`). The `kind` names a declared Rule kind, which fixes the form and who governs; the engine reads the rest, never the kind ([§3](#3-intents-and-economic-actions)). A premise that declares no kinds has no Rules. |
 | **Group** | The Entity another Entity counts as when a flows Rule is applied, when not itself. A flows Rule names a group as its governor; a capacity Rule is governed by the capacity's owner ([§2.4](#24-capability)). |
-| **Transfer condition** | What a Transfer of a Resource must be bundled with, between parties who share no Market for it. A premise with none has no such check. |
+| **Flow gate** | The condition on a Transfer of a Resource: whether parties who share a Market for it are exempt, and which order must carry it. A premise with none has no such check. |
 | **Proposal** | A message carrying one or more Intents and a set of signers. It executes only when its signature rule is met: every signer for a joint Proposal, or enough weight for a procedure Proposal ([§3.3](#33-proposals-and-signatures)). |
 | **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing. |
 | **Lapse** | The outcome of a Proposal whose signature rule is not met by the end of the Sign step. It is a decline, not an error. |
@@ -256,7 +256,7 @@ data Rule
   = FlowRule { kind :: RuleKindId, scope :: FlowScope, effect :: FlowEffect }
   | CapacityRule { kind :: RuleKindId, capacity :: CapacityRef, reduce :: Quantity }
 
-type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | Outbound | EitherWay }
+type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | Outbound | EitherWay, over :: Array ResourceId }
 
 data FlowEffect = Levy Ratio | Block
 
@@ -467,7 +467,7 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 
 - Scoped or regional Market nodes, and market access rules that determine which Entities may trade.
 - Flows Rules (`Levy`, `Block`) between particular groups ([§3](#3-intents-and-economic-actions)).
-- Transfer conditions ([§8.1](#81-canonical-resolution-sequence)): a Transfer of a Resource with a condition, between parties who share no Market for it, must be bundled with a matching order on the condition's Transformation, executed by the sender and signed by the owner of that facility's capacity. A `Block` flows Rule between their groups refuses it. A `Levy` flows Rule adds its rate to the Transfer, paid by the sender to the destination's group.
+- Flow gates ([§8.1](#81-canonical-resolution-sequence)): a Transfer of a Resource with a condition, between parties who share no Market for it, must be bundled with a matching order on the condition's Transformation, executed by the sender and signed by the owner of that facility's capacity. A `Block` flows Rule between their groups refuses it. A `Levy` flows Rule adds its rate to the Transfer, paid by the sender to the destination's group.
 - Facilities that share a capacity share its limit and its uniform price.
 
 ### 5.5 Simultaneous clearing

@@ -15,6 +15,7 @@ import Data.Traversable (class Traversable, traverse)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Array (last)
+import Data.Array as Array
 import Data.Int (fromString) as Int
 import Data.Maybe (Maybe(..))
 import Data.Const (Const(..))
@@ -178,7 +179,7 @@ data IntentF m v
 data Direction = Inbound | Outbound | EitherWay
 
 -- | What a flows Rule covers: Transfers between two groups.
-type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Direction }
+type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Direction, over :: Array ResourceId }
 
 -- | What a flows Rule does: a levy at a rate of the flow, or a block on it.
 data FlowEffect v = Levy v | Block
@@ -216,10 +217,13 @@ ruleKind = case _ of
 -- | Whether a Rule has the form its kind declares.
 conforms :: forall v. RuleKindDecl -> RuleF v -> Boolean
 conforms d = case d.form, _ of
-  LevyFlows g, FlowRule { scope, effect: Levy _ } -> scope.direction == governedDirection g
-  BlockFlows g, FlowRule { scope, effect: Block } -> scope.direction == governedDirection g
+  LevyFlows g, FlowRule { scope, effect: Levy _ } -> covers g scope
+  BlockFlows g, FlowRule { scope, effect: Block } -> covers g scope
   ReduceCapacity, CapacityRule _ -> true
   _, _ -> false
+  where
+  -- a flows Rule covering no Resource would do nothing
+  covers g scope = scope.direction == governedDirection g && not (Array.null scope.over)
 
 -- | The Entity that governs a flows Rule; a capacity Rule has none.
 governorOf :: forall v. RuleF v -> Maybe EntityId
@@ -286,7 +290,7 @@ traverseIntent t = case _ of
   Route x -> (\base quote quantity limitPrice -> Route { pair: { base, quote }, quantity, limitPrice }) <$> t.resource x.pair.base <*> t.resource x.pair.quote <*> t.value x.quantity <*> traverse t.value x.limitPrice
   Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
   Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.entity x.by <*> t.transformation x.transformation <*> t.value x.quantity
-  ChangeRule (Enact (FlowRule r)) -> (\governor counterparty effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction }, effect }))) <$> t.entity r.scope.governor <*> t.entity r.scope.counterparty <*> effectAt r.effect
+  ChangeRule (Enact (FlowRule r)) -> (\governor counterparty over effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction, over }, effect }))) <$> t.entity r.scope.governor <*> t.entity r.scope.counterparty <*> traverse t.resource r.scope.over <*> effectAt r.effect
   ChangeRule (Enact (CapacityRule r)) -> (\capacity reduce -> ChangeRule (Enact (CapacityRule { kind: r.kind, capacity, reduce }))) <$> t.capacity r.capacity <*> t.value r.reduce
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
   where
@@ -476,10 +480,11 @@ directionShape = genericEnum "Direction"
 
 flowScopeShape :: Shape FlowScope
 flowScopeShape = object "FlowScope"
-  ( (\governor counterparty direction -> { governor, counterparty, direction })
+  ( (\governor counterparty direction over -> { governor, counterparty, direction, over })
       <$> fieldOf "governor" "the Entity that governs the Rule" idShape _.governor
       <*> fieldOf "counterparty" "the other party" idShape _.counterparty
       <*> fieldOf "direction" "inbound to the governor, outbound from it, or either way" directionShape _.direction
+      <*> fieldOf "over" "the Resources the Rule covers" (arrayOf idShape) _.over
   )
 
 flowEffectShape :: forall v. Shape v -> Shape (FlowEffect v)

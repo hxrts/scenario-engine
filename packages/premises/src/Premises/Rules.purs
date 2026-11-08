@@ -18,10 +18,15 @@ module Premises.Rules
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl)
+import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl)
 import Data.Tuple (Tuple(..))
+import Premises.Names as N
 import Schema.Build.Base (Keyed, keyed, mayEnact)
 import Schema.Build.Decision (selfEnact)
+
+-- | What Meridian's flows Rules cover: the gated Resource.
+covered :: Array ResourceId
+covered = [ Id N.energy ]
 
 tariffKind :: String
 tariffKind = "tariff"
@@ -50,10 +55,10 @@ mayEnactWithholding :: Capability
 mayEnactWithholding = mayEnact withholdingKind
 
 tariffOf :: forall v. String -> String -> v -> RuleF v
-tariffOf jurisdiction origin rate = FlowRule { kind: Id tariffKind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound }, effect: Levy rate }
+tariffOf jurisdiction origin rate = FlowRule { kind: Id tariffKind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound, over: covered }, effect: Levy rate }
 
 banOf :: forall v. String -> String -> RuleF v
-banOf jurisdiction target = FlowRule { kind: Id accessBanKind, scope: { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay }, effect: Block }
+banOf jurisdiction target = FlowRule { kind: Id accessBanKind, scope: { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay, over: covered }, effect: Block }
 
 withholdingOf :: forall v. String -> v -> RuleF v
 withholdingOf capacity units = CapacityRule { kind: Id withholdingKind, capacity: Id capacity, reduce: units }

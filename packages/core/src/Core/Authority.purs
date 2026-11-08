@@ -18,7 +18,7 @@ import Prelude
 import Core.Query (owner, marketsOf)
 import Core.Types (CapacityRef, Capability(..), EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
 import Core.World (Bounds, RejectReason(..), Venue, View, WorldState)
-import Data.Array (any, elem, filter, null)
+import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Map as Map
@@ -119,6 +119,7 @@ validIntent facts caps who i = known *> limited *> authority *> access *> transf
     Transfer t
       | not (knownResource t.resource) -> Left (UnknownResource t.resource)
       | not (facts.entity t.to) -> Left (UnknownEntity t.to)
+    ChangeRule (Enact (FlowRule r)) | Just unknown <- find (not <<< knownResource) r.scope.over -> Left (UnknownResource unknown)
     ChangeRule (Repeal id) | isNothing (facts.rule id) -> Left (UnknownRule id)
     _ -> Right unit
   -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)

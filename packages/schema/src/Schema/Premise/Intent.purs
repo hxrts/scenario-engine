@@ -11,8 +11,9 @@ module Schema.Premise.Intent
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, recordShape, requiredOf)
+import Core.Shape (Shape, listOf, refined, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, recordShape, requiredOf)
 import Core.Types (Capability, Direction(..), EntityId, FlowEffect, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
 import Schema.Premise.Tags (capabilityTags)
@@ -53,7 +54,7 @@ effectShapeOf v = genericPremiseSum "FlowEffect"
 ruleBody :: forall v. Shape EntityId -> Shape v -> Shape (RuleF v)
 ruleBody governor v = genericPremiseSum "Rule"
   { "FlowRule": atOneKey "flows" "a Rule on Transfers between two groups"
-      (recordShape "FlowRule" { kind: idShape, scope: recordShape "FlowScope" { governor, counterparty: idShape, direction: directionShape }, effect: effectShapeOf v })
+      (recordShape "FlowRule" { kind: idShape, scope: recordShape "FlowScope" { governor, counterparty: idShape, direction: directionShape, over: refined "a flows Rule covers at least one Resource" (not <<< null) (listOf idShape) }, effect: effectShapeOf v })
   , "CapacityRule": atOneKey "capacity" "a Rule reducing one capacity" (recordShape "CapacityRule" { kind: idShape, capacity: idShape, reduce: v })
   }
 

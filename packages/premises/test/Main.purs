@@ -429,7 +429,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { rules = Map.insert (Id "rule-z") (tariffR { jurisdiction: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a transport entry whose facility does not exist"
-      (editWorld \w -> w { transferConditions = Map.insert (Id "E") { bundled: Id "no-such-facility" } w.transferConditions })
+      (editWorld \w -> w { flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "no-such-facility") } ] })
       (UnknownReference TransformationRef "no-such-facility")
     rejects "UnknownReference: a procedure weight on an Entity that does not exist"
       (editWorld (onEntity "EU" (withWeightOf "NOBODY")))
@@ -577,10 +577,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
 holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }

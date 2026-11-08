@@ -326,7 +326,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
     it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "flows": { "kind": "accessBan", "scope": { "counterparty": "CN", "direction": "eitherWay" }, "effect": "block" } } } ] } ] }""" (enacting [ MayEnact (Id "accessBan") ]))
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "flows": { "kind": "accessBan", "scope": { "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } } ] } ] }""" (enacting [ MayEnact (Id "accessBan") ]))
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "enact": { "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "5" } } } ] } ] }""" (enacting [ MayEnact (Id "withholding") ]))
@@ -364,10 +364,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
 holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }

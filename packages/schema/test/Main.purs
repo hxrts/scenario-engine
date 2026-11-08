@@ -80,8 +80,8 @@ roundTripStrategies =
             [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: lit 2 })
             , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
-            , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound }, effect: Levy (lit "0.5") }))
-            , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay }, effect: Block }))
+            , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy (lit "0.5") }))
+            , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block }))
             , asTemplate (enactRule (CapacityRule { kind: Id "withholding", capacity: Id "c", reduce: lit 2 }))
             , asTemplate (repeal { rule: "r2/US/0/rule-0" })
             ]
@@ -150,7 +150,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Rule forms" do
     it "a combination that would do nothing has no form" do
-      isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound" }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
+      isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
       isLeft (decodeJsonWith Premise ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": "1" } }""")) `shouldEqual` true
 
   describe "Capability tags" do
@@ -171,7 +171,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes each rule key, including withholding" do
       rule (json """{ "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "3" } }""")
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay" }, "effect": "block" } }""")
+      rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } }""")
         `shouldEqual` Right (banR { jurisdiction: Id "US", target: Id "CN" })
     it "rejects an unknown rule key with a typed error" do
       case rule (json """{ "embargo": {} }""") of
@@ -197,7 +197,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
     it "decodes an enactment through its rule" do
-      intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay" }, "effect": "block" } } }""")
+      intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
         `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
     it "a Repeal round-trips through the premise form, as one key naming the Rule" do
       intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
@@ -288,10 +288,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay }, effect: Block }
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
 holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }

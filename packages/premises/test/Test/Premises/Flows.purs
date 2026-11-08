@@ -42,7 +42,7 @@ world =
           }
       ]
   , transformations: [ Tuple "ship" noFacility ]
-  , transferConditions: Just [ Tuple "E" { bundled: Id "ship" } ]
+  , flowGates: Just [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "ship") } ]
   , groups: Nothing
   , ruleKinds: Just [ Tuple "toll" { form: LevyFlows GovernedByDestination, text: "" } ]
   , entities:
@@ -52,7 +52,7 @@ world =
       , Tuple "Emp" (noEntity { accounts = [ Tuple "M" (Q.fromInt 8) ] })
       , Tuple "Wrk" noEntity
       ]
-  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound }, effect: Levy (Q.div (Q.fromInt 1) (Q.fromInt 10)) } ]
+  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy (Q.div (Q.fromInt 1) (Q.fromInt 10)) } ]
   , representations: Nothing
   , circulation: Just { production: Nothing, flows: Just [ { from: Id "Emp", to: Id "Wrk", resource: Id "M", amount: Q.fromInt 10 } ], shares: Nothing, requirements: Nothing }
   }

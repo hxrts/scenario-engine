@@ -24,7 +24,7 @@ import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 
@@ -132,28 +132,29 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
   where
   reject reason = Left [ rejection w.round p.id reason ]
 
--- | Conditioned Transfers must be bundled with matching orders by the sender, and are subject to the
--- | flows Rules between their groups. Parties who share a Market for the Resource are exempt.
+-- | A Transfer that a gate does not exempt must be bundled as its gate says, and is subject to the flows
+-- | Rules covering its Resource between its parties' groups.
 conditioned :: WorldState -> Proposal -> Either RejectReason (Array Levy)
-conditioned w p = concat <$> traverse check crossing
+conditioned w p = concat <$> traverse check gated
   where
-  bundledFor r = _.bundled <$> Map.lookup r w.transferConditions
-  crossing = filter crosses (transfersOf p.intents)
-  crosses t = isJust (bundledFor t.resource) && not (shareMarket t)
+  gateOf r = find (\g -> g.resource == r) w.flowGates
+  bundledFor r = gateOf r >>= _.bundled
+  gated = filter (not <<< exempt) (transfersOf p.intents)
+  exempt t = maybe false (\g -> g.exemptSharedMarket && shareMarket t) (gateOf t.resource)
   shareMarket t = any (\m -> m.base == t.resource && t.from `elem` m.access && t.to `elem` m.access) (marketsOf w)
-  check t = case bundledFor t.resource of
-    Nothing -> Right []
-    Just tid -> do
+  check t = do
+    for_ (bundledFor t.resource) \tid -> do
       let
         carried = Q.sumQ (map _.quantity (filter (\x -> x.transformation == tid && x.by == t.from) (transformsOf p.intents)))
         -- everything this sender moves on this Transformation, so one order cannot carry two Transfers
-        moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) crossing))
-        a = groupOf w t.from
-        b = groupOf w t.to
-        applicable = filter (covers a b) flowRules
+        moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) gated))
       when (carried /= moved) (Left MissingBundledOrder)
-      for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
-      pure (map (levyOf t.from b t.quantity applicable) (nub (map _.kind (filter isLevy applicable))))
+    let
+      a = groupOf w t.from
+      b = groupOf w t.to
+      applicable = filter (\r -> t.resource `elem` r.scope.over && covers a b r) flowRules
+    for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
+    pure (map (levyOf t.from b t.quantity applicable) (nub (map _.kind (filter isLevy applicable))))
   flowRules = mapMaybe flowOf (rulesOf w)
   flowOf = case _ of
     FlowRule r -> Just r

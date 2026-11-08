@@ -288,7 +288,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- premise
       g <- everySeat p "Passive"
       let
-        banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enact":{ "flows": { "kind": "accessBan", "scope": {"counterparty":"CN","direction":"eitherWay"}, "effect": "block" } }}]}]}"""
+        banChina = strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"2"]}],"propose":[{"enact":{ "flows": { "kind": "accessBan", "scope": {"counterparty":"CN","direction":"eitherWay", "over": ["E"]}, "effect": "block" } }}]}]}"""
         rules i r = maybe [] (\rec -> values rec.world.rules) (index r.records i)
         isBan a b = case _ of
           FlowRule { scope: f, effect: Block } -> f.governor == Id a && f.counterparty == Id b

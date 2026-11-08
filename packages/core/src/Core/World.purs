@@ -20,12 +20,13 @@ import Data.Maybe (Maybe)
 import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
 
+-- | The condition on a Transfer of one Resource: whether parties who share a Market for it are exempt,
+-- | and the Transformation a sender's orders of which must carry it. A Transfer that is exempt is also
+-- | outside every flows Rule.
+type FlowGate = { resource :: ResourceId, exemptSharedMarket :: Boolean, bundled :: Maybe TransformationId }
+
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
 -- | is instantiated (`seeded`); a decoded Gameboard's world is `UnseededWorld`.
--- | A Transfer of a conditioned Resource between parties who share no Market for it must be bundled with
--- | orders of this Transformation by the sender.
-type TransferCondition = { bundled :: TransformationId }
-
 type WorldFields r =
   ( round :: RoundIndex
   , entities :: Map EntityId Entity
@@ -34,7 +35,7 @@ type WorldFields r =
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
   , numeraire :: ResourceId -- the Resource Transformation costs are paid in
-  , transferConditions :: Map ResourceId TransferCondition -- what a Transfer of a Resource must be bundled with
+  , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
   , rules :: Map RuleId Rule -- Rules in force
@@ -575,11 +576,11 @@ shortfallEffectShape = genericSum "ShortfallEffect"
   , "OffsetIncoming": atTagged "accrue against the flows the Entity receives, per unit short" qShape
   }
 
-transferConditionShape :: Shape TransferCondition
-transferConditionShape = recordShape "TransferCondition" { bundled: idShape }
+flowGateShape :: Shape FlowGate
+flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transferConditions: (mapOf idShape transferConditionShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

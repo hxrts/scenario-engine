@@ -24,7 +24,7 @@ A premise is a directory of JSON section files. The loader merges every file exc
 |---|---|---|
 | `premise.json` | Premise header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
 | `resources.json` | Resources (§5.1) | `resources` |
-| `markets.json` | Markets, transfer conditions, groups, Rule kinds (§5.2, §5.5) | `markets`, `transferConditions`, `groups`, `ruleKinds` |
+| `markets.json` | Markets, flow gates, groups, Rule kinds (§5.2, §5.5) | `markets`, `flowGates`, `groups`, `ruleKinds` |
 | `transformations.json` | Facilities (§5.3) | `transformations` |
 | `circulation.json` | Recurring cycle (§5.4) | `circulation` |
 | `entities.json` | Entity catalog (§6) | `entities` |
@@ -117,10 +117,10 @@ Decay follows each Resource's `decay`. Capacity changes come from Facility `effe
 ### 5.5 Geography, access, and Rules
 
 - **Regions** are separate Markets. There is no node hierarchy.
-- **`transferConditions`** maps a Resource to `{ bundled: <facility> }`, the order a Transfer of it must be bundled with between parties who share no Market for it. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
+- **`flowGates`** are `[{ resource, exemptSharedMarket, bundled? }]`: `exemptSharedMarket` frees parties who share a Market for the Resource from the gate and from flows Rules, and `bundled` names the Transformation a sender's orders of which must carry the Transfer. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
 - **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A premise that declares none has no Rules.
-- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction }, effect } }` with `effect` `{ levy: rate }` or `block`, or `{ capacity: { kind, capacity, reduce } }`. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
+- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: rate }` or `block`, or `{ capacity: { kind, capacity, reduce } }`. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
 

@@ -359,7 +359,7 @@ banIntent = intent "ChangeRule"
   [ intent "Enact"
       [ intent "FlowRule"
           [ obj
-              [ Tuple "scope" (obj [ Tuple "governor" (fromString N.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString N.india) ])
+              [ Tuple "scope" (obj [ Tuple "over" (fromArray [ fromString N.energy ]), Tuple "governor" (fromString N.us), Tuple "direction" (intent "EitherWay" []), Tuple "counterparty" (fromString N.india) ])
               , Tuple "kind" (fromString "accessBan")
               , Tuple "effect" (intent "Block" [])
               ]

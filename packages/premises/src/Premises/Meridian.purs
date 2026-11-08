@@ -12,7 +12,7 @@ module Premises.Meridian
   , resources
   , coreResources
   , atlanticTerms
-  , transferConditions
+  , flowGates
   , productionCapacity
   , atlanticMarket
   , asiaMarket
@@ -32,6 +32,8 @@ module Premises.Meridian
   ) where
 
 import Prelude (bind, map, negate, show, ($), (+), (<>))
+
+import Core.World (FlowGate)
 import Premises.Names as N
 import Premises.Rules (ruleKinds)
 
@@ -89,7 +91,7 @@ gameboard =
       , resources
       , markets
       , transformations
-      , transferConditions: Just transferConditions
+      , flowGates: Just flowGates
       , groups: Just groups
       , ruleKinds: Just ruleKinds
       , entities
@@ -105,7 +107,7 @@ files :: Array (Tuple String Json)
 files =
   [ section N.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
   , section N.resourcesFile [ "resources" ]
-  , section N.marketsFile [ "markets", "transferConditions", "groups", "ruleKinds" ]
+  , section N.marketsFile [ "markets", "flowGates", "groups", "ruleKinds" ]
   , section N.transformationsFile [ "transformations" ]
   , section N.circulationFile [ "circulation" ]
   , section N.entitiesFile [ "entities" ]
@@ -187,9 +189,9 @@ atlanticTerms = energyTerms { hi: q 300, reserves: keyed [ N.money := 700, N.ene
 asiaTerms :: MarketTerms
 asiaTerms = energyTerms { hi: q 200, reserves: keyed [ N.money := 500, N.energy := 250 ] }
 
--- | What a Transfer of each Resource must be bundled with, between parties who share no Market for it.
-transferConditions :: Keyed { bundled :: TransformationId }
-transferConditions = keyed [ Tuple N.energy { bundled: Id N.energyShipping } ]
+-- | A Transfer of Energy between parties who share no Market for it must be carried by shipping orders.
+flowGates :: Array FlowGate
+flowGates = [ { resource: Id N.energy, exemptSharedMarket: true, bundled: Just (Id N.energyShipping) } ]
 
 -- | The group each Entity counts as for flows Rules, where it is not its own: its governing country.
 groups :: Keyed EntityId
