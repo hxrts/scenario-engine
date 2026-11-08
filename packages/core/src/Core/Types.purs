@@ -213,6 +213,17 @@ traverseIntent t = case _ of
 type Rule = RuleF Q
 type RuleChange = RuleChangeF Q
 
+-- | Whether a Deal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
+-- | change of Rule are one party's own action (docs/02 §3.3). The one statement of the rule: screening,
+-- | the premise shape of a Deal, and the prompt's wording all follow it.
+dealIntent :: forall m v. IntentF m v -> Boolean
+dealIntent = case _ of
+  Transfer _ -> true
+  Transform _ -> true
+  Trade _ -> false
+  Route _ -> false
+  ChangeRule _ -> false
+
 -- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
 -- | Intent kind (docs/02 §3). A Strategy's Deal and Procedure templates are `ProposalF MarketRef Expr`.

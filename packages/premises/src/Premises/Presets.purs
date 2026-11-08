@@ -98,7 +98,7 @@ investor :: Strategy
 investor =
   { rules:
       [ rule [ gt (holding N.money) (lit 100) ]
-          [ deal { signers: [ N.chip ], intents: [ selfTransform { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
+          [ deal { signers: [ N.chip ], transfers: [], transforms: [ { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
       ]
   , sign: [ signAll ]
   }

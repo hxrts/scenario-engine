@@ -165,9 +165,20 @@ selfAccessBan r = ChangeRule (Enact (AccessBan { jurisdiction: Id S.selfName, ta
 procedure :: { id :: String, signers :: Array String, intents :: Array IntentTemplate } -> Template
 procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
 
--- | A Deal: a Proposal with no procedure. Its transfers come first, then its transforms.
-deal :: { signers :: Array String, intents :: Array IntentTemplate } -> Template
-deal r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Nothing }
+-- | A Deal: a Proposal with no procedure, bundling only transfers and transforms (`dealIntent`). Its
+-- | transfers come first, then its transforms, each run by the acting Entity. A Deal of any other
+-- | Intent has no form here, so it does not typecheck.
+deal
+  :: { signers :: Array String
+     , transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr }
+     , transforms :: Array { transformation :: String, quantity :: Expr }
+     }
+  -> Template
+deal r = ProposalT
+  { signers: map Id r.signers
+  , intents: map (\x -> Transfer { from: Id x.from, to: Id x.to, resource: Id x.resource, quantity: x.quantity }) r.transfers <> map selfTransform r.transforms
+  , procedure: Nothing
+  }
 
 -- | Enact the restriction `target` enacted against this Entity last round.
 reciprocate :: { target :: String } -> Template

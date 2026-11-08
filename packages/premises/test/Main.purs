@@ -214,9 +214,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
           Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
+    it "a Deal of a Transfer and a Transform round-trips through the premise form" do
+      let
+        p = { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "plant", quantity: lit 1 } ] } ] ], sign: [] }
+      (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
+
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
-        p = { rules: [ rule [] [ deal { signers: [ "DE" ], intents: [ I.transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 } ] } ] ], sign: [] }
+        p = { rules: [ rule [] [ deal { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
       case decodeStrategy (encodeStrategy p) of
         Left e -> fail (show e)
         Right prog -> do

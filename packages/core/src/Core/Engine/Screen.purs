@@ -17,7 +17,7 @@ import Core.Authority (authorized, executor, governs, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ProposalId, RuleF(..), RuleChangeF(..), SignedProposal, Transferability(..))
+import Core.Types (Capability(..), CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Pair, Proposal, ProposalId, RuleF(..), RuleChangeF(..), SignedProposal, Transferability(..), dealIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, filter, length, nub, null)
 import Data.Either (Either(..), note)
@@ -78,14 +78,9 @@ screen w duplicated { proposal: p, signatures } =
     deal = isNothing p.procedure && any (_ /= p.author) p.signers
     reject reason = Left [ rejection w.round p.id reason ]
     ownCaps = capabilitiesOf w p.author
-    tradeOrRule = case _ of
-      Trade _ -> true
-      Route _ -> true
-      ChangeRule _ -> true
-      _ -> false
     ordinary
       | not (all (_ `elem` signed) signers) = Left [ lapse w.round p.id ]
-      | deal && any tradeOrRule p.intents = reject DealBundlesOnlyTransfers
+      | deal && not (all dealIntent p.intents) = reject DealBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
           Right tariffs -> Right { proposal: p, deal, tariffs, outcome: [], routes: routesOf w p.author ownCaps p.intents }

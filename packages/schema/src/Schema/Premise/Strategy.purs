@@ -16,7 +16,7 @@ import Core.Query (transfersOf, transformsOf)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, stringShape, unitShape)
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
+import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, dealIntent, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
@@ -399,7 +399,7 @@ procedureIntentsShape = iso Array.catMaybes (map Just) (arrayOf procedureIntent)
 
 -- | Whether a Deal's Intents are its transfers, then its transforms, all run by the acting Entity.
 dealShaped :: Array IntentTemplate -> Boolean
-dealShaped xs = Array.all isSelfTransform fs && xs == ts <> fs
+dealShaped xs = Array.all dealIntent xs && Array.all isSelfTransform fs && xs == ts <> fs
   where
   ts = Array.filter isTransfer xs
   fs = Array.filter isTransform xs

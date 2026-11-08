@@ -98,6 +98,9 @@ spec = do
       contains (Pattern (prose jointReplyShape.desc)) interpretPrompt `shouldEqual` true
       contains (Pattern "agreed") interpretPrompt `shouldEqual` true
 
+    it "the joint pass's prompt states the Deal rule screening applies" do
+      contains (Pattern "bundles only Transfer and Transform Intents") interpretPrompt `shouldEqual` true
+
   describe "Reply decoding" do
     it "a joint reply decodes into its Proposals, as the model states them" do
       case decodeJoint ("{\"proposals\":[" <> stringify (encodeWith Snapshot proposedDealShape sample) <> "]}") of

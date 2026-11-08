@@ -49,7 +49,7 @@ import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
 import Schema.Build.Decision (passive, orderAt, selfAccessBan, selfTransform, asTemplate, deal, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
-import Schema.Build.Intent (enactWithholding, repeal, transfer)
+import Schema.Build.Intent (enactWithholding, repeal)
 import Schema.Premise.Strategy (presetsShape)
 import Schema.Round (Delivery, Expect)
 import Core.Shape (encodeWith, Format(..))
@@ -101,7 +101,7 @@ jp :: Strategy
 jp =
   { rules:
       [ rule [ eqQ roundQ (lit 3) ]
-          [ deal { signers: [ N.jp, N.india ], intents: [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ] } ]
+          [ deal { signers: [ N.jp, N.india ], transfers: [ { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 20 } ], transforms: [] } ]
       ]
   , sign: []
   }
@@ -121,10 +121,8 @@ enco =
   shipment =
     [ deal
         { signers: [ N.enco, N.india, N.ship ]
-        , intents:
-            [ transfer { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 5 }
-            , selfTransform { transformation: N.energyShipping, quantity: lit 5 }
-            ]
+        , transfers: [ { from: selfEntity, to: N.india, resource: N.energy, quantity: lit 5 } ]
+        , transforms: [ { transformation: N.energyShipping, quantity: lit 5 } ]
         }
     ]
 

@@ -17,7 +17,7 @@ import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -448,6 +448,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = baseWorld [ eu ]
       rejections (resolveRound w [ procedureSubmit (Id "DE") ]) `shouldEqual` [ "a Tariff applies only to the enacting jurisdiction" ]
       rejections (resolveRound w [ procedureSubmit (Id "EU") ]) `shouldEqual` []
+    it "a deal bundles Transfers and Transforms, and only those" do
+      let
+        w = (baseWorld [ actor "A" [ MayTrade (Id "EM"), MayTransform (Id "plant") ], actor "B" [] ]) { markets = Map.singleton (Id "EM") (market [ "A" ]) }
+        deal intents = { proposal: { id: proposalId 1 (Id "A") 0, author: Id "A", intents, signers: [ Id "B" ], procedure: Nothing }, signatures: [ Id "B" ] }
+        give = Transfer { from: Id "A", to: Id "B", resource: Id "M", quantity: Q.fromInt 1 }
+        run = Transform { by: Id "A", transformation: Id "plant", quantity: Q.fromInt 1 }
+        order = Trade { market: Id "EM", quantity: Q.fromInt 1, limitPrice: Nothing }
+        bundled = [ "deals bundle only Transfers and Transforms" ]
+      rejections (resolveRound w [ deal [ give, order ] ]) `shouldEqual` bundled
+      -- a Transform passes the deal rule: any rejection is the unknown Transformation, not the bundle
+      rejections (resolveRound w [ deal [ give, run ] ]) `shouldNotEqual` bundled
+      map dealIntent [ give, run, order ] `shouldEqual` [ true, true, false ]
+
     it "a procedure's Intents face the same market access check" do
       let
         proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayTrade (Id "EM") ] }

@@ -91,7 +91,7 @@ roundTripStrategies =
     }
   , { rules:
         [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
-        , D.rule [] [ deal { signers: [ "DE", "IN" ], intents: [ transfer { from: "self", to: "IN", resource: "E", quantity: lit 2 }, selfTransform { transformation: "t", quantity: lit 1 } ] } ]
+        , D.rule [] [ deal { signers: [ "DE", "IN" ], transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "t", quantity: lit 1 } ] } ]
         ]
     , sign: []
     }
@@ -165,6 +165,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes a trade with an optional limit" do
       intent (json """{ "trade": { "market": "energy-atlantic", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
+    it "a Trade has no form in a Deal: it cannot be built by `deal` (a compile error), and as JSON does not read as one" do
+      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"deal":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
+
     it "decodes a routed trade, with a null market, by its pair" do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")
         `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
