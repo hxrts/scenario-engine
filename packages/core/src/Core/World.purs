@@ -9,13 +9,17 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Core.Types (BehaviorDomain, CapacityEffect, CapacityRef, CostFunction, Entity, EntityId, Estimator, Id, Interval, Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Core.Types (BehaviorDomain, Capability(..), CapacityEffect, CapacityRef, CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
+import Data.Const (Const(..))
 import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe (Maybe)
-import Data.Newtype (unwrap)
+import Data.Newtype (un, unwrap)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 import Data.Show.Generic (genericShow)
 
 -- | The condition on a Transfer of one Resource: whether parties who share a Market for it are exempt,
@@ -676,3 +680,130 @@ worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed un
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
+
+-- | What to do at each kind of reference a setting's World State holds. `groupKey` is the Entity a group
+-- | entry is about, separate from the group it counts as. An Aggregate's members and a procedure's weights are
+-- | whole positions, since what becomes of them depends on the list they are in.
+type WorldPositions f =
+  { entity :: EntityId -> f EntityId
+  , groupKey :: EntityId -> f EntityId
+  , resource :: ResourceId -> f ResourceId
+  , market :: MarketId -> f MarketId
+  , transformation :: TransformationId -> f TransformationId
+  , capacity :: CapacityRef -> f CapacityRef
+  , ruleKind :: RuleKindId -> f RuleKindId
+  , members :: EntityId -> Array EntityId -> f (Array EntityId) -- the Aggregate, then its members
+  , weights :: Map EntityId Ratio -> f (Map EntityId Ratio)
+  }
+
+-- | Every position kept as it is. A walk overrides the positions it changes.
+sameWorld :: forall f. Applicative f => WorldPositions f
+sameWorld = { entity: pure, groupKey: pure, resource: pure, market: pure, transformation: pure, capacity: pure, ruleKind: pure, members: \_ -> pure, weights: pure }
+
+-- | Every position read as nothing. A fold overrides the positions it reads.
+ignoreWorld :: forall r. Monoid r => WorldPositions (Const r)
+ignoreWorld =
+  { entity: none, groupKey: none, resource: none, market: none, transformation: none, capacity: none, ruleKind: none, members: \_ -> none, weights: none }
+  where
+  none :: forall a b. a -> Const r b
+  none _ = Const mempty
+
+-- | What a world's references read as, in the order `traverseWorld` visits them.
+foldWorld :: forall m r. Monoid m => WorldPositions (Const m) -> Record (WorldFields r) -> m
+foldWorld p = un Const <<< traverseWorld p
+
+-- | Rebuild the references of a setting's World State, position by position. The walk covers what a setting
+-- | authors. What only a run produces (deliveries, factors, events, the Representations instantiation adds) is
+-- | not walked.
+traverseWorld :: forall f r. Applicative f => WorldPositions f -> Record (WorldFields r) -> f (Record (WorldFields r))
+traverseWorld t w =
+  ( \markets entities transformations recurring groups rules scheduled numeraire focus flowGates ->
+      w { markets = markets, entities = entities, transformations = transformations, recurring = recurring, groups = groups, rules = rules, scheduled = scheduled, numeraire = numeraire, focus = focus, flowGates = flowGates }
+  )
+    <$> traverse marketAt w.markets
+    <*> traverse entityAt w.entities
+    <*> traverse transformationAt w.transformations
+    <*> traverse recurringAt w.recurring
+    <*> keyedBy t.groupKey t.entity w.groups
+    <*> traverse ruleAt w.rules
+    <*> traverse (traverse ruleAt) w.scheduled
+    <*> t.resource w.numeraire
+    <*> traverse (\f -> f { resource = _ } <$> t.resource f.resource) w.focus
+    <*> traverse flowGateAt w.flowGates
+  where
+  keyedBy :: forall k v u. Ord k => (k -> f k) -> (v -> f u) -> Map k v -> f (Map k u)
+  keyedBy key value = map Map.fromFoldable <<< traverse (\(Tuple k v) -> Tuple <$> key k <*> value v) <<< (Map.toUnfoldable :: Map k v -> Array (Tuple k v))
+
+  holdings :: Holdings -> f Holdings
+  holdings = keyedBy t.resource pure
+
+  marketAt m = (\access base quote reserves -> m { access = access, base = base, quote = quote, reserves = reserves })
+    <$> traverse t.entity m.access
+    <*> t.resource m.base
+    <*> t.resource m.quote
+    <*> holdings m.reserves
+
+  entityAt e = (\accounts capabilities kind -> e { accounts = accounts, capabilities = capabilities, kind = kind })
+    <$> holdings e.accounts
+    <*> traverse capabilityAt e.capabilities
+    <*> entityKindAt e.id e.kind
+  entityKindAt self = case _ of
+    Aggregate a -> (\members procedures -> Aggregate a { members = members, procedures = procedures })
+      <$> t.members self a.members
+      <*> traverse procedureAt a.procedures
+    other -> pure other
+  procedureAt p = (\weights authorizes -> p { weights = weights, authorizes = authorizes })
+    <$> t.weights p.weights
+    <*> traverse capabilityAt p.authorizes
+  capabilityAt = case _ of
+    MayTrade m -> MayTrade <$> t.market m
+    MayTransfer r -> MayTransfer <$> t.resource r
+    MayTransform x -> MayTransform <$> t.transformation x
+    MayEnact k -> MayEnact <$> t.ruleKind k
+
+  transformationAt x = (\inputs outputs escrowPerUnit capacity effects payment -> x { inputs = inputs, outputs = outputs, escrowPerUnit = escrowPerUnit, capacity = capacity, effects = effects, payment = payment })
+    <$> holdings x.inputs
+    <*> holdings x.outputs
+    <*> holdings x.escrowPerUnit
+    <*> traverse t.capacity x.capacity
+    <*> traverse (\ef -> (\capacity holder -> ef { capacity = capacity, holder = holder }) <$> t.capacity ef.capacity <*> traverse t.entity ef.holder) x.effects
+    <*> traverse (\p -> (\to resource -> p { to = to, resource = resource }) <$> t.entity p.to <*> t.resource p.resource) x.payment
+
+  recurringAt r = (\resource source destination amount -> r { resource = resource, source = source, destination = destination, amount = amount })
+    <$> t.resource r.resource
+    <*> sourceAt r.source
+    <*> destinationAt r.destination
+    <*> amountAt r.amount
+  sourceAt = case _ of
+    FromEntity e -> FromEntity <$> t.entity e
+    other -> pure other
+  destinationAt = case _ of
+    ToEntity e -> ToEntity <$> t.entity e
+    ToSink -> pure ToSink
+  amountAt = case _ of
+    CapacityHeld c -> CapacityHeld <$> t.capacity c
+    Measured m -> (\party resource cause -> Measured m { query = m.query { party = party, resource = resource, cause = cause } })
+      <$> t.entity m.query.party
+      <*> traverse t.resource m.query.resource
+      <*> causePatternAt m.query.cause
+    other -> pure other
+  causePatternAt = case _ of
+    ConversionOf x -> ConversionOf <$> t.transformation x
+    other -> pure other
+
+  ruleAt = case _ of
+    FlowRule x -> (\kind governor counterparty over effect -> FlowRule x { kind = kind, scope = x.scope { governor = governor, counterparty = counterparty, over = over }, effect = effect })
+      <$> t.ruleKind x.kind
+      <*> t.entity x.scope.governor
+      <*> t.entity x.scope.counterparty
+      <*> traverse t.resource x.scope.over
+      <*> flowEffectAt x.effect
+    CapacityRule x -> (\kind capacity -> CapacityRule x { kind = kind, capacity = capacity }) <$> t.ruleKind x.kind <*> t.capacity x.capacity
+  flowEffectAt = case _ of
+    Levy l -> (\in' basis -> Levy l { in = in', basis = basis }) <$> t.resource l.in <*> levyBasisAt l.basis
+    Block -> pure Block
+  levyBasisAt = case _ of
+    PerUnit -> pure PerUnit
+    AdValorem m -> AdValorem <$> t.market m
+
+  flowGateAt g = (\resource bundled -> g { resource = resource, bundled = bundled }) <$> t.resource g.resource <*> traverse t.transformation g.bundled

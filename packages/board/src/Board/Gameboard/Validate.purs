@@ -10,7 +10,6 @@ module Board.Gameboard.Validate
   ) where
 
 import Prelude
-import Data.Foldable (foldMap)
 
 import Core.Map (values)
 
@@ -20,8 +19,9 @@ import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, In
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, FlowEffect(..), LevyBasis(..), RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, idText)
-import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), CausePattern(..))
+import Core.Types (Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
+import Core.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld)
+import Data.Const (Const(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
@@ -46,7 +46,6 @@ validateGameboard gb config =
   where
   w = gb.world
   entities = values w.entities
-  markets = values w.markets
   facilities = values w.transformations
   aggregates = mapMaybe (\e -> map { entity: e, aggregate: _ } (aggregateOf e)) entities
   -- whether the Entity with this id is an Aggregate (an unknown id is not)
@@ -60,83 +59,10 @@ validateGameboard gb config =
         <> map show (mapMaybe producedFrom w.recurring)
     )
 
-  -- An unknown name in any position: one error per name.
-  unknown :: forall t. RefKind -> Array (Id t) -> Array ValidationError
-  unknown kind = unknownNames (gameboardNames gb) <<< map (Tuple kind <<< idText)
-  unknownEntity = unknown RefEntity
-  unknownResource = unknown RefResource
-  unknownTransformation = unknown RefTransformation
-  -- a capacity named by a facility, effect, rule, or production entry must be held by some Entity
-  unknownCapacity xs = map (UnknownReference RefCapacity <<< show) (filter (\c -> not (show c `elem` held)) xs)
-
-  references =
-    unknownEntity (concatMap (\m -> m.access) markets)
-      <> unknownResource (concatMap (\m -> [ m.base, m.quote ] <> fromFoldable (Map.keys m.reserves)) markets)
-      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs) <> fromFoldable (Map.keys t.escrowPerUnit)) facilities)
-      <> unknownCapacity (mapMaybe _.capacity facilities)
-      <> unknownCapacity (concatMap (\t -> map _.capacity t.effects) facilities)
-      <> unknownEntity (concatMap (\t -> mapMaybe _.holder t.effects) facilities)
-      <> unknownEntity (map _.to (mapMaybe _.payment facilities))
-      <> unknownResource (map _.resource (mapMaybe _.payment facilities))
-      <> unknownResource (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities)
-      <> map (UnknownReference RefCapacity) (filter (\c -> not (c `elem` referenced)) held)
-      <> concatMap recurringRefs w.recurring
-      <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.groups :: Array _))
-      <> concatMap ruleRefs (values w.rules)
-      <> concatMap capabilityRefs (concatMap _.capabilities (values w.entities))
-      <> concatMap capabilityRefs (concatMap (\x -> concatMap _.authorizes (values x.aggregate.procedures)) aggregates)
-      <> unknownResource ([ w.numeraire ] <> foldMap (pure <<< _.resource) w.focus)
-      <> concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective (values gb.actors)) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
-      <> unknownEntity (concatMap coverageOf (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks))
-      <> map (UnknownReference RefEntity <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
-      <> unknownResource (map _.resource w.flowGates)
-      <> unknownTransformation (mapMaybe _.bundled w.flowGates)
-      <> unknownEntity (map _.target gb.schemes)
-      <> unknownEntity (concatMap _.eligibleActors gb.schemes)
-      <> map (\s -> UnknownReference RefResource (show s.observes)) (filter (\s -> not (Map.member s.observes w.resources)) gb.schemes)
-      <> unknownEntity (concatMap _.aggregate.members aggregates)
-      <> unknownEntity
-        (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)
-      <> map (\x -> UnknownReference RefPolicy (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
-  ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
-    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over <> levyRefs x.effect
-    CapacityRule x -> unknownCapacity [ x.capacity ]
-  unknownKind k = [ UnknownReference RefRuleKind (show k) ]
-  levyRefs = case _ of
-    Levy l -> unknownResource [ l.in ] <> case l.basis of
-      PerUnit -> []
-      AdValorem m -> unknown RefMarket [ m ]
-    Block -> []
-  -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind
-  capabilityRefs = case _ of
-    MayTrade m -> unknown RefMarket [ m ]
-    MayTransfer r -> unknownResource [ r ]
-    MayTransform t -> unknownTransformation [ t ]
-    MayEnact k -> if Map.member k w.ruleKinds then [] else unknownKind k
-  -- a criterion's metric, and the metric its bound reads when it is one
-  boundMetric = case _ of
-    Fixed _ -> []
-    Of m -> [ m ]
-
-  metricRefs :: MetricRef -> Array ValidationError
-  metricRefs m = unknownEntity m.entities <> case m.measure of
-    HoldingOf r -> unknownResource [ r ]
-    CapacityAmount c -> unknownCapacity [ c ]
-    ShortfallOf r -> unknownResource [ r ]
-    ShortfallRounds r -> unknownResource [ r ]
-    Schema.PayeeReceipts -> []
-    VolumeOf t -> unknownTransformation [ t ]
-  -- the Aggregate a coverage fallback names
-  coverageOf = case _ of
-    ImplicitCoverage agg -> [ agg ]
-    _ -> []
+  references = unknownNames (gameboardNames gb) (worldRefs w <> gameboardRefs gb config)
+    <> map (UnknownReference RefCapacity) (filter (\c -> not (c `elem` referenced)) held)
+    <> map (UnknownReference RefEntity <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
-  -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
-  fallbackPolicies = concatMap institutional (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks)
-  institutional = case _ of
-    InstitutionalPolicy p -> [ p ]
-    _ -> []
-  aggregatePolicies = map _.aggregate.policy aggregates
   capacities = concatMap productionHeld w.recurring
     <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
     <> concatMap schemeTarget gb.schemes
@@ -151,20 +77,6 @@ validateGameboard gb config =
     CapacityHeld c -> Just c
     _ -> Nothing
 
-  -- every name a recurring rule uses
-  recurringRefs :: RecurringFlow -> Array ValidationError
-  recurringRefs r = unknownResource [ r.resource ] <> unknownEntity (sources r) <> unknownEntity (dests r) <> amountRefs r.amount
-  sources r = case r.source of
-    FromEntity e -> [ e ]
-    _ -> []
-  dests r = case r.destination of
-    ToEntity e -> [ e ]
-    ToSink -> []
-  amountRefs = case _ of
-    Measured { query } -> unknownEntity [ query.party ] <> unknownResource (fromFoldable query.resource) <> case query.cause of
-      ConversionOf t -> unknownTransformation [ t ]
-      _ -> []
-    _ -> []
   coverageAggregate (Tuple e d) = case d.fallback of
     Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
@@ -182,6 +94,62 @@ validateGameboard gb config =
       case instantiate gb config, instantiate gb (withoutActor e config) of
         Right a, Right b -> either (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
         _, _ -> []
+    _ -> []
+
+-- | Every name the world refers to, each with what it must name.
+worldRefs :: forall r. Record (WorldFields r) -> Array (Tuple RefKind String)
+worldRefs = foldWorld
+  (ignoreWorld :: WorldPositions (Const (Array (Tuple RefKind String))))
+    { entity = ref RefEntity
+    , groupKey = ref RefEntity
+    , resource = ref RefResource
+    , market = ref RefMarket
+    , transformation = ref RefTransformation
+    , capacity = ref RefCapacity
+    , ruleKind = ref RefRuleKind
+    , members = \_ -> Const <<< map (name RefEntity)
+    , weights = Const <<< map (name RefEntity) <<< fromFoldable <<< Map.keys
+    }
+  where
+  name :: forall t. RefKind -> Id t -> Tuple RefKind String
+  name kind x = Tuple kind (idText x)
+
+  ref :: forall t b. RefKind -> Id t -> Const (Array (Tuple RefKind String)) b
+  ref kind x = Const [ name kind x ]
+
+-- | The names the Gameboard's objectives, schemes, and fallbacks refer to, and the configuration's.
+gameboardRefs :: Gameboard -> InstantiationConfig -> Array (Tuple RefKind String)
+gameboardRefs gb config =
+  concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective actors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
+    <> map (name RefEntity) (concatMap coverageOf fallbacks)
+    <> concatMap (\s -> [ name RefEntity s.target ] <> map (name RefEntity) s.eligibleActors <> [ name RefResource s.observes ]) gb.schemes
+    <> map (name RefPolicy) (map _.policy (mapMaybe aggregateOf (values gb.world.entities)) <> concatMap _.npc actors <> concatMap institutional fallbacks)
+  where
+  actors = values gb.actors
+  -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
+  fallbacks = mapMaybe _.fallback actors <> values config.fallbacks
+
+  name :: forall t. RefKind -> Id t -> Tuple RefKind String
+  name kind x = Tuple kind (idText x)
+  -- a criterion's metric, and the metric its bound reads when it is one
+  boundMetric = case _ of
+    Fixed _ -> []
+    Of m -> [ m ]
+
+  metricRefs :: MetricRef -> Array (Tuple RefKind String)
+  metricRefs m = map (name RefEntity) m.entities <> case m.measure of
+    HoldingOf r -> [ name RefResource r ]
+    CapacityAmount c -> [ name RefCapacity c ]
+    ShortfallOf r -> [ name RefResource r ]
+    ShortfallRounds r -> [ name RefResource r ]
+    Schema.PayeeReceipts -> []
+    VolumeOf t -> [ name RefTransformation t ]
+  -- the Aggregate a coverage fallback names
+  coverageOf = case _ of
+    ImplicitCoverage agg -> [ agg ]
+    _ -> []
+  institutional = case _ of
+    InstitutionalPolicy p -> [ p ]
     _ -> []
 
 -- | What a reference can name.

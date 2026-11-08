@@ -16,12 +16,14 @@ import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RuleF(..))
-import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, seeded)
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..))
+import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, sameWorld, seeded, traverseWorld)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, nubByEq, null)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Identity (Identity(..))
+import Data.Newtype (un)
 import Data.Tuple (Tuple(..))
 
 -- | Controllers and fallbacks, account partitioning and procedure weights, Representation
@@ -90,27 +92,21 @@ applyFallback w (Tuple e fb) = case fb of
 mergeInto :: EntityId -> EntityId -> UnseededWorld -> UnseededWorld
 mergeInto agg e w = case Map.lookup e w.entities of
   Nothing -> w
-  Just gone -> w
-    { entities = map membership (Map.update (Just <<< absorb gone) agg (Map.delete e w.entities))
-    , markets = map (\m -> m { access = nub (map retarget m.access) }) w.markets
-    , recurring = normalize (mergeRequirements (dedupProduction (filter notSelfFlow (map retargetRule w.recurring))))
-    , groups = map retarget (Map.delete e w.groups)
-    , transformations = map facility w.transformations
-    , rules = map rule w.rules
-    , scheduled = map (map rule) w.scheduled
-    }
+  Just gone ->
+    let
+      moved = un Identity (traverseWorld retargeting (w { entities = Map.update (Just <<< absorb gone) agg (Map.delete e w.entities), groups = Map.delete e w.groups }))
+    in
+      moved
+        { markets = map (\m -> m { access = nub m.access }) moved.markets
+        , recurring = normalize (mergeRequirements (dedupProduction (filter notSelfFlow moved.recurring)))
+        }
   where
   retarget x = if x == e then agg else x
-  retargetRule r = r
-    { source = case r.source of
-        FromEntity x -> FromEntity (retarget x)
-        other -> other
-    , destination = case r.destination of
-        ToEntity x -> ToEntity (retarget x)
-        ToSink -> ToSink
-    , amount = case r.amount of
-        Measured m -> Measured m { query = m.query { party = retarget m.query.party } }
-        other -> other
+  -- every reference to the Actor is to the Aggregate now: rules, payments, holders, and access lists alike
+  retargeting = sameWorld
+    { entity = Identity <<< retarget
+    , members = \self -> Identity <<< members self
+    , weights = Identity <<< moveWeight
     }
   notSelfFlow r = case r.source, r.destination of
     FromEntity a, ToEntity b -> a /= b
@@ -127,25 +123,10 @@ mergeInto agg e w = case Map.lookup e w.entities of
   foldWeights a = case aggregateOf a of
     Just x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
     Nothing -> a.kind
-  -- a payment's recipient and an effect's holder that were the Actor are the Aggregate now
-  facility t = t
-    { payment = map (\p -> p { to = retarget p.to }) t.payment
-    , effects = map (\ef -> ef { holder = map retarget ef.holder }) t.effects
-    }
-  -- a flows Rule's Entities pass to the Aggregate
-  rule = case _ of
-    FlowRule x -> FlowRule x { scope = x.scope { governor = retarget x.scope.governor, counterparty = retarget x.scope.counterparty } }
-    r -> r
-  -- the Actor's membership and procedure weight pass to the Aggregate in every Aggregate's lists;
-  -- an Aggregate is never its own member (lists that do not name the Actor are left as written)
-  membership x = case x.kind of
-    Aggregate a -> x
-      { kind = Aggregate a
-          { members = if elem e a.members then filter (\m -> m /= x.id) (nub (map retarget a.members)) else a.members
-          , procedures = map (\p -> p { weights = moveWeight p.weights }) a.procedures
-          }
-      }
-    _ -> x
+  -- the Actor's membership passes to the Aggregate in every Aggregate's list; an Aggregate is never its own
+  -- member (lists that do not name the Actor are left as written)
+  members self ms = if elem e ms then filter (_ /= self) (nub (map retarget ms)) else ms
+  -- its procedure weight passes the same way
   moveWeight ws = case Map.lookup e ws of
     Nothing -> ws
     Just wt -> Map.insert agg (maybe wt (Q.add wt) (Map.lookup agg ws)) (Map.delete e ws)
