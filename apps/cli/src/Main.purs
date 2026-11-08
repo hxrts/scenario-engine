@@ -5,6 +5,7 @@
 -- | errors (exit status 1). `presets` prints the shipped preset names, one per line (`scripts/validate.sh` reads them).
 module Main (main) where
 
+import Schema.Gameboard (gameboardRef)
 import Prelude
 
 import Adapters.Random (resolveSeed)
@@ -70,7 +71,7 @@ runSetting setting presetName rounds given = do
         case simulate seed game of
           Left e -> fail (show e)
           Right out -> do
-            log (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", every seat " <> presetName <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
+            log (gameboardRef parts.gameboard <> ", every seat " <> presetName <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
             void $ foldM (\w r -> summarize w r $> r.world) game.world out.records
             case out.final of
               Left e -> fail (show e)

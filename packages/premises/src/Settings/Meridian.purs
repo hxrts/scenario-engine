@@ -16,7 +16,7 @@ module Settings.Meridian
 
 import Prelude (identity, map, negate, not, show, (+), (<>))
 
-import Settings.Meridian.Names (n)
+import Settings.Meridian.Names (meridianId, meridianVersion, n)
 import Settings.Meridian.Entities.Seats (seatActors)
 import Settings.Meridian.Rules (ruleKinds)
 
@@ -125,8 +125,8 @@ gameboardWith d = case assemble (energy <> shipping <> defence <> softPower) of
     let
       circulation' = circulation { flows = map d.flow p.flows, requirements = map d.requirement requirements }
     in
-      { id: "meridian"
-      , version: "v0"
+      { id: meridianId
+      , version: meridianVersion
       , horizon: years
       , rounds: { min: 4, max: 8 }
       , label: Just testLabel
@@ -151,7 +151,7 @@ gameboardWith d = case assemble (energy <> shipping <> defence <> softPower) of
 
 -- | The reference setting as a setting.
 meridian :: Dials -> Setting
-meridian d = { id: "meridian", version: "v0", gameboard: gameboardWith d, config: instantiation, presets: presetBinding }
+meridian d = { id: meridianId, version: meridianVersion, gameboard: gameboardWith d, config: instantiation, presets: presetBinding }
 
 -- | What Meridian's seat presets act on.
 presetBinding :: PresetBinding

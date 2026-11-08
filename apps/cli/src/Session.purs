@@ -49,7 +49,7 @@ import Exit (fail)
 import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Game.Setting (Setting(..))
 import Game.Recipe (encodeSpec)
-import Schema.Gameboard (gameIdOf)
+import Schema.Gameboard (gameIdOf, gameboardRef)
 import Settings.Load (loadFrom)
 
 type Options = { setting :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
@@ -85,7 +85,7 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })
       liftEffect $ either (\why -> fail ("error: " <> why)) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
-      liftEffect $ writeLine (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
+      liftEffect $ writeLine (gameboardRef parts.gameboard <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
       out <- attempt $ runLive
         { seed

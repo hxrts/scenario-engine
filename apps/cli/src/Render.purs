@@ -15,12 +15,13 @@ import Data.Array (concatMap, find, sortWith)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Foldable (for_)
+import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
 import Settings.Meridian.Fixtures as Fixtures
 import Settings.Catalog (settings)
-import Settings.Compose (Setting, directory, files, parts, presetsJson)
+import Settings.Compose (Setting, directory, files, parts, presetsJson, unsectionedKeys)
 import Schema.Setting.Fixture (decodeLiteral)
 import Settings.Layout (fixturePath, presetsFile)
 
@@ -33,12 +34,18 @@ compile = do
   validate
   pure (map (\(Tuple path j) -> { path, text: render j }) outputs)
 
+-- | A setting's keys are all in some section file, and it decodes and checks as the loader will read it.
+checked :: Setting -> Either String Unit
+checked c = case unsectionedKeys c of
+  [] -> void (parts c)
+  keys -> Left (directory c <> ": Gameboard keys in no section file: " <> joinWith ", " keys)
+
 -- | One setting's files alone, for a production build: no other setting, no fixtures, no capstone.
 compileOnly :: String -> Either String (Array Output)
 compileOnly id = case find (\c -> c.id == id) settings of
   Nothing -> Left ("no setting named " <> id)
   Just c -> do
-    _ <- parts c
+    checked c
     pure (map (\(Tuple path j) -> { path, text: render j }) (settingFiles c))
 
 -- | Every compiled file's path under the setting root and its JSON.
@@ -55,7 +62,7 @@ settingFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (
 -- | Policies, the presets against the Gameboard (`checkSetting`), and every fixture.
 validate :: Either String Unit
 validate = do
-  for_ settings parts
+  for_ settings checked
   for_ Fixtures.fixtures \(Tuple name j) -> decodeErrorAt name (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

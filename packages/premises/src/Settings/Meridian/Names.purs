@@ -3,6 +3,8 @@
 -- | this record, so a name is spelled once (`n.us`, `n.energyAtlantic`).
 module Settings.Meridian.Names where
 
+import Settings.Layout (settingDir)
+
 -- | The type of `n`.
 type Names =
   { us :: String
@@ -133,8 +135,14 @@ n =
 
 -- The compiled setting's directory under the setting root --------------------------------------
 
+meridianId :: String
+meridianId = "meridian"
+
+meridianVersion :: String
+meridianVersion = "v0"
+
 meridianDir :: String
-meridianDir = "meridian/v0"
+meridianDir = settingDir meridianId meridianVersion
 
 -- Seats ---------------------------------------------------------------------------------------
 

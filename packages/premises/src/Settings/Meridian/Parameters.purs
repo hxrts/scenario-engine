@@ -32,8 +32,6 @@ import Schema.Gameboard (Scheme)
 
 import Core.Types (Estimator, Id(..))
 
-import Prelude
-
 import Settings.Kit.Strategies (Supplier, supplier)
 
 supplierAtlantic :: Supplier

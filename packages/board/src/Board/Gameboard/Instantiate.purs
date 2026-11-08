@@ -11,7 +11,7 @@ import Prelude
 
 import Core.Map (sumMaps)
 
-import Schema.Gameboard (Fallback(..), Gameboard, InitialWorld, InstantiationConfig)
+import Schema.Gameboard (Fallback(..), Gameboard, gameboardRef, InitialWorld, InstantiationConfig)
 import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
 import Core.Num as Q
@@ -39,7 +39,7 @@ instantiate gb config =
     if not (null errors) then Left errors
     else Right
       { world: final
-      , manifest: manifestOf (gb.id <> "@" <> gb.version) final
+      , manifest: manifestOf (gameboardRef gb) final
       }
   where
   selected e = Map.member e config.seats || Map.member e config.npcs

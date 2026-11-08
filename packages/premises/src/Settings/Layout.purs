@@ -39,6 +39,10 @@ instantiationFile = "instantiation.json"
 presetsFile :: String
 presetsFile = "presets.json"
 
+-- | A setting's directory under the setting root (`meridian/v0`).
+settingDir :: String -> String -> String
+settingDir id version = id <> "/" <> version
+
 -- Paths under the setting root ----------------------------------------------------------------
 
 fixturesDir :: String

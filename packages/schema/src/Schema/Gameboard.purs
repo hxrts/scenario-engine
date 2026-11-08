@@ -17,6 +17,7 @@ module Schema.Gameboard
   , InstantiationConfig
   , InitialWorld
   , gameIdOf
+  , gameboardRef
   ) where
 
 import Prelude
@@ -36,6 +37,10 @@ import Data.Maybe (Maybe)
 -- | A Gameboard: its world (unseeded), its Actors, Schemes, parameters, horizon, supported round
 -- | counts, optional test-instance label, and its Policy catalog (the Strategies the in-world
 -- | Policies run).
+-- | A Gameboard's reference, `id@version`, as a manifest and the consoles print it.
+gameboardRef :: forall r. { id :: String, version :: String | r } -> String
+gameboardRef g = g.id <> "@" <> g.version
+
 type Gameboard =
   { id :: String
   , version :: String
