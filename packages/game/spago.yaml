@@ -23,4 +23,4 @@ package:
       - spec
       - spec-node
       - sp-testkit
-      - sp-simulator
+      - sp-handlers

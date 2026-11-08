@@ -42,7 +42,7 @@ import Core.Shape (Format(Authored))
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Views.Common (records)
-import Simulator.Simulate (replayGame, resumeWith)
+import Handlers.Simulate (replayGame, resumeWith)
 
 -- | `POST /api/runs/:id/derive`. The body's kind decides what may change:
 --   duplicate, rerun: the source's spec unchanged, under a new name (rerun is the claim that the

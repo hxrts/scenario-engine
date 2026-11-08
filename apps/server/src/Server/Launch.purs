@@ -43,7 +43,7 @@ import Game.Assemble (assemblePreset, checkRounds)
 import Game.Override (Override)
 import Game.Setting (GameboardParts)
 import Game.Recipe (Derivation, encodeSpec)
-import Simulator.Simulate (simulateWith)
+import Handlers.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }

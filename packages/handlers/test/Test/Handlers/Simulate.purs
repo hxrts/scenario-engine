@@ -1,7 +1,7 @@
 -- | The mandatory tests of docs/06_simulator.md §14. Fixture tests cite their fixture and
 -- | use the shared checker; game tests compose `simulate`.
 -- | Pins: docs/06 §14's mandatory test expectations, and the fixture values of docs/05 Part IV.
-module Test.Simulator.Main where
+module Test.Handlers.Simulate (spec) where
 
 import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)
 import Schema.Build.Quantity (q)
@@ -31,12 +31,11 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
 import Settings.Presets (presetNames)
-import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Simulator.Simulate (Checkpoint, fromCheckpoint, simulate)
+import Handlers.Simulate (Checkpoint, fromCheckpoint, simulate)
 import Core.Strategy (Strategy)
 import Adapters.Filesystem (fileOps)
 import Settings.Layout (fixturePath)
@@ -48,12 +47,10 @@ import Game.Types (Game)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow, setting, presetGame, price, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
-import Test.Spec (describe, it)
-import Test.Simulator.Shock as ShockTests
-import Test.Simulator.Capstone as CapstoneTests
+import Test.Spec (Spec, describe, it)
+import Test.Handlers.Shock as ShockTests
+import Test.Handlers.SimCapstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Test.Spec.Reporter.Console (consoleReporter)
-import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Only the named seats play `preset`; every other seat submits nothing.
 someSeats :: GameboardParts -> String -> Array String -> Aff Game
@@ -72,8 +69,8 @@ permuted xs = [ reverse xs, drop 1 xs <> take 1 xs, drop 2 ys <> take 2 ys ]
   where
   ys = reverse xs
 
-main :: Effect Unit
-main = runSpecAndExitProcess [ consoleReporter ] do
+spec :: Spec Unit
+spec = do
   ShockTests.spec setting
   CapstoneTests.spec
   describe "Mandatory tests (docs/06_simulator.md §14)" do

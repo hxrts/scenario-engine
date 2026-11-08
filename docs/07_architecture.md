@@ -50,12 +50,11 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures, and the setting file tree, as typed values. `Settings.Kit` holds the generic definitions, `Settings.Compose` the operations on a Setting, and `Settings.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
+| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client; and `Handlers.Simulate`, the fold over a `Game` and its round records, which imports no `board` or `policy` module | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
 | `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, settings, any handler function |
-| `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game` and its round records | `board` or `policy` imports; settings, views, experiments |
-| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `simulator`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
-| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `simulator` | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
-| `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `simulator`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
+| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `handlers`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
+| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure `Handlers.Simulate` only) | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
+| `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
 | `flags` (`apps/flags`) | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
@@ -73,7 +72,7 @@ pure domain     core                    the engine and the types it reads
 impure seams    effects                 the operations a program may request
                 handlers                the program logic over those operations
                 adapters                raw devices
-runners         simulator, experiments  folds over a Game
+runners         experiments             folds over a Game (the fold itself is handlers' Handlers.Simulate)
 entry points    apps/cli, apps/server, apps/dashboard (apps/flags parses their arguments)
 test support    testkit
 ```
@@ -144,7 +143,7 @@ runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARR
 
 `InWorld` is defined in `core` (`Core.Strategy`). The request and reply types of each operation are declared beside it. Randomness needs no effect: every draw is the pure `Core.Draw.draw` on the game seed or the player seed.
 
-**Replay** (`handlers`, `Handlers.Replay`). `runReplay` answers seats from a run's recorded Proposals and signatures (`docs/04 §11.1`). The test suites use it, and the server reaches it through `Simulator.Simulate.replayGame` to duplicate or rerun a live session.
+**Replay** (`handlers`, `Handlers.Replay`). `runReplay` answers seats from a run's recorded Proposals and signatures (`docs/04 §11.1`). The test suites use it, and the server reaches it through `Handlers.Simulate.replayGame` to duplicate or rerun a live session.
 
 **Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`. Its devices are supplied by the composition root (`apps/cli`, `Session`): the player seed, a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` seats' transcripts are answered by the live handler, a layer over `Handlers.Seats.handleSeats`, which answers everything else:
 
@@ -152,7 +151,7 @@ runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARR
 runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 ```
 
-**Simulation** (`simulator`, `Simulator.Simulate`). The fold over a `Game`. It reads no entropy: the player seed is resolved before the call (`Adapters.Random`).
+**Simulation** (`handlers`, `Handlers.Simulate`). The fold over a `Game`. It reads no entropy: the player seed is resolved before the call (`Adapters.Random`).
 
 ```purescript
 simulate   :: Seed -> Game -> Either GameError SimRun
@@ -181,7 +180,7 @@ route  :: Implementation -> Request -> Effect Reply      -- Implementation = Api
 runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
 ```
 
-`Implementation` is supplied by `apps/server` (`Server.Implementation.implement`). Its reads come from `OBSERVE` and `views`, and its launch, derive, and resume from `game` and `simulator`. The dashboard's `Dashboard.Client` runs its operations through `Handlers.Api.Client` over its `fetch` device. The browser closure of `Handlers.Api.Client` imports no Node module.
+`Implementation` is supplied by `apps/server` (`Server.Implementation.implement`). Its reads come from `OBSERVE` and `views`, and its launch, derive, and resume from `game` and `Handlers.Simulate`. The dashboard's `Dashboard.Client` runs its operations through `Handlers.Api.Client` over its `fetch` device. The browser closure of `Handlers.Api.Client` imports no Node module.
 
 **Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle) is in the handler, so a backend carries only primitives. Prompt text lives only in the model handler; adapters never hold prompts. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
 

@@ -1,7 +1,7 @@
 -- | The analysis checks of the capstone (`Settings.Meridian.Capstone`): an
 -- | eight-round run authored in the DSL, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
--- | The simulator's own checks on the run are in the simulator suite (Test.Simulator.Capstone).
+-- | The simulator's own checks on the run are in the simulator suite (Test.Handlers.SimCapstone).
 -- | Nothing about the run is built in this module.
 module Test.Views.Capstone (spec) where
 
@@ -27,7 +27,7 @@ import Testkit.Capstone (load)
 import Testkit.Meridian (run)
 import Settings.Meridian.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
-import Simulator.Simulate (SimRun)
+import Handlers.Simulate (SimRun)
 import Game.Setting (GameboardParts)
 import Views.Actions as Actions
 import Views.Balance as Balance

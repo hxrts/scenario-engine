@@ -56,4 +56,4 @@ Spec conventions:
 
 ## Tests
 
-The setting fixtures are golden tests against `resolveRound` (`packages/settings/test/Test/Settings/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/06_simulator.md` §14 and `packages/simulator/test`.
+The setting fixtures are golden tests against `resolveRound` (`packages/settings/test/Test/Settings/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/06_simulator.md` §14 and `packages/handlers/test/Test/Handlers/Simulate.purs`.

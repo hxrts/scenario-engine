@@ -30,7 +30,7 @@ intent-walk packages/core/src/Core/Authority.purs authorized the authority rule 
 test-literal packages/schema/test/Main.purs main format-pinning test: JSON text in schema decode tests
 implicit-codec packages/core/test/Main.purs roundTrip format-pinning test: pins the argonaut instance's round trip
 implicit-codec packages/core/test/Main.purs main format-pinning test: pins the wire form of an Intent
-implicit-codec packages/simulator/test/Test/Simulator/Capstone.purs spec format-pinning test: byte identity between the shape and the instance
+implicit-codec packages/handlers/test/Test/Handlers/SimCapstone.purs spec format-pinning test: byte identity between the shape and the instance
 implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
 implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs

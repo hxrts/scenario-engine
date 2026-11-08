@@ -7,7 +7,7 @@ package:
     - sp-checks
     - sp-views
     - sp-game
-    - sp-simulator
+    - sp-handlers
     - arrays
     - either
     - foldable-traversable
@@ -24,7 +24,7 @@ package:
       - sp-testkit
       - sp-checks
       - sp-game
-      - sp-simulator
+      - sp-handlers
       - spec
       - spec-node
       - now

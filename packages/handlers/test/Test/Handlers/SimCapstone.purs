@@ -1,7 +1,7 @@
 -- | The simulator's checks on the capstone (`Settings.Meridian.Capstone`): an eight-round run authored in the DSL,
 -- | checked for invariants, expectations, replay, and resume. The analysis checks on the same run
 -- | (objectives, counterfactual, view models) are in the analysis suite (Test.Views.Capstone).
-module Test.Simulator.Capstone (spec) where
+module Test.Handlers.SimCapstone (spec) where
 
 import Testkit.Meridian (orThrow, run)
 import Prelude
@@ -18,7 +18,7 @@ import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Simulator.Simulate (Checkpoint, fromCheckpoint, simulate)
+import Handlers.Simulate (Checkpoint, fromCheckpoint, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Capstone (load)

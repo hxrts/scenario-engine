@@ -30,7 +30,7 @@ package:
       - aff
       - effect
       - exceptions
-      - sp-simulator
+      - sp-handlers
       - sp-settings
       - strings
       - argonaut-core

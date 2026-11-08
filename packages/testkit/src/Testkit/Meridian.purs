@@ -10,7 +10,7 @@ import Core.Num as Q
 import Core.Query (priceOf)
 import Core.World (RoundResult, WorldState)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Simulator.Simulate (SimRun, simulate)
+import Handlers.Simulate (SimRun, simulate)
 import Test.Spec.Assertions (shouldEqual)
 
 import Adapters.Filesystem (fileOps)

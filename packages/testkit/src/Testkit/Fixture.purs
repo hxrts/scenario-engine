@@ -23,7 +23,7 @@ import Data.Maybe (fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
 import Settings.Literal (literalGame)
 import Schema.Setting.Fixture (Literal, Round)
-import Simulator.Simulate (SimRun, simulate)
+import Handlers.Simulate (SimRun, simulate)
 
 -- | Every failure of a literal setting played through the simulator: an invariant broken in any round,
 -- | an expectation the records do not meet, a round whose Proposals the engine did not receive as

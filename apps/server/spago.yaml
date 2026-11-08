@@ -23,7 +23,6 @@ package:
     - sp-effects
     - sp-handlers
     - sp-adapters
-    - sp-simulator
     - sp-views
     - sp-flags
     - sp-experiments

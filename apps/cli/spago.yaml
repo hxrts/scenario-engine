@@ -21,7 +21,6 @@ package:
     - sp-settings
     - sp-handlers
     - sp-adapters
-    - sp-simulator
     - sp-views
     - sp-flags
     - aff

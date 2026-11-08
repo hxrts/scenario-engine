@@ -2,7 +2,7 @@
 -- | reference disruption. Calm and shocked games have the same seats, presets and player seed, so a
 -- | difference in a seat's proposals is the shock's doing.
 -- | Pins: docs/05 §13.6 (the major shock).
-module Test.Simulator.Shock (spec) where
+module Test.Handlers.Shock (spec) where
 
 import Schema.Build.Quantity (q)
 import Prelude
@@ -22,7 +22,7 @@ import Game.Override (Override(..))
 import Game.Setting (GameboardParts)
 import Settings.Meridian.Parameters (majorShock)
 import Settings.Presets (presetNames)
-import Simulator.Simulate (SimRun)
+import Handlers.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Settings.Meridian.Entities.Seats (seatActors)

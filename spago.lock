@@ -34,8 +34,8 @@
             "console",
             "effect",
             "exceptions",
+            "sp-handlers",
             "sp-settings",
-            "sp-simulator",
             "sp-testkit",
             "sp-views",
             "spec",
@@ -118,7 +118,6 @@
             "sp-handlers",
             "sp-schema",
             "sp-settings",
-            "sp-simulator",
             "sp-views",
             "strings",
             "tuples"
@@ -235,7 +234,6 @@
             "arrays",
             "effect",
             "sp-handlers",
-            "sp-simulator",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -256,8 +254,8 @@
             "sp-checks",
             "sp-core",
             "sp-game",
+            "sp-handlers",
             "sp-schema",
-            "sp-simulator",
             "sp-views"
           ]
         },
@@ -272,7 +270,7 @@
             "now",
             "sp-checks",
             "sp-game",
-            "sp-simulator",
+            "sp-handlers",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -327,7 +325,7 @@
         "test": {
           "dependencies": [
             "effect",
-            "sp-simulator",
+            "sp-handlers",
             "sp-testkit",
             "spec",
             "spec-node"
@@ -465,7 +463,6 @@
             "sp-handlers",
             "sp-schema",
             "sp-settings",
-            "sp-simulator",
             "sp-views",
             "strings",
             "tuples"
@@ -519,35 +516,6 @@
           ]
         }
       },
-      "sp-simulator": {
-        "path": "packages/simulator",
-        "core": {
-          "dependencies": [
-            "effect",
-            "either",
-            "foldable-traversable",
-            "ordered-collections",
-            "prelude",
-            "sp-core",
-            "sp-game",
-            "sp-handlers",
-            "tuples"
-          ]
-        },
-        "test": {
-          "dependencies": [
-            "aff",
-            "argonaut-core",
-            "effect",
-            "sp-adapters",
-            "sp-checks",
-            "sp-settings",
-            "sp-testkit",
-            "spec",
-            "spec-node"
-          ]
-        }
-      },
       "sp-testkit": {
         "path": "packages/testkit",
         "core": {
@@ -566,9 +534,9 @@
             "sp-checks",
             "sp-core",
             "sp-game",
+            "sp-handlers",
             "sp-schema",
             "sp-settings",
-            "sp-simulator",
             "spec",
             "transformers"
           ]

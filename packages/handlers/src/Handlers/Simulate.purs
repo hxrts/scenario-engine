@@ -2,7 +2,7 @@
 -- | machine seats (Strategy, Script) and is pure; `fromCheckpoint` continues a snapshot; the
 -- | `…With` variants persist each round through a store as it completes. The simulator imports no
 -- | setting, board, or policy module: a Game is all it sees.
-module Simulator.Simulate
+module Handlers.Simulate
   ( SimRun
   , Checkpoint
   , simulate

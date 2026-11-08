@@ -504,7 +504,7 @@ Every one of the fifteen seats receives a simple, predictable preset seat Policy
 
 ## 14. Mandatory Tests
 
-Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7d, and 8–12 are in `packages/simulator/test/Main.purs`, test 8b in `packages/simulator/test/Test/Simulator/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Experiments.Agency`, so they run in the experiments suite (`packages/experiments/test/Test/Experiments/Mandatory.purs`). The fixtures and the capstone run that these suites share are in `testkit`.
+Tests that exercise a reference fixture name it and do not re-describe it. Each test passes when the cited fixture's expected values hold and the listed invariants pass. Tests 1–6, 7b–7d, and 8–12 are in `packages/handlers/test/Test/Handlers/Simulate.purs`, test 8b in `packages/handlers/test/Test/Handlers/Shock.purs`, test 13 in `packages/adapters/test/Main.purs`. Tests 7 and 14 analyse runs through `Experiments.Agency`, so they run in the experiments suite (`packages/experiments/test/Test/Experiments/Mandatory.purs`). The fixtures and the capstone run that these suites share are in `testkit`.
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|

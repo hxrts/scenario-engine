@@ -21,15 +21,13 @@ const allowed = {
   effects: ["core", "schema", "board", "policy"],
   handlers: ["core", "schema", "board", "policy", "game", "effects"],
   adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
-  // the fold over a Game: no board or policy
-  simulator: ["core", "game", "effects", "handlers"],
   // the pure views over a stored run: projections and checks, no run and no game
   views: ["core", "schema", "checks"],
   // the counterfactuals and agency over pure `simulate`; presented through views
-  experiments: ["core", "schema", "checks", "views", "game", "simulator"],
+  experiments: ["core", "schema", "checks", "views", "game", "handlers"],
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge
-  testkit: ["core", "schema", "settings", "game", "adapters", "simulator", "checks"],
+  testkit: ["core", "schema", "settings", "game", "adapters", "handlers", "checks"],
   // the flag parser both apps read their arguments with (no workspace dependency)
   flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
@@ -47,31 +45,31 @@ const isTypeImport = (n) => /^[A-Z]/.test(n) && !n.includes("..");
 
 // Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
 const rules = [
-  { name: "pure packages import no effectful module", packages: pure.concat(["settings"]),
-    forbid: (m) => IMPURE_MODULE.test(m) },
+  { name: "pure packages import no effectful module (the pure fold Handlers.Simulate is the experiments' one exception)", packages: pure.concat(["settings"]),
+    forbid: (m) => m !== "Handlers.Simulate" && IMPURE_MODULE.test(m) },
   { name: "board imports no JSON library: the premise format is decoded in schema", packages: ["board"],
     forbid: (m) => /^Data\.Argonaut(\.|$)/.test(m) },
   { name: "schema holds no realization: it imports no board or policy module", packages: ["schema"],
-    forbid: (m) => /^(Board|Policy|Settings|Game|Simulator)(\.|$)/.test(m) },
-  { name: "the views are pure: no simulator, game, experiments, testkit, or effect module (docs/07 §3)", packages: ["views"],
-    forbid: (m) => /^(Simulator|Game|Experiments|Testkit|Settings|Handlers|Adapters)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
-  { name: "experiments are pure: they use the pure simulate and present through views; no board, policy, effect, or testkit module", packages: ["experiments"],
-    forbid: (m) => /^(Board|Policy|Settings|Handlers|Adapters|Testkit)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
+    forbid: (m) => /^(Board|Policy|Settings|Game)(\.|$)/.test(m) },
+  { name: "the views are pure: no simulation, game, experiments, testkit, or effect module (docs/07 §3)", packages: ["views"],
+    forbid: (m) => /^(Game|Experiments|Testkit|Settings|Handlers|Adapters)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
+  { name: "experiments are pure: of handlers they use only the pure simulate (Handlers.Simulate), and present through views; no board, policy, effect, or testkit module", packages: ["experiments"],
+    forbid: (m) => m !== "Handlers.Simulate" && (/^(Board|Policy|Settings|Handlers|Adapters|Testkit)(\.|$)/.test(m) || IMPURE_MODULE.test(m)) },
   { name: "no src module imports testkit: it is test support only", packages: Object.keys(allowed).filter((p) => p !== "testkit"),
     forbid: (m) => /^Testkit(\.|$)/.test(m) },
-  { name: "handlers import no adapter, and no views, simulator, or experiments", packages: ["handlers"],
-    forbid: (m) => /^(Adapters|Simulator|Views|Experiments)(\.|$)/.test(m) },
+  { name: "handlers import no adapter, and no views or experiments", packages: ["handlers"],
+    forbid: (m) => /^(Adapters|Views|Experiments)(\.|$)/.test(m) },
   { name: "game imports no premise, runner, handler, adapter, views, or experiments module (game is data and rules)", packages: ["game"],
-    forbid: (m) => /^(Settings|Simulator|Handlers|Adapters|Views|Experiments|Testkit)(\.|$)/.test(m) },
-  { name: "the simulator imports no board or policy: a Game is all it sees", packages: ["simulator"],
+    forbid: (m) => /^(Settings|Handlers|Adapters|Views|Experiments|Testkit)(\.|$)/.test(m) },
+  { name: "the simulation imports no board or policy: a Game is all it sees", packages: ["handlers"], under: "Handlers/Simulate.purs",
     forbid: (m) => /^(Board|Policy|Settings|Views|Experiments)(\.|$)/.test(m) },
   { name: "settings import no board or policy: assembly and checking are in game", packages: ["settings"],
-    forbid: (m) => /^(Board|Policy|Simulator|Handlers)(\.|$)/.test(m) },
+    forbid: (m) => /^(Board|Policy|Handlers)(\.|$)/.test(m) },
   { name: "the composition roots instantiate and bind no seat: no board, policy, or seat-handler import", packages: ["cli", "server"],
     forbid: (m) => /^(Board|Policy|Handlers\.Seats)(\.|$)/.test(m) },
   // the API client answers operations in a browser: its closure (the route table and the client) has no Node, device, or domain module
-  { name: "the API client's closure is browser-safe: no node-* or Node module, no adapter, and no views, simulator, or experiments", packages: ["handlers"], under: "Handlers/Api/",
-    forbid: (m) => /^(Node(\.|$)|Adapters(\.|$)|Views(\.|$)|Simulator(\.|$)|Experiments(\.|$)|Handlers\.(Store|Seats|Live|Sim|Llm|Replay|Recording)(\.|$))/.test(m) },
+  { name: "the API client's closure is browser-safe: no node-* or Node module, no adapter, and no views or experiments", packages: ["handlers"], under: "Handlers/Api/",
+    forbid: (m) => /^(Node(\.|$)|Adapters(\.|$)|Views(\.|$)|Experiments(\.|$)|Handlers\.(Store|Seats|Live|Sim|Llm|Replay|Recording)(\.|$))/.test(m) },
   { name: "effects are declarations: no handler or adapter import", packages: ["effects"],
     forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
 ];
@@ -174,7 +172,7 @@ for (const dir of dirs) {
     }
   }
   // board and policy meet in game (§12.3); the declarations and interpreters that take both
-  // (effects, handlers, adapters) are listed, and no domain package (settings, simulator, views, experiments, testkit) is
+  // (effects, handlers, adapters) are listed, and no domain package (settings, views, experiments, testkit) is
   if (deps.includes("sp-board") && deps.includes("sp-policy") && !["game", "effects", "handlers", "adapters"].includes(name)) {
     errors.push(`${name} depends on both board and policy: they meet only in game, and in the interpreters docs/07 §3 lists`);
   }

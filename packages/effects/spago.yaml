@@ -19,5 +19,4 @@ package:
       - spec-node
       - arrays
       - sp-handlers
-      - sp-simulator
       - sp-testkit

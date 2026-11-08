@@ -27,7 +27,7 @@ import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, s
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore, runObserve, startRun)
-import Simulator.Simulate (simulate, simulateWith)
+import Handlers.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
 import Test.Adapters.Files (createStoreAtVersion, fileExists, removeFile, setRawSpec)

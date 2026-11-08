@@ -14,7 +14,7 @@ package:
     - sp-core
     - sp-schema
     - sp-game
-    - sp-simulator
+    - sp-handlers
     - sp-checks
     - sp-settings
     - sp-adapters

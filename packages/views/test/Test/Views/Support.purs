@@ -5,7 +5,7 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Schema.Run (RunStatus(..), Spec, emptySpec)
-import Simulator.Simulate (SimRun)
+import Handlers.Simulate (SimRun)
 import Views.Common (StoredRun, storedRun)
 
 -- | The same records and snapshots, with no spec fields.

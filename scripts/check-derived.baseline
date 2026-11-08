@@ -9,7 +9,7 @@ implicit-codec packages/handlers/src/Handlers/Api/Route.purs 1
 implicit-codec packages/handlers/test/Test/Handlers/Capstone.purs 1
 implicit-codec packages/handlers/test/Test/Handlers/Llm.purs 1
 intent-walk packages/policy/src/Policy/Interpret.purs 1
-intent-walk packages/simulator/test/Test/Simulator/Shock.purs 1
+intent-walk packages/handlers/test/Test/Handlers/Shock.purs 1
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
 name-literal packages/schema/src/Schema/Setting/Fixture.purs 1
 repeated-idiom packages/board/src/Board/Gameboard/Instantiate.purs 3
@@ -18,7 +18,7 @@ repeated-idiom packages/checks/src/Checks/Objectives.purs 1
 repeated-idiom packages/checks/src/Checks/Round.purs 2
 repeated-idiom packages/game/src/Game/Assemble.purs 1
 repeated-idiom packages/game/src/Game/Setting.purs 1
-repeated-idiom packages/simulator/src/Simulator/Simulate.purs 1
+repeated-idiom packages/handlers/src/Handlers/Simulate.purs 1
 repeated-idiom packages/views/src/Views/Common.purs 1
 repeated-idiom packages/views/src/Views/Markets.purs 1
 repeated-idiom packages/views/src/Views/Standings.purs 1
