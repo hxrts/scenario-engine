@@ -30,7 +30,7 @@ import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplySh
 import Handlers.Recording (encodeRecording)
 import Test.Handlers.Run (meridian, runTest)
 import Game.Types (Game)
-import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
+import Test.Handlers.Stub (answering, backendOf, dealOf, digest, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), encodeWith, prose)
@@ -202,6 +202,7 @@ spec = do
         backend =
           { model: "fake/model"
           , call: \_ _ -> pure { text: replyJoint [], raw: "raw/1.jsonl" }
+          , digest
           , evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence
           , exchange: \_ -> pure unit
           }
@@ -215,7 +216,7 @@ spec = do
     it "a reply that does not decode is a Left, and each attempt's evidence says so" do
       g <- setup
       evidence <- liftEffect (Ref.new [])
-      let backend = { model: "fake/model", call: \_ _ -> pure { text: "not json", raw: "" }, evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence, exchange: \_ -> pure unit }
+      let backend = { model: "fake/model", call: \_ _ -> pure { text: "not json", raw: "" }, digest, evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence, exchange: \_ -> pure unit }
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
       evs <- liftEffect (Ref.read evidence)
@@ -228,6 +229,7 @@ spec = do
         live =
           { model: "live"
           , call: \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }
+          , digest
           , evidence: \_ -> pure unit
           , exchange: \x -> Ref.modify_ (_ <> [ x ]) exchanges
           }
@@ -247,6 +249,7 @@ spec = do
         failing =
           { model: "x"
           , call: \_ _ -> throwError (error "down")
+          , digest
           , evidence: \_ -> pure unit
           , exchange: \x -> Ref.modify_ (_ <> [ x ]) exchanges
           }

@@ -8,6 +8,7 @@ module Test.Adapters.LiveInterpret (main) where
 
 import Prelude
 
+import Adapters.Digest (sha256)
 import Adapters.Pi (defaultModel, pi)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (Transcript)
@@ -44,7 +45,7 @@ world = do
 check :: Aff Unit
 check = do
   w <- world
-  let backend = { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, evidence: const (pure unit), exchange: const (pure unit) }
+  let backend = { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, digest: sha256, evidence: const (pure unit), exchange: const (pure unit) }
   out <- interpreter backend w (Interpret 1 transcripts identity)
   js <- case out of
     Right js -> pure js

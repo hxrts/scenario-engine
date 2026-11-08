@@ -11,6 +11,7 @@ import Prelude
 
 import Adapters.Clock (delayMs, nowIso)
 import Adapters.Console (closeInput, readLine, writeLine)
+import Adapters.Digest (sha256)
 import Adapters.Filesystem (appendLine, fileOps)
 import Adapters.Pi (pi)
 import Adapters.Random (resolveSeed)
@@ -61,6 +62,7 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
         backend =
           { model: o.model
           , call: pi { model: o.model, rawDir: dir <> "/raw" }
+          , digest: sha256
           , evidence: \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
           , exchange: const (pure unit)
           }

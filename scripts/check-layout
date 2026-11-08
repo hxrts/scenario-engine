@@ -89,6 +89,19 @@ const files = ["packages", "apps"].flatMap((d) =>
   .map((f) => path.relative(root, f));
 
 const errors = [];
+// FFI is a device (docs/07 §1): a `.js` file beside a module lives only in adapters or an app. Every other
+// package is PureScript alone, so no package binds itself to Node, or to any platform, without saying so in its spago.yaml.
+const ffiHomes = (f) => f.startsWith("packages/adapters/src/") || f.startsWith("apps/");
+(function js(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) { if (e.name !== "node_modules") js(p); }
+    else if (e.name.endsWith(".js") && p.includes(`${path.sep}src${path.sep}`)) {
+      const f = path.relative(root, p);
+      if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/07 §1)`);
+    }
+  }
+})(path.join(root, "packages"));
 for (const rule of rules) {
   for (const f of files.filter(rule.files)) {
     fs.readFileSync(path.join(root, f), "utf8").split("\n").forEach((line, i) => {

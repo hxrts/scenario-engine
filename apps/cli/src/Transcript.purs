@@ -8,6 +8,7 @@ module Transcript (main) where
 
 import Prelude
 
+import Adapters.Digest (sha256)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise, premiseRoot)
 import Control.Monad.Error.Class (throwError)
@@ -54,7 +55,7 @@ main :: Effect Unit
 main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
   w <- worldOf
   ref <- liftEffect (Ref.new [])
-  let backend = { model: "capstone-stub", call: answer, evidence: const (pure unit), exchange: \x -> Ref.modify_ (_ <> [ x ]) ref }
+  let backend = { model: "capstone-stub", call: answer, digest: sha256, evidence: const (pure unit), exchange: \x -> Ref.modify_ (_ <> [ x ]) ref }
   for_ jointLines \l -> do
     out <- interpreter backend w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
     case out of

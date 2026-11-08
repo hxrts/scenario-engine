@@ -6,6 +6,7 @@
 module Test.Handlers.Stub
   ( answering
   , backendOf
+  , digest
   , dealOf
   , decodeRecording
   , replayCall
@@ -39,9 +40,13 @@ import Core.Proposal (ProposedDeal, proposedDealShape)
 import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
+-- | The stub digest: sixteen characters, as the adapter's is, with no hashing.
+digest :: String -> String
+digest = const "stub-digest-0000"
+
 -- | A backend over a raw call: the model is named "stub", and its evidence and exchanges are discarded.
 backendOf :: Call -> Backend
-backendOf call = { model: "stub", call, evidence: \_ -> pure unit, exchange: \_ -> pure unit }
+backendOf call = { model: "stub", call, digest, evidence: \_ -> pure unit, exchange: \_ -> pure unit }
 
 -- | A backend that answers each call with `answer system input` and counts the calls in `counter`.
 answering :: Ref Int -> (String -> String -> String) -> Backend

@@ -37,8 +37,6 @@ import Foreign.Object as Object
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
-foreign import sha256 :: String -> String
-
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
 -- | its raw event stream out. A failed call is an Aff error.
 type Call = String -> String -> Aff { text :: String, raw :: String }
@@ -47,9 +45,10 @@ type Call = String -> String -> Aff { text :: String, raw :: String }
 -- | template and the JSON payload, the path of the raw event stream, and whether the reply decoded.
 type Evidence = { effect :: String, model :: String, template :: String, input :: String, raw :: String, decoded :: String }
 
--- | The model backend a handler interprets over: the raw call, the model name for evidence, and the
--- | sinks for each call's evidence and its typed exchange (the recording, when one is kept).
-type Backend = { model :: String, call :: Call, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
+-- | The model backend a handler interprets over: the raw call, the model name for evidence, the
+-- | digest device that hashes a template or payload for evidence, and the sinks for each call's
+-- | evidence and its typed exchange (the recording, when one is kept).
+type Backend = { model :: String, call :: Call, digest :: String -> String, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
 
 -- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
 type Key = { round :: Int, seats :: Array String }
@@ -69,7 +68,7 @@ send b effect key template request replyShape decode = do
   out <- b.call template input
   let decoded = decode out.text
   liftEffect do
-    b.evidence { effect, model: b.model, template: sha256 template, input: sha256 input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
+    b.evidence { effect, model: b.model, template: b.digest template, input: b.digest input, raw: out.raw, decoded: either ("error: " <> _) (const "ok") decoded }
     b.exchange { effect, round: key.round, seats: key.seats, request, reply: encodeReply replyShape decoded }
   pure { text: out.text, decoded }
 
