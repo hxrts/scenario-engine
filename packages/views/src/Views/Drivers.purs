@@ -15,7 +15,7 @@ import Core.Types (idText, FlowEffect(..), EntityId, ResourceId, Rule, RuleF(..)
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Slice (Slice, describeSlice, foldEvents, groupBy, ignore, read, runSlice, shortfalls, total)
+import Core.Slice (Slice, describeSlice, foldEvents, groupBy, ignore, read, runSlice, shortfalls, total, whereEq)
 import Data.Array (concatMap, length, nub)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -35,13 +35,13 @@ driversStat =
 shortfallsByResource :: Slice (Array (Tuple ResourceId (Array { round :: Int, entity :: EntityId, resource :: ResourceId, quantity :: Q })))
 shortfallsByResource = groupBy @"resource" shortfalls
 
--- | Every Shortfall quantity, summed.
-shortfallSum :: Slice Q
-shortfallSum = total (read @"quantity" shortfalls)
+-- | The Shortfall quantities of one Resource, summed.
+shortfallSum :: ResourceId -> Slice Q
+shortfallSum res = total (read @"quantity" (whereEq @"resource" res shortfalls))
 
--- | The round's shortfalls summed over all Resources: an amount owed but not delivered.
-shortfallTotal :: RoundRecord -> Q
-shortfallTotal rec = runSlice shortfallSum rec.events
+-- | The round's shortfall of one Resource: an amount owed but not delivered.
+shortfallTotal :: ResourceId -> RoundRecord -> Q
+shortfallTotal res rec = runSlice (shortfallSum res) rec.events
 
 -- | Shortfalls in a round, per Resource: the total quantity and the number of Entities short.
 shortfallsOf :: RoundRecord -> Array { resource :: ResourceId, quantity :: Q, entities :: Int }
@@ -79,7 +79,7 @@ amountColumn = column "Amount" "The size of the driver, where it has one, in its
 
 -- | The focus Resource's shortfall of a round; also a column of the pressure table.
 shortfallsColumn :: Focus -> Column
-shortfallsColumn f = column ("Shortfalls (" <> idText f.resource <> ")") (f.label <> " wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice shortfallSum <> ".")
+shortfallsColumn f = column ("Shortfalls (" <> idText f.resource <> ")") (f.label <> " wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice (shortfallSum f.resource) <> ".")
 
 -- | The columns this module defines.
 columns :: Focus -> Array Column

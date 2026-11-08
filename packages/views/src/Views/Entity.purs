@@ -65,7 +65,7 @@ entityHistory r e
         { table:
             { title: "Balance sheet of " <> show e <> " by round"
             , columns: names [ col.resource ] <> map (\i -> "Round " <> show i) rounds
-            , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> quantity (netWorth w e)) states ]
+            , rows: map resourceRow resources <> [ [ "Net worth" ] <> map (\w -> quantity (netWorth w e)) states ]
             }
         , chart:
             { title: "Holdings of " <> show e

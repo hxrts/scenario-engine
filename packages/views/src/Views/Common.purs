@@ -139,10 +139,10 @@ col =
   , round: column "Round" "The round this row belongs to. Round 1 is the first round after the initial state."
   , entity: column "Entity" "The Entity whose balance sheet this is: an Actor or an Aggregate."
   , kind: column "Kind" "Actor, or Aggregate (residual): a residual representation of many holders, not one Actor."
-  , resource: column "Resource" "The Resource held, for example Money, Energy, Military or Soft Power."
+  , resource: column "Resource" "The Resource held."
   , player: column "Player" "The Actor this row describes, by its seat."
   , measure: column "Measure" "What this row measures."
-  , spread: column "Spread (M)" "The highest final net worth minus the lowest, in Money. Larger means less even."
+  , spread: column "Spread" "The highest final net worth minus the lowest, in the numeraire. Larger means less even."
   }
 
 -- | The shared columns, for the glossary.
@@ -218,7 +218,7 @@ completed r = length r.rounds
 target :: StoredRun -> Int
 target r = fromMaybe (completed r) r.spec.rounds
 
--- | Display (docs/02 §9.1): a count of units (Money, Resource holdings and flows) as a cell.
+-- | Display (docs/02 §9.1): a count of units (Resource holdings and flows) as a cell.
 quantity :: Q -> String
 quantity = Q.displayQuantity
 

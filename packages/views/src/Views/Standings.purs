@@ -32,13 +32,13 @@ netWorthStat :: Statistic
 netWorthStat =
   { name: "Net worth"
   , question: "How well are players doing relative to one another?"
-  , definition: "Money plus each held base Resource valued at its Market's marginal price, in M."
-  , formula: "NW(e, r) = holding(e, M) + sum over Resources b traded in a Market quoted in M of holding(e, b) × P(b, r), where P(b, r) is the mean of the marginal prices, marginal(cost, position) after round r, of the M-quoted Markets whose base is b. Military is valued at the defence Market; Soft Power and Resources with no Market are not counted. Actors only."
+  , definition: "The numeraire held plus each held base Resource valued at its Market's marginal price."
+  , formula: "NW(e, r) = holding(e, numeraire) + sum over Resources b traded in a Market quoted in the numeraire of holding(e, b) × P(b, r), where P(b, r) is the mean of the marginal prices, marginal(cost, position) after round r, of the numeraire-quoted Markets whose base is b. Resources with no such Market are not counted. Actors only."
   }
 
--- | An Actor's net worth in a World State, in M: its Money, and each Resource that a Market quotes in
+-- | An Actor's net worth in a World State: the numeraire it holds, and each Resource that a Market quotes in
 -- | the numeraire valued at that Resource's price. Where several Markets trade one Resource (the
--- | regional Energy Markets), the price is the mean of their marginal prices, so a holding counts once.
+-- | regional Markets), the price is the mean of their marginal prices, so a holding counts once.
 netWorth :: WorldState -> EntityId -> Q
 netWorth w e = Q.sumQ ([ holding w e w.numeraire ] <> map valued bases)
   where
@@ -70,10 +70,10 @@ standingsOf r = map standing ranked
   standing (Tuple e v) = { player: e, netWorth: v, change: Q.sub v (fromMaybe Q.zero (Map.lookup e start)), rank: rankOf v }
 
 netWorthColumn :: Column
-netWorthColumn = column "Net worth (M)" "Money plus each held Resource valued at its Market's marginal price, after the final round."
+netWorthColumn = column "Net worth" "The numeraire held plus each held Resource valued at its Market's marginal price, after the final round."
 
 changeColumn :: Column
-changeColumn = column "Change from start (M)" "Net worth after the final round minus net worth at the start of the run."
+changeColumn = column "Change from start" "Net worth after the final round minus net worth at the start of the run."
 
 rankColumn :: Column
 rankColumn = column "Rank" "The player's place by final net worth, 1 being highest."

@@ -136,7 +136,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- one Entity's balance sheet: 200 for a known Entity, 400 listing the valid ones, 404 for a missing run
           entity <- api "GET" "/api/runs/run-1/entity/US" [] ""
           entity.status `shouldEqual` 200
-          entity.body `shouldSatisfy` contains (Pattern "Net worth (M)")
+          entity.body `shouldSatisfy` contains (Pattern "Net worth")
           entity.body `shouldSatisfy` contains (Pattern "Round 3")
           unknownEntity <- api "GET" "/api/runs/run-1/entity/NoSuchEntity" [] ""
           unknownEntity.status `shouldEqual` 400

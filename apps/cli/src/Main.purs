@@ -14,7 +14,7 @@ import Core.Invariants (checkAfter)
 import Core.World (RoundResult, WorldState)
 import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Foldable (foldM, for_, traverse_)
 import Data.String (joinWith)
@@ -83,7 +83,7 @@ runSetting setting presetName rounds given = do
 summarize :: WorldState -> RoundResult -> Effect Unit
 summarize before r = do
   let
-    p = roundPressure r.record
+    p = roundPressure (maybe r.world.numeraire _.resource r.world.focus) r.record
     prices = map (\m -> show m.market <> " " <> price m.price) (marketPrices r.world)
     failures = checkAfter before r
   log

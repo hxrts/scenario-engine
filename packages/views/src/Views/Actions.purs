@@ -92,7 +92,7 @@ rejectionCount rec = runSlice rejections rec.events
 proposalOf :: RoundRecord -> ProposalId -> Maybe Proposal
 proposalOf rec pid = map _.proposal (find (\s -> s.proposal.id == pid) rec.inputs)
 
--- | A joint Proposal: a Proposal with several signers that moves Money, Resources or goods.
+-- | A joint Proposal: a Proposal with several signers that moves Resources or goods.
 isJoint :: Proposal -> Boolean
 isJoint p = length p.signers >= 2 && any movesStuff p.intents
   where

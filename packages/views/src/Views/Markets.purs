@@ -1,5 +1,5 @@
 -- | The market and economy views (docs/06_simulator.md §9.2): Market prices, reserves and traded
--- | volume, facility orders, the world economy's totals and Money circulation, the per-round
+-- | volume, facility orders, the world economy's totals and numeraire circulation, the per-round
 -- | pressure indicators, and a Market's price trajectory across runs. Pure.
 module Views.Markets
   ( marketPrices
@@ -86,9 +86,9 @@ resourceTotals r =
   , series: series r (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources))) exact
   }
 
--- | Money moved between categories of Entity (Actor or Aggregate) over the run.
+-- | The numeraire moved between categories of Entity (Actor or Aggregate) over the run.
 moneyFlows :: StoredRun -> Table
-moneyFlows r = tableOf "Money circulation (from → to category)" moneyFlowFields (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
+moneyFlows r = tableOf "Numeraire circulation (from → to category)" moneyFlowFields (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
   where
   w0 = r.manifest.initial
   numeraireMoves = whereEq @"resource" w0.numeraire transfers
@@ -97,8 +97,9 @@ moneyFlows r = tableOf "Money circulation (from → to category)" moneyFlowField
 -- | One round's pressure: shortfalls, consumption and decay, and the Proposals rejected or lapsed.
 type Pressure = { shortfall :: Q, consumed :: Q, decayed :: Q, rejected :: Int, lapsed :: Int }
 
-consumedTotal :: Slice Q
-consumedTotal = total (read @"quantity" (sunk kinds.requirement))
+-- | The focus Resource consumed in the round.
+consumedTotal :: ResourceId -> Slice Q
+consumedTotal res = total (read @"quantity" (whereEq @"resource" res (sunk kinds.requirement)))
 
 decayedTotal :: Slice Q
 decayedTotal = total (read @"quantity" (sunk kinds.decay))
@@ -109,17 +110,18 @@ lapsedCount = count (event @"Lapsed")
 boughtVolume :: MarketId -> Slice Q
 boughtVolume id = total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"market" id exchanges)))
 
-roundPressure :: RoundRecord -> Pressure
-roundPressure rec =
-  { shortfall: shortfallTotal rec
-  , consumed: runSlice consumedTotal rec.events
+-- | One round's pressure on the focus Resource (shortfall and consumption are that Resource's).
+roundPressure :: ResourceId -> RoundRecord -> Pressure
+roundPressure res rec =
+  { shortfall: shortfallTotal res rec
+  , consumed: runSlice (consumedTotal res) rec.events
   , decayed: runSlice decayedTotal rec.events
   , rejected: rejectionCount rec
   , lapsed: runSlice lapsedCount rec.events
   }
 
 facilityColumn :: Column
-facilityColumn = column "Facility" "The facility that filled the order: defense procurement, public attention or energy shipping."
+facilityColumn = column "Facility" "The facility that filled the order."
 
 orderedBy :: Column
 orderedBy = column "Ordered by" "The Entity that placed the order."
@@ -128,7 +130,7 @@ quantityColumn :: Column
 quantityColumn = column "Quantity" "The quantity of the facility's output that the order bought."
 
 paidColumn :: Column
-paidColumn = column "Paid" "The Money paid for the order."
+paidColumn = column "Paid" "The numeraire paid for the order."
 
 fromColumn :: Column
 fromColumn = column "From" "The category of the paying Entity: Actor, or Aggregate (residual)."
@@ -137,7 +139,7 @@ toColumn :: Column
 toColumn = column "To" "The category of the receiving Entity: Actor, or Aggregate (residual)."
 
 moneyColumn :: Column
-moneyColumn = column "Money" "Total Money moved from one category to the other over the run (Circulation between Entity categories)."
+moneyColumn = column "Numeraire moved" "Total numeraire moved from one category to the other over the run (Circulation between Entity categories)."
 
 rejectedColumn :: Column
 rejectedColumn = column "Rejected" ("Proposals the engine rejected in the round (rejected Proposals). Computed as: " <> describeSlice rejections <> ".")
@@ -146,7 +148,7 @@ lapsedColumn :: Column
 lapsedColumn = column "Lapsed" ("Proposals whose signature rule was not met in the round, so they lapsed without executing. Computed as: " <> describeSlice lapsedCount <> ".")
 
 consumedColumn :: Focus -> Column
-consumedColumn f = column ("Consumed (" <> idText f.resource <> ")") (f.label <> " consumed in the round. Computed as: " <> describeSlice consumedTotal <> ".")
+consumedColumn f = column ("Consumed (" <> idText f.resource <> ")") (f.label <> " consumed in the round. Computed as: " <> describeSlice (consumedTotal f.resource) <> ".")
 
 decayedColumn :: Column
 decayedColumn = column "Decayed" ("Quantity that decayed in the round. Computed as: " <> describeSlice decayedTotal <> ".")
@@ -157,7 +159,7 @@ columns f = columnsOf facilityFields <> columnsOf moneyFlowFields <> columnsOf (
 
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table
-pressure r = tableOf "Pressure" (pressureFields (focusOf r)) (map (\rec -> Tuple rec.round (roundPressure rec)) (records r))
+pressure r = tableOf "Pressure" (pressureFields (focusOf r)) (map (\rec -> Tuple rec.round (roundPressure (focusOf r).resource rec)) (records r))
 
 pressureFields :: Focus -> Array (Field (Tuple Int Pressure))
 pressureFields f =

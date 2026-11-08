@@ -36,7 +36,7 @@ import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
-import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf)
+import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf, cellOf, tableOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -62,51 +62,38 @@ type CompareView =
   , skipped :: Array String
   }
 
--- | A field two runs must agree on to be combined: its name in the verdict, and whether two runs agree
--- | on it. The compatibility table shows each one, and the verdict names the ones that differ.
-type Field = { name :: String, same :: StoredRun -> StoredRun -> Boolean }
+-- | A field two runs must agree on to be combined: its column in the compatibility table, its name in the
+-- | verdict, whether two runs agree on it, and the cell a run shows for it (given the first run).
+-- | The table and the verdict both read this one list.
+type CompareField = { column :: Column, name :: String, same :: StoredRun -> StoredRun -> Boolean, cell :: StoredRun -> StoredRun -> String }
 
-gameboardField :: Field
-gameboardField = { name: "Gameboard", same: \a b -> a.manifest.gameboard == b.manifest.gameboard }
+-- | A field whose cell is the run's value; a field whose cell says whether it differs from the first run.
+showsValue :: Column -> String -> (StoredRun -> String) -> CompareField
+showsValue column name value = { column, name, same: \a b -> value a == value b, cell: \_ r -> value r }
 
-engineField :: Field
-engineField = { name: "engine", same: \a b -> a.manifest.engine == b.manifest.engine }
-
-roundCountField :: Field
-roundCountField = { name: "round count", same: \a b -> completed a == completed b }
-
-unitsField :: Field
-unitsField = { name: "units", same: \a b -> units a == units b }
-  where
-  units :: StoredRun -> Map.Map ResourceId String
-  units r = map _.unit r.manifest.initial.resources
-
-marketsField :: Field
-marketsField = { name: "Market definitions", same: \a b -> markets a == markets b }
-  where
-  markets :: StoredRun -> Map.Map MarketId Market
-  markets r = r.manifest.initial.markets
-
-actorsField :: Field
-actorsField = { name: "Actor selection", same: \a b -> a.spec.preset == b.spec.preset }
+showsSameness :: forall a. Eq a => Column -> String -> (StoredRun -> a) -> CompareField
+showsSameness column name value = { column, name, same: \a b -> value a == value b, cell: \first r -> if value first == value r then "same" else "differs" }
 
 -- | The fields a comparison checks, in the order the verdict names them.
-fields :: Array Field
-fields = [ gameboardField, engineField, roundCountField, unitsField, marketsField, actorsField ]
+fields :: Array CompareField
+fields =
+  [ showsValue col.gameboard "Gameboard" _.manifest.gameboard
+  , showsValue engineColumn "engine" _.manifest.engine
+  , showsValue col.rounds "round count" (show <<< completed)
+  , showsSameness unitsColumn "units" (\r -> map _.unit r.manifest.initial.resources)
+  , showsSameness marketDefinitions "Market definitions" _.manifest.initial.markets
+  , (showsValue actorSelection "Actor selection" (fromMaybe "—" <<< _.spec.preset)) { same = \a b -> a.spec.preset == b.spec.preset }
+  ]
 
 -- | Runs are directly comparable only when they agree on everything the manifest fixes: the
 -- | Gameboard version, the engine, the round count, the units, the Market definitions, and the
 -- | Actor selection (the preset every seat plays). Each difference is named, and the run is flagged.
 compatible :: Array StoredRun -> Table
-compatible runs =
-  { title: "Compatibility"
-  , columns: names [ col.run, col.gameboard, engineColumn, col.rounds, unitsColumn, marketDefinitions, actorSelection, comparableColumn ]
-  , rows: map (\r -> row (fromMaybe r (index runs 0)) r) runs
-  }
+compatible runs = tableOf "Compatibility" tableFields runs
   where
-  row first r = [ r.id, r.manifest.gameboard, r.manifest.engine, show (completed r), sameCell first unitsField r, sameCell first marketsField r, fromMaybe "—" r.spec.preset, verdict first r ]
-  sameCell first f r = if f.same first r then "same" else "differs"
-  verdict first r = case map _.name (filter (\f -> not (f.same first r)) fields) of
+  first r = fromMaybe r (index runs 0)
+  tableFields = [ cellOf col.run _.id ] <> map (\f -> cellOf f.column (\r -> f.cell (first r) r)) fields <> [ cellOf comparableColumn (\r -> verdict (first r) r) ]
+  verdict f r = case map _.name (filter (\x -> not (x.same f r)) fields) of
     [] -> "yes"
     ms -> "no: flagged, not combined (" <> joinWith ", " ms <> ")"
 
@@ -201,12 +188,27 @@ categoryLabel = case _ of
   Seeds -> "seed"
   Other -> "other"
 
-categoryOf :: String -> Category
-categoryOf k
-  | k `elem` [ specKey.gameId, "gameboard", "engine" ] = Version
-  | k == specKey.preset = SeatPolicy
-  | k `elem` [ "game seed", "player seed" ] = Seeds
-  | otherwise = Other
+-- | One configuration row: its name, its category, and its value in a run.
+type ConfigRow = { key :: String, category :: Category, value :: StoredRun -> String }
+
+-- | The rows a configuration comparison can show, the one list: the specification's keys, then what the
+-- | manifest fixes.
+configRows :: Array StoredRun -> Array ConfigRow
+configRows runs = map specRow (nub (concatMap (map fst <<< listed) runs)) <>
+  [ manifestRow "gameboard" Version _.manifest.gameboard
+  , manifestRow "engine" Version _.manifest.engine
+  , manifestRow "game seed" Seeds (show <<< _.manifest.initial.seed)
+  , manifestRow "player seed" Seeds _.playerSeed
+  ]
+  where
+  -- the player seed is its own row, so the specification's copy of it is not listed again
+  listed r = specPairs (r.spec { playerSeed = Nothing })
+  specRow k = { key: k, category: specCategory k, value: \r -> fromMaybe "—" (lookup k (listed r)) }
+  specCategory k
+    | k == specKey.gameId = Version
+    | k == specKey.preset = SeatPolicy
+    | otherwise = Other
+  manifestRow key category value = { key, category, value }
 
 -- | Exact specification differences between runs, each row with its category and its cells marked
 -- | where they differ from the baseline run.
@@ -215,24 +217,14 @@ configDiff base others =
   { table:
       { title: "Configuration differences"
       , columns: names [ categoryColumn, parameterColumn ] <> [ base.id ] <> map _.id others
-      , rows: map (\k -> perRunRow allRuns [ categoryLabel (categoryOf k), k ] (\r -> value r k)) shown
+      , rows: map (\k -> perRunRow allRuns [ categoryLabel k.category, k.key ] k.value) shown
       }
-  , marked: map (\k -> [ false, false ] <> differsFromBaseline allRuns (\r -> value r k)) shown
+  , marked: map (\k -> [ false, false ] <> differsFromBaseline allRuns k.value) shown
   }
   where
-  shown = sortWith categoryOf (filter differs keys)
   allRuns = [ base ] <> others
   -- a parameter differs when some run's value is not the baseline's
-  differs k = any (\r -> value r k /= value base k) allRuns
-  -- the player seed is its own row, so the specification's copy of it is not listed again
-  listed r = specPairs (r.spec { playerSeed = Nothing })
-  keys = nub (concatMap (\r -> map fst (listed r)) allRuns <> [ "gameboard", "engine", "game seed", "player seed" ])
-  value r k
-    | k == "gameboard" = r.manifest.gameboard
-    | k == "engine" = r.manifest.engine
-    | k == "game seed" = show r.manifest.initial.seed
-    | k == "player seed" = r.playerSeed
-    | otherwise = fromMaybe "—" (lookup k (listed r))
+  shown = sortWith _.category (filter (\k -> any (\r -> k.value r /= k.value base) allRuns) (configRows allRuns))
 
 -- | The runs of the first run's specification: the same settings, whatever their seeds. Their
 -- | differences are seed-to-seed variation (§10.2); the bookkeeping keys (the seed, the derivation)

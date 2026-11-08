@@ -38,7 +38,7 @@ test("the run page shows standings, net worth, actions, drivers, balance measure
   const standings = page.getByRole("heading", { name: "Standings", exact: true });
   const netWorth = page.getByRole("heading", { name: "Net worth over time", exact: true });
   expect((await standings.boundingBox()).y).toBeLessThan((await netWorth.boundingBox()).y);
-  await expect(page.getByRole("columnheader", { name: "Change from start (M)", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Change from start", exact: true })).toBeVisible();
   // the net-worth chart has one line per player, and the drivers timeline is shown
   await expect(page.getByText("Net worth by player (M)", { exact: true })).toBeVisible();
   await expect(page.locator(".recharts-line").first()).toBeAttached();

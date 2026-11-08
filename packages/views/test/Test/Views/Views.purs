@@ -104,8 +104,8 @@ spec context = describe "Views and error paths" do
       valueIn label r = fromMaybe "" (find (\row -> cell row 0 == label) (measures r).rows >>= \row -> index row 1)
       standingOf p r = fromMaybe "" (find (\row -> cell row 0 == p) (standings r).rows >>= \row -> index row 1)
     kv.columns `shouldEqual` [ "Measure", "Unit", "run-1", "run-2" ]
-    cell (rowOf "Spread of final net worth") 2 `shouldEqual` valueIn "Spread (M)" r1
-    cell (rowOf "Spread of final net worth") 3 `shouldEqual` valueIn "Spread (M)" r2
+    cell (rowOf "Spread of final net worth") 2 `shouldEqual` valueIn "Spread" r1
+    cell (rowOf "Spread of final net worth") 3 `shouldEqual` valueIn "Spread" r2
     cell (rowOf "Final net worth, US") 2 `shouldEqual` standingOf "US" r1
     cell (rowOf "Final net worth, US") 3 `shouldEqual` standingOf "US" r2
     cell (rowOf "Final net worth, US") 1 `shouldEqual` "M"
@@ -223,7 +223,7 @@ spec context = describe "Views and error paths" do
       Left err -> fail err
       Right h -> do
         -- the net-worth row's final column is the Entity's net worth in the standings
-        let finalNw = fromMaybe "" (map (\row -> cell row 4) (index (filter (\row -> index row 0 == Just "Net worth (M)") h.table.rows) 0))
+        let finalNw = fromMaybe "" (map (\row -> cell row 4) (index (filter (\row -> index row 0 == Just "Net worth") h.table.rows) 0))
         let standing = filter (\row -> index row 0 == Just "US") (standings s).rows
         map (\row -> cell row 1) standing `shouldEqual` [ finalNw ]
     isLeft (entityHistory s (Id "NoSuchEntity")) `shouldEqual` true
