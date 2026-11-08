@@ -9,7 +9,7 @@ import Settings.Kit.Prelude
 
 import Settings.Meridian.Names (n)
 
-import Settings.Kit (KeptEntity)
+import Settings.Kit.Fixtures (KeptEntity)
 import Settings.Meridian.Fixtures.Common (cut, holding, defaultFixture, fixture, money)
 
 -- | Two Energy traders in the Atlantic market: the US and Germany (fixtures A and A2).

@@ -9,7 +9,7 @@ import Settings.Kit.Prelude
 
 import Settings.Meridian.Names (n)
 
-import Settings.Meridian (flows, productionCapacity, requirements)
+import Settings.Meridian.Circulation (flows, productionCapacity, requirements)
 import Settings.Meridian.Fixtures.Common (cut, defaultFixture, fixture, holding, keeping, money)
 
 -- | The circulation fixture: every Entity of the reference instance, with its production and

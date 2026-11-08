@@ -73,6 +73,7 @@
           "dependencies": [
             "arrays",
             "foldable-traversable",
+            "foreign-object",
             "identity",
             "maybe",
             "ordered-collections",

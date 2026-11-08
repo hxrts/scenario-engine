@@ -12,7 +12,7 @@ import Settings.Meridian.Names (n)
 import Settings.Meridian.Rules (accessBan)
 
 import Game.Patch (setRules)
-import Settings.Kit (KeptEntity)
+import Settings.Kit.Fixtures (KeptEntity)
 import Settings.Meridian.Fixtures.Common (cut, defaultFixture, fixture, holding, money)
 
 -- | An Entity that may transfer Money and Energy.

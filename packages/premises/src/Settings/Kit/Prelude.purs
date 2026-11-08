@@ -1,4 +1,4 @@
--- | The vocabulary a fixture is written in, re-exported so a fixture imports one module.
+-- | The vocabulary a fixture is written in, re-exported so a fixture imports one module. This is the one deliberate re-export in the tree.
 module Settings.Kit.Prelude
   ( module Core.Num
   , module Core.Types

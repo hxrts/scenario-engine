@@ -4,7 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const { walk } = require("./lib/walk");
 
-const { root, viewFile, viewNames: readViewNames, sourceFiles } = require("./lib/paths");
+const { root, viewFile, viewNames: readViewNames, sourceFiles, packageDirs } = require("./lib/paths");
+const walkDirs = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "node_modules").flatMap((e) => [path.join(d, e.name), ...walkDirs(path.join(d, e.name))]) : []);
 
 // The rules are checked on PureScript source: its src/ trees, and its test/ trees for a rule that says so
 // (each rule's `files` predicate names its scope). A rule with `js: true` also reads the JavaScript beside it.
@@ -125,5 +126,22 @@ for (const rule of rules) {
     });
   }
 }
+// A module beside a directory of its name is a choice: a catalog, or an app's entry point. Anything else is a
+// module that should be the directory's parts. A directory holding one module is that module with a longer name.
+const moduleDirs = {
+  "packages/premises/src/Settings/Meridian": "a catalog: it composes the Setting from the tables and Premises beneath it",
+  "packages/premises/src/Settings/Meridian/Entities": "a catalog: it lists the Entities defined beneath it",
+  "packages/premises/src/Settings/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
+  "apps/server/src/Server": "the app's entry point; the directory holds its parts",
+};
+for (const d of packageDirs().flatMap((p) => walkDirs(path.join(p, "src")))) {
+  const rel = path.relative(root, d);
+  if (rel.split("/").length <= 4) continue; // <kind>/<package>/src/<Namespace>: a package's namespace may hold one module
+  const purs = fs.readdirSync(d).filter(isPurs);
+  const subdirs = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory());
+  if (fs.existsSync(`${d}.purs`) && !moduleDirs[rel]) errors.push(`${rel}: a module has a directory of its name; split it into the directory or list it in moduleDirs with a reason`);
+  if (purs.length === 1 && subdirs.length === 0) errors.push(`${rel}: a directory holding one module; move the module up`);
+}
+for (const d of Object.keys(moduleDirs)) if (!fs.existsSync(path.join(root, d))) errors.push(`moduleDirs names ${d}, which does not exist`);
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
 console.log("layout ok");

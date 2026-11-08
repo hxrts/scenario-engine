@@ -1,4 +1,4 @@
--- | `just _premises`: compiles the setting DSL (`Compile.Render`) and writes the JSON files
+-- | `just _premises`: compiles the setting DSL (`Render`) and writes the JSON files
 -- | under the setting root (`PREMISES_DIR`, default `packages/premises`). An invalid setting
 -- | exits 1 and writes nothing.
 module Compile (main) where
@@ -17,7 +17,7 @@ import Node.Encoding (Encoding(..))
 import Node.FS.Perms (permsAll)
 import Node.FS.Sync (mkdir', writeTextFile)
 import Exit (fail)
-import Compile.Render (compile, compileOnly)
+import Render (compile, compileOnly)
 import Core.Shape (Format(Snapshot), encodeWith, listOf, prettyJson, stringShape)
 import Views.Overview (runList)
 import Settings.Catalog (settings)

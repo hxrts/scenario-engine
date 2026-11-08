@@ -5,7 +5,7 @@
 -- | fixtures stay literal; only the inputs are shared.
 module Settings.Meridian.Holdings (holdings, accountsOf, capacityHolders) where
 
-import Settings.Kit (HoldingTable, accountsIn, capacityHoldersIn)
+import Settings.Kit.Holdings (HoldingTable, accountsIn, capacityHoldersIn)
 import Settings.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))

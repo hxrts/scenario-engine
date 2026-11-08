@@ -2,12 +2,12 @@
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
 -- | module writes the files under the setting root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.
-module Compile.Render
+module Render
   ( compile
   , compileOnly
   ) where
 
-import Schema.Decode.Common (decodeErrorAt)
+import Schema.Decode (decodeErrorAt)
 import Prelude
 
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull)

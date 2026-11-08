@@ -12,7 +12,7 @@ import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, aggregateWith, collective)
 import Core.Types (Aggregate, Entity, EntityKind(Aggregate))
 import Settings.Meridian.Entities.Capabilities (dealer, shipping)
-import Settings.Kit (aggregateEntity)
+import Settings.Kit.Seats (aggregateEntity)
 import Settings.Meridian.Holdings (holdings)
 
 eu :: Entity

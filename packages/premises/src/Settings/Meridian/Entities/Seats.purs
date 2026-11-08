@@ -6,8 +6,8 @@ module Settings.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco
 
 import Prelude (negate, (<>))
 
-import Settings.Kit (Cover(..))
-import Settings.Kit as Kit
+import Settings.Kit.Seats (Cover(..))
+import Settings.Kit.Seats as Kit
 import Settings.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Settings.Meridian.Holdings (holdings)
 import Settings.Meridian.Names (n)

@@ -25,8 +25,11 @@ import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
 import Effects.Signatures (NarrateF(..))
-import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
-import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
+import Handlers.Llm.Backend (Backend)
+import Handlers.Llm.Joint (interpreter)
+import Handlers.Llm.Narrate (listing, narrator)
+import Handlers.Llm.Speak (speak)
+import Handlers.Llm.Prompt (interpretPrompt, narratePrompt)
 import Schema.Joint (ProposedJoint)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)

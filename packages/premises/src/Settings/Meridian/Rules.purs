@@ -11,7 +11,7 @@ module Settings.Meridian.Rules
 import Core.Types (FlowGovernance(..), Id(..), ResourceId, RuleForm(..), RuleKindDecl, RuleKindId)
 import Data.Map (Map)
 import Data.Tuple (Tuple(..))
-import Settings.Kit (BlockKit, LevyKit, ReduceKit, blockRule, levyRule, reduceRule)
+import Settings.Kit.RuleKinds (BlockKit, LevyKit, ReduceKit, blockRule, levyRule, reduceRule)
 import Settings.Meridian.Names (n)
 import Schema.Build.Base (keyed)
 

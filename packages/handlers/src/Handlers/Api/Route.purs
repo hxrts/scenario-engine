@@ -47,7 +47,7 @@ import Effects.Api (ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
-import Schema.Decode.Common (decodeError)
+import Schema.Decode (decodeError)
 
 -- | The path prefix every operation's URL starts with: the HTTP device hands these requests to the route.
 apiPrefix :: String

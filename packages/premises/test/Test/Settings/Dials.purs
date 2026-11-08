@@ -13,7 +13,7 @@ import Data.Either (Either(..), isLeft)
 import Data.Foldable (fold)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Settings.Kit (assemble, emptyParts, premise)
+import Settings.Kit.Compose (assemble, emptyParts, premise)
 import Settings.Meridian (defaultDials, gameboard, meridian, premises)
 import Settings.Meridian.Names (n)
 import Schema.Build.World (noResource, resourcesOf)

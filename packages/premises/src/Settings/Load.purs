@@ -28,7 +28,7 @@ import Foreign.Object as Object
 import Game.Setting (GameboardParts, checkSetting)
 import Settings.Layout (instantiationFile, presetsFile)
 import Settings.Tree as Tree
-import Schema.Decode.Common (decodeError, decodeErrorAt)
+import Schema.Decode (decodeError, decodeErrorAt)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Schema.Setting.Fixture (Literal, decodeLiteral)
 import Schema.Setting.Gameboard (decodeConfig, decodeGameboard)

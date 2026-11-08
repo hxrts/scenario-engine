@@ -16,7 +16,7 @@ module Adapters.SQLite
   , Db
   ) where
 
-import Schema.Decode.Common (decodeErrorAt)
+import Schema.Decode (decodeErrorAt)
 import Prelude
 
 import Core.Invariants (failureShape)

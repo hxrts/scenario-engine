@@ -9,7 +9,7 @@ import Prelude (negate, (<>))
 import Settings.Kit.Prelude
 import Settings.Meridian.Names (n)
 
-import Settings.Kit (Cut)
+import Settings.Kit.Fixtures (Cut)
 import Settings.Meridian.Fixtures.Common (allResources, cut, defaultFixture, fixture, holding, money)
 
 -- | Fixture R (docs/05_test_instance.md §13.3): the US reserves 60 Mil for a deployment and sells

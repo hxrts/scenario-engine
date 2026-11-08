@@ -8,8 +8,8 @@ import Settings.Kit.Prelude
 import Settings.Meridian.Names (n)
 
 import Game.Patch (setRepresentations)
-import Settings.Kit (Cut)
-import Settings.Meridian (smeSample)
+import Settings.Kit.Fixtures (Cut)
+import Settings.Meridian.Parameters (smeSample)
 import Settings.Meridian.Fixtures.Common (allResources, cut, defaultFixture, fixture, holding, money)
 
 -- | The SME and its Representation's Aggregate, with the Representation bound at the fixture's noise

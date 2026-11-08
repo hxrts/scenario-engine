@@ -1,7 +1,7 @@
 -- | The `pi` process (docs/01_overview.md §10): the raw model call. One ephemeral, tool-less `pi`
 -- | process per call, given a system prompt and an input text, returning the reply text and the path
 -- | of its raw event stream. This adapter knows nothing of prompts, JSON, or evidence: those are the
--- | handler's (`Handlers.Llm`). The model ID is the only configuration.
+-- | handler's (`Handlers.Llm.*`). The model ID is the only configuration.
 module Adapters.Pi (defaultModel, pi) where
 
 import Prelude

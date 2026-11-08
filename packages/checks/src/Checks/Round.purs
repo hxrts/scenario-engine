@@ -23,7 +23,8 @@ import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
-import Schema.Round (Expect, Observed)
+import Foreign.Object as Object
+import Schema.Round (RoundRow, Expect, Observed)
 
 -- | A field a check compares: a leaf of a map, or a whole-round field.
 data Field
@@ -96,18 +97,20 @@ observe r =
 -- | Every check the Expect makes of the Observed, for round `round`. Deliveries are compared as sets
 -- | (sorted), rejections and lapses by sorted Proposal id, and procedure outcomes in the order written.
 check :: Int -> Expect -> Observed -> Array Failure
-check round ex ob =
-  concat
-    [ nested Balance ex.accounts ob.accounts
-    , nested Reserve ex.reserves ob.reserves
-    , nested Factor ex.factors ob.factors
-    , maybe [] (\ds -> whole Deliveries (sortWith show (fromIdentity ob.deliveries)) (sortWith show ds)) ex.deliveries
-    , maybe [] (\rs -> whole Rejections (fromIdentity ob.rejected) (sort rs)) ex.rejected
-    , maybe [] (\rs -> whole Lapses (fromIdentity ob.lapsed) (sort rs)) ex.lapsed
-    , maybe [] (\ps -> whole Outcomes (fromIdentity ob.procedures) ps) ex.procedures
-    , maybe [] (\n -> whole Scheduled (fromIdentity ob.scheduled) n) ex.scheduled
-    ]
+check round ex ob = concat (Object.values (Object.fromHomogeneous comparers))
   where
+  comparers :: Record (RoundRow (Array Failure) (Array Failure) (Array Failure) (Array Failure) (Array Failure) (Array Failure) (Array Failure))
+  comparers =
+    { accounts: nested Balance ex.accounts ob.accounts
+    , reserves: nested Reserve ex.reserves ob.reserves
+    , factors: nested Factor ex.factors ob.factors
+    , deliveries: maybe [] (\ds -> whole Deliveries (sortWith show (fromIdentity ob.deliveries)) (sortWith show ds)) ex.deliveries
+    , rejected: maybe [] (\rs -> whole Rejections (fromIdentity ob.rejected) (sort rs)) ex.rejected
+    , lapsed: maybe [] (\rs -> whole Lapses (fromIdentity ob.lapsed) (sort rs)) ex.lapsed
+    , procedures: maybe [] (\ps -> whole Outcomes (fromIdentity ob.procedures) ps) ex.procedures
+    , scheduled: maybe [] (\n -> whole Scheduled (fromIdentity ob.scheduled) n) ex.scheduled
+    }
+
   nested :: forall k1 k2. Ord k1 => Ord k2 => Show k1 => Show k2 => (k1 -> k2 -> Field) -> Map.Map k1 (Map.Map k2 (Maybe Q)) -> Map.Map k1 (Map.Map k2 (Identity Q)) -> Array Failure
   nested mk expected actual =
     concatMap

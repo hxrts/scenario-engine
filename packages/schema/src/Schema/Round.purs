@@ -14,6 +14,7 @@ module Schema.Round
   , ProcedureOf
   , ProcedureOutcome
   , RoundF
+  , RoundRow
   , noExpect
   , atRound
   ) where
@@ -40,16 +41,29 @@ type ProcedureOutcome = ProcedureOf ProposalId
 
 -- | One round's fields. The maps hold a leaf per (key, key) pair; the whole-round lists and the count
 -- | hold one value each.
-type RoundF f p =
-  { accounts :: Map EntityId (Map ResourceId (f Q))
-  , reserves :: Map MarketId (Map ResourceId (f Q))
-  , factors :: Map EntityId (Map BehaviorDomain (f Q))
-  , deliveries :: f (Array Delivery)
-  , rejected :: f (Array p)
-  , lapsed :: f (Array p)
-  , procedures :: f (Array (ProcedureOf p))
-  , scheduled :: f Int
-  }
+type RoundF f p = Record
+  ( RoundRow
+      (Map EntityId (Map ResourceId (f Q)))
+      (Map MarketId (Map ResourceId (f Q)))
+      (Map EntityId (Map BehaviorDomain (f Q)))
+      (f (Array Delivery))
+      (f (Array p))
+      (f (Array (ProcedureOf p)))
+      (f Int)
+  )
+
+-- | One slot per field of a round. `Checks.Round.check` holds one comparer per slot, so a new field fails to compile.
+type RoundRow :: Type -> Type -> Type -> Type -> Type -> Type -> Type -> Row Type
+type RoundRow accounts reserves factors deliveries proposals procedures count =
+  ( accounts :: accounts
+  , reserves :: reserves
+  , factors :: factors
+  , deliveries :: deliveries
+  , rejected :: proposals
+  , lapsed :: proposals
+  , procedures :: procedures
+  , scheduled :: count
+  )
 
 type Observed = RoundF Identity ProposalId
 

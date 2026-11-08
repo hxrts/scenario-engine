@@ -13,7 +13,7 @@ import Schema.Build.Decision (passive, asTemplate, each, factor, ge, gt, holding
 import Schema.Build.Intent (transfer)
 import Settings.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Settings.Meridian.Names (n)
-import Settings.Kit (banded, supplierOffers)
+import Settings.Kit.Strategies (banded, supplierOffers)
 import Settings.Meridian.Rules (tariff)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).

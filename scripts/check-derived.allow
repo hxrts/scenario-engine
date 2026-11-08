@@ -16,7 +16,7 @@ hand-instance packages/core/src/Core/Types.purs instance-Show-RefKind the text i
 hand-instance packages/game/src/Game/Error.purs instance-Show-GameError the text is the user-facing message (renderGameError)
 hand-instance packages/schema/src/Schema/Gameboard.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
 # JSON handled as JSON, not a payload with a type behind it.
-hand-json apps/cli/src/Compile/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
+hand-json apps/cli/src/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
 hand-json packages/premises/src/Settings/Load.purs merge merges setting files as JSON objects before decoding
 hand-json packages/premises/src/Settings/Compose.purs files splits a compiled document into its setting files by key
 # Not renames: each fixes a type or names a DSL word.

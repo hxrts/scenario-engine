@@ -11,7 +11,7 @@ import Settings.Meridian.Names (n)
 import Settings.Meridian.Rules (tariff)
 
 import Game.Patch (setAccount, setPosition)
-import Settings.Kit (Cut)
+import Settings.Kit.Fixtures (Cut)
 import Settings.Meridian.Fixtures.Common (allResources, cut, defaultFixture, fixture, holding, keeping, money)
 
 -- | Germany, the EU, and the EU's solidarity pool (fixtures B1 to B4). The pool is the EU's agent in

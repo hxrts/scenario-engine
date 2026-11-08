@@ -2,6 +2,7 @@ package:
   name: sp-checks
   dependencies:
     - prelude
+    - foreign-object
     - sp-core
     - sp-schema
     - arrays
