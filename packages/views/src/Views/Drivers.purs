@@ -58,7 +58,7 @@ ruleText w r = case Map.lookup (ruleKind r) w.ruleKinds of
   where
   fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
   amount = case r of
-    FlowRule { effect: Levy x } -> ratio x
+    FlowRule { effect: Levy l } -> ratio l.rate
     FlowRule { effect: Block } -> ""
     CapacityRule x -> quantity x.reduce
   scopeFill t = case r of

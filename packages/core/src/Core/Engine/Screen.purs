@@ -15,10 +15,10 @@ import Prelude
 import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), SignedProposal, jointIntent)
+import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, filter, find, length, mapMaybe, nub)
+import Data.Array (all, any, concat, elem, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -32,7 +32,7 @@ import Data.Tuple (Tuple(..))
 
 -- | A screened Proposal: signatures, shape, and authority checked; levies attached.
 -- | `routes` holds, by Intent index, the candidate Markets of each routed Trade (docs/02 §5.2).
-type Levy = { kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Q }
+type Levy = { kind :: RuleKindId, from :: EntityId, to :: Maybe EntityId, in :: ResourceId, amount :: Q }
 
 type Item =
   { proposal :: Proposal
@@ -154,23 +154,37 @@ conditioned w p = concat <$> traverse check gated
       b = groupOf w t.to
       applicable = filter (\r -> t.resource `elem` r.scope.over && covers a b r) flowRules
     for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
-    pure (map (levyOf t.from b t.quantity applicable) (nub (map _.kind (filter isLevy applicable))))
+    pure (map (levyOf t applicable b) (nubEq (mapMaybe levyKey applicable)))
   flowRules = mapMaybe flowOf (rulesOf w)
   flowOf = case _ of
     FlowRule r -> Just r
     CapacityRule _ -> Nothing
   isBlock r = r.effect == Block
-  isLevy r = case r.effect of
-    Levy _ -> true
-    _ -> false
+  -- rules of one kind that are paid the same way are one levy
+  levyKey r = case r.effect of
+    Levy l -> Just { kind: r.kind, in: l.in, to: l.to, governor: r.scope.governor }
+    Block -> Nothing
   covers from to r = case r.scope.direction of
     Inbound -> intoGovernor from to r
     Outbound -> intoGovernor to from r
     EitherWay -> intoGovernor from to r || intoGovernor to from r
   intoGovernor from to r = r.scope.governor == to && r.scope.counterparty == from
-  levyOf from to q rules kind = { kind, from, to, amount: Q.sumQ (map (rate q) (filter (\r -> r.kind == kind) rules)) }
-  rate q r = case r.effect of
-    Levy x -> Q.mul x q
+  levyOf t rules dest key =
+    { kind: key.kind
+    , from: t.from
+    , to: case key.to of
+        LevyToDestination -> Just dest
+        LevyToGovernor -> Just key.governor
+        LevyToSink -> Nothing
+    , in: key.in
+    , amount: Q.sumQ (map (charge t.quantity) (filter (\r -> levyKey r == Just key) rules))
+    }
+  charge q r = case r.effect of
+    Levy l -> Q.mul l.rate
+      ( case l.basis of
+          PerUnit -> q
+          AdValorem m -> Q.mul (fromMaybe Q.zero (priceOf w m)) q
+      )
     Block -> Q.zero
 
 -- | The group an Entity counts as: itself, unless the premise says otherwise.

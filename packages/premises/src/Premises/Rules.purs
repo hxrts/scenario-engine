@@ -18,7 +18,7 @@ module Premises.Rules
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl)
+import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), LevyBasis(..), LevyRecipient(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl)
 import Data.Tuple (Tuple(..))
 import Premises.Names as N
 import Schema.Build.Base (Keyed, keyed, mayEnact)
@@ -55,7 +55,7 @@ mayEnactWithholding :: Capability
 mayEnactWithholding = mayEnact withholdingKind
 
 tariffOf :: forall v. String -> String -> v -> RuleF v
-tariffOf jurisdiction origin rate = FlowRule { kind: Id tariffKind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound, over: covered }, effect: Levy rate }
+tariffOf jurisdiction origin rate = FlowRule { kind: Id tariffKind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound, over: covered }, effect: Levy { rate, basis: PerUnit, in: Id N.money, to: LevyToDestination } }
 
 banOf :: forall v. String -> String -> RuleF v
 banOf jurisdiction target = FlowRule { kind: Id accessBanKind, scope: { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay, over: covered }, effect: Block }

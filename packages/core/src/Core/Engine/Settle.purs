@@ -319,9 +319,9 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     let
       owed = Q.mul (scaleOf s t.from) t.amount
     in
-      case pay w t.from (Just t.to) w.numeraire owed a' of
+      case pay w t.from t.to t.in owed a' of
         Tuple paid after
-          | owed > Q.zero -> after { events = after.events <> [ coupled w.round [ leg (Held t.from) (Held t.to) w.numeraire owed paid ] Nothing (OfRule { kind: t.kind }) ] }
+          | owed > Q.zero -> after { events = after.events <> [ coupled w.round [ leg (Held t.from) (maybe Sink Held t.to) t.in owed paid ] Nothing (OfRule { kind: t.kind }) ] }
           | otherwise -> after
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w (OfIntent { proposal: p.id, intent: i, mechanism: Direct }) t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a

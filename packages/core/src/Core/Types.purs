@@ -181,8 +181,17 @@ data Direction = Inbound | Outbound | EitherWay
 -- | What a flows Rule covers: Transfers between two groups.
 type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Direction, over :: Array ResourceId }
 
--- | What a flows Rule does: a levy at a rate of the flow, or a block on it.
-data FlowEffect v = Levy v | Block
+-- | What a levy is charged on: the units moved, or their value at a Market's beginning-of-round price.
+data LevyBasis = PerUnit | AdValorem MarketId
+
+-- | Who receives a levy: the group the flow is going to, the Rule's governor, or nobody.
+data LevyRecipient = LevyToDestination | LevyToGovernor | LevyToSink
+
+-- | A levy: its rate on its basis, the Resource it is paid in, and who receives it.
+type LevyF v = { rate :: v, basis :: LevyBasis, in :: ResourceId, to :: LevyRecipient }
+
+-- | What a flows Rule does: a levy on the flow, or a block on it.
+data FlowEffect v = Levy (LevyF v) | Block
 
 -- | A Rule, with its amounts in the filling `v`: one on flows, or one reducing a capacity. Its `kind` names a
 -- | declared kind; the mechanism reads the rest, never the kind. A combination that would do nothing, such
@@ -295,7 +304,7 @@ traverseIntent t = case _ of
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
   where
   effectAt = case _ of
-    Levy v -> Levy <$> t.value v
+    Levy l -> (\rate in' -> Levy l { rate = rate, in = in' }) <$> t.value l.rate <*> t.resource l.in
     Block -> pure Block
 
 type Rule = RuleF Q
@@ -397,6 +406,8 @@ derive instance Generic Transferability _
 derive instance Generic Capability _
 derive instance Generic Direction _
 derive instance Generic (FlowEffect v) _
+derive instance Generic LevyBasis _
+derive instance Generic LevyRecipient _
 derive instance Generic (RuleF v) _
 derive instance Generic FlowGovernance _
 derive instance Generic RuleForm _
@@ -422,6 +433,8 @@ derive instance Eq Transferability
 derive instance Eq Capability
 derive instance Eq Direction
 derive instance Eq FlowGovernance
+derive instance Eq LevyBasis
+derive instance Eq LevyRecipient
 derive instance Eq RuleForm
 derive instance (Eq m, Eq v) => Eq (IntentF m v)
 derive instance Eq v => Eq (FlowEffect v)
@@ -441,6 +454,12 @@ instance Show Capability where
   show = genericShow
 
 instance Show FlowGovernance where
+  show = genericShow
+
+instance Show LevyBasis where
+  show = genericShow
+
+instance Show LevyRecipient where
   show = genericShow
 
 instance Show RuleForm where
@@ -489,9 +508,21 @@ flowScopeShape = object "FlowScope"
 
 flowEffectShape :: forall v. Shape v -> Shape (FlowEffect v)
 flowEffectShape v = genericSum "FlowEffect"
-  { "Levy": atTagged "a levy at this rate of the flow" v
+  { "Levy": atTagged "a levy on the flow" (levyShape v)
   , "Block": atTagged "the flow is refused" unitShape
   }
+
+levyBasisShape :: Shape LevyBasis
+levyBasisShape = genericSum "LevyBasis"
+  { "PerUnit": atTagged "per unit moved" unitShape
+  , "AdValorem": atTagged "on the value moved, at this Market's price" idShape
+  }
+
+levyRecipientShape :: Shape LevyRecipient
+levyRecipientShape = genericEnum "LevyRecipient"
+
+levyShape :: forall v. Shape v -> Shape (LevyF v)
+levyShape v = recordShape "Levy" { rate: v, basis: levyBasisShape, in: idShape, to: levyRecipientShape }
 
 ruleShape :: Shape (RuleF Q)
 ruleShape = genericSum "Rule"

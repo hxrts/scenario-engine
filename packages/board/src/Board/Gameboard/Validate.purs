@@ -19,7 +19,7 @@ import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, In
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, domainResource, idText)
+import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, FlowEffect(..), LevyBasis(..), RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, domainResource, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -100,9 +100,14 @@ validateGameboard gb config =
   reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.escrowPerUnit)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
   ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
-    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over
+    FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over <> levyRefs x.effect
     CapacityRule x -> unknownCapacity [ x.capacity ]
   unknownKind k = [ UnknownReference RuleKindRef (show k) ]
+  levyRefs = case _ of
+    Levy l -> unknownResource [ l.in ] <> case l.basis of
+      PerUnit -> []
+      AdValorem m -> unknown Market [ m ]
+    Block -> []
   -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind
   capabilityRefs = case _ of
     MayTrade m -> unknown Market [ m ]

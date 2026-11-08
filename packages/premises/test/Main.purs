@@ -16,7 +16,7 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
+import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), ShareBasis(..), UnseededWorld, View, coupled)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, shareRule)
@@ -577,7 +577,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }

@@ -9,7 +9,7 @@ import Core.Engine.Commit (resolveRound)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
-import Core.Types (Capability(..), Direction(..), FlowEffect(..), RuleForm(..), Id(..), Intent, IntentF(..), FlowGovernance(..), RuleF(..), Transferability(..), proposalId)
+import Core.Types (LevyBasis(..), LevyRecipient(..), Capability(..), Direction(..), FlowEffect(..), RuleForm(..), Id(..), Intent, IntentF(..), FlowGovernance(..), RuleF(..), Transferability(..), proposalId)
 import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -52,7 +52,7 @@ world =
       , Tuple "Emp" (noEntity { accounts = [ Tuple "M" (Q.fromInt 8) ] })
       , Tuple "Wrk" noEntity
       ]
-  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy (Q.div (Q.fromInt 1) (Q.fromInt 10)) } ]
+  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.div (Q.fromInt 1) (Q.fromInt 10), basis: PerUnit, in: Id "M", to: LevyToDestination } } ]
   , representations: Nothing
   , circulation: Just { production: Nothing, flows: Just [ { from: Id "Emp", to: Id "Wrk", resource: Id "M", amount: Q.fromInt 10 } ], shares: Nothing, requirements: Nothing }
   }

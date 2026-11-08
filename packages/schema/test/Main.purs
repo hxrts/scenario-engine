@@ -5,7 +5,7 @@ import Prelude
 import Data.Map as Map
 
 import Core.World (RecurringAmount(..))
-import Core.Types (Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
+import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
 import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
 import Core.Num as Q
@@ -80,7 +80,7 @@ roundTripStrategies =
             [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: lit 2 })
             , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
-            , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy (lit "0.5") }))
+            , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: lit "0.5", basis: PerUnit, in: Id "M", to: LevyToDestination } }))
             , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block }))
             , asTemplate (enactRule (CapacityRule { kind: Id "withholding", capacity: Id "c", reduce: lit 2 }))
             , asTemplate (repeal { rule: "r2/US/0/rule-0" })
@@ -151,7 +151,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Rule forms" do
     it "a combination that would do nothing has no form" do
       isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
-      isLeft (decodeJsonWith Premise ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": "1" } }""")) `shouldEqual` true
+      isLeft (decodeJsonWith Premise ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
 
   describe "Capability tags" do
     it "decodes each capability kind" do
@@ -288,7 +288,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }

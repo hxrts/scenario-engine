@@ -12,7 +12,7 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Shape (Shape, listOf, refined, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, recordShape, requiredOf)
-import Core.Types (Capability, Direction(..), EntityId, FlowEffect, Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Core.Types (Capability, Direction(..), EntityId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
@@ -43,10 +43,25 @@ directionShape = nameShape "Direction" "direction: inbound, outbound or eitherWa
     Outbound -> "outbound"
     EitherWay -> "eitherWay"
 
+-- | What a levy is charged on: `perUnit`, or `{ adValorem: <market> }`.
+basisShape :: Shape LevyBasis
+basisShape = genericPremiseSum "LevyBasis"
+  { "PerUnit": atBare { tag: "perUnit", desc: "per unit moved" }
+  , "AdValorem": atOneKey "adValorem" "on the value moved, at this Market's price" idShape
+  }
+
+recipientShape :: Shape LevyRecipient
+recipientShape = nameShape "LevyRecipient" "who receives it: destination, governor or sink" recipient [ LevyToDestination, LevyToGovernor, LevyToSink ]
+  where
+  recipient = case _ of
+    LevyToDestination -> "destination"
+    LevyToGovernor -> "governor"
+    LevyToSink -> "sink"
+
 -- | What a flows Rule does, over its filling.
 effectShapeOf :: forall v. Shape v -> Shape (FlowEffect v)
 effectShapeOf v = genericPremiseSum "FlowEffect"
-  { "Levy": atOneKey "levy" "a levy at this rate of the flow" v
+  { "Levy": atOneKey "levy" "a levy on the flow: its rate, its basis, the Resource it is paid in, and who receives it" (recordShape "Levy" { rate: v, basis: basisShape, in: idShape, to: recipientShape })
   , "Block": atBare { tag: "block", desc: "the flow is refused" }
   }
 

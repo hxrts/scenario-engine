@@ -258,7 +258,7 @@ data Rule
 
 type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Inbound | Outbound | EitherWay, over :: Array ResourceId }
 
-data FlowEffect = Levy Ratio | Block
+data FlowEffect = Levy { rate :: Ratio, basis :: PerUnit | AdValorem MarketId, in :: ResourceId, to :: LevyToDestination | LevyToGovernor | LevyToSink } | Block
 
 -- a declared kind: who governs fixes a flows Rule's direction; a capacity Rule is governed by the owner
 type RuleKindDecl = { form :: LevyFlows Governance | BlockFlows Governance | ReduceCapacity, text :: String }

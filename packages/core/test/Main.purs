@@ -19,7 +19,7 @@ import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
-import Core.Types (conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
+import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
@@ -753,6 +753,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         declared = Map.singleton (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }
         w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind embargo" ]
+    it "a levy may be ad valorem, and may go to the sink" do
+      let
+        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: AdValorem (Id "EM"), in: Id "M", to: LevyToSink } }
+        declared = Map.singleton (Id "toll") { form: LevyFlows GovernedByDestination, text: "" }
+        w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") toll, markets = Map.singleton (Id "EM") (priced "EM" "E" [] "2") }
+        r = resolved w [ submit "A" 0 [ send "B" 5 ] ]
+      -- 0.1 x 5 units x price 2 is 1 Money, destroyed
+      holding r.world (Id "A") (Id "M") `shouldEqual` Q.fromInt 99
+      holding r.world (Id "B") (Id "M") `shouldEqual` Q.fromInt 100
     it "a Rule does not cover a Resource outside its over" do
       let
         embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "M" ] }, effect: Block }
@@ -769,7 +778,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a new Rule kind, declared only as data, is enforced by the mechanism" do
       let
         embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block }
-        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy (q "0.1") }
+        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: PerUnit, in: Id "M", to: LevyToDestination } }
         declared = Map.fromFoldable [ Tuple (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }, Tuple (Id "toll") { form: LevyFlows GovernedByDestination, text: "" } ]
         blocked = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
         tolled = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") toll }
@@ -976,11 +985,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"market\":\"energy-asia\",\"limitPrice\":null}],\"tag\":\"Trade\"}"
     it "the snapshot form of a rule enactment nests the Rule the same way" do
       stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
-        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[\"0.5000\"],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
+        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy r.rate }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
 
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
