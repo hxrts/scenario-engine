@@ -10,7 +10,7 @@ module Schema.Premise.Intent
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, fieldOf, kindArg, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, requiredOf)
+import Core.Shape (Shape, atKindArg, atOneKey, fieldOf, genericPremiseSum, object, omittedWhen, oneKey, optionalOf, partialIso, premiseSum, requiredOf)
 import Core.Types (Capability(..), Intent, IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF(..), RuleKind, accessBanBody, idShape, ruleKindShape, tariffBody, transferBody, withholdingBody)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
@@ -34,26 +34,11 @@ repealTag = "repeal"
 
 -- | The Rule, under `enact`: `{ "tariff": ... }`, `{ "accessBan": ... }`, `{ "withholding": ... }`.
 ruleShape :: Shape (RuleF Q)
-ruleShape = premiseSum "Rule"
-  [ oneKey ruleTags.tariff.premise ruleTags.tariff.desc (tariffBody qShape)
-      ( case _ of
-          Tariff r -> Just r
-          _ -> Nothing
-      )
-      Tariff
-  , oneKey ruleTags.accessBan.premise ruleTags.accessBan.desc accessBanBody
-      ( case _ of
-          AccessBan r -> Just r
-          _ -> Nothing
-      )
-      AccessBan
-  , oneKey ruleTags.withholding.premise ruleTags.withholding.desc (withholdingBody qShape)
-      ( case _ of
-          Withholding r -> Just r
-          _ -> Nothing
-      )
-      Withholding
-  ]
+ruleShape = genericPremiseSum "Rule"
+  { "Tariff": atOneKey ruleTags.tariff.premise ruleTags.tariff.desc (tariffBody qShape)
+  , "AccessBan": atOneKey ruleTags.accessBan.premise ruleTags.accessBan.desc accessBanBody
+  , "Withholding": atOneKey ruleTags.withholding.premise ruleTags.withholding.desc (withholdingBody qShape)
+  }
 
 -- | An Intent. A `trade` with a null market is a routed order (docs/02 §5.2): it names its pair by
 -- | `base` and `quote`.
@@ -142,32 +127,12 @@ tradeBody = partialIso bodyShape read write
 -- | A Capability: `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, or
 -- | `enact:<tariff|accessBan|withholding>`.
 capabilityShape :: Shape Capability
-capabilityShape = premiseSum "Capability"
-  [ kindArg { tag: capabilityTags.trade.premise, desc: capabilityTags.trade.desc } idShape
-      ( case _ of
-          MayTrade m -> Just m
-          _ -> Nothing
-      )
-      MayTrade
-  , kindArg { tag: capabilityTags.transfer.premise, desc: capabilityTags.transfer.desc } idShape
-      ( case _ of
-          MayTransfer r -> Just r
-          _ -> Nothing
-      )
-      MayTransfer
-  , kindArg { tag: capabilityTags.transform.premise, desc: capabilityTags.transform.desc } idShape
-      ( case _ of
-          MayTransform t -> Just t
-          _ -> Nothing
-      )
-      MayTransform
-  , kindArg { tag: capabilityTags.enact.premise, desc: capabilityTags.enact.desc } premiseRuleKind
-      ( case _ of
-          MayEnact k -> Just k
-          _ -> Nothing
-      )
-      MayEnact
-  ]
+capabilityShape = genericPremiseSum "Capability"
+  { "MayTrade": atKindArg { tag: capabilityTags.trade.premise, desc: capabilityTags.trade.desc } idShape
+  , "MayTransfer": atKindArg { tag: capabilityTags.transfer.premise, desc: capabilityTags.transfer.desc } idShape
+  , "MayTransform": atKindArg { tag: capabilityTags.transform.premise, desc: capabilityTags.transform.desc } idShape
+  , "MayEnact": atKindArg { tag: capabilityTags.enact.premise, desc: capabilityTags.enact.desc } premiseRuleKind
+  }
 
 premiseRuleKind :: Shape RuleKind
 premiseRuleKind = premiseEnum "RuleKind" ruleKindShape ruleKindTags

@@ -80,13 +80,6 @@ silent-default packages/simulator/test/Main.purs 10
 silent-default packages/views/src/Views/Actions.purs 5
 silent-default packages/views/src/Views/Drivers.purs 1
 silent-default packages/views/src/Views/Markets.purs 2
-sum-projection packages/core/src/Core/Types.purs 18
-sum-projection packages/core/src/Core/World.purs 19
-sum-projection packages/game/src/Game/Override.purs 5
-sum-projection packages/schema/src/Schema/Premise/Actor.purs 7
-sum-projection packages/schema/src/Schema/Premise/Intent.purs 11
-sum-projection packages/schema/src/Schema/Premise/Strategy.purs 39
-sum-projection packages/schema/src/Schema/Premise/World.purs 1
 test-literal packages/board/test/Main.purs 1
 test-literal packages/experiments/test/Test/Experiments/Mandatory.purs 1
 test-literal packages/game/test/Main.purs 4

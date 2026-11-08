@@ -8,7 +8,7 @@ import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, sumOf, unitShape)
+import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
 import Core.Types (Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -269,218 +269,30 @@ rejectReasonShape :: Shape RejectReason
 rejectReasonShape = prim "RejectReason" (fromString <<< renderReason) (\j -> map Recorded (note "expected a rejection reason text" (toString j)))
 
 targetShape :: Shape Target
-targetShape = sumOf "Target"
-  [ ctorOf { tag: "Holding", desc: "a Resource held" } idShape
-      ( \t -> case t of
-          Holding r -> Just r
-          _ -> Nothing
-      )
-      Holding
-  , ctorOf { tag: "CapacityOf", desc: "a capacity of a facility" } idShape
-      ( \t -> case t of
-          CapacityOf c -> Just c
-          _ -> Nothing
-      )
-      CapacityOf
-  ]
+targetShape = genericSum "Target"
+  { "Holding": atTagged "a Resource held" idShape
+  , "CapacityOf": atTagged "a capacity of a facility" idShape
+  }
 
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
 eventShape :: Shape Event
-eventShape = sumOf "Event"
-  [ ctorOf { tag: "Lapsed", desc: "a Proposal that lapsed" } lapsedShape
-      ( \e -> case e of
-          Lapsed r -> Just r
-          _ -> Nothing
-      )
-      Lapsed
-  , ctorOf { tag: "Rejected", desc: "a Proposal the engine turned down" } rejectedShape
-      ( \e -> case e of
-          Rejected r -> Just r
-          _ -> Nothing
-      )
-      Rejected
-  , ctorOf { tag: "OrderRemoved", desc: "one order of a Proposal removed at settlement" } orderRemovedShape
-      ( \e -> case e of
-          OrderRemoved r -> Just r
-          _ -> Nothing
-      )
-      OrderRemoved
-  , ctorOf { tag: "Tariffed", desc: "a tariff paid on a shipment" } tariffedShape
-      ( \e -> case e of
-          Tariffed r -> Just r
-          _ -> Nothing
-      )
-      Tariffed
-  , ctorOf { tag: "Traded", desc: "a Market order filled" } tradedShape
-      ( \e -> case e of
-          Traded r -> Just r
-          _ -> Nothing
-      )
-      Traded
-  , ctorOf { tag: "Transferred", desc: "a Resource moved between Entities" } transferredShape
-      ( \e -> case e of
-          Transferred r -> Just r
-          _ -> Nothing
-      )
-      Transferred
-  , ctorOf { tag: "Transformed", desc: "a run of a transformation" } transformedShape
-      ( \e -> case e of
-          Transformed r -> Just r
-          _ -> Nothing
-      )
-      Transformed
-  , ctorOf { tag: "Delivered", desc: "a delivery arrived" } deliveredShape
-      ( \e -> case e of
-          Delivered r -> Just r
-          _ -> Nothing
-      )
-      Delivered
-  , ctorOf { tag: "Enacted", desc: "a Rule enacted" } enactedShape
-      ( \e -> case e of
-          Enacted r -> Just r
-          _ -> Nothing
-      )
-      Enacted
-  , ctorOf { tag: "Repealed", desc: "a Rule repealed" } repealedShape
-      ( \e -> case e of
-          Repealed r -> Just r
-          _ -> Nothing
-      )
-      Repealed
-  , ctorOf { tag: "Estimated", desc: "a representation's factor estimated" } estimatedShape
-      ( \e -> case e of
-          Estimated r -> Just r
-          _ -> Nothing
-      )
-      Estimated
-  , ctorOf { tag: "Consumed", desc: "a Resource consumed" } consumedShape
-      ( \e -> case e of
-          Consumed r -> Just r
-          _ -> Nothing
-      )
-      Consumed
-  , ctorOf { tag: "Shortfall", desc: "an amount owed but not delivered" } shortfallShape
-      ( \e -> case e of
-          Shortfall r -> Just r
-          _ -> Nothing
-      )
-      Shortfall
-  , ctorOf { tag: "Decayed", desc: "a Resource lost to decay" } decayedShape
-      ( \e -> case e of
-          Decayed r -> Just r
-          _ -> Nothing
-      )
-      Decayed
-  , ctorOf { tag: "ProcedureOutcome", desc: "a collective procedure's outcome" } procedureOutcomeShape
-      ( \e -> case e of
-          ProcedureOutcome r -> Just r
-          _ -> Nothing
-      )
-      ProcedureOutcome
-  ]
-  where
-  lapsedShape = object "Lapsed"
-    ( (\r p -> { round: r, proposal: p })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "proposal" "" idShape _.proposal
-    )
-  rejectedShape = object "Rejected"
-    ( (\r p x -> { round: r, proposal: p, reason: x })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "proposal" "" idShape _.proposal
-        <*> fieldOf "reason" "" rejectReasonShape _.reason
-    )
-  orderRemovedShape = object "OrderRemoved"
-    ( (\r p x -> { round: r, proposal: p, reason: x })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "proposal" "" idShape _.proposal
-        <*> fieldOf "reason" "" rejectReasonShape _.reason
-    )
-  tariffedShape = object "Tariffed"
-    ( (\r f t a -> { round: r, from: f, to: t, amount: a })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "from" "" idShape _.from
-        <*> fieldOf "to" "" idShape _.to
-        <*> fieldOf "amount" "" qShape _.amount
-    )
-  tradedShape = object "Traded"
-    ( (\r m e q p -> { round: r, market: m, entity: e, quantity: q, price: p })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "market" "" idShape _.market
-        <*> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "quantity" "" qShape _.quantity
-        <*> fieldOf "price" "" qShape _.price
-    )
-  transferredShape = object "Transferred"
-    ( (\r f t res q -> { round: r, from: f, to: t, resource: res, quantity: q })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "from" "" idShape _.from
-        <*> fieldOf "to" "" idShape _.to
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "quantity" "" qShape _.quantity
-    )
-  transformedShape = object "Transformed"
-    ( (\r b t q p -> { round: r, by: b, transformation: t, quantity: q, paid: p })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "by" "" idShape _.by
-        <*> fieldOf "transformation" "" idShape _.transformation
-        <*> fieldOf "quantity" "" qShape _.quantity
-        <*> fieldOf "paid" "" qShape _.paid
-    )
-  deliveredShape = object "Delivered"
-    ( (\r e t q -> { round: r, entity: e, target: t, quantity: q })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "target" "" targetShape _.target
-        <*> fieldOf "quantity" "" qShape _.quantity
-    )
-  enactedShape = object "Enacted"
-    ( (\r i x -> { round: r, id: i, rule: x })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "id" "" idShape _.id
-        <*> fieldOf "rule" "" ruleShape _.rule
-    )
-  repealedShape = object "Repealed"
-    ( (\r i -> { round: r, id: i })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "id" "" idShape _.id
-    )
-  estimatedShape = object "Estimated"
-    ( (\r a d f -> { round: r, aggregate: a, domain: d, factor: f })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "aggregate" "" idShape _.aggregate
-        <*> fieldOf "domain" "" idShape _.domain
-        <*> fieldOf "factor" "" qShape _.factor
-    )
-  consumedShape = object "Consumed"
-    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "quantity" "" qShape _.quantity
-    )
-  shortfallShape = object "Shortfall"
-    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "quantity" "" qShape _.quantity
-    )
-  decayedShape = object "Decayed"
-    ( (\r e res q -> { round: r, entity: e, resource: res, quantity: q })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "quantity" "" qShape _.quantity
-    )
-  procedureOutcomeShape = object "ProcedureOutcome"
-    ( (\r p s t x -> { round: r, proposal: p, support: s, threshold: t, executed: x })
-        <$> fieldOf "round" "" intShape _.round
-        <*> fieldOf "proposal" "" idShape _.proposal
-        <*> fieldOf "support" "" qShape _.support
-        <*> fieldOf "threshold" "" qShape _.threshold
-        <*> fieldOf "executed" "" boolShape _.executed
-    )
+eventShape = genericSum "Event"
+  { "Lapsed": atTagged "a Proposal that lapsed" (recordShape "Lapsed" { round: intShape, proposal: idShape })
+  , "Rejected": atTagged "a Proposal the engine turned down" (recordShape "Rejected" { round: intShape, proposal: idShape, reason: rejectReasonShape })
+  , "OrderRemoved": atTagged "one order of a Proposal removed at settlement" (recordShape "OrderRemoved" { round: intShape, proposal: idShape, reason: rejectReasonShape })
+  , "Traded": atTagged "a Market order filled" (recordShape "Traded" { round: intShape, market: idShape, entity: idShape, quantity: qShape, price: qShape })
+  , "Transferred": atTagged "a Resource moved between Entities" (recordShape "Transferred" { round: intShape, from: idShape, to: idShape, resource: idShape, quantity: qShape })
+  , "Tariffed": atTagged "a tariff paid on a shipment" (recordShape "Tariffed" { round: intShape, from: idShape, to: idShape, amount: qShape })
+  , "Transformed": atTagged "a run of a transformation" (recordShape "Transformed" { round: intShape, by: idShape, transformation: idShape, quantity: qShape, paid: qShape })
+  , "Delivered": atTagged "a delivery arrived" (recordShape "Delivered" { round: intShape, entity: idShape, target: targetShape, quantity: qShape })
+  , "Enacted": atTagged "a Rule enacted" (recordShape "Enacted" { round: intShape, id: idShape, rule: ruleShape })
+  , "Repealed": atTagged "a Rule repealed" (recordShape "Repealed" { round: intShape, id: idShape })
+  , "Estimated": atTagged "a representation's factor estimated" (recordShape "Estimated" { round: intShape, aggregate: idShape, domain: idShape, factor: qShape })
+  , "Consumed": atTagged "a Resource consumed" (recordShape "Consumed" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
+  , "Shortfall": atTagged "an amount owed but not delivered" (recordShape "Shortfall" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
+  , "Decayed": atTagged "a Resource lost to decay" (recordShape "Decayed" { round: intShape, entity: idShape, resource: idShape, quantity: qShape })
+  , "ProcedureOutcome": atTagged "a collective procedure's outcome" (recordShape "ProcedureOutcome" { round: intShape, proposal: idShape, support: qShape, threshold: qShape, executed: boolShape })
+  }
 
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
@@ -548,180 +360,51 @@ instance DecodeJson Event where
 -- encoder writes (test: "stored records encode the same"), so stored rows read back unchanged.
 
 intervalShape :: Shape Interval
-intervalShape = object "Interval"
-  ( { lo: _, hi: _ }
-      <$> fieldOf "lo" "" qShape _.lo
-      <*> fieldOf "hi" "" qShape _.hi
-  )
+intervalShape = recordShape "Interval" { lo: qShape, hi: qShape }
 
 costFunctionShape :: Shape CostFunction
-costFunctionShape = object "CostFunction"
-  ( { base: _, slope: _, domain: _ }
-      <$> fieldOf "base" "" qShape _.base
-      <*> fieldOf "slope" "" qShape _.slope
-      <*> fieldOf "domain" "" intervalShape _.domain
-  )
+costFunctionShape = recordShape "CostFunction" { base: qShape, slope: qShape, domain: intervalShape }
 
 holdingsShape :: forall t. Shape (Map (Id t) Q)
 holdingsShape = mapOf idShape qShape
 
 marketShape :: Shape Market
-marketShape = object "Market"
-  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
-      <$> fieldOf "id" "" idShape _.id
-      <*> fieldOf "base" "" idShape _.base
-      <*> fieldOf "quote" "" idShape _.quote
-      <*> fieldOf "cost" "" costFunctionShape _.cost
-      <*> fieldOf "position" "" qShape _.position
-      <*> fieldOf "reserves" "" holdingsShape _.reserves
-      <*> fieldOf "access" "" (arrayOf idShape) _.access
-  )
+marketShape = recordShape "Market" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape) }
 
 capacityEffectShape :: Shape CapacityEffect
-capacityEffectShape = object "CapacityEffect"
-  ( { capacity: _, holder: _, perUnit: _, rounds: _ }
-      <$> fieldOf "capacity" "" idShape _.capacity
-      <*> fieldOf "holder" "" (optionalOf idShape) _.holder
-      <*> fieldOf "perUnit" "" qShape _.perUnit
-      <*> fieldOf "rounds" "" (optionalOf intShape) _.rounds
-  )
+capacityEffectShape = recordShape "CapacityEffect" { capacity: idShape, holder: (optionalOf idShape), perUnit: qShape, rounds: (optionalOf intShape) }
 
 transformationShape :: Shape Transformation
-transformationShape = object "Transformation"
-  ( { id: _, inputs: _, outputs: _, reserves: _, cost: _, capacity: _, payee: _, delay: _, minimum: _, maximum: _, capacityUse: _, ownerSigns: _, effects: _ }
-      <$> fieldOf "id" "" idShape _.id
-      <*> fieldOf "inputs" "" holdingsShape _.inputs
-      <*> fieldOf "outputs" "" holdingsShape _.outputs
-      <*> fieldOf "reserves" "" holdingsShape _.reserves
-      <*> fieldOf "cost" "" (optionalOf costFunctionShape) _.cost
-      <*> fieldOf "capacity" "" (optionalOf idShape) _.capacity
-      <*> fieldOf "payee" "" (optionalOf idShape) _.payee
-      <*> fieldOf "delay" "" intShape _.delay
-      <*> fieldOf "minimum" "" qShape _.minimum
-      <*> fieldOf "maximum" "" (optionalOf qShape) _.maximum
-      <*> fieldOf "capacityUse" "" qShape _.capacityUse
-      <*> fieldOf "ownerSigns" "" boolShape _.ownerSigns
-      <*> fieldOf "effects" "" (arrayOf capacityEffectShape) _.effects
-  )
+transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, reserves: holdingsShape, cost: (optionalOf costFunctionShape), capacity: (optionalOf idShape), payee: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
-resourceDefinitionShape = object "ResourceDefinition"
-  ( { id: _, unit: _, transferability: _, decay: _, reservable: _ }
-      <$> fieldOf "id" "" idShape _.id
-      <*> fieldOf "unit" "" stringShape _.unit
-      <*> fieldOf "transferability" "" transferabilityShape _.transferability
-      <*> fieldOf "decay" "" (optionalOf (object "DecayRule" ({ rate: _ } <$> fieldOf "rate" "" qShape _.rate))) _.decay
-      <*> fieldOf "reservable" "" boolShape _.reservable
-  )
+resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, decay: (optionalOf (recordShape "DecayRule" { rate: qShape })), reservable: boolShape }
 
 estimatorShape :: Shape Estimator
-estimatorShape = object "Estimator"
-  ( { reference: _, shrinkage: _, deviationBound: _, noiseSpread: _ }
-      <$> fieldOf "reference" "" qShape _.reference
-      <*> fieldOf "shrinkage" "" qShape _.shrinkage
-      <*> fieldOf "deviationBound" "" (optionalOf intervalShape) _.deviationBound
-      <*> fieldOf "noiseSpread" "" qShape _.noiseSpread
-  )
+estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
 
 representationShape :: Shape Representation
-representationShape = object "Representation"
-  ( { id: _, actor: _, aggregate: _, domain: _, weight: _, estimator: _ }
-      <$> fieldOf "id" "" idShape _.id
-      <*> fieldOf "actor" "" idShape _.actor
-      <*> fieldOf "aggregate" "" idShape _.aggregate
-      <*> fieldOf "domain" "" idShape _.domain
-      <*> fieldOf "weight" "" qShape _.weight
-      <*> fieldOf "estimator" "" estimatorShape _.estimator
-  )
+representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, weight: qShape, estimator: estimatorShape }
 
 deliveryShape :: Shape Delivery
-deliveryShape = object "Delivery"
-  ( { round: _, entity: _, target: _, quantity: _ }
-      <$> fieldOf "round" "" intShape _.round
-      <*> fieldOf "entity" "" idShape _.entity
-      <*> fieldOf "target" "" targetShape _.target
-      <*> fieldOf "quantity" "" qShape _.quantity
-  )
+deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, target: targetShape, quantity: qShape }
 
 shareSourceShape :: Shape ShareSource
-shareSourceShape = sumOf "ShareSource"
-  [ ctorOf { tag: "SalesOf", desc: "sales revenue of a Resource" } idShape
-      ( case _ of
-          SalesOf r -> Just r
-          _ -> Nothing
-      )
-      SalesOf
-  , ctorOf { tag: "PayeeReceipts", desc: "what the Entity received as a payee" } unitShape
-      ( case _ of
-          PayeeReceipts -> Just unit
-          _ -> Nothing
-      )
-      (const PayeeReceipts)
-  ]
+shareSourceShape = genericSum "ShareSource"
+  { "SalesOf": atTagged "sales revenue of a Resource" idShape
+  , "PayeeReceipts": atTagged "what the Entity received as a payee" unitShape
+  }
 
 circulationShape :: Shape Circulation
-circulationShape = object "Circulation"
-  ( { production: _, flows: _, shares: _, requirements: _ }
-      <$> fieldOf "production" "" (arrayOf productionShape) _.production
-      <*> fieldOf "flows" "" (arrayOf flowShape) _.flows
-      <*> fieldOf "shares" "" (arrayOf shareShape) _.shares
-      <*> fieldOf "requirements" "" (arrayOf requirementShape) _.requirements
-  )
+circulationShape = recordShape "Circulation" { production: (arrayOf productionShape), flows: (arrayOf flowShape), shares: (arrayOf shareShape), requirements: (arrayOf requirementShape) }
   where
-  productionShape = object "Production"
-    ( { entity: _, resource: _, capacity: _ }
-        <$> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "capacity" "" idShape _.capacity
-    )
-  flowShape = object "Flow"
-    ( { from: _, to: _, resource: _, amount: _ }
-        <$> fieldOf "from" "" idShape _.from
-        <*> fieldOf "to" "" idShape _.to
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "amount" "" qShape _.amount
-    )
-  shareShape = object "Share"
-    ( { from: _, to: _, share: _, source: _ }
-        <$> fieldOf "from" "" idShape _.from
-        <*> fieldOf "to" "" idShape _.to
-        <*> fieldOf "share" "" qShape _.share
-        <*> fieldOf "source" "" shareSourceShape _.source
-    )
-  requirementShape = object "Requirement"
-    ( { entity: _, resource: _, amount: _, penalty: _ }
-        <$> fieldOf "entity" "" idShape _.entity
-        <*> fieldOf "resource" "" idShape _.resource
-        <*> fieldOf "amount" "" (optionalOf qShape) _.amount
-        <*> fieldOf "penalty" "" qShape _.penalty
-    )
+  productionShape = recordShape "Production" { entity: idShape, resource: idShape, capacity: idShape }
+  flowShape = recordShape "Flow" { from: idShape, to: idShape, resource: idShape, amount: qShape }
+  shareShape = recordShape "Share" { from: idShape, to: idShape, share: qShape, source: shareSourceShape }
+  requirementShape = recordShape "Requirement" { entity: idShape, resource: idShape, amount: (optionalOf qShape), penalty: qShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = object "WorldState"
-  ( { round: _, seed: _, entities: _, resources: _, markets: _, transformations: _, representations: _, numeraire: _, transport: _, jurisdiction: _, rules: _, scheduled: _, deliveries: _, factors: _, circulation: _, events: _ }
-      <$> fieldOf "round" "" intShape _.round
-      <*> fieldOf "seed" "" (iso Seed unwrap intShape) _.seed
-      <*> fieldOf "entities" "" (mapOf idShape entityShape) _.entities
-      <*> fieldOf "resources" "" (mapOf idShape resourceDefinitionShape) _.resources
-      <*> fieldOf "markets" "" (mapOf idShape marketShape) _.markets
-      <*> fieldOf "transformations" "" (mapOf idShape transformationShape) _.transformations
-      <*> fieldOf "representations" "" (arrayOf representationShape) _.representations
-      <*> fieldOf "numeraire" "" idShape _.numeraire
-      <*> fieldOf "transport" "" (mapOf idShape idShape) _.transport
-      <*> fieldOf "jurisdiction" "" (mapOf idShape idShape) _.jurisdiction
-      <*> fieldOf "rules" "" (mapOf idShape ruleShape) _.rules
-      <*> fieldOf "scheduled" "" (mapOf idShape (optionalOf ruleShape)) _.scheduled
-      <*> fieldOf "deliveries" "" (arrayOf deliveryShape) _.deliveries
-      <*> fieldOf "factors" "" (mapOf idShape holdingsShape) _.factors
-      <*> fieldOf "circulation" "" circulationShape _.circulation
-      <*> fieldOf "events" "" (arrayOf eventShape) _.events
-  )
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, transport: (mapOf idShape idShape), jurisdiction: (mapOf idShape idShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), circulation: circulationShape, events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
-manifestShape = object "Manifest"
-  ( { gameboard: _, engine: _, draw: _, initial: _ }
-      <$> fieldOf "gameboard" "" stringShape _.gameboard
-      <*> fieldOf "engine" "" stringShape _.engine
-      <*> fieldOf "draw" "" stringShape _.draw
-      <*> fieldOf "initial" "" worldStateShape _.initial
-  )
+manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

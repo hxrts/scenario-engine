@@ -13,7 +13,7 @@ module Schema.Premise.Strategy
 import Prelude
 
 import Core.Query (transfersOf, transformsOf)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericPremiseSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, dealIntent, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
@@ -24,114 +24,9 @@ import Data.Either (Either)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 
--- The premise tags. Private to this module.
-paramT :: String
-paramT = "param"
-
-roundT :: String
-roundT = "round"
-
-priceT :: String
-priceT = "price"
-
-holdingT :: String
-holdingT = "holding"
-
-factorT :: String
-factorT = "factor"
-
-mulT :: String
-mulT = "mul"
-
-subT :: String
-subT = "sub"
-
-maxT :: String
-maxT = "max"
-
-gtT :: String
-gtT = "gt"
-
-geT :: String
-geT = "ge"
-
-leT :: String
-leT = "le"
-
-eqT :: String
-eqT = "eq"
-
-notT :: String
-notT = "not"
-
-transformedLastRoundT :: String
-transformedLastRoundT = "transformedLastRound"
-
-restrictedLastRoundT :: String
-restrictedLastRoundT = "restrictedLastRound"
-
-restrictionInForceT :: String
-restrictionInForceT = "restrictionInForce"
-
-tradeT :: String
-tradeT = "trade"
-
-routeT :: String
-routeT = "route"
-
-transformT :: String
-transformT = "transform"
-
-transferT :: String
-transferT = "transfer"
-
-procedureT :: String
-procedureT = "procedure"
-
-enactTariffT :: String
-enactTariffT = "enactTariff"
-
-reciprocateT :: String
-reciprocateT = "reciprocate"
-
-dealT :: String
-dealT = "deal"
-
-chooseT :: String
-chooseT = "choose"
-
-enactAccessBanT :: String
-enactAccessBanT = "enactAccessBan"
-
-enactWithholdingT :: String
-enactWithholdingT = "enactWithholding"
-
-repealT :: String
-repealT = "repeal"
-
+-- The premise tags used more than once. Private to this module.
 noActionT :: String
 noActionT = "noAction"
-
-proceduresT :: String
-proceduresT = "procedures"
-
-facilityT :: String
-facilityT = "facility"
-
-allT :: String
-allT = "all"
-
-signIfT :: String
-signIfT = "signIf"
-
-eachT :: String
-eachT = "each"
-
-cheapestT :: String
-cheapestT = "cheapest"
-
-costliestT :: String
-costliestT = "costliest"
 
 -- | The entity a Strategy's `self` names.
 selfId :: EntityId
@@ -139,144 +34,39 @@ selfId = Id selfName
 
 -- | A Market reference: a bare Market id, or a selector over the accessible Markets for a Resource.
 marketRefShape :: Shape MarketRef
-marketRefShape = premiseSum "MarketRef"
-  [ oneKey eachT "every accessible Market for the Resource" idShape
-      ( \x -> case x of
-          Each r -> Just r
-          _ -> Nothing
-      )
-      Each
-  , oneKey cheapestT "the accessible Market with the lowest price for the Resource" idShape
-      ( \x -> case x of
-          Cheapest r -> Just r
-          _ -> Nothing
-      )
-      Cheapest
-  , oneKey costliestT "the accessible Market with the highest price for the Resource" idShape
-      ( \x -> case x of
-          Costliest r -> Just r
-          _ -> Nothing
-      )
-      Costliest
-  , literal idShape
-      ( \x -> case x of
-          Named m -> Just m
-          _ -> Nothing
-      )
-      Named
-  ]
+marketRefShape = genericPremiseSum "MarketRef"
+  { "Named": atLiteral idShape
+  , "Each": atOneKey "each" "every accessible Market for the Resource" idShape
+  , "Cheapest": atOneKey "cheapest" "the accessible Market with the lowest price for the Resource" idShape
+  , "Costliest": atOneKey "costliest" "the accessible Market with the highest price for the Resource" idShape
+  }
 
 -- | An expression: a quantity literal (a bare string), or a oneKey form.
 exprShape :: Shape Expr
-exprShape = recursive "Expr" \e -> premiseSum "Expr"
-  [ oneKey paramT "a premise parameter" stringShape
-      ( \x -> case x of
-          Param s -> Just s
-          _ -> Nothing
-      )
-      Param
-  , oneKey roundT "the current round" unitShape
-      ( \x -> case x of
-          Round -> Just unit
-          _ -> Nothing
-      )
-      (const Round)
-  , oneKey priceT "the beginning-of-round price of a Market" marketRefShape
-      ( \x -> case x of
-          Price m -> Just m
-          _ -> Nothing
-      )
-      Price
-  , oneKey holdingT "the Entity's own holding of a Resource" idShape
-      ( \x -> case x of
-          Holding r -> Just r
-          _ -> Nothing
-      )
-      Holding
-  , oneKey factorT "the stored factor of a behaviour domain" idShape
-      ( \x -> case x of
-          Factor d -> Just d
-          _ -> Nothing
-      )
-      Factor
-  , oneKey mulT "a product" (pairOf e e)
-      ( \x -> case x of
-          Mul a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Mul a b)
-  , oneKey subT "a difference" (pairOf e e)
-      ( \x -> case x of
-          Sub a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Sub a b)
-  , oneKey maxT "the larger of two" (pairOf e e)
-      ( \x -> case x of
-          Max a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Max a b)
-  , literal qShape
-      ( \x -> case x of
-          Lit a -> Just a
-          _ -> Nothing
-      )
-      Lit
-  ]
+exprShape = recursive "Expr" \e -> genericPremiseSum "Expr"
+  { "Lit": atLiteral qShape
+  , "Param": atOneKey "param" "a premise parameter" stringShape
+  , "Round": atOneKey "round" "the current round" unitShape
+  , "Price": atOneKey "price" "the beginning-of-round price of a Market" marketRefShape
+  , "Holding": atOneKey "holding" "the Entity's own holding of a Resource" idShape
+  , "Factor": atOneKey "factor" "the stored factor of a behaviour domain" idShape
+  , "Mul": atOneKey "mul" "a product" (pairOf e e)
+  , "Sub": atOneKey "sub" "a difference" (pairOf e e)
+  , "Max": atOneKey "max" "the larger of two" (pairOf e e)
+  }
 
 -- | A condition.
 condShape :: Shape Cond
-condShape = recursive "Cond" \c -> premiseSum "Cond"
-  [ oneKey gtT "greater than" (pairOf exprShape exprShape)
-      ( \x -> case x of
-          Gt a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Gt a b)
-  , oneKey geT "at least" (pairOf exprShape exprShape)
-      ( \x -> case x of
-          Ge a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Ge a b)
-  , oneKey leT "at most" (pairOf exprShape exprShape)
-      ( \x -> case x of
-          Le a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Le a b)
-  , oneKey eqT "equal to" (pairOf exprShape exprShape)
-      ( \x -> case x of
-          Eq a b -> Just (Tuple a b)
-          _ -> Nothing
-      )
-      (\(Tuple a b) -> Eq a b)
-  , oneKey notT "not" c
-      ( \x -> case x of
-          Not y -> Just y
-          _ -> Nothing
-      )
-      Not
-  , oneKey transformedLastRoundT "a transformation ran at least the amount last round" transformedBody
-      ( \x -> case x of
-          TransformedLastRound r -> Just r
-          _ -> Nothing
-      )
-      TransformedLastRound
-  , oneKey restrictedLastRoundT "a restriction was enacted against the Entity last round" restrictedBody
-      ( \x -> case x of
-          RestrictedLastRound r -> Just r
-          _ -> Nothing
-      )
-      RestrictedLastRound
-  , oneKey restrictionInForceT "a restriction by the jurisdiction is in force" restrictionBody
-      ( \x -> case x of
-          RestrictionInForce r -> Just r
-          _ -> Nothing
-      )
-      RestrictionInForce
-  ]
+condShape = recursive "Cond" \c -> genericPremiseSum "Cond"
+  { "Gt": atOneKey "gt" "greater than" (pairOf exprShape exprShape)
+  , "Ge": atOneKey "ge" "at least" (pairOf exprShape exprShape)
+  , "Le": atOneKey "le" "at most" (pairOf exprShape exprShape)
+  , "Eq": atOneKey "eq" "equal to" (pairOf exprShape exprShape)
+  , "Not": atOneKey "not" "not" c
+  , "TransformedLastRound": atOneKey "transformedLastRound" "a transformation ran at least the amount last round" transformedBody
+  , "RestrictedLastRound": atOneKey "restrictedLastRound" "a restriction was enacted against the Entity last round" restrictedBody
+  , "RestrictionInForce": atOneKey "restrictionInForce" "a restriction by the jurisdiction is in force" restrictionBody
+  }
   where
   transformedBody = object "TransformedLastRound"
     ( mk3 <$> fieldOf "by" "the jurisdiction" idShape _.by
@@ -314,49 +104,49 @@ transformObject = object "Transform"
 -- | and the `by` of a transform.
 intentTemplateShape :: Shape IntentTemplate
 intentTemplateShape = premiseSum "Intent template"
-  [ oneKey tradeT "an order in a Market" tradeBody
+  [ oneKey "trade" "an order in a Market" tradeBody
       ( \x -> case x of
           Trade r -> Just r
           _ -> Nothing
       )
       Trade
-  , oneKey routeT "a routed order on a pair" routeBody
+  , oneKey "route" "a routed order on a pair" routeBody
       ( \x -> case x of
           Route r -> Just r
           _ -> Nothing
       )
       Route
-  , oneKey transformT "a run of a transformation by the acting Entity" transformObject
+  , oneKey "transform" "a run of a transformation by the acting Entity" transformObject
       ( \x -> case x of
           Transform r | r.by == selfId -> Just { transformation: r.transformation, quantity: r.quantity }
           _ -> Nothing
       )
       (\r -> Transform { by: selfId, transformation: r.transformation, quantity: r.quantity })
-  , oneKey transferT "a Resource given by the Entity" transferObject
+  , oneKey "transfer" "a Resource given by the Entity" transferObject
       ( \x -> case x of
           Transfer r -> Just r
           _ -> Nothing
       )
       Transfer
-  , oneKey enactTariffT "a tariff set by the acting Entity" (ownTariffBody exprShape)
+  , oneKey "enactTariff" "a tariff set by the acting Entity" (ownTariffBody exprShape)
       ( \x -> case x of
           ChangeRule (Enact (Tariff r)) | r.jurisdiction == selfId -> Just { origin: r.origin, rate: r.rate }
           _ -> Nothing
       )
       (\r -> ChangeRule (Enact (Tariff { jurisdiction: selfId, origin: r.origin, rate: r.rate })))
-  , oneKey enactAccessBanT "a ban set by the acting Entity" ownAccessBanBody
+  , oneKey "enactAccessBan" "a ban set by the acting Entity" ownAccessBanBody
       ( \x -> case x of
           ChangeRule (Enact (AccessBan r)) | r.jurisdiction == selfId -> Just { target: r.target }
           _ -> Nothing
       )
       (\r -> ChangeRule (Enact (AccessBan { jurisdiction: selfId, target: r.target })))
-  , oneKey enactWithholdingT "units of a capacity withheld by the author" (withholdingBody exprShape)
+  , oneKey "enactWithholding" "units of a capacity withheld by the author" (withholdingBody exprShape)
       ( \x -> case x of
           ChangeRule (Enact (Withholding r)) -> Just r
           _ -> Nothing
       )
       (\r -> ChangeRule (Enact (Withholding r)))
-  , oneKey repealT "repeal a Rule the author governs" repealBody
+  , oneKey "repeal" "repeal a Rule the author governs" repealBody
       ( \x -> case x of
           ChangeRule (Repeal r) -> Just { rule: r }
           _ -> Nothing
@@ -416,7 +206,7 @@ dealShaped xs = Array.all dealIntent xs && Array.all isSelfTransform fs && xs ==
 -- | The Proposal templates and the choices among them.
 templateShape :: Shape Template
 templateShape = recursive "Template" \t -> premiseSum "Template"
-  [ oneKey chooseT "one option, picked by a seeded draw" (arrayOf t)
+  [ oneKey "choose" "one option, picked by a seeded draw" (arrayOf t)
       ( \x -> case x of
           Choose ts -> Just ts
           _ -> Nothing
@@ -428,16 +218,16 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
           _ -> Nothing
       )
       (const NoAction)
-  , oneKey reciprocateT "enact the restriction enacted against this Entity last round" reciprocateBody
+  , oneKey "reciprocate" "enact the restriction enacted against this Entity last round" reciprocateBody
       ( \x -> case x of
           ReciprocateLastRound r -> Just r
           _ -> Nothing
       )
       ReciprocateLastRound
-  , oneKey dealT "a Proposal with no procedure: its transfers, then its transforms" dealBody
+  , oneKey "deal" "a Proposal with no procedure: its transfers, then its transforms" dealBody
       dealOf
       (\r -> ProposalT { signers: r.signers, intents: r.intents, procedure: Nothing })
-  , oneKey procedureT "a Procedure's Proposal, under its collective procedure" procedureBody
+  , oneKey "procedure" "a Procedure's Proposal, under its collective procedure" procedureBody
       procedureOf
       (\r -> ProposalT { signers: r.signers, intents: r.intents, procedure: Just r.id })
   , embedded intentTemplateShape
@@ -478,32 +268,12 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
 
 -- | A sign rule: which addressed Proposals the Entity signs.
 signRuleShape :: Shape SignRule
-signRuleShape = recursive "SignRule" \s -> premiseSum "SignRule"
-  [ oneKey proceduresT "the collective procedures this Entity signs under" (arrayOf idShape)
-      ( \x -> case x of
-          SignProcedures ps -> Just ps
-          _ -> Nothing
-      )
-      SignProcedures
-  , oneKey facilityT "Proposals ordering this facility" idShape
-      ( \x -> case x of
-          SignFacility f -> Just f
-          _ -> Nothing
-      )
-      SignFacility
-  , oneKey allT "every addressed Proposal" unitShape
-      ( \x -> case x of
-          SignAll -> Just unit
-          _ -> Nothing
-      )
-      (const SignAll)
-  , oneKey signIfT "the inner rule, while every condition holds" (signIfBody s)
-      ( \x -> case x of
-          SignIf r -> Just r
-          _ -> Nothing
-      )
-      SignIf
-  ]
+signRuleShape = recursive "SignRule" \s -> genericPremiseSum "SignRule"
+  { "SignProcedures": atOneKey "procedures" "the collective procedures this Entity signs under" (arrayOf idShape)
+  , "SignFacility": atOneKey "facility" "Proposals ordering this facility" idShape
+  , "SignAll": atOneKey "all" "every addressed Proposal" unitShape
+  , "SignIf": atOneKey "signIf" "the inner rule, while every condition holds" (signIfBody s)
+  }
   where
   signIfBody s = object "SignIf"
     ( mk2 <$> fieldOf "when" "the conditions" (omittedWhen (const false) (arrayOf condShape)) _.when

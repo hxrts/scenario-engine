@@ -36,13 +36,13 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, bare, boolShape, contramapRec, fieldOf, intShape, keyedAlways, kindArg, listOf, object, optionalOf, premiseSum, refined, stringShape)
+import Core.Shape (RecF, Shape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
 import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
 import Core.Types as Types
-import Core.World (Circulation, ShareSource(..), UnseededWorld)
+import Core.World (Circulation, ShareSource, UnseededWorld)
 import Data.Array (mapWithIndex)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe, fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Gameboard (Scheme)
 import Schema.Premise.Actor (DefinitionDoc, definitionShape)
@@ -329,15 +329,10 @@ shareShape = object "Share"
   mk f t s src = { from: f, to: t, share: s, source: src }
 
 shareSourceShape :: Shape ShareSource
-shareSourceShape = premiseSum "ShareSource"
-  [ kindArg { tag: "sales", desc: "net Money revenue from selling a Resource on Markets" } idShape
-      ( case _ of
-          SalesOf r -> Just r
-          _ -> Nothing
-      )
-      SalesOf
-  , bare { tag: "payee", desc: "Money received as a facility payee" } PayeeReceipts
-  ]
+shareSourceShape = genericPremiseSum "ShareSource"
+  { "SalesOf": atKindArg { tag: "sales", desc: "net Money revenue from selling a Resource on Markets" } idShape
+  , "PayeeReceipts": atBare { tag: "payee", desc: "Money received as a facility payee" }
+  }
 
 requirementShape :: Shape RequirementDoc
 requirementShape = object "Requirement"

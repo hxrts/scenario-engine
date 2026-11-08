@@ -40,3 +40,7 @@ implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte i
 implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed premise files
 intent-walk packages/core/src/Core/Types.purs dealIntent which Intents a Deal may bundle; a per-kind rule, nothing to traverse
 event-match packages/policy/test/Main.purs agreement the agreement property classifies why screening refused an Intent; a case over one Event kind until S10 gives it a slice
+# Guarded or merged constructors of a premise sum: not a one-to-one image of the type's constructors (S6).
+sum-projection packages/schema/src/Schema/Premise/Intent.purs intentShape a trade and a route share one premise form, and enact and repeal are separate tags over ChangeRule
+sum-projection packages/schema/src/Schema/Premise/Strategy.purs intentTemplateShape self is implicit, so a Transform or an enactment by another Entity has no premise form
+sum-projection packages/schema/src/Schema/Premise/Strategy.purs templateShape a Deal and a Procedure share one Template constructor, split by their procedure and shape

@@ -11,13 +11,15 @@ import Core.Engine.Prepare (observe, prepareRound)
 import Data.Foldable (for_)
 import Core.Invariants (check)
 import Core.Market (averagePrice, clear)
-import Core.Num (Q)
+import Core.Num (Q, qShape)
 import Core.Num as Q
+import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, recordShape)
+import Core.Shape as Shape
 import Core.Proposal (jointProposals)
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
-import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
-import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.World (Event(..), RoundResult, costFunctionShape, Target(..), WorldState, renderReason)
+import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), dealIntent, Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -211,6 +213,19 @@ fillsOf who r = concatMap
 -- | The quantity an Entity filled in one Market.
 fillIn :: String -> String -> Either EngineError RoundResult -> Q
 fillIn marketId who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == marketId) (fillsOf who r)))
+
+-- | The Market record as hand-written fields, which `recordShape` must reproduce (format pin, work/7 S5).
+marketObject :: Shape Market
+marketObject = object "Market"
+  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "base" "" idShape _.base
+      <*> fieldOf "quote" "" idShape _.quote
+      <*> fieldOf "cost" "" costFunctionShape _.cost
+      <*> fieldOf "position" "" qShape _.position
+      <*> fieldOf "reserves" "" (mapOf idShape qShape) _.reserves
+      <*> fieldOf "access" "" (Shape.arrayOf idShape) _.access
+  )
 
 -- | A Market for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
 market :: Array String -> Market
@@ -857,6 +872,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "keeps as signers only known Entities other than the author" do
       map _.draft.signers (jointProposals known said [ deal { signers = [ Id "US", Id "Ghost", Id "EU" ] } ]) `shouldEqual` [ [ Id "EU" ] ]
 
+  describe "Derived shapes" do
+    it "recordShape encodes a Market byte for byte as a hand-written object, in both formats, and reads it back" do
+      let
+        m = market [ "US" ]
+        derived = recordShape "Market" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape }
+        written = marketObject
+      for_ [ Snapshot, Premise ] \fmt -> do
+        stringify (encodeWith fmt derived m) `shouldEqual` stringify (encodeWith fmt written m)
+        (derived.codec fmt).dec (encodeWith fmt written m) `shouldEqual` Right m
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

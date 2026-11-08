@@ -14,7 +14,6 @@ module Core.Shape
   , DField
   , DCtor
   , TagForm(..)
-  , Ctor
   , prim
   , unitShape
   , intShape
@@ -25,8 +24,6 @@ module Core.Shape
   , mapOf
   , requiredOf
   , requiredMaybe
-  , ctorOf
-  , sumOf
   , PCtor
   , oneKey
   , kindArg
@@ -34,13 +31,37 @@ module Core.Shape
   , literal
   , embedded
   , premiseSum
-  , TypedCtor
-  , typedCtor
-  , typedSum
+  , At
+  , class SumRow
+  , class SumCtors
+  , sumArms
+  , sumWrite
+  , Arm
+  , class Payload
+  , toPayload
+  , fromPayload
+  , genericSum
+  , genericPremiseSum
+  , genericTypedSum
+  , class EnumCtors
+  , enumCtors
+  , enumTag
+  , genericEnum
+  , atTagged
+  , atOneKey
+  , atKindArg
+  , atBare
+  , atLiteral
+  , atEmbedded
+  , atFields
   , RecF
   , fieldOf
   , contramapRec
   , object
+  , class RecordFields
+  , recordFields
+  , recordShape
+  , nameShape
   , pairOf
   , keyedOf
   , listOf
@@ -77,6 +98,14 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Traversable (traverse)
 import Foreign.Object as Object
+import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), NoArguments(..), Product(..), Sum(..), from, to)
+import Data.Symbol (class IsSymbol, reflectSymbol)
+import Prim.Row as Row
+import Prim.RowList as RL
+import Record as Record
+import Record.Builder (Builder)
+import Record.Builder as Builder
+import Type.Proxy (Proxy(..))
 
 -- | The two JSON formats a description is interpreted into. Snapshot is the generic encoding the
 -- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Premise is the authored
@@ -129,16 +158,6 @@ objectOf fmt pairs = fromObject (Object.fromFoldable (sortBy order pairs))
     Premise -> compare (fst a) (fst b)
     Snapshot -> compare (fst b) (fst a)
 
--- | A snapshot sum's constructor: its tag, note, payload description, and the projection and
--- | injection closed over its payload shape.
-type Ctor a =
-  { tag :: String
-  , desc :: String
-  , payload :: Desc
-  , project :: a -> Maybe Json
-  , inject :: Json -> Either String a
-  }
-
 -- Primitives -----------------------------------------------------------------------------
 
 prim :: forall a. String -> (a -> Json) -> (Json -> Either String a) -> Shape a
@@ -190,41 +209,6 @@ optionalOf s =
   , absent: isNothing
   , missing: Just Nothing
   }
-
--- Sums ---------------------------------------------------------------------------------------
-
--- | A constructor whose payload has shape `s`. `proj` returns the payload when the value is this
--- | constructor; `inj` rebuilds the value.
-ctorOf :: forall a b. { tag :: String, desc :: String } -> Shape b -> (a -> Maybe b) -> (b -> a) -> Ctor a
-ctorOf t s proj inj =
-  { tag: t.tag
-  , desc: t.desc
-  , payload: s.desc
-  , project: map (s.codec Snapshot).enc <<< proj
-  , inject: map inj <<< (s.codec Snapshot).dec
-  }
-
--- | A sum in the generic snapshot form, `{"tag":..,"values":[..]}`, whatever format is asked for. A
--- | premise form is described in `schema` (`premiseSum`). The list must be total for the type: an
--- | unmatched value is a programming error, so encoding it crashes.
-sumOf :: forall a. String -> Array (Ctor a) -> Shape a
-sumOf name ctors =
-  { desc: DSum name Tagged (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: Tagged }) ctors)
-  , codec: \_ -> { enc, dec }
-  , absent: const false
-  , missing: Nothing
-  }
-  where
-  enc x = case Array.findMap (\c -> Tuple c <$> c.project x) ctors of
-    Just (Tuple c j) -> objectOf Snapshot [ Tuple "tag" (fromString c.tag), Tuple "values" (fromArray (if c.payload == DPrim "null" then [] else [ j ])) ]
-    Nothing -> unsafeCrashWith ("sum " <> name <> ": no constructor for a value")
-  dec j = do
-    o <- note "expected a tagged object" (toObject j)
-    tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
-    values <- note "missing values" (Object.lookup "values" o >>= toArray)
-    case Array.find (\c -> c.tag == tag) ctors of
-      Just c -> c.inject (fromMaybe jsonNull (Array.head values))
-      Nothing -> Left ("no constructor " <> tag)
 
 -- Premise-format combinators ---------------------------------------------------------------
 --
@@ -335,45 +319,265 @@ premiseSum name ctors =
   , missing: Nothing
   }
 
--- | One constructor of a `typedSum`: its tag, a note, and its fields.
-type TypedCtor a =
+-- Derived sums -----------------------------------------------------------------------------
+--
+-- A sum's list of constructors is derived from its `Generic` representation. A shape per constructor
+-- is supplied as a record keyed by constructor name, so a missing or an extra constructor is a compile
+-- error, and the constructor a value is written with is chosen by matching on its representation, so
+-- encoding cannot fall through. Hand-written `premiseSum` lists remain only for guarded or merged cases.
+
+-- | How one constructor is written and read in a derived sum, in every form a sum may use.
+type Arm a =
   { tag :: String
   , desc :: String
   , payload :: Desc
-  , project :: Format -> a -> Maybe (Array (Tuple String Json))
-  , inject :: Format -> Object.Object Json -> Either String a
+  , form :: TagForm
+  , project :: Format -> a -> Maybe Json
+  , inject :: Format -> Json -> Maybe (Either String a)
   }
 
--- | A constructor of a `typedSum`, written as its tag and the fields of a record, in field order.
-typedCtor :: forall a b. String -> String -> String -> RecF b b -> (a -> Maybe b) -> (b -> a) -> TypedCtor a
-typedCtor name tag desc (RecF r) proj inj =
+-- | A constructor's description, whatever its form: `b` is its payload (`Unit` when it has no argument,
+-- | the argument for one, a `Tuple` for several). Given the constructor's name, its projection and its
+-- | injection, it is an `Arm`.
+newtype At b = At (forall a. String -> (a -> Maybe b) -> (b -> a) -> Arm a)
+
+atPCtor :: forall b. (forall a. (a -> Maybe b) -> (b -> a) -> PCtor a) -> At b
+atPCtor build = At \_ proj inj ->
+  let
+    c = build proj inj
+  in
+    { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form, project: const c.project, inject: const c.inject }
+
+-- | The snapshot form of a constructor: `{"tag":..,"values":[..]}`, tagged with the constructor's name.
+atTagged :: forall b. String -> Shape b -> At b
+atTagged desc s = At \tag proj inj ->
+  let
+    c = s.codec Snapshot
+  in
+    { tag
+    , desc
+    , payload: s.desc
+    , form: Tagged
+    , project: \_ x -> map (\b -> objectOf Snapshot [ Tuple "tag" (fromString tag), Tuple "values" (fromArray (if s.desc == DPrim "null" then [] else [ c.enc b ])) ]) (proj x)
+    , inject: \_ j -> Just (map inj (c.dec (fromMaybe jsonNull (toObject j >>= Object.lookup "values" >>= toArray >>= Array.head))))
+    }
+
+-- | `{ "tag": payload }`, as a constructor of a derived sum.
+atOneKey :: forall b. String -> String -> Shape b -> At b
+atOneKey tag desc s = atPCtor (oneKey tag desc s)
+
+-- | `"tag:argument"`, as a constructor of a derived sum.
+atKindArg :: forall b. { tag :: String, desc :: String } -> Shape b -> At b
+atKindArg t s = atPCtor (kindArg t s)
+
+-- | A bare string, as a constructor with no argument.
+atBare :: { tag :: String, desc :: String } -> At Unit
+atBare t = At \_ proj inj ->
+  { tag: t.tag
+  , desc: t.desc
+  , payload: DPrim "null"
+  , form: Bare
+  , project: \_ x -> map (const (fromString t.tag)) (proj x)
+  , inject: \_ j -> if toString j == Just t.tag then Just (Right (inj unit)) else Nothing
+  }
+
+-- | A value with no tag, written as its payload.
+atLiteral :: forall b. Shape b -> At b
+atLiteral s = atPCtor (literal s)
+
+-- | A value in another shape's own form, with no tag of its own.
+atEmbedded :: forall b. Shape b -> At b
+atEmbedded s = atPCtor (embedded s)
+
+-- | A flat-object constructor: `key` holds `tag`, then the fields of `RecF b b`. `name` names its record in prose.
+atFields :: forall b. String -> String -> String -> String -> RecF b b -> At b
+atFields key name tag desc (RecF r) = At \_ proj inj ->
   { tag
   , desc
   , payload: DRec name r.fields
-  , project: \fmt x -> map (r.enc fmt) (proj x)
-  , inject: \fmt o -> map inj (r.dec fmt o)
+  , form: Mixed
+  , project: \fmt x -> map (\b -> fromObject (Object.fromFoldable ([ Tuple key (fromString tag) ] <> r.enc fmt b))) (proj x)
+  , inject: \fmt j -> Just (map inj (note "expected an object" (toObject j) >>= r.dec fmt))
   }
 
--- | A sum written as one flat object: `key` holds the constructor's tag, followed by its fields in
--- | the order declared (not sorted: this form is stored as written). The list must be total for the
--- | type. A value's unknown tag is reported by `unknown`.
-typedSum :: forall a. String -> String -> (String -> String) -> Array (TypedCtor a) -> Shape a
-typedSum name key unknown ctors =
-  { desc: DSum name Mixed (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: Mixed }) ctors)
+-- | A constructor's arguments as one payload value: nothing is `Unit`, several are nested pairs.
+class Payload :: Type -> Type -> Constraint
+class Payload rep b | rep -> b where
+  toPayload :: rep -> b
+  fromPayload :: b -> rep
+
+instance Payload NoArguments Unit where
+  toPayload _ = unit
+  fromPayload _ = NoArguments
+
+instance Payload (Argument b) b where
+  toPayload (Argument b) = b
+  fromPayload = Argument
+
+instance Payload rest p => Payload (Product (Argument b) rest) (Tuple b p) where
+  toPayload (Product (Argument b) rest) = Tuple b (toPayload rest)
+  fromPayload (Tuple b p) = Product (Argument b) (fromPayload p)
+
+-- | The record of constructor descriptions a sum needs: one field per constructor.
+class SumRow :: Type -> Row Type -> Constraint
+class SumRow rep row | rep -> row
+
+instance (SumRow a l, SumRow b r, Row.Union l r row) => SumRow (Sum a b) row
+
+instance (Payload args p, Row.Cons name (At p) () row) => SumRow (Constructor name args) row
+
+-- | The arms of a sum's constructors, and writing a value by matching on its representation.
+class SumCtors :: Type -> Row Type -> Constraint
+class SumCtors rep row where
+  sumArms :: forall a. Record row -> (a -> Maybe rep) -> (rep -> a) -> Array (Arm a)
+  sumWrite :: Record row -> Format -> rep -> Json
+
+instance (SumCtors a row, SumCtors b row) => SumCtors (Sum a b) row where
+  sumArms r proj inj =
+    sumArms r (proj >=> inlOf) (inj <<< Inl)
+      <> sumArms r (proj >=> inrOf) (inj <<< Inr)
+  sumWrite r fmt = case _ of
+    Inl x -> sumWrite r fmt x
+    Inr x -> sumWrite r fmt x
+
+instance (IsSymbol name, Payload args p, Row.Cons name (At p) _t row) => SumCtors (Constructor name args) row where
+  sumArms r proj inj = [ at (reflectSymbol name) (\x -> map (\(Constructor a) -> toPayload a) (proj x)) (inj <<< Constructor <<< fromPayload) ]
+    where
+    name = Proxy :: Proxy name
+    At at = Record.get name r
+  sumWrite r fmt (Constructor a) =
+    -- an arm's projection of its own payload is `Just` by construction: nothing is left over to crash
+    fromMaybe jsonNull ((at (reflectSymbol name) Just identity).project fmt (toPayload a))
+    where
+    name = Proxy :: Proxy name
+    At at = Record.get name r
+
+inlOf :: forall l r. Sum l r -> Maybe l
+inlOf (Inl x) = Just x
+inlOf _ = Nothing
+
+inrOf :: forall l r. Sum l r -> Maybe r
+inrOf (Inr x) = Just x
+inrOf _ = Nothing
+
+arms :: forall a rep row. Generic a rep => SumCtors rep row => Record row -> Array (Arm a)
+arms r = sumArms r (Just <<< from) to
+
+descOf :: forall a. String -> TagForm -> Array (Arm a) -> Desc
+descOf name form as = DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form }) as)
+
+-- | A sum in the snapshot form, derived from its `Generic` representation. Each constructor is described
+-- | by `atTagged`, under its own name; a constructor's position in the description is its place in `data`.
+genericSum
+  :: forall a rep row
+   . Generic a rep
+  => SumRow rep row
+  => SumCtors rep row
+  => String
+  -> Record row
+  -> Shape a
+genericSum name r =
+  { desc: descOf name Tagged cs
+  , codec: \_ -> { enc: sumWrite r Snapshot <<< from, dec }
+  , absent: const false
+  , missing: Nothing
+  }
+  where
+  cs = arms r :: Array (Arm a)
+  dec j = do
+    o <- note "expected a tagged object" (toObject j)
+    tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
+    _ <- note "missing values" (Object.lookup "values" o >>= toArray)
+    case Array.find (\c -> c.tag == tag) cs of
+      Just c -> fromMaybe (Left ("no constructor " <> tag)) (c.inject Snapshot j)
+      Nothing -> Left ("no constructor " <> tag)
+
+-- | A sum in a premise form, derived from its `Generic` representation: as `premiseSum`, with each
+-- | constructor described by `atOneKey`, `atKindArg`, `atBare`, `atLiteral` or `atEmbedded`; a value
+-- | is read by the first constructor in `data` order whose form matches.
+genericPremiseSum
+  :: forall a rep row
+   . Generic a rep
+  => SumRow rep row
+  => SumCtors rep row
+  => String
+  -> Record row
+  -> Shape a
+genericPremiseSum name r =
+  { desc: descOf name Mixed cs
   , codec: \fmt ->
-      { enc: \x -> case Array.findMap (\c -> map (Tuple c) (c.project fmt x)) ctors of
-          Just (Tuple c fields) -> fromObject (Object.fromFoldable ([ Tuple key (fromString c.tag) ] <> fields))
-          Nothing -> unsafeCrashWith ("sum " <> name <> ": no constructor for a value")
+      { enc: sumWrite r fmt <<< from
+      , dec: \j -> fromMaybe (Left ("no " <> name <> " form for " <> stringify j)) (Array.findMap (\c -> c.inject fmt j) cs)
+      }
+  , absent: const false
+  , missing: Nothing
+  }
+  where
+  cs = arms r :: Array (Arm a)
+
+-- | A flat-object sum, derived from its `Generic` representation: `key` holds the constructor's tag, then
+-- | its fields. Each constructor is described by `atFields` with the same `key`.
+genericTypedSum
+  :: forall a rep row
+   . Generic a rep
+  => SumRow rep row
+  => SumCtors rep row
+  => String
+  -> String
+  -> (String -> String)
+  -> Record row
+  -> Shape a
+genericTypedSum name key unknown r =
+  { desc: descOf name Mixed cs
+  , codec: \fmt ->
+      { enc: sumWrite r fmt <<< from
       , dec: \j -> do
           o <- note "expected an object" (toObject j)
           tag <- note ("missing key " <> key) (Object.lookup key o >>= toString)
-          case Array.find (\c -> c.tag == tag) ctors of
-            Just c -> c.inject fmt o
+          case Array.find (\c -> c.tag == tag) cs of
+            Just c -> fromMaybe (Left (unknown tag)) (c.inject fmt j)
             Nothing -> Left (unknown tag)
       }
   , absent: const false
   , missing: Nothing
   }
+  where
+  cs = arms r :: Array (Arm a)
+
+-- | Sums whose every constructor has no argument.
+class EnumCtors :: Type -> Constraint
+class EnumCtors rep where
+  enumCtors :: forall a. Proxy rep -> (rep -> a) -> Array { tag :: String, value :: a }
+  enumTag :: rep -> String
+
+instance (EnumCtors a, EnumCtors b) => EnumCtors (Sum a b) where
+  enumCtors _ inj = enumCtors (Proxy :: Proxy a) (inj <<< Inl) <> enumCtors (Proxy :: Proxy b) (inj <<< Inr)
+  enumTag = case _ of
+    Inl x -> enumTag x
+    Inr x -> enumTag x
+
+instance IsSymbol name => EnumCtors (Constructor name NoArguments) where
+  enumCtors _ inj = [ { tag: reflectSymbol (Proxy :: Proxy name), value: inj (Constructor NoArguments) } ]
+  enumTag _ = reflectSymbol (Proxy :: Proxy name)
+
+-- | A sum of constructors with no argument, written as `{"tag":..,"values":[]}`: its tag alone.
+genericEnum :: forall a rep. Generic a rep => EnumCtors rep => String -> Shape a
+genericEnum name =
+  { desc: DSum name Tagged (map (\c -> { tag: c.tag, desc: "", payload: DPrim "null", form: Tagged }) cs)
+  , codec: \_ -> { enc, dec }
+  , absent: const false
+  , missing: Nothing
+  }
+  where
+  cs = enumCtors (Proxy :: Proxy rep) to :: Array { tag :: String, value :: a }
+  enc x = objectOf Snapshot [ Tuple "tag" (fromString (enumTag (from x))), Tuple "values" (fromArray []) ]
+  dec j = do
+    o <- note "expected a tagged object" (toObject j)
+    tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
+    _ <- note "missing values" (Object.lookup "values" o >>= toArray)
+    case Array.find (\c -> c.tag == tag) cs of
+      Just c -> Right c.value
+      Nothing -> Left ("no constructor " <> tag)
 
 -- | The fields of a record, as an applicative over the value it builds. Any number of fields works.
 newtype RecF a b = RecF
@@ -422,6 +626,45 @@ object name (RecF r) =
   , absent: const false
   , missing: Nothing
   }
+
+-- | The fields of a record type, derived from a record of their shapes: `keys` are the labels of the
+-- | record of shapes, sorted (a `RowToList`), and the field's value type is what its shape describes.
+-- | `whole` is the record the fields are read from; `built` is what decoding the fields so far yields.
+class RecordFields :: RL.RowList Type -> Row Type -> Row Type -> Row Type -> Constraint
+class RecordFields keys shapes whole built | keys shapes -> built where
+  recordFields :: Proxy keys -> Record shapes -> RecF (Record whole) (Builder (Record ()) (Record built))
+
+instance RecordFields RL.Nil shapes whole () where
+  recordFields _ _ = pure identity
+
+instance
+  ( IsSymbol key
+  , Row.Cons key (Shape b) _s shapes
+  , Row.Cons key b _w whole
+  , Row.Cons key b tail built
+  , Row.Lacks key tail
+  , RecordFields rest shapes whole tail
+  ) =>
+  RecordFields (RL.Cons key s rest) shapes whole built where
+  recordFields _ shapes =
+    (\value tail -> Builder.insert key value <<< tail)
+      <$> fieldOf (reflectSymbol key) "" (Record.get key shapes) (Record.get key)
+      <*> recordFields (Proxy :: Proxy rest) shapes
+    where
+    key = Proxy :: Proxy key
+
+-- | A record's shape from a shape per field: the field names are the keys, in both formats, with no
+-- | notes. `object` remains for a record whose fields carry a note a prompt shows. Fields are described
+-- | in sorted key order, and decoded in that order, so which of two bad fields is reported may differ
+-- | from an `object` written in another order.
+recordShape
+  :: forall shapes keys row
+   . RL.RowToList shapes keys
+  => RecordFields keys shapes row row
+  => String
+  -> Record shapes
+  -> Shape (Record row)
+recordShape name shapes = object name (map (\b -> Builder.build b {}) (recordFields (Proxy :: Proxy keys) shapes))
 
 -- | A two-element array.
 pairOf :: forall a b. Shape a -> Shape b -> Shape (Tuple a b)
@@ -525,6 +768,10 @@ partialIso s fwd back =
 -- | Values that satisfy `p`; a value that fails it is a decode error with the message given.
 refined :: forall a. String -> (a -> Boolean) -> Shape a -> Shape a
 refined msg p s = s { codec = \fmt -> let c = s.codec fmt in c { dec = \j -> c.dec j >>= \x -> if p x then Right x else Left msg } }
+
+-- | A value written as its name: `nameOf` writes it, and a text that names none of `values` is the error given.
+nameShape :: forall a. String -> String -> (a -> String) -> Array a -> Shape a
+nameShape name message nameOf values = prim name (fromString <<< nameOf) \j -> note message (toString j >>= \s -> Array.find (\v -> nameOf v == s) values)
 
 -- | Omit the value from the premise format when `p` holds (an empty list, a default).
 omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a

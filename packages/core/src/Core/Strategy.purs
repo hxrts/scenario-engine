@@ -93,6 +93,9 @@ derive instance Generic MarketRef _
 instance Show MarketRef where
   show = genericShow
 
+derive instance Generic Expr _
+derive instance Generic Cond _
+derive instance Generic SignRule _
 derive instance Eq Expr
 derive instance Eq Cond
 derive instance Eq Template

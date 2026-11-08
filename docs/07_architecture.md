@@ -123,7 +123,7 @@ sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 
 `View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature, and its `markets` field the Markets the Entity has access to, which the Strategy language's Market selectors (`MarketRef`) pick from.
 
-**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. `Described` instances sit beside their types:
+**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. A record's Shape can be derived from a Shape per field (`recordShape`, over `RowToList`); a sum's from its `Generic` representation (`genericSum`, `genericPremiseSum`, `genericTypedSum`, `genericEnum`), with one description per constructor, so a missing constructor is a compile error and writing a value cannot fall through. Hand-written `premiseSum` lists remain only for guarded or merged cases (a premise Intent, a Strategy's Intent and Proposal templates). `Described` instances sit beside their types:
 
 ```purescript
 data Format = Premise | Snapshot          -- authored premise files; stored runs and model replies

@@ -26,6 +26,7 @@ import Core.Num (Q)
 import Core.Strategy (Strategy)
 import Core.Types (BehaviorDomain, CapacityRef, EntityId, Estimator, PolicyId, ResourceId, TransformationId)
 import Core.World (Manifest, UnseededWorld, WorldState)
+import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Foreign.Object (Object)
 import Data.Maybe (Maybe)
@@ -67,6 +68,7 @@ data Fallback
   | InstitutionalPolicy PolicyId -- the same accounts, driven by an in-world Policy
   | PermittedOmission
 
+derive instance Generic Fallback _
 derive instance Eq Fallback
 
 -- | Measurable criteria over the recorded game (§10.5). Objectives never affect the economy.
@@ -85,10 +87,12 @@ data Measure
   | PayeeReceipts
   | VolumeOf TransformationId
 
+derive instance Generic Measure _
 derive instance Eq Measure
 
 data Span = Final | EveryRound | Cumulative
 
+derive instance Generic Span _
 derive instance Eq Span
 
 data Bound = Fixed Q | Of MetricRef

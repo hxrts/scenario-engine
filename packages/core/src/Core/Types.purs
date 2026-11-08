@@ -5,7 +5,7 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, mapOf, object, optionalOf, prim, sumOf, unitShape)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, mapOf, object, optionalOf, prim)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -410,23 +410,11 @@ instance Described (IntentF MarketId Q) where
   shape = intentShape
 
 ruleShape :: Shape (RuleF Q)
-ruleShape = sumOf "Rule" [ tariff, accessBan, withholding ]
-  where
-  tariff = ctorOf { tag: "Tariff", desc: "a tariff on the origin's goods, set by the jurisdiction" } tariffShape projTariff Tariff
-  accessBan = ctorOf { tag: "AccessBan", desc: "a ban on shipments from the jurisdiction to the target" } accessBanShape projAccessBan AccessBan
-  withholding = ctorOf { tag: "Withholding", desc: "units of a capacity withheld" } withholdingShape projWithholding Withholding
-  projTariff = case _ of
-    Tariff x -> Just x
-    _ -> Nothing
-  projAccessBan = case _ of
-    AccessBan x -> Just x
-    _ -> Nothing
-  projWithholding = case _ of
-    Withholding x -> Just x
-    _ -> Nothing
-  tariffShape = tariffBody qShape
-  accessBanShape = accessBanBody
-  withholdingShape = withholdingBody qShape
+ruleShape = genericSum "Rule"
+  { "Tariff": atTagged "a tariff on the origin's goods, set by the jurisdiction" (tariffBody qShape)
+  , "AccessBan": atTagged "a ban on shipments from the jurisdiction to the target" accessBanBody
+  , "Withholding": atTagged "units of a capacity withheld" (withholdingBody qShape)
+  }
 
 -- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
 -- tag forms differ by format; these do not.
@@ -481,40 +469,20 @@ withholdingBody v = object "Withholding"
   )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
-ruleChangeShape = sumOf "RuleChange" [ enact, repeal ]
-  where
-  enact = ctorOf { tag: "Enact", desc: "enact a Rule" } ruleShape projEnact Enact
-  repeal = ctorOf { tag: "Repeal", desc: "repeal a Rule by its id" } idShape projRepeal Repeal
-  projEnact = case _ of
-    Enact r -> Just r
-    _ -> Nothing
-  projRepeal = case _ of
-    Repeal r -> Just r
-    _ -> Nothing
+ruleChangeShape = genericSum "RuleChange"
+  { "Enact": atTagged "enact a Rule" ruleShape
+  , "Repeal": atTagged "repeal a Rule by its id" idShape
+  }
 
 intentShape :: Shape Intent
-intentShape = sumOf "Intent" [ trade, route, transfer, transform, changeRule ]
+intentShape = genericSum "Intent"
+  { "Trade": atTagged "an order in a Market" tradeShape
+  , "Route": atTagged "a best-execution order on a pair of Resources" routeShape
+  , "Transfer": atTagged "a Resource given from one Entity to another" transferShape
+  , "Transform": atTagged "a run of a transformation" transformShape
+  , "ChangeRule": atTagged "enact or repeal a Rule" ruleChangeShape
+  }
   where
-  trade = ctorOf { tag: "Trade", desc: "an order in a Market" } tradeShape projTrade Trade
-  route = ctorOf { tag: "Route", desc: "a best-execution order on a pair of Resources" } routeShape projRoute Route
-  transfer = ctorOf { tag: "Transfer", desc: "a Resource given from one Entity to another" } transferShape projTransfer Transfer
-  transform = ctorOf { tag: "Transform", desc: "a run of a transformation" } transformShape projTransform Transform
-  changeRule = ctorOf { tag: "ChangeRule", desc: "enact or repeal a Rule" } ruleChangeShape projChangeRule ChangeRule
-  projTrade = case _ of
-    Trade x -> Just x
-    _ -> Nothing
-  projRoute = case _ of
-    Route x -> Just x
-    _ -> Nothing
-  projTransfer = case _ of
-    Transfer x -> Just x
-    _ -> Nothing
-  projTransform = case _ of
-    Transform x -> Just x
-    _ -> Nothing
-  projChangeRule = case _ of
-    ChangeRule x -> Just x
-    _ -> Nothing
   tradeShape = object "Trade"
     ( (\m q l -> { market: m, quantity: q, limitPrice: l })
         <$> fieldOf "market" "the Market" idShape _.market
@@ -544,63 +512,25 @@ intentShape = sumOf "Intent" [ trade, route, transfer, transform, changeRule ]
 -- The entity, capability, and proposal shapes (design 4, §5.3). The closure of a View is described
 -- here, so the model's requests and the Run Store's records encode through these shapes.
 
--- | A sum of constructors with no payload, written as its tag alone.
-enumShape :: forall a. Eq a => String -> Array { tag :: String, value :: a } -> Shape a
-enumShape name ctors = sumOf name (map nullary ctors)
-  where
-  nullary c = ctorOf { tag: c.tag, desc: "" } unitShape (\x -> if x == c.value then Just unit else Nothing) (const c.value)
-
 transferabilityShape :: Shape Transferability
-transferabilityShape = enumShape "Transferability"
-  [ { tag: "Free", value: Free }, { tag: "Restricted", value: Restricted }, { tag: "NonTransferable", value: NonTransferable } ]
+transferabilityShape = genericEnum "Transferability"
 
 ruleKindShape :: Shape RuleKind
-ruleKindShape = enumShape "RuleKind"
-  [ { tag: "TariffRule", value: TariffRule }, { tag: "AccessBanRule", value: AccessBanRule }, { tag: "WithholdingRule", value: WithholdingRule } ]
+ruleKindShape = genericEnum "RuleKind"
 
 capabilityShape :: Shape Capability
-capabilityShape = sumOf "Capability"
-  [ ctorOf { tag: "MayTrade", desc: "a Market the Entity may trade in" } idShape
-      ( \c -> case c of
-          MayTrade m -> Just m
-          _ -> Nothing
-      )
-      MayTrade
-  , ctorOf { tag: "MayTransfer", desc: "a Resource the Entity may transfer" } idShape
-      ( \c -> case c of
-          MayTransfer r -> Just r
-          _ -> Nothing
-      )
-      MayTransfer
-  , ctorOf { tag: "MayTransform", desc: "a Transformation the Entity may run" } idShape
-      ( \c -> case c of
-          MayTransform t -> Just t
-          _ -> Nothing
-      )
-      MayTransform
-  , ctorOf { tag: "MayEnact", desc: "a kind of Rule the Entity may enact" } ruleKindShape
-      ( \c -> case c of
-          MayEnact k -> Just k
-          _ -> Nothing
-      )
-      MayEnact
-  ]
+capabilityShape = genericSum "Capability"
+  { "MayTrade": atTagged "a Market the Entity may trade in" idShape
+  , "MayTransfer": atTagged "a Resource the Entity may transfer" idShape
+  , "MayTransform": atTagged "a Transformation the Entity may run" idShape
+  , "MayEnact": atTagged "a kind of Rule the Entity may enact" ruleKindShape
+  }
 
 controllerShape :: Shape Controller
-controllerShape = sumOf "Controller"
-  [ ctorOf { tag: "Seat", desc: "a seat of the game" } idShape
-      ( \c -> case c of
-          Seat s -> Just s
-          _ -> Nothing
-      )
-      Seat
-  , ctorOf { tag: "NPC", desc: "a Policy" } idShape
-      ( \c -> case c of
-          NPC p -> Just p
-          _ -> Nothing
-      )
-      NPC
-  ]
+controllerShape = genericSum "Controller"
+  { "Seat": atTagged "a seat of the game" idShape
+  , "NPC": atTagged "a Policy" idShape
+  }
 
 collectiveProcedureShape :: Shape CollectiveProcedure
 collectiveProcedureShape = object "CollectiveProcedure"
@@ -620,20 +550,10 @@ aggregateShape = object "Aggregate"
   )
 
 entityKindShape :: Shape EntityKind
-entityKindShape = sumOf "EntityKind"
-  [ ctorOf { tag: "Actor", desc: "an Entity a Controller acts for" } controllerShape
-      ( \k -> case k of
-          Actor c -> Just c
-          _ -> Nothing
-      )
-      Actor
-  , ctorOf { tag: "Aggregate", desc: "an Entity made of members" } aggregateShape
-      ( \k -> case k of
-          Aggregate a -> Just a
-          _ -> Nothing
-      )
-      Aggregate
-  ]
+entityKindShape = genericSum "EntityKind"
+  { "Actor": atTagged "an Entity a Controller acts for" controllerShape
+  , "Aggregate": atTagged "an Entity made of members" aggregateShape
+  }
 
 entityShape :: Shape Entity
 entityShape = object "Entity"

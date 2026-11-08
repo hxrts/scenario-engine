@@ -18,11 +18,11 @@ module Schema.Premise.Actor
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, stringShape)
+import Core.Shape (Shape, atBare, atKindArg, boolShape, embedded, fieldOf, genericPremiseSum, listOf, literal, object, optionalOf, premiseSum, stringShape)
 import Core.Types (EntityId, PolicyId, idShape)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback(..), Measure(..), MetricRef, Objective, Span(..))
+import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- | An Actor definition as written. Every key is optional: the defaults are the decoder's.
 type DefinitionDoc =
@@ -133,65 +133,30 @@ boundShape = premiseSum "Bound"
 
 -- | What covers an Actor when it has no player: an Aggregate's accounts, an in-world Policy, or nothing.
 fallbackShape :: Shape Fallback
-fallbackShape = premiseSum "Fallback"
-  [ kindArg { tag: coverageTag, desc: "the Aggregate that retains the accounts" } idShape
-      ( case _ of
-          ImplicitCoverage a -> Just a
-          _ -> Nothing
-      )
-      ImplicitCoverage
-  , kindArg { tag: policyTag, desc: "the same accounts, driven by an in-world Policy" } idShape
-      ( case _ of
-          InstitutionalPolicy p -> Just p
-          _ -> Nothing
-      )
-      InstitutionalPolicy
-  , bare { tag: omissionTag, desc: "the Actor's accounts are permitted to lapse" } PermittedOmission
-  ]
+fallbackShape = genericPremiseSum "Fallback"
+  { "ImplicitCoverage": atKindArg { tag: coverageTag, desc: "the Aggregate that retains the accounts" } idShape
+  , "InstitutionalPolicy": atKindArg { tag: policyTag, desc: "the same accounts, driven by an in-world Policy" } idShape
+  , "PermittedOmission": atBare { tag: omissionTag, desc: "the Actor's accounts are permitted to lapse" }
+  }
 
 -- | A measure: a holding, a capacity, a shortfall, a count of shortfall rounds, payee receipts, or a volume.
 measureShape :: Shape Measure
-measureShape = premiseSum "Measure"
-  [ kindArg { tag: holdingTag, desc: "an Entity's holding of a Resource" } idShape
-      ( case _ of
-          HoldingOf r -> Just r
-          _ -> Nothing
-      )
-      HoldingOf
-  , kindArg { tag: capacityTag, desc: "an Entity's amount of a capacity" } idShape
-      ( case _ of
-          CapacityAmount c -> Just c
-          _ -> Nothing
-      )
-      CapacityAmount
-  , kindArg { tag: shortfallTag, desc: "the shortfall of a Resource in a round" } idShape
-      ( case _ of
-          ShortfallOf r -> Just r
-          _ -> Nothing
-      )
-      ShortfallOf
-  , kindArg { tag: shortfallRoundsTag, desc: "the rounds the Entity was short of a Resource" } idShape
-      ( case _ of
-          ShortfallRounds r -> Just r
-          _ -> Nothing
-      )
-      ShortfallRounds
-  , bare { tag: payeeReceiptsTag, desc: "Money received as a facility payee" } PayeeReceipts
-  , kindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
-      ( case _ of
-          VolumeOf t -> Just t
-          _ -> Nothing
-      )
-      VolumeOf
-  ]
+measureShape = genericPremiseSum "Measure"
+  { "HoldingOf": atKindArg { tag: holdingTag, desc: "an Entity's holding of a Resource" } idShape
+  , "CapacityAmount": atKindArg { tag: capacityTag, desc: "an Entity's amount of a capacity" } idShape
+  , "ShortfallOf": atKindArg { tag: shortfallTag, desc: "the shortfall of a Resource in a round" } idShape
+  , "ShortfallRounds": atKindArg { tag: shortfallRoundsTag, desc: "the rounds the Entity was short of a Resource" } idShape
+  , "PayeeReceipts": atBare { tag: payeeReceiptsTag, desc: "Money received as a facility payee" }
+  , "VolumeOf": atKindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
+  }
 
 -- | The span a criterion is evaluated over.
 spanShape :: Shape Span
-spanShape = premiseSum "Span"
-  [ bare { tag: finalTag, desc: "the last round" } Final
-  , bare { tag: everyRoundTag, desc: "every round" } EveryRound
-  , bare { tag: cumulativeTag, desc: "the whole game, summed" } Cumulative
-  ]
+spanShape = genericPremiseSum "Span"
+  { "Final": atBare { tag: finalTag, desc: "the last round" }
+  , "EveryRound": atBare { tag: everyRoundTag, desc: "every round" }
+  , "Cumulative": atBare { tag: cumulativeTag, desc: "the whole game, summed" }
+  }
 
 -- Conversions ---------------------------------------------------------------------------------
 

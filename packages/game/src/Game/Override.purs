@@ -10,16 +10,17 @@ import Board.Gameboard.Instantiate (withoutActor)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, typedCtor, typedSum)
+import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, atFields, genericTypedSum)
 import Core.Types (CapacityRef, EntityId, RefKind(..), idShape)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
 import Data.Array (any)
 import Data.Either (Either(..), note)
 import Data.Foldable (foldM)
+import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..), fst, snd, uncurry)
+import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
 import Game.Error (GameError(..))
 import Schema.Gameboard (Gameboard, InstantiationConfig)
@@ -31,6 +32,7 @@ data Override
   | Shrinkage String Q
   | Implicit EntityId -- the Actor is not explicit; its fallback applies
 
+derive instance Generic Override _
 derive instance Eq Override
 
 -- | Apply overrides to the baseline Gameboard and configuration. An override naming something the
@@ -53,45 +55,18 @@ resolve base overrides = foldM apply base overrides
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.
 overrideShape :: Shape Override
-overrideShape = typedSum "Override" "type" ("unknown override type " <> _)
-  [ typedCtor "GameSeed" "gameSeed" "reseed the game" (object1 "seed" "the game seed" intShape)
-      ( case _ of
-          GameSeed s -> Just s
-          _ -> Nothing
-      )
-      GameSeed
-  , typedCtor "Parameter" "parameter" "set a premise parameter"
-      (pair "name" "the parameter" stringShape "value" "its value" decimal)
-      ( case _ of
-          Parameter n q -> Just (Tuple n q)
-          _ -> Nothing
-      )
-      (uncurry Parameter)
-  , typedCtor "Capacity" "capacity" "set an Entity's capacity"
+overrideShape = genericTypedSum "Override" "type" ("unknown override type " <> _)
+  { "GameSeed": atFields "type" "GameSeed" "gameSeed" "reseed the game" (object1 "seed" "the game seed" intShape)
+  , "Parameter": atFields "type" "Parameter" "parameter" "set a premise parameter" (pair "name" "the parameter" stringShape "value" "its value" decimal)
+  , "Capacity": atFields "type" "Capacity" "capacity" "set an Entity's capacity"
       ( (\e c v -> Tuple e (Tuple c v))
           <$> fieldOf "entity" "the Entity" idShape fst
           <*> fieldOf "capacity" "the capacity" idShape (fst <<< snd)
           <*> fieldOf "value" "its amount" decimal (snd <<< snd)
       )
-      ( case _ of
-          Capacity e c v -> Just (Tuple e (Tuple c v))
-          _ -> Nothing
-      )
-      (\(Tuple e (Tuple c v)) -> Capacity e c v)
-  , typedCtor "Shrinkage" "shrinkage" "set a scheme's shrinkage"
-      (pair "scheme" "the scheme" stringShape "value" "its value" decimal)
-      ( case _ of
-          Shrinkage s q -> Just (Tuple s q)
-          _ -> Nothing
-      )
-      (uncurry Shrinkage)
-  , typedCtor "Implicit" "implicit" "make an Actor implicit" (object1 "entity" "the Actor" idShape)
-      ( case _ of
-          Implicit e -> Just e
-          _ -> Nothing
-      )
-      Implicit
-  ]
+  , "Shrinkage": atFields "type" "Shrinkage" "shrinkage" "set a scheme's shrinkage" (pair "scheme" "the scheme" stringShape "value" "its value" decimal)
+  , "Implicit": atFields "type" "Implicit" "implicit" "make an Actor implicit" (object1 "entity" "the Actor" idShape)
+  }
   where
   object1 :: forall a. String -> String -> Shape a -> RecF a a
   object1 key desc s = fieldOf key desc s identity
