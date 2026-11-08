@@ -24,10 +24,11 @@ import Flags (parseFlags)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
-import Node.Process (argv, exit')
+import Node.Process (argv)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readPremise)
 import Premises.Load (loadPremise)
+import Exit (fail, usageError)
 import Options (runFlags, runOptions, sessionFlags, sessionOptions)
 import Premises.Presets (presetNames)
 import Session (session)
@@ -48,12 +49,11 @@ main = do
     _ -> usage "expected a command: run, session or presets"
 
 usage :: String -> Effect Unit
-usage why = do
-  log ("error: " <> why)
-  log "usage: run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
-  log "  e.g. run meridian --preset Conservative --rounds 5"
-  log "       session <premise> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
-  exit' 1
+usage = usageError
+  [ "usage: run <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
+  , "  e.g. run meridian --preset Conservative --rounds 5"
+  , "       session <premise> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
+  ]
 
 runPremise :: String -> String -> Int -> Maybe Seed -> Effect Unit
 runPremise premise presetName rounds given = do
@@ -84,6 +84,3 @@ summarize before r = do
         <> "; invariants "
         <> (if failures == [] then "ok" else show failures)
     )
-
-fail :: String -> Effect Unit
-fail e = log e *> exit' 1

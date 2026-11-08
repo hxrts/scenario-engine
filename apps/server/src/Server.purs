@@ -11,11 +11,9 @@ import Premises.Tree (readPremise)
 import Adapters.SQLite (open, sqliteBackend)
 import Data.Array (drop)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
-import Data.Int as Int
 import Effect (Effect)
 import Effect.Console (log)
-import Flags (flagOr, parseFlags)
+import Flags (flagOr, intFlag, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')
@@ -29,8 +27,9 @@ main = do
   args <- drop 2 <$> argv
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
-    Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
-      Just port | port > 0 && port < 65536 -> map (_ >>= loadPremise) (readPremise fileOps "meridian/v0") >>= case _ of
+    -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port reads
+    Right flags -> case intFlag "--port" 8787 (\p -> p > 0 && p < 65536) "a port number" flags of
+      Right port -> map (_ >>= loadPremise) (readPremise fileOps "meridian/v0") >>= case _ of
         Right ctx -> do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store
@@ -38,7 +37,7 @@ main = do
           cache <- newCache
           serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement ctx store cache))
         Left e -> log e *> exit' 1
-      _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)
+      Left e -> usage e
   where
   usage e = do
     log ("error: " <> e)

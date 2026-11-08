@@ -15,11 +15,9 @@ import Prelude
 import Adapters.Pi (defaultModel)
 import Core.Draw (Seed(..))
 import Data.Either (Either(..))
-import Data.Int (fromString)
-import Data.Maybe (Maybe(..))
-import Flags (flagOr)
+import Data.Maybe (Maybe)
+import Flags (flagOr, intFlag, optionalInt)
 import Foreign.Object (Object)
-import Foreign.Object as Object
 import Handlers.Store (validRunId)
 import Session (Options)
 
@@ -35,11 +33,7 @@ runOptions fs = do
 -- | The player seed flag: absent means draw one at start; given, it must be a whole number (the one
 -- | seed rule: `scripts/validate` mirrors it, negative values included).
 seedFlag :: Object String -> Either String (Maybe Seed)
-seedFlag fs = case Object.lookup "--seed" fs of
-  Nothing -> Right Nothing
-  Just s -> case fromString s of
-    Just n -> Right (Just (Seed n))
-    Nothing -> Left ("--seed must be a whole number, got " <> s)
+seedFlag fs = map Seed <$> optionalInt "--seed" (const true) "a whole number" fs
 
 sessionFlags :: Array String
 sessionFlags = [ "--humans", "--model", "--rounds", "--window", "--id", "--db", "--seed" ]
@@ -58,9 +52,5 @@ number :: String -> Int -> Object String -> Either String Int
 number = numberFrom 1
 
 numberFrom :: Int -> String -> Int -> Object String -> Either String Int
-numberFrom lowest name d fs = case Object.lookup name fs of
-  Nothing -> Right d
-  Just s -> case fromString s of
-    Just n | n >= lowest -> Right n
-    _ -> Left (name <> " must be a whole number of at least " <> show lowest <> ", got " <> s)
+numberFrom lowest name d = intFlag name d (_ >= lowest) ("a whole number of at least " <> show lowest)
 

@@ -15,12 +15,12 @@ import Effect.Console (log)
 import Node.Encoding (Encoding(..))
 import Node.FS.Perms (permsAll)
 import Node.FS.Sync (mkdir', writeTextFile)
-import Node.Process (exit')
+import Exit (fail)
 import Compile.Render (compile)
 
 main :: Effect Unit
 main = case compile of
-  Left e -> log ("invalid premise: " <> e) *> exit' 1
+  Left e -> fail ("invalid premise: " <> e)
   Right files -> do
     root <- premiseRoot fileOps
     for_ [ "meridian/v0", "fixtures", "capstone" ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }

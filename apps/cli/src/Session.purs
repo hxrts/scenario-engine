@@ -41,7 +41,7 @@ import Handlers.Llm (backend, interpreter, narrator, speak)
 import Views.Common (quantity)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, settle, startRun)
-import Node.Process (exit')
+import Exit (fail)
 import Game.Assemble (assemble, liveBindings, unknownSeats, withRounds)
 import Game.Premise (Premise(..))
 import Game.Recipe (encodeSpec)
@@ -54,11 +54,11 @@ type Options = { premise :: String, model :: String, humans :: String, rounds ::
 
 session :: Options -> Effect Unit
 session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >>= case _ of
-  Left e -> writeLine e *> exit' 1
+  Left e -> fail e
   Right parts | unknown <- unknownSeats humans parts.config, unknown /= [] ->
-    writeLine ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown)) *> exit' 1
+    fail ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown))
   Right parts -> case assemble (GameboardPremise parts) (liveBindings humans parts.config) [] of
-    Left e -> writeLine (show e) *> exit' 1
+    Left e -> fail (show e)
     Right assembled -> launchAff_ do
       let
         game = withRounds (Just o.rounds) assembled
@@ -83,7 +83,7 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
         preset = fromMaybe "" (find (\n -> Object.member n parts.presets) presetNames)
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
       started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })
-      liftEffect $ either (\why -> writeLine ("error: " <> why) *> exit' 1) pure started
+      liftEffect $ either (\why -> fail ("error: " <> why)) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
       liftEffect $ writeLine (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       liftEffect $ for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
@@ -108,8 +108,7 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
         let
           failed why = do
             writeLine ("Session failed: " <> why)
-            writeLine ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
-            exit' 1
+            fail ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
         case out of
           -- an exception (a backend that could not be started, input ended, a store fault) fails the run
           Left ex -> failed (message ex)

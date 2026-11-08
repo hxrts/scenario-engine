@@ -30,7 +30,7 @@ import Handlers.Llm (interpreter, backend)
 import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
-import Node.Process (exit')
+import Exit (fail)
 import Game.Assemble (assemble)
 import Game.Premise (Premise(..))
 import Premises.Capstone (jointLineFor, jointLines, matchesExpect, seatBindings)
@@ -51,7 +51,7 @@ answer _ input = case jointLineFor input of
   Nothing -> throwError (error ("the capstone defines no reply for: " <> input))
 
 main :: Effect Unit
-main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
+main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure unit))) do
   w <- worldOf
   ref <- liftEffect (Ref.new [])
   let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) ref }

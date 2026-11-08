@@ -3,8 +3,9 @@ module Test.Flags.Main where
 import Prelude
 
 import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Flags (flagOr, parseFlags)
+import Flags (flagOr, intFlag, optionalInt, parseFlags)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Test.Spec (describe, it)
@@ -28,5 +29,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let flags = Object.singleton "--a" "1"
       flagOr "--a" "x" flags `shouldEqual` "1"
       flagOr "--b" "x" flags `shouldEqual` "x"
+  describe "intFlag" do
+    it "reads a value the rule accepts, or the default when absent" do
+      intFlag "--n" 5 (_ > 0) "positive" (Object.singleton "--n" "2") `shouldEqual` Right 2
+      intFlag "--n" 5 (_ > 0) "positive" Object.empty `shouldEqual` Right 5
+    it "names the flag, the rule and the value when it is rejected" do
+      intFlag "--n" 5 (_ > 0) "positive" (Object.singleton "--n" "0") `shouldEqual` Left "--n must be positive, got 0"
+      intFlag "--n" 5 (_ > 0) "positive" (Object.singleton "--n" "x") `shouldEqual` Left "--n must be positive, got x"
+  describe "optionalInt" do
+    it "is Nothing when absent, and the value when given" do
+      optionalInt "--n" (const true) "a whole number" Object.empty `shouldEqual` Right Nothing
+      optionalInt "--n" (const true) "a whole number" (Object.singleton "--n" "-3") `shouldEqual` Right (Just (-3))
   where
   pair k v = Tuple k v
