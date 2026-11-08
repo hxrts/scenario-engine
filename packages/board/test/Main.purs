@@ -39,6 +39,7 @@ coverageGameboard =
   { id: "coverage-merge"
   , version: "v0"
   , world: world
+  , authored: { circulation: { production: [], flows: [], shares: [], requirements: [] }, reservable: [], decays: [] }
   , actors: Map.singleton us actor
   , schemes: [ { id: "s", eligibleActors: [ us ], target: eu, domain: Id "d", observes: money, estimator: estimator } ]
   , parameters: Object.empty

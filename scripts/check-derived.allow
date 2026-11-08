@@ -21,7 +21,6 @@ hand-json packages/premises/src/Premises/Load.purs merge merges premise files as
 hand-json packages/premises/src/Premises/Meridian.purs files splits a compiled document into its premise files by key
 # Not renames: each fixes a type or names a DSL word.
 alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
-alias packages/schema/src/Schema/Build/Base.purs keyed DSL word that fixes its argument to the Keyed type
 alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it
 # The engine's own reading of Events.
 silent-default packages/core/src/Core/Engine/Commit.purs prepared engine code: the engine's own reading of the Events it produced

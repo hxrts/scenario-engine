@@ -5,10 +5,6 @@ alias packages/core/src/Core/Shape.purs 1
 alias packages/premises/src/Premises/Load.purs 1
 alias packages/testkit/src/Testkit/Capstone.purs 1
 alias packages/views/src/Views/Common.purs 4
-doc-type packages/schema/src/Schema/Premise/Actor.purs 10
-doc-type packages/schema/src/Schema/Premise/Fixture.purs 13
-doc-type packages/schema/src/Schema/Premise/Gameboard.purs 2
-doc-type packages/schema/src/Schema/Premise/World.purs 30
 hand-instance packages/core/src/Core/World.purs 2
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
 hand-json apps/dashboard/src/Dashboard/Components.purs 1

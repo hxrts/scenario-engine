@@ -5,7 +5,7 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -489,6 +489,14 @@ instance Show v => Show (RuleChangeF v) where
 
 idShape :: forall t. Shape (Id t)
 idShape = prim "Id" (\(Id s) -> fromString s) (\j -> note "expected an id string" (map Id (toString j)))
+
+-- | An object keyed by id, read into a Map.
+idMap :: forall t a. Shape a -> Shape (Map (Id t) a)
+idMap s = idMapWith (const s)
+
+-- | An object keyed by id, each entry read knowing its key (a record whose id is its key).
+idMapWith :: forall t a. (Id t -> Shape a) -> Shape (Map (Id t) a)
+idMapWith = keyedBy Id idText
 
 instance Described (RuleChangeF Q) where
   shape = ruleChangeShape

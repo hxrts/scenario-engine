@@ -1,200 +1,84 @@
 -- | The premise format of the World (docs/03_gameboard.md §3–§5): Resources, Markets, facilities,
 -- | Entities with their Aggregates and procedures, Representation schemes and assignments, and
--- | circulation. Each section is a field set (`RecF`) over the World, so a section file and the
--- | whole Gameboard use one description. A key the decoder defaults is `Maybe` here: an author
--- | who writes `"capacityUse": "1"` gets it written back, and one who omits it gets nothing back.
--- | `worldToCore` fills the defaults and produces the core World State (Core.World).
+-- | circulation. Each shape reads the core type directly (Core.Types, Core.World): a key with a default
+-- | is omitted when it holds that default, and a record keyed by its id reads the id from the key.
+-- | `worldFields` is every section but the Entities, so a Gameboard can read the Entities with their
+-- | Actor definitions and a fixture without.
 module Schema.Premise.World
-  ( Keyed
-  , keyedToMap
-  , ResourceDoc
-  , CostDoc
-  , MarketDoc
-  , FacilityDoc
-  , EntityDoc
-  , AggregateDoc
-  , ProcedureDoc
-  , RepresentationDoc
-  , SchemeDoc
-  , AssignmentDoc
-  , CirculationDoc
-  , ProductionDoc
-  , FlowDoc
-  , ShareDoc
-  , RequirementDoc
-  , WorldDoc
+  ( PremiseWorld
+  , worldFields
   , worldRec
+  , entityRec
+  , rulesFromList
   , schemeShape
   , assignmentShape
-  , schemeToCore
-  , worldToCore
   , checkReservations
-  , EffectDoc
-  , EstimatorDoc
   ) where
 
 import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, nameShape, recordShape, atBare, atKindArg, boolShape, contramapRec, fieldOf, genericPremiseSum, intShape, keyedAlways, listOf, object, optionalOf, refined, stringShape)
-import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape, idText)
-import Core.Types (FlowGovernance(..), RuleForm, RuleKindDecl)
+import Core.Shape (RecF, Shape, arrayOf, defaulted, atBare, atKindArg, boolShape, contramapRec, defaultsTo, emptyByDefault, fieldOf, genericPremiseSum, intShape, iso, listOf, nameShape, object, optionalOf, recordShape, refined, stringShape)
+import Core.Types (Aggregate, CapacityEffect, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, idMap, idMapWith, idShape, idText)
 import Core.Types as Types
-import Core.World (FlowGate, RecurringFlow, UnseededWorld)
-import Data.Array (concatMap, filter, mapMaybe, mapWithIndex)
+import Core.World (FlowGate, UnseededWorld)
+import Data.Array as Array
+import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
 import Data.Either (Either(..))
-import Data.Foldable (any)
-import Data.String (joinWith)
+import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..))
+import Data.Maybe (Maybe(..), maybe)
+import Data.String (joinWith)
+import Data.String as String
+import Data.Tuple (Tuple(..), snd)
 import Schema.Gameboard (Scheme)
-import Schema.Premise.Query (ShareMeasure, measureShape)
-import Schema.Recurring as Recurring
-import Schema.Premise.Actor (DefinitionDoc, definitionShape)
 import Schema.Premise.Intent (capabilityShape, ruleShape)
+import Schema.Premise.Query (measureShape)
 import Schema.Premise.Tags (premiseEnum, transferabilityTags)
-
--- | A keyed list as written: the object's pairs, in the order given.
-type Keyed a = Array (Tuple String a)
+import Schema.Recurring (Authored, Circulation, Flow, Production, Requirement, Share, compileIn)
 
 -- Resources and Markets -----------------------------------------------------------------------
-
-type ResourceDoc = { transferability :: Transferability, reservable :: Maybe Boolean, decay :: Maybe Q }
-
-type CostDoc = { intercept :: Q, slope :: Q, lo :: Q, hi :: Q }
-
-type MarketDoc = { base :: ResourceId, quote :: ResourceId, cost :: CostDoc, reserves :: Keyed Q, access :: Array EntityId, position :: Maybe Q }
-
--- | A facility (a transformation): its inputs, outputs and escrow, its payment and capacity,
--- | and its timing, limits and effects. Every key is optional.
-type FacilityDoc =
-  { inputs :: Maybe (Keyed Q)
-  , outputs :: Maybe (Keyed Q)
-  , escrowPerUnit :: Maybe (Keyed Q)
-  , payment :: Maybe { curve :: CostDoc, resource :: ResourceId, to :: EntityId }
-  , capacity :: Maybe CapacityRef
-  , delay :: Maybe Int
-  , minimum :: Maybe Q
-  , maximum :: Maybe Q
-  , capacityUse :: Maybe Q
-  , ownerSigns :: Maybe Boolean
-  , effects :: Maybe (Array EffectDoc)
-  }
-
-type EffectDoc = { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Q, rounds :: Maybe Int }
-
--- Entities ------------------------------------------------------------------------------------
-
--- | An Entity: its accounts, capabilities and capacities, and either its Actor definition or its
--- | Aggregate (procedures, members and policy). The definition is read by the Gameboard.
-type EntityDoc =
-  { accounts :: Keyed Q
-  , capabilities :: Array Capability
-  , capacities :: Maybe (Keyed Q)
-  , definition :: Maybe DefinitionDoc
-  , aggregate :: Maybe AggregateDoc
-  }
-
-type AggregateDoc = { policy :: PolicyId, members :: Maybe (Array EntityId), procedures :: Maybe (Keyed ProcedureDoc) }
-
--- | A collective procedure on an Aggregate's own Proposals.
-type ProcedureDoc = { weights :: Keyed Q, residualWeight :: Q, threshold :: Q, authorizes :: Array Capability }
-
--- Representations -----------------------------------------------------------------------------
-
-type EstimatorDoc = { reference :: Q, shrinkage :: Q, bound :: Maybe Q, noiseSpread :: Maybe Q }
-
--- | A Representation of an Actor in a world (a fixture's, flattened with its estimator).
-type RepresentationDoc =
-  { id :: RepresentationId
-  , actor :: EntityId
-  , aggregate :: EntityId
-  , domain :: BehaviorDomain
-  , observes :: Maybe ResourceId
-  , weight :: Q
-  , estimator :: EstimatorDoc
-  }
-
--- | A Gameboard's scheme: the Representation an Actor's behaviour is estimated under.
-type SchemeDoc = { id :: String, eligibleActors :: Array EntityId, target :: EntityId, domain :: BehaviorDomain, observes :: Maybe ResourceId, estimator :: EstimatorDoc }
-
--- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
-type AssignmentDoc = { scheme :: String, actor :: EntityId, weight :: Maybe Q }
-
--- Circulation ---------------------------------------------------------------------------------
-
-type CirculationDoc =
-  { production :: Maybe (Array ProductionDoc)
-  , flows :: Maybe (Array FlowDoc)
-  , shares :: Maybe (Array ShareDoc)
-  , requirements :: Maybe (Array RequirementDoc)
-  }
-
-type ProductionDoc = { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef }
-
-type FlowDoc = { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q }
-
-type ShareDoc = { from :: EntityId, to :: EntityId, share :: Q, source :: ShareMeasure }
-
-type RequirementDoc = { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Maybe Q }
-
--- | The World as written, with its name and starting round. Every section is a key of the
--- | Gameboard's merged object; `numeraire`, the Resources, Markets, facilities and Entities are required.
-type WorldDoc =
-  { name :: Maybe String
-  , round :: Maybe Int
-  , numeraire :: ResourceId
-  , resources :: Keyed ResourceDoc
-  , markets :: Keyed MarketDoc
-  , transformations :: Keyed FacilityDoc
-  , flowGates :: Maybe (Array FlowGate)
-  , groups :: Maybe (Keyed EntityId)
-  , ruleKinds :: Maybe (Keyed RuleKindDecl)
-  , entities :: Keyed EntityDoc
-  , rules :: Maybe (Array (Rule))
-  , representations :: Maybe (Array RepresentationDoc)
-  , circulation :: Maybe CirculationDoc
-  }
-
--- Shapes --------------------------------------------------------------------------------------
 
 transferabilityShape :: Shape Transferability
 transferabilityShape = premiseEnum "Transferability" Types.transferabilityShape transferabilityTags
 
-resourceShape :: Shape ResourceDoc
-resourceShape = object "Resource"
+-- | A Resource as a premise writes it: what the World holds, and what only the document holds.
+type ResourceEntry = { transferability :: Transferability, reservable :: Boolean, decay :: Maybe Q }
+
+resourceEntry :: Shape ResourceEntry
+resourceEntry = object "Resource"
   ( mk <$> fieldOf "transferability" "how it may move" transferabilityShape _.transferability
-      <*> fieldOf "reservable" "may be reserved for a deployment (default false)" (optionalOf boolShape) _.reservable
+      <*> fieldOf "reservable" "may be escrowed by a facility (default false)" (defaultsTo false boolShape) _.reservable
       <*> fieldOf "decay" "the share lost per round" (optionalOf qShape) _.decay
   )
   where
   mk t r d = { transferability: t, reservable: r, decay: d }
 
-costShape :: Shape CostDoc
+-- | A curve, its domain written as its `lo` and `hi`.
+costShape :: Shape CostFunction
 costShape = object "Cost"
   ( mk <$> fieldOf "intercept" "the price at zero" qShape _.intercept
       <*> fieldOf "slope" "the price per unit" qShape _.slope
-      <*> fieldOf "lo" "the lower bound of the domain" qShape _.lo
-      <*> fieldOf "hi" "the upper bound of the domain" qShape _.hi
+      <*> fieldOf "lo" "the lower bound of the domain" qShape _.domain.lo
+      <*> fieldOf "hi" "the upper bound of the domain" qShape _.domain.hi
   )
   where
-  mk b s l h = { intercept: b, slope: s, lo: l, hi: h }
+  mk b s l h = { intercept: b, slope: s, domain: { lo: l, hi: h } }
 
-marketShape :: Shape MarketDoc
-marketShape = object "Market"
+marketShape :: MarketId -> Shape Market
+marketShape k = object "Market"
   ( mk <$> fieldOf "base" "the Resource traded" idShape _.base
       <*> fieldOf "quote" "the Resource it is priced in" idShape _.quote
       <*> fieldOf "cost" "the cost curve" costShape _.cost
-      <*> fieldOf "reserves" "the reserves, by Resource" (keyedAlways qShape) _.reserves
+      <*> fieldOf "reserves" "the reserves, by Resource" (idMap qShape) _.reserves
       <*> fieldOf "access" "the Entities that may trade" (listOf idShape) _.access
-      <*> fieldOf "position" "the starting net position (default 0)" (optionalOf qShape) _.position
+      <*> fieldOf "position" "the starting net position (default 0)" (defaultsTo Q.zero qShape) _.position
   )
   where
-  mk b q' c r a p = { base: b, quote: q', cost: c, reserves: r, access: a, position: p }
+  mk b q' c r a p = { id: k, base: b, quote: q', cost: c, position: p, reserves: r, access: a }
 
-effectShape :: Shape EffectDoc
+effectShape :: Shape CapacityEffect
 effectShape = object "Effect"
   ( mk <$> fieldOf "capacity" "the capacity changed" idShape _.capacity
       <*> fieldOf "holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf idShape) _.holder
@@ -204,35 +88,41 @@ effectShape = object "Effect"
   where
   mk c h p r = { capacity: c, holder: h, perUnit: p, rounds: r }
 
-facilityShape :: Shape FacilityDoc
-facilityShape = object "Facility"
-  ( mk <$> fieldOf "inputs" "consumed per unit" (optionalOf (keyedAlways qShape)) _.inputs
-      <*> fieldOf "outputs" "produced per unit" (optionalOf (keyedAlways qShape)) _.outputs
-      <*> fieldOf "escrowPerUnit" "reserved per unit, released within the round" (optionalOf (keyedAlways qShape)) _.escrowPerUnit
-      <*> fieldOf "payment" "what each order pays: its curve, its Resource, and who is paid" (optionalOf (recordShape "Payment" { curve: costShape, resource: idShape, to: idShape })) _.payment
+paymentShape :: Shape Payment
+paymentShape = recordShape "Payment" { curve: costShape, resource: idShape, to: idShape }
+
+-- | A facility (a transformation). Every key is optional.
+facilityShape :: TransformationId -> Shape Transformation
+facilityShape k = object "Facility"
+  ( mk <$> fieldOf "inputs" "consumed per unit" (emptyByDefault (idMap qShape)) _.inputs
+      <*> fieldOf "outputs" "produced per unit" (emptyByDefault (idMap qShape)) _.outputs
+      <*> fieldOf "escrowPerUnit" "reserved per unit, released within the round" (emptyByDefault (idMap qShape)) _.escrowPerUnit
+      <*> fieldOf "payment" "what each order pays: its curve, its Resource, and who is paid" (optionalOf paymentShape) _.payment
       <*> fieldOf "capacity" "the capacity it draws on" (optionalOf idShape) _.capacity
-      <*> fieldOf "delay" "rounds before its effects apply" (optionalOf intShape) _.delay
-      <*> fieldOf "minimum" "the smallest order accepted" (optionalOf qShape) _.minimum
-      <*> fieldOf "maximum" "the largest order accepted per Entity per round" (optionalOf qShape) _.maximum
-      <*> fieldOf "capacityUse" "capacity drawn per unit ordered (default 1)" (optionalOf qShape) _.capacityUse
-      <*> fieldOf "ownerSigns" "the capacity's owner must sign each order (default false)" (optionalOf boolShape) _.ownerSigns
-      <*> fieldOf "effects" "changes to capacities" (optionalOf (listOf effectShape)) _.effects
+      <*> fieldOf "delay" "rounds before its effects apply" (defaultsTo 0 intShape) _.delay
+      <*> fieldOf "minimum" "the smallest order accepted" (defaultsTo Q.zero qShape) _.minimum
+      <*> fieldOf "maximum" "the largest total accepted per Entity per round" (optionalOf qShape) _.maximum
+      <*> fieldOf "capacityUse" "capacity drawn per unit ordered (default 1)" (defaultsTo Q.one qShape) _.capacityUse
+      <*> fieldOf "ownerSigns" "the capacity's owner must sign each order (default false)" (defaultsTo false boolShape) _.ownerSigns
+      <*> fieldOf "effects" "changes to capacities" (arrayOf effectShape) _.effects
   )
   where
-  mk i o r c cap d mn mx cu os ef = { inputs: i, outputs: o, escrowPerUnit: r, payment: c, capacity: cap, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
+  mk i o r pay cap d mn mx cu os ef = { id: k, inputs: i, outputs: o, escrowPerUnit: r, payment: pay, capacity: cap, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
 
-aggregateShape :: Shape AggregateDoc
+-- Entities ------------------------------------------------------------------------------------
+
+aggregateShape :: Shape Aggregate
 aggregateShape = object "Aggregate"
   ( mk <$> fieldOf "policy" "the Policy that drives it" idShape _.policy
-      <*> fieldOf "members" "the Entities that are its members" (optionalOf (listOf idShape)) _.members
-      <*> fieldOf "procedures" "its collective procedures, by name" (optionalOf (keyedAlways procedureShape)) _.procedures
+      <*> fieldOf "members" "the Entities that are its members" (arrayOf idShape) _.members
+      <*> fieldOf "procedures" "its collective procedures, by name" (emptyByDefault (idMap procedureShape)) _.procedures
   )
   where
   mk p m ps = { policy: p, members: m, procedures: ps }
 
-procedureShape :: Shape ProcedureDoc
+procedureShape :: Shape CollectiveProcedure
 procedureShape = object "Procedure"
-  ( mk <$> fieldOf "weights" "the weight of each member" (keyedAlways qShape) _.weights
+  ( mk <$> fieldOf "weights" "the weight of each member" (idMap qShape) _.weights
       <*> fieldOf "residualWeight" "the weight of the rest" qShape _.residualWeight
       <*> fieldOf "threshold" "the weight that carries it" qShape _.threshold
       <*> fieldOf "authorizes" "the capabilities it grants" (listOf capabilityShape) _.authorizes
@@ -240,141 +130,133 @@ procedureShape = object "Procedure"
   where
   mk w r t a = { weights: w, residualWeight: r, threshold: t, authorizes: a }
 
-entityShape :: Shape EntityDoc
-entityShape = object "Entity"
-  ( mk <$> fieldOf "accounts" "the holdings" (keyedAlways qShape) _.accounts
-      <*> fieldOf "capabilities" "the capabilities it holds" (listOf capabilityShape) _.capabilities
-      <*> fieldOf "capacities" "the capacities it holds" (optionalOf (keyedAlways qShape)) _.capacities
-      <*> fieldOf "definition" "its Actor definition" (optionalOf definitionShape) _.definition
-      <*> fieldOf "aggregate" "its Aggregate" (optionalOf aggregateShape) _.aggregate
-  )
+-- | An Entity: its accounts, capabilities and capacities, and its Aggregate when it is one. An Entity
+-- | with no Aggregate is an Actor at the seat of its own id.
+entityRec :: EntityId -> RecF Entity Entity
+entityRec k = mk <$> fieldOf "accounts" "the holdings" (idMap qShape) _.accounts
+  <*> fieldOf "capabilities" "the capabilities it holds" (listOf capabilityShape) _.capabilities
+  <*> fieldOf "capacities" "the capacities it holds" (emptyByDefault (idMap qShape)) _.capacities
+  <*> fieldOf "aggregate" "its Aggregate" (optionalOf aggregateShape) (aggregateOf <<< _.kind)
   where
-  mk a c cap d ag = { accounts: a, capabilities: c, capacities: cap, definition: d, aggregate: ag }
+  mk a c cap ag = { id: k, accounts: a, capacities: cap, capabilities: c, kind: maybe (Actor (Seat (Id (idText k)))) Aggregate ag }
+  aggregateOf = case _ of
+    Aggregate a -> Just a
+    Actor _ -> Nothing
 
-estimatorRec :: RecF EstimatorDoc EstimatorDoc
+-- Representations -----------------------------------------------------------------------------
+
+-- | The symmetric bound on a deviation, written as its half-width.
+boundShape :: Shape (Maybe Interval)
+boundShape = iso (map (\b -> { lo: Q.neg b, hi: b })) (map _.hi) (optionalOf qShape)
+
+estimatorRec :: RecF Estimator Estimator
 estimatorRec = mk <$> fieldOf "reference" "the reference quantity" qShape _.reference
   <*> fieldOf "shrinkage" "the shrinkage toward the reference" qShape _.shrinkage
-  <*> fieldOf "bound" "a symmetric bound on the deviation" (optionalOf qShape) _.bound
-  <*> fieldOf "noiseSpread" "the noise spread (default 0)" (optionalOf qShape) _.noiseSpread
+  <*> fieldOf "bound" "a symmetric bound on the deviation" boundShape _.deviationBound
+  <*> fieldOf "noiseSpread" "the noise spread (default 0)" (defaultsTo Q.zero qShape) _.noiseSpread
   where
-  mk r s b n = { reference: r, shrinkage: s, bound: b, noiseSpread: n }
+  mk r s b n = { reference: r, shrinkage: s, deviationBound: b, noiseSpread: n }
 
-estimatorShape :: Shape EstimatorDoc
+estimatorShape :: Shape Estimator
 estimatorShape = object "Estimator" estimatorRec
 
-representationRec :: RecF RepresentationDoc RepresentationDoc
-representationRec = mk <$> fieldOf "id" "the Representation" idShape _.id
-  <*> fieldOf "actor" "the Actor represented" idShape _.actor
-  <*> fieldOf "aggregate" "the Aggregate that holds the estimate" idShape _.aggregate
-  <*> fieldOf "domain" "the behaviour domain" idShape _.domain
-  <*> observesF
-  <*> fieldOf "weight" "the weight in the Aggregate's estimate" qShape _.weight
-  <*> contramapRec _.estimator estimatorRec
+observesNote :: String
+observesNote = "the Resource whose purchases are observed (default: the Resource the domain names)"
+
+-- | What a premise writes for `observes`: nothing when it is the Resource the domain names.
+writtenObserves :: forall r. { domain :: Types.BehaviorDomain, observes :: ResourceId | r } -> Maybe ResourceId
+writtenObserves r = if idText r.observes == idText r.domain then Nothing else Just r.observes
+
+-- | A Representation of an Actor in a world (a fixture's, flattened with its estimator).
+representationShape :: Shape Representation
+representationShape = object "Representation"
+  ( mk <$> fieldOf "id" "the Representation" idShape _.id
+      <*> fieldOf "actor" "the Actor represented" idShape _.actor
+      <*> fieldOf "aggregate" "the Aggregate that holds the estimate" idShape _.aggregate
+      <*> fieldOf "domain" "the behaviour domain" idShape _.domain
+      <*> fieldOf "observes" observesNote (optionalOf idShape) writtenObserves
+      <*> fieldOf "weight" "the weight in the Aggregate's estimate" qShape _.weight
+      <*> contramapRec _.estimator estimatorRec
+  )
   where
-  mk i a g d o w e = { id: i, actor: a, aggregate: g, domain: d, observes: o, weight: w, estimator: e }
-  observesF = fieldOf "observes" "the Resource whose purchases are observed (default: the Resource the domain names)" (optionalOf idShape) _.observes
+  mk i a g d o w e = { id: i, actor: a, aggregate: g, domain: d, observes: maybe (Id (idText d)) identity o, weight: w, estimator: e }
 
-representationShape :: Shape RepresentationDoc
-representationShape = object "Representation" representationRec
-
-schemeShape :: Shape SchemeDoc
+-- | A Gameboard's scheme: the Representation an Actor's behaviour is estimated under.
+schemeShape :: Shape Scheme
 schemeShape = object "Scheme"
   ( mk <$> fieldOf "id" "the scheme's name" stringShape _.id
       <*> fieldOf "eligibleActors" "the Actors it may estimate" (listOf idShape) _.eligibleActors
       <*> fieldOf "target" "the Aggregate it estimates" idShape _.target
       <*> fieldOf "domain" "the behaviour domain" idShape _.domain
-      <*> fieldOf "observes" "the Resource whose purchases are observed (default: the Resource the domain names)" (optionalOf idShape) _.observes
+      <*> fieldOf "observes" observesNote (optionalOf idShape) writtenObserves
       <*> fieldOf "estimator" "the estimator" estimatorShape _.estimator
   )
   where
-  mk i e t d o est = { id: i, eligibleActors: e, target: t, domain: d, observes: o, estimator: est }
+  mk i e t d o est = { id: i, eligibleActors: e, target: t, domain: d, observes: maybe (Id (idText d)) identity o, estimator: est }
 
-assignmentShape :: Shape AssignmentDoc
+-- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
+assignmentShape :: Shape { scheme :: String, actor :: EntityId, weight :: Q.Q }
 assignmentShape = object "Assignment"
   ( mk <$> fieldOf "scheme" "the scheme assigned" stringShape _.scheme
       <*> fieldOf "actor" "the Actor assigned" idShape _.actor
-      <*> fieldOf "weight" "the weight (default 1)" (optionalOf qShape) _.weight
+      <*> fieldOf "weight" "the weight (default 1)" (defaultsTo Q.one qShape) _.weight
   )
   where
   mk s a w = { scheme: s, actor: a, weight: w }
 
-circulationShape :: Shape CirculationDoc
-circulationShape = object "Circulation"
-  ( mk <$> fieldOf "production" "capacity that produces a Resource" (optionalOf (listOf productionShape)) _.production
-      <*> fieldOf "flows" "fixed payments per round" (optionalOf (listOf flowShape)) _.flows
-      <*> fieldOf "shares" "variable payments, as shares" (optionalOf (listOf shareShape)) _.shares
-      <*> fieldOf "requirements" "what an Entity must consume" (optionalOf (listOf requirementShape)) _.requirements
+-- Circulation ---------------------------------------------------------------------------------
+
+circulationShape :: Shape Circulation
+circulationShape = defaulted emptyCirculation none $ object "Circulation"
+  ( mk <$> fieldOf "production" "capacity that produces a Resource" (arrayOf productionShape) _.production
+      <*> fieldOf "flows" "fixed payments per round" (arrayOf flowShape) _.flows
+      <*> fieldOf "shares" "variable payments, as shares" (arrayOf shareShape) _.shares
+      <*> fieldOf "requirements" "what an Entity must consume" (arrayOf requirementShape) _.requirements
   )
   where
   mk p f s r = { production: p, flows: f, shares: s, requirements: r }
+  emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
+  none c = Array.null c.production && Array.null c.flows && Array.null c.shares && Array.null c.requirements
 
-productionShape :: Shape ProductionDoc
-productionShape = object "Production"
-  ( mk <$> fieldOf "entity" "the Entity" idShape _.entity
-      <*> fieldOf "resource" "the Resource produced" idShape _.resource
-      <*> fieldOf "capacity" "the capacity that produces it" idShape _.capacity
-  )
-  where
-  mk e r c = { entity: e, resource: r, capacity: c }
+productionShape :: Shape Production
+productionShape = recordShape "Production" { entity: idShape, resource: idShape, capacity: idShape }
 
 -- | A fixed payment per round, which is never negative (docs/03 §5.4).
-flowShape :: Shape FlowDoc
-flowShape = object "Flow"
-  ( mk <$> fieldOf "from" "the paying Entity" idShape _.from
-      <*> fieldOf "to" "the receiving Entity" idShape _.to
-      <*> fieldOf "resource" "the Resource paid" idShape _.resource
-      <*> fieldOf "amount" "the amount per round" (refined "a flow amount must not be negative" (_ >= Q.zero) qShape) _.amount
-  )
-  where
-  mk f t r a = { from: f, to: t, resource: r, amount: a }
+flowShape :: Shape Flow
+flowShape = recordShape "Flow" { from: idShape, to: idShape, resource: idShape, amount: refined "a flow amount must not be negative" (_ >= Q.zero) qShape }
 
-shareShape :: Shape ShareDoc
+shareShape :: Shape Share
 shareShape = object "Share"
-  ( mk <$> fieldOf "from" "the paying Entity" idShape _.from
+  ( (\f t s src -> { from: f, to: t, share: s, source: src })
+      <$> fieldOf "from" "the paying Entity" idShape _.from
       <*> fieldOf "to" "the receiving Entity" idShape _.to
       <*> fieldOf "share" "the share of the source" qShape _.share
       <*> fieldOf "source" "what the share is of: a query with no party, the payer being it" measureShape _.source
   )
-  where
-  mk f t s src = { from: f, to: t, share: s, source: src }
 
-requirementShape :: Shape RequirementDoc
+requirementShape :: Shape Requirement
 requirementShape = object "Requirement"
-  ( mk <$> fieldOf "entity" "the Entity that needs it" idShape _.entity
+  ( (\e r a p -> { entity: e, resource: r, amount: a, penalty: p })
+      <$> fieldOf "entity" "the Entity that needs it" idShape _.entity
       <*> fieldOf "resource" "the Resource needed" idShape _.resource
       <*> fieldOf "amount" "the amount per round (default: this round's purchases)" (optionalOf qShape) _.amount
-      <*> fieldOf "penalty" "the reduction of fixed incomes per unit unmet (default 0)" (optionalOf qShape) _.penalty
+      <*> fieldOf "penalty" "the reduction of fixed incomes per unit unmet (default 0)" (defaultsTo Q.zero qShape) _.penalty
   )
+
+-- The World -----------------------------------------------------------------------------------
+
+-- | Rules as written: a list. Each takes the id of its position, `rule-0`, `rule-1`, and so on.
+rulesFromList :: Array Rule -> Map RuleId Rule
+rulesFromList = Map.fromFoldable <<< mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r)
+
+-- | The list a Map of Rules is written as: in the order of its positions.
+rulesToList :: Map RuleId Rule -> Array Rule
+rulesToList m = map snd (sortWith position (Map.toUnfoldable m))
   where
-  mk e r a p = { entity: e, resource: r, amount: a, penalty: p }
+  position (Tuple (Id k) _) = Tuple (String.length k) k
 
--- | The World's sections as field sets over the World.
-nameF :: RecF WorldDoc (Maybe String)
-nameF = fieldOf "name" "the premise's name" (optionalOf stringShape) _.name
-
-roundF :: RecF WorldDoc (Maybe Int)
-roundF = fieldOf "round" "the starting round (default 1)" (optionalOf intShape) _.round
-
-numeraireF :: RecF WorldDoc ResourceId
-numeraireF = fieldOf "numeraire" "the unit of account, which the views use for net worth" idShape _.numeraire
-
-resourcesF :: RecF WorldDoc (Keyed ResourceDoc)
-resourcesF = fieldOf "resources" "the Resources" (keyedAlways resourceShape) _.resources
-
-marketsF :: RecF WorldDoc (Keyed MarketDoc)
-marketsF = fieldOf "markets" "the Markets" (keyedAlways marketShape) _.markets
-
-transformationsF :: RecF WorldDoc (Keyed FacilityDoc)
-transformationsF = fieldOf "transformations" "the facilities" (keyedAlways facilityShape) _.transformations
-
-gatesF :: RecF WorldDoc (Maybe (Array FlowGate))
-gatesF = fieldOf "flowGates" "the conditions on a Transfer of a Resource" (optionalOf (listOf (recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }))) _.flowGates
-
-jurisdictionF :: RecF WorldDoc (Maybe (Keyed EntityId))
-jurisdictionF = fieldOf "groups" "the group each Entity counts as, where it is not its own" (optionalOf (keyedAlways idShape)) _.groups
-
-ruleKindsF :: RecF WorldDoc (Maybe (Keyed RuleKindDecl))
-ruleKindsF = fieldOf "ruleKinds" "the kinds of Rule the premise declares" (optionalOf (keyedAlways ruleKindDecl)) _.ruleKinds
+rulesShape :: Shape (Map RuleId Rule)
+rulesShape = iso rulesFromList rulesToList (arrayOf ruleShape)
 
 ruleKindDecl :: Shape RuleKindDecl
 ruleKindDecl = recordShape "RuleKindDecl" { form: ruleForm, text: stringShape }
@@ -393,171 +275,49 @@ ruleForm = genericPremiseSum "RuleForm"
     GovernedBySource -> "origin"
     GovernedByEither -> "either"
 
-entitiesF :: RecF WorldDoc (Keyed EntityDoc)
-entitiesF = fieldOf "entities" "the Entities" (keyedAlways entityShape) _.entities
-
-rulesF :: RecF WorldDoc (Maybe (Array Rule))
-rulesF = fieldOf "rules" "the Rules in force from the start" (optionalOf (listOf ruleShape)) _.rules
-
-representationsF :: RecF WorldDoc (Maybe (Array RepresentationDoc))
-representationsF = fieldOf "representations" "the Representations bound in the world" (optionalOf (listOf representationShape)) _.representations
-
-circulationF :: RecF WorldDoc (Maybe CirculationDoc)
-circulationF = fieldOf "circulation" "the recurring economic cycle" (optionalOf circulationShape) _.circulation
-
-worldRec :: RecF WorldDoc WorldDoc
-worldRec = mk <$> nameF <*> roundF <*> numeraireF <*> resourcesF <*> marketsF <*> transformationsF <*> gatesF <*> jurisdictionF <*> ruleKindsF <*> entitiesF <*> rulesF <*> representationsF <*> circulationF
-  where
-  mk n r nu res mks trs tp j rk ent ru rep c =
-    { name: n, round: r, numeraire: nu, resources: res, markets: mks, transformations: trs, flowGates: tp, groups: j, ruleKinds: rk, entities: ent, rules: ru, representations: rep, circulation: c }
-
--- Conversions ---------------------------------------------------------------------------------
-
--- | A keyed list as holdings: the keys become typed ids.
-keyedToMap :: forall t a. Keyed a -> Map.Map (Id t) a
-keyedToMap = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
-
--- | What a Representation observes: as written, or the Resource its domain names.
-observedBy :: forall r. { domain :: BehaviorDomain, observes :: Maybe ResourceId | r } -> ResourceId
-observedBy r = fromMaybe (Id (idText r.domain)) r.observes
-
-estimatorToCore :: EstimatorDoc -> Estimator
-estimatorToCore e =
-  { reference: e.reference
-  , shrinkage: e.shrinkage
-  , deviationBound: map (\b -> { lo: Q.neg b, hi: b }) e.bound
-  , noiseSpread: fromMaybe Q.zero e.noiseSpread
-  }
-
-schemeToCore :: SchemeDoc -> Scheme
-schemeToCore s =
-  { id: s.id
-  , eligibleActors: s.eligibleActors
-  , target: s.target
-  , domain: s.domain
-  , observes: observedBy s
-  , estimator: estimatorToCore s.estimator
-  }
+-- | A World as a premise writes it: the World, and what only the document holds.
+type PremiseWorld = { world :: UnseededWorld, authored :: Authored }
 
 -- | The premise document's reservation check: a facility may escrow only a Resource the document marks
--- | `reservable`. It reads the document's own flags, which do not reach the World State. An unknown
--- | Resource is reported by validation's reference check.
-checkReservations :: WorldDoc -> Either String WorldDoc
-checkReservations w = case concatMap offending w.transformations of
-  [] -> Right w
+-- | `reservable`. An unknown Resource is reported by validation's reference check.
+checkReservations :: Authored -> UnseededWorld -> Either String Unit
+checkReservations a w = case concatMap offending (Map.toUnfoldable w.transformations) of
+  [] -> Right unit
   bad -> Left (joinWith "; " bad)
   where
-  notReservable k = any (\(Tuple r d) -> r == k && d.reservable /= Just true) w.resources
-  offending (Tuple t f) = map (\(Tuple r _) -> "facility " <> t <> " reserves " <> r <> ", which is not reservable") (filter (\(Tuple r _) -> notReservable r) (fromMaybe [] f.escrowPerUnit))
+  notReservable k = Map.member k w.resources && not (k `elem` a.reservable)
+  offending (Tuple t f) = map (\r -> "facility " <> show t <> " reserves " <> show r <> ", which is not reservable") (filter notReservable (Array.fromFoldable (Map.keys f.escrowPerUnit)))
 
--- | The core World State of a World as written (unseeded), with every default filled in.
-worldToCore :: WorldDoc -> UnseededWorld
-worldToCore w =
-  { round: fromMaybe 1 w.round
-  , entities: Map.fromFoldable (map (\(Tuple k e) -> Tuple (Id k) (entityToCore k e)) w.entities)
-  , resources: Map.fromFoldable (map (\(Tuple k r) -> Tuple (Id k) (resourceToCore k r)) w.resources)
-  , markets: Map.fromFoldable (map (\(Tuple k m) -> Tuple (Id k) (marketToCore k m)) w.markets)
-  , transformations: Map.fromFoldable (map (\(Tuple k f) -> Tuple (Id k) (facilityToCore k f)) w.transformations)
-  , representations: map representationToCore (fromMaybe [] w.representations)
-  , numeraire: w.numeraire
-  , flowGates: fromMaybe [] w.flowGates
-  , groups: keyedToMap (fromMaybe [] w.groups)
-  , ruleKinds: keyedToMap (fromMaybe [] w.ruleKinds)
-  , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) (fromMaybe [] w.rules))
-  , scheduled: Map.empty
-  , deliveries: []
-  , factors: Map.empty
-  , recurring: recurringOf w.numeraire (fromMaybe emptyCirculation w.circulation) w.resources
-  , events: []
-  }
+entriesOf :: PremiseWorld -> Map ResourceId ResourceEntry
+entriesOf p = Map.mapMaybeWithKey (\k d -> Just { transferability: d.transferability, reservable: k `elem` p.authored.reservable, decay: _.rate <$> find ((_ == k) <<< _.resource) p.authored.decays }) p.world.resources
+
+-- | The World's sections but its Entities, as a function of them: a Gameboard's Entity entries also
+-- | carry Actor definitions. The World's key is the starting round (default 1).
+worldFields :: RecF PremiseWorld (Map EntityId Entity -> PremiseWorld)
+worldFields = mk
+  <$> fieldOf "round" "the starting round (default 1)" (defaultsTo 1 intShape) _.world.round
+  <*> fieldOf "numeraire" "the unit of account, which the views use for net worth" idShape _.world.numeraire
+  <*> fieldOf "resources" "the Resources" (idMap resourceEntry) entriesOf
+  <*> fieldOf "markets" "the Markets" (idMapWith marketShape) _.world.markets
+  <*> fieldOf "transformations" "the facilities" (idMapWith facilityShape) _.world.transformations
+  <*> fieldOf "flowGates" "the conditions on a Transfer of a Resource" (arrayOf gateShape) _.world.flowGates
+  <*> fieldOf "groups" "the group each Entity counts as, where it is not its own" (emptyByDefault (idMap idShape)) _.world.groups
+  <*> fieldOf "ruleKinds" "the kinds of Rule the premise declares" (emptyByDefault (idMap ruleKindDecl)) _.world.ruleKinds
+  <*> fieldOf "rules" "the Rules in force from the start" rulesShape _.world.rules
+  <*> fieldOf "representations" "the Representations bound in the world" (arrayOf representationShape) _.world.representations
+  <*> fieldOf "circulation" "the recurring economic cycle" circulationShape _.authored.circulation
   where
-  emptyCirculation :: CirculationDoc
-  emptyCirculation = { production: Nothing, flows: Nothing, shares: Nothing, requirements: Nothing }
+  gateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape } :: Shape FlowGate
+  mk round numeraire entries markets transformations flowGates groups ruleKinds rules representations circulation entities =
+    let
+      decays = mapMaybe (\(Tuple k e) -> (\rate -> { resource: k, rate }) <$> e.decay) (Map.toUnfoldable entries)
+      reservable = map (\(Tuple k _) -> k) (filter (\(Tuple _ e) -> e.reservable) (Map.toUnfoldable entries))
+      resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability } :: ResourceDefinition)) entries
+    in
+      { authored: { circulation, reservable, decays }
+      , world: { round, numeraire, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, scheduled: Map.empty, deliveries: [], factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
+      }
 
-resourceToCore :: String -> ResourceDoc -> ResourceDefinition
-resourceToCore k r =
-  { id: Id k
-  , unit: k
-  , transferability: r.transferability
-  }
-
-costToCore :: CostDoc -> { intercept :: Q, slope :: Q, domain :: Interval }
-costToCore c = { intercept: c.intercept, slope: c.slope, domain: { lo: c.lo, hi: c.hi } }
-
-marketToCore :: String -> MarketDoc -> Market
-marketToCore k m =
-  { id: Id k
-  , base: m.base
-  , quote: m.quote
-  , cost: costToCore m.cost
-  , position: fromMaybe Q.zero m.position
-  , reserves: keyedToMap m.reserves
-  , access: m.access
-  }
-
-facilityToCore :: String -> FacilityDoc -> Transformation
-facilityToCore k f =
-  { id: Id k
-  , inputs: keyedToMap (fromMaybe [] f.inputs)
-  , outputs: keyedToMap (fromMaybe [] f.outputs)
-  , escrowPerUnit: keyedToMap (fromMaybe [] f.escrowPerUnit)
-  , payment: map (\p -> p { curve = costToCore p.curve }) f.payment
-  , capacity: f.capacity
-  , delay: fromMaybe 0 f.delay
-  , minimum: fromMaybe Q.zero f.minimum
-  , maximum: f.maximum
-  , capacityUse: fromMaybe Q.one f.capacityUse
-  , ownerSigns: fromMaybe false f.ownerSigns
-  , effects: map effectToCore (fromMaybe [] f.effects)
-  }
-
-effectToCore :: EffectDoc -> CapacityEffect
-effectToCore e = { capacity: e.capacity, holder: e.holder, perUnit: e.perUnit, rounds: e.rounds }
-
-entityToCore :: String -> EntityDoc -> Entity
-entityToCore k e =
-  { id: Id k
-  , accounts: keyedToMap e.accounts
-  , capacities: keyedToMap (fromMaybe [] e.capacities)
-  , capabilities: e.capabilities
-  , kind: maybe (Actor (Seat (Id k))) (\a -> Aggregate (aggregateToCore a)) e.aggregate
-  }
-
-aggregateToCore :: AggregateDoc -> Aggregate
-aggregateToCore a =
-  { policy: a.policy
-  , members: fromMaybe [] a.members
-  , procedures: Map.fromFoldable (map (\(Tuple p pr) -> Tuple (Id p) (procedureToCore pr)) (fromMaybe [] a.procedures))
-  }
-
-procedureToCore :: ProcedureDoc -> CollectiveProcedure
-procedureToCore p =
-  { weights: keyedToMap p.weights
-  , residualWeight: p.residualWeight
-  , threshold: p.threshold
-  , authorizes: p.authorizes
-  }
-
-representationToCore :: RepresentationDoc -> Representation
-representationToCore r =
-  { id: r.id
-  , actor: r.actor
-  , aggregate: r.aggregate
-  , domain: r.domain
-  , observes: observedBy r
-  , weight: r.weight
-  , estimator: estimatorToCore r.estimator
-  }
-
--- | A premise's recurring cycle and its Resources' decay, as the rules the engine evaluates.
-recurringOf :: ResourceId -> CirculationDoc -> Keyed ResourceDoc -> Array RecurringFlow
-recurringOf numeraire c rs = Recurring.compile
-  { production: fromMaybe [] c.production
-  , flows: fromMaybe [] c.flows
-  , shares: map shareToCore (fromMaybe [] c.shares)
-  , requirements: map (\r -> r { penalty = fromMaybe Q.zero r.penalty }) (fromMaybe [] c.requirements)
-  , decays: mapMaybe (\(Tuple k r) -> (\rate -> { resource: Id k, rate }) <$> r.decay) rs
-  }
-  where
-  -- a share is paid in the premise's numeraire
-  shareToCore s = { from: s.from, to: s.to, resource: numeraire, share: s.share, source: s.source }
+-- | The whole World, with its Entities by key: a fixture's.
+worldRec :: RecF PremiseWorld PremiseWorld
+worldRec = (#) <$> fieldOf "entities" "the Entities" (idMapWith (\k -> object "Entity" (entityRec k))) _.world.entities <*> worldFields

@@ -15,7 +15,8 @@ module Premises.Meridian.Parameters
 import Prelude
 
 import Core.Num (Q)
-import Schema.Build.Base (Keyed, keyed, (:=))
+import Foreign.Object as Object
+import Schema.Build.Base ((:=))
 import Data.Tuple (Tuple)
 
 -- | The names of one regional Market's supplier parameters: the offer below the high price, the
@@ -59,8 +60,8 @@ disruptionRound :: String
 disruptionRound = "disruption-round"
 
 -- | Every premise parameter with its value.
-parameters :: Keyed Q
-parameters = keyed
+parameters :: Object.Object Q
+parameters = Object.fromFoldable
   ( [ euMatchingTariff := "0.5"
     , majorActionThreshold := 12
     , supplierHighPrice := "2.6"

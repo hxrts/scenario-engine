@@ -1,45 +1,50 @@
 -- | Builders for a golden fixture's rounds and expectations (docs/05_test_instance.md §21–§27):
--- | Proposals and their references, deliveries, procedure outcomes, the `expect` checks, and the
--- | Rules in force from the start of a world. Every expected value is a literal; a key the check
--- | does not make is `Nothing`, so it is not written. An `expect` is `noExpect` with the keys it
--- | checks given by record update: `noExpect { accounts = Just (keyed [ ... ]) }`.
+-- | Proposals and their references, procedure outcomes, and the `expect` checks. Every expected value
+-- | is a literal. An `expect` is `noExpect` with the keys it checks given by record update:
+-- | `noExpect { accounts = balances [ Tuple N.us (keyed [ N.money := 260 ]) ] }`.
 module Schema.Build.Fixture
-  ( noExpect
+  ( module Exports
+  , balances
   , proposal
   , ref
   , refAt
-  , procedureDoc
+  , procedureOutcome
   , noRound
   ) where
 
+import Prelude (map, (<<<))
+
 import Core.Num (Q)
-import Core.Types (Id(..), Intent)
-import Schema.Premise.Fixture (ExpectDoc, ProcedureDoc, ProposalDoc, ProposalRefDoc, RoundDoc)
-import Data.Either (Either(..))
+import Core.Types (Id(..), Intent, SignedProposal)
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
+import Schema.Premise.Fixture (RoundSpec, unnumbered)
+import Schema.Round (ProcedureOf, ProposalRef)
+import Schema.Round (noExpect) as Exports
 
--- | An expectation that checks nothing: every key is absent.
-noExpect :: ExpectDoc
-noExpect = { accounts: Nothing, reserves: Nothing, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, factors: Nothing, scheduled: Nothing, procedures: Nothing }
+-- | An expectation's balances, from each key's literals: each is a leaf asserted.
+balances :: forall a b. Array (Tuple String (Map (Id b) Q)) -> Map (Id a) (Map (Id b) (Maybe Q))
+balances = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) (map Just v))
 
--- | An unsigned Proposal with no signers, signatures or procedure. Those keys are given by record update.
-proposal :: { author :: String, intents :: Array Intent } -> ProposalDoc
-proposal p = { author: Id p.author, intents: p.intents, signers: Nothing, signatures: Nothing, procedure: Nothing }
+-- | An unsigned Proposal with no signers, signatures or procedure, not yet numbered. Those keys are
+-- | given by record update (`p { signatures = [ ... ], proposal { signers = [ ... ] } }`).
+proposal :: { author :: String, intents :: Array Intent } -> SignedProposal
+proposal p = { proposal: { id: unnumbered, author: Id p.author, intents: p.intents, signers: [], procedure: Nothing }, signatures: [] }
 
 -- | A Proposal named in an expectation: its author's first Proposal in the round.
-ref :: String -> ProposalRefDoc
-ref author = Left (Id author)
+ref :: String -> ProposalRef
+ref author = { author: Id author, index: 0 }
 
 -- | The Proposal at a position among its author's Proposals in the round.
-refAt :: String -> Int -> ProposalRefDoc
-refAt author index = Right { author: Id author, index: Just index }
+refAt :: String -> Int -> ProposalRef
+refAt author index = { author: Id author, index }
 
 -- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
-procedureDoc :: ProposalRefDoc -> Q -> Boolean -> ProcedureDoc
-procedureDoc named support executed = { proposal: named, support, executed }
+procedureOutcome :: ProposalRef -> Q -> Boolean -> ProcedureOf ProposalRef
+procedureOutcome named support executed = { proposal: named, support, executed }
 
 -- | A round that receives nothing and checks nothing. A round's keys are given by record update.
-noRound :: RoundDoc
+noRound :: RoundSpec
 noRound = { proposals: Nothing, expect: Nothing }
-
--- | Rules in force from the start of a world.

@@ -411,7 +411,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "US", to: Id "DE", resource: Id "X", amount: Q.fromInt 1 } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a share sourced from a Resource that does not exist"
-      (editWorld \w -> w { recurring = w.recurring <> [ shareRule { from: Id "US", to: Id "DE", resource: Id "M", share: Q.fromInt 1, source: salesOf (Id "X") } ] })
+      (editWorld \w -> w { recurring = w.recurring <> [ shareRule (Id "M") { from: Id "US", to: Id "DE", share: Q.fromInt 1, source: salesOf (Id "X") } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a requirement on an Entity that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ requirementRule { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] })

@@ -9,58 +9,51 @@ import Core.Engine.Commit (resolveRound)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
-import Core.Types (LevyBasis(..), LevyRecipient(..), Capability(..), Direction(..), FlowEffect(..), RuleForm(..), Id(..), Intent, IntentF(..), FlowGovernance(..), RuleF(..), Transferability(..), proposalId)
-import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
+import Core.Types (ResourceId, LevyBasis(..), LevyRecipient(..), Capability(..), Direction(..), FlowEffect(..), RuleForm(..), Id(..), Intent, IntentF(..), FlowGovernance(..), RuleF(..), Transferability(..), proposalId)
+import Core.World (UnseededWorld, Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
-import Schema.Build.World (noEntity, noFacility, noResource)
-import Schema.Premise.World (WorldDoc, worldToCore)
+import Schema.Build.Base (keyed, (:=))
+import Schema.Build.World (byKey, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
+import Schema.Premise.World (rulesFromList)
+import Schema.Recurring (Circulation, compileIn)
+import Data.Map as Map
 import Schema.Recurring (kinds)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | Everything authored as the premise format's document, compiled by the DSL.
-world :: WorldDoc
-world =
-  { name: Nothing
-  , round: Just 1
-  , numeraire: Id "M"
-  , resources:
-      [ Tuple "M" (noResource { transferability = Free })
-      , Tuple "E" (noResource { transferability = Free, decay = Just (Q.div (Q.fromInt 1) (Q.fromInt 10)) })
-      ]
-  , markets:
-      [ Tuple "m"
-          { base: Id "E"
-          , quote: Id "M"
-          , cost: { intercept: Q.fromInt 2, slope: Q.fromInt 0, lo: Q.fromInt (-100), hi: Q.fromInt 100 }
-          , reserves: [ Tuple "E" (Q.fromInt 50), Tuple "M" (Q.fromInt 0) ]
-          , access: [ Id "B" ]
-          , position: Nothing
-          }
-      ]
-  , transformations: [ Tuple "ship" noFacility ]
-  , flowGates: Just [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "ship") } ]
-  , groups: Nothing
-  , ruleKinds: Just [ Tuple "toll" { form: LevyFlows GovernedByDestination, text: "" } ]
-  , entities:
-      [ Tuple "A" (noEntity { accounts = [ Tuple "M" (Q.fromInt 100), Tuple "E" (Q.fromInt 20) ], capabilities = [ MayTransfer (Id "E"), MayTransform (Id "ship") ] })
-      , Tuple "B" (noEntity { accounts = [ Tuple "M" (Q.fromInt 100) ], capabilities = [ MayTrade (Id "m") ] })
+circulation :: Circulation
+circulation = { production: [], flows: [ { from: Id "Emp", to: Id "Wrk", resource: Id "M", amount: Q.fromInt 10 } ], shares: [], requirements: [] }
+
+decays :: Array { resource :: ResourceId, rate :: Q.Q }
+decays = [ { resource: Id "E", rate: Q.div (Q.fromInt 1) (Q.fromInt 10) } ]
+
+world :: UnseededWorld
+world = emptyWorld
+  { numeraire = Id "M"
+  , resources = resourcesOf [ Tuple "M" noResource, Tuple "E" noResource ]
+  , markets = byKey [ Tuple "m" (noMarket { base = Id "E", quote = Id "M", cost = { intercept: Q.fromInt 2, slope: Q.fromInt 0, domain: { lo: Q.fromInt (-100), hi: Q.fromInt 100 } }, reserves = keyed [ "E" := 50, "M" := 0 ], access = [ Id "B" ] }) ]
+  , transformations = byKey [ Tuple "ship" noFacility ]
+  , flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "ship") } ]
+  , ruleKinds = Map.singleton (Id "toll") { form: LevyFlows GovernedByDestination, text: "" }
+  , entities = entitiesOf
+      [ Tuple "A" (noEntity { accounts = keyed [ "M" := 100, "E" := 20 ], capabilities = [ MayTransfer (Id "E"), MayTransform (Id "ship") ] })
+      , Tuple "B" (noEntity { accounts = keyed [ "M" := 100 ], capabilities = [ MayTrade (Id "m") ] })
       , Tuple "C" noEntity
-      , Tuple "Emp" (noEntity { accounts = [ Tuple "M" (Q.fromInt 8) ] })
+      , Tuple "Emp" (noEntity { accounts = keyed [ "M" := 8 ] })
       , Tuple "Wrk" noEntity
       ]
-  , rules: Just [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.div (Q.fromInt 1) (Q.fromInt 10), basis: PerUnit, in: Id "M", to: LevyToDestination } } ]
-  , representations: Nothing
-  , circulation: Just { production: Nothing, flows: Just [ { from: Id "Emp", to: Id "Wrk", resource: Id "M", amount: Q.fromInt 10 } ], shares: Nothing, requirements: Nothing }
+  , rules = rulesFromList [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.div (Q.fromInt 1) (Q.fromInt 10), basis: PerUnit, in: Id "M", to: LevyToDestination } } ]
+  , recurring = compileIn (Id "M") circulation decays
   }
 
 spec :: Spec Unit
 spec = describe "Primitive flows through the DSL" do
   let
-    w = seeded (Seed 1) (worldToCore world)
+    w = seeded (Seed 1) world
     tradeId = proposalId 1 (Id "B") 0
     shipId = proposalId 1 (Id "A") 0
     a = Id "A"

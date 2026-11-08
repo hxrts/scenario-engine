@@ -13,6 +13,8 @@ module Premises.Meridian
   , coreResources
   , atlanticTerms
   , flowGates
+  , reservable
+  , decays
   , productionCapacity
   , atlanticMarket
   , asiaMarket
@@ -31,7 +33,6 @@ module Premises.Meridian
   , market
   ) where
 
-import Schema.Premise.World (CostDoc)
 import Prelude (bind, map, negate, show, ($), (+), (<>))
 
 import Core.World (FlowGate)
@@ -47,18 +48,22 @@ import Data.Either (Either)
 import Data.Maybe (fromMaybe, Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Premises.Meridian.Entities (entities)
+import Data.Map as Map
+import Premises.Meridian.Entities (actors, entities)
 import Premises.Meridian.Holdings (capacityHolders)
 import Premises.Meridian.Parameters (disruptionRound, parameters, supplierAsia, supplierAtlantic)
 import Premises.Meridian.Policies (policies)
-import Schema.Build.Base (Keyed, keyed, (:=), payee, sales)
+import Schema.Build.Base (keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (noFacility, noResource)
+import Schema.Build.World (byKey, emptyWorld, noFacility, noMarket, noResource, resourcesOf)
 import Game.Premise (GameboardParts, checkPremise)
 import Premises.Load (fromFiles, shippedPresets)
-import Schema.Premise.Gameboard (ConfigDoc, GameboardDoc, configShape, gameboardShape)
-import Schema.Premise.World (EstimatorDoc, CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
-import Core.Types (ResourceId, EntityId, Id(..), TransformationId, Transferability(..))
+import Schema.Premise.Gameboard (configShape, gameboardShape)
+import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
+import Core.Draw (Seed(..))
+import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
+import Data.Map (Map)
+import Schema.Recurring (Circulation, Decay, Flow, Production, Requirement, Share, compileIn)
 
 -- | The game seed of the reference instance (docs/05_test_instance.md §14). It is the only
 -- | in-world seed; fixtures and golden tests use it too.
@@ -75,30 +80,28 @@ testLabel :: String
 testLabel = "meridian-test-01"
 
 -- | The reference Gameboard as written.
-gameboard :: GameboardDoc
+gameboard :: Gameboard
 gameboard =
   { id: "meridian"
   , version: "v0"
   , horizon: years
-  , roundRange: { min: 4, max: 8 }
+  , rounds: { min: 4, max: 8 }
   , label: Just testLabel
-  , parameters: Just parameters
-  , schemes: Just schemes
-  , policies: Just policies
-  , world:
-      { name: Nothing
-      , round: Nothing
-      , numeraire: Id N.money
-      , resources
-      , markets
-      , transformations
-      , flowGates: Just flowGates
-      , groups: Just groups
-      , ruleKinds: Just ruleKinds
-      , entities
-      , rules: Just []
-      , representations: Nothing
-      , circulation: Just circulation
+  , parameters
+  , schemes
+  , policies: keyed policies
+  , actors
+  , authored: { circulation, reservable, decays }
+  , world: emptyWorld
+      { numeraire = Id N.money
+      , resources = resources
+      , markets = markets
+      , transformations = transformations
+      , flowGates = flowGates
+      , groups = groups
+      , ruleKinds = ruleKinds
+      , entities = entities
+      , recurring = compileIn (Id N.money) circulation decays
       }
   }
 
@@ -128,34 +131,41 @@ parts = do
   presets <- shippedPresets
   lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
 
-resources :: Keyed ResourceDoc
-resources = coreResources <> keyed [ Tuple N.softPower (noResource { transferability = NonTransferable, decay = Just (q "0.1") }) ]
+resources :: Map ResourceId ResourceDefinition
+resources = Map.union (coreResources) (resourcesOf [ Tuple N.softPower (noResource { transferability = NonTransferable }) ])
+
+-- | What a facility may reserve, and each Resource's decay: the premise document holds them.
+reservable :: Array ResourceId
+reservable = [ Id N.mil ]
+
+decays :: Array Decay
+decays = [ { resource: Id N.softPower, rate: q "0.1" } ]
 
 -- | Money, Energy, and Military: the Resources every fixture uses.
-coreResources :: Keyed ResourceDoc
-coreResources = keyed
+coreResources :: Map ResourceId ResourceDefinition
+coreResources = resourcesOf
   [ Tuple N.money (noResource { transferability = Free })
   , Tuple N.energy (noResource { transferability = Free })
-  , Tuple N.mil (noResource { transferability = Restricted, reservable = Just true })
+  , Tuple N.mil (noResource { transferability = Restricted })
   ]
 
-markets :: Keyed MarketDoc
-markets = keyed
+markets :: Map MarketId Market
+markets = byKey
   [ Tuple N.energyAtlantic (atlanticMarket [ N.us, N.de, N.uk, N.br, N.ng, N.enco, N.def, N.labor, N.sme, N.aid, N.eu, N.euPool, N.usWorkers, N.globalSmes, N.ship, N.energySuppliers ])
   , Tuple N.energyAsia (asiaMarket [ N.cn, N.india, N.jp, N.sa, N.chip, N.cnPrivate, N.worldHouseholds, N.ship, N.energySuppliers ])
   , Tuple N.defenceGoods (market defenceTerms defenceAccess)
   ]
 
 -- | A Market from its terms and the Entities that may trade in it.
-market :: MarketTerms -> Array String -> MarketDoc
-market t access = { base: Id t.base, quote: Id t.quote, cost: t.cost, reserves: t.reserves, access: map Id access, position: Nothing }
+market :: MarketTerms -> Array String -> Market
+market t access = noMarket { base = Id t.base, quote = Id t.quote, cost = t.cost, reserves = t.reserves, access = map Id access }
 
 -- | The Atlantic Energy Market with these access holders.
-atlanticMarket :: Array String -> MarketDoc
+atlanticMarket :: Array String -> Market
 atlanticMarket access = market atlanticTerms access
 
 -- | The Asian Energy Market with these access holders.
-asiaMarket :: Array String -> MarketDoc
+asiaMarket :: Array String -> Market
 asiaMarket access = market asiaTerms access
 
 -- | The Entities that may trade Military: the US and its allies, Germany, the UK, and Japan.
@@ -166,7 +176,7 @@ defenceAccess = [ N.us, N.de, N.uk, N.jp ]
 
 -- | What a Meridian Market trades and prices: its base and quote Resources, its curve, and its
 -- | reserves. Access is set per use.
-type MarketTerms = { base :: String, quote :: String, cost :: CostDoc, reserves :: Keyed Q }
+type MarketTerms = { base :: String, quote :: String, cost :: CostFunction, reserves :: Holdings }
 
 -- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
@@ -174,13 +184,13 @@ type MarketTerms = { base :: String, quote :: String, cost :: CostDoc, reserves 
 -- | below that reserve (the Energy Markets sit 50 below theirs); the lower bound is the Energy
 -- | Markets' −80, and the Money reserve of 300 pays sellers. Access is `defenceAccess`.
 defenceTerms :: MarketTerms
-defenceTerms = { base: N.mil, quote: N.money, cost: { intercept: q 3, slope: q "0.01", lo: q (-80), hi: q 20 }, reserves: keyed [ N.money := 300, N.mil := 60 ] }
+defenceTerms = { base: N.mil, quote: N.money, cost: { intercept: q 3, slope: q "0.01", domain: { lo: q (-80), hi: q 20 } }, reserves: keyed [ N.money := 300, N.mil := 60 ] }
 
 -- | The terms of a regional Energy Market (docs/05_test_instance.md §3.1): Energy for Money on
 -- | p(x) = 2 + 0.02x, with a lower bound of −80. The two Energy Markets differ only in their upper
 -- | bound and reserves, which the caller gives; access is set per use.
-energyTerms :: { hi :: Q, reserves :: Keyed Q } -> MarketTerms
-energyTerms { hi, reserves } = { base: N.energy, quote: N.money, cost: { intercept: q 2, slope: q "0.02", lo: q (-80), hi }, reserves }
+energyTerms :: { hi :: Q, reserves :: Holdings } -> MarketTerms
+energyTerms { hi, reserves } = { base: N.energy, quote: N.money, cost: { intercept: q 2, slope: q "0.02", domain: { lo: q (-80), hi } }, reserves }
 
 -- | The Atlantic Energy Market: upper bound 300; reserves hold 700 Money and 350 Energy.
 atlanticTerms :: MarketTerms
@@ -195,7 +205,7 @@ flowGates :: Array FlowGate
 flowGates = [ { resource: Id N.energy, exemptSharedMarket: true, bundled: Just (Id N.energyShipping) } ]
 
 -- | The group each Entity counts as for flows Rules, where it is not its own: its governing country.
-groups :: Keyed EntityId
+groups :: Map EntityId EntityId
 groups = keyed
   [ Tuple N.enco (Id N.us)
   , Tuple N.def (Id N.us)
@@ -206,56 +216,56 @@ groups = keyed
   , Tuple N.de (Id N.eu)
   ]
 
-transformations :: Keyed FacilityDoc
-transformations = keyed
+transformations :: Map TransformationId Transformation
+transformations = byKey
   [ Tuple N.defenseProcurement defenseProcurementFacility
   , Tuple N.defenseProcurementCn (procurement N.cnPrivate)
   , Tuple N.publicAttention
-      (noFacility { outputs = Just (keyed [ N.softPower := 1 ]), payment = paid { intercept: q 3, slope: q "0.2", lo: q 0, hi: q 50 } (Id N.worldHouseholds), capacity = Just (Id N.attention), maximum = Just (q 10) })
+      (noFacility { outputs = keyed [ N.softPower := 1 ], payment = paid { intercept: q 3, slope: q "0.2", domain: { lo: q 0, hi: q 50 } } (Id N.worldHouseholds), capacity = Just (Id N.attention), maximum = Just (q 10) })
   , Tuple N.energyShipping energyShipping
   , Tuple N.humanitarianAid
-      (noFacility { inputs = Just (keyed [ N.energy := 5 ]), outputs = Just (keyed [ N.softPower := 4 ]), payment = paid { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 } (Id N.worldHouseholds), maximum = Just (q 2) })
+      (noFacility { inputs = keyed [ N.energy := 5 ], outputs = keyed [ N.softPower := 4 ], payment = paid { intercept: q 10, slope: q 0, domain: { lo: q 0, hi: q 1000 } } (Id N.worldHouseholds), maximum = Just (q 2) })
   , Tuple N.militaryDeployment deployment
   , Tuple N.majorMilitaryAction majorMilitaryAction
   , Tuple N.logisticsInvestment
-      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), payment = paid { intercept: q 10, slope: q 0, lo: q 0, hi: q 1000 } (Id N.globalSmes), delay = Just 1, effects = Just [ { capacity: Id N.transport, holder: Nothing, perUnit: q 10, rounds: Nothing } ] })
+      (noFacility { inputs = keyed [ N.energy := 3 ], payment = paid { intercept: q 10, slope: q 0, domain: { lo: q 0, hi: q 1000 } } (Id N.globalSmes), delay = 1, effects = [ { capacity: Id N.transport, holder: Nothing, perUnit: q 10, rounds: Nothing } ] })
   , Tuple N.energyCapacityInvestment
-      (noFacility { inputs = Just (keyed [ N.energy := 3 ]), payment = paid { intercept: q 12, slope: q 0, lo: q 0, hi: q 1000 } (Id N.globalSmes), delay = Just 1, capacity = Just (Id N.semiconductors), capacityUse = Just (q 1), ownerSigns = Just true, effects = Just [ { capacity: Id N.energyProduction, holder: Nothing, perUnit: q 2, rounds: Nothing } ] })
+      (noFacility { inputs = keyed [ N.energy := 3 ], payment = paid { intercept: q 12, slope: q 0, domain: { lo: q 0, hi: q 1000 } } (Id N.globalSmes), delay = 1, capacity = Just (Id N.semiconductors), capacityUse = (q 1), ownerSigns = true, effects = [ { capacity: Id N.energyProduction, holder: Nothing, perUnit: q 2, rounds: Nothing } ] })
   , Tuple N.strike
-      (noFacility { inputs = Just (keyed [ N.softPower := 8 ]), payment = paid { intercept: q 5, slope: q 0, lo: q 0, hi: q 1 } (Id N.usWorkers), delay = Just 1, maximum = Just (q 1), effects = Just [ { capacity: Id N.energyProduction, holder: Just (Id N.enco), perUnit: q "-6.25", rounds: Just 1 }, { capacity: Id N.semiconductors, holder: Just (Id N.chip), perUnit: q "-3.75", rounds: Just 1 } ] })
+      (noFacility { inputs = keyed [ N.softPower := 8 ], payment = paid { intercept: q 5, slope: q 0, domain: { lo: q 0, hi: q 1 } } (Id N.usWorkers), delay = 1, maximum = Just (q 1), effects = [ { capacity: Id N.energyProduction, holder: Just (Id N.enco), perUnit: q "-6.25", rounds: Just 1 }, { capacity: Id N.semiconductors, holder: Just (Id N.chip), perUnit: q "-3.75", rounds: Just 1 } ] })
   ]
 
 -- | The US defence procurement facility, which DEF operates.
-defenseProcurementFacility :: FacilityDoc
+defenseProcurementFacility :: Transformation
 defenseProcurementFacility = procurement N.def
 
 -- | Military procurement: Energy and semiconductor capacity into Military, paid to `payeeEntity`.
 -- | Procurement by the US and its rivals differ only in the payee.
-procurement :: String -> FacilityDoc
+procurement :: String -> Transformation
 procurement payeeEntity =
-  noFacility { inputs = Just (keyed [ N.energy := 2 ]), outputs = Just (keyed [ N.mil := 1 ]), payment = paid { intercept: q 8, slope: q "0.5", lo: q 0, hi: q 30 } (Id payeeEntity), capacity = Just (Id N.semiconductors), capacityUse = Just (q "0.5"), delay = Just 1 }
+  noFacility { inputs = keyed [ N.energy := 2 ], outputs = keyed [ N.mil := 1 ], payment = paid { intercept: q 8, slope: q "0.5", domain: { lo: q 0, hi: q 30 } } (Id payeeEntity), capacity = Just (Id N.semiconductors), capacityUse = (q "0.5"), delay = 1 }
 
 -- | A facility's price, paid in the numeraire to the Entity.
-paid :: CostDoc -> EntityId -> Maybe { curve :: CostDoc, resource :: ResourceId, to :: EntityId }
+paid :: CostFunction -> EntityId -> Maybe Payment
 paid curve to = Just { curve, resource: Id N.money, to }
 
-energyShipping :: FacilityDoc
-energyShipping = noFacility { payment = paid { intercept: q "0.3", slope: q 0, lo: q 0, hi: q 60 } (Id N.ship), capacity = Just (Id N.transport), ownerSigns = Just true }
+energyShipping :: Transformation
+energyShipping = noFacility { payment = paid { intercept: q "0.3", slope: q 0, domain: { lo: q 0, hi: q 60 } } (Id N.ship), capacity = Just (Id N.transport), ownerSigns = true }
 
 -- | A deployment reserves 1 Mil per unit for the round and consumes and produces nothing: the
 -- | reserved Mil is released at commit (docs/05_test_instance.md §13.3).
-deployment :: FacilityDoc
-deployment = noFacility { escrowPerUnit = Just (keyed [ N.mil := 1 ]) }
+deployment :: Transformation
+deployment = noFacility { escrowPerUnit = keyed [ N.mil := 1 ] }
 
-majorMilitaryAction :: FacilityDoc
-majorMilitaryAction = noFacility { inputs = Just (keyed [ N.mil := 1 ]), outputs = Just (keyed [ N.mil := "0.75" ]), minimum = Just (q 12) }
+majorMilitaryAction :: Transformation
+majorMilitaryAction = noFacility { inputs = keyed [ N.mil := 1 ], outputs = keyed [ N.mil := "0.75" ], minimum = (q 12) }
 
 -- | The Entities that produce Energy: every Entity that holds an energy-production capacity
 -- | (Meridian.Holdings), in catalog order.
-productionCapacity :: Array ProductionDoc
+productionCapacity :: Array Production
 productionCapacity = map (\entity -> { entity: Id entity, resource: Id N.energy, capacity: Id N.energyProduction }) (capacityHolders N.energyProduction)
 
-flows :: Array FlowDoc
+flows :: Array Flow
 flows =
   [ { from: Id N.usWorkers, to: Id N.us, resource: Id N.money, amount: q 15 }
   , { from: Id N.globalSmes, to: Id N.us, resource: Id N.money, amount: q 5 }
@@ -289,35 +299,35 @@ flows =
   , { from: Id N.def, to: Id N.chip, resource: Id N.money, amount: q 6 }
   ]
 
-shares :: Array ShareDoc
+shares :: Array Share
 shares =
   [ { from: Id N.energySuppliers, to: Id N.worldHouseholds, share: q "0.5", source: sales N.energy }
   , { from: Id N.def, to: Id N.usWorkers, share: q "0.25", source: payee }
   ]
 
-requirements :: Array RequirementDoc
+requirements :: Array Requirement
 requirements =
-  [ { entity: Id N.us, resource: Id N.energy, amount: Just (q 10), penalty: Just (q 2) }
-  , { entity: Id N.cn, resource: Id N.energy, amount: Just (q 10), penalty: Just (q 2) }
-  , { entity: Id N.de, resource: Id N.energy, amount: Just (q 8), penalty: Just (q 2) }
-  , { entity: Id N.india, resource: Id N.energy, amount: Just (q 8), penalty: Just (q 2) }
-  , { entity: Id N.jp, resource: Id N.energy, amount: Just (q 8), penalty: Just (q 2) }
-  , { entity: Id N.eu, resource: Id N.energy, amount: Just (q 8), penalty: Just (q 2) }
-  , { entity: Id N.uk, resource: Id N.energy, amount: Just (q 6), penalty: Just (q 2) }
-  , { entity: Id N.chip, resource: Id N.energy, amount: Just (q 6), penalty: Just (q 2) }
-  , { entity: Id N.ship, resource: Id N.energy, amount: Just (q 4), penalty: Just (q 2) }
-  , { entity: Id N.cnPrivate, resource: Id N.energy, amount: Nothing, penalty: Just (q 2) }
-  , { entity: Id N.usWorkers, resource: Id N.energy, amount: Nothing, penalty: Just (q 2) }
-  , { entity: Id N.worldHouseholds, resource: Id N.energy, amount: Nothing, penalty: Just (q 2) }
-  , { entity: Id N.globalSmes, resource: Id N.energy, amount: Nothing, penalty: Just (q 2) }
+  [ { entity: Id N.us, resource: Id N.energy, amount: Just (q 10), penalty: (q 2) }
+  , { entity: Id N.cn, resource: Id N.energy, amount: Just (q 10), penalty: (q 2) }
+  , { entity: Id N.de, resource: Id N.energy, amount: Just (q 8), penalty: (q 2) }
+  , { entity: Id N.india, resource: Id N.energy, amount: Just (q 8), penalty: (q 2) }
+  , { entity: Id N.jp, resource: Id N.energy, amount: Just (q 8), penalty: (q 2) }
+  , { entity: Id N.eu, resource: Id N.energy, amount: Just (q 8), penalty: (q 2) }
+  , { entity: Id N.uk, resource: Id N.energy, amount: Just (q 6), penalty: (q 2) }
+  , { entity: Id N.chip, resource: Id N.energy, amount: Just (q 6), penalty: (q 2) }
+  , { entity: Id N.ship, resource: Id N.energy, amount: Just (q 4), penalty: (q 2) }
+  , { entity: Id N.cnPrivate, resource: Id N.energy, amount: Nothing, penalty: (q 2) }
+  , { entity: Id N.usWorkers, resource: Id N.energy, amount: Nothing, penalty: (q 2) }
+  , { entity: Id N.worldHouseholds, resource: Id N.energy, amount: Nothing, penalty: (q 2) }
+  , { entity: Id N.globalSmes, resource: Id N.energy, amount: Nothing, penalty: (q 2) }
   ]
 
-circulation :: CirculationDoc
+circulation :: Circulation
 circulation =
-  { production: Just productionCapacity
-  , flows: Just flows
-  , shares: Just shares
-  , requirements: Just requirements
+  { production: productionCapacity
+  , flows: flows
+  , shares: shares
+  , requirements: requirements
   }
 
 -- | The SME Representation (docs/05 §12): Global SMEs' Energy demand, estimated from SME's
@@ -327,19 +337,19 @@ smeSample
      , actor :: String
      , aggregate :: String
      , domain :: String
-     , estimator :: Q -> EstimatorDoc
+     , estimator :: Q -> Estimator
      }
 smeSample =
   { id: "sme-energy-sample"
   , actor: N.sme
   , aggregate: N.globalSmes
   , domain: N.energy
-  , estimator: \noise -> { reference: q 5, shrinkage: q "0.25", bound: Just (q "0.5"), noiseSpread: Just noise }
+  , estimator: \noise -> { reference: q 5, shrinkage: q "0.25", deviationBound: Just { lo: q "-0.5", hi: q "0.5" }, noiseSpread: noise }
   }
 
-schemes :: Array SchemeDoc
+schemes :: Array Scheme
 schemes =
-  [ { id: smeSample.id, eligibleActors: [ Id smeSample.actor ], target: Id smeSample.aggregate, domain: Id smeSample.domain, observes: Nothing, estimator: smeSample.estimator (q "0.1") }
+  [ { id: smeSample.id, eligibleActors: [ Id smeSample.actor ], target: Id smeSample.aggregate, domain: Id smeSample.domain, observes: Id smeSample.domain, estimator: smeSample.estimator (q "0.1") }
   ]
 
 -- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's
@@ -355,12 +365,12 @@ majorShock =
   , Tuple supplierAsia.names.cut "40"
   ]
 
-instantiation :: ConfigDoc
+instantiation :: InstantiationConfig
 instantiation =
-  { seed: gameSeed
+  { seed: Seed gameSeed
   , rounds: years
-  , seats: Just $ keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) N.seatActors)
-  , npcs: Just $ keyed [ Tuple N.cn N.policyChinaStrategic ]
-  , fallbacks: Nothing
-  , representations: Just [ { scheme: smeSample.id, actor: Id smeSample.actor, weight: Just (q 1) } ]
+  , seats: keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) N.seatActors)
+  , npcs: keyed [ Tuple N.cn (Id N.policyChinaStrategic) ]
+  , fallbacks: Map.empty
+  , representations: [ { scheme: smeSample.id, actor: Id smeSample.actor, weight: (q 1) } ]
   }

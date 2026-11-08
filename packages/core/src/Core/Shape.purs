@@ -72,6 +72,10 @@ module Core.Shape
   , partialIso
   , refined
   , omittedWhen
+  , defaulted
+  , defaultsTo
+  , emptyByDefault
+  , keyedBy
   , encodeWith
   , parse
   , prose
@@ -792,6 +796,35 @@ nameShape name message nameOf values = prim name (fromString <<< nameOf) \j -> n
 -- | Omit the value from the premise format when `p` holds (an empty list, a default).
 omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a
 omittedWhen p s = s { absent = p }
+
+-- | A value with a default: a missing key reads as `d`, and a value for which `isDefault` holds is
+-- | not written. Described as optional.
+defaulted :: forall a. a -> (a -> Boolean) -> Shape a -> Shape a
+defaulted d isDefault s = s { desc = DOpt s.desc, absent = isDefault, missing = Just d }
+
+-- | `defaulted`, for a type with `Eq`.
+defaultsTo :: forall a. Eq a => a -> Shape a -> Shape a
+defaultsTo d = defaulted d (_ == d)
+
+-- | A Map that is empty when its key is missing, and is not written when empty.
+emptyByDefault :: forall k v. Shape (Map k v) -> Shape (Map k v)
+emptyByDefault = defaulted Map.empty Map.isEmpty
+
+-- | An object whose keys name its entries, read into a Map. Each entry's shape may depend on its key
+-- | (a record whose id is its key reads the id from it). `fromKey` and `toKey` translate the key, and
+-- | the description reads `entry` at an arbitrary key.
+keyedBy :: forall k v. Ord k => (String -> k) -> (k -> String) -> (k -> Shape v) -> Shape (Map k v)
+keyedBy fromKey toKey entry =
+  { desc: DKeyed (entry (fromKey "")).desc
+  , codec: \_ ->
+      { enc: \m -> objectOf Premise (map (\(Tuple k v) -> Tuple (toKey k) ((pay (entry k)).enc v)) (Map.toUnfoldable m))
+      , dec: \j -> do
+          o <- note "expected an object" (toObject j)
+          Map.fromFoldable <$> traverse (\(Tuple k v) -> let key = fromKey k in map (Tuple key) ((pay (entry key)).dec v)) (Object.toUnfoldable o :: Array (Tuple String Json))
+      }
+  , absent: const false
+  , missing: Nothing
+  }
 
 -- Interpretation ------------------------------------------------------------------------------
 

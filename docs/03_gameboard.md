@@ -6,6 +6,10 @@
 
 ---
 
+## Format note
+
+Premise files decode directly into the core values (`Schema.Premise.*`): a key's default is in its shape, and a value equal to its default is not written. Two things stay only in the document, because the World State has no field for them: a Resource's `reservable` flag and `decay`, and the `circulation` forms, which the DSL compiles to recurring rules. Compiled files are written by the same shapes, so a file holds exactly what differs from the defaults. Authoring builders are `Schema.Build.*`.
+
 ## 1. Purpose
 
 The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a premise ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.

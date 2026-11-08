@@ -46,16 +46,15 @@ import Core.Strategy (Strategy)
 import Core.Types (BehaviorDomain, EntityId, Id(..), MarketId, ResourceId, idText, proposalId)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Schema.Build.Base (Keyed)
 import Schema.Gameboard (Outcome(..))
 import Schema.Build.Quantity (q)
 import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, joint, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfEntity, signAll, signFacility, signIf, signProcedures)
 import Schema.Build.Intent (repeal)
 import Schema.Premise.Strategy (presetsShape)
-import Schema.Round (Delivery, Expect)
+import Schema.Round (Authored, Expect, ProposalRef, atRound)
 import Core.Shape (encodeWith, Format(..))
-import Schema.Build.Fixture (procedureDoc, refAt)
-import Schema.Premise.Fixture (DeliveryDoc, ExpectDoc, ProcedureDoc, ProposalRefDoc, expectShape)
+import Schema.Build.Fixture (noExpect)
+import Schema.Premise.Fixture (expectShape)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int
@@ -170,72 +169,42 @@ seats usStrategy = map (\e -> Tuple e (fromMaybe passive (Object.lookup e assign
 -- | One round's expectation: the round, and the checks it makes.
 type RoundExpect = { round :: Int, expect :: Expect }
 
--- | A Proposal as the capstone authors it: its round, its author, and its position among the author's
--- | Proposals that round. The run file writes the author and position; the checks use the id.
-type AuthoredRef = { round :: Int, author :: String, position :: Int }
-
--- | An `Expect` with its Proposal references left as `p`.
-type ExpectOf p =
-  { accounts :: Map.Map EntityId (Map.Map ResourceId (Maybe Q))
-  , reserves :: Map.Map MarketId (Map.Map ResourceId (Maybe Q))
-  , factors :: Map.Map EntityId (Map.Map BehaviorDomain (Maybe Q))
-  , deliveries :: Maybe (Array Delivery)
-  , rejected :: Maybe (Array p)
-  , lapsed :: Maybe (Array p)
-  , procedures :: Maybe (Array { proposal :: p, support :: Q, executed :: Boolean })
-  , scheduled :: Maybe Int
-  }
-
--- | The expectation the checks read: each authored reference becomes the Proposal's id.
-toExpect :: ExpectOf AuthoredRef -> Expect
-toExpect e = e
-  { rejected = map (map idOf) e.rejected
-  , lapsed = map (map idOf) e.lapsed
-  , procedures = map (map (\p -> p { proposal = idOf p.proposal })) e.procedures
-  }
-  where
-  idOf r = proposalId r.round (Id r.author) r.position
-
 -- | Round expectations, checked by the simulator: the capstone run's own values (the seat strategies
 -- | above on the shipped economics). Each one is explained by its mechanism in the comment, and the
 -- | simulator fails if any drifts.
 expectations :: Array RoundExpect
-expectations = map (\r -> { round: r.round, expect: toExpect r.expect }) authoredExpectations
+expectations = map (\r -> { round: r.round, expect: atRound r.round r.expect }) authoredExpectations
 
-authoredExpectations :: Array { round :: Int, expect :: ExpectOf AuthoredRef }
+authoredExpectations :: Array { round :: Int, expect :: Authored }
 authoredExpectations =
-  [ roundExp 2 (none { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
-  , roundExp 3 (none { procedures = Just [ { proposal: at 3 N.eu 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
+  [ roundExp 2 (noExpect { scheduled = Just 1 }) -- the US ban is enacted, in force from round 3
+  , roundExp 3 (noExpect { procedures = Just [ { proposal: at N.eu 1, support: q "0.68", executed: true } ] }) -- EU tariff passes: residual 0.48 plus Germany's 0.2
   , roundExp 4
-      ( none
-          { rejected = Just [ at 4 N.enco 0 ] -- the shipment into India is banned
-          , lapsed = Just [ at 4 N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
-          , procedures = Just [ { proposal: at 4 N.eu 1, support: q "0.4", executed: false } ]
+      ( noExpect
+          { rejected = Just [ at N.enco 0 ] -- the shipment into India is banned
+          , lapsed = Just [ at N.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
+          , procedures = Just [ { proposal: at N.eu 1, support: q "0.4", executed: false } ]
           , accounts = single N.us N.mil "85.5" -- 60 reserved, 38 scaled action
           , factors = single N.globalSmes N.energy "0.9437"
           }
       )
   , roundExp 5
-      ( none
-          { procedures = Just [ { proposal: at 5 N.eu 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
+      ( noExpect
+          { procedures = Just [ { proposal: at N.eu 1, support: q "0.6", executed: true } ] -- Germany signs from round 5
           , accounts = single N.us N.mil "76.95"
           }
       )
-  , roundExp 6 (none { scheduled = Just 2 }) -- both repeals are scheduled
-  , roundExp 7 (none { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
-  , roundExp 8 (none { factors = single N.globalSmes N.energy "0.9406" })
+  , roundExp 6 (noExpect { scheduled = Just 2 }) -- both repeals are scheduled
+  , roundExp 7 (noExpect { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
+  , roundExp 8 (noExpect { factors = single N.globalSmes N.energy "0.9406" })
   ]
   where
-  roundExp :: Int -> ExpectOf AuthoredRef -> { round :: Int, expect :: ExpectOf AuthoredRef }
+  roundExp :: Int -> Authored -> { round :: Int, expect :: Authored }
   roundExp r e = { round: r, expect: e }
 
--- | The expectation that checks nothing: every field is absent.
-none :: ExpectOf AuthoredRef
-none = { accounts: Map.empty, reserves: Map.empty, factors: Map.empty, deliveries: Nothing, rejected: Nothing, lapsed: Nothing, procedures: Nothing, scheduled: Nothing }
-
--- | A Proposal by its author and its position among the author's Proposals in `round`.
-at :: Int -> String -> Int -> AuthoredRef
-at r author i = { round: r, author, position: i }
+-- | A Proposal by its author and its position among the author's Proposals in the round.
+at :: String -> Int -> ProposalRef
+at author i = { author: Id author, index: i }
 
 -- | One balance (or factor) of one Entity: the leaf the expectation checks.
 single :: forall a b. String -> String -> String -> Map.Map (Id a) (Map.Map (Id b) (Maybe Q))
@@ -287,48 +256,13 @@ file = encodeJson
   , counterfactualObjectives: map objectiveJson counterfactualObjectives
   }
   where
-  roundJson r = encodeJson { round: r.round, expect: encodeWith Premise expectShape (expectDoc r.expect) }
+  roundJson r = encodeJson { round: r.round, expect: encodeWith Premise expectShape r.expect }
   objectiveJson o = { entity: idText o.entity, outcome: word o.outcome }
   word = case _ of
     Met -> "met"
     NotMet -> "notMet"
     NotEvaluated -> "notEvaluated"
 
--- | An expectation in the premise's spelling, so `capstone/run.json` keeps its written form.
-expectDoc :: ExpectOf AuthoredRef -> ExpectDoc
-expectDoc e =
-  { accounts: keyedOf e.accounts
-  , reserves: keyedOf e.reserves
-  , deliveries: map (map deliveryDoc) e.deliveries
-  , rejected: map (map refOf) e.rejected
-  , lapsed: map (map refOf) e.lapsed
-  , factors: keyedOf e.factors
-  , scheduled: e.scheduled
-  , procedures: map (map procedureOf) e.procedures
-  }
-
--- | A two-level map written as keyed objects; an empty map is an absent key.
-keyedOf :: forall a b. Map.Map (Id a) (Map.Map (Id b) (Maybe Q)) -> Maybe (Keyed (Keyed Q))
-keyedOf m
-  | Map.isEmpty m = Nothing
-  | otherwise = Just (map (\(Tuple (Id k) inner) -> Tuple k (mapMaybe leaf (Map.toUnfoldable inner))) (Map.toUnfoldable m))
-      where
-      leaf (Tuple (Id k) v) = map (Tuple k) v
-
-refOf :: AuthoredRef -> ProposalRefDoc
-refOf r = refAt r.author r.position
-
-procedureOf :: { proposal :: AuthoredRef, support :: Q, executed :: Boolean } -> ProcedureDoc
-procedureOf p = procedureDoc (refOf p.proposal) p.support p.executed
-
-deliveryDoc :: Delivery -> DeliveryDoc
-deliveryDoc d = d
-
--- Joint pass ------------------------------------------------------------------------------
-
--- | One exchange of the capstone's joint pass: the seat's transcript, the
--- | model's reply as the wire carries it, and the Intents the joint pass must make of it, in the
--- | engine's JSON encoding. The generator (`apps/cli`, module `Transcript`) runs each exchange through
 -- | the recording port and writes `capstone/transcript.json`; the handler suite replays that file.
 type JointLine = { text :: String, reply :: Json, expect :: Array Json }
 

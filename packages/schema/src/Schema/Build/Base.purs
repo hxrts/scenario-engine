@@ -3,8 +3,7 @@
 -- | a core value, so a premise is written with the same types the engine reads; nothing here builds
 -- | JSON (the shapes in `Schema.Premise.*` do).
 module Schema.Build.Base
-  ( module Exports
-  , keyed
+  ( keyed
   , (:=)
   , entry
   , mayTrade
@@ -34,14 +33,15 @@ import Core.Types (Capability(..), Id(..))
 import Schema.Premise.Query (ShareMeasure)
 import Schema.Recurring as Recurring
 import Core.World as W
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Schema.Build.Quantity (class ToQty, q)
 import Schema.Gameboard (Fallback(..), Measure(..), Span(..))
-import Schema.Premise.World (Keyed) as Exports
-import Schema.Premise.World (Keyed)
 
-keyed :: forall a. Array (Tuple String a) -> Keyed a
-keyed = identity
+-- | A Map from named values, keyed by id.
+keyed :: forall t a. Array (Tuple String a) -> Map (Id t) a
+keyed = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
 
 -- | A holding: `"M" := 260`, `"E" := "0.5"`.
 entry :: forall a. ToQty a => String -> a -> Tuple String Q

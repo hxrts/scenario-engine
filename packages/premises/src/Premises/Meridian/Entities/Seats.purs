@@ -7,17 +7,16 @@ module Premises.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco
 import Prelude (negate, pure, (<>))
 
 import Core.Num (Q)
-import Core.Types (Capability)
 import Data.Maybe (Maybe(..), maybe)
 import Premises.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Premises.Meridian.Holdings (accountsOf, capacitiesOf)
 import Premises.Names as N
 import Premises.Rules (mayEnactWithholding)
-import Schema.Build.Base (Keyed, capacityOf, cumulative, coverage, final, holdingOf, institutional, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
-import Schema.Build.World (atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)
-import Schema.Gameboard (Fallback)
-import Schema.Premise.Actor (DefinitionDoc, ObjectiveDoc)
-import Schema.Premise.World (EntityDoc)
+import Schema.Build.Base (capacityOf, cumulative, coverage, final, holdingOf, institutional, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
+import Schema.Build.World (noEntity, atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)
+import Schema.Gameboard (ActorDefinition, Fallback, Objective)
+import Core.Types (Capability, Capacities, Entity, Holdings)
+import Data.Tuple (Tuple(..))
 
 -- | How a seat is driven when it has no player, and what covers it.
 data Cover
@@ -29,28 +28,29 @@ data Cover
 -- | One seat: its accounts, capabilities and capacities, its objective, its description and
 -- | dependency, and how it is covered.
 type SeatSpec =
-  { accounts :: Keyed Q
+  { accounts :: Holdings
   , capabilities :: Array Capability
-  , capacities :: Keyed Q
+  , capacities :: Capacities
   , required :: Boolean
   , cover :: Cover
-  , objective :: ObjectiveDoc
+  , objective :: Objective
   , description :: String
   , dependency :: String
   }
 
 -- | A seat Actor: an Entity whose definition is a seat, built from its spec.
-seat :: SeatSpec -> EntityDoc
-seat s =
-  { accounts: s.accounts
-  , capabilities: s.capabilities
-  , capacities: Just s.capacities
-  , definition: Just (definitionOf s)
-  , aggregate: Nothing
-  }
+seat :: SeatSpec -> Tuple Entity ActorDefinition
+seat s = Tuple
+  ( noEntity
+      { accounts = s.accounts
+      , capabilities = s.capabilities
+      , capacities = s.capacities
+      }
+  )
+  (definitionOf s)
 
 -- | The seat's definition. Its fallback is written only when the seat has one.
-definitionOf :: SeatSpec -> DefinitionDoc
+definitionOf :: SeatSpec -> ActorDefinition
 definitionOf s = definition
   { required: s.required
   , seat: true
@@ -84,7 +84,7 @@ asia = N.energyAsia
 investment :: Array Capability
 investment = [ mayTransform N.energyCapacityInvestment ]
 
-us :: EntityDoc
+us :: Tuple Entity ActorDefinition
 us = seat
   { accounts: accountsOf N.us
   , capabilities: government atlantic N.defenseProcurement <> allied
@@ -102,7 +102,7 @@ us = seat
   , dependency: "Energy above its holdings; procurement capacity"
   }
 
-de :: EntityDoc
+de :: Tuple Entity ActorDefinition
 de = seat
   { accounts: accountsOf N.de
   , capabilities: dealer atlantic <> allied <> [ mayTransform N.publicAttention, mayTransform N.humanitarianAid, mayTransform N.militaryDeployment, mayTransfer N.mil, mayTransfer N.energy ] <> shipping
@@ -120,7 +120,7 @@ de = seat
   , dependency: "Atlantic Energy; tax revenue from the EU residual"
   }
 
-india :: EntityDoc
+india :: Tuple Entity ActorDefinition
 india = seat
   { accounts: accountsOf N.india
   , capabilities: government asia N.defenseProcurement <> investment
@@ -138,7 +138,7 @@ india = seat
   , dependency: "Asia Energy prices"
   }
 
-jp :: EntityDoc
+jp :: Tuple Entity ActorDefinition
 jp = seat
   { accounts: accountsOf N.jp
   , capabilities: government asia N.defenseProcurement <> allied
@@ -156,7 +156,7 @@ jp = seat
   , dependency: "Imports and transport; no production"
   }
 
-uk :: EntityDoc
+uk :: Tuple Entity ActorDefinition
 uk = seat
   { accounts: accountsOf N.uk
   , capabilities: government atlantic N.defenseProcurement <> allied
@@ -174,7 +174,7 @@ uk = seat
   , dependency: "Atlantic Energy"
   }
 
-br :: EntityDoc
+br :: Tuple Entity ActorDefinition
 br = seat
   { accounts: accountsOf N.br
   , capabilities: government atlantic N.defenseProcurement <> investment
@@ -189,7 +189,7 @@ br = seat
   , dependency: "Semiconductor units for investment"
   }
 
-sa :: EntityDoc
+sa :: Tuple Entity ActorDefinition
 sa = seat
   { accounts: accountsOf N.sa
   , capabilities: government asia N.defenseProcurement <> investment
@@ -207,7 +207,7 @@ sa = seat
   , dependency: "Transport for Atlantic sales"
   }
 
-ng :: EntityDoc
+ng :: Tuple Entity ActorDefinition
 ng = seat
   { accounts: accountsOf N.ng
   , capabilities: government atlantic N.defenseProcurement <> investment
@@ -225,7 +225,7 @@ ng = seat
   , dependency: "Semiconductor units; investment"
   }
 
-enco :: EntityDoc
+enco :: Tuple Entity ActorDefinition
 enco = seat
   { accounts: accountsOf N.enco
   , capabilities: dealer atlantic <> investment <> [ mayTransform N.publicAttention ] <> shipping
@@ -243,7 +243,7 @@ enco = seat
   , dependency: "Semiconductor units; strikes"
   }
 
-chip :: EntityDoc
+chip :: Tuple Entity ActorDefinition
 chip = seat
   { accounts: accountsOf N.chip
   , capabilities: dealer asia <> [ mayEnactWithholding, mayTransform N.publicAttention ] <> shipping
@@ -261,7 +261,7 @@ chip = seat
   , dependency: "6 E/round operating Energy"
   }
 
-ship :: EntityDoc
+ship :: Tuple Entity ActorDefinition
 ship = seat
   { accounts: accountsOf N.ship
   , capabilities: [ mayTrade atlantic, mayTrade asia, mayTransfer N.money, mayTransfer N.energy, mayTransform N.logisticsInvestment, mayTransform N.publicAttention ] <> shipping
@@ -279,7 +279,7 @@ ship = seat
   , dependency: "4 E/round fuel; shipment bans"
   }
 
-def :: EntityDoc
+def :: Tuple Entity ActorDefinition
 def = seat
   { accounts: accountsOf N.def
   , capabilities: dealer atlantic <> [ mayTransform N.publicAttention ] <> shipping
@@ -294,7 +294,7 @@ def = seat
   , dependency: "CHIP's semiconductor capacity; strikes"
   }
 
-labor :: EntityDoc
+labor :: Tuple Entity ActorDefinition
 labor = seat
   { accounts: accountsOf N.labor
   , capabilities: dealer atlantic <> [ mayTransform N.strike, mayTransform N.publicAttention ] <> shipping
@@ -312,7 +312,7 @@ labor = seat
   , dependency: "Dues; Soft Power"
   }
 
-sme :: EntityDoc
+sme :: Tuple Entity ActorDefinition
 sme = seat
   { accounts: accountsOf N.sme
   , capabilities: dealer atlantic <> shipping
@@ -330,7 +330,7 @@ sme = seat
   , dependency: "Atlantic prices; small cash"
   }
 
-aid :: EntityDoc
+aid :: Tuple Entity ActorDefinition
 aid = seat
   { accounts: accountsOf N.aid
   , capabilities: dealer atlantic <> [ mayTransform N.humanitarianAid, mayTransform N.publicAttention ] <> shipping
@@ -348,7 +348,7 @@ aid = seat
   , dependency: "EU donations; Energy purchases"
   }
 
-cn :: EntityDoc
+cn :: Tuple Entity ActorDefinition
 cn = seat
   { accounts: accountsOf N.cn
   , capabilities: government asia N.defenseProcurementCn

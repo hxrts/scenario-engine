@@ -21,6 +21,8 @@ module Schema.Gameboard
 
 import Prelude
 
+import Schema.Recurring (Authored)
+
 import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Strategy (Strategy)
@@ -37,6 +39,7 @@ import Data.Maybe (Maybe)
 type Gameboard =
   { id :: String
   , version :: String
+  , authored :: Authored -- what the premise authors that the World does not hold
   , world :: UnseededWorld -- resources, Markets, facilities, circulation, rules, and every Entity; seeded by instantiation
   , actors :: Map EntityId ActorDefinition
   , schemes :: Array Scheme
@@ -97,6 +100,7 @@ derive instance Eq Span
 
 data Bound = Fixed Q | Of MetricRef
 
+derive instance Generic Bound _
 derive instance Eq Bound
 
 type Scheme =

@@ -18,10 +18,11 @@ module Premises.Rules
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), LevyBasis(..), LevyRecipient(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl)
+import Core.Types (Capability, Direction(..), FlowEffect(..), FlowGovernance(..), LevyBasis(..), LevyRecipient(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), ResourceId, RuleForm(..), RuleKindDecl, RuleKindId)
+import Data.Map (Map)
 import Data.Tuple (Tuple(..))
 import Premises.Names as N
-import Schema.Build.Base (Keyed, keyed, mayEnact)
+import Schema.Build.Base (keyed, mayEnact)
 import Schema.Build.Decision (selfEnact)
 
 -- | What Meridian's flows Rules cover: the gated Resource.
@@ -38,7 +39,7 @@ withholdingKind :: String
 withholdingKind = "withholding"
 
 -- | The declarations.
-ruleKinds :: Keyed RuleKindDecl
+ruleKinds :: Map RuleKindId RuleKindDecl
 ruleKinds = keyed
   [ Tuple tariffKind { form: LevyFlows GovernedByDestination, text: "tariff on {counterparty} goods into {governor}, rate {amount}" }
   , Tuple accessBanKind { form: BlockFlows GovernedByEither, text: "access ban: {governor} bars {counterparty}" }

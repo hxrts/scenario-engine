@@ -1,50 +1,20 @@
 -- | The premise format of an Actor's definition (docs/03 §6): its seat eligibility, fallback,
--- | objective, and the criteria and measures the objective names. Each is a `Shape` value; the
--- | premise tags are private to this module. A key the decoder defaults is `Maybe` here, so the
--- | encoder writes exactly the keys an author wrote (presence is kept, see `Core.Shape`).
+-- | objective, and the criteria and measures the objective names. Each is a `Shape` value over the
+-- | core type (`Schema.Gameboard`); a key the decoder defaults is omitted when it holds its default.
+-- | The premise tags are private to this module.
 module Schema.Premise.Actor
-  ( DefinitionDoc
-  , ObjectiveDoc
-  , CriterionDoc
-  , MetricDoc
-  , BoundDoc
-  , definitionShape
+  ( definitionShape
   , metricShape
   , boundShape
   , fallbackShape
-  , definitionToCore
   ) where
 
 import Prelude
 
-import Core.Num (Q, qShape)
-import Core.Shape (Shape, atBare, atKindArg, boolShape, embedded, fieldOf, genericPremiseSum, listOf, literal, object, optionalOf, premiseSum, stringShape)
-import Core.Types (EntityId, PolicyId, idShape)
-import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..), fromMaybe)
-import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
-
--- | An Actor definition as written. Every key is optional: the defaults are the decoder's.
-type DefinitionDoc =
-  { required :: Maybe Boolean
-  , seat :: Maybe Boolean
-  , npc :: Maybe (Array PolicyId)
-  , fallback :: Maybe Fallback
-  , objective :: Maybe ObjectiveDoc
-  , description :: Maybe String
-  , dependency :: Maybe String
-  }
-
-type ObjectiveDoc = { description :: String, criteria :: Array CriterionDoc }
-
--- | A criterion as written: `over` is optional (`final` by default).
-type CriterionDoc = { metric :: MetricDoc, over :: Maybe Span, atLeast :: BoundDoc }
-
--- | A metric as written: `negated` is optional (false by default).
-type MetricDoc = { entities :: Array EntityId, measure :: Measure, negated :: Maybe Boolean }
-
--- | A bound: a fixed quantity (`Left`), or a metric the Entity must match (`Right`).
-type BoundDoc = Either Q MetricDoc
+import Core.Num (qShape)
+import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, fieldOf, genericPremiseSum, listOf, object, optionalOf, stringShape)
+import Core.Types (idShape)
+import Schema.Gameboard (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- Tags ----------------------------------------------------------------------------------------
 
@@ -86,20 +56,20 @@ cumulativeTag = "cumulative"
 
 -- Shapes --------------------------------------------------------------------------------------
 
-definitionShape :: Shape DefinitionDoc
+definitionShape :: Shape ActorDefinition
 definitionShape = object "Definition"
-  ( mk <$> fieldOf "required" "must be seated (default false)" (optionalOf boolShape) _.required
-      <*> fieldOf "seat" "may be seated (default true)" (optionalOf boolShape) _.seat
-      <*> fieldOf "npc" "the NPC Policies it may take" (optionalOf (listOf idShape)) _.npc
+  ( mk <$> fieldOf "required" "must be seated (default false)" (defaultsTo false boolShape) _.required
+      <*> fieldOf "seat" "may be seated (default true)" (defaultsTo true boolShape) _.seat
+      <*> fieldOf "npc" "the NPC Policies it may take" (arrayOf idShape) _.npc
       <*> fieldOf "fallback" "what covers it when it has no player" (optionalOf fallbackShape) _.fallback
       <*> fieldOf "objective" "its measurable objective" (optionalOf objectiveShape) _.objective
-      <*> fieldOf "description" "what the Actor does (prose)" (optionalOf stringShape) _.description
-      <*> fieldOf "dependency" "what the Actor depends on (prose)" (optionalOf stringShape) _.dependency
+      <*> fieldOf "description" "what the Actor does (prose)" (defaultsTo "" stringShape) _.description
+      <*> fieldOf "dependency" "what the Actor depends on (prose)" (defaultsTo "" stringShape) _.dependency
   )
   where
   mk r s n f o d p = { required: r, seat: s, npc: n, fallback: f, objective: o, description: d, dependency: p }
 
-objectiveShape :: Shape ObjectiveDoc
+objectiveShape :: Shape Objective
 objectiveShape = object "Objective"
   ( mk <$> fieldOf "description" "what the objective is" stringShape _.description
       <*> fieldOf "criteria" "the criteria it is met by" (listOf criterionShape) _.criteria
@@ -107,29 +77,29 @@ objectiveShape = object "Objective"
   where
   mk d c = { description: d, criteria: c }
 
-criterionShape :: Shape CriterionDoc
+criterionShape :: Shape Criterion
 criterionShape = object "Criterion"
   ( mk <$> fieldOf "metric" "the measured quantity" metricShape _.metric
-      <*> fieldOf "over" "the span of rounds (default final)" (optionalOf spanShape) _.over
+      <*> fieldOf "over" "the span of rounds (default final)" (defaultsTo Final spanShape) _.over
       <*> fieldOf "atLeast" "the bound" boundShape _.atLeast
   )
   where
   mk m o a = { metric: m, over: o, atLeast: a }
 
-metricShape :: Shape MetricDoc
+metricShape :: Shape MetricRef
 metricShape = object "Metric"
   ( mk <$> fieldOf "entities" "the Entities summed" (listOf idShape) _.entities
       <*> fieldOf "measure" "the measure" measureShape _.measure
-      <*> fieldOf "negated" "true for \"at most\" (default false)" (optionalOf boolShape) _.negated
+      <*> fieldOf "negated" "true for \"at most\" (default false)" (defaultsTo false boolShape) _.negated
   )
   where
   mk e m n = { entities: e, measure: m, negated: n }
 
-boundShape :: Shape BoundDoc
-boundShape = premiseSum "Bound"
-  [ literal qShape (either Just (const Nothing)) Left
-  , embedded metricShape (either (const Nothing) Just) Right
-  ]
+boundShape :: Shape Bound
+boundShape = genericPremiseSum "Bound"
+  { "Fixed": atLiteral qShape
+  , "Of": atEmbedded metricShape
+  }
 
 -- | What covers an Actor when it has no player: an Aggregate's accounts, an in-world Policy, or nothing.
 fallbackShape :: Shape Fallback
@@ -157,29 +127,3 @@ spanShape = genericPremiseSum "Span"
   , "EveryRound": atBare { tag: everyRoundTag, desc: "every round" }
   , "Cumulative": atBare { tag: cumulativeTag, desc: "the whole game, summed" }
   }
-
--- Conversions ---------------------------------------------------------------------------------
-
--- | An Actor definition with its defaults filled in. An Actor with no definition has none.
-definitionToCore :: DefinitionDoc -> ActorDefinition
-definitionToCore d =
-  { required: fromMaybe false d.required
-  , seat: fromMaybe true d.seat
-  , npc: fromMaybe [] d.npc
-  , fallback: d.fallback
-  , objective: map objectiveToCore d.objective
-  , description: fromMaybe "" d.description
-  , dependency: fromMaybe "" d.dependency
-  }
-
-objectiveToCore :: ObjectiveDoc -> Objective
-objectiveToCore o = { description: o.description, criteria: map criterionToCore o.criteria }
-
-criterionToCore :: CriterionDoc -> Criterion
-criterionToCore c = { metric: metricToCore c.metric, over: fromMaybe Final c.over, atLeast: boundToCore c.atLeast }
-
-metricToCore :: MetricDoc -> MetricRef
-metricToCore m = { entities: m.entities, measure: m.measure, negated: fromMaybe false m.negated }
-
-boundToCore :: BoundDoc -> Bound
-boundToCore = either Fixed (Of <<< metricToCore)
