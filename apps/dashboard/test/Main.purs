@@ -11,7 +11,7 @@ import Views.Setting (RoundRange, Setting)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
 import Dashboard.RunForms (rounds)
-import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
+import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
 import Effects.Api as Api
 import Handlers.Api.Route (wire)
 import Data.Argonaut.Core (toNumber, toString)
@@ -147,15 +147,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "the latest readable run is the last one in the list that can be read" do
       latestReadable runList `shouldEqual` Just "run-3"
       latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
-    it "the archived runs are added to the list once, after the others" do
-      mergeRuns (listOf [ flag "run-1" false true, flag "run-2" false true ]) (listOf [ flag "run-2" false true, flag "run-3" true true ]) `shouldEqual` listOf [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ]
   where
   row1 = [ "run-1", "base", "no" ]
   row2 = [ "run-2", "seed", "no" ]
   row3 = [ "run-3", "old", "yes" ]
 
   flag :: String -> Boolean -> Boolean -> RunFlags
-  flag id archived readable = { id, archived, readable }
+  flag id archived readable = { id, archived, readable, source: Nothing }
 
   -- a run list whose rows are one row per run, in the order given
   listOf :: Array RunFlags -> RunList

@@ -7,12 +7,12 @@ import COLUMNS_JSON from "./generated/columns.json";
 export const COLUMNS = COLUMNS_JSON;
 
 // The run list as the server answers it: the table, and the typed flags of each run in the same order.
-// The default list omits archived runs, `?archived=true` lists them.
+// The default list omits archived runs; `?archived=true` lists every run, archived or not.
 export const listed = (rows) => ({
   title: "Simulation runs",
   columns: COLUMNS,
   rows,
-  runs: rows.map((r) => ({ id: r[0], archived: r[9] === "yes", readable: r[6] !== "unreadable" })),
+  runs: rows.map((r) => ({ id: r[0], archived: r[9] === "yes", readable: r[6] !== "unreadable", source: r[10] ? r[10] : null })),
 });
 export const ACTIVE = ["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
 export const ARCHIVED = ["run-9", "old", "meridian@v0", "26021", "4", "3", "completed", "0", "", "yes", "run-1"];
@@ -42,6 +42,6 @@ export const archivedQuery = (url) => url.pathname === "/api/runs" && url.search
 // `active` is the list of rows for the default list (run-1 by default).
 export async function mockReads(page, { target = 3, status = "completed", archived = [], active = [ACTIVE] } = {}) {
   await page.route(isPath("/api/runs"), (route) => route.fulfill(json(listed(active))));
-  await page.route(archivedQuery, (route) => route.fulfill(json(listed(archived))));
+  await page.route(archivedQuery, (route) => route.fulfill(json(listed([...active, ...archived]))));
   await page.route(isPath("/api/runs/run-1/overview"), (route) => route.fulfill(json(overview(target, { status }))));
 }

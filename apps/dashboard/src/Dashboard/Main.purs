@@ -19,7 +19,7 @@ import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
 import Dashboard.Route (Route(..), href, navigate, route)
 import Dashboard.RunActions as Actions
-import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
+import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Array (elem, filter, find, findIndex, index, length, null)
@@ -61,10 +61,9 @@ type Fetch = { key :: String, load :: Aff (Either String JSX) } -> JSX
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | The run list, every run: the default list and the archived runs (`/api/runs` and `?archived=true`),
--- | requested together and merged. The list keeps the default order and lists the archived runs after it.
+-- | The run list, every run (`?archived=true`), in creation order. The page filters out the archived runs itself.
 listRuns :: Aff (Either String RunList)
-listRuns = sequential (lift2 mergeRuns <$> parallel (Client.runs false) <*> parallel (Client.runs true))
+listRuns = Client.runs
 
 -- | The run list, loaded for a key: a new key (an archive, a delete, a resume) reloads it. The previous list
 -- | stays on screen, dimmed, until the new one arrives. Every page that lists runs uses this hook.
@@ -84,8 +83,10 @@ tabbed ts = element UI.tabs
 runLinks :: RunList -> Int -> Array String -> Maybe String
 runLinks t i row
   | Just i == findIndex (_ == "Source") t.columns = do
-      s <- index row i
-      if s /= "" && elem s (map _.id t.runs) then Just (href (Run s)) else Nothing
+      -- the source the run names, when the run is listed: a deleted source has no link
+      id <- index row runKeyColumn
+      s <- flagsOf t id >>= _.source
+      if elem s (map _.id t.runs) then Just (href (Run s)) else Nothing
   | otherwise = Nothing
 
 -- | The run list as a table. A row click selects that run; the selected row is highlighted.

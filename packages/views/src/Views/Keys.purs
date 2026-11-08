@@ -105,7 +105,7 @@ runOverview = recordShape "RunOverview"
   }
 
 runFlags :: Shape RunFlags
-runFlags = recordShape "RunFlags" { id: stringShape, archived: boolShape, readable: boolShape }
+runFlags = recordShape "RunFlags" { id: stringShape, archived: boolShape, readable: boolShape, source: optionalOf stringShape }
 
 runList :: Shape RunList
 runList = recordShape "RunList" { title: stringShape, columns: strings, rows: listOf strings, runs: listOf runFlags }

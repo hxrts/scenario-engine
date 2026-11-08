@@ -47,7 +47,7 @@ type Unreadable = { id :: String, name :: String, reason :: String }
 
 -- | The typed flags of one listed run: whether it is archived, and whether the server can read it.
 -- | A run that cannot be read is never archived as far as the list knows, and is not readable.
-type RunFlags = { id :: String, archived :: Boolean, readable :: Boolean }
+type RunFlags = { id :: String, archived :: Boolean, readable :: Boolean, source :: Maybe String }
 
 -- | The run list (`GET /api/runs`): the table the list shows, and the flags of each run in the same order.
 type RunList = Record (TableRow (runs :: Array RunFlags))
@@ -56,8 +56,8 @@ runList :: Array (Either Unreadable ListedRun) -> RunList
 runList rows = Record.merge (tableOf "Simulation runs" runFields rows) { runs: map flags rows }
   where
   flags = case _ of
-    Left u -> { id: u.id, archived: false, readable: false }
-    Right s -> { id: s.id, archived: s.archived, readable: true }
+    Left u -> { id: u.id, archived: false, readable: false, source: Nothing }
+    Right s -> { id: s.id, archived: s.archived, readable: true, source: s.source }
 
 -- | The run list's columns and cells. An unreadable run's archive flag and source are not decoded, so they show
 -- | as unknown.

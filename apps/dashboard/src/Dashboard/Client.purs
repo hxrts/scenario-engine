@@ -45,9 +45,9 @@ typed shape req = (\reply -> replyText reply >>= decodeError <<< parse Snapshot 
 unread :: Shape Unit
 unread = prim "unread" (const jsonNull) (const (Right unit))
 
--- | The run list. `archived` adds the archived runs (every run, the default list without them).
-runs :: Boolean -> Aff (Either String RunList)
-runs archived = typed Keys.runList (ListRuns { archived })
+-- | The run list: every run, archived or not, in creation order (`?archived=true`).
+runs :: Aff (Either String RunList)
+runs = typed Keys.runList (ListRuns { archived: true })
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
 launch :: Launch -> Aff (Either String { id :: String })
