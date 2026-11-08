@@ -40,7 +40,7 @@ import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
-import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, rule, signProcedures, tradeAt)
+import Schema.Build.Decision (selfTransform, asTemplate, deal, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
 import Schema.Build.Fixture (tariffRule, withholdingRule)
 import Schema.Build.Intent (enactAccessBan, enactWithholding)
 import Adapters.Filesystem (fileOps)
@@ -503,6 +503,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Premise policiesShape catalog))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
+    it "a procedure a Strategy names that no Aggregate holds fails the check: in a sign rule, and in a Proposal template" do
+      { gameboard, config } <- loaded
+      let
+        signing = { rules: [], sign: [ signProcedures [ "no-such-procedure" ] ] }
+        proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: [], intents: [] } ] ], sign: [] }
+        check p = map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" p }))
+      check signing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
+      check proposing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
+    it "a capacity a Withholding names that no Entity holds fails the check" do
+      { gameboard, config } <- loaded
+      let bad = { rules: [ rule [] [ asTemplate (enactWithholding { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
+      map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" bad }))
+        `shouldEqual` Left (show (Unresolved "preset Bad" CapacityName "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }

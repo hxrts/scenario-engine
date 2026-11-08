@@ -4,6 +4,7 @@ package:
     - prelude
     - sp-core
     - arrays
+    - const
     - foldable-traversable
     - foreign-object
     - maybe

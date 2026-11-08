@@ -19,8 +19,9 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF(..), ProposalF, RefKind(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idText)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
+import Data.Const (Const(..))
 import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..))
 
@@ -167,25 +168,31 @@ refsCond =
 refsTemplate :: TemplateAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsTemplate =
   { intent: intentRefs
-  , proposal: \x -> map (Tuple EntityRef <<< idText) x.signers <> concatMap intentRefs x.intents
+  , proposal: \x -> map (Tuple EntityRef <<< idText) x.signers <> concatMap intentRefs x.intents <> maybe [] (named ProcedureRef) x.procedure
   , reciprocate: \x -> [ Tuple EntityRef (idText x.target) ]
   , choose: concat
   , noAction: []
   }
   where
-  intentRefs = case _ of
-    Trade x -> marketRefs x.market <> x.quantity <> maybe [] identity x.limitPrice
-    Route x -> [ Tuple ResourceRef (idText x.pair.base), Tuple ResourceRef (idText x.pair.quote) ] <> x.quantity <> maybe [] identity x.limitPrice
-    Transform x -> [ Tuple TransformationRef (idText x.transformation) ] <> x.quantity
-    Transfer x -> [ Tuple ResourceRef (idText x.resource), Tuple EntityRef (idText x.from), Tuple EntityRef (idText x.to) ] <> x.quantity
-    ChangeRule (Enact (Tariff x)) -> [ Tuple EntityRef (idText x.origin) ] <> x.rate
-    ChangeRule (Enact (AccessBan x)) -> [ Tuple EntityRef (idText x.target) ]
-    ChangeRule (Enact (Withholding x)) -> x.units
-    ChangeRule (Repeal _) -> []
+  -- a Repeal's Rule is left out: its id is assigned by the engine during the game, so it cannot be checked at load
+  intentRefs = foldIntent
+    ( ignorePositions
+        { market = Const <<< marketRefs
+        , entity = Const <<< named EntityRef
+        , resource = Const <<< named ResourceRef
+        , transformation = Const <<< named TransformationRef
+        , capacity = Const <<< named CapacityName
+        , value = Const
+        }
+    )
+
+-- | A reference by its kind and name.
+named :: forall t. RefKind -> Id t -> Array (Tuple RefKind String)
+named kind x = [ Tuple kind (idText x) ]
 
 refsSign :: SignAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsSign =
-  { procedures: const []
+  { procedures: concatMap (named ProcedureRef)
   , facility: \t -> [ Tuple TransformationRef (idText t) ]
   , all: []
   , signIf: \x -> concat x.when <> x.rule

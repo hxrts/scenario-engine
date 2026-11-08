@@ -46,8 +46,7 @@ implicit-codec packages/handlers/src/Handlers/Recording.purs 2
 implicit-codec packages/handlers/test/Test/Handlers/Capstone.purs 1
 implicit-codec packages/handlers/test/Test/Handlers/Llm.purs 1
 implicit-codec packages/premises/src/Premises/Capstone.purs 3
-intent-walk packages/policy/src/Policy/Interpret.purs 2
-intent-walk packages/policy/src/Policy/Strategy.purs 1
+intent-walk packages/policy/src/Policy/Interpret.purs 1
 intent-walk packages/simulator/test/Test/Simulator/Shock.purs 1
 name-literal apps/cli/src/Options.purs 1
 name-literal apps/dashboard/e2e/mocks.js 2

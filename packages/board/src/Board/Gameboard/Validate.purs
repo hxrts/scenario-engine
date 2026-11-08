@@ -15,7 +15,7 @@ import Board.Gameboard.Reconcile (reconcile)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (EntityId, Id(..), MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, domainResource, idText)
+import Core.Types (Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, domainResource, idText)
 import Core.World (ShareSource(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
@@ -143,11 +143,11 @@ validateGameboard gb config =
     _ -> []
 
 -- | The names a world and its parameters lack: one error per unknown name of a kind this can check
--- | (an Entity, Market, Resource, Transformation or parameter). Other kinds are checked where they
+-- | (an Entity, Market, Resource, Transformation, parameter, capacity, or collective procedure). Other kinds are checked where they
 -- | are held, so they pass here.
 unknownNames
-  :: forall e m r t p rest
-   . { entities :: Map EntityId e, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
+  :: forall m r t p rest
+   . { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
   -> Object p
   -> Array (Tuple RefKind String)
   -> Array ValidationError
@@ -159,4 +159,6 @@ unknownNames w parameters = map (\(Tuple kind name) -> UnknownReference kind nam
     ResourceRef -> Map.member (Id name) w.resources
     TransformationRef -> Map.member (Id name) w.transformations
     ParameterRef -> Object.member name parameters
+    CapacityName -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
+    ProcedureRef -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
     _ -> true

@@ -19,7 +19,7 @@ import Board.Gameboard.Instantiate (instantiate)
 import Core.Strategy (InWorld, Strategy)
 import Core.World (manifestOf)
 import Core.Num (Q)
-import Core.Types (EntityId, MarketId, ResourceId, TransformationId)
+import Core.Types (Entity, EntityId, MarketId, ResourceId, TransformationId)
 import Data.Array (elem, fromFoldable, null, filter)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
@@ -80,8 +80,8 @@ checkSeats seats bindings = do
 -- | Every Strategy bound to a seat names only what the premise has. A catalog Policy or preset was
 -- | checked at load; a Strategy bound directly (the capstone's, an `assemble` caller's) is checked here.
 checkStrategies
-  :: forall e m r t p rest
-   . { entities :: Map EntityId e, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
+  :: forall m r t p rest
+   . { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
   -> Object p
   -> Bindings
   -> Either GameError Unit

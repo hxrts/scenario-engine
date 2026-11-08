@@ -9,7 +9,7 @@ import Prelude
 import Board.Error (ValidationError(..))
 import Board.Gameboard.Validate (unknownNames, validateGameboard)
 import Core.Strategy (Strategy)
-import Core.Types (EntityId, Id(..), MarketId, RefKind(..), ResourceId, TransformationId)
+import Core.Types (Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, TransformationId)
 import Core.World (WorldState)
 import Data.Array (concatMap, filter, head)
 import Data.Either (Either(..))
@@ -49,16 +49,16 @@ checkPremise p = do
 -- | Strategy a game can run passes through here: catalog Policies and presets at load, bound
 -- | Strategies at assembly.
 checkRefs
-  :: forall e m r t p rest
+  :: forall m r t p rest
    . String
-  -> { entities :: Map EntityId e, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
+  -> { entities :: Map EntityId Entity, markets :: Map MarketId m, resources :: Map ResourceId r, transformations :: Map TransformationId t | rest }
   -> Object p
   -> Strategy
   -> Either GameError Unit
 checkRefs what w parameters s = maybe (Right unit) (Left <<< unresolved) (head (unknownNames w parameters ordered))
   where
   refs = strategyRefs s
-  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ EntityRef, Market, ResourceRef, TransformationRef, ParameterRef ]
+  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ EntityRef, Market, ResourceRef, TransformationRef, ParameterRef, CapacityName, ProcedureRef ]
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved what kind ref
     e -> Invalid AtLoad [ e ]

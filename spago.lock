@@ -144,6 +144,7 @@
             "argonaut-codecs",
             "argonaut-core",
             "arrays",
+            "const",
             "either",
             "foldable-traversable",
             "integers",
@@ -388,6 +389,7 @@
         "core": {
           "dependencies": [
             "arrays",
+            "const",
             "foldable-traversable",
             "foreign-object",
             "maybe",

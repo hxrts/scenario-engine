@@ -20,8 +20,9 @@ import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
-import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), traverseIntent, withMarket)
+import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
+import Data.Const (Const(..))
 import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
 import Data.Identity (Identity(..))
 import Data.Map as Map
@@ -159,14 +160,7 @@ refTemplate =
   , noAction: []
   }
   where
-  intentRefs = case _ of
-    Trade x -> [ x.market ] <> x.quantity <> fromMaybe [] x.limitPrice
-    Route x -> x.quantity <> fromMaybe [] x.limitPrice
-    Transfer x -> x.quantity
-    Transform x -> x.quantity
-    ChangeRule (Enact (Tariff x)) -> x.rate
-    ChangeRule (Enact (Withholding x)) -> x.units
-    ChangeRule _ -> []
+  intentRefs = foldIntent (ignorePositions { market = \m -> Const [ m ], value = Const })
 
 -- Evaluation ----------------------------------------------------------------------------
 
@@ -268,7 +262,7 @@ evalIntent env t = withMarket env.market (resolveSelf env t) >>= traverse (eval 
 
 -- | The entity slots of an Intent that name `self` resolve to the acting Entity.
 resolveSelf :: Env -> IntentTemplate -> IntentTemplate
-resolveSelf env = un Identity <<< traverseIntent { market: Identity, entity: Identity <<< entityRef env, value: Identity }
+resolveSelf env = un Identity <<< traverseIntent (samePositions { entity = Identity <<< entityRef env })
 
 -- | A zero quantity: a Trade, Route, Transfer or Transform of nothing.
 zeroQuantity :: Intent -> Boolean

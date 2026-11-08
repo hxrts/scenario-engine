@@ -17,7 +17,8 @@ import Data.Map (Map)
 import Data.Array (last)
 import Data.Int (fromString) as Int
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
+import Data.Const (Const(..))
+import Data.Newtype (class Newtype, un)
 import Data.Show.Generic (genericShow)
 import Data.String (Pattern(..), split)
 
@@ -49,6 +50,7 @@ data RefKind
   | SchemeRef
   | PolicyRef
   | ParameterRef
+  | ProcedureRef
 
 derive instance Eq RefKind
 
@@ -62,6 +64,7 @@ instance Show RefKind where
     SchemeRef -> "scheme"
     PolicyRef -> "policy"
     ParameterRef -> "parameter"
+    ProcedureRef -> "procedure"
 
 data EntityTag
 data ResourceTag
@@ -191,24 +194,59 @@ type Intent = IntentF MarketId Q
 -- | An Intent with its Market position resolved: `Nothing` when the position does not resolve. Only a
 -- | Trade names a Market; every other kind passes through unchanged.
 withMarket :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
-withMarket f = traverseIntent { market: f, entity: pure, value: pure }
+withMarket f = traverseIntent (samePositions { market = f })
 
--- | Rebuild an Intent position by position: its Market, every Entity it names, and every filling.
+-- | What to do at each kind of position an Intent holds. The Market position and the fillings may change
+-- | type; a reference stays the reference it is.
+type IntentPositions f m n v w =
+  { market :: m -> f n
+  , entity :: EntityId -> f EntityId
+  , value :: v -> f w
+  , resource :: ResourceId -> f ResourceId
+  , transformation :: TransformationId -> f TransformationId
+  , capacity :: CapacityRef -> f CapacityRef
+  , rule :: RuleId -> f RuleId
+  }
+
+-- | Every position kept as it is. A walk overrides the positions it changes.
+samePositions :: forall f m v. Applicative f => IntentPositions f m m v v
+samePositions = { market: pure, entity: pure, value: pure, resource: pure, transformation: pure, capacity: pure, rule: pure }
+
+-- | Every position read as nothing. A fold overrides the positions it reads.
+ignorePositions :: forall r m n v w. Monoid r => IntentPositions (Const r) m n v w
+ignorePositions =
+  { market: \_ -> Const mempty
+  , entity: \_ -> Const mempty
+  , value: \_ -> Const mempty
+  , resource: \_ -> Const mempty
+  , transformation: \_ -> Const mempty
+  , capacity: \_ -> Const mempty
+  , rule: \_ -> Const mempty
+  }
+
+-- | What an Intent's positions read as, in the order `traverseIntent` visits them.
+foldIntent :: forall r m v. Monoid r => IntentPositions (Const r) m Unit v Unit -> IntentF m v -> r
+foldIntent p = un Const <<< traverseIntent p
+
+-- | Rebuild an Intent position by position, in one fixed order: the Market or the pair's Resources, then a
+-- | Transfer's Resource and parties or a Transform's Entity and Transformation, then the Rule's positions,
+-- | then the quantity and the limit. Selector products and Proposal ids depend on this order, which is why
+-- | walks go through here and not through the derived `Foldable` (it visits the limit before the quantity).
 traverseIntent
   :: forall f m n v w
    . Applicative f
-  => { market :: m -> f n, entity :: EntityId -> f EntityId, value :: v -> f w }
+  => IntentPositions f m n v w
   -> IntentF m v
   -> f (IntentF n w)
 traverseIntent t = case _ of
   Trade x -> (\market quantity limitPrice -> Trade { market, quantity, limitPrice }) <$> t.market x.market <*> t.value x.quantity <*> traverse t.value x.limitPrice
-  Route x -> (\quantity limitPrice -> Route { pair: x.pair, quantity, limitPrice }) <$> t.value x.quantity <*> traverse t.value x.limitPrice
-  Transfer x -> (\from to quantity -> Transfer { from, to, resource: x.resource, quantity }) <$> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
-  Transform x -> (\by quantity -> Transform { by, transformation: x.transformation, quantity }) <$> t.entity x.by <*> t.value x.quantity
+  Route x -> (\base quote quantity limitPrice -> Route { pair: { base, quote }, quantity, limitPrice }) <$> t.resource x.pair.base <*> t.resource x.pair.quote <*> t.value x.quantity <*> traverse t.value x.limitPrice
+  Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
+  Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.entity x.by <*> t.transformation x.transformation <*> t.value x.quantity
   ChangeRule (Enact (Tariff x)) -> (\jurisdiction origin rate -> ChangeRule (Enact (Tariff { jurisdiction, origin, rate }))) <$> t.entity x.jurisdiction <*> t.entity x.origin <*> t.value x.rate
   ChangeRule (Enact (AccessBan x)) -> (\jurisdiction target -> ChangeRule (Enact (AccessBan { jurisdiction, target }))) <$> t.entity x.jurisdiction <*> t.entity x.target
-  ChangeRule (Enact (Withholding x)) -> (\units -> ChangeRule (Enact (Withholding { capacity: x.capacity, units }))) <$> t.value x.units
-  ChangeRule (Repeal r) -> pure (ChangeRule (Repeal r))
+  ChangeRule (Enact (Withholding x)) -> (\capacity units -> ChangeRule (Enact (Withholding { capacity, units }))) <$> t.capacity x.capacity <*> t.value x.units
+  ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
 
 type Rule = RuleF Q
 type RuleChange = RuleChangeF Q
