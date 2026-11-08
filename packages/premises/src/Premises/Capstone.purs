@@ -322,7 +322,7 @@ procedureOf :: { proposal :: AuthoredRef, support :: Q, executed :: Boolean } ->
 procedureOf p = procedureDoc (refOf p.proposal) p.support p.executed
 
 deliveryDoc :: Delivery -> DeliveryDoc
-deliveryDoc d = { entity: idText d.entity, resource: idText d.resource, quantity: d.quantity }
+deliveryDoc d = d
 
 -- Joint pass ------------------------------------------------------------------------------
 

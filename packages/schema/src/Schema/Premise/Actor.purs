@@ -19,7 +19,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Shape (Shape, bare, boolShape, embedded, fieldOf, kindArg, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape)
-import Core.Types (Id(..), idShape)
+import Core.Types (EntityId, PolicyId, idShape)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback(..), Measure(..), MetricRef, Objective, Span(..))
@@ -28,7 +28,7 @@ import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback(..), Me
 type DefinitionDoc =
   { required :: Maybe Boolean
   , seat :: Maybe Boolean
-  , npc :: Maybe (Array String)
+  , npc :: Maybe (Array PolicyId)
   , fallback :: Maybe Fallback
   , objective :: Maybe ObjectiveDoc
   , description :: Maybe String
@@ -41,7 +41,7 @@ type ObjectiveDoc = { description :: String, criteria :: Array CriterionDoc }
 type CriterionDoc = { metric :: MetricDoc, over :: Maybe Span, atLeast :: BoundDoc }
 
 -- | A metric as written: `negated` is optional (false by default).
-type MetricDoc = { entities :: Array String, measure :: Measure, negated :: Maybe Boolean }
+type MetricDoc = { entities :: Array EntityId, measure :: Measure, negated :: Maybe Boolean }
 
 -- | A bound: a fixed quantity (`Left`), or a metric the Entity must match (`Right`).
 type BoundDoc = Either Q MetricDoc
@@ -90,7 +90,7 @@ definitionShape :: Shape DefinitionDoc
 definitionShape = object "Definition"
   ( mk <$> fieldOf "required" "must be seated (default false)" (optionalOf boolShape) _.required
       <*> fieldOf "seat" "may be seated (default true)" (optionalOf boolShape) _.seat
-      <*> fieldOf "npc" "the NPC Policies it may take" (optionalOf (listOf stringShape)) _.npc
+      <*> fieldOf "npc" "the NPC Policies it may take" (optionalOf (listOf idShape)) _.npc
       <*> fieldOf "fallback" "what covers it when it has no player" (optionalOf fallbackShape) _.fallback
       <*> fieldOf "objective" "its measurable objective" (optionalOf objectiveShape) _.objective
       <*> fieldOf "description" "what the Actor does (prose)" (optionalOf stringShape) _.description
@@ -118,7 +118,7 @@ criterionShape = object "Criterion"
 
 metricShape :: Shape MetricDoc
 metricShape = object "Metric"
-  ( mk <$> fieldOf "entities" "the Entities summed" (listOf stringShape) _.entities
+  ( mk <$> fieldOf "entities" "the Entities summed" (listOf idShape) _.entities
       <*> fieldOf "measure" "the measure" measureShape _.measure
       <*> fieldOf "negated" "true for \"at most\" (default false)" (optionalOf boolShape) _.negated
   )
@@ -200,7 +200,7 @@ definitionToCore :: DefinitionDoc -> ActorDefinition
 definitionToCore d =
   { required: fromMaybe false d.required
   , seat: fromMaybe true d.seat
-  , npc: map Id (fromMaybe [] d.npc)
+  , npc: fromMaybe [] d.npc
   , fallback: d.fallback
   , objective: map objectiveToCore d.objective
   , description: fromMaybe "" d.description
@@ -214,7 +214,7 @@ criterionToCore :: CriterionDoc -> Criterion
 criterionToCore c = { metric: metricToCore c.metric, over: fromMaybe Final c.over, atLeast: boundToCore c.atLeast }
 
 metricToCore :: MetricDoc -> MetricRef
-metricToCore m = { entities: map Id m.entities, measure: m.measure, negated: fromMaybe false m.negated }
+metricToCore m = { entities: m.entities, measure: m.measure, negated: fromMaybe false m.negated }
 
 boundToCore :: BoundDoc -> Bound
 boundToCore = either Fixed (Of <<< metricToCore)

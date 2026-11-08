@@ -135,7 +135,7 @@ toConfig c =
   , seats: keyedToMap (fromMaybe [] c.seats)
   , npcs: map Id (keyedToMap (fromMaybe [] c.npcs))
   , fallbacks: keyedToMap (fromMaybe [] c.fallbacks)
-  , representations: map (\a -> { scheme: a.scheme, actor: Id a.actor, weight: fromMaybe Q.one a.weight }) (fromMaybe [] c.representations)
+  , representations: map (\a -> { scheme: a.scheme, actor: a.actor, weight: fromMaybe Q.one a.weight }) (fromMaybe [] c.representations)
   }
 
 -- | A Gameboard, decoded from its merged sections, with its defaults filled in.

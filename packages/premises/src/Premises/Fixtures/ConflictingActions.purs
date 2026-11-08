@@ -4,6 +4,7 @@
 module Premises.Fixtures.ConflictingActions (fixtureF) where
 
 import Premises.Names as N
+import Core.Types (Id(..))
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
@@ -37,7 +38,7 @@ fixtureF = fixture "F"
               )
           ]
       , proposals = Just ([ proposal { author: N.us, intents: [ transform { by: N.us, transformation: N.defenseProcurement, quantity: q 15 } ] }, proposal { author: N.uk, intents: [ transform { by: N.uk, transformation: N.defenseProcurement, quantity: q 8 } ] }, proposal { author: N.jp, intents: [ transform { by: N.jp, transformation: N.defenseProcurement, quantity: q 9 } ] } ])
-      , expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.us (keyed [ N.money := 43, N.energy := 42 ]), Tuple N.uk (keyed [ N.money := 6, N.energy := 14 ]), Tuple N.jp (keyed [ N.money := 26, N.energy := 24 ]), Tuple N.def (keyed [ N.money := 575, N.energy := 30 ]) ]), deliveries = Just ([ { entity: N.jp, resource: N.mil, quantity: q 8 }, { entity: N.uk, resource: N.mil, quantity: q 8 }, { entity: N.us, resource: N.mil, quantity: q 14 } ]) }))
+      , expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.us (keyed [ N.money := 43, N.energy := 42 ]), Tuple N.uk (keyed [ N.money := 6, N.energy := 14 ]), Tuple N.jp (keyed [ N.money := 26, N.energy := 24 ]), Tuple N.def (keyed [ N.money := 575, N.energy := 30 ]) ]), deliveries = Just ([ { entity: Id N.jp, resource: Id N.mil, quantity: q 8 }, { entity: Id N.uk, resource: Id N.mil, quantity: q 8 }, { entity: Id N.us, resource: Id N.mil, quantity: q 14 } ]) }))
       }
   )
 

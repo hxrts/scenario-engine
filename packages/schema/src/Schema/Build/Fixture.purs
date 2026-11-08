@@ -27,15 +27,15 @@ noExpect = { accounts: Nothing, reserves: Nothing, deliveries: Nothing, rejected
 
 -- | An unsigned Proposal with no signers, signatures or procedure. Those keys are given by record update.
 proposal :: { author :: String, intents :: Array Intent } -> ProposalDoc
-proposal p = { author: p.author, intents: p.intents, signers: Nothing, signatures: Nothing, procedure: Nothing }
+proposal p = { author: Id p.author, intents: p.intents, signers: Nothing, signatures: Nothing, procedure: Nothing }
 
 -- | A Proposal named in an expectation: its author's first Proposal in the round.
 ref :: String -> ProposalRefDoc
-ref author = Left author
+ref author = Left (Id author)
 
 -- | The Proposal at a position among its author's Proposals in the round.
 refAt :: String -> Int -> ProposalRefDoc
-refAt author index = Right { author, index: Just index }
+refAt author index = Right { author: Id author, index: Just index }
 
 -- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
 procedureDoc :: ProposalRefDoc -> Q -> Boolean -> ProcedureDoc

@@ -37,7 +37,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, bare, boolShape, contramapRec, fieldOf, intShape, keyedAlways, kindArg, listOf, object, optionalOf, premiseSum, qShape, refined, stringShape)
-import Core.Types (Aggregate, Capability, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, idShape)
+import Core.Types (Aggregate, BehaviorDomain, Capability, CapacityRef, EntityId, PolicyId, RepresentationId, ResourceId, CapacityEffect, CollectiveProcedure, Controller(..), Entity, EntityKind(..), Estimator, Id(..), Interval, Market, Representation, ResourceDefinition, Rule, Transferability, Transformation, TransformationId, idShape)
 import Core.Types as Types
 import Core.World (Circulation, ShareSource(..), UnseededWorld)
 import Data.Array (mapWithIndex)
@@ -58,7 +58,7 @@ type ResourceDoc = { transferability :: Transferability, reservable :: Maybe Boo
 
 type CostDoc = { base :: Q, slope :: Q, lo :: Q, hi :: Q }
 
-type MarketDoc = { base :: String, quote :: String, cost :: CostDoc, reserves :: Keyed Q, access :: Array String, position :: Maybe Q }
+type MarketDoc = { base :: ResourceId, quote :: ResourceId, cost :: CostDoc, reserves :: Keyed Q, access :: Array EntityId, position :: Maybe Q }
 
 -- | A facility (a transformation): its inputs, outputs and reserves, its cost, capacity and payee,
 -- | and its timing, limits and effects. Every key is optional.
@@ -67,8 +67,8 @@ type FacilityDoc =
   , outputs :: Maybe (Keyed Q)
   , reserves :: Maybe (Keyed Q)
   , cost :: Maybe CostDoc
-  , capacity :: Maybe String
-  , payee :: Maybe String
+  , capacity :: Maybe CapacityRef
+  , payee :: Maybe EntityId
   , delay :: Maybe Int
   , minimum :: Maybe Q
   , maximum :: Maybe Q
@@ -77,7 +77,7 @@ type FacilityDoc =
   , effects :: Maybe (Array EffectDoc)
   }
 
-type EffectDoc = { capacity :: String, holder :: Maybe String, perUnit :: Q, rounds :: Maybe Int }
+type EffectDoc = { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Q, rounds :: Maybe Int }
 
 -- Entities ------------------------------------------------------------------------------------
 
@@ -91,7 +91,7 @@ type EntityDoc =
   , aggregate :: Maybe AggregateDoc
   }
 
-type AggregateDoc = { policy :: String, members :: Maybe (Array String), procedures :: Maybe (Keyed ProcedureDoc) }
+type AggregateDoc = { policy :: PolicyId, members :: Maybe (Array EntityId), procedures :: Maybe (Keyed ProcedureDoc) }
 
 -- | A collective procedure on an Aggregate's own Proposals.
 type ProcedureDoc = { weights :: Keyed Q, residualWeight :: Q, threshold :: Q, authorizes :: Array Capability }
@@ -102,19 +102,19 @@ type EstimatorDoc = { reference :: Q, shrinkage :: Q, bound :: Maybe Q, noiseSpr
 
 -- | A Representation of an Actor in a world (a fixture's, flattened with its estimator).
 type RepresentationDoc =
-  { id :: String
-  , actor :: String
-  , aggregate :: String
-  , domain :: String
+  { id :: RepresentationId
+  , actor :: EntityId
+  , aggregate :: EntityId
+  , domain :: BehaviorDomain
   , weight :: Q
   , estimator :: EstimatorDoc
   }
 
 -- | A Gameboard's scheme: the Representation an Actor's behaviour is estimated under.
-type SchemeDoc = { id :: String, eligibleActors :: Array String, target :: String, domain :: String, estimator :: EstimatorDoc }
+type SchemeDoc = { id :: String, eligibleActors :: Array EntityId, target :: EntityId, domain :: BehaviorDomain, estimator :: EstimatorDoc }
 
 -- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
-type AssignmentDoc = { scheme :: String, actor :: String, weight :: Maybe Q }
+type AssignmentDoc = { scheme :: String, actor :: EntityId, weight :: Maybe Q }
 
 -- Circulation ---------------------------------------------------------------------------------
 
@@ -125,25 +125,25 @@ type CirculationDoc =
   , requirements :: Maybe (Array RequirementDoc)
   }
 
-type ProductionDoc = { entity :: String, resource :: String, capacity :: String }
+type ProductionDoc = { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef }
 
-type FlowDoc = { from :: String, to :: String, resource :: String, amount :: Q }
+type FlowDoc = { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q }
 
-type ShareDoc = { from :: String, to :: String, share :: Q, source :: ShareSource }
+type ShareDoc = { from :: EntityId, to :: EntityId, share :: Q, source :: ShareSource }
 
-type RequirementDoc = { entity :: String, resource :: String, amount :: Maybe Q, penalty :: Maybe Q }
+type RequirementDoc = { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Maybe Q }
 
 -- | The World as written, with its name and starting round. Every section is a key of the
 -- | Gameboard's merged object; `numeraire`, the Resources, Markets, facilities and Entities are required.
 type WorldDoc =
   { name :: Maybe String
   , round :: Maybe Int
-  , numeraire :: String
+  , numeraire :: ResourceId
   , resources :: Keyed ResourceDoc
   , markets :: Keyed MarketDoc
   , transformations :: Keyed FacilityDoc
-  , transport :: Maybe (Keyed String)
-  , jurisdiction :: Maybe (Keyed String)
+  , transport :: Maybe (Keyed TransformationId)
+  , jurisdiction :: Maybe (Keyed EntityId)
   , entities :: Keyed EntityDoc
   , rules :: Maybe (Array (Rule))
   , representations :: Maybe (Array RepresentationDoc)
@@ -176,11 +176,11 @@ costShape = object "Cost"
 
 marketShape :: Shape MarketDoc
 marketShape = object "Market"
-  ( mk <$> fieldOf "base" "the Resource traded" stringShape _.base
-      <*> fieldOf "quote" "the Resource it is priced in" stringShape _.quote
+  ( mk <$> fieldOf "base" "the Resource traded" idShape _.base
+      <*> fieldOf "quote" "the Resource it is priced in" idShape _.quote
       <*> fieldOf "cost" "the cost curve" costShape _.cost
       <*> fieldOf "reserves" "the reserves, by Resource" (keyedAlways qShape) _.reserves
-      <*> fieldOf "access" "the Entities that may trade" (listOf stringShape) _.access
+      <*> fieldOf "access" "the Entities that may trade" (listOf idShape) _.access
       <*> fieldOf "position" "the starting net position (default 0)" (optionalOf qShape) _.position
   )
   where
@@ -188,8 +188,8 @@ marketShape = object "Market"
 
 effectShape :: Shape EffectDoc
 effectShape = object "Effect"
-  ( mk <$> fieldOf "capacity" "the capacity changed" stringShape _.capacity
-      <*> fieldOf "holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf stringShape) _.holder
+  ( mk <$> fieldOf "capacity" "the capacity changed" idShape _.capacity
+      <*> fieldOf "holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf idShape) _.holder
       <*> fieldOf "perUnit" "the change per unit ordered" qShape _.perUnit
       <*> fieldOf "rounds" "how many rounds it lasts" (optionalOf intShape) _.rounds
   )
@@ -202,8 +202,8 @@ facilityShape = object "Facility"
       <*> fieldOf "outputs" "produced per unit" (optionalOf (keyedAlways qShape)) _.outputs
       <*> fieldOf "reserves" "reserved per unit, released within the round" (optionalOf (keyedAlways qShape)) _.reserves
       <*> fieldOf "cost" "the cost curve of the facility" (optionalOf costShape) _.cost
-      <*> fieldOf "capacity" "the capacity it draws on" (optionalOf stringShape) _.capacity
-      <*> fieldOf "payee" "the Entity paid" (optionalOf stringShape) _.payee
+      <*> fieldOf "capacity" "the capacity it draws on" (optionalOf idShape) _.capacity
+      <*> fieldOf "payee" "the Entity paid" (optionalOf idShape) _.payee
       <*> fieldOf "delay" "rounds before its effects apply" (optionalOf intShape) _.delay
       <*> fieldOf "minimum" "the smallest order accepted" (optionalOf qShape) _.minimum
       <*> fieldOf "maximum" "the largest order accepted per Entity per round" (optionalOf qShape) _.maximum
@@ -216,8 +216,8 @@ facilityShape = object "Facility"
 
 aggregateShape :: Shape AggregateDoc
 aggregateShape = object "Aggregate"
-  ( mk <$> fieldOf "policy" "the Policy that drives it" stringShape _.policy
-      <*> fieldOf "members" "the Entities that are its members" (optionalOf (listOf stringShape)) _.members
+  ( mk <$> fieldOf "policy" "the Policy that drives it" idShape _.policy
+      <*> fieldOf "members" "the Entities that are its members" (optionalOf (listOf idShape)) _.members
       <*> fieldOf "procedures" "its collective procedures, by name" (optionalOf (keyedAlways procedureShape)) _.procedures
   )
   where
@@ -256,10 +256,10 @@ estimatorShape :: Shape EstimatorDoc
 estimatorShape = object "Estimator" estimatorRec
 
 representationRec :: RecF RepresentationDoc RepresentationDoc
-representationRec = mk <$> fieldOf "id" "the Representation" stringShape _.id
-  <*> fieldOf "actor" "the Actor represented" stringShape _.actor
-  <*> fieldOf "aggregate" "the Aggregate that holds the estimate" stringShape _.aggregate
-  <*> fieldOf "domain" "the behaviour domain" stringShape _.domain
+representationRec = mk <$> fieldOf "id" "the Representation" idShape _.id
+  <*> fieldOf "actor" "the Actor represented" idShape _.actor
+  <*> fieldOf "aggregate" "the Aggregate that holds the estimate" idShape _.aggregate
+  <*> fieldOf "domain" "the behaviour domain" idShape _.domain
   <*> fieldOf "weight" "the weight in the Aggregate's estimate" qShape _.weight
   <*> contramapRec _.estimator estimatorRec
   where
@@ -271,9 +271,9 @@ representationShape = object "Representation" representationRec
 schemeShape :: Shape SchemeDoc
 schemeShape = object "Scheme"
   ( mk <$> fieldOf "id" "the scheme's name" stringShape _.id
-      <*> fieldOf "eligibleActors" "the Actors it may estimate" (listOf stringShape) _.eligibleActors
-      <*> fieldOf "target" "the Aggregate it estimates" stringShape _.target
-      <*> fieldOf "domain" "the behaviour domain" stringShape _.domain
+      <*> fieldOf "eligibleActors" "the Actors it may estimate" (listOf idShape) _.eligibleActors
+      <*> fieldOf "target" "the Aggregate it estimates" idShape _.target
+      <*> fieldOf "domain" "the behaviour domain" idShape _.domain
       <*> fieldOf "estimator" "the estimator" estimatorShape _.estimator
   )
   where
@@ -282,7 +282,7 @@ schemeShape = object "Scheme"
 assignmentShape :: Shape AssignmentDoc
 assignmentShape = object "Assignment"
   ( mk <$> fieldOf "scheme" "the scheme assigned" stringShape _.scheme
-      <*> fieldOf "actor" "the Actor assigned" stringShape _.actor
+      <*> fieldOf "actor" "the Actor assigned" idShape _.actor
       <*> fieldOf "weight" "the weight (default 1)" (optionalOf qShape) _.weight
   )
   where
@@ -300,9 +300,9 @@ circulationShape = object "Circulation"
 
 productionShape :: Shape ProductionDoc
 productionShape = object "Production"
-  ( mk <$> fieldOf "entity" "the Entity" stringShape _.entity
-      <*> fieldOf "resource" "the Resource produced" stringShape _.resource
-      <*> fieldOf "capacity" "the capacity that produces it" stringShape _.capacity
+  ( mk <$> fieldOf "entity" "the Entity" idShape _.entity
+      <*> fieldOf "resource" "the Resource produced" idShape _.resource
+      <*> fieldOf "capacity" "the capacity that produces it" idShape _.capacity
   )
   where
   mk e r c = { entity: e, resource: r, capacity: c }
@@ -310,9 +310,9 @@ productionShape = object "Production"
 -- | A fixed payment per round, which is never negative (docs/03 §5.4).
 flowShape :: Shape FlowDoc
 flowShape = object "Flow"
-  ( mk <$> fieldOf "from" "the paying Entity" stringShape _.from
-      <*> fieldOf "to" "the receiving Entity" stringShape _.to
-      <*> fieldOf "resource" "the Resource paid" stringShape _.resource
+  ( mk <$> fieldOf "from" "the paying Entity" idShape _.from
+      <*> fieldOf "to" "the receiving Entity" idShape _.to
+      <*> fieldOf "resource" "the Resource paid" idShape _.resource
       <*> fieldOf "amount" "the amount per round" (refined "a flow amount must not be negative" (_ >= Q.zero) qShape) _.amount
   )
   where
@@ -320,8 +320,8 @@ flowShape = object "Flow"
 
 shareShape :: Shape ShareDoc
 shareShape = object "Share"
-  ( mk <$> fieldOf "from" "the paying Entity" stringShape _.from
-      <*> fieldOf "to" "the receiving Entity" stringShape _.to
+  ( mk <$> fieldOf "from" "the paying Entity" idShape _.from
+      <*> fieldOf "to" "the receiving Entity" idShape _.to
       <*> fieldOf "share" "the share of the source" qShape _.share
       <*> fieldOf "source" "what the share is of" shareSourceShape _.source
   )
@@ -341,8 +341,8 @@ shareSourceShape = premiseSum "ShareSource"
 
 requirementShape :: Shape RequirementDoc
 requirementShape = object "Requirement"
-  ( mk <$> fieldOf "entity" "the Entity that needs it" stringShape _.entity
-      <*> fieldOf "resource" "the Resource needed" stringShape _.resource
+  ( mk <$> fieldOf "entity" "the Entity that needs it" idShape _.entity
+      <*> fieldOf "resource" "the Resource needed" idShape _.resource
       <*> fieldOf "amount" "the amount per round (default: this round's purchases)" (optionalOf qShape) _.amount
       <*> fieldOf "penalty" "the reduction of fixed incomes per unit unmet (default 0)" (optionalOf qShape) _.penalty
   )
@@ -356,8 +356,8 @@ nameF = fieldOf "name" "the premise's name" (optionalOf stringShape) _.name
 roundF :: RecF WorldDoc (Maybe Int)
 roundF = fieldOf "round" "the starting round (default 1)" (optionalOf intShape) _.round
 
-numeraireF :: RecF WorldDoc String
-numeraireF = fieldOf "numeraire" "the Resource facility costs are paid in" stringShape _.numeraire
+numeraireF :: RecF WorldDoc ResourceId
+numeraireF = fieldOf "numeraire" "the Resource facility costs are paid in" idShape _.numeraire
 
 resourcesF :: RecF WorldDoc (Keyed ResourceDoc)
 resourcesF = fieldOf "resources" "the Resources" (keyedAlways resourceShape) _.resources
@@ -368,11 +368,11 @@ marketsF = fieldOf "markets" "the Markets" (keyedAlways marketShape) _.markets
 transformationsF :: RecF WorldDoc (Keyed FacilityDoc)
 transformationsF = fieldOf "transformations" "the facilities" (keyedAlways facilityShape) _.transformations
 
-transportF :: RecF WorldDoc (Maybe (Keyed String))
-transportF = fieldOf "transport" "the facility that carries each Resource between regions" (optionalOf (keyedAlways stringShape)) _.transport
+transportF :: RecF WorldDoc (Maybe (Keyed TransformationId))
+transportF = fieldOf "transport" "the facility that carries each Resource between regions" (optionalOf (keyedAlways idShape)) _.transport
 
-jurisdictionF :: RecF WorldDoc (Maybe (Keyed String))
-jurisdictionF = fieldOf "jurisdiction" "each Entity's governing Entity, where it is not its own" (optionalOf (keyedAlways stringShape)) _.jurisdiction
+jurisdictionF :: RecF WorldDoc (Maybe (Keyed EntityId))
+jurisdictionF = fieldOf "jurisdiction" "each Entity's governing Entity, where it is not its own" (optionalOf (keyedAlways idShape)) _.jurisdiction
 
 entitiesF :: RecF WorldDoc (Keyed EntityDoc)
 entitiesF = fieldOf "entities" "the Entities" (keyedAlways entityShape) _.entities
@@ -409,9 +409,9 @@ estimatorToCore e =
 schemeToCore :: SchemeDoc -> Scheme
 schemeToCore s =
   { id: s.id
-  , eligibleActors: map Id s.eligibleActors
-  , target: Id s.target
-  , domain: Id s.domain
+  , eligibleActors: s.eligibleActors
+  , target: s.target
+  , domain: s.domain
   , estimator: estimatorToCore s.estimator
   }
 
@@ -424,9 +424,9 @@ worldToCore w =
   , markets: Map.fromFoldable (map (\(Tuple k m) -> Tuple (Id k) (marketToCore k m)) w.markets)
   , transformations: Map.fromFoldable (map (\(Tuple k f) -> Tuple (Id k) (facilityToCore k f)) w.transformations)
   , representations: map representationToCore (fromMaybe [] w.representations)
-  , numeraire: Id w.numeraire
-  , transport: map Id (keyedToMap (fromMaybe [] w.transport))
-  , jurisdiction: map Id (keyedToMap (fromMaybe [] w.jurisdiction))
+  , numeraire: w.numeraire
+  , transport: keyedToMap (fromMaybe [] w.transport)
+  , jurisdiction: keyedToMap (fromMaybe [] w.jurisdiction)
   , rules: Map.fromFoldable (mapWithIndex (\i r -> Tuple (Id ("rule-" <> show i)) r) (fromMaybe [] w.rules))
   , scheduled: Map.empty
   , deliveries: []
@@ -453,12 +453,12 @@ costToCore c = { base: c.base, slope: c.slope, domain: { lo: c.lo, hi: c.hi } }
 marketToCore :: String -> MarketDoc -> Market
 marketToCore k m =
   { id: Id k
-  , base: Id m.base
-  , quote: Id m.quote
+  , base: m.base
+  , quote: m.quote
   , cost: costToCore m.cost
   , position: fromMaybe Q.zero m.position
   , reserves: keyedToMap m.reserves
-  , access: map Id m.access
+  , access: m.access
   }
 
 facilityToCore :: String -> FacilityDoc -> Transformation
@@ -468,8 +468,8 @@ facilityToCore k f =
   , outputs: keyedToMap (fromMaybe [] f.outputs)
   , reserves: keyedToMap (fromMaybe [] f.reserves)
   , cost: map costToCore f.cost
-  , capacity: map Id f.capacity
-  , payee: map Id f.payee
+  , capacity: f.capacity
+  , payee: f.payee
   , delay: fromMaybe 0 f.delay
   , minimum: fromMaybe Q.zero f.minimum
   , maximum: f.maximum
@@ -479,7 +479,7 @@ facilityToCore k f =
   }
 
 effectToCore :: EffectDoc -> CapacityEffect
-effectToCore e = { capacity: Id e.capacity, holder: map Id e.holder, perUnit: e.perUnit, rounds: e.rounds }
+effectToCore e = { capacity: e.capacity, holder: e.holder, perUnit: e.perUnit, rounds: e.rounds }
 
 entityToCore :: String -> EntityDoc -> Entity
 entityToCore k e =
@@ -492,8 +492,8 @@ entityToCore k e =
 
 aggregateToCore :: AggregateDoc -> Aggregate
 aggregateToCore a =
-  { policy: Id a.policy
-  , members: map Id (fromMaybe [] a.members)
+  { policy: a.policy
+  , members: fromMaybe [] a.members
   , procedures: Map.fromFoldable (map (\(Tuple p pr) -> Tuple (Id p) (procedureToCore pr)) (fromMaybe [] a.procedures))
   }
 
@@ -507,18 +507,18 @@ procedureToCore p =
 
 representationToCore :: RepresentationDoc -> Representation
 representationToCore r =
-  { id: Id r.id
-  , actor: Id r.actor
-  , aggregate: Id r.aggregate
-  , domain: Id r.domain
+  { id: r.id
+  , actor: r.actor
+  , aggregate: r.aggregate
+  , domain: r.domain
   , weight: r.weight
   , estimator: estimatorToCore r.estimator
   }
 
 circulationToCore :: CirculationDoc -> Circulation
 circulationToCore c =
-  { production: map (\p -> { entity: Id p.entity, resource: Id p.resource, capacity: Id p.capacity }) (fromMaybe [] c.production)
-  , flows: map (\f -> { from: Id f.from, to: Id f.to, resource: Id f.resource, amount: f.amount }) (fromMaybe [] c.flows)
-  , shares: map (\x -> { from: Id x.from, to: Id x.to, share: x.share, source: x.source }) (fromMaybe [] c.shares)
-  , requirements: map (\r -> { entity: Id r.entity, resource: Id r.resource, amount: r.amount, penalty: fromMaybe Q.zero r.penalty }) (fromMaybe [] c.requirements)
+  { production: fromMaybe [] c.production
+  , flows: fromMaybe [] c.flows
+  , shares: fromMaybe [] c.shares
+  , requirements: map (\r -> r { penalty = fromMaybe Q.zero r.penalty }) (fromMaybe [] c.requirements)
   }

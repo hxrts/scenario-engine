@@ -5,6 +5,7 @@ module Premises.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
 import Prelude ((<>))
 import Premises.Names as N
+import Core.Types (Id(..))
 
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
@@ -57,7 +58,7 @@ fixtureD = fixture "D"
           ]
       , rounds = Just
           ( [ (noRound { proposals = Just ([ proposal { author: N.us, intents: [ transform { by: N.us, transformation: N.majorMilitaryAction, quantity: q 12 } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.us (keyed [ N.mil := 92, N.money := 260 ]) ]) })) })
-            , (noRound { proposals = Just ([ proposal { author: N.cn, intents: [ transform { by: N.cn, transformation: N.defenseProcurementCn, quantity: q 4 } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.cn (keyed [ N.money := 219, N.energy := 87, N.mil := 88 ]), Tuple N.cnPrivate (keyed [ N.money := 246 ]) ]), deliveries = Just ([ { entity: N.cn, resource: N.mil, quantity: q 4 } ]) })) })
+            , (noRound { proposals = Just ([ proposal { author: N.cn, intents: [ transform { by: N.cn, transformation: N.defenseProcurementCn, quantity: q 4 } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.cn (keyed [ N.money := 219, N.energy := 87, N.mil := 88 ]), Tuple N.cnPrivate (keyed [ N.money := 246 ]) ]), deliveries = Just ([ { entity: Id N.cn, resource: Id N.mil, quantity: q 4 } ]) })) })
             , (noRound { expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.cn (keyed [ N.mil := 92 ]) ]) })) })
             ]
           )

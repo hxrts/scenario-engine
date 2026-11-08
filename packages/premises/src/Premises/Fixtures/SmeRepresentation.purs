@@ -4,6 +4,7 @@
 module Premises.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
 
 import Premises.Names as N
+import Core.Types (Id(..))
 
 import Core.Num (Q)
 import Data.Argonaut.Core (Json)
@@ -30,10 +31,10 @@ smeAndGlobalSmes = keyed
 -- | The SME Representation of the reference instance, with the fixture's noise.
 smeRepresentation :: Q -> RepresentationDoc
 smeRepresentation noise =
-  { id: smeSample.id
-  , actor: smeSample.actor
-  , aggregate: smeSample.aggregate
-  , domain: smeSample.domain
+  { id: Id smeSample.id
+  , actor: Id smeSample.actor
+  , aggregate: Id smeSample.aggregate
+  , domain: Id smeSample.domain
   , weight: q 1
   , estimator: smeSample.estimator noise
   }

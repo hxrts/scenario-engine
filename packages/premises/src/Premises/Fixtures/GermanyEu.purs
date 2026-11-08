@@ -3,9 +3,10 @@
 -- | B1 to B4 and B4-unsigned.
 module Premises.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4) where
 
-import Prelude (negate)
+import Prelude (map, negate)
 
 import Premises.Names as N
+import Core.Types (Id(..))
 
 import Core.Num (Q)
 import Data.Argonaut.Core (Json)
@@ -42,15 +43,15 @@ fixtureB1 = fixture "B1" (defaultFixture { resources = resources, markets = ener
 -- | Fixture B2 (docs/05 §22): high prices, Germany signs, and the pool is empty: the pool's transfer
 -- | gives nothing, and the EU sells its 8 E from its own holdings.
 fixtureB2 :: Tuple String Json
-fixtureB2 = fixture "B2" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 0), proposals = Just ([ (proposal { author: N.eu, intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (N.euSolidarity), signers = Just ([ N.de ]), signatures = Just ([ N.de ]) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 117 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]), Tuple N.euPool (keyed [ N.energy := 0 ]) ]), reserves = Just (keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.6") true ]) })) })
+fixtureB2 = fixture "B2" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 0), proposals = Just ([ (proposal { author: N.eu, intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (Id N.euSolidarity), signers = Just (map Id [ N.de ]), signatures = Just (map Id [ N.de ]) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 117 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]), Tuple N.euPool (keyed [ N.energy := 0 ]) ]), reserves = Just (keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.6") true ]) })) })
 
 -- | Fixture B2-pool (docs/05 §22): as B2, with 10 E in the pool. The pool gives 8 E first, so the
 -- | EU's own holdings end where they began (125), and the pool keeps 2 E.
 fixtureB2Pool :: Tuple String Json
-fixtureB2Pool = fixture "B2-pool" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 10), proposals = Just ([ (proposal { author: N.eu, intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (N.euSolidarity), signers = Just ([ N.de ]), signatures = Just ([ N.de ]) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 125 ]), Tuple N.euPool (keyed [ N.energy := 2 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]) ]), reserves = Just (keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.6") true ]) })) })
+fixtureB2Pool = fixture "B2-pool" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 10), proposals = Just ([ (proposal { author: N.eu, intents: [ transfer { from: N.euPool, to: N.eu, resource: N.energy, quantity: q 8 }, trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (Id N.euSolidarity), signers = Just (map Id [ N.de ]), signatures = Just (map Id [ N.de ]) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := "344.96", N.energy := 125 ]), Tuple N.euPool (keyed [ N.energy := 2 ]), Tuple N.de (keyed [ N.money := 125, N.energy := 38 ]) ]), reserves = Just (keyed [ Tuple N.energyAtlantic (keyed [ N.money := "675.04", N.energy := 358 ]) ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.6") true ]) })) })
 
 fixtureB3 :: Tuple String Json
-fixtureB3 = fixture "B3" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 0), proposals = Just ([ (proposal { author: N.eu, intents: [ trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (N.euSolidarity), signers = Just ([ N.de ]), signatures = Just ([]) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := 320, N.energy := 125 ]) ]), lapsed = Just ([ ref N.eu ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.4") false ]) })) })
+fixtureB3 = fixture "B3" (defaultFixture { resources = resources, markets = energyAt (Just (q 60)) atlanticAccess [ N.sa, N.jp ], entities = germanyAndEu (q 0), proposals = Just ([ (proposal { author: N.eu, intents: [ trade { market: N.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { procedure = Just (Id N.euSolidarity), signers = Just (map Id [ N.de ]), signatures = Just (map Id []) } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.eu (keyed [ N.money := 320, N.energy := 125 ]) ]), lapsed = Just ([ ref N.eu ]), procedures = Just ([ procedureDoc (ref N.eu) (q "0.4") false ]) })) })
 
 -- | The EU's `eu-trade` procedure enacts a tariff on the US. The variants differ only in
 -- | who signed and so in the support the procedure gathers.
@@ -61,7 +62,7 @@ euTariffProcedure name signatures support = fixture name
       , markets = energyAt (Just (q 0)) atlanticAccess [ N.sa, N.jp ]
       , entities = germanyAndEu (q 0)
       , proposals = Just
-          [ (proposal { author: N.eu, intents: [ enactTariff { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ] }) { procedure = Just N.euTrade, signers = Just [ N.de ], signatures = Just signatures } ]
+          [ (proposal { author: N.eu, intents: [ enactTariff { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ] }) { procedure = Just (Id N.euTrade), signers = Just (map Id [ N.de ]), signatures = Just (map Id signatures) } ]
       , expect = Just (noExpect { scheduled = Just 1, procedures = Just [ procedureDoc (ref N.eu) (q support) true ] })
       }
   )

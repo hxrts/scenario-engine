@@ -15,7 +15,7 @@ import Premises.Names as N
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
-import Core.Types (Capability, RuleF)
+import Core.Types (Capability, Id(..), ResourceId, RuleF, TransformationId)
 import Data.Array (mapWithIndex)
 import Data.Array as Array
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -32,11 +32,11 @@ import Premises.Meridian.Holdings (pickAccounts)
 -- | rules, Entities) are always written; the rounds and the circulation are written when given.
 type FixtureSpec =
   { round :: Int
-  , numeraire :: String
+  , numeraire :: ResourceId
   , resources :: Keyed ResourceDoc
   , markets :: Keyed MarketDoc
   , transformations :: Keyed FacilityDoc
-  , transport :: Keyed String
+  , transport :: Keyed TransformationId
   , rules :: Array (RuleF Q)
   , entities :: Keyed EntityDoc
   , representations :: Maybe (Array RepresentationDoc)
@@ -50,7 +50,7 @@ type FixtureSpec =
 defaultFixture :: FixtureSpec
 defaultFixture =
   { round: 1
-  , numeraire: N.money
+  , numeraire: Id N.money
   , resources: coreResources
   , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
   , transformations: facilities

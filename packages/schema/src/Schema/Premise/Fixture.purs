@@ -30,7 +30,7 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Shape (RecF, Shape, boolShape, contramapRec, embedded, fieldOf, intShape, keyedAlways, listOf, literal, object, optionalOf, premiseSum, qShape, stringShape, Format(..), decodeJsonWith)
-import Core.Types (Id(..), Intent, ProposalId, RoundIndex, SignedProposal, proposalId)
+import Core.Types (Id(..), CollectiveProcedureId, EntityId, Id, Intent, ProposalId, ResourceId, RoundIndex, SignedProposal, idShape, proposalId)
 import Core.World (WorldState, seeded)
 import Data.Array (concat, elem, find, groupBy, length, mapWithIndex, nub, range, sortWith)
 import Data.Array.NonEmpty (toArray)
@@ -53,23 +53,23 @@ type Literal = { name :: String, world :: WorldState, rounds :: Array Round }
 
 -- | A Proposal as written: its author, its intents, and what signed it.
 type ProposalDoc =
-  { author :: String
+  { author :: EntityId
   , intents :: Array Intent
-  , signers :: Maybe (Array String)
-  , signatures :: Maybe (Array String)
-  , procedure :: Maybe String
+  , signers :: Maybe (Array EntityId)
+  , signatures :: Maybe (Array EntityId)
+  , procedure :: Maybe CollectiveProcedureId
   }
 
 -- | A proposal named in an expectation: the author's name (the first Proposal), or the author with a
 -- | position.
-type ProposalRefDoc = Either String { author :: String, index :: Maybe Int }
+type ProposalRefDoc = Either EntityId { author :: EntityId, index :: Maybe Int }
 
 -- | A procedure's outcome as written: the Proposal it names (flattened with its support and result, so
 -- | it is written as an object even when it names the first Proposal), and its support and result.
 type ProcedureDoc = { proposal :: ProposalRefDoc, support :: Q, executed :: Boolean }
 
 -- | A delivery as written.
-type DeliveryDoc = { entity :: String, resource :: String, quantity :: Q }
+type DeliveryDoc = { entity :: EntityId, resource :: ResourceId, quantity :: Q }
 
 type ExpectDoc =
   { accounts :: Maybe (Keyed (Keyed Q))
@@ -104,8 +104,8 @@ type FixtureDoc =
 
 deliveryShape :: Shape DeliveryDoc
 deliveryShape = object "Delivery"
-  ( mk <$> fieldOf "entity" "the Entity that receives" stringShape _.entity
-      <*> fieldOf "resource" "the Resource" stringShape _.resource
+  ( mk <$> fieldOf "entity" "the Entity that receives" idShape _.entity
+      <*> fieldOf "resource" "the Resource" idShape _.resource
       <*> fieldOf "quantity" "the quantity" qShape _.quantity
   )
   where
@@ -114,26 +114,26 @@ deliveryShape = object "Delivery"
 -- | A proposal reference: a bare author name, or an object with an author and an optional index.
 proposalRefShape :: Shape ProposalRefDoc
 proposalRefShape = premiseSum "ProposalRef"
-  [ literal stringShape (either Just (const Nothing)) Left
+  [ literal idShape (either Just (const Nothing)) Left
   , embedded refObject (either (const Nothing) Just) Right
   ]
   where
   refObject = object "ProposalAt" proposalAtRec
 
 -- | A Proposal by its author and its position among the author's Proposals.
-proposalAtRec :: RecF { author :: String, index :: Maybe Int } { author :: String, index :: Maybe Int }
-proposalAtRec = mk <$> fieldOf "author" "the author" stringShape _.author
+proposalAtRec :: RecF { author :: EntityId, index :: Maybe Int } { author :: EntityId, index :: Maybe Int }
+proposalAtRec = mk <$> fieldOf "author" "the author" idShape _.author
   <*> fieldOf "index" "the position among the author's Proposals (default 0)" (optionalOf intShape) _.index
   where
   mk a i = { author: a, index: i }
 
 proposalShape :: Shape ProposalDoc
 proposalShape = object "Proposal"
-  ( mk <$> fieldOf "author" "the author" stringShape _.author
+  ( mk <$> fieldOf "author" "the author" idShape _.author
       <*> fieldOf "intents" "the Intents" (listOf intentShape) _.intents
-      <*> fieldOf "signers" "the Entities that must sign it" (optionalOf (listOf stringShape)) _.signers
-      <*> fieldOf "signatures" "the Entities that signed it" (optionalOf (listOf stringShape)) _.signatures
-      <*> fieldOf "procedure" "the collective procedure it is put to" (optionalOf stringShape) _.procedure
+      <*> fieldOf "signers" "the Entities that must sign it" (optionalOf (listOf idShape)) _.signers
+      <*> fieldOf "signatures" "the Entities that signed it" (optionalOf (listOf idShape)) _.signatures
+      <*> fieldOf "procedure" "the collective procedure it is put to" (optionalOf idShape) _.procedure
   )
   where
   mk a i s g p = { author: a, intents: i, signers: s, signatures: g, procedure: p }
@@ -227,11 +227,9 @@ toRound round r = { round, inputs: concat (map signed groups), expect: fromMaybe
 
 signedProposal :: RoundIndex -> Int -> ProposalDoc -> SignedProposal
 signedProposal round i p =
-  { proposal: { id: proposalId round author i, author, intents: p.intents, signers: map Id (fromMaybe [] p.signers), procedure: map Id p.procedure }
-  , signatures: map Id (fromMaybe [] p.signatures)
+  { proposal: { id: proposalId round p.author i, author: p.author, intents: p.intents, signers: fromMaybe [] p.signers, procedure: p.procedure }
+  , signatures: fromMaybe [] p.signatures
   }
-  where
-  author = Id p.author
 
 -- | An expectation as the checker reads it. A Proposal named in it takes its id in `round`. Every
 -- | written value is a `Just` leaf: an absent key or field is not checked.
@@ -251,10 +249,10 @@ expectToCore round e =
   nested kvs = map (map Just <<< keyedToMap) (keyedToMap kvs)
 
 refToId :: RoundIndex -> ProposalRefDoc -> ProposalId
-refToId round = either (\a -> proposalId round (Id a) 0) (\r -> proposalId round (Id r.author) (fromMaybe 0 r.index))
+refToId round = either (\a -> proposalId round a 0) (\r -> proposalId round r.author (fromMaybe 0 r.index))
 
 deliveryToCore :: DeliveryDoc -> Delivery
-deliveryToCore d = { entity: Id d.entity, resource: Id d.resource, quantity: d.quantity }
+deliveryToCore d = d
 
 procedureToCore :: RoundIndex -> ProcedureDoc -> ProcedureOutcome
 procedureToCore round p = { proposal: refToId round p.proposal, support: p.support, executed: p.executed }

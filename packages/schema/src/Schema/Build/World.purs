@@ -25,8 +25,10 @@ module Schema.Build.World
   , collective
   ) where
 
+import Prelude (map)
+
 import Core.Num (Q)
-import Core.Types (Capability, Transferability(..))
+import Core.Types (Capability, Id(..), Transferability(..))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Schema.Build.Base (Keyed, cumulative, everyRound, final, shortfallOf)
@@ -110,7 +112,7 @@ criterion c = { metric: c.metric, over: Just c.over, atLeast: c.atLeast }
 
 -- | A metric, with its `negated` written.
 metric :: { entities :: Array String, measure :: Measure, negated :: Boolean } -> MetricDoc
-metric m = { entities: m.entities, measure: m.measure, negated: Just m.negated }
+metric m = { entities: map Id m.entities, measure: m.measure, negated: Just m.negated }
 
 -- | An Actor definition, with every key written.
 definition
@@ -126,7 +128,7 @@ definition
 definition d =
   { required: Just d.required
   , seat: Just d.seat
-  , npc: Just d.npc
+  , npc: Just (map Id d.npc)
   , fallback: d.fallback
   , objective: Just d.objective
   , description: Just d.description
@@ -135,11 +137,11 @@ definition d =
 
 -- | An Aggregate with its members written and no procedures.
 aggregate :: { policy :: String, members :: Array String } -> AggregateDoc
-aggregate a = { policy: a.policy, members: Just a.members, procedures: Nothing }
+aggregate a = { policy: Id a.policy, members: Just (map Id a.members), procedures: Nothing }
 
 -- | An Aggregate with its members and its collective procedures written.
 aggregateWith :: { policy :: String, members :: Array String, procedures :: Keyed ProcedureDoc } -> AggregateDoc
-aggregateWith a = { policy: a.policy, members: Just a.members, procedures: Just a.procedures }
+aggregateWith a = { policy: Id a.policy, members: Just (map Id a.members), procedures: Just a.procedures }
 
 -- | A collective procedure on an Aggregate's own Proposals.
 collective :: { weights :: Keyed Q, residualWeight :: Q, threshold :: Q, authorizes :: Array Capability } -> ProcedureDoc
