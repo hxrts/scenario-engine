@@ -6,6 +6,7 @@ module Views.Compare
   ( CompareView
   , Marked
   , compatible
+  , compatibilityPurpose
   , finalState
   , baselineDiff
   , configDiff
@@ -96,6 +97,10 @@ compatible runs = tableOf "Compatibility" tableFields runs
   verdict f r = case map _.name (filter (\x -> not (x.same f r)) fields) of
     [] -> "yes"
     ms -> "no: flagged, not combined (" <> joinWith ", " ms <> ")"
+
+-- | What the compatibility table checks: the fields, named as the verdict names them.
+compatibilityPurpose :: String
+compatibilityPurpose = "Whether each run can be combined with the first: the same " <> joinWith ", " (map _.name fields) <> "."
 
 engineColumn :: Column
 engineColumn = column "Engine" "The version of the round engine that resolved each round."

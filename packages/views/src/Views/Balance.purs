@@ -40,7 +40,7 @@ spreadStat :: Statistic
 spreadStat =
   { name: "Spread"
   , question: "How well balanced is the game: does one role dominate?"
-  , definition: "Highest minus lowest final net worth among the players, in M."
+  , definition: "Highest minus lowest final net worth among the players, in the numeraire."
   , formula: "spread = max over Actors of NW(e, N) − min over Actors of NW(e, N), where N is the final round."
   }
 

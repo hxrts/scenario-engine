@@ -34,7 +34,8 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
-import Views.Compare (CompareView)
+import Views.Balance (giniStat, spreadStat)
+import Views.Compare (CompareView, compatibilityPurpose)
 import Views.Overview (RunList, RunOverview)
 import Views.Setting (Setting)
 import Effects.Api (Launch)
@@ -374,7 +375,7 @@ plots grid fetch ids shown picked setPicked = D.div
                   [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
                   , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
-                  , { key: "compatibility", label: "Compatibility", purpose: "Whether each run can be combined with the first: the same Gameboard, engine, rounds, units, Markets and Actor selection.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
+                  , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
                   , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: map (tableOf grid) <$> Client.agency } }
                   ]
@@ -413,15 +414,14 @@ plots grid fetch ids shown picked setPicked = D.div
   spreadUnit = case shown of
     Just (Right c) -> Just c.balance.unit
     _ -> Nothing
-  inUnit = maybe "" (\u -> ", in " <> u) spreadUnit
   balancePurpose = "How even final net worth is among the players in each run. "
-    <> maybe "The" (\u -> "The spread is in " <> u <> "; the") spreadUnit
-    <> " Gini coefficient runs from 0 (equal) to 1 − 1/n (one player holds everything)."
+    <> maybe "" (\u -> "The spread is in " <> u <> ". ") spreadUnit
+    <> giniStat.definition
 
   -- the two balance plots side by side, each in its own panel
   balance spreadPlot giniPlot = Layout.grid
-    [ Layout.panel { span: 6, title: "Spread", purpose: "Highest minus lowest final net worth" <> inUnit <> ".", children: [ spreadPlot ] }
-    , Layout.panel { span: 6, title: "Gini coefficient", purpose: "Inequality of final net worth, from 0 to 1 − 1/n.", children: [ giniPlot ] }
+    [ Layout.panel { span: 6, title: "Spread", purpose: spreadStat.definition, children: [ spreadPlot ] }
+    , Layout.panel { span: 6, title: "Gini coefficient", purpose: giniStat.definition, children: [ giniPlot ] }
     ]
 
   playerPicker c = D.label
