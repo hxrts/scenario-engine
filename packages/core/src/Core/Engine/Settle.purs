@@ -106,9 +106,12 @@ jointShort w allocation s = s.item.joint && not (null (shortInputs w allocation 
 -- | Transformation fills per pool. Joint Proposals that would exceed a pool are rejected as a unit; single-author
 -- | orders share what remains pro rata.
 allocate :: WorldState -> Array Scaled -> Allocation
-allocate w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: [] } (entries groups)
+allocate w scaled = foldl (allocateGroup w) { fills: Map.empty, totals: Map.empty, rejected: [], events: map removedEvent belowMinimum } (entries groups)
   where
-  groups = groupBy _.group (conversionOrders w scaled)
+  -- funding may scale an order below its Transformation's minimum, which removes it
+  { yes: belowMinimum, no: standing } = partition (\o -> o.quantity < o.minimum) (conversionOrders w scaled)
+  removedEvent o = orderRemoved w.round (fst o.key) (BelowMinimum o.tid)
+  groups = groupBy _.group standing
 
 type ConversionOrder =
   { key :: Tuple ProposalId Int
@@ -117,9 +120,10 @@ type ConversionOrder =
   , use :: Q -- capacity drawn per unit ordered: `capacityUse`, or one unit per unit of a pool of its own
   , group :: Either TransformationId CapacityRef
   , tid :: TransformationId
+  , minimum :: Q
   }
 
--- | Every Transform, scaled by its Proposal's funding.
+-- | Every Transform, scaled by its Proposal's funding, with its Transformation's minimum.
 conversionOrders :: WorldState -> Array Scaled -> Array ConversionOrder
 conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.proposal.intents)
   where
@@ -131,7 +135,7 @@ conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.propo
           Right _ -> tr.capacityUse
           Left _ -> Q.fromInt 1
       in
-        [ { key: Tuple s.item.proposal.id i, joint: s.item.joint, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation } ]
+        [ { key: Tuple s.item.proposal.id i, joint: s.item.joint, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation, minimum: tr.minimum } ]
     _ -> []
 
 -- | One pool: joint Proposals fill in full or are rejected as a unit; single orders share the remaining

@@ -443,7 +443,7 @@ type Transformation =
   , capacity :: Maybe CapacityRef -- limiting capacity, shared by facilities naming it; Nothing: uncapped
   , delay :: RoundOffset
   , minimum :: Quantity           -- smallest order accepted
-  , maximum :: Maybe Quantity     -- largest order accepted per Entity per round
+  , maximum :: Maybe Quantity     -- largest total accepted per Entity per round, across its Proposals
   , capacityUse :: Quantity       -- capacity drawn per unit ordered
   , ownerSigns :: Boolean         -- the capacity's owner must sign every order
   , effects :: Array CapacityEffect
@@ -633,6 +633,8 @@ All Actor and Aggregate actions for a round are bundled into one round update an
 
 - **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit). For a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `reserves` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Every joint Proposal of a party whose total joint Proposal demand exceeds its holdings is rejected, even if one of those joint Proposals alone could be funded. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying both draw on opening holdings.
+
+**Order bounds under funding and across Proposals.** A Transformation's `maximum` holds per Entity per round: in submission order, a screened Proposal whose Transforms would take an Entity past it is rejected whole. Funding that scales a Transform below its `minimum` removes the order, with `BelowMinimum` recorded.
 
 Every payment out of an Entity is capped at what that Entity holds after the batch so far: Transformation payments, Transfers, levies, and recurring flows alike. Any remainder is a shortfall on the settlement's leg (`moved < owed`) rather than driving a holding negative. Escrow makes the cap bind only in error. It is a backstop, not a second pricing rule. Market fills are not capped: clearing bounds them and escrow funds them. If a settled holding or Market reserve would still be negative, the commit fails the round with an engine error, which is an invariant failure ([INV-04](#inv-04)), not an infeasible action.
 

@@ -196,7 +196,7 @@ conversions = coupledSelect "the cause is a conversion" \c -> case c.cause of
     | not c.delivered -> [ { round: c.round, by: x.by, transformation: x.transformation, quantity: x.units, paid: Q.sumQ (map _.moved (filter payment c.legs)), proposal } ]
   _ -> []
 
--- | A conversion's payment leg: from an Entity to a payee, or destroyed when it has none.
+-- | A conversion's payment leg: from an Entity to the payee. A leg to the sink is an input, never a payment.
 payment :: Flow -> Boolean
 payment l = l.from /= Source && l.to /= Sink
 

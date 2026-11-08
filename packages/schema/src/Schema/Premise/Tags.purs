@@ -36,7 +36,7 @@ enactKindTag = "enact"
 transferabilityTags :: Array TagPair
 transferabilityTags =
   [ { snapshot: "Free", premise: "Free", desc: "tradable and transferable" }
-  , { snapshot: "Restricted", premise: "Restricted", desc: "held only by the Entities that may trade it" }
+  , { snapshot: "Restricted", premise: "Restricted", desc: "transferred only by an Entity with the matching transfer capability" }
   , { snapshot: "NonTransferable", premise: "NonTransferable", desc: "never moves between Entities" }
   ]
 

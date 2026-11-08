@@ -155,6 +155,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeGameboard (json (doc ""))) `shouldEqual` true
       isLeft (decodeGameboard (json (doc """, "reservable": true"""))) `shouldEqual` false
 
+  describe "Transferability tags" do
+    it "describes Restricted as authority-gated transfer" do
+      map _.desc (Array.filter (\p -> p.premise == "Restricted") Tags.transferabilityTags) `shouldEqual` [ "transferred only by an Entity with the matching transfer capability" ]
+
   describe "Rule forms" do
     it "a combination that would do nothing has no form" do
       isLeft (decodeJsonWith Premise ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true

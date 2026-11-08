@@ -15,15 +15,15 @@ import Core.Map (entries, sumMaps)
 import Core.Engine.Circulate (circulate)
 import Core.Engine.Fund (fund)
 import Core.Engine.Prepare (prepareRound)
-import Core.Engine.Screen (duplicatedIds, screen)
+import Core.Engine.Screen (duplicatedIds, screen, withinMaximums)
 import Core.Engine.Settle (Account(..), Settlement, ledgerByAccount, settle)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (submissionOrder)
 import Core.Represent as Represent
 import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, SignedProposal)
-import Core.World (Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
-import Data.Array (concatMap, filter, find, findMap, sortWith)
+import Core.World (rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
+import Data.Array (concatMap, elem, filter, find, findMap, sortWith)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -70,8 +70,11 @@ resolveValid w0 inputs0 =
     w = prepareRound w0
     inputs = sortWith submissionOrder inputs0
     screened = map (screen w (duplicatedIds inputs)) inputs
-    items = concatMap (either (const []) pure) screened
-    screenEvents = concatMap (either identity _.outcome) screened
+    bounded = withinMaximums w (concatMap (either (const []) pure) screened)
+    items = bounded.items
+    overMaximum = map _.proposal bounded.rejected
+    screenEvents = concatMap (either identity (\i -> if i.proposal.id `elem` overMaximum then [] else i.outcome)) screened
+      <> map (\r -> rejection w.round r.proposal r.reason) bounded.rejected
     funded = fund w items
     -- estimates read the validated proposed quantities, before funding scales them (§7.4)
     estimates = Represent.estimate w (map _.proposal items)

@@ -17,7 +17,7 @@ import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, record
 import Core.Shape as Shape
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
-import Core.Slice (runLegQuery, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
+import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
 import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
@@ -917,6 +917,32 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r = empty w
         p = { proposal: { id: proposalId 1 (Id "EU") 0, author: Id "EU", intents: [], signers: [], procedure: Just (Id "t") }, signatures: [] }
       invariantsOf w (r { record = r.record { inputs = [ p ] } }) `shouldEqual` [ "INV-10" ]
+
+  describe "Order bounds and payment legs (C10)" do
+    let
+      fac = { id: Id "F", inputs: Map.singleton (Id "E") (Q.fromInt 1), outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
+      runner e = (actor "A" [ MayTransform (Id "F") ]) { accounts = Map.singleton (Id "E") (Q.fromInt e) }
+      order n = Transform { by: Id "A", transformation: Id "F", quantity: Q.fromInt n }
+      worldOf tr e = (baseWorld [ runner e ]) { transformations = Map.singleton (Id "F") tr }
+      removed = select (read @"reason" (event @"OrderRemoved"))
+    it "maximum holds per Entity per round, across its Proposals" do
+      let w = worldOf (fac { maximum = Just (Q.fromInt 10) }) 100
+      rejections (resolveRound w [ submit "A" 0 [ order 6 ], submit "A" 1 [ order 6 ] ]) `shouldEqual` [ "F order above its maximum" ]
+    it "maximum holds across the Transforms of one Proposal" do
+      let w = worldOf (fac { maximum = Just (Q.fromInt 10) }) 100
+      rejections (resolveRound w [ submit "A" 0 [ order 6, order 6 ] ]) `shouldEqual` [ "F order above its maximum" ]
+    it "orders within the maximum all stand" do
+      let w = worldOf (fac { maximum = Just (Q.fromInt 12) }) 100
+      rejections (resolveRound w [ submit "A" 0 [ order 6 ], submit "A" 1 [ order 6 ] ]) `shouldEqual` []
+    it "funding that scales a Transform below its minimum removes it, with the reason" do
+      let w = worldOf (fac { minimum = Q.fromInt 5 }) 4
+      map renderReason (removed (eventsOf (resolveRound w [ submit "A" 0 [ order 10 ] ]))) `shouldEqual` [ "F order below its minimum" ]
+      either (const Q.zero) (\r -> holding r.world (Id "A") (Id "E")) (resolveRound w [ submit "A" 0 [ order 10 ] ]) `shouldEqual` Q.fromInt 4
+    it "a conversion's paid amount reads its payment leg and not its inputs" do
+      let
+        paying = fac { payment = Just { curve: { intercept: Q.fromInt 2, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, resource: Id "M", to: Id "B" } }
+        w = (baseWorld [ (runner 10) { accounts = Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 10), Tuple (Id "M") (Q.fromInt 100) ] }, actor "B" [] ]) { transformations = Map.singleton (Id "F") paying }
+      map _.paid (select conversions (eventsOf (resolveRound w [ submit "A" 0 [ order 3 ] ]))) `shouldEqual` [ Q.fromInt 6 ]
 
   describe "Leg queries" do
     let

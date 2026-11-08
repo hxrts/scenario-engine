@@ -8,17 +8,19 @@ module Core.Engine.Screen
   , Levy
   , screen
   , duplicatedIds
+  , withinMaximums
   ) where
 
 import Prelude
 
 import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
+import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
 import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, filter, find, length, mapMaybe, nub, nubEq)
+import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
 import Data.Either (Either(..), note)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -60,6 +62,21 @@ duplicatedIds :: Array SignedProposal -> Array ProposalId
 duplicatedIds inputs = nub (filter (\i -> length (filter (_ == i) ids) > 1) ids)
   where
   ids = map (_.proposal.id) inputs
+
+-- | A Transformation's `maximum` holds per Entity per round: in submission order, a screened Proposal whose
+-- | Transforms would take an Entity past it is rejected whole. `validIntent` has checked each order alone.
+withinMaximums :: WorldState -> Array Item -> { items :: Array Item, rejected :: Array { proposal :: ProposalId, reason :: RejectReason } }
+withinMaximums w = _.result <<< foldl step { totals: Map.empty, result: { items: [], rejected: [] } }
+  where
+  step acc item =
+    let
+      orders = transformsOf item.proposal.intents
+      totals = foldl (\m t -> sumInto (Tuple t.by t.transformation) t.quantity m) acc.totals orders
+      over t = maybe false (\tr -> maybe false (lookupQ (Tuple t.by t.transformation) totals > _) tr.maximum) (Map.lookup t.transformation w.transformations)
+    in
+      case find over orders of
+        Just t -> acc { result { rejected = acc.result.rejected <> [ { proposal: item.proposal.id, reason: AboveMaximum t.transformation } ] } }
+        Nothing -> acc { totals = totals, result { items = acc.result.items <> [ item ] } }
 
 -- | Screening: signature completeness, shape, authority, and transfer conditions. `duplicated` is the
 -- | set of ids `duplicatedIds` found in the round.

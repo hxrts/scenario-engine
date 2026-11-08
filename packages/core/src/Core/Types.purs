@@ -370,7 +370,7 @@ type Transformation =
   , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , delay :: RoundOffset
   , minimum :: Quantity -- smallest order accepted
-  , maximum :: Maybe Quantity -- largest order accepted per Entity per round
+  , maximum :: Maybe Quantity -- largest total accepted per Entity per round, across its Proposals
   , capacityUse :: Quantity -- capacity drawn per unit ordered
   , ownerSigns :: Boolean -- the capacity's owner must sign every order
   , effects :: Array CapacityEffect -- capacity changes after the delay
