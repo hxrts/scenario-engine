@@ -4,7 +4,6 @@ package:
     - prelude
     - arrays
     - argonaut-codecs
-    - codec-argonaut
     - argonaut-core
     - argonaut-generic
     - either

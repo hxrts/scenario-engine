@@ -23,7 +23,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Core.Proposal (ProposedDeal, Transcript, proposalBodyShape, proposedDealShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, field, intShape, prose, rec1, rec2, rec3, rec4, requiredOf, stringShape)
+import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, fieldOf, intShape, object, prose, requiredOf, stringShape)
 import Core.Types (EntityId, MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Either (Either)
@@ -40,43 +40,48 @@ import Schema.Decode.Common (readJsonWith)
 type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, entities :: Array EntityId, markets :: Array MarketId }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = rec4 "JointRequest"
-  (field "round" "round" "the round" intShape _.round)
-  (field "transcripts" "transcripts" "the seats' transcripts of the round" (arrayOf transcriptShape) _.transcripts)
-  (field "entities" "entities" "the Entities a Proposal may name" (arrayOf idShape) _.entities)
-  (field "markets" "markets" "the Markets a Proposal may name" (arrayOf idShape) _.markets)
-  (\r t e m -> { round: r, transcripts: t, entities: e, markets: m })
+jointRequestShape = object "JointRequest"
+  ( (\r t e m -> { round: r, transcripts: t, entities: e, markets: m })
+      <$> fieldOf "round" "the round" intShape _.round
+      <*> fieldOf "transcripts" "the seats' transcripts of the round" (arrayOf transcriptShape) _.transcripts
+      <*> fieldOf "entities" "the Entities a Proposal may name" (arrayOf idShape) _.entities
+      <*> fieldOf "markets" "the Markets a Proposal may name" (arrayOf idShape) _.markets
+  )
 
 -- | The narrator's payload: the round and its resolved events.
 type NarrateRequest = { round :: RoundIndex, events :: Array Event }
 
 narrateRequestShape :: Shape NarrateRequest
-narrateRequestShape = rec2 "NarrateRequest"
-  (field "round" "round" "the round" intShape _.round)
-  (field "events" "events" "the round's resolved events" (arrayOf eventShape) _.events)
-  (\r e -> { round: r, events: e })
+narrateRequestShape = object "NarrateRequest"
+  ( (\r e -> { round: r, events: e })
+      <$> fieldOf "round" "the round" intShape _.round
+      <*> fieldOf "events" "the round's resolved events" (arrayOf eventShape) _.events
+  )
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { actor :: EntityId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
-speakRequestShape = rec3 "SpeakRequest"
-  (field "actor" "actor" "the seat" idShape _.actor)
-  (field "briefing" "briefing" "the seat's role" stringShape _.briefing)
-  (field "view" "view" "what the seat can see" viewShape _.view)
-  (\a b v -> { actor: a, briefing: b, view: v })
+speakRequestShape = object "SpeakRequest"
+  ( (\a b v -> { actor: a, briefing: b, view: v })
+      <$> fieldOf "actor" "the seat" idShape _.actor
+      <*> fieldOf "briefing" "the seat's role" stringShape _.briefing
+      <*> fieldOf "view" "what the seat can see" viewShape _.view
+  )
 
 -- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
 jointReplyShape :: Shape { proposals :: Array ProposedDeal }
-jointReplyShape = rec1 "JointReply"
-  (field "proposals" "proposals" "the Proposals the transcripts describe" (requiredOf (arrayOf proposedDealShape)) _.proposals)
-  (\p -> { proposals: p })
+jointReplyShape = object "JointReply"
+  ( (\p -> { proposals: p })
+      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf (arrayOf proposedDealShape)) _.proposals
+  )
 
 -- | A narrator's or seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }
-textReplyShape = rec1 "TextReply"
-  (field "text" "text" "the text" (requiredOf stringShape) _.text)
-  (\t -> { text: t })
+textReplyShape = object "TextReply"
+  ( (\t -> { text: t })
+      <$> fieldOf "text" "the text" (requiredOf stringShape) _.text
+  )
 
 common :: String
 common = "You are a component of a scenario-planning game engine. The user message is a JSON payload. Reply with exactly one JSON object and nothing else. Intents use the engine's JSON encoding as it appears in the payload (tagged objects with \"tag\" and \"values\"). Never invent quantities, Entities, Markets, or Resources that are not in the payload."
