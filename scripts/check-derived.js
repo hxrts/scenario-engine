@@ -148,7 +148,7 @@ function loadContext() {
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
   const specKeys = need("spec keys in Schema.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
-  const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/Tuple "(\w+)"/g)].map((m) => m[1]));
+  const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/^\s*[{,] \w+: "([A-Z]\w+)"/gm)].map((m) => m[1]));
 
   const columns = new Set();
   for (const f of walk(path.join(root, "packages/views/src"), (n) => n.endsWith(".purs"))) {

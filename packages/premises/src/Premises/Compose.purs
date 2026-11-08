@@ -12,7 +12,6 @@ module Premises.Compose
 import Prelude
 
 import Core.Shape (Format(..), encodeWith)
-import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Array (elem, filter)
 import Data.Bifunctor (lmap)
@@ -21,6 +20,7 @@ import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
+import Premises.Kit.Presets (PresetBinding, presetsOf)
 import Premises.Load (decodePresets, fromFiles)
 import Premises.Layout as L
 import Schema.Gameboard (Gameboard, InstantiationConfig)
@@ -34,7 +34,7 @@ type Composition =
   , version :: String
   , gameboard :: Gameboard
   , config :: InstantiationConfig
-  , presets :: Array (Tuple String Strategy)
+  , presets :: PresetBinding
   }
 
 -- | A composition's directory under the premise root (`meridian/v0`).
@@ -42,7 +42,8 @@ directory :: Composition -> String
 directory c = c.id <> "/" <> c.version
 
 -- | One JSON file per section, as the loader reads them: each section is the keys it owns in the
--- | Gameboard's encoding, and the instantiation configuration is its own file.
+-- | Gameboard's encoding, and the instantiation configuration is its own file. The presets file is
+-- | `presetsJson`.
 files :: Composition -> Array (Tuple String Json)
 files c =
   [ section L.premiseFile [ "id", "version", "numeraire", "horizon", "roundRange", "label" ]
@@ -62,7 +63,7 @@ files c =
 
 -- | A composition's seat presets, as the presets file holds them.
 presetsJson :: Composition -> Json
-presetsJson c = encodeWith Premise presetsShape c.presets
+presetsJson c = encodeWith Premise presetsShape (presetsOf c.presets)
 
 -- | The compiled premise, decoded and checked as the loader reads it.
 parts :: Composition -> Either String GameboardParts

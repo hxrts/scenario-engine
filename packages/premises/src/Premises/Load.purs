@@ -1,6 +1,6 @@
 -- | Decodes a premise package from its file contents: every JSON section is merged into one Gameboard
--- | object, except `instantiation.json`, the Instantiation Configuration, and the shared seat presets
--- | are decoded. The texts come in as values (`Premises.Tree`): this module does no IO. Validation is
+-- | object, except `instantiation.json`, the Instantiation Configuration, and the composition's seat
+-- | presets are decoded. The texts come in as values (`Premises.Tree`): this module does no IO. Validation is
 -- | not here: `loadPremise` hands the decoded premise to `Game.Premise.checkPremise`, which checks it
 -- | against itself and its Strategies, so bad data fails before any game is assembled.
 module Premises.Load
@@ -10,13 +10,12 @@ module Premises.Load
   , loadAll
   , loadPresets
   , decodePresets
-  , shippedPresets
   , loadLiteral
   ) where
 
 import Prelude
 
-import Core.Shape (decodeJsonWith, Format(..), encodeWith)
+import Core.Shape (decodeJsonWith, Format(..))
 import Core.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (JsonDecodeError, printJsonDecodeError, parseJson)
@@ -29,7 +28,6 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
 import Premises.Layout (instantiationFile, presetsFile)
-import Premises.Presets as Presets
 import Premises.Tree as Tree
 import Schema.Decode.Common (decodeError)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
@@ -45,10 +43,6 @@ undecodable what e = what <> ": " <> printJsonDecodeError e
 -- | The seat-policy presets (docs/06_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object Strategy)
 loadPresets t = jsonParser t >>= decodePresets
-
--- | The shipped seat presets, encoded and decoded exactly as a compiled premise is read.
-shippedPresets :: Either String (Object Strategy)
-shippedPresets = decodePresets (encodeWith Premise presetsShape Presets.presets)
 
 decodePresets :: Json -> Either String (Object Strategy)
 decodePresets = presetsFrom

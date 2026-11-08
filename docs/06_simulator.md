@@ -116,7 +116,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
-The Dashboard's launch form offers the same names: `GET /api/premise` sends them (`Premises.Presets.presetNames`, in the order written).
+The Dashboard's launch form offers the same names: `GET /api/premise` sends them (`Premises.Presets.presetNames`, in the order written). The strategies are one shared set in `Premises.Kit.Presets`, which each composition binds to its own names and thresholds; a composition's presets compile into its own directory as `presets.json`.
 
 ### 4.3 Coverage
 

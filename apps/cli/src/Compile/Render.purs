@@ -13,7 +13,7 @@ import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (concatMap, sortWith)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
-import Data.Foldable (foldMap, for_)
+import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
@@ -36,8 +36,7 @@ compile = do
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  concatMap (\c -> map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c)) compositions
-    <> foldMap (\c -> [ Tuple presetsFile (presetsJson c) ]) compositions
+  concatMap (\c -> map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])) compositions
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
     <> [ Tuple capstoneRunFile Capstone.file ]
 

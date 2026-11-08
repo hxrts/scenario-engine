@@ -52,7 +52,8 @@ import Premises.Compose (Composition)
 import Premises.Kit (MarketTerms, flowsOf, market, requirementsOf, (~>))
 import Premises.Kit as Kit
 import Premises.Meridian.Entities.Capabilities (defenceAccess)
-import Premises.Presets as Presets
+import Premises.Kit.Presets (PresetBinding, standardThresholds)
+import Schema.Build.Decision (lit)
 import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
 import Core.Draw (Seed(..))
 import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
@@ -101,7 +102,18 @@ gameboard =
 
 -- | The reference premise as a composition.
 meridian :: Composition
-meridian = { id: gameboard.id, version: gameboard.version, gameboard, config: instantiation, presets: Presets.presets }
+meridian = { id: gameboard.id, version: gameboard.version, gameboard, config: instantiation, presets: presetBinding }
+
+-- | What Meridian's seat presets act on.
+presetBinding :: PresetBinding
+presetBinding =
+  { staple: n.energy
+  , money: n.money
+  , build: Just { transformation: n.defenseProcurement, quantity: lit 4 }
+  , invest: Just { transformation: n.energyCapacityInvestment, signer: n.chip }
+  , deploy: Just { reference: n.energyAtlantic, priceAbove: lit 3, transformation: n.militaryDeployment, quantity: lit 60, sellAt: n.defenceGoods, sellQuantity: lit (-40), sellLimit: lit "2.4" }
+  , thresholds: standardThresholds
+  }
 
 resources :: Map ResourceId ResourceDefinition
 resources = Map.union (coreResources) (resourcesOf [ Tuple n.softPower (noResource { transferability = NonTransferable }) ])

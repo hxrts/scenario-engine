@@ -48,7 +48,7 @@ import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Premises.Load (fromFiles, loadFrom, shippedPresets)
+import Premises.Load (decodePresets, fromFiles, loadFrom)
 import Premises.Meridian.Names (meridianDir)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
@@ -106,6 +106,10 @@ loaded = do
     Right x -> pure x
 
 -- | The reference instance's Meridian files, as name-and-JSON sections.
+-- | Meridian's presets, encoded and decoded exactly as a compiled premise is read.
+shippedPresets :: Either String (Object Strategy)
+shippedPresets = decodePresets (Compose.presetsJson meridian)
+
 sections :: Array { name :: String, json :: Json }
 sections = map (\(Tuple name json) -> { name, json }) (Compose.files meridian)
 

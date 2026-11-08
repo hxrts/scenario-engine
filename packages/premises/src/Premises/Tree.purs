@@ -27,7 +27,7 @@ import Premises.Layout (premiseFile, presetsFile)
 -- | failure messages), and its text.
 type Section = { name :: String, path :: String, text :: String }
 
--- | A premise directory's sections, and the shared seat presets file (`presets.json`).
+-- | A premise directory's sections, and its seat presets file (`presets.json`).
 type Premise = { sections :: Array Section, presets :: Section }
 
 -- | The file operations the tree needs: an environment variable, a directory listing, and a file's
@@ -38,8 +38,8 @@ type FileOps m =
   , read :: String -> m (Either { path :: String, reason :: String } String)
   }
 
--- | A premise directory (`meridian/v0`): every `.json` file in it, sorted by name, and
--- | `presets.json` from the root. A failure names the path that could not be read.
+-- | A premise directory (`meridian/v0`): every `.json` file in it, sorted by name, with
+-- | `presets.json` apart. A failure names the path that could not be read.
 readPremise :: forall m. Monad m => FileOps m -> String -> m (Either String Premise)
 readPremise ops dir = do
   root <- premiseRoot ops
@@ -49,7 +49,7 @@ readPremise ops dir = do
     Left e -> pure (Left (unreadable e))
     Right names -> do
       sections <- map sequence (traverse (readSection ops path) (sectionNames names))
-      presets <- readSection ops root presetsFile
+      presets <- readSection ops path presetsFile
       pure do
         ss <- sections
         p <- presets
@@ -85,10 +85,9 @@ premiseRoot ops = map (withSlash <<< fromMaybe "packages/premises") (ops.env "PR
   where
   withSlash dir = if isJust (stripSuffix (Pattern "/") dir) then dir else dir <> "/"
 
--- | A premise directory's sections: its `.json` file names, sorted. The presets file lives at the
--- | root, so a premise directory never lists it.
+-- | A premise directory's sections: its `.json` file names, sorted, without the presets file.
 sectionNames :: Array String -> Array String
-sectionNames = sort <<< filter (isJust <<< stripSuffix (Pattern ".json"))
+sectionNames = sort <<< filter (\n -> isJust (stripSuffix (Pattern ".json") n) && n /= presetsFile)
 
 readSection :: forall m. Monad m => FileOps m -> String -> String -> m (Either String Section)
 readSection ops dir name = map (\r -> map (\text -> { name, path: dir <> name, text }) (lmap unreadable r)) (ops.read (dir <> name))

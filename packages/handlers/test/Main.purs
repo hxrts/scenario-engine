@@ -7,7 +7,8 @@ import Testkit.Edit (onMarket)
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
-import Premises.Meridian.Names (seatActors)
+import Premises.Layout (presetsFile)
+import Premises.Meridian.Names (meridianDir, seatActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
@@ -120,7 +121,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Round runner and Test handler" do
     it "plays five rounds with every seat Conservative and with every seat Passive" do
       g <- unseated
-      presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
+      presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps (meridianDir <> "/" <> presetsFile)))
       case presets of
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do

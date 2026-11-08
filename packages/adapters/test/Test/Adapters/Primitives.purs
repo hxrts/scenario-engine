@@ -60,7 +60,7 @@ spec = describe "Primitives: seed, clock, premise reads" do
       Right _ -> fail "a missing directory must not read"
 
   it "readText reads a file under the premise root; a missing file names its path" do
-    ok <- liftEffect (readRootFile fileOps "presets.json")
+    ok <- liftEffect (readRootFile fileOps (meridianDir <> "/presets.json"))
     case ok of
       Right _ -> pure unit
       Left e -> fail e
