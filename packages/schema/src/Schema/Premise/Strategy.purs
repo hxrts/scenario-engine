@@ -13,9 +13,9 @@ module Schema.Premise.Strategy
 import Prelude
 
 import Core.Query (transfersOf, transformsOf)
-import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericPremiseSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericPremiseSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recordShape, recursive, requiredMaybe, stringShape, unitShape)
 import Core.Num (qShape)
-import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, SignRule, Strategy, Template(..), selfName)
+import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfName)
 import Schema.Premise.Intent (ruleBody)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, dealIntent, idShape, transferBody)
 import Data.Argonaut.Core (Json)
@@ -68,27 +68,22 @@ condShape = recursive "Cond" \c -> genericPremiseSum "Cond"
   , "Le": atOneKey "le" "at most" (pairOf exprShape exprShape)
   , "Eq": atOneKey "eq" "equal to" (pairOf exprShape exprShape)
   , "Not": atOneKey "not" "not" c
-  , "TransformedLastRound": atOneKey "transformedLastRound" "a transformation ran at least the amount last round" transformedBody
-  , "RestrictedLastRound": atOneKey "restrictedLastRound" "a restriction was enacted against the Entity last round" restrictedBody
-  , "RestrictionInForce": atOneKey "restrictionInForce" "a restriction by the jurisdiction is in force" restrictionBody
+  , "Recorded": atOneKey "recorded" "what a query of the record reads is at least the threshold" recordedBody
   }
   where
-  transformedBody = object "TransformedLastRound"
-    ( mk3 <$> fieldOf "by" "the jurisdiction" idShape _.by
-        <*> fieldOf "transformation" "the transformation" idShape _.transformation
+  recordedBody = object "Recorded"
+    ( (\q a -> { query: q, atLeast: a })
+        <$> fieldOf "query" "what to read from the record" recordQueryShape _.query
         <*> fieldOf "atLeast" "the threshold" exprShape _.atLeast
     )
-    where
-    mk3 b t a = { by: b, transformation: t, atLeast: a }
-  restrictedBody = object "RestrictedLastRound"
-    ( mk2 <$> fieldOf "by" "the jurisdiction" idShape _.by
-        <*> fieldOf "target" "the Entity restricted" idShape _.target
-    )
-    where
-    mk2 b t = { by: b, target: t }
-  restrictionBody = object "RestrictionInForce" (mk1 <$> fieldOf "by" "the jurisdiction" idShape _.by)
-    where
-    mk1 b = { by: b }
+
+-- | A question of the record.
+recordQueryShape :: Shape RecordQuery
+recordQueryShape = genericPremiseSum "RecordQuery"
+  { "UnitsConverted": atOneKey "unitsConverted" "the largest single conversion by the Entity last round" (recordShape "UnitsConverted" { by: idShape, transformation: idShape })
+  , "RulesEnacted": atOneKey "rulesEnacted" "the Rules a governor enacted against a counterparty at this round's boundary" (recordShape "RulesEnacted" { governor: idShape, counterparty: idShape })
+  , "RulesInForce": atOneKey "rulesInForce" "the Rules in force a governor governs" (recordShape "RulesInForce" { governor: idShape })
+  }
 
 type TransformRec = { transformation :: TransformationId, quantity :: Expr }
 
@@ -211,12 +206,12 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
           _ -> Nothing
       )
       (const NoAction)
-  , oneKey "reciprocate" "enact the restriction enacted against this Entity last round" reciprocateBody
+  , oneKey "mirror" "enact, turned back on its governor, each Rule of a RulesEnacted query" mirrorBody
       ( \x -> case x of
-          ReciprocateLastRound r -> Just r
+          Mirror r -> Just r
           _ -> Nothing
       )
-      ReciprocateLastRound
+      Mirror
   , oneKey "deal" "a Proposal with no procedure: its transfers, then its transforms" dealBody
       dealOf
       (\r -> ProposalT { signers: r.signers, intents: r.intents, procedure: Nothing })
@@ -231,9 +226,7 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
       IntentT
   ]
   where
-  reciprocateBody = object "Reciprocate" (mk1 <$> fieldOf "target" "the Entity that restricted this one" idShape _.target)
-    where
-    mk1 x = { target: x }
+  mirrorBody = recordShape "Mirror" { governor: idShape, counterparty: idShape }
 
   dealOf :: Template -> Maybe { signers :: Array EntityId, intents :: Array IntentTemplate }
   dealOf = case _ of

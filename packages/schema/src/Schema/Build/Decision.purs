@@ -127,13 +127,13 @@ not' = Not
 
 -- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
 transformedLastRound :: { by :: String, transformation :: String, atLeast :: Expr } -> Cond
-transformedLastRound r = TransformedLastRound { by: Id r.by, transformation: Id r.transformation, atLeast: r.atLeast }
+transformedLastRound r = Recorded { query: S.UnitsConverted { by: Id r.by, transformation: Id r.transformation }, atLeast: r.atLeast }
 
 restrictedLastRound :: { by :: String, target :: String } -> Cond
-restrictedLastRound r = RestrictedLastRound { by: Id r.by, target: Id r.target }
+restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: Id r.by, counterparty: Id r.target }, atLeast: lit 1 }
 
 restrictionInForce :: { by :: String } -> Cond
-restrictionInForce r = RestrictionInForce { by: Id r.by }
+restrictionInForce r = Recorded { query: S.RulesInForce { governor: Id r.by }, atLeast: lit 1 }
 
 -- Templates ------------------------------------------------------------------------------
 
@@ -177,7 +177,7 @@ deal r = ProposalT
 
 -- | Enact the restriction `target` enacted against this Entity last round.
 reciprocate :: { target :: String } -> Template
-reciprocate r = ReciprocateLastRound { target: Id r.target }
+reciprocate r = Mirror { governor: Id r.target, counterparty: Id S.selfName }
 
 choose :: Array Template -> Template
 choose = Choose

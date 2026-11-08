@@ -5,6 +5,7 @@ module Core.Strategy
   ( Strategy
   , Clause
   , Cond(..)
+  , RecordQuery(..)
   , Expr(..)
   , Template(..)
   , SignRule(..)
@@ -63,9 +64,15 @@ data Cond
   | Le Expr Expr
   | Eq Expr Expr
   | Not Cond
-  | TransformedLastRound { by :: EntityId, transformation :: TransformationId, atLeast :: Expr }
-  | RestrictedLastRound { by :: EntityId, target :: EntityId } -- a restriction enacted last round
-  | RestrictionInForce { by :: EntityId } -- a flows Rule governed by that Entity is in force
+  | Recorded { query :: RecordQuery, atLeast :: Expr } -- what a query of the record reads is at least the expression
+
+-- | A question a Strategy asks of the record (docs/02 §4.4). What it reads and the window it reads over:
+-- | the largest single conversion last round, the Rules enacted by a governor against a counterparty
+-- | at this round's boundary, or the Rules in force that a governor governs.
+data RecordQuery
+  = UnitsConverted { by :: EntityId, transformation :: TransformationId }
+  | RulesEnacted { governor :: EntityId, counterparty :: EntityId }
+  | RulesInForce { governor :: EntityId }
 
 -- | A Strategy's template: an Intent or a Proposal with its quantities as expressions, or one of the
 -- | combinators that choose among them or depend on the last round's events. `self` names the acting
@@ -73,7 +80,7 @@ data Cond
 data Template
   = IntentT IntentTemplate -- one Intent (docs/02 §3)
   | ProposalT (ProposalF MarketRef Expr) -- a Deal (no procedure), or a Procedure (its id); its Intents are Intent templates
-  | ReciprocateLastRound { target :: EntityId } -- enact the restriction `target` enacted against this Entity last round
+  | Mirror { governor :: EntityId, counterparty :: EntityId } -- each Rule of a `RulesEnacted` query, turned back on its governor
   | Choose (Array Template) -- one option, picked by a seeded draw
   | NoAction -- propose nothing (an option for Choose)
 
@@ -91,6 +98,11 @@ derive instance Eq MarketRef
 derive instance Ord MarketRef
 derive instance Generic MarketRef _
 instance Show MarketRef where
+  show = genericShow
+
+derive instance Eq RecordQuery
+derive instance Generic RecordQuery _
+instance Show RecordQuery where
   show = genericShow
 
 derive instance Generic Expr _

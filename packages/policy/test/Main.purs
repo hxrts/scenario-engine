@@ -208,7 +208,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ] ]
     it "every entity position resolves self, including a condition's jurisdiction" do
       let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "self" } } ], "propose": [ { "reciprocate": { "target": "CN" } } ] } ] }""" e)
+      intentsOf (drafts """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesEnacted": { "governor": "CN", "counterparty": "self" } }, "atLeast": "1" } } ], "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e)
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "each runs the clause once per accessible Market for the Resource, in id order" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": { "each": "E" }, "quantity": "3" } } ] } ] }""" env { view = twoMarkets })
@@ -265,15 +265,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "reciprocate enacts the mirror of a restriction enacted against this Entity last round" do
       let
         e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "reciprocate": { "target": "CN" } } ] } ] }""" e)
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e)
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "reciprocate draws nothing when the restriction was enacted at an earlier boundary" do
       let
         e = env { view = seat { events = [ Enacted { round: 2, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
-      intentsOf (drafts """{ "rules": [ { "propose": [ { "reciprocate": { "target": "CN" } } ] } ] }""" e) `shouldEqual` []
+      intentsOf (drafts """{ "rules": [ { "propose": [ { "mirror": { "governor": "CN", "counterparty": "self" } } ] } ] }""" e) `shouldEqual` []
     it "restrictedLastRound holds only for a restriction enacted at this round's boundary" do
       let
-        text = """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "EU" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
+        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesEnacted": { "governor": "CN", "counterparty": "EU" } }, "atLeast": "1" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
         fires events = intentsOf (propose (strategyOrThrow text) env { view = seat { events = events } })
         fired = [ Enacted { round: 3, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
         stale = [ Enacted { round: 2, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
@@ -281,7 +281,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       fires stale `shouldEqual` []
     it "restrictionInForce holds when a rule by that jurisdiction is in force" do
       let
-        text = """{ "rules": [ { "when": [ { "restrictionInForce": { "by": "US" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
+        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "rulesInForce": { "governor": "US" } }, "atLeast": "1" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
         at r = intentsOf (drafts text env { view = seat { rules = Map.singleton (Id "r") r } })
       at (banR { jurisdiction: Id "US", target: Id "CN" }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       at (tariffR { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero }) `shouldEqual` []
@@ -289,7 +289,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Parameters and factors" do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
       let
-        text = """{ "rules": [ { "when": [ { "transformedLastRound": { "by": "US", "transformation": "major-military-action", "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
+        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "unitsConverted": { "by": "US", "transformation": "major-military-action" } }, "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
         fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []

@@ -94,7 +94,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- premise
       let
         market = strategyOrThrow """{"rules":[{"when":[],"propose":[{"trade":{"market":"energy-nowhere","quantity":"1"}}]}]}"""
-        entity = strategyOrThrow """{"rules":[{"when":[{"restrictionInForce":{"by":"ATLANTIS"}}],"propose":[]}]}"""
+        entity = strategyOrThrow """{"rules":[{"when":[{"recorded":{"query":{"rulesInForce":{"governor":"ATLANTIS"}},"atLeast":"1"}}],"propose":[]}]}"""
       assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" Market "energy-nowhere")
       assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" EntityRef "ATLANTIS")
     it "a literal premise takes no overrides" do

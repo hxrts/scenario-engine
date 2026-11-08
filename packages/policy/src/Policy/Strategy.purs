@@ -19,7 +19,7 @@ module Policy.Strategy
 import Prelude
 
 import Core.Num (Q)
-import Core.Strategy (Cond(..), Expr(..), MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Strategy (Cond(..), Expr(..), MarketRef(..), RecordQuery(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
 import Data.Const (Const(..))
@@ -47,15 +47,13 @@ type CondAlg a c =
   , le :: a -> a -> c
   , eq :: a -> a -> c
   , not :: c -> c
-  , transformedLastRound :: { by :: EntityId, transformation :: TransformationId, atLeast :: a } -> c
-  , restrictedLastRound :: { by :: EntityId, target :: EntityId } -> c
-  , restrictionInForce :: { by :: EntityId } -> c
+  , recorded :: { query :: RecordQuery, atLeast :: a } -> c
   }
 
 type TemplateAlg a t =
   { intent :: IntentF MarketRef a -> t
   , proposal :: ProposalF MarketRef a -> t
-  , reciprocate :: { target :: EntityId } -> t
+  , mirror :: { governor :: EntityId, counterparty :: EntityId } -> t
   , choose :: Array t -> t
   , noAction :: t
   }
@@ -113,9 +111,7 @@ foldCond expr alg = go
     Le a b -> alg.le (e a) (e b)
     Eq a b -> alg.eq (e a) (e b)
     Not c -> alg.not (go c)
-    TransformedLastRound x -> alg.transformedLastRound { by: x.by, transformation: x.transformation, atLeast: e x.atLeast }
-    RestrictedLastRound x -> alg.restrictedLastRound x
-    RestrictionInForce x -> alg.restrictionInForce x
+    Recorded x -> alg.recorded { query: x.query, atLeast: e x.atLeast }
 
 foldTemplate :: forall a t. ExprAlg a -> TemplateAlg a t -> Template -> t
 foldTemplate expr alg = go
@@ -124,7 +120,7 @@ foldTemplate expr alg = go
   go = case _ of
     IntentT x -> alg.intent (map e x)
     ProposalT p -> alg.proposal { signers: p.signers, intents: map (map e) p.intents, procedure: p.procedure }
-    ReciprocateLastRound x -> alg.reciprocate x
+    Mirror x -> alg.mirror x
     Choose xs -> alg.choose (map go xs)
     NoAction -> alg.noAction
 
@@ -171,16 +167,21 @@ refsCond =
   , le: append
   , eq: append
   , not: identity
-  , transformedLastRound: \x -> [ Tuple EntityRef (idText x.by), Tuple TransformationRef (idText x.transformation) ] <> x.atLeast
-  , restrictedLastRound: \x -> [ Tuple EntityRef (idText x.by), Tuple EntityRef (idText x.target) ]
-  , restrictionInForce: \x -> [ Tuple EntityRef (idText x.by) ]
+  , recorded: \x -> queryRefs x.query <> x.atLeast
   }
+
+-- | The names a query of the record reads.
+queryRefs :: RecordQuery -> Array (Tuple RefKind String)
+queryRefs = case _ of
+  UnitsConverted x -> [ Tuple EntityRef (idText x.by), Tuple TransformationRef (idText x.transformation) ]
+  RulesEnacted x -> [ Tuple EntityRef (idText x.governor), Tuple EntityRef (idText x.counterparty) ]
+  RulesInForce x -> [ Tuple EntityRef (idText x.governor) ]
 
 refsTemplate :: TemplateAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsTemplate =
   { intent: intentRefs
   , proposal: \x -> map (Tuple EntityRef <<< idText) x.signers <> concatMap intentRefs x.intents <> maybe [] (named ProcedureRef) x.procedure
-  , reciprocate: \x -> [ Tuple EntityRef (idText x.target) ]
+  , mirror: \x -> [ Tuple EntityRef (idText x.governor), Tuple EntityRef (idText x.counterparty) ]
   , choose: concat
   , noAction: []
   }

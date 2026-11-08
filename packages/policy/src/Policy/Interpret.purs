@@ -18,7 +18,9 @@ import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (ProposalBody)
-import Core.Query (lookupQ, restrictedAtBoundary, transformedLastRound)
+import Core.Query (lookupQ, restrictedAtBoundary)
+import Core.Slice (conversions, select)
+import Core.Strategy (RecordQuery(..))
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (Scope(..), governorOf, EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
@@ -137,16 +139,14 @@ refCond =
   , le: append
   , eq: append
   , not: identity
-  , transformedLastRound: _.atLeast
-  , restrictedLastRound: const []
-  , restrictionInForce: const []
+  , recorded: _.atLeast
   }
 
 refTemplate :: TemplateAlg (Array MarketRef) (Array MarketRef)
 refTemplate =
   { intent: intentRefs
   , proposal: \p -> concatMap intentRefs p.intents
-  , reciprocate: const []
+  , mirror: const []
   , choose: concat
   , noAction: []
   }
@@ -187,10 +187,20 @@ holds env = foldCond (evalAlg env)
   , le: lift2 (<=)
   , eq: lift2 (==)
   , not: map not
-  , transformedLastRound: \c -> map (\least -> transformedLastRound env.view.round (entityRef env c.by) c.transformation least env.view.events) c.atLeast
-  , restrictedLastRound: \c -> Just (not (null (restrictedAtBoundary env.view.round (entityRef env c.by) (entityRef env c.target) env.view.events)))
-  , restrictionInForce: \c -> Just (any (\r -> governorOf r == Just (entityRef env c.by)) (values env.view.rules))
+  , recorded: \c -> map (recordHolds env c.query) c.atLeast
   }
+
+-- | Whether what a query of the record reads is at least the threshold. A window that read nothing does
+-- | not hold: there is no conversion to measure, or no Rule to count.
+recordHolds :: Env -> RecordQuery -> Q -> Boolean
+recordHolds env query least = case query of
+  UnitsConverted x -> any (\t -> t.round == env.view.round - 1 && t.by == entityRef env x.by && t.transformation == x.transformation && t.quantity >= least) (select conversions env.view.events)
+  RulesEnacted x -> Q.fromInt (length (enacted env x)) >= least
+  RulesInForce x -> Q.fromInt (length (filter (\r -> governorOf r == Just (entityRef env x.governor)) (values env.view.rules))) >= least
+
+-- | The Rules a governor enacted against a counterparty, as they took effect at this round's boundary.
+enacted :: Env -> { governor :: EntityId, counterparty :: EntityId } -> Array Rule
+enacted env x = restrictedAtBoundary env.view.round (entityRef env x.governor) (entityRef env x.counterparty) env.view.events
 
 -- | The Proposals one template yields, and the draw counter after it. A Choose consumes one draw for
 -- | its pick, then interprets the chosen option with the next counter value.
@@ -217,7 +227,7 @@ draft env n t = case t of
 intentsOf :: Env -> Template -> Array Intent
 intentsOf env = case _ of
   IntentT x -> maybe [] keep (evalIntent env x)
-  ReciprocateLastRound x -> map (ChangeRule <<< Enact) (mapMaybe mirror (restrictedAtBoundary env.view.round (entityRef env x.target) env.view.self.id env.view.events))
+  Mirror x -> map (ChangeRule <<< Enact) (mapMaybe mirror (enacted env x))
   NoAction -> []
   Choose _ -> []
   ProposalT _ -> []
