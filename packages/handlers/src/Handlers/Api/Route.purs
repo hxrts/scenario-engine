@@ -14,28 +14,36 @@ module Handlers.Api.Route
   , wire
   , reply
   , failWith
-  , allViews
-  , viewName
-  , parseView
+  , endpointNames
   , errorShape
   ) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Core.Run (deriveKindShape)
+import Core.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Core.Shape (Shape, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
+import Core.Shape (class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (catMaybes, filter, find)
+import Data.Array (catMaybes, filter, findMap, length, zipWith)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
-import Data.String (Pattern(..), joinWith, split)
+import Data.Generic.Rep (class Generic, Argument, Constructor(..), NoArguments, Product, Sum(..), from, to)
+import Data.String (Pattern(..), joinWith, split, stripPrefix)
+import Data.Foldable (lookup)
+import Data.Symbol (class IsSymbol, reflectSymbol)
+import Data.Traversable (sequence)
+import Data.Tuple (Tuple(..), fst, snd)
+import Prim.Row as Row
+import Record as Record
+import Type.Proxy (Proxy(..))
 import Effect (Effect)
-import Effects.Api (ApiRequest(..), DeriveRequest, Launch, Reply, View(..))
+import Effects.Api (ApiRequest, DeriveRequest, Launch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -62,32 +70,6 @@ reply status a = { status, body: stringify (encodeJson a) }
 failWith :: Int -> String -> Reply
 failWith status error = { status, body: stringify (encodeWith Shape.Snapshot errorShape { error }) }
 
--- | Every view of a stored run.
-allViews :: Array View
-allViews = [ Overview, Balances, Markets, Facilities, Economy, Representation, Procedures, Objectives, Standings, NetWorth, Actions, Drivers, Balance, Events ]
-
--- | A view's path segment.
-viewName :: View -> String
-viewName = case _ of
-  Overview -> "overview"
-  Balances -> "balances"
-  Markets -> "markets"
-  Facilities -> "facilities"
-  Economy -> "economy"
-  Representation -> "representation"
-  Procedures -> "procedures"
-  Objectives -> "objectives"
-  Standings -> "standings"
-  NetWorth -> "networth"
-  Actions -> "actions"
-  Drivers -> "drivers"
-  Balance -> "balance"
-  Events -> "events"
-
--- | The view a path segment names.
-parseView :: String -> Maybe View
-parseView s = find (\v -> viewName v == s) allViews
-
 -- | An error reply's body.
 errorShape :: Shape { error :: String }
 errorShape = object "ErrorBody" ((\error -> { error }) <$> fieldOf "error" "what went wrong" stringShape _.error)
@@ -97,30 +79,222 @@ errorShape = object "ErrorBody" ((\error -> { error }) <$> fieldOf "error" "what
 route :: Implementation -> Request -> Effect Reply
 route impl req = either pure impl (parse req)
 
--- | A request as an operation, or the error reply it earns before the operation runs.
-parse :: Request -> Either Reply ApiRequest
-parse req = case req.method, segments of
-  "GET", [ "api", "runs" ] -> Right (ListRuns { archived: param "archived" "" == "true" })
-  "GET", [ "api", "premise" ] -> Right Premise
-  "GET", [ "api", "glossary" ] -> Right Glossary
-  "POST", [ "api", "runs" ] -> map LaunchRun (decodeBody launchShape req.body)
-  "POST", [ "api", "runs", id, "derive" ] -> map (\body -> Derive { id, body }) (decodeBody deriveShape req.body)
-  "POST", [ "api", "runs", id, "resume" ] -> map (\b -> Resume { id, rounds: b.rounds }) (decodeBody resumeShape req.body)
-  "POST", [ "api", "runs", id, "archive" ] -> Right (Archive id)
-  "POST", [ "api", "runs", id, "unarchive" ] -> Right (Unarchive id)
-  "DELETE", [ "api", "runs", id ] -> Right (Delete { id, confirm: param "confirm" "" })
-  "GET", [ "api", "runs", id, "entities" ] -> Right (Entities id)
-  "GET", [ "api", "runs", id, "entity", entity ] -> Right (Entity id entity)
-  "GET", [ "api", "runs", id, view ] -> case parseView view of
-    Just v -> Right (RunView { id, view: v, round: Object.lookup "round" req.query })
-    Nothing -> Left (failWith 404 view)
-  "GET", [ "api", "compare" ] -> Right (Compare { runs: filter (_ /= "") (split (Pattern ",") (param "runs" "")), market: Object.lookup "market" req.query })
-  "GET", [ "api", "agency" ] -> Right (Agency { playerSeed: Object.lookup "playerSeed" req.query, preset: Object.lookup "preset" req.query, alternative: Object.lookup "alternative" req.query })
-  _, _ -> Left (failWith 404 req.path)
+-- | What a request brings to its endpoint: the path's captures by name, the decoded query, the body.
+type Incoming = { captures :: Object String, query :: Object String, body :: String }
+
+-- | What an endpoint's payload adds to a request: captures by name, query pairs with each value
+-- | percent-encoded (the values of a pair are joined by commas), and the body when it has one.
+type Outgoing = { captures :: Array (Tuple String String), query :: Array (Tuple String String), body :: Maybe String }
+
+-- | One bidirectional part of a request: how a value is read from it, and written to it. Every part of an
+-- | endpoint is stated once, so the reader and the writer cannot name different keys.
+newtype Part a b = Part { read :: Incoming -> Either Reply b, write :: a -> Outgoing }
+
+instance Functor (Part a) where
+  map f (Part p) = Part p { read = map f <<< p.read }
+
+instance Apply (Part a) where
+  apply (Part f) (Part x) = Part
+    { read: \i -> f.read i <*> x.read i
+    , write: \a -> let l = f.write a in let r = x.write a in { captures: l.captures <> r.captures, query: l.query <> r.query, body: l.body <|> r.body }
+    }
+
+instance Applicative (Part a) where
+  pure b = Part { read: \_ -> Right b, write: \_ -> nothing }
+
+nothing :: Outgoing
+nothing = { captures: [], query: [], body: Nothing }
+
+-- | A path capture, as the text the path gives.
+capture :: forall a. String -> (a -> String) -> Part a String
+capture name get = Part
+  { read: \i -> Right (fromMaybe "" (Object.lookup name i.captures))
+  , write: \a -> nothing { captures = [ Tuple name (get a) ] }
+  }
+
+-- | A capture that names a View; any other text is a 404 naming it.
+viewCapture :: forall a. String -> (a -> View) -> Part a View
+viewCapture name get = Part
+  { read: \i -> let s = fromMaybe "" (Object.lookup name i.captures) in maybe (Left (failWith 404 s)) Right (parseView s)
+  , write: \a -> nothing { captures = [ Tuple name (viewName (get a)) ] }
+  }
+
+-- | An optional query value.
+optionalParam :: forall a. String -> (a -> Maybe String) -> Part a (Maybe String)
+optionalParam key get = Part
+  { read: \i -> Right (Object.lookup key i.query)
+  , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc v) ]) (get a) }
+  }
+
+-- | A query value that is empty when it is missing, and always sent.
+param :: forall a. String -> (a -> String) -> Part a String
+param key get = Part
+  { read: \i -> Right (fromMaybe "" (Object.lookup key i.query))
+  , write: \a -> nothing { query = [ Tuple key (enc (get a)) ] }
+  }
+
+-- | A query flag: on when its value is `true`, and sent only when on.
+flag :: forall a. String -> (a -> Boolean) -> Part a Boolean
+flag key get = Part
+  { read: \i -> Right (Object.lookup key i.query == Just "true")
+  , write: \a -> nothing { query = if get a then [ Tuple key "true" ] else [] }
+  }
+
+-- | A comma-separated query value; blank items are dropped.
+commaParam :: forall a. String -> (a -> Array String) -> Part a (Array String)
+commaParam key get = Part
+  { read: \i -> Right (filter (_ /= "") (split (Pattern ",") (fromMaybe "" (Object.lookup key i.query))))
+  , write: \a -> nothing { query = [ Tuple key (joinWith "," (map enc (get a))) ] }
+  }
+
+-- | The body, through its shape; a body that does not decode is a 400.
+bodyOf :: forall a b. Shape b -> (a -> b) -> Part a b
+bodyOf s get = Part
+  { read: \i -> decodeBody s i.body
+  , write: \a -> nothing { body = Just (stringify (encodeWith Shape.Premise s (get a))) }
+  }
+
+-- | An endpoint: its method, its path (`:name` is a capture), and how its operation's payload is
+-- | read from and written to a request.
+type Endpoint b = { method :: String, path :: String, part :: Part b b }
+
+-- | A request for one endpoint of the table, without its payload's fields.
+type Entry a = { name :: String, method :: String, path :: Array String, read :: Incoming -> Either Reply a }
+
+segmentsOf :: String -> Array String
+segmentsOf = filter (_ /= "") <<< split (Pattern "/")
+
+-- | The endpoints of a sum of operations, one per constructor: the record of them, and writing an
+-- | operation by matching on its representation. A new constructor without an endpoint does not compile.
+class EndpointRow :: Type -> Row Type -> Constraint
+class EndpointRow rep row | rep -> row
+
+instance (EndpointRow a l, EndpointRow b r, Row.Union l r row) => EndpointRow (Sum a b) row
+
+instance (Payload args p, Row.Cons name (Endpoint p) () row) => EndpointRow (Constructor name args) row
+
+class Endpoints :: Type -> Row Type -> Constraint
+class Endpoints rep row where
+  rowsOf :: forall a. Proxy rep -> Record row -> (rep -> a) -> Array (Entry a)
+  sentOf :: Record row -> rep -> Written
+
+instance (Endpoints a row, Endpoints b row) => Endpoints (Sum a b) row where
+  rowsOf _ r inj = rowsOf (Proxy :: Proxy a) r (inj <<< Inl) <> rowsOf (Proxy :: Proxy b) r (inj <<< Inr)
+  sentOf r = case _ of
+    Inl x -> sentOf r x
+    Inr x -> sentOf r x
+
+instance (IsSymbol name, Payload args p, Row.Cons name (Endpoint p) _t row) => Endpoints (Constructor name args) row where
+  rowsOf _ r inj =
+    [ { name: reflectSymbol name, method: e.method, path: segmentsOf e.path, read: map (inj <<< Constructor <<< fromPayload) <<< p.read } ]
+    where
+    name = Proxy :: Proxy name
+    e = Record.get name r
+    Part p = e.part
+  sentOf r (Constructor a) = { method: e.method, path: e.path, out: p.write (toPayload a) }
+    where
+    e = Record.get (Proxy :: Proxy name) r
+    Part p = e.part
+
+-- | An endpoint's method and path, with what the operation wrote.
+type Written = { method :: String, path :: String, out :: Outgoing }
+
+-- | The URL and body of a request, from what its payload wrote.
+sent :: Written -> Wire
+sent { method, path, out } =
+  { method
+  , url: "/" <> joinWith "/" (map segment (segmentsOf path)) <> queryOf out.query
+  , body: fromMaybe (if method == "POST" then "{}" else "") out.body
+  }
   where
-  -- the client percent-encodes each segment (`wire`), so each is decoded after the path is split
-  segments = map (\s -> fromMaybe s (decodeURIComponent s)) (filter (_ /= "") (split (Pattern "/") req.path))
-  param k d = fromMaybe d (Object.lookup k req.query)
+  segment s = case stripPrefix (Pattern ":") s of
+    Just name -> enc (fromMaybe "" (lookup name out.captures))
+    Nothing -> s
+  queryOf [] = ""
+  queryOf xs = "?" <> joinWith "&" (map (\(Tuple k v) -> k <> "=" <> v) xs)
+
+-- | Percent-encode one path segment or query value.
+enc :: String -> String
+enc s = fromMaybe s (encodeURIComponent s)
+
+-- | The captures of a path that matches a request's segments.
+matchPath :: Array String -> Array String -> Maybe (Object String)
+matchPath pattern segments
+  | length pattern /= length segments = Nothing
+  | otherwise = (Object.fromFoldable <<< catMaybes) <$> sequence (zipWith capturing pattern segments)
+      where
+      capturing p s = case stripPrefix (Pattern ":") p of
+        Just name -> Just (Just (Tuple name s))
+        Nothing -> if p == s then Just Nothing else Nothing
+
+-- | The table the route folds over.
+type Table = { rows :: Array (Entry ApiRequest), write :: ApiRequest -> Written }
+
+table :: forall rep row. Generic ApiRequest rep => EndpointRow rep row => Endpoints rep row => Record row -> Table
+table r = { rows: rowsOf (Proxy :: Proxy rep) r to, write: sentOf r <<< from }
+
+-- | The endpoint table: one row per operation of `ApiRequest`, and the only place a path is written.
+-- | Rows are tried in the order of the type, so `/entities` and `/entity/:entity` come before `/:view`.
+endpoints :: Table
+endpoints = table
+  { "ListRuns": get "/api/runs" ((\archived -> { archived }) <$> flag "archived" _.archived)
+  , "Premise": get "/api/premise" (pure unit)
+  , "Glossary": get "/api/glossary" (pure unit)
+  , "LaunchRun": post "/api/runs" (bodyOf launchShape identity)
+  , "Entities": get "/api/runs/:id/entities" (capture "id" identity)
+  , "Entity": get "/api/runs/:id/entity/:entity" (Tuple <$> capture "id" fst <*> capture "entity" snd)
+  , "RunView": get "/api/runs/:id/:view"
+      ado
+        id <- capture "id" _.id
+        view <- viewCapture "view" _.view
+        round <- optionalParam "round" _.round
+        in { id, view, round }
+  , "Compare": get "/api/compare"
+      ado
+        runs <- commaParam "runs" _.runs
+        market <- optionalParam "market" _.market
+        in { runs, market }
+  , "Agency": get "/api/agency"
+      ado
+        playerSeed <- optionalParam "playerSeed" _.playerSeed
+        preset <- optionalParam "preset" _.preset
+        alternative <- optionalParam "alternative" _.alternative
+        in { playerSeed, preset, alternative }
+  , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
+  , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
+  , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
+  , "Unarchive": post "/api/runs/:id/unarchive" (capture "id" identity)
+  , "Delete": endpoint "DELETE" "/api/runs/:id" ((\id confirm -> { id, confirm }) <$> capture "id" _.id <*> param "confirm" _.confirm)
+  }
+  where
+  endpoint :: forall b. String -> String -> Part b b -> Endpoint b
+  endpoint method path part = { method, path, part }
+
+  get :: forall b. String -> Part b b -> Endpoint b
+  get = endpoint "GET"
+
+  post :: forall b. String -> Part b b -> Endpoint b
+  post = endpoint "POST"
+
+-- | A request as an operation, or the error reply it earns before the operation runs. The client
+-- | percent-encodes each segment (`wire`), so each is decoded after the path is split.
+parse :: Request -> Either Reply ApiRequest
+parse req = case findMap matching endpoints.rows of
+  Just answer -> answer
+  Nothing -> Left (failWith 404 req.path)
+  where
+  segments = map (\s -> fromMaybe s (decodeURIComponent s)) (segmentsOf req.path)
+  matching row
+    | row.method /= req.method = Nothing
+    | otherwise = matchPath row.path segments <#> \captures -> row.read { captures, query: req.query, body: req.body }
+
+-- | An operation as the client sends it. Ids and query values are percent-encoded.
+wire :: ApiRequest -> Wire
+wire = sent <<< endpoints.write
+
+-- | The names of the table's endpoints, one per operation of `ApiRequest`, in the order of the type.
+endpointNames :: Array String
+endpointNames = map _.name endpoints.rows
 
 -- | A body decoded through its shape; a body that does not decode is a 400.
 decodeBody :: forall a. Shape a -> String -> Either Reply a
@@ -158,29 +332,3 @@ deriveShape = object "DeriveRequest" ado
   rounds <- fieldOf "rounds" "a variant's round count" (optionalOf intShape) _.rounds
   overrides <- fieldOf "overrides" "a counterfactual's overrides" (optionalOf (prim "overrides" identity (Right :: Json -> Either String Json))) _.overrides
   in { kind, name, preset, playerSeed, rounds, overrides }
-
--- | An operation as the client sends it. Ids and query values are percent-encoded.
-wire :: ApiRequest -> Wire
-wire = case _ of
-  ListRuns { archived } -> get ("/api/runs" <> query (if archived then [ "archived=true" ] else []))
-  Premise -> get "/api/premise"
-  Glossary -> get "/api/glossary"
-  LaunchRun l -> post "/api/runs" (stringify (encodeWith Shape.Premise launchShape l))
-  Entities id -> get (run id <> "/entities")
-  Entity id e -> get (run id <> "/entity/" <> enc e)
-  RunView { id, view, round } -> get (run id <> "/" <> viewName view <> query (catMaybes [ optional "round" round ]))
-  Compare { runs, market } -> get ("/api/compare" <> query ([ "runs=" <> joinWith "," (map enc runs) ] <> catMaybes [ optional "market" market ]))
-  Agency { playerSeed, preset, alternative } -> get ("/api/agency" <> query (catMaybes [ optional "playerSeed" playerSeed, optional "preset" preset, optional "alternative" alternative ]))
-  Derive { id, body } -> post (run id <> "/derive") (stringify (encodeWith Shape.Premise deriveShape body))
-  Resume { id, rounds } -> post (run id <> "/resume") (stringify (encodeWith Shape.Premise resumeShape { rounds }))
-  Archive id -> post (run id <> "/archive") "{}"
-  Unarchive id -> post (run id <> "/unarchive") "{}"
-  Delete { id, confirm } -> { method: "DELETE", url: run id <> query [ "confirm=" <> enc confirm ], body: "" }
-  where
-  get url = { method: "GET", url, body: "" }
-  post url body = { method: "POST", url, body }
-  run id = "/api/runs/" <> enc id
-  enc s = fromMaybe s (encodeURIComponent s)
-  optional k = map (\v -> k <> "=" <> enc v)
-  query [] = ""
-  query xs = "?" <> joinWith "&" xs

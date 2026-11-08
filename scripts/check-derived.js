@@ -142,10 +142,10 @@ function loadContext() {
   const route = lex(routeText);
   const routeSymbols = symbolsOf(route.bare);
   const inRoute = (name) => route.strings.filter((s) => routeSymbols[s.line - 1] === name).map((s) => s.value);
-  const viewNames = need("view names in viewName", inRoute("viewName"));
-  const methods = new Set(["GET", "POST", "DELETE", "PUT", "api", ""]);
-  const routeSegments = need("route segments in parse", [...new Set(inRoute("parse").filter((s) => /^[a-z]+$/.test(s) && !methods.has(s)))]
-    .filter((s) => new RegExp(`\\[ "api"[^\\]]*"${s}"`).test(routeText)));
+  // a view's path segment is its constructor (Core.View) in lower case
+  const viewNames = need("constructors of Core.View's View", [...((/^data View\n([\s\S]*?)\n\n/m.exec(read(viewFile)) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase()));
+  // the literal segments of the endpoint table's paths
+  const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
   const recipe = read("packages/game/src/Game/Recipe.purs");
   const specKeys = need("spec keys in Game.Recipe", [...(/^specKeys =\n([\s\S]*?)\n\n/m.exec(recipe) || ["", ""])[1].matchAll(/: "(\w+)"/g)].map((m) => m[1]));
@@ -161,6 +161,7 @@ function loadContext() {
 }
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
+const viewFile = "packages/core/src/Core/View.purs";
 const presetsFile = "packages/premises/src/Premises/Presets.purs";
 const recipeFile = "packages/game/src/Game/Recipe.purs";
 
@@ -182,7 +183,7 @@ const fixes = {
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
   "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check-derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
-  "name-literal": "use the name's one source (viewName, specKeys, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
+  "name-literal": "use the name's one source (Core.View.viewName, specKeys, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Market (entries, sumInto, marketPrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",
@@ -286,15 +287,15 @@ function scan(file, text, ctx) {
       const before = (raw[i].split(`"${s.value}"`)[0] || "") + '"';
       const keyed = fieldPosition.test(before) || raw[i].includes(`"${s.value}":`) || raw[i].includes(`"${s.value}" :`);
       // a view
-      if (ctx.viewNames.includes(s.value) && !keyed && file.startsWith("apps/") && file !== routeFile) hit("view", i);
+      if (ctx.viewNames.includes(s.value) && !keyed && file.startsWith("apps/")) hit("view", i);
       // an Event kind, by name or in formula text
       const kindText = ctx.eventKinds.some((k) => new RegExp(`\\b${k} events?\\b`).test(s.value));
       const aColumn = file.startsWith("packages/views/src/") && ctx.columns.has(s.value);
       // a selector's type-level name (`@"Traded"`) and a total fold's handler label are compile-checked
       const typedName = before.endsWith('@"') || raw[i].includes(`"${s.value}":`);
       if ((ctx.eventKinds.includes(s.value) || kindText) && sym !== "eventShape" && !aColumn && !typedName) hit("kind", i);
-      // a route segment: a path built from them, in `wire` (the segments are `parse`'s)
-      if (file === routeFile && sym === "wire" && s.value.includes("/") && s.value.split("/").filter(Boolean).every((p) => p === "api" || ctx.routeSegments.includes(p)) && s.value.split("/").filter(Boolean).length > 0) hit("route", i);
+      // a route segment: a path built from them, outside the endpoint table
+      if (file === routeFile && sym !== "endpoints" && sym !== "apiPrefix" && s.value.includes("/") && s.value.split("/").filter(Boolean).every((p) => p === "api" || ctx.routeSegments.includes(p)) && s.value.split("/").filter(Boolean).length > 0) hit("route", i);
       // a spec key, outside Game.Recipe's one table
       if (ctx.specKeys.includes(s.value) && !keyed && file !== recipeFile && file !== routeFile) hit("spec", i);
       if (file === "packages/views/src/Views/Common.purs" && sym === "specKeys" && ctx.specKeys.includes(s.value)) hit("spec", i);

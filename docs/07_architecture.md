@@ -67,7 +67,7 @@ Module map: every `src` module, one line per package, from `find packages apps -
 packages/adapters:   Adapters.Clock, Adapters.Console, Adapters.Digest, Adapters.Filesystem, Adapters.Pi, Adapters.Random, Adapters.SQLite
 packages/board:      Board.Error, Board.Gameboard.Instantiate, Board.Gameboard.Reconcile, Board.Gameboard.Validate
 packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
-packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Core.World
+packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Map, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Run, Core.Shape, Core.Slice, Core.Strategy, Core.Types, Core.View, Core.World
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
 packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
@@ -181,7 +181,7 @@ Objectives are a view over the records and never touch the engine (Gameboard [§
 **API** (`effects` row `API`, `handlers` routing and client, `apps/server` semantics). Each route is one operation of the `API` row, and the route table is [06 §8.1](06_simulator.md#81-read-api-and-run-operations). A request is an `ApiRequest`, and a reply is a status and a body:
 
 ```purescript
--- handlers/Api/Route: the one route table; parse and wire map between HTTP and ApiRequest
+-- handlers/Api/Route: the one endpoint table; parse and wire are folds over it, between HTTP and ApiRequest
 route  :: Implementation -> Request -> Effect Reply      -- Implementation = ApiRequest -> Effect Reply
 -- handlers/Api/Client: answers each operation over a fetch device, text in and text out
 runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a

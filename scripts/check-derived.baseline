@@ -34,7 +34,6 @@ name-literal apps/cli/src/Options.purs 1
 name-literal apps/dashboard/e2e/mocks.js 2
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
 name-literal apps/server/src/Server/Read.purs 1
-name-literal packages/handlers/src/Handlers/Api/Route.purs 13
 name-literal packages/schema/src/Schema/Premise/Fixture.purs 1
 name-literal packages/views/src/Views/Common.purs 1
 name-literal packages/views/src/Views/Drivers.purs 1

@@ -20,7 +20,8 @@ module Dashboard.Client
 import Prelude
 
 import Dashboard.Api (fetch)
-import Effects.Api (ApiRequest(..), Launch, View(..), call)
+import Core.View (View(..))
+import Effects.Api (ApiRequest(..), Launch, call)
 import Handlers.Api.Client (replyText, runApi)
 import Data.Argonaut.Decode (fromJsonString, class DecodeJson)
 import Schema.Decode.Common (decodeError)

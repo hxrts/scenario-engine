@@ -31,6 +31,7 @@ import Game.Types (Game)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
+import Test.Handlers.Route as RouteTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
@@ -81,6 +82,7 @@ memoryStore saved =
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   LlmTests.spec
+  RouteTests.spec
   Live.spec
   CapstoneTests.spec
   describe "Recorder (RECORD over a store backend, no database)" do

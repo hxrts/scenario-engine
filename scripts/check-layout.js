@@ -17,10 +17,11 @@ const isPurs = (n) => n.endsWith(".purs");
 const tagKinds = walk(schemaSrc, isPurs).flatMap((p) =>
   [...fs.readFileSync(p, "utf8").matchAll(/^\w+Tag = "(\w+)"/gm)].map((m) => m[1]));
 
-// The API's view names: the one table of them is `viewName` in the route table.
+// The API's view names: a view's path segment is its constructor (Core.View) in lower case.
 const routeTable = "packages/handlers/src/Handlers/Api/Route.purs";
-const viewNames = [...fs.readFileSync(path.join(root, routeTable), "utf8").split(/^viewName = case _ of$/m)[1].split(/\n\n/)[0].matchAll(/-> "(\w+)"/g)].map((m) => m[1]);
-if (viewNames.length === 0) { console.error(`${routeTable}: no view names found in viewName`); process.exit(1); }
+const viewFile = "packages/core/src/Core/View.purs";
+const viewNames = [...((/^data View\n([\s\S]*?)\n\n/m.exec(fs.readFileSync(path.join(root, viewFile), "utf8")) || ["", ""])[1]).matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1].toLowerCase());
+if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found in data View`); process.exit(1); }
 
 const rules = [
   {
@@ -36,7 +37,7 @@ const rules = [
     bad: (line) => /["'`]\/api/.test(line),
   },
   {
-    name: "the dashboard names a view by its constructor (Effects.Api.View): a view name literal belongs to Handlers.Api.Route's viewName",
+    name: "the dashboard names a view by its constructor (Core.View.View): a view name literal belongs to Core.View's viewName",
     files: (f) => f.startsWith("apps/dashboard/src/"),
     js: true,
     bad: (line) => viewNames.some((v) => line.includes(`"${v}"`)),

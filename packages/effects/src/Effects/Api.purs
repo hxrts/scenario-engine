@@ -8,7 +8,6 @@
 module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
-  , View(..)
   , Launch
   , DeriveRequest
   , Reply
@@ -20,6 +19,8 @@ module Effects.Api
 import Prelude
 
 import Core.Run (DeriveKind)
+import Core.View (View)
+import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -46,25 +47,6 @@ type DeriveRequest =
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
 
--- | A view of a stored run (`GET /api/runs/:id/:view`). `Handlers.Api.Route` holds its path segment.
-data View
-  = Overview
-  | Balances
-  | Markets
-  | Facilities
-  | Economy
-  | Representation
-  | Procedures
-  | Objectives
-  | Standings
-  | NetWorth
-  | Actions
-  | Drivers
-  | Balance
-  | Events
-
-derive instance Eq View
-
 -- | One operation per route. Query values the routes validate (the round, the seed, the confirmation)
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
@@ -83,6 +65,9 @@ data ApiRequest
   | Archive String
   | Unarchive String
   | Delete { id :: String, confirm :: String }
+
+derive instance Eq ApiRequest
+derive instance Generic ApiRequest _
 
 -- | A request to the API and its reply.
 data ApiF a = Call ApiRequest (Reply -> a)
