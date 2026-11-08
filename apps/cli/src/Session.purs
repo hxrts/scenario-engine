@@ -24,7 +24,7 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (elem, filter, find)
 import Data.Either (Either(..), either)
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
@@ -42,25 +42,25 @@ import Views.Common (quantity)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, settle, startRun)
 import Exit (fail)
-import Game.Assemble (assemble, liveBindings, unknownSeats, withRounds)
+import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Game.Premise (Premise(..))
 import Game.Recipe (encodeSpec)
 import Premises.Presets (presetNames)
 import Schema.Gameboard (gameIdOf)
 import Premises.Load (loadFrom)
 
-type Options = { premise :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
+type Options = { premise :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
 session :: Options -> Effect Unit
 session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
   Left e -> fail e
   Right parts | unknown <- unknownSeats humans parts.config, unknown /= [] ->
     fail ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown))
-  Right parts -> case assemble (GameboardPremise parts) (liveBindings humans parts.config) [] of
+  Right parts -> case traverse_ (checkRounds parts.gameboard) o.rounds *> assemble (GameboardPremise parts) (liveBindings humans parts.config) [] of
     Left e -> fail (show e)
     Right assembled -> launchAff_ do
       let
-        game = withRounds (Just o.rounds) assembled
+        game = withRounds o.rounds assembled
         w0 = game.world
         dir = "runs/" <> o.id
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.gameboard.actors)

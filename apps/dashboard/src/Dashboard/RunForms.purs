@@ -3,30 +3,19 @@
 -- | by the server (`POST /api/runs/:id/resume`, `DELETE /api/runs/:id`).
 module Dashboard.RunForms
   ( rounds
-  , requiredRounds
   ) where
 
 import Prelude
 
 import Data.Either (Either(..))
 import Data.Int as Int
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..))
 import Data.String (trim)
 
--- | The rounds a form accepts: a minimum, and a maximum when the premise bounds it.
-type RoundBounds = { min :: Int, max :: Maybe Int }
-
--- | The round-count rule: a whole number within the bounds, read after trimming the text. The text
--- | is never blank here; a blank field is the caller's choice (the default, or a required field's error).
-rounds :: RoundBounds -> String -> Either String Int
-rounds b s = case Int.fromString (trim s) of
-  Just n | n >= b.min && maybe true (n <= _) b.max -> Right n
-  _ -> Left ("Rounds must be a whole number " <> range <> ".")
-  where
-  range = case b.max of
-    Just m -> "from " <> show b.min <> " to " <> show m
-    Nothing -> "of at least " <> show b.min
-
--- | Rounds that are required (a resume target): the rule with no upper bound, so a blank is an error.
-requiredRounds :: String -> Either String Int
-requiredRounds = rounds { min: 1, max: Nothing }
+-- | The form's round-count rule: a whole number of at least one, read after trimming the text. The
+-- | premise's range is the server's (`Game.Assemble.checkRounds`). The text is never blank here; a
+-- | blank field is the caller's choice (the default, or a required field's error).
+rounds :: String -> Either String Int
+rounds s = case Int.fromString (trim s) of
+  Just n | n >= 1 -> Right n
+  _ -> Left "Rounds must be a whole number of at least 1."

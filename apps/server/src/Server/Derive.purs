@@ -14,6 +14,7 @@ import Core.Draw (Seed(..))
 import Core.World (WorldState)
 import Data.Array (last, length, null)
 import Data.Either (Either(..), either, note)
+import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -27,7 +28,7 @@ import Server.Errors (describe, failWith, ok)
 import Server.Launch (play, start)
 import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
-import Game.Assemble (assemblePreset)
+import Game.Assemble (assemblePreset, checkRounds)
 import Game.Premise (GameboardParts)
 import Core.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
 import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
@@ -67,6 +68,7 @@ deriveRun cache premise store sourceId body = do
             Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
             Just (Right base) -> case deriveRecipe kind body base of
               Left e -> failWith 400 e
+              Right _ | kind == Variant, Just bad <- outOfRange -> failWith 400 bad
               Right recipe -> do
                 let name = fromMaybe (info.name <> " (" <> deriveKindName kind <> ")") body.name
                 started <- start premise store
@@ -87,6 +89,9 @@ deriveRun cache premise store sourceId body = do
                       Left e -> failWith 500 ("the rerun " <> l.id <> " is unreadable: " <> describe e)
                   Right l, _ -> replied l.id Nothing
   where
+  -- a variant is a new game, so a round count it asks for obeys the Gameboard's range; a duplicate or a
+  -- rerun replays what was recorded
+  outOfRange = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.gameboard) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
   replied id recordsMatch = pure (Route.replyIn Premise derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch })
 

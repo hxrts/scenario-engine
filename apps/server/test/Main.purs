@@ -17,7 +17,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
-import Testkit.Meridian (premise)
+import Testkit.Meridian (anyRounds, premise)
 import Core.Types (Id(..))
 import Core.World (Event(..), RoundRecord)
 import Simulator.Records (recordsEqual)
@@ -52,8 +52,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       recordsEqual [ r1, r2 ] [ r1 ] `shouldEqual` false
       recordsEqual [ r1 ] [ r1, r2 ] `shouldEqual` false
   describe "Read API" do
-    it "launches a run, then serves its views and a comparison" do
+    it "a launch or a variant outside the premise's rounds is refused; the configured count applies when none is given; resume is not bounded" do
       map Right premise >>= case _ of
+        Right ctx -> do
+          db <- liftEffect (open ":memory:")
+          cache <- liftEffect newCache
+          let api method path body = liftEffect (route (implement ctx (sqliteBackend db) cache) { method, path, query: Object.empty, body })
+          short <- api "POST" "/api/runs" "{\"name\":\"s\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"
+          short.status `shouldEqual` 400
+          short.body `shouldSatisfy` contains (Pattern "from 4 to 8")
+          long <- api "POST" "/api/runs" "{\"name\":\"l\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":9}"
+          long.status `shouldEqual` 400
+          fine <- api "POST" "/api/runs" "{\"name\":\"f\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":4}"
+          fine.status `shouldEqual` 200
+          variant <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"rounds\":3}"
+          variant.status `shouldEqual` 400
+          variant.body `shouldSatisfy` contains (Pattern "from 4 to 8")
+          -- a resume past the premise's maximum is allowed (docs/06 §8.1), and a duplicate of it replays its inputs
+          resumed <- api "POST" "/api/runs/run-1/resume" "{\"rounds\":9}"
+          resumed.status `shouldEqual` 200
+          duplicate <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"duplicate\"}"
+          duplicate.status `shouldEqual` 201
+        Left (_ :: String) -> fail "unreachable"
+    it "launches a run, then serves its views and a comparison" do
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -119,7 +141,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           oldClient.status `shouldEqual` 200
         Left e -> fail e
     it "a drawn player seed and the same seed injected make the same run" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -154,7 +176,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           map (map (stringify <<< encodeJson) <<< _.snapshot) drawnRows `shouldEqual` map (map (stringify <<< encodeJson) <<< _.snapshot) explicitRows
         Left e -> fail e
     it "every run stores its game id, shown in the overview" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -186,7 +208,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview.body `shouldSatisfy` contains (Pattern "{\"value\":\"Conservative\",\"label\":\"Preset\"}")
         Left e -> fail e
     it "the typed fields the dashboard reads: the premise's default name and presets, the overview's rounds and target, the run flags, the entities and the glossary" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -211,7 +233,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           glossary.body `shouldSatisfy` contains (Pattern "\"Game ID\"")
         Left e -> fail e
     it "the run list has archived and source columns after the existing ones" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -221,7 +243,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           list.body `shouldSatisfy` contains (Pattern "\"Reason\",\"Archived\",\"Source\"")
         Left e -> fail e
     it "derive: duplicate, rerun, variant and counterfactual link to their source; bad requests are refused" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -292,7 +314,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overridesOnVariant.status `shouldEqual` 400
         Left e -> fail e
     it "resume extends a completed run in place, and matches a run played to that length from the start" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -316,7 +338,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           missingRun.status `shouldEqual` 404
         Left e -> fail e
     it "archive hides a run from the default list until it is asked for; delete needs its id as confirm" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -353,7 +375,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           derivedView.status `shouldEqual` 200
         Left e -> fail e
     it "a rerun reports recordsMatch true for a completed run; a missing or unreadable source is 404 or 409" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache
@@ -373,7 +395,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           listed.body `shouldSatisfy` (not <<< contains (Pattern "\"run-5\""))
         Left e -> fail e
     it "a derive or resume after a delete never reuses an id that a run still cites" do
-      map Right premise >>= case _ of
+      map (Right <<< anyRounds) premise >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newCache

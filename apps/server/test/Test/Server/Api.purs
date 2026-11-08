@@ -29,7 +29,7 @@ import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (premise)
+import Testkit.Meridian (anyRounds, premise)
 
 type Env =
   { api :: String -> String -> String -> Aff Reply
@@ -41,7 +41,7 @@ type Env =
 
 setup :: Aff Env
 setup = do
-  ctx <- premise
+  ctx <- anyRounds <$> premise
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newCache
   let

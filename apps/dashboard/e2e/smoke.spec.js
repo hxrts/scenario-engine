@@ -1,8 +1,8 @@
 // Phase 7 gate, against a freshly seeded Run Store (playwright.config.js). The seeded runs are fixed:
-//   run-1 base     Conservative, player seed 1, 3 rounds
-//   run-2 seed     Conservative, player seed 2, 3 rounds
-//   run-3 variant  Aggressive,   player seed 1, 3 rounds
-//   run-4 short    Conservative, player seed 1, 2 rounds
+//   run-1 base     Conservative, player seed 1, 5 rounds
+//   run-2 seed     Conservative, player seed 2, 5 rounds
+//   run-3 variant  Aggressive,   player seed 1, 5 rounds
+//   run-4 short    Conservative, player seed 1, 4 rounds
 // Expected values below are literals taken from that seeded data, not computed from the views, so
 // the assertions do not depend on the code they check.
 import { test, expect } from "@playwright/test";
@@ -13,9 +13,9 @@ import { choice, postSpy, rowWith, section, sectionHas } from "./helpers.js";
 test("the run list shows each seeded run's id, name, rounds and status; empty fields say why", async ({ page }) => {
   await page.goto("/#/runs");
   // the last two cells are Reason (none: the run did not fail) and Source (none: an original run), with Archived before them
-  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "none", "no", "none"]);
-  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "meridian@v0", "26021", "2", "3", "completed", "0", "none", "no", "none"]);
-  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "meridian@v0", "26021", "1", "2", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "meridian@v0", "26021", "1", "5", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "meridian@v0", "26021", "2", "5", "completed", "0", "none", "no", "none"]);
+  await expect(rowWith(page, ["run-4"]).getByRole("cell")).toHaveText(["run-4", "short", "meridian@v0", "26021", "1", "4", "completed", "0", "none", "no", "none"]);
   await expect(page.getByRole("button", { name: "run-1", exact: true })).toBeVisible();
 });
 
@@ -90,7 +90,7 @@ test("the header names the run, its premise, status, rounds completed out of tar
   await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
   await expect(page.getByText("Premise", { exact: true })).toBeVisible();
   await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
-  await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 of 5", { exact: true })).toBeVisible();
   await expect(page.getByText("meridian@v0", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("completed", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Game ID", { exact: true })).toBeVisible();
@@ -151,13 +151,13 @@ test("the manage actions are visible sections, not disclosures", async ({ page }
 });
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/#/runs/run-1");
-  // [entity, kind, resource, initial, current, change] at round 3 of run-1
-  await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "122.4", "-87.6"])).toHaveCount(1);
+  // [entity, kind, resource, initial, current, change] at round 5 of run-1
+  await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "53.12", "-156.88"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/#/runs/run-4");
-  // the balances shown are run-4's last round (2), not its initial state
-  await expect(rowWith(page, ["BR", "Actor", "E", "85", "98", "13"])).toHaveCount(1);
+  // the balances shown are run-4's last round (4), not its initial state
+  await expect(rowWith(page, ["BR", "Actor", "E", "85", "124", "39"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/#/runs/run-1");
@@ -382,12 +382,12 @@ test("clicking another run does not move the results", async ({ page }) => {
 });
 
 test("a resume refreshes the whole run page: the standings show the new round count without a reload", async ({ page, request }) => {
-  const launched = await (await request.post("/api/runs", { data: { name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 2 } })).json();
+  const launched = await (await request.post("/api/runs", { data: { name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 4 } })).json();
   await page.goto(`/#/runs/${launched.id}`);
-  await expect(page.getByText("Standings after round 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Standings after round 4", { exact: true })).toBeVisible();
   const region = page.getByRole("region", { name: "Resume", exact: true });
-  await region.getByLabel("Length to run to").fill("3");
+  await region.getByLabel("Length to run to").fill("5");
   await region.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect(page.getByText("Standings after round 3", { exact: true })).toBeVisible();
-  await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("Standings after round 5", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 of 5", { exact: true })).toBeVisible();
 });

@@ -10,7 +10,7 @@ import Prelude
 import Dashboard.Client as Client
 import Dashboard.Components (errorBlock, labelled, textInput)
 import Dashboard.Route (Route(..), navigate)
-import Dashboard.RunForms (requiredRounds)
+import Dashboard.RunForms (rounds)
 import Dashboard.UI as UI
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -44,7 +44,7 @@ mkRunActions = component "RunActions" \p -> React.do
 
     archive = submit (Right unit) (\_ -> Client.archive p.id p.archived) \_ -> p.onChanged
 
-    resume = submit (requiredRounds resumeRounds) (\n -> Client.resume p.id n) \_ -> do
+    resume = submit (rounds resumeRounds) (\n -> Client.resume p.id n) \_ -> do
       setResumeRounds ""
       p.onChanged
 

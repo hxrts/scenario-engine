@@ -20,11 +20,15 @@ import Handlers.Store (validRunId)
 import Premises.Presets (defaultPresets)
 import Session (Options)
 
-runOptions :: Object String -> Either String { preset :: String, rounds :: Int, seed :: Maybe Seed }
+runOptions :: Object String -> Either String { preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
 runOptions fs = do
-  rounds <- number "--rounds" 5 fs
+  rounds <- roundsFlag fs
   seed <- seedFlag fs
   pure { preset: flagOr "--preset" defaultPresets.run fs, rounds, seed }
+
+-- | The rounds flag: absent means the configuration's count; the premise's range is `checkRounds`.
+roundsFlag :: Object String -> Either String (Maybe Int)
+roundsFlag = optionalInt "--rounds" (_ >= 1) "a whole number of at least 1"
 
 -- | The player seed flag: absent means draw one at start; given, it must be a whole number (the one
 -- | seed rule: `scripts/validate.sh` mirrors it, negative values included).
@@ -33,7 +37,7 @@ seedFlag fs = map Seed <$> optionalInt "--seed" (const true) "a whole number" fs
 
 sessionOptions :: String -> Object String -> Either String Options
 sessionOptions premise fs = do
-  rounds <- number "--rounds" 5 fs
+  rounds <- roundsFlag fs
   window <- numberFrom 0 "--window" 0 fs
   let id = flagOr "--id" "session-1" fs
   if validRunId id then pure unit else Left ("--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got " <> id)

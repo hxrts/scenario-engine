@@ -29,7 +29,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       validRunId "has space" `shouldEqual` false
   describe "run options" do
     it "defaults when no flag is given" do
-      map _.rounds (runOptions Object.empty) `shouldEqual` Right 5
+      map _.rounds (runOptions Object.empty) `shouldEqual` Right Nothing
       map _.preset (runOptions Object.empty) `shouldEqual` Right "Passive"
       map _.seed (runOptions Object.empty) `shouldEqual` Right Nothing
     it "reads a negative seed: the seed is any whole number" do

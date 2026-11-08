@@ -45,7 +45,7 @@ validate s f = do
     t -> maybe (Left "Player seed must be a whole number. Leave it blank to draw one.") (Right <<< Just) (Int.fromString t)
   roundCount <- case trim f.rounds of
     "" -> Right Nothing
-    t -> Just <$> rounds { min: s.rounds.min, max: Just s.rounds.max } t
+    t -> Just <$> rounds t
   pure { name, preset: f.preset, playerSeed, rounds: roundCount }
 
 -- | The round count a form shows and plays: its rounds, or the premise's default when blank.

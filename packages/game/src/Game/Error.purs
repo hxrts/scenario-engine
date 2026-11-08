@@ -16,6 +16,7 @@ data GameError
   | LiteralOverrides -- a literal premise is a World State as written, so it takes no overrides
   | UnboundSeat EntityId -- a configured seat has no binding
   | NotASeat EntityId -- a binding names something that is not a configured seat
+  | RoundsOutside { rounds :: Int, min :: Int, max :: Int } -- a round count the Gameboard does not support
 
 derive instance Eq GameError
 
@@ -37,3 +38,4 @@ renderGameError = case _ of
   LiteralOverrides -> "a literal premise takes no overrides"
   UnboundSeat e -> "seat " <> show e <> " has no binding"
   NotASeat e -> show e <> " is bound but is not a configured seat"
+  RoundsOutside r -> "rounds must be from " <> show r.min <> " to " <> show r.max <> ", got " <> show r.rounds

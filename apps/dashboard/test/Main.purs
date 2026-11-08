@@ -9,7 +9,7 @@ import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
 import Views.Premise (RoundRange, Premise)
 import Dashboard.Route (Route(..), route)
-import Dashboard.RunForms (requiredRounds, rounds)
+import Dashboard.RunForms (rounds)
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Effects.Api as Api
 import Handlers.Api.Route (wire)
@@ -101,13 +101,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       summary premiseRounds emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
       summary premiseRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
-    it "rounds, when given, must be a whole number in the premise's range" do
+    it "rounds, when given, must be a whole number; the premise's range is the server's" do
       validate premise (emptyForm { rounds = " 6 " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
       validate premise (emptyForm { rounds = "4" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
       validate premise (emptyForm { rounds = "8" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
-      validate premise (emptyForm { rounds = "9" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
-      validate premise (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
+      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
+      validate premise (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
     it "a preset must be one the premise offers; Trader is accepted" do
       validate premise (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
       validate premise (emptyForm { preset = "Trader" }) `shouldEqual` Right { name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
@@ -120,16 +119,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right premise
       decodePremise "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
   describe "Round count rule" do
-    it "the launch form and the resume form apply one rule: a whole number within the bounds" do
-      rounds { min: 4, max: Just 8 } " 6 " `shouldEqual` Right 6
-      rounds { min: 4, max: Just 8 } "9" `shouldEqual` Left "Rounds must be a whole number from 4 to 8."
-      rounds { min: 1, max: Nothing } "12" `shouldEqual` Right 12
-      rounds { min: 1, max: Nothing } "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+    it "the launch form and the resume form apply one rule: a whole number of at least one" do
+      rounds " 6 " `shouldEqual` Right 6
+      rounds "12" `shouldEqual` Right 12
+      rounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
   describe "Run actions: form rules" do
     it "resume rounds are a whole number of at least 1" do
-      requiredRounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
-      requiredRounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
-      requiredRounds " 5 " `shouldEqual` Right 5
+      rounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+      rounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
+      rounds " 5 " `shouldEqual` Right 5
   describe "Run actions: request bodies" do
     it "a resume body is the rounds" do
       (wire (Api.Resume { id: "run-1", rounds: 4 })).body `shouldEqual` "{\"rounds\":4}"

@@ -23,7 +23,8 @@ import Core.Shape (Shape, intShape, recordShape, stringShape)
 import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
+import Data.Foldable (traverse_)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
@@ -38,7 +39,7 @@ import Views.Metrics (roundMetrics)
 import Views.Premise (Premise)
 import Premises.Presets (presetNames)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle, validRunId)
-import Game.Assemble (assemblePreset)
+import Game.Assemble (assemblePreset, checkRounds)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
 import Game.Recipe (Derivation, encodeSpec)
@@ -72,7 +73,9 @@ failInterrupted store = runStore store (failRunning { role: serverRole, reason: 
 
 -- | Launch a run from a preset on every seat.
 launch :: GameboardParts -> StoreBackend -> Launch -> Effect (Either String Launched)
-launch p store l = start p store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
+launch p store l = either (pure <<< Left <<< show) (const (startRun)) (traverse_ (checkRounds p.gameboard) l.rounds)
+  where
+  startRun = start p store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
 -- | seed it used. The seed is resolved here, before the run starts, and the stored spec records that

@@ -9,6 +9,7 @@ module Game.Assemble
   , unknownSeats
   , assemblePreset
   , withRounds
+  , checkRounds
   ) where
 
 import Prelude
@@ -37,7 +38,7 @@ import Game.Override (Override, resolve)
 import Game.Premise (GameboardParts, Premise(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.InWorld (inWorldOf)
-import Schema.Gameboard (InstantiationConfig)
+import Schema.Gameboard (Gameboard, InstantiationConfig)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
 -- | names something the baseline lacks, when the world does not instantiate, when the bindings are not
@@ -116,6 +117,14 @@ assemblePreset p preset overrides rounds = do
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
 withRounds :: Maybe Int -> Game -> Game
 withRounds = maybe identity (\n g -> g { rounds = n })
+
+-- | A requested round count against the Gameboard's supported counts (docs/03 §4). The one rule a launch
+-- | boundary applies: the CLI's `--rounds`, a launch's and a variant's `rounds`. A replay of recorded
+-- | inputs and a resume are not requests for a new game length, so `withRounds` itself does not check.
+checkRounds :: Gameboard -> Int -> Either GameError Unit
+checkRounds gb n
+  | n < gb.rounds.min || n > gb.rounds.max = Left (RoundsOutside { rounds: n, min: gb.rounds.min, max: gb.rounds.max })
+  | otherwise = Right unit
 
 -- | The named humans that are not configured seats of the premise, a usage error at the composition root.
 unknownSeats :: Array EntityId -> InstantiationConfig -> Array EntityId

@@ -15,11 +15,11 @@ import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Data.Foldable (foldM, for_)
+import Data.Foldable (foldM, for_, traverse_)
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
-import Game.Assemble (assemblePreset)
+import Game.Assemble (assemblePreset, checkRounds)
 import Flags (flagNames, parseFlags)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
@@ -58,19 +58,19 @@ usage = usageError
   , "       session <premise> [--humans US,DE] [--model provider/id] [--rounds n] [--window seconds] [--id name] [--db file] [--seed n]"
   ]
 
-runPremise :: String -> String -> Int -> Maybe Seed -> Effect Unit
+runPremise :: String -> String -> Maybe Int -> Maybe Seed -> Effect Unit
 runPremise premise presetName rounds given = do
   loaded <- loadFrom fileOps (premise <> "/v0")
   case loaded of
     Left e -> fail e
-    Right parts -> case assemblePreset parts presetName [] (Just rounds) of
+    Right parts -> case traverse_ (checkRounds parts.gameboard) rounds *> assemblePreset parts presetName [] rounds of
       Left e -> fail (show e)
       Right game -> do
         seed <- resolveSeed given
         case simulate seed game of
           Left e -> fail (show e)
           Right out -> do
-            log (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", every seat " <> presetName <> ", " <> show rounds <> " rounds, player seed " <> show (unwrap seed))
+            log (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", every seat " <> presetName <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
             void $ foldM (\w r -> summarize w r $> r.world) game.world out.records
             case out.final of
               Left e -> fail (show e)

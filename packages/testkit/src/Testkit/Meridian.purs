@@ -1,6 +1,6 @@
 -- | The Meridian premise the views, experiments and simulator test suites share, and the fifteen seats every test
 -- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (price, everySeat, run, valid, initialOf, premise, seats, unseated, presetGame, presetSeats, orThrow) where
+module Testkit.Meridian (price, everySeat, run, valid, initialOf, premise, anyRounds, seats, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
 
@@ -48,6 +48,11 @@ unseated = do
 -- | The Meridian seats every test plays.
 seats :: Array String
 seats = seatActors
+
+-- | The premise with its supported round counts opened up, for suites that play a game shorter than the
+-- | premise allows and read something else from it.
+anyRounds :: GameboardParts -> GameboardParts
+anyRounds p = p { gameboard = p.gameboard { rounds = { min: 1, max: 8 } } }
 
 -- | The Meridian premise assembled with every configured seat bound to one preset (see `assemblePreset`).
 presetGame :: GameboardParts -> String -> Array Override -> Maybe Int -> Aff Game
