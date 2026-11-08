@@ -289,7 +289,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Parameters and factors" do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
       let
-        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "unitsConverted": { "by": "US", "transformation": "major-military-action" } }, "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
+        text = """{ "rules": [ { "when": [ { "recorded": { "query": { "legs": { "party": "US", "window": "lastRound", "side": "outgoing", "cause": { "conversionOf": "major-military-action" }, "aggregate": "largestUnits" } }, "atLeast": { "param": "threshold" } } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
         fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ coupled 2 [] Nothing (OfIntent { proposal: Id "p", intent: 0, mechanism: Conversion { by: Id "US", transformation: Id "major-military-action", units: Q.fromInt 10 } }) ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []

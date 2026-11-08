@@ -19,6 +19,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, enactedAtBoundary)
+import Core.Slice (runLegQuery)
 import Core.Slice (conversions, select)
 import Core.Strategy (RecordQuery(..))
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
@@ -194,7 +195,7 @@ holds env = foldCond (evalAlg env)
 -- | not hold: there is no conversion to measure, or no Rule to count.
 recordHolds :: Env -> RecordQuery -> Q -> Boolean
 recordHolds env query least = case query of
-  UnitsConverted x -> any (\t -> t.round == env.view.round - 1 && t.by == entityRef env x.by && t.transformation == x.transformation && t.quantity >= least) (select conversions env.view.events)
+  OfLegs q -> maybe false (_ >= least) (runLegQuery env.view.round env.view.events (q { party = entityRef env q.party }))
   RulesEnacted x -> Q.fromInt (length (enacted env x)) >= least
   RulesInForce x -> Q.fromInt (length (filter (\r -> governorOf r == Just (entityRef env x.governor)) (values env.view.rules))) >= least
 

@@ -18,6 +18,7 @@ module Core.Strategy
 import Prelude
 
 import Core.Num (Q)
+import Core.World (LegQuery)
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
@@ -66,11 +67,10 @@ data Cond
   | Not Cond
   | Recorded { query :: RecordQuery, atLeast :: Expr } -- what a query of the record reads is at least the expression
 
--- | A question a Strategy asks of the record (docs/02 §4.4). What it reads and the window it reads over:
--- | the largest single conversion last round, the Rules enacted by a governor against a counterparty
+-- | A question a Strategy asks of the record (docs/02 §4.4): a query of the settlement legs, the Rules enacted by a governor against a counterparty
 -- | at this round's boundary, or the Rules in force that a governor governs.
 data RecordQuery
-  = UnitsConverted { by :: EntityId, transformation :: TransformationId }
+  = OfLegs LegQuery
   | RulesEnacted { governor :: EntityId, counterparty :: EntityId }
   | RulesInForce { governor :: EntityId }
 

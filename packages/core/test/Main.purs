@@ -17,8 +17,8 @@ import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, record
 import Core.Shape as Shape
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
-import Core.Slice (conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Core.World (Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
+import Core.Slice (runLegQuery, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
+import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
 import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
@@ -179,7 +179,7 @@ testCause = OfRecurring { rule: Id "r", kind: Id "k" }
 
 -- | A recurring-flow rule of a local kind (core tests cannot use the DSL).
 testRule :: String -> RecurringSource -> RecurringDestination -> ResourceId -> RecurringAmount -> RecurringFlow
-testRule kind source destination resource amount = { id: Id ("test-" <> kind), kind: Id kind, source, destination, resource, amount, condition: Nothing, onShortfall: NoEffect, offsetable: false, delay: 0 }
+testRule kind source destination resource amount = { id: Id ("test-" <> kind), kind: Id kind, source, destination, resource, amount, onShortfall: NoEffect, offsetable: false, delay: 0 }
 
 -- | The quantity of a conversion's settlement.
 transformedQ :: Event -> Array Q
@@ -832,13 +832,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       holding r.world (Id "B") (Id "M") `shouldEqual` Q.fromInt 100
       holding r.world (Id "A") (Id "E") `shouldEqual` Q.fromInt 1
       length (rejections (Right r)) `shouldEqual` 1
-    it "a recurring rule's condition gates it on what its holder holds" do
-      let
-        w = (baseWorld [ (actor "A" []) { accounts = Map.singleton (Id "M") (Q.fromInt 100) }, actor "B" [] ]) { recurring = [ (testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt 5))) { condition = Just { holder: Id "A", resource: Id "E", atLeast: Q.fromInt 1 } } ] }
-        moved w' = either (const Q.zero) (\r -> holding r.world (Id "B") (Id "M")) (resolveRound w' [])
-        holdsE = w { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "E") (Q.fromInt 1) e.accounts }) (Id "A") w.entities }
-      moved w `shouldEqual` Q.fromInt 100
-      moved holdsE `shouldEqual` Q.fromInt 105
     it "a negative fixed flow is an engine error, not a crash" do
       let w = (baseWorld [ actor "A" [], actor "B" [] ]) { recurring = [ testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt (-1))) ] }
       rejections (resolveRound w []) `shouldEqual` [ "negative fixed flow: A to B" ]
@@ -924,6 +917,26 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r = empty w
         p = { proposal: { id: proposalId 1 (Id "EU") 0, author: Id "EU", intents: [], signers: [], procedure: Just (Id "t") }, signatures: [] }
       invariantsOf w (r { record = r.record { inputs = [ p ] } }) `shouldEqual` [ "INV-10" ]
+
+  describe "Leg queries" do
+    let
+      fill round party = coupled round
+        [ { from: InMarket (Id "M1"), to: Held (Id party), resource: Id "E", owed: Q.fromInt 3, moved: Q.fromInt 3 }
+        , { from: Held (Id party), to: InMarket (Id "M1"), resource: Id "Cash", owed: Q.fromInt 6, moved: Q.fromInt 6 }
+        ]
+        (Just (Q.fromInt 2))
+        (OfIntent { proposal: Id "p", intent: 0, mechanism: Curve (Id "M1") })
+      query window side aggregate = { window, party: Id "A", side, resource: Just (Id "E"), cause: CurveBase, aggregate }
+      evs = [ fill 1 "A", fill 2 "A", fill 2 "B" ]
+    it "reads this round so far, or the round before, and only its party" do
+      runLegQuery 2 evs (query ThisRoundSoFar Incoming SumMoved) `shouldEqual` Just (Q.fromInt 3)
+      runLegQuery 2 evs (query LastRound Incoming SumMoved) `shouldEqual` Just (Q.fromInt 3)
+      runLegQuery 3 evs (query ThisRoundSoFar Incoming SumMoved) `shouldEqual` Just Q.zero
+    it "reads value at the leg's rate, and nets outgoing at zero or above" do
+      runLegQuery 2 evs (query ThisRoundSoFar Incoming SumValue) `shouldEqual` Just (Q.fromInt 6)
+      runLegQuery 2 evs (query ThisRoundSoFar NetOutgoing SumValue) `shouldEqual` Just Q.zero
+    it "a largest-units query that finds no conversion reads nothing" do
+      runLegQuery 2 evs { window: LastRound, party: Id "A", side: Outgoing, resource: Nothing, cause: ConversionOf (Id "t"), aggregate: LargestUnits } `shouldEqual` Nothing
 
   describe "Derived shapes" do
     it "recordShape encodes a Market byte for byte as a hand-written object, in both formats, and reads it back" do

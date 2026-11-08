@@ -108,7 +108,9 @@ mergeInto agg e w = case Map.lookup e w.entities of
     , destination = case r.destination of
         ToEntity x -> ToEntity (retarget x)
         ToSink -> ToSink
-    , condition = map (\c -> c { holder = retarget c.holder }) r.condition
+    , amount = case r.amount of
+        Measured m -> Measured m { query = m.query { party = retarget m.query.party } }
+        other -> other
     }
   notSelfFlow r = case r.source, r.destination of
     FromEntity a, ToEntity b -> a /= b
@@ -169,5 +171,5 @@ mergeRequirements = foldl add []
   mergedAmount :: RecurringAmount -> RecurringAmount -> Maybe RecurringAmount
   mergedAmount a b = case a, b of
     FixedAmount x, FixedAmount y -> Just (FixedAmount (Q.add x y))
-    PurchasesThisRound, PurchasesThisRound -> Just PurchasesThisRound
+    Measured x, Measured y | x == y -> Just (Measured x)
     _, _ -> Nothing

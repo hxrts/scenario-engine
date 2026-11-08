@@ -17,6 +17,7 @@ import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWi
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfName)
 import Schema.Premise.Intent (ruleBody)
+import Schema.Premise.Query (legQueryShape)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, jointIntent, idShape, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
@@ -80,7 +81,7 @@ condShape = recursive "Cond" \c -> genericPremiseSum "Cond"
 -- | A question of the record.
 recordQueryShape :: Shape RecordQuery
 recordQueryShape = genericPremiseSum "RecordQuery"
-  { "UnitsConverted": atOneKey "unitsConverted" "the largest single conversion by the Entity last round" (recordShape "UnitsConverted" { by: idShape, transformation: idShape })
+  { "OfLegs": atOneKey "legs" "a query of the settlement legs" legQueryShape
   , "RulesEnacted": atOneKey "rulesEnacted" "the Rules a governor enacted against a counterparty at this round's boundary" (recordShape "RulesEnacted" { governor: idShape, counterparty: idShape })
   , "RulesInForce": atOneKey "rulesInForce" "the Rules in force a governor governs" (recordShape "RulesInForce" { governor: idShape })
   }

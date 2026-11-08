@@ -8,7 +8,7 @@ import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (atTagged, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
+import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
 import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Payment, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -66,7 +66,6 @@ type RecurringFlow =
   , destination :: RecurringDestination
   , resource :: ResourceId
   , amount :: RecurringAmount
-  , condition :: Maybe { holder :: EntityId, resource :: ResourceId, atLeast :: Quantity } -- the rule applies only while the holder holds at least this much
   , onShortfall :: ShortfallEffect -- what a shortfall on this rule does
   , offsetable :: Boolean -- reduced pro rata by the recipient's accrued offset
   , delay :: Int -- rounds until a created Resource is delivered; 0 delivers in this round
@@ -81,14 +80,32 @@ data RecurringDestination = ToEntity EntityId | ToSink
 data RecurringAmount
   = FixedAmount Quantity
   | CapacityHeld CapacityRef -- the destination's holding of this capacity
-  | ShareOf { ratio :: Ratio, basis :: ShareBasis } -- a fraction of what the source received this round
-  | PurchasesThisRound -- what the source bought of the Resource on Markets this round
   | FractionHeld Ratio -- a fraction of what the source holds
+  | Measured { ratio :: Ratio, query :: LegQuery } -- this fraction of what a query of the record reads
 
--- | What a share is a fraction of, from the source's settlement this round.
-data ShareBasis
-  = NetSales ResourceId -- net receipts from selling this Resource on Markets
-  | PaymentsReceived -- what it received as the payee of a conversion
+-- | Which round a query reads: this round's settlement so far, or the round before.
+data Window = ThisRoundSoFar | LastRound
+
+-- | Which of the party's legs a query reads: those into it, those out of it, or out minus in, at least zero.
+data Side = Incoming | Outgoing | NetOutgoing
+
+-- | Which settlements a query reads: a Market fill's base leg, a conversion's payment leg, or conversions of a
+-- | Transformation.
+data CausePattern = CurveBase | ConversionPayment | ConversionOf TransformationId
+
+-- | What a query computes: the sum moved, the sum of rate times moved, or the largest single conversion's units.
+data LegAggregate = SumMoved | SumValue | LargestUnits
+
+-- | A question about the record (docs/02 §6): a window, a party, a side, an optional Resource, a cause
+-- | pattern, and an aggregate. Stored in a premise as data.
+type LegQuery =
+  { window :: Window
+  , party :: EntityId
+  , side :: Side
+  , resource :: Maybe ResourceId
+  , cause :: CausePattern
+  , aggregate :: LegAggregate
+  }
 
 -- | What the engine does when a recurring flow cannot move all it owes.
 data ShortfallEffect
@@ -152,9 +169,24 @@ derive instance Generic RecurringAmount _
 instance Show RecurringAmount where
   show = genericShow
 
-derive instance Eq ShareBasis
-derive instance Generic ShareBasis _
-instance Show ShareBasis where
+derive instance Eq Window
+derive instance Generic Window _
+instance Show Window where
+  show = genericShow
+
+derive instance Eq Side
+derive instance Generic Side _
+instance Show Side where
+  show = genericShow
+
+derive instance Eq CausePattern
+derive instance Generic CausePattern _
+instance Show CausePattern where
+  show = genericShow
+
+derive instance Eq LegAggregate
+derive instance Generic LegAggregate _
+instance Show LegAggregate where
   show = genericShow
 
 derive instance Eq ShortfallEffect
@@ -198,11 +230,29 @@ instance EncodeJson RecurringAmount where
 instance DecodeJson RecurringAmount where
   decodeJson = decodeJsonWith Snapshot recurringAmountShape
 
-instance EncodeJson ShareBasis where
-  encodeJson = encodeJsonWith Snapshot shareBasisShape
+instance EncodeJson Window where
+  encodeJson = encodeJsonWith Snapshot windowShape
 
-instance DecodeJson ShareBasis where
-  decodeJson = decodeJsonWith Snapshot shareBasisShape
+instance DecodeJson Window where
+  decodeJson = decodeJsonWith Snapshot windowShape
+
+instance EncodeJson Side where
+  encodeJson = encodeJsonWith Snapshot sideShape
+
+instance DecodeJson Side where
+  decodeJson = decodeJsonWith Snapshot sideShape
+
+instance EncodeJson CausePattern where
+  encodeJson = encodeJsonWith Snapshot causePatternShape
+
+instance DecodeJson CausePattern where
+  decodeJson = decodeJsonWith Snapshot causePatternShape
+
+instance EncodeJson LegAggregate where
+  encodeJson = encodeJsonWith Snapshot legAggregateShape
+
+instance DecodeJson LegAggregate where
+  decodeJson = decodeJsonWith Snapshot legAggregateShape
 
 instance EncodeJson ShortfallEffect where
   encodeJson = encodeJsonWith Snapshot shortfallEffectShape
@@ -539,7 +589,6 @@ recurringFlowShape = recordShape "RecurringFlow"
   , destination: recurringDestinationShape
   , resource: idShape
   , amount: recurringAmountShape
-  , condition: optionalOf (recordShape "Condition" { holder: idShape, resource: idShape, atLeast: qShape })
   , onShortfall: shortfallEffectShape
   , offsetable: boolShape
   , delay: intShape
@@ -562,16 +611,28 @@ recurringAmountShape :: Shape RecurringAmount
 recurringAmountShape = genericSum "RecurringAmount"
   { "FixedAmount": atTagged "a fixed quantity" qShape
   , "CapacityHeld": atTagged "what the destination holds of this capacity" idShape
-  , "ShareOf": atTagged "a share of what the source received" (recordShape "ShareOf" { ratio: qShape, basis: shareBasisShape })
-  , "PurchasesThisRound": atTagged "this round's Market purchases of the Resource" unitShape
   , "FractionHeld": atTagged "a fraction of what the source holds" qShape
+  , "Measured": atTagged "a fraction of what a query of the record reads" (recordShape "Measured" { ratio: qShape, query: legQueryShape })
   }
 
-shareBasisShape :: Shape ShareBasis
-shareBasisShape = genericSum "ShareBasis"
-  { "NetSales": atTagged "net receipts from selling this Resource" idShape
-  , "PaymentsReceived": atTagged "payments received as a payee" unitShape
+windowShape :: Shape Window
+windowShape = genericEnum "Window"
+
+sideShape :: Shape Side
+sideShape = genericEnum "Side"
+
+causePatternShape :: Shape CausePattern
+causePatternShape = genericSum "CausePattern"
+  { "CurveBase": atTagged "the base leg of a Market fill" unitShape
+  , "ConversionPayment": atTagged "a conversion's payment leg" unitShape
+  , "ConversionOf": atTagged "conversions of this Transformation" idShape
   }
+
+legAggregateShape :: Shape LegAggregate
+legAggregateShape = genericEnum "LegAggregate"
+
+legQueryShape :: Shape LegQuery
+legQueryShape = recordShape "LegQuery" { window: windowShape, party: idShape, side: sideShape, resource: optionalOf idShape, cause: causePatternShape, aggregate: legAggregateShape }
 
 shortfallEffectShape :: Shape ShortfallEffect
 shortfallEffectShape = genericSum "ShortfallEffect"

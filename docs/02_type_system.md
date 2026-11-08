@@ -173,7 +173,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Flow** | One leg of a settlement: a quantity of a Resource `owed` from one endpoint (an Entity, a Market, a source, or a sink) to another, and how much `moved`. |
 | **Coupled flow** | The one settlement event: `Coupled { legs, rate, cause }`. Its legs settle together, at its exact stored rate when it has one. A trade is two legs at a rate; a Transform is its input, output, and payment legs; a single move is one leg ([§5.5](#55-simultaneous-clearing)). |
 | **Cause** | Structurally, what produced a settlement: an Intent of a Proposal (with the mechanism that settled it), a declared Rule kind, or a recurring-flow rule. A premise's names live on the thing the cause points at. |
-| **Recurring flow** | One rule of the recurring cycle: a source, a destination, a Resource, an amount, a condition, and what a shortfall does ([§6](#6-economic-circulation)). |
+| **Recurring flow** | One rule of the recurring cycle: a source, a destination, a Resource, an amount, and what a shortfall does ([§6](#6-economic-circulation)). |
 | **Delivery** | A scheduled change to a holding or capacity, applied at the start of the round it is due. |
 | **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
 | **Behavior domain** | The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
@@ -504,12 +504,13 @@ type RecurringFlow =
   , source :: RecurringSource                            -- one Entity, each Entity holding the Resource, or created
   , destination :: RecurringDestination                  -- one Entity, or a sink
   , resource :: ResourceId
-  , amount :: RecurringAmount                            -- fixed, a capacity held, a share of what the source received, this round's purchases, or a fraction held
-  , condition :: Maybe { holder :: EntityId, resource :: ResourceId, atLeast :: Quantity }  -- applies only while the holder holds this much
+  , amount :: RecurringAmount                            -- fixed, a capacity held, a fraction held, or `Measured { ratio, query }` over a LegQuery
   , onShortfall :: ShortfallEffect                       -- NoEffect, or accrue against the offsetable flows the Entity receives
   , offsetable :: Boolean                                -- reduced pro rata by the recipient's accrued offset
   , delay :: Int }                                       -- rounds until a created Resource is delivered
 ```
+
+A `LegQuery` (`{ window, party, side, resource, cause, aggregate }`) is one question of the record, stored as data: `window` is this round's settlement so far or the round before; `side` is what came into the party, what left it, or the net out (at least zero); `cause` picks a Market fill's base leg, a conversion's payment leg, or conversions of a Transformation; and `aggregate` is the sum moved, the sum of rate × moved, or the largest conversion's units. Both shares and a Strategy's `Recorded` condition read through it. A constant, a capacity held, and a fraction held are not questions of the record, so they stay amounts of their own, as Rules enacted and in force stay `Recorded` readings of their own.
 
 A premise authors production, flows, shares, requirements, and a Resource's decay ([03 §5.4](03_gameboard.md#54-recurring-cycle)); the DSL compiles them to these rules in the engine's order: production, shares, requirements, fixed flows by recipient, decay. Each evaluation produces a `Coupled` event whose `cause` is the rule, and a shortfall is `moved < owed` on its leg.
 

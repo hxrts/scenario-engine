@@ -50,7 +50,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Gameboard (Scheme)
-import Schema.Recurring (ShareSource)
+import Schema.Premise.Query (ShareMeasure, measureShape)
 import Schema.Recurring as Recurring
 import Schema.Premise.Actor (DefinitionDoc, definitionShape)
 import Schema.Premise.Intent (capabilityShape, ruleShape)
@@ -136,7 +136,7 @@ type ProductionDoc = { entity :: EntityId, resource :: ResourceId, capacity :: C
 
 type FlowDoc = { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q }
 
-type ShareDoc = { from :: EntityId, to :: EntityId, share :: Q, source :: ShareSource }
+type ShareDoc = { from :: EntityId, to :: EntityId, share :: Q, source :: ShareMeasure }
 
 type RequirementDoc = { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Maybe Q }
 
@@ -333,16 +333,10 @@ shareShape = object "Share"
   ( mk <$> fieldOf "from" "the paying Entity" idShape _.from
       <*> fieldOf "to" "the receiving Entity" idShape _.to
       <*> fieldOf "share" "the share of the source" qShape _.share
-      <*> fieldOf "source" "what the share is of" shareSourceShape _.source
+      <*> fieldOf "source" "what the share is of: a query with no party, the payer being it" measureShape _.source
   )
   where
   mk f t s src = { from: f, to: t, share: s, source: src }
-
-shareSourceShape :: Shape ShareSource
-shareSourceShape = genericPremiseSum "ShareSource"
-  { "SalesOf": atKindArg { tag: "sales", desc: "net Money revenue from selling a Resource on Markets" } idShape
-  , "PayeeReceipts": atBare { tag: "payee", desc: "Money received as a facility payee" }
-  }
 
 requirementShape :: Shape RequirementDoc
 requirementShape = object "Requirement"
@@ -566,4 +560,4 @@ recurringOf numeraire c rs = Recurring.compile
   }
   where
   -- a share is paid in the premise's numeraire
-  shareToCore s = { from: s.from, to: s.to, resource: numeraire, share: s.share, basis: Recurring.shareBasis s.source }
+  shareToCore s = { from: s.from, to: s.to, resource: numeraire, share: s.share, source: s.source }

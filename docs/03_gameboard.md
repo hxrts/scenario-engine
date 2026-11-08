@@ -106,7 +106,7 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 
 - `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
 - `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round.
-- `shares`: `[{ from, to, share, source }]`. A share of sales revenue (`sales:<resource>`) or of payee receipts (`payee`).
+- `shares`: `[{ from, to, share, source }]`. A share of a `LegQuery` read without its party, the payer being it (`{ window, side, resource?, cause, aggregate }`): the DSL's `sales <resource>` is net sales this round, and `payee` is payments received this round.
 - `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` against that Entity's incoming flows.
 
 The authored forms and a Resource's `decay` are compiled (`Schema.Recurring`) into the one `RecurringFlow` rule ([02 §6](02_type_system.md#6-economic-circulation)).

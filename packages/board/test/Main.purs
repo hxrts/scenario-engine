@@ -130,9 +130,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "two explicit amounts for one Entity and Resource are summed" do
       map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req (Just (Q.fromInt 4)) ]) `shouldEqual` [ FixedAmount (Q.fromInt 7) ]
     it "an explicit amount and one equal to purchases both survive the merge, neither replaced by the other" do
-      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req Nothing ]) `shouldEqual` [ FixedAmount (Q.fromInt 3), PurchasesThisRound ]
+      map _.amount (mergeRequirements [ req (Just (Q.fromInt 3)), req Nothing ]) `shouldEqual` [ FixedAmount (Q.fromInt 3), (req Nothing).amount ]
     it "two requirements equal to purchases stay one" do
-      map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ PurchasesThisRound ]
+      map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ (req Nothing).amount ]
 
   describe "Coverage merge retargets references (docs/04 §4.2)" do
     let config = { seed: Seed 1, rounds: 2, seats: Map.empty, npcs: Map.empty, fallbacks: Map.empty, representations: [] }

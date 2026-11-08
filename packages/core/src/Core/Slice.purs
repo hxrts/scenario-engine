@@ -24,6 +24,7 @@ module Core.Slice
   , exchanges
   , conversions
   , conversionPaymentsTo
+  , runLegQuery
   , transfers
   , levies
   , shortfalls
@@ -49,9 +50,9 @@ import Control.Alt ((<|>))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
-import Core.World (Cause(..), Endpoint(..), Event, Flow, Mechanism(..))
+import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
 import Data.Array (concatMap, elem, filter, foldl, head, index, length, mapMaybe, nubEq, snoc)
-import Data.Foldable (any)
+import Data.Foldable (any, maximum)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), Sum(..), from)
 import Data.Maybe (Maybe(..), maybe)
@@ -204,6 +205,36 @@ conversionPaymentsTo :: EntityId -> Select Flow
 conversionPaymentsTo e = coupledSelect "payment legs to the Entity from conversions" \c -> case c.cause of
   OfIntent { mechanism: Conversion _ } | not c.delivered -> filter (\l -> payment l && l.to == Held e) c.legs
   _ -> []
+
+-- | What a query of the record reads at `round`, over `events`. Delivered settlements are never read. Nothing
+-- | when `LargestUnits` finds no conversion: a window that read nothing has no largest.
+runLegQuery :: RoundIndex -> Array Event -> LegQuery -> Maybe Q
+runLegQuery round events q = case q.aggregate of
+  LargestUnits -> maximum (map _.quantity (filter (\c -> c.round == target && c.by == q.party && Just c.transformation == conversionOf) (select conversions events)))
+  _ -> Just case q.side of
+    Incoming -> sumOf (_.to)
+    Outgoing -> sumOf (_.from)
+    NetOutgoing -> max Q.zero (Q.sub (sumOf (_.from)) (sumOf (_.to)))
+  where
+  conversionOf = case q.cause of
+    ConversionOf t -> Just t
+    CurveBase -> Nothing
+    ConversionPayment -> Nothing
+  target = case q.window of
+    ThisRoundSoFar -> round
+    LastRound -> round - 1
+  read' l = l.round == target && not l.delivered && maybe true (_ == l.resource) q.resource && patternOf l
+  patternOf l = case q.cause, l.cause of
+    CurveBase, OfIntent { mechanism: Curve _ } -> l.position == 0
+    ConversionPayment, OfIntent { mechanism: Conversion _ } -> isPayment l
+    ConversionOf t, OfIntent { mechanism: Conversion x } -> x.transformation == t
+    _, _ -> false
+  isPayment l = l.from /= Source && l.to /= Sink
+  amount l = case q.aggregate of
+    SumValue -> maybe Q.zero (\r -> Q.mul r l.moved) l.rate
+    _ -> l.moved
+  held = Held q.party
+  sumOf end = Q.sumQ (map amount (filter (\l -> end l == held && read' l) (select legs events)))
 
 -- | Single moves between Entities, by an Intent or a recurring rule.
 transfers :: Select { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Q, owed :: Q }

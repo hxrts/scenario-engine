@@ -20,7 +20,7 @@ import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
 import Core.Types (Capability(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, FlowEffect(..), LevyBasis(..), RuleF(..), RuleKindDecl, RuleKindId, ruleKind, Transformation, TransformationId, idText)
-import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..))
+import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), CausePattern(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
@@ -152,7 +152,7 @@ validateGameboard gb config =
 
   -- every name a recurring rule uses
   recurringRefs :: RecurringFlow -> Array ValidationError
-  recurringRefs r = unknownResource [ r.resource ] <> unknownEntity (sources r) <> unknownEntity (dests r) <> amountRefs r.amount <> conditionRefs r
+  recurringRefs r = unknownResource [ r.resource ] <> unknownEntity (sources r) <> unknownEntity (dests r) <> amountRefs r.amount
   sources r = case r.source of
     FromEntity e -> [ e ]
     _ -> []
@@ -160,11 +160,10 @@ validateGameboard gb config =
     ToEntity e -> [ e ]
     ToSink -> []
   amountRefs = case _ of
-    ShareOf { basis: NetSales res } -> unknownResource [ res ]
+    Measured { query } -> unknownEntity [ query.party ] <> unknownResource (fromFoldable query.resource) <> case query.cause of
+      ConversionOf t -> unknownTransformation [ t ]
+      _ -> []
     _ -> []
-  conditionRefs r = case r.condition of
-    Just c -> unknownEntity [ c.holder ] <> unknownResource [ c.resource ]
-    Nothing -> []
   coverageAggregate (Tuple e d) = case d.fallback of
     Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []

@@ -6,8 +6,8 @@
 module Schema.Recurring
   ( kinds
   , Circulated
-  , ShareSource(..)
-  , shareBasis
+  , salesOf
+  , payeeReceipts
   , compile
   , normalize
   , productionRule
@@ -23,8 +23,8 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId, CapacityRef)
-import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..), ShortfallEffect(..))
-import Data.Generic.Rep (class Generic)
+import Core.World (CausePattern(..), LegAggregate(..), LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Side(..), Window(..))
+import Schema.Premise.Query (ShareMeasure, atParty)
 import Data.Array (mapWithIndex, sortWith)
 import Data.Maybe (Maybe(..), maybe)
 
@@ -38,24 +38,22 @@ kinds =
   , decay: Id "decay"
   }
 
--- | What an authored share is a fraction of.
-data ShareSource
-  = SalesOf ResourceId -- net Money revenue from selling this Resource on Markets
-  | PayeeReceipts -- Money received as a conversion's payee
+-- | What an authored share is a share of: this round's net sales of a Resource on Markets, or what it
+-- | received as a conversion's payee.
+salesOf :: ResourceId -> ShareMeasure
+salesOf r = { window: ThisRoundSoFar, side: NetOutgoing, resource: Just r, cause: CurveBase, aggregate: SumValue }
 
-derive instance Generic ShareSource _
-derive instance Eq ShareSource
+payeeReceipts :: ShareMeasure
+payeeReceipts = { window: ThisRoundSoFar, side: Incoming, resource: Nothing, cause: ConversionPayment, aggregate: SumMoved }
 
--- | The authored form of a share's basis, as the engine reads it.
-shareBasis :: ShareSource -> ShareBasis
-shareBasis = case _ of
-  SalesOf r -> NetSales r
-  PayeeReceipts -> PaymentsReceived
+-- | What the party bought of a Resource on Markets this round.
+purchases :: EntityId -> ResourceId -> LegQuery
+purchases party r = { party, window: ThisRoundSoFar, side: Incoming, resource: Just r, cause: CurveBase, aggregate: SumMoved }
 
 type Circulated =
   { production :: Array { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef }
   , flows :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q }
-  , shares :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, share :: Q, basis :: ShareBasis }
+  , shares :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, share :: Q, source :: ShareMeasure }
   , requirements :: Array { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Q }
   , decays :: Array { resource :: ResourceId, rate :: Q }
   }
@@ -69,7 +67,6 @@ rule kind source destination resource amount =
   , destination
   , resource
   , amount
-  , condition: Nothing
   , onShortfall: NoEffect
   , offsetable: false
   , delay: 0
@@ -84,12 +81,12 @@ flowRule :: { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :
 flowRule f = (rule kinds.flow (FromEntity f.from) (ToEntity f.to) f.resource (FixedAmount f.amount)) { offsetable = true }
 
 -- | A variable share of what the payer received.
-shareRule :: { from :: EntityId, to :: EntityId, resource :: ResourceId, share :: Q, basis :: ShareBasis } -> RecurringFlow
-shareRule s = rule kinds.share (FromEntity s.from) (ToEntity s.to) s.resource (ShareOf { ratio: s.share, basis: s.basis })
+shareRule :: { from :: EntityId, to :: EntityId, resource :: ResourceId, share :: Q, source :: ShareMeasure } -> RecurringFlow
+shareRule s = rule kinds.share (FromEntity s.from) (ToEntity s.to) s.resource (Measured { ratio: s.share, query: atParty s.from s.source })
 
 -- | An operating requirement: consumed from what is held; a shortfall offsets incoming flows.
 requirementRule :: { entity :: EntityId, resource :: ResourceId, amount :: Maybe Q, penalty :: Q } -> RecurringFlow
-requirementRule r = (rule kinds.requirement (FromEntity r.entity) ToSink r.resource (maybe PurchasesThisRound FixedAmount r.amount))
+requirementRule r = (rule kinds.requirement (FromEntity r.entity) ToSink r.resource (maybe (Measured { ratio: Q.one, query: purchases r.entity r.resource }) FixedAmount r.amount))
   { onShortfall = if r.penalty == Q.zero then NoEffect else OffsetIncoming r.penalty }
 
 -- | Decay: every holder loses a fraction of a Resource.

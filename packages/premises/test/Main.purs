@@ -18,8 +18,8 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
-import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), ShareBasis(..), UnseededWorld, View, coupled)
-import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, shareRule)
+import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled)
+import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (any, elem, filter, length, mapMaybe)
@@ -411,7 +411,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "US", to: Id "DE", resource: Id "X", amount: Q.fromInt 1 } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a share sourced from a Resource that does not exist"
-      (editWorld \w -> w { recurring = w.recurring <> [ shareRule { from: Id "US", to: Id "DE", resource: Id "M", share: Q.fromInt 1, basis: NetSales (Id "X") } ] })
+      (editWorld \w -> w { recurring = w.recurring <> [ shareRule { from: Id "US", to: Id "DE", resource: Id "M", share: Q.fromInt 1, source: salesOf (Id "X") } ] })
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a requirement on an Entity that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ requirementRule { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] })

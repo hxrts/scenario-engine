@@ -20,6 +20,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Strategy (Cond(..), Expr(..), MarketRef(..), RecordQuery(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.World (CausePattern(..))
 import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
 import Data.Const (Const(..))
@@ -173,7 +174,9 @@ refsCond =
 -- | The names a query of the record reads.
 queryRefs :: RecordQuery -> Array (Tuple RefKind String)
 queryRefs = case _ of
-  UnitsConverted x -> [ Tuple EntityRef (idText x.by), Tuple TransformationRef (idText x.transformation) ]
+  OfLegs q -> [ Tuple EntityRef (idText q.party) ] <> maybe [] (named ResourceRef) q.resource <> case q.cause of
+    ConversionOf t -> [ Tuple TransformationRef (idText t) ]
+    _ -> []
   RulesEnacted x -> [ Tuple EntityRef (idText x.governor), Tuple EntityRef (idText x.counterparty) ]
   RulesInForce x -> [ Tuple EntityRef (idText x.governor) ]
 

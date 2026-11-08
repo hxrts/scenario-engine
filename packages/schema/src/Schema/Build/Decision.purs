@@ -48,6 +48,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
+import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
 import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF)
 import Schema.Build.Quantity (class ToQty, q)
 
@@ -127,7 +128,7 @@ not' = Not
 
 -- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
 transformedLastRound :: { by :: String, transformation :: String, atLeast :: Expr } -> Cond
-transformedLastRound r = Recorded { query: S.UnitsConverted { by: Id r.by, transformation: Id r.transformation }, atLeast: r.atLeast }
+transformedLastRound r = Recorded { query: S.OfLegs { party: Id r.by, window: LastRound, side: Outgoing, resource: Nothing, cause: ConversionOf (Id r.transformation), aggregate: LargestUnits }, atLeast: r.atLeast }
 
 restrictedLastRound :: { by :: String, target :: String } -> Cond
 restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: Id r.by, counterparty: Id r.target }, atLeast: lit 1 }

@@ -14,10 +14,10 @@ import Core.Map (entries, sumInto)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, entitiesOf, lookupQ)
-import Core.Slice (conversionPaymentsTo, exchanges, select)
+import Core.Slice (runLegQuery)
 import Core.Types (EntityId, ResourceId)
-import Core.World (Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShareBasis(..), ShortfallEffect(..), Target(..), WorldState, coupled)
-import Data.Array (filter, findIndex, foldl, fromFoldable, index, length, zipWith)
+import Core.World (Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Target(..), WorldState, coupled)
+import Data.Array (filter, findIndex, foldl, fromFoldable, index, length)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
@@ -36,41 +36,33 @@ isEachHolder r = r.source == FromEachHolder
 
 -- | One rule's flow, on what the round has settled so far.
 step :: WorldState -> Penalised -> RecurringFlow -> Penalised
-step w acc r
-  | not (conditionHolds w acc.st r) = acc
-  | otherwise =
-      case r.source, r.destination of
-        Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, target: Holding r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
-        FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
-        FromEntity from, ToSink -> consume from
-        _, _ -> acc
-      where
-      paidAmount to = if r.offsetable then offsetShare w acc to r (amountOf w acc.st r) else amountOf w acc.st r
-      consume from =
-        let
-          needed = amountOf w acc.st r
-          moved = minOwedHeld needed (net w from r.resource acc.st)
-          short = Q.sub needed moved
-          legs = [ { from: Held from, to: Sink, resource: r.resource, owed: needed, moved } ]
-          events = if needed > Q.zero then [ coupled w.round legs Nothing (causeOf r) ] else []
-        in
-          { st: acc.st
-              { ledger = adjust (Ent from) r.resource (Q.neg moved) acc.st.ledger
-              , events = acc.st.events <> events
-              }
-          , offsets: case r.onShortfall of
-              OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
-              _ -> acc.offsets
+step w acc r =
+  case r.source, r.destination of
+    Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, target: Holding r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
+    FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
+    FromEntity from, ToSink -> consume from
+    _, _ -> acc
+  where
+  paidAmount to = if r.offsetable then offsetShare w acc to r (amountOf w acc.st r) else amountOf w acc.st r
+  consume from =
+    let
+      needed = amountOf w acc.st r
+      moved = minOwedHeld needed (net w from r.resource acc.st)
+      short = Q.sub needed moved
+      legs = [ { from: Held from, to: Sink, resource: r.resource, owed: needed, moved } ]
+      events = if needed > Q.zero then [ coupled w.round legs Nothing (causeOf r) ] else []
+    in
+      { st: acc.st
+          { ledger = adjust (Ent from) r.resource (Q.neg moved) acc.st.ledger
+          , events = acc.st.events <> events
           }
+      , offsets: case r.onShortfall of
+          OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
+          _ -> acc.offsets
+      }
 
 causeOf :: RecurringFlow -> Cause
 causeOf r = OfRecurring { rule: r.id, kind: r.kind }
-
--- | Whether a rule's condition holds on what the round has settled so far.
-conditionHolds :: WorldState -> Settlement -> RecurringFlow -> Boolean
-conditionHolds w st r = case r.condition of
-  Nothing -> true
-  Just c -> net w c.holder c.resource st >= c.atLeast
 
 -- | What a rule owes, read from the round so far.
 amountOf :: WorldState -> Settlement -> RecurringFlow -> Q
@@ -79,21 +71,11 @@ amountOf w st r = case r.amount of
   CapacityHeld c -> case r.destination of
     ToEntity to -> capacityHeld w to c
     ToSink -> Q.zero
-  ShareOf s -> case r.source of
-    FromEntity from -> Q.mul s.ratio (shareBasis w st from s.basis)
-    _ -> Q.zero
-  PurchasesThisRound -> case r.source of
-    FromEntity from -> Q.sumQ (map _.quantity (filter (\t -> t.entity == from && t.resource == r.resource && t.quantity > Q.zero) (select exchanges st.events)))
-    _ -> Q.zero
   FractionHeld f -> case r.source of
     FromEntity from -> Q.mul f (max Q.zero (net w from r.resource st))
     _ -> Q.zero
-
--- | What a share is a fraction of, for the Entity paying it.
-shareBasis :: WorldState -> Settlement -> EntityId -> ShareBasis -> Q
-shareBasis _ st e = case _ of
-  NetSales r -> max Q.zero (Q.sumQ (map (\t -> Q.neg (Q.mul t.price t.quantity)) (filter (\t -> t.entity == e && t.resource == r) (select exchanges st.events))))
-  PaymentsReceived -> Q.sumQ (map _.moved (select (conversionPaymentsTo e) st.events))
+  -- the record so far: what earlier rounds and this round's settlement have written
+  Measured m -> Q.mul m.ratio (fromMaybe Q.zero (runLegQuery w.round (w.events <> st.events) m.query))
 
 -- | One offsetable flow's amount: the recipient's accrued offset, capped at its incoming total and
 -- | shared pro rata over its offsetable flows in list order, is taken off.
