@@ -7,7 +7,6 @@ module Server (main) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readPremise)
 import Adapters.SQLite (open, sqliteBackend)
 import Data.Array (drop)
 import Data.Either (Either(..))
@@ -19,7 +18,8 @@ import Flags (flagOr, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')
-import Premises.Load (loadPremise)
+import Premises.Load (loadFrom)
+import Premises.Names (meridianDir)
 import Server.Cache (newCache)
 import Server.Launch (failInterrupted)
 import Server.Implementation (implement)
@@ -30,7 +30,7 @@ main = do
   case parseFlags [ "--db", "--port", "--static" ] args of
     Left e -> usage e
     Right flags -> case Int.fromString (flagOr "--port" "8787" flags) of
-      Just port | port > 0 && port < 65536 -> map (_ >>= loadPremise) (readPremise fileOps "meridian/v0") >>= case _ of
+      Just port | port > 0 && port < 65536 -> loadFrom fileOps meridianDir >>= case _ of
         Right ctx -> do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store

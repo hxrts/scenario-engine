@@ -20,14 +20,14 @@ module Dashboard.Client
 import Prelude
 
 import Dashboard.Api (fetch)
-import Dashboard.Launch (LaunchRequest, Premise)
-import Effects.Api (ApiRequest(..), call)
+import Effects.Api (ApiRequest(..), Launch, View(..), call)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode.Common (readJson)
 import Views.Compare (CompareView)
 import Views.Entity (EntityList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
+import Views.Premise (Premise)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Either (Either)
@@ -43,7 +43,7 @@ runs :: Boolean -> Aff (Either String RunList)
 runs archived = typed (ListRuns { archived })
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
-launch :: LaunchRequest -> Aff (Either String { id :: String })
+launch :: Launch -> Aff (Either String { id :: String })
 launch = typed <<< LaunchRun
 
 -- | The premise the launch form runs, with its rounds, seed, default run name and presets.
@@ -56,7 +56,7 @@ glossary = typed Glossary
 
 -- | A run's overview: its rounds, target and header facts.
 overview :: String -> Aff (Either String RunOverview)
-overview id = typed (RunView { id, view: "overview", round: Nothing })
+overview id = typed (RunView { id, view: Overview, round: Nothing })
 
 -- | A run's Entities, each flagged as a seat, and the default one.
 entities :: String -> Aff (Either String EntityList)
@@ -66,9 +66,9 @@ entities = typed <<< Entities
 entity :: String -> String -> Aff (Either String History)
 entity id e = typed (Entity id e)
 
--- | One view of a run by its name (for example `markets`), as JSON; `balances` at a round takes the
+-- | One view of a run, as JSON; `balances` at a round takes the
 -- | round as well.
-runView :: String -> String -> Maybe Int -> Aff (Either String Json)
+runView :: String -> View -> Maybe Int -> Aff (Either String Json)
 runView id view round = typed (RunView { id, view, round: show <$> round })
 
 -- | The comparison of the runs, the first being the baseline.

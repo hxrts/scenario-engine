@@ -4,6 +4,7 @@ module Test.Server.Api (spec) where
 import Prelude
 
 import Adapters.SQLite (Db, open, sqliteBackend)
+import Core.Draw (Seed(..))
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
@@ -16,9 +17,10 @@ import Effects.Observe (listRuns, readManifest)
 import Effects.Store (createRun, failRun)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts)
+import Game.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore)
-import Http (Response)
+import Effects.Api (Reply)
 import Server.Cache (Cache, cached, cachedAgency, clear, newCache)
 import Server.Implementation (implement)
 import Server.Launch (failInterrupted)
@@ -29,7 +31,7 @@ import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (premise)
 
 type Env =
-  { api :: String -> String -> String -> Aff Response
+  { api :: String -> String -> String -> Aff Reply
   , store :: StoreBackend
   , db :: Db
   , cache :: Cache
@@ -68,6 +70,7 @@ spec = describe "API status rules, startup and cache" do
     launch env 2
     view <- env.api "GET" "/api/runs/run-1/no-such-view" ""
     view.status `shouldEqual` 404
+    view.body `shouldEqual` "{\"error\":\"no-such-view\"}"
     unknown <- env.api "GET" "/api/no-such-route" ""
     unknown.status `shouldEqual` 404
     bare <- env.api "GET" "/api" ""
@@ -174,6 +177,16 @@ spec = describe "API status rules, startup and cache" do
     liftEffect (clear env.cache)
     failed <- env.api "GET" "/api/runs/run-1/overview" ""
     failed.body `shouldSatisfy` contains (Pattern "\"resumable\":false")
+  it "a run can be derived from a session: its stored spec carries the recipe" do
+    env <- setup
+    launch env 2
+    manifest <- liftEffect (runObserve env.store (readManifest "run-1")) >>= case _ of
+      Just { manifest: Right m } -> pure m
+      _ -> liftEffect (throw "no stored manifest")
+    let spec = encodeSpec { gameId: "meridian/meridian-test-01", playerSeed: Seed 1, preset: "Conservative", rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    liftEffect (runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec, manifest, source: Nothing, kind: Nothing, owner: "session:1:0" }))
+    r <- env.api "POST" "/api/runs/session-1/derive" "{\"kind\":\"duplicate\"}"
+    r.status `shouldEqual` 201
   it "the agency cache keeps a success and not a failure" do
     c <- liftEffect newCache
     loads <- liftEffect (Ref.new 0)

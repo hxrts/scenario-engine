@@ -11,7 +11,8 @@ import Data.Either (Either(..))
 import Data.Foldable (intercalate)
 import Core.Engine.Commit (EngineError)
 import Game.Types (Game)
-import Handlers.Seats (SeatEnv, playPure, recordedBindings)
+import Game.Bindings (scriptBindings)
+import Handlers.Seats (SeatEnv, playPure)
 
 -- | The rounds 1..n that have no record. A record may have empty inputs; the round must exist.
 missingRounds :: Int -> Array RoundRecord -> Array Int
@@ -21,5 +22,5 @@ missingRounds n records = filter (\r -> not (any (\x -> x.round == r) records)) 
 -- | record set would otherwise replay as a different history, so it is an error.
 runReplay :: SeatEnv -> Int -> Array RoundRecord -> Game -> Either String { records :: Array RoundResult, value :: Either EngineError WorldState }
 runReplay env n records g = case missingRounds n records of
-  [] -> Right (playPure env (recordedBindings records) g.inWorld n g.world)
+  [] -> Right (playPure env (scriptBindings records) g.inWorld n g.world)
   gaps -> Left ("replay: no record for round(s) " <> intercalate ", " (map show gaps) <> " of " <> show n)

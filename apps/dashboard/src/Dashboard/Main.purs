@@ -10,14 +10,14 @@ import Prelude
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, overlayChart, placeholderFrame, status, tableOf, textInput)
-import Dashboard.DataTable (DataTable, mkDataTable)
+import Dashboard.Components (Render, as, diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
+import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
-import Dashboard.Launch (LaunchForm, LaunchRequest, Premise, emptyForm, roundChoices, roundValue, summary, validate)
+import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, summary, validate)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
-import Dashboard.Route (Route(..), href, route)
+import Dashboard.Route (Route(..), href, navigate, route)
 import Dashboard.RunActions as Actions
 import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRuns)
 import Dashboard.Theme (themeToggle)
@@ -38,15 +38,16 @@ import Effect.Uncurried (mkEffectFn1)
 import Views.Compare (CompareView)
 import Views.Common (Table)
 import Views.Overview (RunList, RunOverview)
+import Views.Premise (Premise)
+import Effects.Api (Launch)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
-import React.Basic.DOM.Events (targetValue)
-import React.Basic.Events (handler, handler_)
+import React.Basic.Events (handler_)
 import React.Basic.Hooks (Component, Hook, JSX, component, element, provider, useEffect, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks.Aff (UseAff)
 import React.Basic.Hooks as React
-import Routing.Duplex (parse, print)
-import Routing.Hash (matchesWith, setHash)
+import Routing.Duplex (parse)
+import Routing.Hash (matchesWith)
 import Web.DOM.NonElementParentNode (getElementById)
 import Web.HTML (window)
 import Web.HTML.HTMLDocument (toNonElementParentNode)
@@ -78,7 +79,7 @@ tabbed ts = element UI.tabs
   { defaultValue: maybe "" _.key (index ts 0)
   , children:
       [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
-        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.p { className: "mb-3 text-sm text-muted-foreground", children: [ D.text t.purpose ] }, t.content ] })
+        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.div { className: "mb-3", children: [ Layout.purpose t.purpose ] }, t.content ] })
   }
 
 -- | A Source cell links to the source run when the list has it.
@@ -95,13 +96,12 @@ runTable grid t s = D.div
   { className: "overflow-x-auto"
   , children:
       [ grid
-          { columns: t.columns
-          , rows: t.rows
-          , link: runLinks t
-          , mark: \_ _ -> false
-          , onRow: Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
-          , activeRow: \row -> index row runKeyColumn == Just s.selected
-          }
+          ( (defaults t)
+              { link = runLinks t
+              , onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
+              , activeRow = \row -> index row runKeyColumn == Just s.selected
+              }
+          )
       ]
   }
 
@@ -157,12 +157,7 @@ launchFields v = D.div
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
-  selectField f value options set = labelled (fieldHeading f) $ D.select
-    { value
-    , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-    , onChange: handler targetValue (\x -> v.setForm (set (fromMaybe value x)))
-    , children: options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
-    }
+  selectField f value options set = labelled (fieldHeading f) $ selectInput { value, options, onChange: \x -> v.setForm (set (fromMaybe value x)) }
   fieldHeading f = D.span
     { className: "flex flex-col"
     , children:
@@ -178,14 +173,16 @@ mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  loaded <- useLoad unit Client.premise
+  premiseLoad <- useLoad unit Client.premise
   let
-    premise = case loaded.value of
+    premise = case premiseLoad.value of
       Just (Right s) -> Just s
       _ -> Nothing
     -- the default name is known once the premise is; until then it is "run"
     loadedName = maybe "" _.defaultName premise
     defaultName = if loadedName == "" then "run" else loadedName
+
+    view s = { form, setForm, premise: s, defaultName, failure, launch }
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
     launch = case premise of
@@ -194,12 +191,12 @@ mkPrepare = component "Prepare" \_ -> React.do
         Right req -> setFailure Nothing *> launchAff_ (submit req)
       Nothing -> setFailure (Just "The premise has not loaded, so the run cannot be launched.")
 
-    submit :: LaunchRequest -> Aff Unit
+    submit :: Launch -> Aff Unit
     submit req = do
       reply <- Client.launch req
       liftEffect case reply of
         Left e -> setFailure (Just e)
-        Right r -> setHash (print route (Run r.id))
+        Right r -> navigate (Run r.id)
   -- the name field shows the default once it is known; a name the user has typed is kept
   useEffect loadedName do
     if loadedName == "" then pure unit else setForm (\f -> if f.name == "" then f { name = loadedName } else f)
@@ -214,29 +211,18 @@ mkPrepare = component "Prepare" \_ -> React.do
                 , title: "Options"
                 , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
                 , children:
-                    [ case premise of
-                        Just s -> launchFields { form, setForm, premise: s, defaultName, failure, launch }
-                        Nothing -> status (loadError loaded.value)
-                    ]
+                    [ loaded premiseLoad.value (launchFields <<< view) ]
                 }
             , Layout.panel
                 { span: 6
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ case premise of
-                        Just s -> launchAction { form, setForm, premise: s, defaultName, failure, launch }
-                        Nothing -> status (loadError loaded.value)
-                    ]
+                    [ loaded premiseLoad.value (launchAction <<< view) ]
                 }
             ]
         ]
     }
-  where
-  -- the premise's failure, or nothing while it loads
-  loadError = case _ of
-    Just (Left e) -> Just e
-    _ -> Nothing
 
 -- | The run page: the selected run's overview, fetched once, and the two things that use it: the results
 -- | and the manage panel (archive, resume, delete). Each action refreshes the page through `onChanged`.
@@ -260,10 +246,7 @@ mkRunPage grid = do
           ]
       }
   where
-  manage actions p = case _ of
-    Just (Right (o :: RunOverview)) -> actions { id: p.id, archived: p.archived, resumable: o.resumable, onChanged: p.onChanged }
-    Just (Left e) -> status (Just e)
-    Nothing -> status Nothing
+  manage actions p o = loaded o \(v :: RunOverview) -> actions { id: p.id, archived: p.archived, resumable: v.resumable, onChanged: p.onChanged }
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
 -- | selection, the latest readable run. The selected run's results come first; its lineage and its
@@ -281,35 +264,32 @@ mkRuns grid = do
       { title: "Runs"
       , purpose: "Every stored run, with the selected run's results and actions beside the list. With no run selected, the latest readable run is shown."
       , children:
-          [ case everyRun.value of
-              Just (Left e) -> status (Just e)
-              Just (Right all) ->
-                let
-                  t = shownRuns archived all
-                  current = fromMaybe "" (p.selected <|> latestReadable t)
-                in
-                  Layout.grid
-                    [ Layout.panel
-                        { span: 4
-                        , title: "Runs"
-                        , purpose: "Every stored run in the order they were created. Click a run to show its results."
-                        , children:
-                            [ D.label
-                                { className: "flex items-center gap-2 text-sm"
-                                , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
-                                }
-                            , runTable grid t { selected: current, select: \id -> setHash (print route (Run id)) }
-                            ]
-                        }
-                    , if current == "" then Layout.panel
-                        { span: 8
-                        , title: "Selected run"
-                        , purpose: "The selected run's results appear here."
-                        , children: [ D.p { className: "text-sm text-muted-foreground", children: [ D.text "No run yet. Prepare a run to see its results here." ] } ]
-                        }
-                      else runPage { id: current, archived: maybe false _.archived (flagsOf all current), version, onChanged: setVersion (version + 1) }
-                    ]
-              Nothing -> status Nothing
+          [ loaded everyRun.value \all ->
+              let
+                t = shownRuns archived all
+                current = fromMaybe "" (p.selected <|> latestReadable t)
+              in
+                Layout.grid
+                  [ Layout.panel
+                      { span: 4
+                      , title: "Runs"
+                      , purpose: "Every stored run in the order they were created. Click a run to show its results."
+                      , children:
+                          [ D.label
+                              { className: "flex items-center gap-2 text-sm"
+                              , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
+                              }
+                          , runTable grid t { selected: current, select: \id -> navigate (Run id) }
+                          ]
+                      }
+                  , if current == "" then Layout.panel
+                      { span: 8
+                      , title: "Selected run"
+                      , purpose: "The selected run's results appear here."
+                      , children: [ Layout.purpose "No run yet. Prepare a run to see its results here." ]
+                      }
+                    else runPage { id: current, archived: maybe false _.archived (flagsOf all current), version, onChanged: setVersion (version + 1) }
+                  ]
           ]
       }
 
@@ -327,10 +307,7 @@ mkCompare grid = do
       { title: "Compare a scenario set"
       , purpose: "Runs of one scenario set side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
-          [ case everyRun.value of
-              Just (Right t) -> choices t ids
-              Just (Left e) -> status (Just e)
-              Nothing -> status Nothing
+          [ loaded everyRun.value \t -> choices t ids
           , if null ids then plots grid fetch [] Nothing Nothing (\_ -> pure unit)
             else comparison ids
           ]
@@ -340,9 +317,9 @@ mkCompare grid = do
 -- | (so the last comparison shows until the next arrives); the player picked for net worth is kept here.
 mkComparison :: DataTable -> Fetch -> Component (Array String)
 mkComparison grid fetch = component "Comparison" \ids -> React.do
-  loaded <- useLoad (String.joinWith "," ids) (Client.compare ids)
+  comparison <- useLoad (String.joinWith "," ids) (Client.compare ids)
   picked /\ setPicked <- useState' (Nothing :: Maybe String)
-  pure $ plots grid fetch ids loaded.value picked setPicked
+  pure $ plots grid fetch ids comparison.value picked setPicked
 
 -- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
 -- | order: how each Market's price moves, how each player's net worth moves, who ends ahead, how even
@@ -421,8 +398,8 @@ plots grid fetch ids shown picked setPicked = D.div
     Nothing -> [ waitingContent ]
 
   item title child = D.div
-    { className: "col-span-12 flex min-w-0 flex-col gap-2 lg:col-span-6"
-    , children: [ Layout.caption title, child ]
+    { className: "col-span-12 min-w-0 lg:col-span-6"
+    , children: [ Layout.captioned title [ child ] ]
     }
 
   -- the unit of the spread, which the loaded comparison names; until one is loaded, the copy omits it
@@ -444,12 +421,7 @@ plots grid fetch ids shown picked setPicked = D.div
     { className: "flex items-center gap-2 text-sm"
     , children:
         [ D.text "Player"
-        , D.select
-            { value: chosen c
-            , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-            , onChange: handler targetValue (\v -> setPicked v)
-            , children: c.netWorth <#> \p -> D.option { key: p.player, value: p.player, children: [ D.text p.player ] }
-            }
+        , selectInput { value: chosen c, options: map _.player c.netWorth, onChange: setPicked }
         ]
     }
 
@@ -479,7 +451,7 @@ choices t ids = Layout.section
               , children:
                   [ element UI.checkbox
                       { checked: elem id ids
-                      , onCheckedChange: mkEffectFn1 (\on -> setHash (print route (Compare (toggled id on))))
+                      , onCheckedChange: mkEffectFn1 (\on -> navigate (Compare (toggled id on)))
                       }
                   , D.span { className: "size-3 shrink-0 rounded-full " <> runSwatch ids id }
                   , D.span { className: "font-medium", children: [ D.text id ] }
@@ -566,10 +538,7 @@ mkApp = do
         Run id -> runsPage { selected: Just id }
         Prepare -> prepare unit
         Compare ids -> compare ids
-    pure case glossary.value of
-      Just (Right g) -> provider glossaryContext (Just g) [ shell current compareSet (toggle unit) page ]
-      Just (Left e) -> status (Just e)
-      Nothing -> status Nothing
+    pure $ loaded glossary.value \g -> provider glossaryContext (Just g) [ shell current compareSet (toggle unit) page ]
 
 main :: Effect Unit
 main = do

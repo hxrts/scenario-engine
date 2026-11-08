@@ -5,8 +5,8 @@ module Server.Launch
   ( Launched
   , launch
   , start
+  , play
   , failInterrupted
-  , Premise
   , premiseInfo
   ) where
 
@@ -17,25 +17,28 @@ import Adapters.Random (resolveSeed)
 import Adapters.SQLite (processOwner)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
+import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
-import Effect.Exception (message, throwException, try)
+import Effect.Exception (throwException, try)
 import Effects.Api (Launch)
 import Effects.Observe (listSummaries)
-import Effects.Store (createRun, failRun, failRunning, finish)
+import Effects.Store (createRun, failRunning)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
+import Views.Premise (Premise)
 import Premises.Presets (presetNames)
-import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
+import Handlers.Store (StoreBackend, recorder, runObserve, runStore, settle)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
-import Game.Recipe (Derivation, encodeSpec)
+import Game.Recipe (Derivation, encodeSpec, kindName)
 import Simulator.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
@@ -77,20 +80,26 @@ start p store l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
         source = _.source <$> l.derivation
-        kind = _.kind <$> l.derivation
+        kind = (kindName <<< _.kind) <$> l.derivation
       created <- nowIso
       owner <- processOwner serverRole
-      attempt <- try $ simulateWith seed game \manifest -> do
+      attempt <- play store id $ simulateWith seed game \manifest -> do
         runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind, owner })
         recorder store roundMetrics id manifest.initial
-      case attempt of
-        Left ex -> do
-          runStore store (failRun id ("exception: " <> message ex))
-          throwException ex
-        Right (Left e) -> pure (Left (show e))
-        Right (Right r) -> runStore store (finish id r) $> Right { id, playerSeed: unwrap seed }
+      pure (attempt $> { id, playerSeed: unwrap seed })
+
+-- | Play a stored run to its end and settle it (`Handlers.Store.settle`). A thrown error fails the run,
+-- | with its cause, and goes on. A game that does not start is a `Left`, with nothing stored; a game
+-- | that played is the engine's result. Each error is rendered here, once.
+play :: forall e a. Show e => StoreBackend -> String -> Effect (Either e (Either EngineError a)) -> Effect (Either String (Either String a))
+play store id game = try game >>= case _ of
+  Left ex -> settle store id exceptionPrefix (Left ex) *> throwException ex
+  Right (Left e) -> pure (Left (show e))
+  Right (Right r) -> settle store id exceptionPrefix (Right r) $> Right (lmap show r)
+  where
+  exceptionPrefix = "exception: "
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
 -- | link cannot come to resolve to a different run.
@@ -102,18 +111,7 @@ nextRunId store = do
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
 
--- | `GET /api/premise`: the premise the launch form runs. Its supported round counts (`min`, `max`)
--- | and the round count a launch without `rounds` plays (`default`); the game seed the premise fixes;
--- | the default run name (the next run id); and the presets every seat may play, in the premise's order.
-type Premise =
-  { name :: String
-  , version :: String
-  , rounds :: { min :: Int, max :: Int, default :: Int }
-  , gameSeed :: Int
-  , defaultName :: String
-  , presets :: Array String
-  }
-
+-- | `GET /api/premise`: the premise the launch form runs (`Views.Premise`).
 premiseInfo :: GameboardParts -> StoreBackend -> Effect Premise
 premiseInfo p store = do
   next <- nextRunId store

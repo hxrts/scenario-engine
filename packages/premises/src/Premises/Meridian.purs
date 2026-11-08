@@ -51,9 +51,7 @@ import Schema.Build.Base (Keyed, keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noFacility, noResource)
 import Game.Premise (GameboardParts, checkPremise)
-import Premises.Load (decodePresets, fromFiles)
-import Premises.Presets as Presets
-import Schema.Premise.Strategy (presetsShape)
+import Premises.Load (fromFiles, shippedPresets)
 import Schema.Premise.Gameboard (ConfigDoc, GameboardDoc, configShape, gameboardShape)
 import Schema.Premise.World (EstimatorDoc, CostDoc, FacilityDoc, FlowDoc, MarketDoc, ProductionDoc, RequirementDoc, ResourceDoc, SchemeDoc, ShareDoc, CirculationDoc)
 import Core.Types (EntityId, Id(..), TransformationId, Transferability(..))
@@ -122,7 +120,7 @@ files =
 parts :: Either String GameboardParts
 parts = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) files))
-  presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
+  presets <- shippedPresets
   lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
 
 resources :: Keyed ResourceDoc

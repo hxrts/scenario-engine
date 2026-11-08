@@ -13,7 +13,7 @@ module Schema.Premise.Tags
 
 import Prelude
 
-import Core.Shape (Format(..), Shape, bare, decodeWith, premiseSum)
+import Core.Shape (Format(..), Shape, bare, premiseSum)
 import Data.Argonaut.Core (fromArray, fromObject, fromString)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
@@ -80,6 +80,6 @@ premiseEnum :: forall a. Eq a => String -> Shape a -> Array TagPair -> Shape a
 premiseEnum name snapshot pairs = premiseSum name (map ctor pairs)
   where
   ctor p = bare { tag: p.premise, desc: p.desc } (valueOf p)
-  valueOf p = case decodeWith Snapshot snapshot (fromObject (Object.fromFoldable [ Tuple "tag" (fromString p.snapshot), Tuple "values" (fromArray []) ])) of
+  valueOf p = case (snapshot.codec Snapshot).dec (fromObject (Object.fromFoldable [ Tuple "tag" (fromString p.snapshot), Tuple "values" (fromArray []) ])) of
     Right x -> x
     Left why -> unsafeCrashWith (name <> ": " <> why)

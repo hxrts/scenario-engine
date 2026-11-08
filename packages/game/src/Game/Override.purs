@@ -10,7 +10,7 @@ import Board.Gameboard.Instantiate (withoutActor)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Shape (Format(..), RecF, Shape, decodeWith, encodeWith, fieldOf, intShape, prim, stringShape, typedCtor, typedSum)
+import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, typedCtor, typedSum)
 import Core.Types (CapacityRef, EntityId, RefKind(..), idShape)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
 import Data.Array (any)
@@ -110,4 +110,4 @@ encodeOverrides = fromArray <<< map (encodeWith Snapshot overrideShape)
 
 -- | The inverse of `encodeOverrides`. An unknown type or a malformed value is an error naming it.
 decodeOverrides :: Json -> Either String (Array Override)
-decodeOverrides j = note "overrides must be an array" (toArray j) >>= traverse (decodeWith Snapshot overrideShape)
+decodeOverrides j = note "overrides must be an array" (toArray j) >>= traverse (overrideShape.codec Snapshot).dec

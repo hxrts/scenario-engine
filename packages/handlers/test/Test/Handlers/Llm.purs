@@ -30,14 +30,12 @@ import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
 import Game.Types (Game)
-import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
+import Schema.Decode.Common (readJson)
+import Test.Handlers.Stub (answering, backendOf, dealOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), encodeWith, prose)
 import Foreign.Object as Object
-
-setup :: Aff Game
-setup = unseated
 
 tr :: String -> String -> Transcript
 tr seat text = { seat: Id seat, text }
@@ -122,26 +120,26 @@ spec = do
 
   describe "Joint pass (§7.4)" do
     it "two transcripts describing one deal reconcile into one Proposal with both as signers" do
-      g <- setup
+      g <- unseated
       backend <- answerWith (replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ])
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
       j.author `shouldEqual` Id "US"
       j.signed `shouldEqual` [ Id "US", Id "DE" ]
 
     it "a one-sided description keeps only its author as signer" do
-      g <- setup
+      g <- unseated
       backend <- answerWith (replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ])
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "nothing" ]
       j.signed `shouldEqual` [ Id "US" ]
 
     it "a reply that does not decode is a Left, which the caller turns into an empty submission" do
-      g <- setup
+      g <- unseated
       backend <- answerWith "not a Proposal list"
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
 
     it "a joint reply that does not decode is corrected: the second call carries the request, the previous reply and the decode error, and its valid reply is the result" do
-      g <- setup
+      g <- unseated
       calls <- liftEffect (Ref.new [])
       let
         backend = backendOf \system input -> do
@@ -162,7 +160,7 @@ spec = do
         Right _ -> fail "a reply of plain text should not decode"
 
     it "a joint reply that still does not decode after two corrections is three calls, then a Left" do
-      g <- setup
+      g <- unseated
       counter <- liftEffect (Ref.new 0)
       out <- jointWith g (answering counter (\_ _ -> "not json")) [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
@@ -170,20 +168,20 @@ spec = do
       calls `shouldEqual` 3
 
     it "a valid first reply makes exactly one call, with no correction" do
-      g <- setup
+      g <- unseated
       counter <- liftEffect (Ref.new 0)
       _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US" ] ])) [ tr "US" "I sell DE ten energy" ]
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 1
 
     it "an author who did not speak is dropped" do
-      g <- setup
+      g <- unseated
       backend <- answerWith (replyJoint [ dealOf (Id "SA") [ Id "DE" ] [ Id "SA" ] ])
       out <- jointWith g backend [ tr "US" "I sell DE ten energy" ]
       out `shouldEqual` Right []
 
     it "an empty Intent list, and a signer that is not an Entity, are dropped from the Proposal" do
-      g <- setup
+      g <- unseated
       let bare = (dealOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ]) { intents = [] }
       empty <- answerWith (replyJoint [ bare ])
       out <- jointWith g empty [ tr "US" "nothing" ]
@@ -193,7 +191,7 @@ spec = do
       j.draft.signers `shouldEqual` [ Id "DE" ]
 
     it "a backend failure is fatal to the call: the error propagates with its cause" do
-      g <- setup
+      g <- unseated
       let broken = backendOf (\_ _ -> throwError (error "language model backend failed (broken): spawn pi ENOENT"))
       out <- attempt (jointWith g broken [ tr "US" "buy ten energy" ])
       case out of
@@ -202,7 +200,7 @@ spec = do
 
   describe "Evidence and recording" do
     it "each call leaves its evidence: the effect, the model, digests of the template and payload, the raw stream by path, and the decode" do
-      g <- setup
+      g <- unseated
       evidence <- liftEffect (Ref.new [])
       let
         backend = (backendOf \_ _ -> pure { text: replyJoint [], raw: "raw/1.jsonl" }) { model = "fake/model", evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
@@ -214,7 +212,7 @@ spec = do
         `shouldEqual` [ { m: "fake/model", raw: "raw/1.jsonl", template: 16, input: 16 } ]
 
     it "a reply that does not decode is a Left, and each attempt's evidence says so" do
-      g <- setup
+      g <- unseated
       evidence <- liftEffect (Ref.new [])
       let backend = (backendOf \_ _ -> pure { text: "not json", raw: "" }) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
@@ -223,21 +221,21 @@ spec = do
       map (\e -> contains (Pattern "error: ") e.decoded) evs `shouldEqual` [ true, true, true ]
 
     it "a recorded exchange replays: the recording file reads back, and the replayed Proposal equals the live one" do
-      g <- setup
+      g <- unseated
       exchanges <- liftEffect (Ref.new [])
       let
         live = (backendOf \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
       j1 <- single =<< jointWith g live [ tr "US" "buy ten energy" ]
       rec <- liftEffect (Ref.read exchanges)
       length rec `shouldEqual` 1
-      back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (decodeRecording (encodeRecording rec))
+      back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (readJson (encodeRecording rec))
       replay <- liftEffect (replayCall back)
       j2 <- single =<< jointWith g (backendOf replay) [ tr "US" "buy ten energy" ]
       j2.signed `shouldEqual` j1.signed
       j2.author `shouldEqual` j1.author
 
     it "a failed call leaves evidence naming why, and rethrows" do
-      g <- setup
+      g <- unseated
       evidence <- liftEffect (Ref.new [])
       let failing = (backendOf \_ _ -> throwError (error "down")) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       out <- attempt (jointWith g failing [ tr "US" "buy ten energy" ])
@@ -246,13 +244,13 @@ spec = do
       map _.decoded evs `shouldEqual` [ "error: the call failed: down" ]
 
     it "a model call that never returns fails at the backend's timeout" do
-      g <- setup
+      g <- unseated
       let hung = (backendOf \_ _ -> makeAff \_ -> pure nonCanceler) { timeoutMs = 5 }
       out <- attempt (jointWith g hung [ tr "US" "buy ten energy" ])
       either (contains (Pattern "timed out") <<< message) (const false) out `shouldEqual` true
 
     it "a failed call is not recorded" do
-      g <- setup
+      g <- unseated
       exchanges <- liftEffect (Ref.new [])
       let
         failing = (backendOf \_ _ -> throwError (error "down")) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
@@ -262,7 +260,7 @@ spec = do
 
   describe "Front page and AI-agent seats" do
     it "a round whose joint pass did not decode gets the plain listing, and makes no model call" do
-      g <- setup
+      g <- unseated
       r <- oneRound g
       counter <- liftEffect (Ref.new 0)
       text <- narrator (answering counter (\_ _ -> replyText "Markets moved.")) true (Narrate r identity)
@@ -271,7 +269,7 @@ spec = do
       calls `shouldEqual` 0
 
     it "the model's front page is its text; a reply that does not decode is the plain listing" do
-      g <- setup
+      g <- unseated
       r <- oneRound g
       good <- answerWith (replyText "Markets moved.")
       narrated <- narrator good false (Narrate r identity)
@@ -281,7 +279,7 @@ spec = do
       fallback `shouldEqual` listing r
 
     it "a seat speaks its reply text; a reply that does not decode is an empty transcript" do
-      g <- setup
+      g <- unseated
       view <- case Map.lookup (Id "DE") g.world.entities of
         Just de -> pure (observe g.world de)
         Nothing -> fail "Germany should be an Entity" *> throwError (error "entity")

@@ -12,21 +12,21 @@ import Prelude
 import Adapters.Clock (delayMs, nowIso)
 import Adapters.Console (closeInput, readLine, writeLine)
 import Adapters.Digest (sha256)
-import Adapters.Filesystem (appendLine, fileOps)
+import Adapters.Filesystem (fileOps, lineSink)
 import Adapters.Pi (pi)
 import Adapters.Random (resolveSeed)
 import Adapters.SQLite (open, processOwner, sqliteBackend)
 import Core.Draw (Seed)
-import Core.Num as Q
+import Core.Map as CoreMap
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (elem, filter, fromFoldable)
+import Data.Array (elem, filter, find)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), joinWith, split)
 import Data.Tuple (Tuple(..))
@@ -35,15 +35,18 @@ import Effect.Aff (attempt, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Effects.Signatures (NarrateF(..))
-import Effects.Store (failRun, finish)
 import Foreign.Object as Object
 import Handlers.Live (runLive)
 import Handlers.Llm (backend, interpreter, narrator, speak)
+import Views.Common (quantity)
 import Views.Metrics (roundMetrics)
-import Handlers.Store (recorder, runStore, startRun)
+import Handlers.Store (recorder, settle, startRun)
 import Node.Process (exit')
 import Game.Assemble (assemble, liveBindings, unknownSeats, withRounds)
 import Game.Premise (Premise(..))
+import Game.Recipe (encodeSpec)
+import Premises.Presets (presetNames)
+import Schema.Gameboard (gameIdOf)
 import Premises.Load (loadFrom)
 
 type Options = { premise :: String, model :: String, humans :: String, rounds :: Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
@@ -60,18 +63,25 @@ session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
         game = withRounds (Just o.rounds) assembled
         w0 = game.world
         dir = "runs/" <> o.id
-        llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
-          { evidence = \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
-          , exchange = \x -> appendLine (dir <> "/exchanges.jsonl") (stringify (encodeJson x))
-          }
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.gameboard.actors)
+      evidence <- liftEffect (lineSink (dir <> "/calls.jsonl"))
+      exchange <- liftEffect (lineSink (dir <> "/exchanges.jsonl"))
+      let
+        llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
+          { evidence = evidence <<< stringify <<< encodeJson
+          , exchange = exchange <<< stringify <<< encodeJson
+          }
       -- the player seed is resolved once, here, and recorded in the session's spec
       seed <- liftEffect (resolveSeed o.seed)
       db <- liftEffect (open o.db)
       let store = sqliteBackend db
       created <- liftEffect nowIso
       owner <- liftEffect (processOwner "session")
-      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: game.manifest, source: Nothing, kind: Nothing, owner })
+      let
+        -- every seat of a run derived from this session plays the premise's first preset
+        preset = fromMaybe "" (find (\n -> Object.member n parts.presets) presetNames)
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
+      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })
       liftEffect $ either (\why -> writeLine ("error: " <> why) *> exit' 1) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
       liftEffect $ writeLine (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
@@ -91,23 +101,19 @@ session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
         , record: save
         }
         game
-      liftEffect $ case out of
-        -- an exception (a backend that could not be started, input ended, a store fault) fails the run
-        Left ex -> do
-          runStore store (failRun o.id (message ex))
-          closeInput
-          writeLine ("Session failed: " <> message ex)
-          writeLine ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
-          exit' 1
-        Right result -> do
-          runStore store (finish o.id result)
-          closeInput
-          case result of
-            Left e -> do
-              writeLine ("Session failed: " <> show e)
-              writeLine ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
-              exit' 1
-            Right _ -> writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> dir <> ")")
+      liftEffect do
+        settle store o.id "" out
+        closeInput
+        let
+          failed why = do
+            writeLine ("Session failed: " <> why)
+            writeLine ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
+            exit' 1
+        case out of
+          -- an exception (a backend that could not be started, input ended, a store fault) fails the run
+          Left ex -> failed (message ex)
+          Right (Left e) -> failed (show e)
+          Right (Right _) -> writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> dir <> ")")
 
   where
   humans = map Id (filter (_ /= "") (split (Pattern ",") o.humans)) :: Array EntityId
@@ -115,5 +121,5 @@ session o = loadFrom fileOps (o.premise <> "/v0") >>= case _ of
 report :: Array EntityId -> RoundResult -> String -> Effect Unit
 report humans r front = do
   writeLine ("\n=== Front page, round " <> show r.record.round <> " ===\n" <> front)
-  for_ (fromFoldable (Map.values r.world.entities)) \e ->
-    when (e.id `elem` humans) $ writeLine ("Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> Q.displayQuantity v) (Map.toUnfoldable e.accounts)))
+  for_ (CoreMap.values r.world.entities) \e ->
+    when (e.id `elem` humans) $ writeLine ("Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> quantity v) (Map.toUnfoldable e.accounts)))

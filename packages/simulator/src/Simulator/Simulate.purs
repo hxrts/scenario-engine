@@ -1,5 +1,5 @@
 -- | The simulator (docs/06_simulator.md §3–§6): the one fold over a `Game`. `simulate` plays a game with
--- | machine seats (Strategy, Script, Recorded) and is pure; `resumeFrom` continues a snapshot; the
+-- | machine seats (Strategy, Script) and is pure; `resumeFrom` continues a snapshot; the
 -- | `…With` variants persist each round through a store as it completes. The simulator imports no
 -- | premise, board, or policy module: a Game is all it sees.
 module Simulator.Simulate

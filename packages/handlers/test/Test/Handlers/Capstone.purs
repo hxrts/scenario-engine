@@ -7,6 +7,8 @@ module Test.Handlers.Capstone (spec) where
 
 import Prelude
 
+import Premises.Names (capstoneTranscriptFile)
+
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Testkit.Meridian (orThrow, unseated)
@@ -14,8 +16,6 @@ import Game.Types (Game)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (JointProposal)
 import Core.Types (Id(..))
-import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -26,17 +26,15 @@ import Effect.Exception (error, message)
 import Effects.Signatures (InterpretF(..))
 import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
-import Premises.Capstone (JointLine, jointLines)
-import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
+import Premises.Capstone (JointLine, jointLines, matchesExpect)
+import Schema.Decode.Common (readJson)
+import Test.Handlers.Stub (backendOf, replayCall)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | `packages/premises/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
-recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
-
-setup :: Aff Game
-setup = unseated
+recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< readJson
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))
@@ -45,12 +43,12 @@ jointAs g text backend =
 
 -- | Every recorded line gives the joint pass the Intents the DSL expects, in the engine's JSON encoding.
 check :: JointLine -> Array JointProposal -> Aff Unit
-check e out = map (\j -> stringify (encodeJson j.draft.intents)) out `shouldEqual` [ stringify (encodeJson e.expect) ]
+check e out = matchesExpect e out `shouldEqual` true
 
 spec :: Spec Unit
 spec = describe "Capstone: recorded transcript through the joint pass" do
   it "each recorded line, in its recorded order, maps to the canonical Intents it records (replayed)" do
-    g <- setup
+    g <- unseated
     rec <- recording
     replay <- liftEffect (replayCall rec)
     for_ jointLines \e -> do
@@ -60,7 +58,7 @@ spec = describe "Capstone: recorded transcript through the joint pass" do
         Left why -> fail ("the recorded reply should decode: " <> why)
 
   it "the recorded trade line interprets to one Proposal, once the line before it is replayed" do
-    g <- setup
+    g <- unseated
     rec <- recording
     replay <- liftEffect (replayCall rec)
     _ <- jointAs g "ban shipments into India" (backendOf replay)
@@ -70,7 +68,7 @@ spec = describe "Capstone: recorded transcript through the joint pass" do
       _ -> fail "replayed line should interpret"
 
   it "a recorded backend failure is a run failure, naming the model and its cause" do
-    g <- setup
+    g <- unseated
     rec <- recording
     let
       broken :: Backend
@@ -87,7 +85,7 @@ spec = describe "Capstone: recorded transcript through the joint pass" do
       Left _ -> fail "replayed line should interpret"
 
   it "a call the recording does not hold in its next place is an error, never a model call" do
-    g <- setup
+    g <- unseated
     rec <- recording
     replay <- liftEffect (replayCall rec)
     out <- attempt (interpreter (backendOf replay) g.world (Interpret 2 [ { seat: Id "US", text: "buy ten energy" } ] identity))

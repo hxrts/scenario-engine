@@ -9,11 +9,10 @@ import Board.Gameboard.Reconcile (reconcile)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
-import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), RuleF(..), proposalId)
-import Core.World (Event(..), RejectReason(..), RoundResult, renderReason)
+import Core.World (Event(..), RejectReason(..), renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, last, length, reverse, take, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -38,7 +37,7 @@ import Game.Premise (GameboardParts)
 import Game.Types (Game, SeatBinding(..))
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow, premise, presetGame)
-import Testkit.Suite (everySeat, fixture, initialOf, run, strategyOrThrow, valid)
+import Testkit.Suite (price, everySeat, fixture, initialOf, run, strategyOrThrow, valid)
 import Test.Spec (describe, it)
 import Test.Simulator.Shock as ShockTests
 import Test.Simulator.Capstone as CapstoneTests
@@ -62,9 +61,6 @@ permuted :: forall a. Array a -> Array (Array a)
 permuted xs = [ reverse xs, drop 1 xs <> take 1 xs, drop 2 ys <> take 2 ys ]
   where
   ys = reverse xs
-
-price :: RoundResult -> String -> Q.Q
-price r m = fromMaybe Q.zero (Map.lookup (Id m) r.world.markets <#> \x -> marginal x.cost x.position)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

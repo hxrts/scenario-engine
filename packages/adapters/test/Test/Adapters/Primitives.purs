@@ -5,6 +5,8 @@ module Test.Adapters.Primitives (spec) where
 
 import Prelude
 
+import Premises.Names (meridianDir)
+
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
@@ -43,7 +45,7 @@ spec = describe "Primitives: seed, clock, premise reads" do
     contains (Pattern "Z") t `shouldEqual` true
 
   it "a premise directory reads its files, with the shared presets" do
-    s <- liftEffect (readPremise fileOps "meridian/v0")
+    s <- liftEffect (readPremise fileOps meridianDir)
     case s of
       Right sc -> do
         map _.name sc.sections `shouldEqual` sort (map _.name sc.sections)

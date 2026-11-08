@@ -9,19 +9,16 @@ module Game.Types
   ) where
 
 import Core.Proposal (ProposalBody)
-import Core.Num (Q)
 import Core.Strategy (InWorld, Strategy)
 import Core.Types (EntityId, ProposalId, RoundIndex)
-import Core.World (Manifest, RoundRecord, WorldState)
+import Core.World (Manifest, WorldState)
 import Data.Map (Map)
-import Foreign.Object (Object)
 
 -- | What answers a seat's Propose and Sign steps. Agent and Human seats are answered by live play; a
 -- | simulation rejects them (`Game.Error.NotSimulable`).
 data SeatBinding
   = Strategy Strategy -- a declarative Strategy, interpreted by `policy`
   | Script (Array ScriptRound) -- literal Proposals and signatures per round
-  | Recorded (Array RoundRecord) -- what the seat proposed and signed in stored round records
   | Agent -- a model call per round (live play only)
   | Human -- a person's transcript per round (live play only)
 
@@ -34,13 +31,12 @@ type ScriptRound = { round :: RoundIndex, propose :: Array ProposalBody, sign ::
 type Bindings = Map EntityId SeatBinding
 
 -- | A game ready to run: the manifest, the initial world, the in-world Strategies, the rounds to play,
--- | the Gameboard's parameters (what a Strategy's expressions read), and the seats.
+-- | and the seats.
 type Game =
   { manifest :: Manifest
   , world :: WorldState
   , inWorld :: InWorld
   , rounds :: Int
-  , parameters :: Object Q
   , seats :: Bindings
   }
 

@@ -11,7 +11,7 @@ import Core.Strategy (Strategy)
 import Core.Types as Types
 import Data.Array as Array
 import Schema.Premise.Tags as Tags
-import Core.Shape (Desc(..), Format(..), Shape, decodeWith, encodeWith, decodeJsonWith, prose)
+import Core.Shape (Desc(..), Format(..), Shape, encodeWith, decodeJsonWith, prose)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfAccessBan, selfTariff, selfTransform, asTemplate, choose, deal, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
@@ -21,7 +21,6 @@ import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..))
-import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
@@ -33,20 +32,9 @@ import Schema.Premise.Gameboard (decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Suite (strategyOrThrow)
+import Testkit.Json (decodeText, json)
+import Testkit.Gameboard (minimalGameboard)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
--- | Parse JSON text, crashing the test on a syntax error.
-json :: String -> Json
-json text = case jsonParser text of
-  Left e -> unsafeCrashWith ("test JSON does not parse: " <> e)
-  Right j -> j
-
--- | The smallest valid Gameboard document: no resources, markets, facilities, or Entities.
-minimalGameboard :: String -> String
-minimalGameboard roundRange =
-  """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": """ <> roundRange
-    <> """, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
 
 -- | The expectations of a one-round document.
 expectOf :: String -> Expect
@@ -55,19 +43,14 @@ expectOf text = case decodeJsonWith Premise roundShape (json text) of
   Right r -> (toRound 1 r).expect
 
 -- | The decoders the tests read: each is the shape's decoder, with the core value it makes.
-capability :: String -> Either String Capability
-capability s = decodeWith Premise capabilityShape (fromString s)
+capability :: String -> Either JsonDecodeError Capability
+capability s = decodeJsonWith Premise capabilityShape (fromString s)
 
-rule :: Json -> Either String (RuleF Q)
-rule = decodeWith Premise ruleShape
+rule :: Json -> Either JsonDecodeError (RuleF Q)
+rule = decodeJsonWith Premise ruleShape
 
-intent :: Json -> Either String Intent
-intent = decodeWith Premise intentShape
-
-decodeText :: String -> Either JsonDecodeError Strategy
-decodeText text = case jsonParser text of
-  Left e -> Left (TypeMismatch e)
-  Right j -> decodeStrategy j
+intent :: Json -> Either JsonDecodeError Intent
+intent = decodeJsonWith Premise intentShape
 
 -- | A premise shape reports a failed form as text: the message names the sum that failed.
 isTemplateError :: String -> Boolean
@@ -137,9 +120,6 @@ roundTripCapabilities =
   , MayEnact WithholdingRule
   ]
 
-strategy :: String -> Strategy
-strategy = strategyOrThrow
-
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Round trips: decode (encode x) == x for each premise shape" do
@@ -148,10 +128,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
     it "every Intent kind, in the fixture format" do
       for_ roundTripIntents \i ->
-        (decodeWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
+        (decodeJsonWith Premise intentShape (encodeWith Premise intentShape i) == Right i) `shouldEqual` true
     it "every Capability, in the premise format" do
       for_ roundTripCapabilities \c ->
-        (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
+        (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c) == Right c) `shouldEqual` true
 
   describe "Capability tags" do
     it "decodes each capability kind" do

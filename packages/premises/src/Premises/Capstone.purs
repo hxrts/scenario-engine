@@ -20,17 +20,21 @@ module Premises.Capstone
   , JointLine
   , jointLines
   , jointLineFor
+  , matchesExpect
   ) where
 
 import Prelude (map, otherwise, ($), (<<<), (<>), (==))
 import Premises.Names as N
 import Game.Assemble (assemble)
+import Game.Bindings (strategyBindings)
 import Game.Error (GameError)
 import Game.Premise (GameboardParts, Premise(..))
-import Game.Types (Bindings, Game, SeatBinding(..))
+import Game.Types (Bindings, Game)
+import Data.Bifunctor (lmap)
 import Data.Map as Map
 
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
+import Core.Proposal (JointProposal)
+import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (find, mapMaybe, sort)
 import Data.String (Pattern(..), contains)
@@ -264,14 +268,11 @@ game p = assemble (GameboardPremise p) seatBindings []
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
-seatBindings = strategyBindings (seats us)
+seatBindings = strategyBindings (map (lmap Id) (seats us))
 
 -- | The counterfactual's seats: the capstone's, with the US's Strategy replaced (the left operand wins).
 counterfactualBindings :: Bindings
-counterfactualBindings = Map.union (strategyBindings [ Tuple N.us usWithoutDeployment ]) seatBindings
-
-strategyBindings :: Array (Tuple String Strategy) -> Bindings
-strategyBindings xs = Map.fromFoldable (map (\(Tuple e s) -> Tuple (Id e) (Strategy s)) xs)
+counterfactualBindings = Map.union (strategyBindings [ Tuple (Id N.us) usWithoutDeployment ]) seatBindings
 
 -- | The run file: the seat strategies, the counterfactual's replacement seats, the expectations,
 -- | and every objective's expected outcome in each case, in the premise's spelling.
@@ -369,6 +370,10 @@ jointLines =
   [ { text: "ban shipments into India", reply: proposalReply N.us banIntent, expect: [ banIntent ] }
   , { text: "buy ten energy", reply: proposalReply N.us tradeIntent, expect: [ tradeIntent ] }
   ]
+
+-- | Whether a joint pass gave exactly the Intents a line expects, compared in the engine's JSON encoding.
+matchesExpect :: forall r. { expect :: Array Json | r } -> Array JointProposal -> Boolean
+matchesExpect l js = map (\j -> stringify (encodeJson j.draft.intents)) js == [ stringify (encodeJson l.expect) ]
 
 -- | The line whose transcript a joint call's payload names: the model's reply to that call.
 jointLineFor :: String -> Maybe JointLine

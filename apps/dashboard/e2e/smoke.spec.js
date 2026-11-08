@@ -6,11 +6,8 @@
 // Expected values below are literals taken from that seeded data, not computed from the views, so
 // the assertions do not depend on the code they check.
 import { test, expect } from "@playwright/test";
-import { mockReads, ACTIVE, COLUMNS } from "./mocks.js";
-import { postSpy, rowWith, section } from "./helpers.js";
-
-// The row of a scoped table whose accessible name is its cells' text in order.
-const rowNamed = (scope, cells) => scope.getByRole("row", { name: cells.join(" "), exact: true });
+import { json, mockReads, ACTIVE } from "./mocks.js";
+import { choice, postSpy, rowWith, section, sectionHas } from "./helpers.js";
 
 
 test("the run list shows each seeded run's id, name, rounds and status; empty fields say why", async ({ page }) => {
@@ -88,9 +85,10 @@ test("the Compare page has no disclosure either", async ({ page }) => {
   await expect(page.locator("details, summary")).toHaveCount(0);
 });
 
-test("the header names the run, its scenario, status, rounds completed out of target and game ID", async ({ page }) => {
+test("the header names the run, its premise, status, rounds completed out of target and game ID", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
+  await expect(page.getByText("Premise", { exact: true })).toBeVisible();
   await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
   await expect(page.getByText("3 of 3", { exact: true })).toBeVisible();
   await expect(page.getByText("meridian@v0", { exact: true }).first()).toBeVisible();
@@ -154,12 +152,12 @@ test("the manage actions are visible sections, not disclosures", async ({ page }
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   // [entity, kind, resource, initial, current, change] at round 3 of run-1
-  await expect(rowNamed(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "122.4", "-87.6"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "122.4", "-87.6"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/#/runs/run-4");
   // the balances shown are run-4's last round (2), not its initial state
-  await expect(rowNamed(page, ["BR", "Actor", "E", "85", "98", "13"])).toHaveCount(1);
+  await expect(rowWith(page, ["BR", "Actor", "E", "85", "98", "13"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/#/runs/run-1");
@@ -167,19 +165,19 @@ test("the Runs page has no comparison control; the Compare page lists every read
   await expect(page.getByRole("link", { name: /comparison/i })).toHaveCount(0);
   await page.goto("/#/compare");
   for (const id of ["run-1", "run-2", "run-3", "run-4"])
-    await expect(page.getByRole("checkbox", { name: id, exact: true })).toBeVisible();
+    await expect(choice(page, id)).toBeVisible();
 });
 
 test("choosing runs on the Compare page builds the comparison from the ticked runs, in the order ticked", async ({ page }) => {
   await page.goto("/#/compare");
-  await page.getByRole("checkbox", { name: "run-3", exact: true }).click();
+  await choice(page, "run-3").click();
   await expect(page).toHaveURL(/#\/compare\/run-3$/);
-  await page.getByRole("checkbox", { name: "run-1", exact: true }).click();
+  await choice(page, "run-1").click();
   await expect(page).toHaveURL(/#\/compare\/run-3\/run-1$/);
   await expect(page.getByRole("link", { name: "Compare (2)" })).toBeVisible();
   await expect(page.getByRole("figure", { name: /^Price, / }).first()).toBeVisible();
   // unticking a run takes it out of the comparison (run-3 is the baseline now, so its name ends "baseline")
-  await page.getByRole("checkbox", { name: /^run-3\b/ }).click();
+  await choice(page, "run-3").click();
   await expect(page).toHaveURL(/#\/compare\/run-1$/);
 });
 
@@ -309,10 +307,10 @@ test("the Premise and Game seed are shown read-only, with the premise's seed as 
 test("a rejected launch shows the server's message on Prepare and stays there", async ({ page }) => {
   await page.route("**/api/runs", (route) =>
     route.request().method() === "POST"
-      ? route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Unknown preset: Nope" }) })
+      ? route.fulfill(json({ error: "Unknown preset: Nope" }, 400))
       : route.continue());
   await page.goto("/#/prepare");
-  const launch = page.locator("section").filter({ has: page.getByRole("button", { name: "Run", exact: true }) }).first();
+  const launch = sectionHas(page, page.getByRole("button", { name: "Run", exact: true })).first();
   await launch.getByRole("button", { name: "Run", exact: true }).click();
   await expect(launch.getByText("Unknown preset: Nope")).toBeVisible();
   await expect(page).toHaveURL(/#\/prepare$/);
@@ -353,10 +351,10 @@ test("the run list is sortable by a column", async ({ page }) => {
   }).toPass();
 });
 
-test("the run list has a column set the page uses (no Created column is shown until the server sends one)", async ({ page }) => {
-  await mockReads(page);
+test("the run list has a column set the page uses (no Created column is shown until the server sends one)", async ({ page, request }) => {
+  const { columns } = await (await request.get("/api/runs")).json();
   await page.goto("/#/runs");
-  for (const column of COLUMNS) await expect(page.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
+  for (const column of columns) await expect(page.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
 });
 
 test("toggling show archived runs does not move the page", async ({ page }) => {

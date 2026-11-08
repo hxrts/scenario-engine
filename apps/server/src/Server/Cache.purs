@@ -15,17 +15,17 @@ import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Http (Response)
-import Server.Errors (LoadError)
+import Effects.Api (Reply)
+import Effects.Signatures (RunError)
 import Views.Common (StoredRun)
 
-type Cache = { runs :: Ref (Map String StoredRun), agency :: Ref (Map String Response) }
+type Cache = { runs :: Ref (Map String StoredRun), agency :: Ref (Map String Reply) }
 
 newCache :: Effect Cache
 newCache = { runs: _, agency: _ } <$> Ref.new Map.empty <*> Ref.new Map.empty
 
 -- | The run from the cache, or loaded and then kept when it is finished.
-cached :: Cache -> String -> Effect (Either LoadError StoredRun) -> Effect (Either LoadError StoredRun)
+cached :: Cache -> String -> Effect (Either RunError StoredRun) -> Effect (Either RunError StoredRun)
 cached c id load = Map.lookup id <$> Ref.read c.runs >>= case _ of
   Just r -> pure (Right r)
   Nothing -> do
@@ -36,7 +36,7 @@ cached c id load = Map.lookup id <$> Ref.read c.runs >>= case _ of
     pure r
 
 -- | The agency reply for a query, computed once. A reply that is an error is not kept.
-cachedAgency :: Cache -> String -> Effect Response -> Effect Response
+cachedAgency :: Cache -> String -> Effect Reply -> Effect Reply
 cachedAgency c key load = Map.lookup key <$> Ref.read c.agency >>= case _ of
   Just reply -> pure reply
   Nothing -> do

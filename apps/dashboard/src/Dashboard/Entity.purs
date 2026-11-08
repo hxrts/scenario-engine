@@ -8,16 +8,13 @@ import Prelude
 
 import Dashboard.Api (useLoad)
 import Dashboard.Client (entities, entity)
-import Dashboard.Components (metricChart, stale, status)
+import Dashboard.Components (loaded, metricChart, selectInput, stale, status)
 import Dashboard.Layout as Layout
 import Data.Array (elem)
-import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Views.Entity (EntityList, History)
 import React.Basic.DOM as D
-import React.Basic.DOM.Events (targetValue)
-import React.Basic.Events (handler)
 import React.Basic.Hooks (Component, JSX, component, useState', (/\))
 import React.Basic.Hooks as React
 
@@ -41,28 +38,21 @@ mkEntity = do
       , children: [ body history p list chosen setChosen ]
       }
   where
-  body history p list chosen setChosen = case list.value of
-    Nothing -> status Nothing
-    Just (Left e) -> status (Just e)
-    Just (Right l) -> case shown chosen l of
-      Nothing -> status (Just "This run has no Entities.")
-      Just e -> D.div
-        { className: "flex min-w-0 flex-col gap-stack"
-        , children:
-            [ selector l e setChosen
-            , history { id: p.id, version: p.version, entity: e }
-            , D.p { className: "text-sm text-muted-foreground", children: [ D.text "Each line in the holdings plot is one Resource's holding after a round, in that Resource's own unit (Money in M, the others as the Gameboard defines them). Net worth is Money plus each held Resource valued at its Market's marginal price, the same definition as Standings." ] }
-            ]
-        }
+  body history p list chosen setChosen = loaded list.value \l -> case shown chosen l of
+    Nothing -> status (Just "This run has no Entities.")
+    Just e -> D.div
+      { className: "flex min-w-0 flex-col gap-stack"
+      , children:
+          [ selector l e setChosen
+          , history { id: p.id, version: p.version, entity: e }
+          , Layout.purpose "Each line in the holdings plot is one Resource's holding after a round, in that Resource's own unit (Money in M, the others as the Gameboard defines them). Net worth is Money plus each held Resource valued at its Market's marginal price, the same definition as Standings."
+          ]
+      }
   selector l e setChosen = D.label
     { className: "flex flex-col gap-1 text-sm"
     , children:
         [ D.text "Entity"
-        , D.select
-            { value: e
-            , onChange: handler targetValue setChosen
-            , children: l.entities <#> \c -> D.option { key: c.id, value: c.id, children: [ D.text c.id ] }
-            }
+        , selectInput { value: e, options: map _.id l.entities, onChange: setChosen }
         ]
     }
 
@@ -70,10 +60,7 @@ mkEntity = do
 mkHistory :: Component { id :: String, version :: Int, entity :: String }
 mkHistory = component "EntityHistory" \p -> React.do
   h <- useLoad { id: p.id, version: p.version, entity: p.entity } (entity p.id p.entity)
-  pure $ stale h.busy case h.value of
-    Nothing -> status Nothing
-    Just (Left e) -> status (Just e)
-    Just (Right hist) -> plots hist
+  pure $ stale h.busy (loaded h.value plots)
 
 plots :: History -> JSX
 plots h = Layout.grid

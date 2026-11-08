@@ -39,8 +39,9 @@ glossary =
   definitions =
     [ Tuple "Run" "The run's id in the Run Store. Selecting a row shows that run's results."
     , Tuple "Name" "The name the run was given at launch, or by the derivation that created it."
-    , Tuple "Gameboard" "The Gameboard version (scenario) the run was played on."
-    , Tuple "Game seed" "The seed fixed by the scenario. It drives the in-world draws, so the same game seed gives the same draws."
+    , Tuple "Gameboard" "The Gameboard version (the premise) the run was played on."
+    , Tuple "Premise" "The premise (Gameboard version) the run was played on."
+    , Tuple "Game seed" "The seed fixed by the premise. It drives the in-world draws, so the same game seed gives the same draws."
     , Tuple "Player seed" "The seed for seat-policy choices. It is separate from the game seed, so the two streams never share draws."
     , Tuple "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
     , Tuple "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
@@ -51,7 +52,7 @@ glossary =
     , Tuple "Derived from" source
     , Tuple "Field" "The name of the overview field."
     , Tuple "Value" "The value of the overview field."
-    , Tuple "Game ID" "The scenario's game identifier, recorded at launch."
+    , Tuple "Game ID" "The premise's game identifier, recorded at launch."
     , Tuple "Engine" "The version of the round engine that resolved each round."
     , Tuple "Draws" "The randomness scheme every draw uses."
     , Tuple "Rounds target" "The number of rounds the run was launched for. A run shorter than this can be resumed to it."

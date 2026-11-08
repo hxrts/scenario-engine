@@ -14,10 +14,12 @@ module Handlers.Store
   , runStore
   , runObserve
   , recorder
+  , settle
   ) where
 
 import Prelude
 
+import Core.Engine.Commit (EngineError)
 import Core.Invariants (Failure, checkAfter)
 import Core.Proposal (Transcript)
 import Handlers.Seats (RecordSink)
@@ -27,10 +29,11 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (toCharArray)
 import Effect (Effect)
+import Effect.Exception (Error, message)
 import Effect.Ref as Ref
-import Effects.Signatures (MetricRow, NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound)
+import Effects.Store (failRun, finish)
+import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, Spec, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 -- | A versioned metric of a round: its name, the version of its definition, and its value.
@@ -62,7 +65,6 @@ type StoreBackend =
   , listSummaries :: Effect (Array RunSummary)
   , readManifest :: String -> Effect (Maybe StoredManifest)
   , readRounds :: String -> Effect (Array StoredRound)
-  , readMetric :: String -> String -> String -> Effect (Array MetricRow)
   }
 
 interpretStore :: StoreBackend -> StoreF ~> Effect
@@ -81,15 +83,14 @@ interpretObserve b = case _ of
   ListSummaries k -> k <$> b.listSummaries
   ReadManifest id k -> k <$> b.readManifest id
   ReadRounds id k -> k <$> b.readRounds id
-  ReadMetric id metric version k -> k <$> b.readMetric id metric version
 
 -- | Run a write program over a backend.
 runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a
-runStore b = run (case_ # on (Proxy :: _ "store") (interpretStore b))
+runStore b = run (case_ # on _store (interpretStore b))
 
 -- | Run a read program over a backend. A read program has the `OBSERVE` row only, so it writes nothing.
 runObserve :: forall a. StoreBackend -> Run (OBSERVE + ()) a -> Effect a
-runObserve b = run (case_ # on (Proxy :: _ "observe") (interpretObserve b))
+runObserve b = run (case_ # on _observe (interpretObserve b))
 
 -- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
 -- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
@@ -107,6 +108,13 @@ startRun b n = do
   existing <- b.listRuns
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> b.createRun n
+
+-- | Record how a played run ended: a thrown error fails it, with the message under `prefix`, and a played
+-- | result finishes it (completed, or failed with the engine's error).
+settle :: forall a. StoreBackend -> String -> String -> Either Error (Either EngineError a) -> Effect Unit
+settle b id prefix = case _ of
+  Left ex -> runStore b (failRun id (prefix <> message ex))
+  Right r -> runStore b (finish id r)
 
 -- | A RECORD target: saves each round as it completes, with its transcripts, in one write. The
 -- | metric rows come from `metricsOf` (the composition root passes `Views.Metrics.roundMetrics`),

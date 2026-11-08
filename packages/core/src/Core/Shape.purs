@@ -6,6 +6,7 @@
 module Core.Shape
   ( Format(..)
   , encodeJsonWith
+  , prettyJson
   , decodeJsonWith
   , Shape
   , Desc(..)
@@ -50,7 +51,7 @@ module Core.Shape
   , refined
   , omittedWhen
   , encodeWith
-  , decodeWith
+  , parse
   , prose
   , class Described
   , shape
@@ -60,8 +61,9 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
+import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, stringifyWithIndent, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Decode.Error as J
+import Data.Argonaut.Decode.Parser (parseJson)
 import Data.Bifunctor (lmap)
 import Data.Array as Array
 import Data.Int as Int
@@ -532,17 +534,21 @@ omittedWhen p s = s { absent = p }
 -- Interpretation ------------------------------------------------------------------------------
 
 -- | The encoder of a shape in one format.
+-- | JSON as a file holds it: indented, with a final newline.
+prettyJson :: Json -> String
+prettyJson j = stringifyWithIndent 1 j <> "\n"
+
 encodeWith :: forall a. Format -> Shape a -> a -> Json
 encodeWith fmt s = (s.codec fmt).enc
-
--- | The decoder of a shape in one format.
-decodeWith :: forall a. Format -> Shape a -> Json -> Either String a
-decodeWith fmt s = (s.codec fmt).dec
 
 -- | The decoder of a shape in one format, for a `DecodeJson` instance. A failure is a `TypeMismatch`
 -- | carrying the shape's message.
 decodeJsonWith :: forall a. Format -> Shape a -> Json -> Either J.JsonDecodeError a
 decodeJsonWith fmt s = lmap J.TypeMismatch <<< (s.codec fmt).dec
+
+-- | JSON text decoded through a shape in one format.
+parse :: forall a. Format -> Shape a -> String -> Either J.JsonDecodeError a
+parse fmt s = parseJson >=> decodeJsonWith fmt s
 
 -- | The encoder of a shape in one format, for an `EncodeJson` instance.
 encodeJsonWith :: forall a. Format -> Shape a -> a -> Json

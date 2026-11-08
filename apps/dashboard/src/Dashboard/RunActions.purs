@@ -9,7 +9,7 @@ import Prelude
 
 import Dashboard.Client as Client
 import Dashboard.Components (errorBlock, labelled, textInput)
-import Dashboard.Route (Route(..), route)
+import Dashboard.Route (Route(..), navigate)
 import Dashboard.RunForms (requiredRounds)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json)
@@ -22,8 +22,6 @@ import React.Basic.DOM as D
 import React.Basic.Events (handler_)
 import React.Basic.Hooks (Component, component, element, useState', (/\))
 import React.Basic.Hooks as React
-import Routing.Duplex (print)
-import Routing.Hash (setHash)
 
 -- | The run's id, whether it is archived, whether it can be resumed (the overview says: only a completed
 -- | run), and a callback that refreshes the page after an archive or a resume.
@@ -53,7 +51,7 @@ mkRunActions = component "RunActions" \p -> React.do
 
     -- one click deletes: the request names the run it deletes, which is the server's own check
     delete = submit (Right unit) (\_ -> Client.delete p.id) \(_ :: Json) ->
-      p.onChanged *> setHash (print route Runs)
+      p.onChanged *> navigate Runs
 
   pure $ D.div_
     [ D.div

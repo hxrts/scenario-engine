@@ -8,7 +8,7 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Proposal (proposalAt)
-import Core.Types (Id(..), RefKind(..))
+import Core.Types (Id(..), RefKind(..), proposalId)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
@@ -17,6 +17,7 @@ import Data.Map as Map
 import Effect (Effect)
 import Foreign.Object as Object
 import Data.Tuple (Tuple(..))
+import Game.Bindings (scriptBindings)
 import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, unknownSeats)
 import Game.Error (GameError(..), renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
@@ -52,6 +53,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case presetBindings (Object.singleton "Passive" { rules: [], sign: [] }) (const "Passive") [ Id "US", Id "DE" ] of
         Left e -> fail (show e)
         Right bs -> Map.size bs `shouldEqual` 2
+
+  describe "Script bindings" do
+    it "a seat's scripted Proposals are in submission order, not the order written" do
+      let
+        input i = { proposal: { id: proposalId 1 (Id "US") i, author: Id "US", intents: [], signers: [ Id (show i) ], procedure: Nothing }, signatures: [ Id "DE" ] }
+      case Map.lookup (Id "US") (scriptBindings [ { round: 1, inputs: [ input 1, input 0 ] } ]) of
+        Just (Script [ r ]) -> map _.signers r.propose `shouldEqual` [ [ Id "0" ], [ Id "1" ] ]
+        _ -> fail "expected one scripted round"
 
   describe "Assembly (docs/06 §4.3)" do
     let

@@ -15,22 +15,18 @@ module Effects.Store
 import Prelude
 
 import Data.Either (Either, either)
-import Effects.Signatures (NewRun, STORE, Spec, StoreF(..))
+import Effects.Signatures (NewRun, STORE, Spec, StoreF(..), _store)
 import Run (Run, lift)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-store :: Proxy "store"
-store = Proxy
-
 createRun :: forall r. NewRun -> Run (STORE + r) Unit
-createRun n = lift store (CreateRun n identity)
+createRun n = lift _store (CreateRun n identity)
 
 setStatus :: forall r. String -> String -> Run (STORE + r) Unit
-setStatus id status = lift store (SetStatus id status identity)
+setStatus id status = lift _store (SetStatus id status identity)
 
 failRun :: forall r. String -> String -> Run (STORE + r) Unit
-failRun id reason = lift store (FailRun id reason identity)
+failRun id reason = lift _store (FailRun id reason identity)
 
 -- | Mark a finished run completed, or failed with the error as its reason.
 finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
@@ -41,14 +37,14 @@ finish id = either (failRun id <<< show) (const (setStatus id "completed"))
 -- | with the reason. A run with no recorded owner predates the owner column and counts as left over.
 -- | Returns how many.
 failRunning :: forall r. { role :: String, reason :: String } -> Run (STORE + r) Int
-failRunning r = lift store (FailRunning r identity)
+failRunning r = lift _store (FailRunning r identity)
 
 setSpec :: forall r. String -> Spec -> Run (STORE + r) Unit
-setSpec id spec = lift store (SetSpec id spec identity)
+setSpec id spec = lift _store (SetSpec id spec identity)
 
 setArchived :: forall r. String -> Boolean -> Run (STORE + r) Unit
-setArchived id archived = lift store (SetArchived id archived identity)
+setArchived id archived = lift _store (SetArchived id archived identity)
 
 -- | Remove a run with its rounds and metrics; returns how many runs were removed (0 or 1).
 deleteRun :: forall r. String -> Run (STORE + r) Int
-deleteRun id = lift store (DeleteRun id identity)
+deleteRun id = lift _store (DeleteRun id identity)

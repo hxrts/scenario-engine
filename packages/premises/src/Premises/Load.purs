@@ -10,6 +10,7 @@ module Premises.Load
   , loadFrom
   , loadPresets
   , decodePresets
+  , shippedPresets
   , loadLiteral
   ) where
 
@@ -27,7 +28,9 @@ import Data.Traversable (traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
+import Core.Shape (encodeWith)
 import Premises.Names (instantiationFile, presetsFile)
+import Premises.Presets as Presets
 import Premises.Tree as Tree
 import Schema.Decode.Common (readJsonWith)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
@@ -55,6 +58,10 @@ instance Show LoadError where
 -- | The seat-policy presets (docs/06_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object Strategy)
 loadPresets t = jsonParser t >>= decodePresets
+
+-- | The shipped seat presets, encoded and decoded exactly as a compiled premise is read.
+shippedPresets :: Either String (Object Strategy)
+shippedPresets = decodePresets (encodeWith Premise presetsShape Presets.presets)
 
 decodePresets :: Json -> Either String (Object Strategy)
 decodePresets j = lmap show (presetsFrom j)

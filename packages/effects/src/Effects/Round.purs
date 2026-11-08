@@ -20,13 +20,12 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
-import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
+import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Policy.InWorld (policyOf)
 import Core.Strategy (InWorld)
 import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Run (Run, lift)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 -- | One round: prepare and observe (pure). Seats speak; the round's transcripts are read in one
@@ -80,15 +79,3 @@ runGame inWorld n w
   | otherwise = runRound inWorld w >>= case _ of
       Left e -> pure (Left e)
       Right r -> runGame inWorld (n - 1) r.world
-
-_seatInput :: Proxy "seatInput"
-_seatInput = Proxy
-
-_narrate :: Proxy "narrate"
-_narrate = Proxy
-
-_interpret :: Proxy "interpret"
-_interpret = Proxy
-
-_record :: Proxy "record"
-_record = Proxy

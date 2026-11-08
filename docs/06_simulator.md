@@ -288,7 +288,7 @@ The initial record is written before Round 1. After each round, the round record
 
 **Backend.** The `StoreBackend` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Adapters.SQLite` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
 
-**Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metrics are read at a stated version (`metric(run, metric, version)`), so a projection computed under one definition is never mixed with another.
+**Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
 
 **Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs. The round must exist.
 
@@ -324,7 +324,7 @@ Operation rules:
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
-The **Store interface** (`STORE` for writes and `OBSERVE` for reads, in `Effects.Signatures`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, metric series, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
+The **Store interface** (`STORE` for writes and `OBSERVE` for reads, in `Effects.Signatures`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
 
 ---
 
@@ -411,7 +411,7 @@ Comparison is a core feature. It supports both correctness testing and balancing
 
 ### 10.1 Selection and compatibility
 
-The Compare page takes any number of ticked runs, with the first as the baseline. The Dashboard flags runs that are not directly comparable: different Gameboard versions, engines, round counts, units, Market definitions, or Actor selections (the preset every seat plays). The compatibility table names each difference, for example `no: flagged, not combined (engine, Actor selection)`. Units and Market definitions are compared on the manifest's initial World State. Incompatible configurations and metrics are flagged, never combined. Trajectories are aligned by simulated time, with no interpolation that has no basis in the data. A comparison with no valid run is a client error (400). A run that cannot be read is listed as skipped with its reason.
+The Compare page takes any number of ticked runs, with the first as the baseline. The Dashboard flags runs that are not directly comparable: different Gameboard versions, engines, round counts, units, Market definitions, or Actor selections (the preset every seat plays). The compatibility table names each difference, for example `no: flagged, not combined (engine, Actor selection)`. Units and Market definitions are compared on the manifest's initial World State. Incompatible configurations and metrics are flagged, never combined. Trajectories are aligned by simulated time, with no interpolation that has no basis in the data. A net-worth chart has no point for a round where a run lacks that player. A comparison with no valid run is a client error (400). A run that cannot be read is listed as skipped with its reason.
 
 **Planned:** a limit of two to eight runs, statistical summaries for larger batches, and metric filters by Actor, Aggregate, or Market.
 

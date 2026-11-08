@@ -12,9 +12,7 @@ import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorO
 import Core.Types (CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
-import Data.Argonaut.Decode.Generic (genericDecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
-import Data.Argonaut.Encode.Generic (genericEncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Either (note)
@@ -223,10 +221,10 @@ instance Show ShareSource where
   show = genericShow
 
 instance EncodeJson ShareSource where
-  encodeJson = genericEncodeJson
+  encodeJson = encodeJsonWith Snapshot shareSourceShape
 
 instance DecodeJson ShareSource where
-  decodeJson = genericDecodeJson
+  decodeJson = decodeJsonWith Snapshot shareSourceShape
 
 derive instance Generic Event _
 derive instance Eq Event

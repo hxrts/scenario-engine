@@ -9,10 +9,11 @@ module Views.Metrics
 
 import Prelude
 
-import Core.Market (marginal)
+import Core.Market (marketPrice)
 import Core.World (RoundResult)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
+import Views.Common (exact)
 
 -- | The version of the metric definitions; recomputing a projection never edits records.
 metricsVersion :: String
@@ -20,5 +21,5 @@ metricsVersion = "v1"
 
 -- | The metrics of one round, each tagged with `metricsVersion`: each Market's price after the round.
 roundMetrics :: RoundResult -> Array { metric :: String, version :: String, value :: String }
-roundMetrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: show (marginal m.cost m.position) })
+roundMetrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: exact (marketPrice m) })
   (Map.toUnfoldable r.world.markets)

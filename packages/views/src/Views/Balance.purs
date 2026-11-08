@@ -9,6 +9,10 @@ module Views.Balance
   , Measures
   , measuresOf
   , measures
+  , spreadCell
+  , giniCell
+  , BalanceView
+  , balanceView
   , completionOf
   , completion
   , seedVariation
@@ -18,14 +22,14 @@ import Prelude
 
 import Schema.Gameboard (Gameboard, Outcome(..))
 import Checks.Objectives (evaluateObjectives)
+import Core.Map as CoreMap
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId)
-import Data.Array (any, catMaybes, filter, fromFoldable, length, mapWithIndex, null, sort)
+import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
-import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Views.Common (Statistic, StoredRun, Table, final, quantity, ratio, roundResults)
+import Views.Common (Statistic, StoredRun, Table, completed, final, quantity, ratio, roundResults)
 import Views.Standings (netWorths)
 
 spreadStat :: Statistic
@@ -68,7 +72,7 @@ giniOf xs = do
 
 -- | The final net worths of a run, one per Actor.
 finalValues :: StoredRun -> Array Q
-finalValues r = fromFoldable (Map.values (netWorths (final r)))
+finalValues r = CoreMap.values (netWorths (final r))
 
 -- | The spread and the Gini coefficient over a run's final net worths; Nothing where undefined.
 type Measures = { spread :: Maybe Q, gini :: Maybe Q }
@@ -76,14 +80,22 @@ type Measures = { spread :: Maybe Q, gini :: Maybe Q }
 measuresOf :: StoredRun -> Measures
 measuresOf r = { spread: spread (finalValues r), gini: gini (finalValues r) }
 
+-- | A spread's cell, or "n/a" where it is not defined.
+spreadCell :: Maybe Q -> String
+spreadCell = maybe "n/a" quantity
+
+-- | A Gini coefficient's cell, or "n/a" where it is not defined.
+giniCell :: Maybe Q -> String
+giniCell = maybe "n/a" ratio
+
 -- | The measures over a run's final net worths: the spread and the Gini coefficient.
 measures :: StoredRun -> Table
 measures r =
-  { title: "Balance after round " <> show (length r.records)
+  { title: "Balance after round " <> show (completed r)
   , columns: [ "Measure", "Value" ]
   , rows:
-      [ [ "Spread (M)", maybe "n/a" quantity m.spread ]
-      , [ "Gini coefficient", maybe "n/a" ratio m.gini ]
+      [ [ "Spread (M)", spreadCell m.spread ]
+      , [ "Gini coefficient", giniCell m.gini ]
       ]
   }
   where
@@ -111,6 +123,12 @@ completion gb r =
   , rows: map (\c -> [ show c.actor, c.description, show c.criteria, show c.met, show c.notMet, show c.notEvaluated, show c.outcome ]) (completionOf gb r)
   }
 
+-- | The balance view model (`/api/runs/:id/balance`): the measures and the objective completion.
+type BalanceView = { measures :: Table, completion :: Table }
+
+balanceView :: Gameboard -> StoredRun -> BalanceView
+balanceView gb r = { measures: measures r, completion: completion gb r }
+
 -- | The seed variation of runs of one specification: each run's final spread and Gini, then the
 -- | lowest, highest and range across the runs. With fewer than two runs it says so, and reports no range.
 seedVariation :: Array StoredRun -> Table
@@ -120,7 +138,7 @@ seedVariation runs =
   , rows: if length runs < 2 then [ [ "one run of this specification", "", "", "n/a", "n/a" ], [ "seed-to-seed variation needs more runs of this specification; none is reported", "", "", "n/a", "n/a" ] ] else perRun <> summary
   }
   where
-  measured = map (\r -> { run: r, spread: spread (finalValues r), gini: gini (finalValues r) }) runs
+  measured = map (\r -> let m = measuresOf r in { run: r, spread: m.spread, gini: m.gini }) runs
   perRun = map (\m -> [ m.run.id, show m.run.manifest.initial.seed, m.run.playerSeed, spreadCell m.spread, giniCell m.gini ]) measured
   spreads = catMaybes (map _.spread measured)
   ginis = catMaybes (map _.gini measured)
@@ -129,5 +147,3 @@ seedVariation runs =
     , [ "highest", "", "", spreadCell (maximum spreads), giniCell (maximum ginis) ]
     , [ "range", "", "", spreadCell (spread spreads), giniCell (spread ginis) ]
     ]
-  spreadCell = maybe "n/a" quantity
-  giniCell = maybe "n/a" ratio

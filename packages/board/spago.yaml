@@ -15,6 +15,7 @@ package:
   test:
     main: Test.Board.Main
     dependencies:
+      - sp-testkit
       - effect
       - partial
       - unsafe-coerce

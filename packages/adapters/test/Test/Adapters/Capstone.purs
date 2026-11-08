@@ -6,20 +6,20 @@ module Test.Adapters.Capstone (spec) where
 import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
-import Views.Metrics (metricsVersion, roundMetrics)
+import Views.Metrics (roundMetrics)
 import Core.Draw (Seed(..))
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (last, length)
+import Data.Array (concatMap, filter, head, length)
+import Data.Foldable (fold)
+import Data.String (Pattern(..), stripPrefix)
 import Data.Either (Either(..))
-import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
-import Data.Set as Set
-import Data.Traversable (for, traverse)
+import Data.Maybe (Maybe(..), isJust)
+import Data.Traversable (traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Store (createRun)
-import Effects.Observe (readMetric, readRounds)
+import Effects.Observe (readRounds)
 import Foreign.Object as Object
 import Game.Types (Game)
 import Handlers.Replay (runReplay)
@@ -59,20 +59,15 @@ spec = describe "Capstone: the Run Store" do
       Left e -> fail e
       Right out -> map _.world out.records `shouldEqual` snapshots
 
-  it "the capstone's stored price metric rows are the pinned values" do
+  it "the capstone's price metric values are the pinned values" do
     g <- capstone
-    let seed = Seed C.playerSeed
-    db <- liftEffect (open ":memory:")
-    let port = sqliteBackend db
-    stored <- liftEffect $ simulateWith seed g \manifest -> do
-      runStore port (createRun { owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
-      recorder port roundMetrics "capstone" manifest.initial
-    _ <- orThrow stored
-    rows <- liftEffect (runObserve port (readRounds "capstone"))
-    snapshots <- orThrow (traverse _.snapshot rows)
-    let marketIds = maybe [] (\w -> map show (Set.toUnfoldable (Map.keys w.markets) :: Array _)) (last snapshots)
-    prices <- for marketIds \m -> liftEffect (runObserve port (readMetric "capstone" ("price:" <> m) metricsVersion))
-    (map (map _.value) prices) `shouldEqual`
+    pure' <- orThrow (simulate (Seed C.playerSeed) g)
+    let
+      metricsOf = map roundMetrics pure'.records
+      names = map _.metric (fold (head metricsOf))
+      series name = map (filter (\m -> m.metric == name)) metricsOf
+      prices = map (\name -> concatMap (map _.value) (series name)) (filter (isJust <<< stripPrefix (Pattern "price:")) names)
+    prices `shouldEqual`
       [ [ "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000", "3.0000" ]
       , [ "2.1600", "2.3200", "2.6400", "2.7200", "2.8000", "2.8800", "2.9600", "2.9733" ]
       , [ "2.6275", "2.9222", "3.2726", "3.1268", "2.7343", "2.5755", "2.5114", "2.4319" ]
