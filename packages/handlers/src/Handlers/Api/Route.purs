@@ -165,7 +165,7 @@ wire = case _ of
   ListRuns { archived } -> get ("/api/runs" <> query (if archived then [ "archived=true" ] else []))
   Premise -> get "/api/premise"
   Glossary -> get "/api/glossary"
-  LaunchRun l -> post "/api/runs" (stringify (encodeWith Shape.Snapshot launchShape l))
+  LaunchRun l -> post "/api/runs" (stringify (encodeWith Shape.Premise launchShape l))
   Entities id -> get (run id <> "/entities")
   Entity id e -> get (run id <> "/entity/" <> enc e)
   RunView { id, view, round } -> get (run id <> "/" <> viewName view <> query (catMaybes [ optional "round" round ]))

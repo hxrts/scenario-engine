@@ -273,7 +273,7 @@ test("Run with no edits launches the default run: Conservative, the premise's ro
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
   // the request leaves the seed and the rounds to the server, and the name is the default
-  expect(spy.body).toEqual({ name, preset: "Conservative", playerSeed: null, rounds: null });
+  expect(spy.body).toEqual({ name, preset: "Conservative" });
   // the run is in the list with the premise's rounds and a seed, and its overview names the preset
   const row = rowWith(page, [id]);
   await expect(row.getByRole("cell").nth(5)).toHaveText("5");
@@ -291,7 +291,8 @@ test("a non-default preset and round count are sent, and the run plays them", as
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
-  expect(spy.body).toMatchObject({ preset: "Trader", playerSeed: null, rounds: 6 });
+  expect(spy.body).toMatchObject({ preset: "Trader", rounds: 6 });
+  expect(spy.body).not.toHaveProperty("playerSeed");
   await expect(rowWith(page, [id]).getByRole("cell").nth(5)).toHaveText("6");
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
   expect(overview.rows).toContainEqual(["Preset", "Trader"]);
