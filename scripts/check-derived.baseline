@@ -3,11 +3,9 @@ alias packages/views/src/Views/Common.purs 4
 hand-instance packages/core/src/Core/World.purs 1
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
 hand-json apps/dashboard/src/Dashboard/Components.purs 1
-implicit-codec apps/cli/src/Session.purs 2
 implicit-codec apps/server/test/Main.purs 10
 implicit-codec packages/adapters/test/Test/Adapters/Pi.purs 1
 implicit-codec packages/handlers/src/Handlers/Api/Route.purs 1
-implicit-codec packages/handlers/src/Handlers/Recording.purs 2
 implicit-codec packages/handlers/test/Test/Handlers/Capstone.purs 1
 implicit-codec packages/handlers/test/Test/Handlers/Llm.purs 1
 intent-walk packages/policy/src/Policy/Interpret.purs 1

@@ -97,7 +97,6 @@
         "core": {
           "dependencies": [
             "aff",
-            "argonaut-codecs",
             "arrays",
             "console",
             "effect",

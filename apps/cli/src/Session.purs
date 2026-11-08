@@ -21,7 +21,8 @@ import Core.Map as CoreMap
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Encode (encodeJson)
+import Core.Shape (Format(Snapshot), encodeWith)
+import Handlers.Recording (exchangeShape)
 import Data.Array (elem, filter)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_, traverse_)
@@ -38,7 +39,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Effects.Signatures (NarrateF(..))
 import Handlers.Live (runLive)
-import Handlers.Llm.Backend (backend)
+import Handlers.Llm.Backend (backend, evidenceShape)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Narrate (narrator)
 import Handlers.Llm.Speak (speak)
@@ -71,8 +72,8 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       exchange <- liftEffect (lineSink (dir <> "/exchanges.jsonl"))
       let
         llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
-          { evidence = evidence <<< stringify <<< encodeJson
-          , exchange = exchange <<< stringify <<< encodeJson
+          { evidence = evidence <<< stringify <<< encodeWith Snapshot evidenceShape
+          , exchange = exchange <<< stringify <<< encodeWith Snapshot exchangeShape
           }
       -- the player seed is resolved once, here, and recorded in the session's spec
       seed <- liftEffect (resolveSeed o.seed)

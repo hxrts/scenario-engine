@@ -16,6 +16,8 @@ module Core.Shape
   , DCtor
   , TagForm(..)
   , prim
+  , jsonShape
+  , descKeys
   , unitShape
   , intShape
   , stringShape
@@ -95,7 +97,7 @@ import Data.Bifunctor (lmap)
 import Data.Array as Array
 import Data.Int as Int
 import Partial.Unsafe (unsafeCrashWith)
-import Data.Array (sortBy)
+import Data.Array (concatMap, sortBy)
 import Data.Tuple (Tuple(..), fst)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
@@ -734,6 +736,22 @@ recordShape
   -> Record shapes
   -> Shape (Record row)
 recordShape name shapes = object name (map (\b -> Builder.build b {}) (recordFields (Proxy :: Proxy keys) shapes))
+
+-- | A JSON value carried as it is: the shape's codec is the identity.
+jsonShape :: Shape Json
+jsonShape = prim "Json" identity Right
+
+-- | Every field and constructor payload key a description names, recursively (the names a prompt may use).
+descKeys :: Desc -> Array String
+descKeys = case _ of
+  DPrim _ -> []
+  DArray d -> descKeys d
+  DOpt d -> descKeys d
+  DRec _ fields -> concatMap (\f -> [ f.key ] <> descKeys f.shape) fields
+  DSum _ _ ctors -> concatMap (descKeys <<< _.payload) ctors
+  DKeyed d -> descKeys d
+  DTuple a b -> descKeys a <> descKeys b
+  DRef _ -> []
 
 -- | A two-element array.
 pairOf :: forall a b. Shape a -> Shape b -> Shape (Tuple a b)

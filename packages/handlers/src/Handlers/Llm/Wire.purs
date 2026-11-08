@@ -13,6 +13,7 @@ module Handlers.Llm.Wire
   , speakRequestShape
   , textReplyShape
   , correctionShape
+  , decodeReply
   , decodeJoint
   , decodeJointReply
   , decodeText
@@ -21,7 +22,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, field, intShape, parse, prim, recordOf, recordShape, requiredOf, stringShape)
+import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
 import Core.Types (EntityId, MarketId, RoundIndex, idShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json)
@@ -62,7 +63,7 @@ textReplyShape = recordOf "TextReply"
 -- | A correction's payload: the original request, the previous reply's text, and the decode error as
 -- | the decoder reports it.
 correctionShape :: Shape { request :: Json, previous_reply :: String, error :: String }
-correctionShape = recordShape "Correction" { request: (prim "Json" identity Right), previous_reply: stringShape, error: stringShape }
+correctionShape = recordShape "Correction" { request: jsonShape, previous_reply: stringShape, error: stringShape }
 
 -- | The first balanced {...} object in a reply (models sometimes wrap JSON in prose or fences).
 -- | Braces inside JSON strings do not count. Text with no balanced object is returned whole.

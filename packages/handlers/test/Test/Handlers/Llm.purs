@@ -14,11 +14,17 @@ import Core.Types (Id(..), Intent, IntentF(..), intentShape)
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (length)
+import Data.Array (length, mapMaybe)
 import Data.Either (Either(..), either, hush, isLeft)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.String (Pattern(..), contains)
+import Data.String as String
+import Data.String.Regex (match) as Regex
+import Data.String.Regex.Flags (global)
+import Data.String.Regex.Unsafe (unsafeRegex)
+import Data.Array.NonEmpty as NEA
+import Data.Foldable (elem, for_)
 import Data.String.CodeUnits as SCU
 import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
 import Effect.Class (liftEffect)
@@ -30,6 +36,7 @@ import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Narrate (listing, narrator)
 import Handlers.Llm.Speak (speak)
 import Handlers.Llm.Wire (decodeJoint, decodeText)
+import Handlers.Llm.Call (interpretCall, narrateCall, speakCall)
 import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
@@ -40,7 +47,7 @@ import Schema.Decode (decodeError)
 import Test.Handlers.Stub (answering, backendOf, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-import Core.Shape (Format(..), encodeWith, prose)
+import Core.Shape (Format(..), descKeys, encodeWith, prose)
 import Foreign.Object as Object
 
 tr :: String -> String -> Transcript
@@ -87,6 +94,15 @@ sample = { author: Id "US", intents: [], signers: [ Id "DE" ], agreed: [ Id "US"
 
 spec :: Spec Unit
 spec = do
+  describe "the model call descriptions" do
+    it "every backticked name in a prompt is a key of its call's shapes" do
+      let names p = maybe [] (mapMaybe (map (\m -> String.take (String.length m - 2) (String.drop 1 m))) <<< NEA.toArray) (Regex.match (unsafeRegex "`[a-zA-Z_]+`" global) p)
+      for_
+        [ { prompt: interpretCall.prompt, keys: descKeys interpretCall.request.desc <> descKeys interpretCall.wire.desc }
+        , { prompt: narrateCall.prompt, keys: descKeys narrateCall.request.desc <> descKeys narrateCall.wire.desc }
+        , { prompt: speakCall.prompt, keys: descKeys speakCall.request.desc <> descKeys speakCall.wire.desc }
+        ]
+        \c -> for_ (names c.prompt) \n -> elem n c.keys `shouldEqual` true
   describe "Prompts" do
     it "each request has its own task: the joint pass reconciles, the narrator writes the front page, a seat speaks" do
       contains (Pattern "reconcile them into Proposals") interpretPrompt `shouldEqual` true

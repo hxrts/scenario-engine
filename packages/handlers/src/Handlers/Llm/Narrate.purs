@@ -5,15 +5,14 @@ module Handlers.Llm.Narrate
   ) where
 
 import Prelude
-import Core.Shape (stringShape)
 import Core.World (RoundResult)
 import Data.Array (null)
 import Data.Either (either)
 import Data.String (joinWith)
 import Effect.Aff (Aff)
 import Effects.Signatures (NarrateF(..))
-import Handlers.Llm.Wire (NarrateRequest, decodeText, narrateRequestShape)
-import Handlers.Llm.Prompt (narratePrompt)
+import Handlers.Llm.Call (narrateCall)
+import Handlers.Llm.Wire (NarrateRequest)
 import Handlers.Llm.Backend (Backend, ask)
 
 -- | The round's front page. A round whose joint pass did not decode, and a model reply that does
@@ -26,8 +25,7 @@ narrator b jointFailed (Narrate r k) = k <$>
     let
       request :: NarrateRequest
       request = { round: r.record.round, events: r.record.events }
-      key = { round: r.record.round, seats: [] }
-    either (const (listing r)) identity <$> ask b "narrate" key narratePrompt narrateRequestShape request stringShape decodeText
+    either (const (listing r)) identity <$> ask b narrateCall request
 
 -- | The round's events, one per line, with no interpretation.
 listing :: RoundResult -> String

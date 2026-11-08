@@ -7,7 +7,7 @@ module Handlers.Llm.Joint
 
 import Prelude
 import Core.Map (values)
-import Schema.Joint (ProposedJoint, jointProposals, jointReplyShape)
+import Schema.Joint (ProposedJoint, jointProposals)
 import Core.Shape (Format(..), encodeWith)
 import Core.Types (MarketId)
 import Core.World (WorldState)
@@ -15,19 +15,19 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Effect.Aff (Aff)
 import Effects.Signatures (InterpretF(..))
-import Handlers.Llm.Wire (JointRequest, decodeJointReply, jointRequestShape)
-import Handlers.Llm.Prompt (interpretPrompt)
-import Handlers.Llm.Backend (Backend, Key, maxCorrections, seatText, send, correction)
+import Handlers.Llm.Call (interpretCall)
+import Handlers.Llm.Wire (JointRequest)
+import Handlers.Llm.Backend (Backend, maxCorrections, send, correction)
 
 -- | The joint pass: one call, then up to `maxCorrections` corrections while the reply does not decode.
 -- | The first reply that decodes is the result. If the last correction does not decode either, the
 -- | result is that decode error (the caller tells the speakers and submits nothing).
-joint :: Backend -> Key -> JointRequest -> Aff (Either String (Array ProposedJoint))
-joint b key request = go 0 original
+joint :: Backend -> JointRequest -> Aff (Either String (Array ProposedJoint))
+joint b request = go 0 original
   where
-  original = encodeWith Snapshot jointRequestShape request
+  original = encodeWith Snapshot interpretCall.request request
   go n payload = do
-    out <- send b "interpret" key interpretPrompt payload jointReplyShape decodeJointReply
+    out <- send b interpretCall (interpretCall.key request) payload
     case out.decoded of
       Right r -> pure (Right r.proposals)
       Left err
@@ -43,8 +43,7 @@ interpreter b w (Interpret round transcripts k) = k <$> do
   let
     request :: JointRequest
     request = { round, transcripts, entities: map _.id (values w.entities), markets: markets w }
-    key = { round, seats: map (\t -> seatText t.seat) transcripts }
-  r <- joint b key request
+  r <- joint b request
   pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
 
 markets :: WorldState -> Array MarketId

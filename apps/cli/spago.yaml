@@ -15,7 +15,6 @@ package:
     - tuples
     - newtype
     - foldable-traversable
-    - argonaut-codecs
     - sp-core
     - sp-schema
     - sp-game

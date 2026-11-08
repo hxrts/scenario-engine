@@ -17,7 +17,7 @@ module Test.Handlers.Stub
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
-import Core.Shape (Format(..), decodeJsonWith, encodeWith, stringShape)
+import Core.Shape (Format(..), decodeJsonWith, encodeWith)
 import Data.Argonaut.Core (stringify, toArray, toNumber, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (uncons)
@@ -35,6 +35,7 @@ import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm.Backend (Backend, Call, backend)
 import Schema.Joint (ProposedJoint, jointReplyShape)
+import Handlers.Llm.Call (ModelCall, interpretCall, narrateCall, speakCall)
 import Handlers.Llm.Wire (textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
@@ -74,14 +75,18 @@ replyJoint ps = stringify (encodeWith Snapshot jointReplyShape { proposals: ps }
 replyText :: String -> String
 replyText s = stringify (encodeWith Snapshot textReplyShape { text: s })
 
+-- | A recorded value as the text the model would have written, by its call's description.
+replyOf :: forall p w r. ModelCall p w r -> r -> String
+replyOf c = stringify <<< encodeWith Snapshot c.wire <<< c.rewire
+
 -- | A recorded exchange's reply, as the model's text: the recorded value under the key the
 -- | effect's reply uses. An error reply has no value, so its text does not decode.
 replyTextOf :: Exchange -> String
 replyTextOf x = case toObject x.reply >>= Object.lookup "value" of
   Nothing -> ""
   Just v
-    | x.effect == "interpret" -> either (const "") (\r -> replyJoint r.proposals) (decodeJsonWith Snapshot jointReplyShape v)
-    | otherwise -> either (const "") replyText (decodeJsonWith Snapshot stringShape v)
+    | x.effect == interpretCall.effect -> either (const "") (replyOf interpretCall) (decodeJsonWith Snapshot interpretCall.recorded v)
+    | otherwise -> either (const "") (replyOf narrateCall) (decodeJsonWith Snapshot narrateCall.recorded v)
 
 -- | What a call is keyed on: its effect, round and seats. The payload says them: a joint pass
 -- | carries `transcripts`, a narrator `events`, and a seat `actor`.
@@ -98,9 +103,9 @@ keyOfPayload input = do
     Just ts, _ -> do
       seats <- note "the transcripts are not a list" (toArray ts)
       names <- traverse (\t -> note "a transcript has no seat" (toObject t >>= Object.lookup "seat" >>= toString)) seats
-      pure { effect: "interpret", round, seats: names }
-    _, Just a -> pure { effect: "seat:speak", round, seats: [ fromMaybe "" (toString a) ] }
-    _, _ -> pure { effect: "narrate", round, seats: [] }
+      pure { effect: interpretCall.effect, round, seats: names }
+    _, Just a -> pure { effect: speakCall.effect, round, seats: [ fromMaybe "" (toString a) ] }
+    _, _ -> pure { effect: narrateCall.effect, round, seats: [] }
 
 keyOfExchange :: Exchange -> Key
 keyOfExchange x = { effect: x.effect, round: x.round, seats: x.seats }

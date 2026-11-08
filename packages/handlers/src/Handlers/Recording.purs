@@ -5,15 +5,15 @@
 module Handlers.Recording
   ( Exchange
   , Recording
+  , exchangeShape
   , encodeReply
   , encodeRecording
   ) where
 
 import Prelude
 
-import Core.Shape (Format(..), Shape, encodeWith, prettyJson)
+import Core.Shape (Format(..), Shape, arrayOf, encodeWith, intShape, jsonShape, optionalOf, prettyJson, recordShape, stringShape)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 
@@ -22,17 +22,23 @@ import Data.Maybe (Maybe(..))
 -- | reply. A call with no seat (the narrator's) has no seats.
 type Exchange = { effect :: String, round :: Int, seats :: Array String, request :: Json, reply :: Json }
 
+exchangeShape :: Shape Exchange
+exchangeShape = recordShape "Exchange" { effect: stringShape, round: intShape, seats: arrayOf stringShape, request: jsonShape, reply: jsonShape }
+
 type Recording = Array Exchange
 
 -- | The reply's encoding: an error text, or the typed value. Both keys are always written.
 type ReplyJson = { error :: Maybe String, value :: Maybe Json }
 
+replyJsonShape :: Shape ReplyJson
+replyJsonShape = recordShape "ReplyJson" { error: optionalOf stringShape, value: optionalOf jsonShape }
+
 -- | A reply's recorded form: the typed value encoded through its shape (the snapshot form).
 encodeReply :: forall a. Shape a -> Either String a -> Json
-encodeReply s r = encodeJson $ case r of
-  Left e -> { error: Just e, value: Nothing } :: ReplyJson
+encodeReply s r = encodeWith Snapshot replyJsonShape $ case r of
+  Left e -> { error: Just e, value: Nothing }
   Right a -> { error: Nothing, value: Just (encodeWith Snapshot s a) }
 
 -- | The recording file's text: indented JSON, with a final newline.
 encodeRecording :: Recording -> String
-encodeRecording rec = prettyJson (encodeJson rec)
+encodeRecording rec = prettyJson (encodeWith Snapshot (arrayOf exchangeShape) rec)
