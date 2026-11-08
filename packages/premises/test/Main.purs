@@ -2,6 +2,8 @@ module Test.Premises.Main where
 
 import Prelude
 
+import Testkit.Edit (onActor, onEntity, onMarket, onTransformation)
+
 import Core.Map (values)
 
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
@@ -164,9 +166,6 @@ editConfig :: (InstantiationConfig -> InstantiationConfig) -> Edit
 editConfig f g c = Tuple g (f c)
 
 -- | One Entity of the world, edited.
-onEntity :: String -> (Entity -> Entity) -> UnseededWorld -> UnseededWorld
-onEntity i f w = w { entities = Map.update (Just <<< f) (Id i) w.entities }
-
 -- | An Aggregate whose every procedure weighs an extra, unknown Entity.
 withWeightOf :: String -> Entity -> Entity
 withWeightOf name e = case e.kind of
@@ -321,13 +320,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Gameboard validation: each check reports its own error" do
     rejects "UnknownReference: a market access list names no Entity"
-      (editWorld \w -> w { markets = Map.update (\m -> Just m { access = m.access <> [ Id "NOBODY" ] }) (Id "energy-atlantic") w.markets })
+      (editWorld \w -> onMarket (Id "energy-atlantic") (\m -> m { access = m.access <> [ Id "NOBODY" ] }) w)
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a market's quote is not a Resource"
-      (editWorld \w -> w { markets = Map.update (\m -> Just m { quote = Id "X" }) (Id "energy-asia") w.markets })
+      (editWorld \w -> onMarket (Id "energy-asia") (\m -> m { quote = Id "X" }) w)
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a facility's payee is not an Entity"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { payment = map (_ { to = Id "NOBODY" }) t.payment }) (Id "energy-shipping") w.transformations })
+      (editWorld \w -> onTransformation (Id "energy-shipping") (\t -> t { payment = map (_ { to = Id "NOBODY" }) t.payment }) w)
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: a capability names a Rule kind the premise does not declare"
       (editWorld \w -> w { ruleKinds = Map.delete (Id "tariff") w.ruleKinds })
@@ -339,31 +338,31 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (\g c -> Tuple g { schemes = map (\s -> s { observes = Id "NOPE" }) g.schemes } c)
       (UnknownReference ResourceRef "NOPE")
     rejects "UnknownReference: an Aggregate member is not an Entity"
-      (editWorld (onEntity "EU" \e -> e { kind = Aggregate { policy: Id "eu-coordination-v0", members: [ Id "NOBODY" ], procedures: Map.empty } }))
+      (editWorld (onEntity (Id "EU") \e -> e { kind = Aggregate { policy: Id "eu-coordination-v0", members: [ Id "NOBODY" ], procedures: Map.empty } }))
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: an Actor's NPC policy is not in the catalog"
-      (\g c -> Tuple g { actors = Map.update (\d -> Just d { npc = [ Id "no-such-policy" ] }) (Id "CN") g.actors } c)
+      (\g c -> Tuple (onActor (Id "CN") (\d -> d { npc = [ Id "no-such-policy" ] }) g) c)
       (UnknownReference PolicyRef "no-such-policy")
     rejects "UnknownReference: a Withholding rule names a capacity no Entity holds"
       (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
       (UnknownReference CapacityName "nowhere")
     rejects "MissingFallback: a non-required Actor with no fallback"
-      (\g c -> Tuple g { actors = Map.update (\d -> Just d { fallback = Nothing }) (Id "DE") g.actors } c)
+      (\g c -> Tuple (onActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
       (MissingFallback (Id "DE"))
     rejects "MissingObjective: an Actor with no objective"
-      (\g c -> Tuple g { actors = Map.update (\d -> Just d { objective = Nothing }) (Id "DE") g.actors } c)
+      (\g c -> Tuple (onActor (Id "DE") (\d -> d { objective = Nothing }) g) c)
       (MissingObjective (Id "DE"))
     rejects "DuplicateCapacityOwner: two Entities hold the same capacity"
-      (editWorld (onEntity "SA" \e -> e { capacities = Map.insert (Id "semiconductors") (Q.fromInt 1) e.capacities }))
+      (editWorld (onEntity (Id "SA") \e -> e { capacities = Map.insert (Id "semiconductors") (Q.fromInt 1) e.capacities }))
       (DuplicateCapacityOwner "semiconductors")
     rejects "ProcedureExceedsAuthority: a procedure authorizes what its Aggregate may not do"
-      (editWorld (onEntity "EU" \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
+      (editWorld (onEntity (Id "EU") \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
       (ProcedureExceedsAuthority (Id "EU"))
     rejects "ProductionWithoutCapacity: a producer that does not hold the capacity it produces from"
       (editWorld \w -> w { recurring = w.recurring <> [ productionRule { entity: Id "US", resource: Id "E", capacity: Id "energy-production" } ] })
       (ProductionWithoutCapacity (Id "US") "energy-production")
     rejects "CoverageNotAggregate: a coverage fallback that names an Entity which is not an Aggregate"
-      (\g c -> Tuple g { actors = Map.update (\d -> Just d { fallback = Just (ImplicitCoverage (Id "US")) }) (Id "DE") g.actors } c)
+      (\g c -> Tuple (onActor (Id "DE") (\d -> d { fallback = Just (ImplicitCoverage (Id "US")) }) g) c)
       (CoverageNotAggregate (Id "DE") (Id "US"))
     rejects "SchemeTargetNotAggregate: a scheme whose target is not an Aggregate"
       (\g c -> Tuple g { schemes = map (\s -> s { target = Id "US" }) g.schemes } c)
@@ -381,28 +380,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editConfig \c -> c { rounds = 9 })
       (RoundsOutOfRange { rounds: 9, min: 4, max: 8 })
     rejects "UnknownReference: a market's base is not a Resource"
-      (editWorld \w -> w { markets = Map.update (\m -> Just m { base = Id "X" }) (Id "energy-atlantic") w.markets })
+      (editWorld \w -> onMarket (Id "energy-atlantic") (\m -> m { base = Id "X" }) w)
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a market's reserve is not a Resource"
-      (editWorld \w -> w { markets = Map.update (\m -> Just m { reserves = Map.insert (Id "X") (Q.fromInt 1) m.reserves }) (Id "energy-asia") w.markets })
+      (editWorld \w -> onMarket (Id "energy-asia") (\m -> m { reserves = Map.insert (Id "X") (Q.fromInt 1) m.reserves }) w)
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a facility input is not a Resource"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { inputs = Map.insert (Id "X") (Q.fromInt 1) t.inputs }) (Id "defense-procurement") w.transformations })
+      (editWorld \w -> onTransformation (Id "defense-procurement") (\t -> t { inputs = Map.insert (Id "X") (Q.fromInt 1) t.inputs }) w)
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a facility output is not a Resource"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { outputs = Map.insert (Id "X") (Q.fromInt 1) t.outputs }) (Id "defense-procurement") w.transformations })
+      (editWorld \w -> onTransformation (Id "defense-procurement") (\t -> t { outputs = Map.insert (Id "X") (Q.fromInt 1) t.outputs }) w)
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: a facility effect names a capacity no Entity holds"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { effects = map (\x -> x { capacity = Id "nowhere" }) t.effects }) (Id "strike") w.transformations })
+      (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { capacity = Id "nowhere" }) t.effects }) w)
       (UnknownReference CapacityName "nowhere")
     rejects "UnknownReference: a facility effect's holder is not an Entity"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { effects = map (\x -> x { holder = Just (Id "NOBODY") }) t.effects }) (Id "strike") w.transformations })
+      (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { holder = Just (Id "NOBODY") }) t.effects }) w)
       (UnknownReference EntityRef "NOBODY")
     rejects "UnknownReference: an Entity account in a Resource that does not exist"
-      (editWorld (onEntity "US" \e -> e { accounts = Map.insert (Id "X") (Q.fromInt 1) e.accounts }))
+      (editWorld (onEntity (Id "US") \e -> e { accounts = Map.insert (Id "X") (Q.fromInt 1) e.accounts }))
       (UnknownReference ResourceRef "X")
     rejects "UnknownReference: an Entity capacity no facility or production uses"
-      (editWorld (onEntity "US" \e -> e { capacities = Map.insert (Id "unused") (Q.fromInt 1) e.capacities }))
+      (editWorld (onEntity (Id "US") \e -> e { capacities = Map.insert (Id "unused") (Q.fromInt 1) e.capacities }))
       (UnknownReference CapacityName "unused")
     rejects "UnknownReference: a production entry's Resource that does not exist"
       (editWorld \w -> w { recurring = map (\p -> if p.kind == kinds.production then p { resource = Id "X" } else p) w.recurring })
@@ -429,13 +428,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "no-such-facility") } ] })
       (UnknownReference TransformationRef "no-such-facility")
     rejects "UnknownReference: a procedure weight on an Entity that does not exist"
-      (editWorld (onEntity "EU" (withWeightOf "NOBODY")))
+      (editWorld (onEntity (Id "EU") (withWeightOf "NOBODY")))
       (UnknownReference EntityRef "NOBODY")
     it "ResolutionInconsistent: an implicit Actor whose authority its Aggregate would not keep" do
       { gameboard, config } <- loaded
       -- DE may enact tariffs, but once the EU covers DE, DE's authority disappears
       let
-        gb = gameboard { world = gameboard.world { entities = Map.update (\e -> Just e { capabilities = e.capabilities <> [ MayEnact (Id "tariff") ] }) (Id "DE") gameboard.world.entities } }
+        gb = gameboard { world = onEntity (Id "DE") (\e -> e { capabilities = e.capabilities <> [ MayEnact (Id "tariff") ] }) gameboard.world }
       case validateGameboard gb config of
         Left es -> (ResolutionInconsistent (Id "DE") [ AuthorityDiffers ] `elem` es) `shouldEqual` true
         Right _ -> fail "expected ResolutionInconsistent"

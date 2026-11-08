@@ -5,6 +5,8 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
+import Testkit.Edit (onEntity)
+
 import Test.Views.Support (toStored)
 
 import Schema.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec)
@@ -137,7 +139,7 @@ spec context = describe "Views and error paths" do
       money = base.manifest.initial.numeraire
       held = holding (final base) e money
       -- the other run's every round has no Money account for US, so it lacks what the baseline holds
-      dropped w = w { entities = Map.update (\en -> Just en { accounts = Map.delete money en.accounts }) e w.entities }
+      dropped w = onEntity e (\en -> en { accounts = Map.delete money en.accounts }) w
       other = base { id = "other", rounds = map (\x -> x { world = dropped x.world }) base.rounds }
       rows = (baselineDiff base [ other ]).rows
     (held == Q.zero) `shouldEqual` false
@@ -207,7 +209,7 @@ spec context = describe "Views and error paths" do
       e = Id "US"
       money = s.manifest.initial.numeraire
       -- the round-2 snapshot (index 1) holds a known amount of Money for US; the others are unchanged
-      setMoney w = w { entities = Map.update (\en -> Just en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) e w.entities }
+      setMoney w = onEntity e (\en -> en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) w
       known = s { rounds = mapWithIndex (\i x -> if i == 1 then x { world = setMoney x.world } else x) s.rounds }
       moneyRow h = filter (\row -> index row 0 == Just (show money)) h.table.rows
     case entityHistory known e of

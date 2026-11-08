@@ -2,6 +2,8 @@ module Test.Board.Main where
 
 import Prelude
 
+import Testkit.Edit (onEntity)
+
 import Core.Map (values)
 
 import Board.Error (ValidationError(..))
@@ -193,7 +195,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a procedure authorizing an unknown name" do
       let
         procedure = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: Q.fromInt 1, authorizes: [ MayTrade (Id "m1"), MayTransform (Id "t1") ] }
-        gb = coverageGameboard { world = w { entities = Map.update (\x -> Just x { kind = Aggregate { policy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) eu w.entities } }
+        gb = coverageGameboard { world = onEntity eu (\x -> x { kind = Aggregate { policy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) w }
       reports gb config [ ref Market "m1", ref TransformationRef "t1" ]
     it "an objective's Entities and Measure" do
       reports (withObjective (HoldingOf (Id "r2"))) config [ ref EntityRef "ghost", ref ResourceRef "r2" ]

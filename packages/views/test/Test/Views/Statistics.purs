@@ -5,6 +5,8 @@ module Test.Views.Statistics (spec) where
 
 import Prelude
 
+import Testkit.Edit (onEntity)
+
 import Test.Views.Support (toStoredWith)
 
 import Core.Draw (Seed(..))
@@ -52,7 +54,7 @@ baseRun p = do
 
 -- | A holding set to an amount in one Entity's account.
 setHolding :: WorldState -> EntityId -> ResourceId -> Q -> WorldState
-setHolding w e res amount = w { entities = Map.update (\x -> Just (x { accounts = Map.insert res amount x.accounts })) e w.entities }
+setHolding w e res amount = onEntity e (\x -> (x { accounts = Map.insert res amount x.accounts })) w
 
 -- | A World State where every Actor holds nothing of Money, Energy or Military, and every Market's
 -- | position is zero, so each Energy and Military price is its base price.

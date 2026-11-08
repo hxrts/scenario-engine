@@ -884,13 +884,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         w = baseWorld [ actor "A" [], actor "B" [] ]
         r = empty w
-        moved = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 99) }) (Id "A") (Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) (Id "B") r.world.entities) } }
+        moved = r { world = onEntity (Id "A") (\e -> e { accounts = Map.singleton (Id "M") (Q.fromInt 99) }) (onEntity (Id "B") (\e -> e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) r.world) }
       invariantsOf w moved `shouldEqual` [ "INV-04", "INV-04" ]
     it "INV-05: a Resource created with no leg from the source" do
       let
         w = baseWorld [ actor "A" [] ]
         r = empty w
-        grown = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) (Id "A") r.world.entities } }
+        grown = r { world = onEntity (Id "A") (\e -> e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) r.world }
       invariantsOf w grown `shouldContain` "INV-05"
     it "INV-06: a fill above the pool's capacity" do
       let
@@ -1033,6 +1033,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "the snapshot form of a rule enactment nests the Rule the same way" do
       stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
         `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
+
+-- | Change one Entity of a World.
+onEntity :: EntityId -> (Entity -> Entity) -> WorldState -> WorldState
+onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v

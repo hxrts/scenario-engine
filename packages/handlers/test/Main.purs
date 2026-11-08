@@ -2,6 +2,8 @@ module Test.Handlers.Main where
 
 import Prelude
 
+import Testkit.Edit (onMarket)
+
 import Game.Bindings (strategyBindings)
 import Data.Tuple (Tuple(..))
 
@@ -151,7 +153,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g0 <- unseated
       let
         g = g0
-          { world = g0.world { markets = Map.update (\m -> Just m { position = Q.fromInt 60 }) (Id "energy-atlantic") g0.world.markets }
+          { world = onMarket (Id "energy-atlantic") (\m -> m { position = Q.fromInt 60 }) g0.world
           , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (strategyOrThrow """{"sign":[{"all":null}]}""") g0.inWorld.strategies }
           }
       records <- play g 1

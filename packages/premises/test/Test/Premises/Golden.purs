@@ -5,6 +5,8 @@ module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Prelude
 
+import Testkit.Edit (onEntity)
+
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Invariants (check)
@@ -59,7 +61,7 @@ golden = describe "Golden fixtures" do
     case resolveRound f.world (firstInputs f) of
       Left e -> failWith (show e)
       Right r -> do
-        let tampered = r { world = r.world { entities = Map.update (\e -> Just e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) (Id "US") r.world.entities } }
+        let tampered = r { world = onEntity (Id "US") (\e -> e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) r.world }
         map _.invariant (check f.world tampered) `shouldEqual` [ "INV-04", "INV-05" ]
   it "C4: the stored factor replaces the next round's baseline" do
     adjustedTarget (Q.fromInt 32) (q "0.95") `shouldEqual` q "30.4"
