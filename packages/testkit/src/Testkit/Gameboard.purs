@@ -3,8 +3,8 @@ module Testkit.Gameboard (minimalGameboard) where
 
 import Prelude
 
--- | The smallest valid Gameboard document: no resources, markets, facilities, or Entities.
+-- | The smallest valid Gameboard document: its numeraire, and no markets, facilities, or Entities.
 minimalGameboard :: String -> String
 minimalGameboard roundRange =
   """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": """ <> roundRange
-    <> """, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
+    <> """, "resources": { "M": { "unit": "USD", "transferability": "Free" } }, "markets": {}, "transformations": {}, "entities": {} }"""

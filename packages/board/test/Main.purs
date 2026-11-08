@@ -10,7 +10,7 @@ import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Types (CapacityTag, Direction(..), EffectF(..), EffectKind(..), EntityTag, RuleF, RuleKindDecl, RuleKindTag, Scope(..), ScopeKind(..))
-import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
+import Core.Types (Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (UnseededWorld)
 import Data.Argonaut.Core (Json)
 import Data.Array (concatMap, elem, filter, mapMaybe)
@@ -20,7 +20,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
-import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard)
+import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, Measure(..), Span(..))
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -171,6 +171,47 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               es /= []
           ) `shouldEqual` true
         Right _ -> fail "expected a negative delay"
+
+  describe "Unknown references at load (docs/03 §12)" do
+    let
+      config = { seed: Seed 1, rounds: 2, seats: Map.empty, npcs: Map.empty, fallbacks: Map.empty, representations: [] }
+      w = coverageGameboard.world
+      us = Id "US" :: EntityId
+      eu = Id "EU" :: EntityId
+      -- the listed unknown references are all reported
+      reports gb cfg expected = case validateGameboard gb cfg of
+        Left es -> filter (\e -> not (e `elem` es)) expected `shouldEqual` []
+        Right _ -> fail "expected unknown references"
+      withCapabilities cs = coverageGameboard { world = w { entities = map (_ { capabilities = cs }) w.entities } }
+      ref kind name = UnknownReference kind name
+      objective measure = { description: "o", criteria: [ { metric: { entities: [ Id "ghost" ], measure, negated: false }, over: Final, atLeast: Fixed Q.zero } ] }
+      withObjective measure = coverageGameboard { actors = map (_ { objective = Just (objective measure) }) coverageGameboard.actors }
+    it "a capability naming an unknown Market, Resource or Transformation" do
+      reports (withCapabilities [ MayTrade (Id "m0"), MayTransfer (Id "r0"), MayTransform (Id "t0") ]) config
+        [ ref Market "m0", ref ResourceRef "r0", ref TransformationRef "t0" ]
+    it "a procedure authorizing an unknown name" do
+      let
+        procedure = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: Q.fromInt 1, authorizes: [ MayTrade (Id "m1"), MayTransform (Id "t1") ] }
+        gb = coverageGameboard { world = w { entities = Map.update (\x -> Just x { kind = Aggregate { policy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) eu w.entities } }
+      reports gb config [ ref Market "m1", ref TransformationRef "t1" ]
+    it "an objective's Entities and Measure" do
+      reports (withObjective (HoldingOf (Id "r2"))) config [ ref EntityRef "ghost", ref ResourceRef "r2" ]
+      reports (withObjective (CapacityAmount (Id "c2"))) config [ ref CapacityName "c2" ]
+      reports (withObjective (ShortfallOf (Id "r3"))) config [ ref ResourceRef "r3" ]
+      reports (withObjective (ShortfallRounds (Id "r4"))) config [ ref ResourceRef "r4" ]
+      reports (withObjective (VolumeOf (Id "t2"))) config [ ref TransformationRef "t2" ]
+    it "a bound that is another metric is read too" do
+      let
+        metric = { entities: [ us ], measure: HoldingOf (Id "M"), negated: false }
+        bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }) } ] }
+      reports (coverageGameboard { actors = map (_ { objective = Just bounded }) coverageGameboard.actors }) config [ ref ResourceRef "r5" ]
+    it "an implicit coverage fallback naming no Entity" do
+      reports (coverageGameboard { actors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coverageGameboard.actors }) config [ ref EntityRef "nowhere" ]
+    it "a configured fallback for an unknown Actor, or covering by an unknown Entity" do
+      reports coverageGameboard (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref EntityRef "ghost" ]
+      reports coverageGameboard (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref EntityRef "nowhere" ]
+    it "a numeraire that is not a Resource" do
+      reports (coverageGameboard { world = w { numeraire = Id "gold" } }) config [ ref ResourceRef "gold" ]
 
   describe "Instantiation" do
     it "a decoded Gameboard's world carries no seed; instantiation sets it" do

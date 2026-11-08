@@ -280,7 +280,7 @@ Validation is always against one configuration. The Gameboard has no separate "v
 
 | Constructor | Fails when |
 |---|---|
-| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, Rule, scheme, Aggregate member, procedure weight, or `npc` list does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
+| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, Rule, scheme, Aggregate member, procedure weight, `npc` list, capability, procedure `authorizes`, objective metric or Measure, coverage fallback, `config.fallbacks` entry, or the `numeraire` does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
 | `DuplicateCapacityOwner` | A capacity, other than a producer's production capacity, has more than one owner. |
 | `ProductionWithoutCapacity` | A `production` entry's Entity does not hold that capacity. |
 | `FacilityWithoutPayee` | A costed Facility has no `payee`. |

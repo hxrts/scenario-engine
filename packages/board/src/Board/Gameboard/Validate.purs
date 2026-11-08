@@ -12,11 +12,11 @@ import Core.Map (values)
 
 import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
-import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard, InstantiationConfig)
+import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
 import Core.Types (Capability(..), Entity, EntityId, Id(..), MarketId, RefKind(..), ResourceId, Scope(..), TransformationId, domainResource, idText)
-import Core.World (ShareSource(..))
+import Core.World (ShareSource(SalesOf))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..), either)
@@ -90,8 +90,12 @@ validateGameboard gb config =
       <> unknownResource (map _.resource w.circulation.requirements)
       <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.groups :: Array _))
       <> concatMap ruleRefs (values w.rules)
-      <> concatMap enactRefs (concatMap _.capabilities (values w.entities))
-      <> concatMap enactRefs (concatMap (\x -> concatMap _.authorizes (values x.aggregate.procedures)) aggregates)
+      <> concatMap capabilityRefs (concatMap _.capabilities (values w.entities))
+      <> concatMap capabilityRefs (concatMap (\x -> concatMap _.authorizes (values x.aggregate.procedures)) aggregates)
+      <> unknownResource [ w.numeraire ]
+      <> concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective (values gb.actors)) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
+      <> unknownEntity (concatMap coverageOf (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks))
+      <> map (UnknownReference EntityRef <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
       <> unknownResource (map (\(Tuple k _) -> k) (Map.toUnfoldable w.transferConditions :: Array _))
       <> unknownTransformation (map (\(Tuple _ t) -> t.bundled) (Map.toUnfoldable w.transferConditions :: Array _))
       <> unknownEntity (map _.target gb.schemes)
@@ -108,9 +112,28 @@ validateGameboard gb config =
     Flows f -> unknownEntity [ f.governor, f.counterparty ]
     OnCapacity c -> unknownCapacity [ c ]
   unknownKind k = [ UnknownReference RuleKindRef (show k) ]
-  -- a capability to enact names a declared kind
-  enactRefs = case _ of
-    MayEnact k | not (Map.member k w.ruleKinds) -> unknownKind k
+  -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind
+  capabilityRefs = case _ of
+    MayTrade m -> unknown Market [ m ]
+    MayTransfer r -> unknownResource [ r ]
+    MayTransform t -> unknownTransformation [ t ]
+    MayEnact k -> if Map.member k w.ruleKinds then [] else unknownKind k
+  -- a criterion's metric, and the metric its bound reads when it is one
+  boundMetric = case _ of
+    Fixed _ -> []
+    Of m -> [ m ]
+
+  metricRefs :: MetricRef -> Array ValidationError
+  metricRefs m = unknownEntity m.entities <> case m.measure of
+    HoldingOf r -> unknownResource [ r ]
+    CapacityAmount c -> unknownCapacity [ c ]
+    ShortfallOf r -> unknownResource [ r ]
+    ShortfallRounds r -> unknownResource [ r ]
+    PayeeReceipts -> []
+    VolumeOf t -> unknownTransformation [ t ]
+  -- the Aggregate a coverage fallback names
+  coverageOf = case _ of
+    ImplicitCoverage agg -> [ agg ]
     _ -> []
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
   -- an institutional fallback binds a catalog Policy, declared or overridden in the configuration
