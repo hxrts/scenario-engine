@@ -20,7 +20,7 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
 import Game.Assemble (assemblePreset)
-import Flags (parseFlags)
+import Flags (flagNames, parseFlags)
 import Simulator.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
@@ -28,7 +28,7 @@ import Node.Process (argv)
 import Adapters.Filesystem (fileOps)
 import Premises.Load (loadFrom)
 import Exit (fail, usageError)
-import Options (runFlags, runOptions, sessionFlags, sessionOptions)
+import Options (runOptions, sessionOptions)
 import Premises.Presets (presetNames)
 import Session (session)
 
@@ -37,15 +37,19 @@ main = do
   args <- drop 2 <$> argv
   case uncons args of
     Just { head: "run", tail: rest } -> case uncons rest of
-      Just { head: premise, tail: flags } -> case parseFlags runFlags flags >>= runOptions of
+      Just { head: premise, tail: flags } -> case parseFlags flagNames.run flags >>= runOptions of
         Left e -> usage e
         Right o -> runPremise premise o.preset o.rounds o.seed
       Nothing -> usage "run needs a premise, e.g. run meridian"
     Just { head: "session", tail: rest } -> case uncons rest of
-      Just { head: premise, tail: flags } -> either usage session (parseFlags sessionFlags flags >>= sessionOptions premise)
+      Just { head: premise, tail: flags } -> either usage session (parseFlags flagNames.session flags >>= sessionOptions premise)
       Nothing -> usage "session needs a premise, e.g. session meridian"
     Just { head: "presets" } -> for_ presetNames log
-    _ -> usage "expected a command: run, session or presets"
+    -- the flag names of a command, for `scripts/validate.sh`
+    Just { head: "flags", tail: [ "run" ] } -> for_ flagNames.run log
+    Just { head: "flags", tail: [ "session" ] } -> for_ flagNames.session log
+    Just { head: "flags", tail: [ "serve" ] } -> for_ flagNames.serve log
+    _ -> usage "expected a command: run, session, presets or flags"
 
 usage :: String -> Effect Unit
 usage = usageError

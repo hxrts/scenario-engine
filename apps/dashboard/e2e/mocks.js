@@ -1,7 +1,10 @@
+import COLUMNS_JSON from "./generated/columns.json";
+
 // Shared fixtures for the dashboard tests. Every request these tests depend on is answered by page.route,
 // so they do not depend on the e2e server's seeded data: each mock answers the contract (apps/server).
 
-export const COLUMNS = ["Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason", "Archived", "Source"];
+// The run list's headings, generated from the views by `just _premises` (Compile).
+export const COLUMNS = COLUMNS_JSON;
 
 // The run list as the server answers it: the table, and the typed flags of each run in the same order.
 // The default list omits archived runs, `?archived=true` lists them.

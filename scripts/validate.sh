@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Argument check for the just recipes that take arguments. Runs before anything is built, so a
-# bad call fails in milliseconds with a hint. The programs still validate their own input; this
-# only mirrors their flags (apps/cli/src/Main.purs, apps/server/src/Server.purs).
+# bad call fails in milliseconds with a hint. The programs still validate their own input; the flag
+# names and the presets are read from the built CLI, so they cannot drift.
 set -euo pipefail
 recipe=$1
 shift
@@ -9,19 +9,20 @@ shift
 premises="meridian"
 # The preset names come from the CLI itself (`presets`) through the built program, so this list cannot
 # drift from `Premises.Presets`. Before the first build there is no program; the CLI validates then.
-presets=$(node --input-type=module -e 'import("./output/Main/index.js").then((m) => m.main())' - presets 2>/dev/null | tr '\n' ' ' || true)
+cli() { node --input-type=module -e 'import("./output/Main/index.js").then((m) => m.main())' - "$@" 2>/dev/null | tr '\n' ' ' || true; }
+presets=$(cli presets)
 packages=$(just --evaluate packages)
 
 case $recipe in
   sim)      usage="just sim <premise> [--preset <name>] [--rounds <n>] [--seed <n>]"
             example="just sim meridian --preset Conservative --rounds 5"
-            flags="--preset --rounds --seed" positional=premise ;;
+            flags=$(cli flags run) positional=premise ;;
   session)  usage="just session <premise> [--humans US,DE] [--model provider/id] [--rounds <n>] [--window <seconds>] [--id <name>] [--db <file>] [--seed <n>]"
             example="just session meridian --humans US --rounds 3"
-            flags="--humans --model --rounds --window --id --db --seed" positional=premise ;;
+            flags=$(cli flags session) positional=premise ;;
   serve)    usage="just serve [--db <file>] [--port <n>] [--static <dir>]   (defaults: runs.db, 8787, apps/dashboard/dist)"
             example="just serve --port 9000"
-            flags="--db --port --static" positional= ;;
+            flags=$(cli flags serve) positional= ;;
   test-pkg) usage="just test-pkg <package>"
             example="just test-pkg core"
             flags= positional=package ;;
@@ -56,7 +57,8 @@ fi
 seen=""
 while [ $# -gt 0 ]; do
   flag=$1
-  one_of "$flag" "$flags" || fail "unknown option '$flag'"
+  # before the first build the CLI cannot be asked; the program validates then
+  [ -z "${flags// /}" ] || one_of "$flag" "$flags" || fail "unknown option '$flag'"
   one_of "$flag" "$seen" && fail "$flag given twice"
   seen="$seen $flag"
   [ $# -ge 2 ] || fail "$flag needs a value"

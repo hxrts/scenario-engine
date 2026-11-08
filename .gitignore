@@ -16,6 +16,7 @@ apps/dashboard/ui/
 apps/dashboard/theme.css
 
 # compiled from the premise DSL (`just _premises`)
+apps/dashboard/e2e/generated/
 packages/premises/meridian/
 packages/premises/presets.json
 packages/premises/fixtures/

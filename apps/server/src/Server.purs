@@ -12,7 +12,7 @@ import Data.Array (drop)
 import Data.Either (Either(..))
 import Effect (Effect)
 import Effect.Console (log)
-import Flags (flagOr, intFlag, parseFlags)
+import Flags (flagNames, flagOr, intFlag, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')
@@ -25,7 +25,7 @@ import Server.Implementation (implement)
 main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
-  case parseFlags [ "--db", "--port", "--static" ] args of
+  case parseFlags flagNames.serve args of
     Left e -> usage e
     -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port.sh reads
     Right flags -> case intFlag "--port" 8787 (\p -> p > 0 && p < 65536) "a port number" flags of

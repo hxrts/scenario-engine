@@ -1,6 +1,12 @@
 -- | Command-line flags shared by the apps (docs/06_simulator.md §1): `--name value` pairs.
 -- | A flag that is not allowed, has no value, or is given twice is a usage error; nothing is ignored.
-module Flags (parseFlags, flagOr, intFlag, optionalInt) where
+module Flags
+  ( flagNames
+  , parseFlags
+  , flagOr
+  , intFlag
+  , optionalInt
+  ) where
 
 import Prelude
 
@@ -13,6 +19,14 @@ import Foreign.Object as Object
 
 -- | The `--name value` flags of an argument list. A flag that is not allowed, has no value, or is
 -- | given twice is a usage error: nothing is silently ignored.
+-- | The flags each command takes: the one list. `scripts/validate.sh` reads it through the CLI's `flags` command.
+flagNames :: { run :: Array String, session :: Array String, serve :: Array String }
+flagNames =
+  { run: [ "--preset", "--rounds", "--seed" ]
+  , session: [ "--humans", "--model", "--rounds", "--window", "--id", "--db", "--seed" ]
+  , serve: [ "--db", "--port", "--static" ]
+  }
+
 parseFlags :: Array String -> Array String -> Either String (Object String)
 parseFlags allowed args = go args Object.empty
   where

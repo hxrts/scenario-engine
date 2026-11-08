@@ -1,6 +1,6 @@
 -- | Seat-policy presets (docs/06_simulator.md §4.2), shared by every premise. `just _premises`
 -- | compiles them to `packages/premises/presets.json`.
-module Premises.Presets (presets, presetNames) where
+module Premises.Presets (presets, presetNames, defaultPresets) where
 
 import Prelude (map, negate)
 import Premises.Names as N
@@ -29,6 +29,11 @@ presets =
 -- | The preset names, in the order the presets are written (the order the launch form offers them).
 presetNames :: Array String
 presetNames = map (\(Tuple k _) -> k) presets
+
+-- | The presets a caller plays when it names none: a command-line run, and the agency analysis's
+-- | baseline and alternative.
+defaultPresets :: { run :: String, agencyBaseline :: String, agencyAlternative :: String }
+defaultPresets = { run: "Passive", agencyBaseline: "Conservative", agencyAlternative: "Aggressive" }
 
 -- | Buy `quantity` Energy at the cheapest accessible Market while its price is at or below `threshold`,
 -- | at a limit of `limit`. With no accessible Energy Market, nothing is proposed.

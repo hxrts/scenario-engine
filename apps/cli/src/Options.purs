@@ -1,9 +1,7 @@
 -- | The command-line options of `run` and `session` (docs/06 §6.2), from their parsed flags. A bad value
 -- | is a usage error; `Main` reports it and exits 1.
 module Options
-  ( runFlags
-  , runOptions
-  , sessionFlags
+  ( runOptions
   , sessionOptions
   , number
   , numberFrom
@@ -19,24 +17,19 @@ import Data.Maybe (Maybe)
 import Flags (flagOr, intFlag, optionalInt)
 import Foreign.Object (Object)
 import Handlers.Store (validRunId)
+import Premises.Presets (defaultPresets)
 import Session (Options)
-
-runFlags :: Array String
-runFlags = [ "--preset", "--rounds", "--seed" ]
 
 runOptions :: Object String -> Either String { preset :: String, rounds :: Int, seed :: Maybe Seed }
 runOptions fs = do
   rounds <- number "--rounds" 5 fs
   seed <- seedFlag fs
-  pure { preset: flagOr "--preset" "Passive" fs, rounds, seed }
+  pure { preset: flagOr "--preset" defaultPresets.run fs, rounds, seed }
 
 -- | The player seed flag: absent means draw one at start; given, it must be a whole number (the one
 -- | seed rule: `scripts/validate.sh` mirrors it, negative values included).
 seedFlag :: Object String -> Either String (Maybe Seed)
 seedFlag fs = map Seed <$> optionalInt "--seed" (const true) "a whole number" fs
-
-sessionFlags :: Array String
-sessionFlags = [ "--humans", "--model", "--rounds", "--window", "--id", "--db", "--seed" ]
 
 sessionOptions :: String -> Object String -> Either String Options
 sessionOptions premise fs = do

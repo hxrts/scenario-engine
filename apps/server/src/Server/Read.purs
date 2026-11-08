@@ -36,6 +36,7 @@ import Effect (Effect)
 import Experiments.Agency (agency)
 import Game.Assemble (assemblePreset, configuredSeats)
 import Game.Premise (GameboardParts)
+import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
@@ -209,4 +210,4 @@ compareView cache ctx store { runs: ids, market } = do
 agencyView :: Cache -> GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Reply
 agencyView cache ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe "Conservative" preset, fromMaybe "Aggressive" alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))
+  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))

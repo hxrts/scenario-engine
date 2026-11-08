@@ -25,10 +25,7 @@ implicit-codec packages/handlers/test/Test/Handlers/Llm.purs 1
 implicit-codec packages/premises/src/Premises/Capstone.purs 3
 intent-walk packages/policy/src/Policy/Interpret.purs 1
 intent-walk packages/simulator/test/Test/Simulator/Shock.purs 1
-name-literal apps/cli/src/Options.purs 1
-name-literal apps/dashboard/e2e/mocks.js 1
 name-literal apps/dashboard/src/Dashboard/Launch.purs 1
-name-literal apps/server/src/Server/Read.purs 1
 name-literal packages/schema/src/Schema/Premise/Fixture.purs 1
 name-literal packages/views/src/Views/Drivers.purs 1
 repeated-idiom packages/board/src/Board/Gameboard/Instantiate.purs 3

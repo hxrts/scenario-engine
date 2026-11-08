@@ -17,6 +17,8 @@ import Node.FS.Perms (permsAll)
 import Node.FS.Sync (mkdir', writeTextFile)
 import Exit (fail)
 import Compile.Render (compile)
+import Core.Shape (Format(Snapshot), encodeWith, listOf, prettyJson, stringShape)
+import Views.Overview (runList)
 import Premises.Names as N
 
 main :: Effect Unit
@@ -26,4 +28,7 @@ main = case compile of
     root <- premiseRoot fileOps
     for_ [ N.meridianDir, N.fixturesDir, N.capstoneDir ] \dir -> mkdir' (root <> dir) { recursive: true, mode: permsAll }
     for_ files \f -> writeTextFile UTF8 (root <> f.path) f.text
+    -- the tables the dashboard's mocks answer with: their headings come from the views
+    mkdir' "apps/dashboard/e2e/generated" { recursive: true, mode: permsAll }
+    writeTextFile UTF8 "apps/dashboard/e2e/generated/columns.json" (prettyJson (encodeWith Snapshot (listOf stringShape) (runList []).columns))
     log ("compiled " <> show (length files) <> " files")
