@@ -149,7 +149,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Decision-language interpreter** | The shared interpreter that runs every declarative Policy ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls `resolveRound` ([§8.3](#83-functional-interface)). |
 | **World State** | The economic state at a round boundary: Entities with accounts and capacities, Markets, Transformations, Representations, Rules in force and scheduled, Deliveries, stored adjustment factors, the numeraire, transport and jurisdiction links, the event history, the game seed, and the round number. |
-| **Snapshot** | The beginning-of-round World State on which all of that round's decisions are made. |
+| **Snapshot** | The World State a round ends with. The next round's decisions are all made on it, once Prepare has applied what is due. |
 | **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity or Market. |
 | **Money** | The numeraire Resource (World State `numeraire`): the Resource facility costs are paid in. |
 | **Holding** | A quantity of a Resource held by an Entity or a Market's reserves. |
@@ -197,6 +197,22 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `ReciprocateLastRound`) ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Expect** | What a premise asserts about one round: sparse expected values, one per field, written as literals. It is checked against Observed. |
 | **Observed** | What a round produced, read into the same record shape as Expect. |
+| **Deal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
+| **Offer** | A deal as its author publishes it, before the other signers answer. |
+| **Unilateral action** | A Proposal that needs no signature but its author's. |
+| **Joint pass** | The one interpretation call that reads all of a round's transcripts together into Proposals ([§8.1](#81-canonical-resolution-sequence)). |
+| **Run Store** | The persistent store of runs: manifests, specs, round records, snapshots, assertions, and metrics ([06 §8](06_simulator.md#8-persistence)). |
+| **Spec** | A run's stored specification: the string fields it was launched or derived with, beside its manifest. |
+| **Venue** | A Market as a Policy sees it in its View: its id, base, and quote ([§4](#4-policies)). |
+| **Net worth** | Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource, its price is their mean, so a holding counts once. A Resource with no Market is not counted. |
+| **Spread** | The highest minus the lowest final net worth of the players. |
+| **Gini coefficient** | A measure of final net worths: 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative. |
+| **Representation influence ratio** | Next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. |
+| **Vertical** | A researched sector, documented in a vertical report. An authoring concept that no schema field records. |
+| **Strategic tension** | A persistent relationship among economic or political interests, expressed only through mechanically consequential data. |
+| **Rerun** | The zero-change derivation of a run: its resolved configuration and both seeds with nothing changed, so its records must equal the source's. |
+| **Counterfactual** | A derivation of a run that changes one thing by override and compares the result with the source. |
+| **Propose deadline** | The end of a round's window for human transcripts in live play ([04 §8](04_instantiated_game.md)). |
 | **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format, its JSON Schema, and its prose ([§8.4](#84-effects-and-handlers)). |
 
 ## 3. Intents and Economic Actions
@@ -294,7 +310,7 @@ A Proposal whose signature rule is not met **lapses**: it is recorded as a decli
 
 A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)). Each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
 
-Negotiation happens out of band for humans. The interpreter turns "we accept SA's deal" into a signature on that Proposal. Strategies propose and sign by rule (for example, "sign any Energy offer at ≤ 2.6 M/E"). AI agents read the Proposals that name them and choose.
+Negotiation happens out of band for humans. The interpreter turns "we accept SA's deal" into a signature on that Proposal. Strategies propose and sign by rule (for example, "sign what is addressed to me while Energy is at most 2.6 M/E"). AI agents read the Proposals that name them and choose.
 
 ## 4. Policies
 
@@ -308,7 +324,7 @@ type View =                              -- what a Policy sees (INV-16)
   , self :: Entity
   , prices :: Map MarketId Price         -- beginning-of-round
   , rules :: Array Rule                  -- Rules in force
-  , events :: Array Event                -- public events and its own, from prior rounds
+  , events :: Array Event                -- every recorded event, from prior rounds
   , factors :: Map BehaviorDomain Ratio  -- adjustment factors stored last round, for an Aggregate's Policy
   , toSign :: Array Proposal             -- Proposals requiring its signature (empty in Propose)
   , markets :: Array Venue               -- the Markets it has access to (id, base, quote), in id order
@@ -445,17 +461,16 @@ Each commodity keeps a single Resource type. Geography is expressed through:
 
 ### 5.5 Simultaneous clearing
 
-All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders.
+All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Tariffs do not enter clearing: they apply to shipped Transfers ([§5.4](#54-transport)).
 
 For a given Market:
 
 1. Orders whose access rules fail are rejected.
-2. Tariffs and taxes are applied to effective prices.
-3. Compatible purchases and sales are netted.
-4. Residual net demand is executed against the cost function, within domain and reserve limits.
-5. A uniform batch price is computed. The default is the average marginal cost over the net quantity, or the current marginal price when net demand is zero, rounded once before it multiplies quantities ([§9.1](#91-numerics-and-randomness)).
-6. Orders whose limit price is violated at that price are removed, and the price is recomputed. Removed orders stay removed, so the procedure terminates and depends only on the set of orders. Partial fills follow [§3.2](#32-infeasible-actions).
-7. Holdings and reserves change as part of the round's single net update.
+2. Compatible purchases and sales are netted.
+3. Residual net demand is executed against the cost function, within domain and reserve limits.
+4. A uniform batch price is computed. The default is the average marginal cost over the net quantity, or the current marginal price when net demand is zero, rounded once before it multiplies quantities ([§9.1](#91-numerics-and-randomness)).
+5. Orders whose limit price is violated at that price are removed, and the price is recomputed. Removed orders stay removed, so the procedure terminates and depends only on the set of orders. Partial fills follow [§3.2](#32-infeasible-actions).
+6. Holdings and reserves change as part of the round's single net update.
 
 The clearing result must not depend on the order in which submissions were received ([INV-11](#inv-11)).
 
@@ -584,7 +599,7 @@ Produce the beginning-of-round Snapshot and each Entity's View of it ([§4](#4-p
 
 **3. Generate Proposals** *(round runner)*
 
-Human seats speak first. Their transcripts are read in one joint pass (`INTERPRET`), and the Proposals it reconciles join the set frozen in 3a. No joint call is made when nobody speaks.
+Every seat without an in-world Policy speaks first. Their transcripts are read in one joint pass (`INTERPRET`), and the Proposals it reconciles join the set frozen in 3a. No joint call is made when nobody speaks.
 
 - **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or strategy), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
 - **3b Sign.** Every signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
@@ -693,7 +708,9 @@ This is the single numbered invariant table for the whole system. The Gameboard,
 
 IDs 18, 20, and 32–35 are retired.
 
-**Enforcement status.** Predicates in `Core.Invariants` check INV-01 (settlement events against Intents and declared flows), 02, 03, 04 (no negatives and per-Entity reconciliation), 05, 06 (domain, capacity, and ceiling), 08 (one positive holder of a facility's capacity), 09 (factors within estimator bounds), and 10 (signatures and procedure support) on every round in the test suites and simulator. Gameboard validation and instantiation check parts of INV-03, 05, 08, 14, 17, 19, 21, 23–28. INV-07, 11, 12, 13, 15, 16, 29, 30, 31, and 36 have no predicate, for these reasons. INV-15, 29 and 36 are design rules that the types and the effect boundary enforce. INV-07 is implied by INV-05, since only a Transformation can source a stock change. INV-11, 12 and 13 are properties of two runs or of a replay, so they are checked by the named tests in the packages' test suites. INV-16 needs the Gameboard permitted views, so it is not a predicate on one round. INV-30 and 31 are harness properties, not round predicates. INV-22 has no check yet.
+**Rejection reasons in records.** A `RejectReason` is stored as its rendered text, so a stored event compares equal to the event that was recorded. Structured reasons would change the record format at the replay boundary, and no consumer needs them.
+
+**Enforcement status. Predicates in `Core.Invariants` check INV-01 (settlement events against Intents and declared flows), 02, 03, 04 (no negatives and per-Entity reconciliation), 05, 06 (domain, capacity, and ceiling), 08 (one positive holder of a facility's capacity), 09 (factors within estimator bounds), and 10 (signatures and procedure support) on every round in the test suites and simulator. Gameboard validation and instantiation check parts of INV-03, 05, 08, 14, 17, 19, 21, 23–28. INV-07, 11, 12, 13, 15, 16, 29, 30, 31, and 36 have no predicate, for these reasons. INV-15, 29 and 36 are design rules that the types and the effect boundary enforce. INV-07 is implied by INV-05, since only a Transformation can source a stock change. INV-11, 12 and 13 are properties of two runs or of a replay, so they are checked by the named tests in the packages' test suites. INV-16 needs the Gameboard permitted views, so it is not a predicate on one round. INV-30 and 31 are harness properties, not round predicates. INV-22 has no check yet.
 
 ### 9.1 Numerics and randomness
 
@@ -721,7 +738,7 @@ The rules are implemented once, in `Core.Num` (`Q`). Every boundary imports that
 - **Division by zero.** Explicit. `div` fails loudly. A caller whose divisor can be zero uses `divMaybe` or `divFloor` and handles `Nothing`.
 - **Parse.** `Q.parse` is the only decimal parser: an optional sign, one or more digits, and optionally a point followed by one to four digits. Anything else, including a fifth decimal, is an error. No input is rounded silently.
 - **Format.** `Q.format` is the exact formatter: an optional `-`, the integer part, and exactly four decimals, with no grouping and no trailing-zero trimming. It is the text of `show`, of JSON encoding, and of the overrides JSON. It is never shown as a display value.
-- **Display.** `Q.display` dispatches on a `Q.Kind` (Quantity, Price, Ratio), and each kind has one function: `Q.displayQuantity`, `Q.displayPrice`, and `Q.displayRatio`. Every view, table, chart, and CLI line that shows a number names its kind and calls one of these. All three round the exact value half-to-even at the display precision:
+- **Display.** `Q.display` dispatches on a `Q.Kind` (Quantity, Price, Ratio), and each kind has one function: `Q.displayQuantity`, `Q.displayPrice`, and `Q.displayRatio`. Quantity and Price currently display alike. Every view, table, chart, and CLI line that shows a number names its kind and calls one of these. All three round the exact value half-to-even at the display precision:
   - **Quantity** (Money and Resource counts): a whole number shows no decimals. Otherwise at most two decimals, trailing zeros trimmed (`12`, `12.5`, `12.25`). A value that is not zero but would round to zero shows as `<0.01` (or `-<0.01`).
   - **Price** (quote per base unit): two decimals, trailing zeros trimmed, under the same rule as Quantity.
   - **Ratio** (Gini, influence, shrinkage, factors, support and threshold, tariff rates): always two decimals.

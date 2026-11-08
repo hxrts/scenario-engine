@@ -53,11 +53,11 @@ The premise says which forces are relevant, not how they resolve. Its narrative 
 
 ### 3.1 Strategic tensions
 
-A strategic tension is a persistent relationship among economic or political interests. The Gameboard expresses one only through mechanically consequential data: Resources, capacities, Facilities, flows, Market access, or Rules. Each tension must connect to data that participants can act on. Validation does not check this ([§12.3](#123-not-yet-checked-planned)). A tension never requires Actors to act antagonistically. Cooperation and alliances must remain possible.
+A [strategic tension](02_type_system.md#25-glossary) appears in the Gameboard only through mechanically consequential data: Resources, capacities, Facilities, flows, Market access, or Rules. Each tension must connect to data that participants can act on. Validation does not check this ([§12.3](#123-not-yet-checked-planned)). A tension never requires Actors to act antagonistically. Cooperation and alliances must remain possible.
 
 ## 4. Verticals
 
-A vertical is a researched sector, documented in a **vertical report**. Verticals are an authoring concept: no schema field or file records them. Meridian's sectors appear only as the Resources, Markets, Facilities, and Entities they produce ([05 §7](05_test_instance.md#7-economic-verticals)).
+[Verticals](02_type_system.md#25-glossary) are documented in vertical reports. No schema field or file records them. Meridian's sectors appear only as the Resources, Markets, Facilities, and Entities they produce ([05 §7](05_test_instance.md#7-economic-verticals)).
 
 A report compiles into explicit configuration in [§5](#5-economic-structure)–[§9](#9-representation-schemes). Sources, uncertainty, simplifications, and findings that cannot run mechanically stay in the report. Verticals share Resources, Markets, and Entities rather than duplicating them.
 
@@ -316,7 +316,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is the one committed file of this step.
+Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
 
 ## 13. Provenance and Versioning
 

@@ -63,12 +63,12 @@ Markets and facilities price through the shared CostFunction primitive. Faciliti
 
 ### 3.1 Regional Energy Markets
 
-| Market ID | Region | Home Entities | Money reserve | Energy reserve | Operational interval |
+| Market ID | Region | Entities with access | Money reserve | Energy reserve | Operational interval |
 |---|---|---|---:|---:|---|
 | `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, EU_POOL, US_WORKERS, GLOBAL_SMES | 700 M | 350 E | −80 ≤ x ≤ 300 |
 | `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS | 500 M | 250 E | −80 ≤ x ≤ 200 |
 
-SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy. Other Entities trade only on their home node. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
+SHIP trades on both nodes and `ENERGY_SUPPLIERS` offers into both per its Policy. Other Entities have access to one node only. Energy crosses regions only by a shipped Transfer ([§3.2](#32-transport-capacity-and-trade-restrictions)) or by SHIP's own two-node trading.
 
 Both nodes use the same curve:
 
@@ -97,7 +97,7 @@ Germany holds no tariff authority of its own. EU-wide restrictions belong to the
 
 ### 3.3 Defense procurement (facility)
 
-**Transformation ID:** `defense-procurement`
+**Transformation ID:** `defense-procurement` (China orders from its own `defense-procurement-cn`, with payee CN_PRIVATE)
 
 - **Capacity:** 30 Mil per round, backed by CHIP's 15 semiconductor units (1 unit per 2 Mil). Units CHIP withholds, or that capacity investment consumes, reduce capacity proportionally.
 - **Cost:** **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is total Military ordered this round. Every order settles at the uniform price C(Q)/Q.
@@ -424,7 +424,7 @@ Each procedure is a weighted-signature rule on Proposals the EU's Policy publish
 The EU's Policy decides when to publish ([§11.2](#112-eu-aggregate-policy-eu-coordination-v0)):
 
 - **Solidarity Proposal:** sell up to 8 E on `energy-atlantic`, drawing first on the pool and then on its holdings. The pool's transfer is scaled to what it holds, so the pool gives min(8, pool) and the EU sells 8 E. Published in any round whose beginning-of-round Atlantic price exceeds 3.0 M/E, provided the EU's holdings cover its operating requirement of 8 E.
-- **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction is in force and no EU tariff is. The Atlantic-region condition in the original design is not encoded: the trigger is any US or Chinese restriction. This deviation is open.
+- **Trade Proposal:** enact a matching import `Tariff` of 0.5 M/E on cross-region Energy from the restricting jurisdiction, in force from the next round. Published in any round in which a US or Chinese restriction is in force and no EU tariff is. The trigger is any US or Chinese restriction, in any region.
 
 | Procedure | Germany signs | Germany does not sign |
 |---|---|---|
@@ -461,7 +461,7 @@ The stored factor replaces the next round's baseline exactly once. Round r uses 
 
 ### 12.3 Incentives and bounds
 
-The owner knows their choice moves the Aggregate, so it is a strategic choice, not an independent sample. That is intended: shrinkage and the clamp keep influence explicit and bounded, and shrinkage is a balancing parameter, not a population estimate. The simulator reports the **Representation influence ratio**: next-round Aggregate change attributable to the owner, divided by the owner's executed purchase. In the noise-free 4 E case, 2 E against 4 E gives 0.5. Across ε it ranges from 0.25 to 0.75.
+The owner knows their choice moves the Aggregate, so it is a strategic choice, not an independent sample. That is intended: shrinkage and the clamp keep influence explicit and bounded, and shrinkage is a balancing parameter, not a population estimate. The simulator reports the [Representation influence ratio](02_type_system.md#25-glossary). In the noise-free 4 E case, 2 E against 4 E gives 0.5. Across ε it ranges from 0.25 to 0.75.
 
 ## 13. Premise Rules
 
@@ -493,7 +493,7 @@ Out-of-band deals enter as Proposals whose signers are every party. Fixture G sh
 
 ### 13.6 Energy disruption
 
-The only scheduled event: at the Prepare phase of Round 3, a logistics disruption cuts `ENERGY_SUPPLIERS`' maximum offer by 20 E (12 Atlantic, 8 Asia). A cut never takes the offer below zero, so a cut at or above the offer removes it and never turns it into a purchase. Production continues. Unreleased output accumulates in its holdings. It is predeclared configuration, not an AI intervention.
+The only scheduled event: in Round 3, `ENERGY_SUPPLIERS`' Policy reads the `disruption-round` parameter, and a logistics disruption cuts `ENERGY_SUPPLIERS`' maximum offer by 20 E (12 Atlantic, 8 Asia). A cut never takes the offer below zero, so a cut at or above the offer removes it and never turns it into a purchase. Production continues. Unreleased output accumulates in its holdings. It is predeclared configuration, not an AI intervention.
 
 **Major shock (designed test case).** `Premises.Meridian.majorShock` is the reference disruption moved to Round 1 with both cuts at or above the offers: Atlantic 60, Asia 40. Each region's supply is zero that round. It is not the default game. It flips the Atlantic price across 3.0 in both directions, and four presets' Atlantic actions with it. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and shocked 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, Accumulator, Trader, and Deployer change their proposals in Rounds 2, 3, and 5, and Opportunistic in Rounds 2 to 4. The EU's solidarity Proposal is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so CrisisResponse does not flip. [Test 8b](06_simulator.md#14-mandatory-tests) pins the flip.
 
