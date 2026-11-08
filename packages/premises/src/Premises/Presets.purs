@@ -3,7 +3,7 @@
 module Premises.Presets (presets, presetNames, defaultPresets) where
 
 import Prelude (map, negate)
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n)
 
 import Core.Strategy (Clause, Expr, Strategy)
 import Data.Maybe (Maybe(..))
@@ -38,12 +38,12 @@ defaultPresets = { run: "Passive", agencyBaseline: "Conservative", agencyAlterna
 -- | Buy `quantity` Energy at the cheapest accessible Market while its price is at or below `threshold`,
 -- | at a limit of `limit`. With no accessible Energy Market, nothing is proposed.
 buyBelow :: Expr -> Expr -> Expr -> Clause
-buyBelow threshold quantity limit = rule [ le (priceAt (cheapest N.energy)) threshold ] [ orderAt (cheapest N.energy) quantity (Just limit) ]
+buyBelow threshold quantity limit = rule [ le (priceAt (cheapest n.energy)) threshold ] [ orderAt (cheapest n.energy) quantity (Just limit) ]
 
 -- | Sell `quantity` Energy (a negative quantity) at the costliest accessible Market while its price is
 -- | above `threshold`, at a limit of `limit`.
 sellAbove :: Expr -> Expr -> Expr -> Clause
-sellAbove threshold quantity limit = rule [ gt (priceAt (costliest N.energy)) threshold ] [ orderAt (costliest N.energy) quantity (Just limit) ]
+sellAbove threshold quantity limit = rule [ gt (priceAt (costliest n.energy)) threshold ] [ orderAt (costliest n.energy) quantity (Just limit) ]
 
 passive :: Strategy
 passive = { rules: [], sign: [] }
@@ -51,8 +51,8 @@ passive = { rules: [], sign: [] }
 conservative :: Strategy
 conservative =
   { rules:
-      [ rule [ gt (lit 30) (holding N.energy), le (priceAt (cheapest N.energy)) (lit "2.5") ]
-          [ orderAt (cheapest N.energy) (lit 5) (Just (lit "2.5")) ]
+      [ rule [ gt (lit 30) (holding n.energy), le (priceAt (cheapest n.energy)) (lit "2.5") ]
+          [ orderAt (cheapest n.energy) (lit 5) (Just (lit "2.5")) ]
       ]
   , sign: []
   }
@@ -61,7 +61,7 @@ aggressive :: Strategy
 aggressive =
   { rules:
       [ rule []
-          [ asTemplate (selfTransform { transformation: N.defenseProcurement, quantity: lit 4 }) ]
+          [ asTemplate (selfTransform { transformation: n.defenseProcurement, quantity: lit 4 }) ]
       ]
   , sign: []
   }
@@ -102,8 +102,8 @@ opportunistic =
 investor :: Strategy
 investor =
   { rules:
-      [ rule [ gt (holding N.money) (lit 100) ]
-          [ joint { signers: [ N.chip ], transfers: [], transforms: [ { transformation: N.energyCapacityInvestment, quantity: lit 1 } ] } ]
+      [ rule [ gt (holding n.money) (lit 100) ]
+          [ joint { signers: [ n.chip ], transfers: [], transforms: [ { transformation: n.energyCapacityInvestment, quantity: lit 1 } ] } ]
       ]
   , sign: [ signAll ]
   }
@@ -111,8 +111,8 @@ investor =
 crisisresponse :: Strategy
 crisisresponse =
   { rules:
-      [ rule [ gt (priceAt (cheapest N.energy)) (lit "3.5"), gt (lit 20) (holding N.energy) ]
-          [ orderAt (cheapest N.energy) (lit 3) (Just (lit 4)) ]
+      [ rule [ gt (priceAt (cheapest n.energy)) (lit "3.5"), gt (lit 20) (holding n.energy) ]
+          [ orderAt (cheapest n.energy) (lit 3) (Just (lit 4)) ]
       ]
   , sign: []
   }
@@ -121,7 +121,7 @@ randomvalid :: Strategy
 randomvalid =
   { rules:
       [ rule []
-          [ choose [ noAction, orderAt (cheapest N.energy) (lit 5) (Just (lit 3)), orderAt (costliest N.energy) (lit (-5)) (Just (lit 2)) ] ]
+          [ choose [ noAction, orderAt (cheapest n.energy) (lit 5) (Just (lit 3)), orderAt (costliest n.energy) (lit (-5)) (Just (lit 2)) ] ]
       ]
   , sign: []
   }
@@ -134,9 +134,9 @@ randomvalid =
 deployer :: Strategy
 deployer =
   { rules:
-      [ rule [ gt (priceAt (named N.energyAtlantic)) (lit 3) ]
-          [ asTemplate (selfTransform { transformation: N.militaryDeployment, quantity: lit 60 })
-          , orderAt (named N.defenceGoods) (lit (-40)) (Just (lit "2.4"))
+      [ rule [ gt (priceAt (named n.energyAtlantic)) (lit 3) ]
+          [ asTemplate (selfTransform { transformation: n.militaryDeployment, quantity: lit 60 })
+          , orderAt (named n.defenceGoods) (lit (-40)) (Just (lit "2.4"))
           ]
       ]
   , sign: []

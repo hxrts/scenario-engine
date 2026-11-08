@@ -19,7 +19,7 @@ import Game.Restrict (everything, restrict)
 import Premises.Load (fromFiles)
 import Premises.Compose as Composition
 import Premises.Meridian (gameboard, meridian)
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n)
 import Schema.Premise.Gameboard (configShape, gameboardShape)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -44,7 +44,7 @@ spec = do
     it "a dropped Entity takes what belongs to it, and the rest still checks" do
       withPremise \p ->
         let
-          dropped = Id N.ng
+          dropped = Id n.ng
           s = (everything p.gameboard) { entities = filter (_ /= dropped) (everything p.gameboard).entities }
         in
           case restrict s p of
@@ -59,29 +59,29 @@ spec = do
     it "accounts can be narrowed for one Entity" do
       withPremise \p ->
         let
-          s = (everything p.gameboard) { accounts = Map.singleton (Id N.us) [ Id N.money ] }
+          s = (everything p.gameboard) { accounts = Map.singleton (Id n.us) [ Id n.money ] }
         in
           case restrict s p of
             Left e -> fail (show e)
-            Right r -> map (Map.keys <<< _.accounts) (Map.lookup (Id N.us) r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton (Id N.money) unit))
+            Right r -> map (Map.keys <<< _.accounts) (Map.lookup (Id n.us) r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton (Id n.money) unit))
 
     it "a kept thing that refers to a dropped one is an error" do
       withPremise \p ->
         let
-          s = (everything p.gameboard) { resources = filter (_ /= Id N.energy) (everything p.gameboard).resources }
+          s = (everything p.gameboard) { resources = filter (_ /= Id n.energy) (everything p.gameboard).resources }
         in
           case restrict s p of
-            Left (Invalid _ es) -> (UnknownReference ResourceRef N.energy `elem` es) `shouldEqual` true
+            Left (Invalid _ es) -> (UnknownReference ResourceRef n.energy `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a Market whose base Resource was dropped should not pass"
 
     it "an Aggregate's member cannot be dropped from under it" do
       withPremise \p ->
         let
-          s = (everything p.gameboard) { entities = filter (_ /= Id N.aid) (everything p.gameboard).entities }
+          s = (everything p.gameboard) { entities = filter (_ /= Id n.aid) (everything p.gameboard).entities }
         in
           case restrict s p of
-            Left (Invalid _ es) -> (UnknownReference EntityRef N.aid `elem` es) `shouldEqual` true
+            Left (Invalid _ es) -> (UnknownReference EntityRef n.aid `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a kept Aggregate's dropped member should not pass"
 

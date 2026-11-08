@@ -6,7 +6,7 @@
 module Premises.Meridian.Entities (entities, actors) where
 
 import Prelude (map, (<>))
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n, seatActors)
 import Data.Array (zip)
 import Data.Tuple (Tuple(..), fst, snd)
 import Core.Types (Entity, EntityId)
@@ -17,9 +17,9 @@ import Schema.Gameboard (ActorDefinition)
 import Premises.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
 import Premises.Meridian.Entities.Seats (aid, br, cn, chip, def, de, enco, india, jp, labor, ng, sa, ship, sme, uk, us)
 
--- | The Entities with an Actor definition, in the order of `N.seatActors`, then CN.
+-- | The Entities with an Actor definition, in the order of `seatActors`, then CN.
 seated :: Array (Tuple String (Tuple Entity ActorDefinition))
-seated = zip N.seatActors [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ] <> [ Tuple N.cn cn ]
+seated = zip seatActors [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ] <> [ Tuple n.cn cn ]
 
 -- | Every Actor's definition.
 actors :: Map EntityId ActorDefinition
@@ -30,11 +30,11 @@ entities :: Map EntityId Entity
 entities = entitiesOf (map (map fst) seated <> aggregates)
   where
   aggregates =
-    [ Tuple N.eu eu
-    , Tuple N.euPool euPool
-    , Tuple N.cnPrivate cnPrivate
-    , Tuple N.usWorkers usWorkers
-    , Tuple N.globalSmes globalSmes
-    , Tuple N.energySuppliers energySuppliers
-    , Tuple N.worldHouseholds worldHouseholds
+    [ Tuple n.eu eu
+    , Tuple n.euPool euPool
+    , Tuple n.cnPrivate cnPrivate
+    , Tuple n.usWorkers usWorkers
+    , Tuple n.globalSmes globalSmes
+    , Tuple n.energySuppliers energySuppliers
+    , Tuple n.worldHouseholds worldHouseholds
     ]

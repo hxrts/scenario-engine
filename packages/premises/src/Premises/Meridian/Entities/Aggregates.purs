@@ -4,93 +4,52 @@ module Premises.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, 
 
 import Prelude ((<>))
 import Premises.Meridian.Rules (tariff)
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, aggregateWith, collective)
-import Core.Types (Aggregate, Entity, EntityKind(Aggregate), Id(..))
+import Core.Types (Aggregate, Entity, EntityKind(Aggregate))
 import Premises.Meridian.Entities.Capabilities (dealer, shipping)
-import Premises.Meridian.Holdings (accountsOf, capacitiesOf)
+import Premises.Kit (aggregateEntity)
+import Premises.Meridian.Holdings (holdings)
 
 eu :: Entity
-eu =
-  { id: Id ""
-  , accounts: accountsOf N.eu
-  , capabilities: dealer N.energyAtlantic <> [ tariff.may ] <> shipping
-  , capacities: (capacitiesOf N.eu)
-  , kind: Aggregate euAggregate
-  }
+eu = aggregateEntity holdings n.eu { capabilities: dealer n.energyAtlantic <> [ tariff.may ] <> shipping, kind: Aggregate euAggregate }
 
 -- | The EU's solidarity pool (docs/05 §10.1): an Entity of its own, with no policy, that starts
 -- | empty. The EU's solidarity procedure draws on it as the EU's agent (`euAggregate`).
 euPool :: Entity
-euPool =
-  { id: Id ""
-  , accounts: accountsOf N.euPool
-  , capabilities: []
-  , capacities: (capacitiesOf N.euPool)
-  , kind: Aggregate euPoolAggregate
-  }
+euPool = aggregateEntity holdings n.euPool { capabilities: [], kind: Aggregate euPoolAggregate }
 
 -- | The EU pool's Aggregate.
 euPoolAggregate :: Aggregate
-euPoolAggregate = aggregate { policy: N.policySolidarityPool, members: [] }
+euPoolAggregate = aggregate { policy: n.policySolidarityPool, members: [] }
 
 cnPrivate :: Entity
-cnPrivate =
-  { id: Id ""
-  , accounts: accountsOf N.cnPrivate
-  , capabilities: dealer N.energyAsia <> shipping
-  , capacities: (capacitiesOf N.cnPrivate)
-  , kind: Aggregate (aggregate { policy: N.policyCnPrivate, members: [] })
-  }
+cnPrivate = aggregateEntity holdings n.cnPrivate { capabilities: dealer n.energyAsia <> shipping, kind: Aggregate (aggregate { policy: n.policyCnPrivate, members: [] }) }
 
 usWorkers :: Entity
-usWorkers =
-  { id: Id ""
-  , accounts: accountsOf N.usWorkers
-  , capabilities: dealer N.energyAtlantic <> shipping
-  , capacities: (capacitiesOf N.usWorkers)
-  , kind: Aggregate (aggregate { policy: N.policyUsWorkers, members: [ N.labor ] })
-  }
+usWorkers = aggregateEntity holdings n.usWorkers { capabilities: dealer n.energyAtlantic <> shipping, kind: Aggregate (aggregate { policy: n.policyUsWorkers, members: [ n.labor ] }) }
 
 globalSmes :: Entity
-globalSmes =
-  { id: Id ""
-  , accounts: accountsOf N.globalSmes
-  , capabilities: dealer N.energyAtlantic <> shipping
-  , capacities: (capacitiesOf N.globalSmes)
-  , kind: Aggregate globalSmesAggregate
-  }
+globalSmes = aggregateEntity holdings n.globalSmes { capabilities: dealer n.energyAtlantic <> shipping, kind: Aggregate globalSmesAggregate }
 
 energySuppliers :: Entity
-energySuppliers =
-  { id: Id ""
-  , accounts: accountsOf N.energySuppliers
-  , capabilities: [ mayTrade N.energyAtlantic, mayTrade N.energyAsia, mayTransfer N.money, mayTransfer N.energy ] <> shipping
-  , capacities: (capacitiesOf N.energySuppliers)
-  , kind: Aggregate (aggregate { policy: N.policyEnergySuppliers, members: [] })
-  }
+energySuppliers = aggregateEntity holdings n.energySuppliers { capabilities: [ mayTrade n.energyAtlantic, mayTrade n.energyAsia, mayTransfer n.money, mayTransfer n.energy ] <> shipping, kind: Aggregate (aggregate { policy: n.policyEnergySuppliers, members: [] }) }
 
 worldHouseholds :: Entity
-worldHouseholds =
-  { id: Id ""
-  , accounts: accountsOf N.worldHouseholds
-  , capabilities: dealer N.energyAsia <> shipping
-  , capacities: (capacitiesOf N.worldHouseholds)
-  , kind: Aggregate (aggregate { policy: N.policyWorldHouseholds, members: [ N.aid ] })
-  }
+worldHouseholds = aggregateEntity holdings n.worldHouseholds { capabilities: dealer n.energyAsia <> shipping, kind: Aggregate (aggregate { policy: n.policyWorldHouseholds, members: [ n.aid ] }) }
 
 -- | The EU and its two collective procedures; fixtures reuse it.
 euAggregate :: Aggregate
-euAggregate = aggregateWith { policy: N.policyEuCoordination, members: [ N.de, N.euPool ], procedures: keyed [ Tuple N.euSolidarity solidarity, Tuple N.euTrade tradeProcedure ] }
+euAggregate = aggregateWith { policy: n.policyEuCoordination, members: [ n.de, n.euPool ], procedures: keyed [ Tuple n.euSolidarity solidarity, Tuple n.euTrade tradeProcedure ] }
   where
   -- The pool is a member with no weight: it acts for the EU in this procedure without signing (docs/02 §2.2).
-  solidarity = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ mayTrade N.energyAtlantic, mayTransfer N.energy ] }
-  tradeProcedure = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ tariff.may ] }
+  solidarity = collective { weights: keyed [ n.de := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ mayTrade n.energyAtlantic, mayTransfer n.energy ] }
+  tradeProcedure = collective { weights: keyed [ n.de := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ tariff.may ] }
 
 -- | Global small businesses, represented by the SME owner; fixtures reuse it.
 globalSmesAggregate :: Aggregate
-globalSmesAggregate = aggregate { policy: N.policyGlobalSmes, members: [ N.sme ] }
+globalSmesAggregate = aggregate { policy: n.policyGlobalSmes, members: [ n.sme ] }

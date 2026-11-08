@@ -3,35 +3,25 @@
 -- | Markets of §3.1 with the other families through `Premises.Meridian.Fixtures.Common`.
 module Premises.Meridian.Fixtures.MarketExchange (fixtureA, fixtureA2) where
 
-import Data.Map (Map)
 import Prelude (negate)
 
-import Premises.Meridian.Names as N
+import Premises.Kit.Prelude
 
-import Data.Argonaut.Core (Json)
-import Data.Tuple (Tuple(..))
+import Premises.Meridian.Names (n)
+
 import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
-
-import Schema.Build.World (entitiesOf)
-import Schema.Build.Base (keyed, (:=), mayTrade)
-import Schema.Build.Quantity (q)
-
-import Schema.Build.Fixture (balances, noExpect, proposal, ref)
-import Schema.Build.Intent (trade)
-import Core.Types (EntityId, Entity)
-import Data.Maybe (Maybe(..))
 
 -- | Two Energy traders in the Atlantic market: the US and Germany (fixtures A and A2).
 atlanticTraders :: Map EntityId Entity
 atlanticTraders = entitiesOf
-  [ Tuple N.us (holding N.us [ N.money, N.energy ] [ mayTrade N.energyAtlantic ])
-  , Tuple N.de (holding N.de [ N.money, N.energy ] [ mayTrade N.energyAtlantic ])
+  [ Tuple n.us (holding n.us [ n.money, n.energy ] [ mayTrade n.energyAtlantic ])
+  , Tuple n.de (holding n.de [ n.money, n.energy ] [ mayTrade n.energyAtlantic ])
   ]
 
 -- | Fixtures A and A2: two Atlantic traders, with and without a limit price.
 fixtureA :: Tuple String Json
-fixtureA = fixture "A" (defaultFixture { entities = atlanticTraders, proposals = Just ([ proposal { author: N.us, intents: [ trade { market: N.energyAtlantic, quantity: q 10, limit: Nothing } ] }, proposal { author: N.de, intents: [ trade { market: N.energyAtlantic, quantity: q (-5), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.money := "239.5", N.energy := 80 ]), Tuple N.de (keyed [ N.money := "135.25", N.energy := 33 ]) ]), reserves = balances [ Tuple N.energyAtlantic (keyed [ N.money := "710.25", N.energy := 345 ]) ] })) })
+fixtureA = fixture "A" (defaultFixture { entities = atlanticTraders, proposals = Just ([ proposal { author: n.us, intents: [ trade { market: n.energyAtlantic, quantity: q 10, limit: Nothing } ] }, proposal { author: n.de, intents: [ trade { market: n.energyAtlantic, quantity: q (-5), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := "239.5", n.energy := 80 ]), Tuple n.de (keyed [ n.money := "135.25", n.energy := 33 ]) ]), reserves = balances [ Tuple n.energyAtlantic (keyed [ n.money := "710.25", n.energy := 345 ]) ] })) })
 
 fixtureA2 :: Tuple String Json
-fixtureA2 = fixture "A2" (defaultFixture { entities = atlanticTraders, proposals = Just ([ proposal { author: N.us, intents: [ trade { market: N.energyAtlantic, quantity: q 10, limit: Just (q "2.04") } ] }, proposal { author: N.de, intents: [ trade { market: N.energyAtlantic, quantity: q (-5), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.money := 260, N.energy := 70 ]), Tuple N.de (keyed [ N.money := "134.75", N.energy := 33 ]) ]), reserves = balances [ Tuple N.energyAtlantic (keyed [ N.money := "690.25", N.energy := 355 ]) ], rejected = Just ([ ref N.us ]) })) })
+fixtureA2 = fixture "A2" (defaultFixture { entities = atlanticTraders, proposals = Just ([ proposal { author: n.us, intents: [ trade { market: n.energyAtlantic, quantity: q 10, limit: Just (q "2.04") } ] }, proposal { author: n.de, intents: [ trade { market: n.energyAtlantic, quantity: q (-5), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 260, n.energy := 70 ]), Tuple n.de (keyed [ n.money := "134.75", n.energy := 33 ]) ]), reserves = balances [ Tuple n.energyAtlantic (keyed [ n.money := "690.25", n.energy := 355 ]) ], rejected = Just ([ ref n.us ]) })) })
 

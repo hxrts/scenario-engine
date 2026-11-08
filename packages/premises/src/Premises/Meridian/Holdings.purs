@@ -6,7 +6,7 @@
 module Premises.Meridian.Holdings (holdings, accountsOf, capacitiesOf, pickAccounts, capacityHolders) where
 
 import Premises.Kit (HoldingTable, accountsIn, capacitiesIn, capacityHoldersIn, pickAccountsIn)
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
@@ -15,29 +15,29 @@ import Core.Types (Capacities, Holdings)
 -- | Every Entity's holding, in catalog order (`Premises.Meridian.Entities`).
 holdings :: HoldingTable
 holdings =
-  [ Tuple N.us { accounts: [ N.money := 260, N.energy := 70, N.mil := 95, N.softPower := 60 ], capacities: [] }
-  , Tuple N.de { accounts: [ N.money := 125, N.energy := 38, N.mil := 24, N.softPower := 45 ], capacities: [] }
-  , Tuple N.india { accounts: [ N.money := 180, N.energy := 65, N.mil := 65, N.softPower := 35 ], capacities: [ N.energyProduction := 5 ] }
-  , Tuple N.jp { accounts: [ N.money := 150, N.energy := 40, N.mil := 36, N.softPower := 48 ], capacities: [] }
-  , Tuple N.uk { accounts: [ N.money := 130, N.energy := 30, N.mil := 38, N.softPower := 47 ], capacities: [] }
-  , Tuple N.br { accounts: [ N.money := 105, N.energy := 85, N.mil := 25, N.softPower := 32 ], capacities: [ N.energyProduction := 13 ] }
-  , Tuple N.sa { accounts: [ N.money := 155, N.energy := 110, N.mil := 32, N.softPower := 28 ], capacities: [ N.energyProduction := 25 ] }
-  , Tuple N.ng { accounts: [ N.money := 85, N.energy := 60, N.mil := 18, N.softPower := 24 ], capacities: [ N.energyProduction := 12 ] }
-  , Tuple N.enco { accounts: [ N.money := 140, N.energy := 140, N.softPower := 20 ], capacities: [ N.energyProduction := 25 ] }
-  , Tuple N.chip { accounts: [ N.money := 135, N.energy := 55, N.softPower := 30 ], capacities: [ N.semiconductors := 15 ] }
-  , Tuple N.ship { accounts: [ N.money := 110, N.energy := 65, N.softPower := 25 ], capacities: [ N.transport := 60 ] }
-  , Tuple N.def { accounts: [ N.money := 110, N.energy := 30, N.mil := 5, N.softPower := 18 ], capacities: [] }
-  , Tuple N.labor { accounts: [ N.money := 30, N.energy := 4, N.softPower := 42 ], capacities: [] }
-  , Tuple N.sme { accounts: [ N.money := 15, N.energy := 5, N.softPower := 12 ], capacities: [] }
-  , Tuple N.aid { accounts: [ N.money := 45, N.energy := 12, N.softPower := 55 ], capacities: [] }
-  , Tuple N.cn { accounts: [ N.money := 255, N.energy := 95, N.mil := 88, N.softPower := 57 ], capacities: [] }
-  , Tuple N.eu { accounts: [ N.money := 320, N.energy := 125, N.mil := 50, N.softPower := 75 ], capacities: [] }
-  , Tuple N.euPool { accounts: [ N.energy := 0 ], capacities: [] }
-  , Tuple N.cnPrivate { accounts: [ N.money := 210, N.energy := 85, N.softPower := 25 ], capacities: [] }
-  , Tuple N.usWorkers { accounts: [ N.money := 260, N.energy := 60, N.softPower := 45 ], capacities: [] }
-  , Tuple N.globalSmes { accounts: [ N.money := 300, N.energy := 80, N.softPower := 25 ], capacities: [] }
-  , Tuple N.energySuppliers { accounts: [ N.money := 200, N.energy := 240, N.softPower := 22 ], capacities: [ N.energyProduction := 60 ] }
-  , Tuple N.worldHouseholds { accounts: [ N.money := 360, N.energy := 90, N.softPower := 35 ], capacities: [ N.attention := 50 ] }
+  [ Tuple n.us { accounts: [ n.money := 260, n.energy := 70, n.mil := 95, n.softPower := 60 ], capacities: [] }
+  , Tuple n.de { accounts: [ n.money := 125, n.energy := 38, n.mil := 24, n.softPower := 45 ], capacities: [] }
+  , Tuple n.india { accounts: [ n.money := 180, n.energy := 65, n.mil := 65, n.softPower := 35 ], capacities: [ n.energyProduction := 5 ] }
+  , Tuple n.jp { accounts: [ n.money := 150, n.energy := 40, n.mil := 36, n.softPower := 48 ], capacities: [] }
+  , Tuple n.uk { accounts: [ n.money := 130, n.energy := 30, n.mil := 38, n.softPower := 47 ], capacities: [] }
+  , Tuple n.br { accounts: [ n.money := 105, n.energy := 85, n.mil := 25, n.softPower := 32 ], capacities: [ n.energyProduction := 13 ] }
+  , Tuple n.sa { accounts: [ n.money := 155, n.energy := 110, n.mil := 32, n.softPower := 28 ], capacities: [ n.energyProduction := 25 ] }
+  , Tuple n.ng { accounts: [ n.money := 85, n.energy := 60, n.mil := 18, n.softPower := 24 ], capacities: [ n.energyProduction := 12 ] }
+  , Tuple n.enco { accounts: [ n.money := 140, n.energy := 140, n.softPower := 20 ], capacities: [ n.energyProduction := 25 ] }
+  , Tuple n.chip { accounts: [ n.money := 135, n.energy := 55, n.softPower := 30 ], capacities: [ n.semiconductors := 15 ] }
+  , Tuple n.ship { accounts: [ n.money := 110, n.energy := 65, n.softPower := 25 ], capacities: [ n.transport := 60 ] }
+  , Tuple n.def { accounts: [ n.money := 110, n.energy := 30, n.mil := 5, n.softPower := 18 ], capacities: [] }
+  , Tuple n.labor { accounts: [ n.money := 30, n.energy := 4, n.softPower := 42 ], capacities: [] }
+  , Tuple n.sme { accounts: [ n.money := 15, n.energy := 5, n.softPower := 12 ], capacities: [] }
+  , Tuple n.aid { accounts: [ n.money := 45, n.energy := 12, n.softPower := 55 ], capacities: [] }
+  , Tuple n.cn { accounts: [ n.money := 255, n.energy := 95, n.mil := 88, n.softPower := 57 ], capacities: [] }
+  , Tuple n.eu { accounts: [ n.money := 320, n.energy := 125, n.mil := 50, n.softPower := 75 ], capacities: [] }
+  , Tuple n.euPool { accounts: [ n.energy := 0 ], capacities: [] }
+  , Tuple n.cnPrivate { accounts: [ n.money := 210, n.energy := 85, n.softPower := 25 ], capacities: [] }
+  , Tuple n.usWorkers { accounts: [ n.money := 260, n.energy := 60, n.softPower := 45 ], capacities: [] }
+  , Tuple n.globalSmes { accounts: [ n.money := 300, n.energy := 80, n.softPower := 25 ], capacities: [] }
+  , Tuple n.energySuppliers { accounts: [ n.money := 200, n.energy := 240, n.softPower := 22 ], capacities: [ n.energyProduction := 60 ] }
+  , Tuple n.worldHouseholds { accounts: [ n.money := 360, n.energy := 90, n.softPower := 35 ], capacities: [ n.attention := 50 ] }
   ]
 
 -- | An Entity's accounts, as the Entity declares them.

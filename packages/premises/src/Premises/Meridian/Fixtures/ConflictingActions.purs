@@ -3,42 +3,34 @@
 -- | and the semiconductor capacity allocate what they can. Fixture F.
 module Premises.Meridian.Fixtures.ConflictingActions (fixtureF) where
 
-import Premises.Meridian.Names as N
-import Core.Types (Id(..))
+import Premises.Kit.Prelude
 
-import Data.Argonaut.Core (Json)
-import Data.Tuple (Tuple(..))
+import Premises.Meridian.Names (n)
+
 import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
-
-import Schema.Build.Base (keyed, (:=), mayTransform)
-import Schema.Build.Quantity (q)
-import Schema.Build.World (entitiesOf, noEntity)
-import Schema.Build.Fixture (balances, noExpect, proposal)
-import Schema.Build.Intent (transform)
-import Data.Maybe (Maybe(..))
 
 fixtureF :: Tuple String Json
 fixtureF = fixture "F"
   ( defaultFixture
       { entities = entitiesOf
-          [ Tuple N.us
-              ( (holding N.us [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
+          [ Tuple n.us
+              ( (holding n.us [ n.money, n.energy ] [ mayTransform n.defenseProcurement ])
               )
-          , Tuple N.uk
-              ( (holding N.uk [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
+          , Tuple n.uk
+              ( (holding n.uk [ n.money, n.energy ] [ mayTransform n.defenseProcurement ])
               )
-          , Tuple N.jp
-              ( (holding N.jp [ N.money, N.energy ] [ mayTransform N.defenseProcurement ])
+          , Tuple n.jp
+              ( (holding n.jp [ n.money, n.energy ] [ mayTransform n.defenseProcurement ])
               )
-          , Tuple N.def
-              ( (holding N.def [ N.money, N.energy ] [])
+          , Tuple n.def
+              ( (holding n.def [ n.money, n.energy ] [])
               )
-          , Tuple N.chip
-              ( (noEntity { accounts = keyed [], capabilities = [], capacities = keyed [ N.semiconductors := 15 ] })
+          , Tuple n.chip
+              ( (noEntity { accounts = keyed [], capabilities = [], capacities = keyed [ n.semiconductors := 15 ] })
               )
           ]
-      , proposals = Just ([ proposal { author: N.us, intents: [ transform { by: N.us, transformation: N.defenseProcurement, quantity: q 15 } ] }, proposal { author: N.uk, intents: [ transform { by: N.uk, transformation: N.defenseProcurement, quantity: q 8 } ] }, proposal { author: N.jp, intents: [ transform { by: N.jp, transformation: N.defenseProcurement, quantity: q 9 } ] } ])
-      , expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.money := 43, N.energy := 42 ]), Tuple N.uk (keyed [ N.money := 6, N.energy := 14 ]), Tuple N.jp (keyed [ N.money := 26, N.energy := 24 ]), Tuple N.def (keyed [ N.money := 575, N.energy := 30 ]) ]), deliveries = Just ([ { entity: Id N.jp, resource: Id N.mil, quantity: q 8 }, { entity: Id N.uk, resource: Id N.mil, quantity: q 8 }, { entity: Id N.us, resource: Id N.mil, quantity: q 14 } ]) }))
+      , proposals = Just ([ proposal { author: n.us, intents: [ transform { by: n.us, transformation: n.defenseProcurement, quantity: q 15 } ] }, proposal { author: n.uk, intents: [ transform { by: n.uk, transformation: n.defenseProcurement, quantity: q 8 } ] }, proposal { author: n.jp, intents: [ transform { by: n.jp, transformation: n.defenseProcurement, quantity: q 9 } ] } ])
+      , expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 43, n.energy := 42 ]), Tuple n.uk (keyed [ n.money := 6, n.energy := 14 ]), Tuple n.jp (keyed [ n.money := 26, n.energy := 24 ]), Tuple n.def (keyed [ n.money := 575, n.energy := 30 ]) ]), deliveries = Just ([ { entity: Id n.jp, resource: Id n.mil, quantity: q 8 }, { entity: Id n.uk, resource: Id n.mil, quantity: q 8 }, { entity: Id n.us, resource: Id n.mil, quantity: q 14 } ]) }))
       }
   )
 

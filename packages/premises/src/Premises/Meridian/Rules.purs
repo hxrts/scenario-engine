@@ -12,12 +12,12 @@ import Core.Types (FlowGovernance(..), Id(..), ResourceId, RuleForm(..), RuleKin
 import Data.Map (Map)
 import Data.Tuple (Tuple(..))
 import Premises.Kit (BlockKit, LevyKit, ReduceKit, blockRule, levyRule, reduceRule)
-import Premises.Meridian.Names as N
+import Premises.Meridian.Names (n)
 import Schema.Build.Base (keyed)
 
 -- | What Meridian's flows Rules cover: the gated Resource.
 covered :: Array ResourceId
-covered = [ Id N.energy ]
+covered = [ Id n.energy ]
 
 tariffKind :: String
 tariffKind = "tariff"
@@ -37,7 +37,7 @@ ruleKinds = keyed
   ]
 
 tariff :: LevyKit
-tariff = levyRule { kind: tariffKind, covered, paidIn: Id N.money }
+tariff = levyRule { kind: tariffKind, covered, paidIn: Id n.money }
 
 accessBan :: BlockKit
 accessBan = blockRule { kind: accessBanKind, covered }

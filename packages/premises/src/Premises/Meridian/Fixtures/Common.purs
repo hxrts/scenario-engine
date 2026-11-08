@@ -12,18 +12,12 @@ module Premises.Meridian.Fixtures.Common
 
 import Prelude
 
-import Premises.Meridian.Names as N
+import Premises.Kit.Prelude
+
+import Premises.Meridian.Names (n)
 import Premises.Meridian.Rules (ruleKinds)
 
-import Core.Num (Q)
-import Core.Types (Capability, Entity, Id(..), Market, MarketId, Transformation, TransformationId)
-import Data.Map (Map)
-import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
-import Schema.Build.World (byKey, noEntity)
-import Schema.Build.Quantity (q)
 import Data.Map as Map
-import Data.Argonaut.Core (Json)
 import Premises.Kit (FixtureSpec, market)
 import Premises.Kit as Kit
 import Premises.Meridian (asiaMarket, atlanticTerms, coreResources, defenseProcurementFacility, energyShipping, gameSeed, flowGates, reservable, decays)
@@ -33,9 +27,9 @@ import Premises.Meridian.Holdings (pickAccounts)
 defaultFixture :: FixtureSpec
 defaultFixture =
   { round: 1
-  , numeraire: Id N.money
+  , numeraire: Id n.money
   , resources: coreResources
-  , markets: energy [ N.us, N.de, N.uk ] [ N.sa, N.jp ]
+  , markets: energy [ n.us, n.de, n.uk ] [ n.sa, n.jp ]
   , transformations: facilities
   , transport: flowGates
   , rules: []
@@ -61,8 +55,8 @@ energy = energyAt (q 0)
 
 -- | As `energy`, with the Atlantic Market starting at a position, when given.
 energyAt :: Q -> Array String -> Array String -> Map MarketId Market
-energyAt position atlantic asia = byKey [ Tuple N.energyAtlantic ((market atlanticTerms atlantic) { position = position }), Tuple N.energyAsia (asiaMarket asia) ]
+energyAt position atlantic asia = byKey [ Tuple n.energyAtlantic ((market atlanticTerms atlantic) { position = position }), Tuple n.energyAsia (asiaMarket asia) ]
 
 -- | Procurement and shipping, as the premise defines them; fixtures add others as needed.
 facilities :: Map TransformationId Transformation
-facilities = byKey [ Tuple N.defenseProcurement defenseProcurementFacility, Tuple N.energyShipping energyShipping ]
+facilities = byKey [ Tuple n.defenseProcurement defenseProcurementFacility, Tuple n.energyShipping energyShipping ]

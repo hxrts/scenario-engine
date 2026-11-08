@@ -3,17 +3,13 @@
 -- | rounds of nothing but circulation. Fixture `circulation`.
 module Premises.Meridian.Fixtures.Circulation (fixtureCirculation) where
 
-import Premises.Meridian.Names as N
+import Premises.Kit.Prelude
 
-import Data.Argonaut.Core (Json)
-import Data.Tuple (Tuple(..))
+import Premises.Meridian.Names (n)
+
 import Premises.Meridian.Fixtures.Common (holding, defaultFixture, fixture)
 import Premises.Meridian (flows, productionCapacity, requirements)
 import Premises.Meridian.Holdings (pickAccounts)
-import Schema.Build.Base (keyed, (:=))
-import Schema.Build.World (entitiesOf, noEntity)
-import Schema.Build.Fixture (balances, noExpect, noRound)
-import Data.Maybe (Maybe(..))
 
 -- | The circulation fixture: every Entity of the reference instance, with its production and
 -- | flows, over five rounds of nothing but circulation.
@@ -21,71 +17,71 @@ fixtureCirculation :: Tuple String Json
 fixtureCirculation = fixture "circulation"
   ( defaultFixture
       { entities = entitiesOf
-          [ Tuple N.us
-              ( (holding N.us [ N.money, N.energy ] [])
+          [ Tuple n.us
+              ( (holding n.us [ n.money, n.energy ] [])
               )
-          , Tuple N.de
-              ( (holding N.de [ N.money, N.energy ] [])
+          , Tuple n.de
+              ( (holding n.de [ n.money, n.energy ] [])
               )
-          , Tuple N.india
-              ( (noEntity { accounts = pickAccounts N.india [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 5 ] })
+          , Tuple n.india
+              ( (noEntity { accounts = pickAccounts n.india [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 5 ] })
               )
-          , Tuple N.jp
-              ( (holding N.jp [ N.money, N.energy ] [])
+          , Tuple n.jp
+              ( (holding n.jp [ n.money, n.energy ] [])
               )
-          , Tuple N.uk
-              ( (holding N.uk [ N.money, N.energy ] [])
+          , Tuple n.uk
+              ( (holding n.uk [ n.money, n.energy ] [])
               )
-          , Tuple N.br
-              ( (noEntity { accounts = pickAccounts N.br [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 13 ] })
+          , Tuple n.br
+              ( (noEntity { accounts = pickAccounts n.br [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 13 ] })
               )
-          , Tuple N.sa
-              ( (noEntity { accounts = pickAccounts N.sa [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 25 ] })
+          , Tuple n.sa
+              ( (noEntity { accounts = pickAccounts n.sa [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 25 ] })
               )
-          , Tuple N.ng
-              ( (noEntity { accounts = pickAccounts N.ng [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 12 ] })
+          , Tuple n.ng
+              ( (noEntity { accounts = pickAccounts n.ng [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 12 ] })
               )
-          , Tuple N.enco
-              ( (noEntity { accounts = pickAccounts N.enco [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 25 ] })
+          , Tuple n.enco
+              ( (noEntity { accounts = pickAccounts n.enco [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 25 ] })
               )
-          , Tuple N.chip
-              ( (holding N.chip [ N.money, N.energy ] [])
+          , Tuple n.chip
+              ( (holding n.chip [ n.money, n.energy ] [])
               )
-          , Tuple N.ship
-              ( (holding N.ship [ N.money, N.energy ] [])
+          , Tuple n.ship
+              ( (holding n.ship [ n.money, n.energy ] [])
               )
-          , Tuple N.def
-              ( (holding N.def [ N.money, N.energy ] [])
+          , Tuple n.def
+              ( (holding n.def [ n.money, n.energy ] [])
               )
-          , Tuple N.labor
-              ( (holding N.labor [ N.money, N.energy ] [])
+          , Tuple n.labor
+              ( (holding n.labor [ n.money, n.energy ] [])
               )
-          , Tuple N.sme
-              ( (holding N.sme [ N.money, N.energy ] [])
+          , Tuple n.sme
+              ( (holding n.sme [ n.money, n.energy ] [])
               )
-          , Tuple N.aid
-              ( (holding N.aid [ N.money, N.energy ] [])
+          , Tuple n.aid
+              ( (holding n.aid [ n.money, n.energy ] [])
               )
-          , Tuple N.cn
-              ( (holding N.cn [ N.money, N.energy ] [])
+          , Tuple n.cn
+              ( (holding n.cn [ n.money, n.energy ] [])
               )
-          , Tuple N.eu
-              ( (holding N.eu [ N.money, N.energy ] [])
+          , Tuple n.eu
+              ( (holding n.eu [ n.money, n.energy ] [])
               )
-          , Tuple N.cnPrivate
-              ( (holding N.cnPrivate [ N.money, N.energy ] [])
+          , Tuple n.cnPrivate
+              ( (holding n.cnPrivate [ n.money, n.energy ] [])
               )
-          , Tuple N.usWorkers
-              ( (holding N.usWorkers [ N.money, N.energy ] [])
+          , Tuple n.usWorkers
+              ( (holding n.usWorkers [ n.money, n.energy ] [])
               )
-          , Tuple N.globalSmes
-              ( (holding N.globalSmes [ N.money, N.energy ] [])
+          , Tuple n.globalSmes
+              ( (holding n.globalSmes [ n.money, n.energy ] [])
               )
-          , Tuple N.energySuppliers
-              ( (noEntity { accounts = pickAccounts N.energySuppliers [ N.money, N.energy ], capabilities = [], capacities = keyed [ N.energyProduction := 60 ] })
+          , Tuple n.energySuppliers
+              ( (noEntity { accounts = pickAccounts n.energySuppliers [ n.money, n.energy ], capabilities = [], capacities = keyed [ n.energyProduction := 60 ] })
               )
-          , Tuple N.worldHouseholds
-              ( (holding N.worldHouseholds [ N.money, N.energy ] [])
+          , Tuple n.worldHouseholds
+              ( (holding n.worldHouseholds [ n.money, n.energy ] [])
               )
           ]
       , circulation = Just { production: productionCapacity, flows: flows, shares: [], requirements: requirements }
@@ -94,7 +90,7 @@ fixtureCirculation = fixture "circulation"
             , noRound
             , noRound
             , noRound
-            , (noRound { expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.money := 300 ]), Tuple N.de (keyed [ N.money := 131, N.energy := 0 ]) ]) })) })
+            , (noRound { expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 300 ]), Tuple n.de (keyed [ n.money := 131, n.energy := 0 ]) ]) })) })
             ]
           )
       }

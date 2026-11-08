@@ -4,26 +4,16 @@
 -- | Fixture R, with R-alone as the same sale without the deployment.
 module Premises.Meridian.Fixtures.Reservation (fixtureR, fixtureRAlone) where
 
-import Data.Map (Map)
 import Data.Map as Map
 import Prelude (negate, (<>))
-import Premises.Meridian.Names as N
 
-import Data.Argonaut.Core (Json)
-import Data.Tuple (Tuple(..))
+import Premises.Kit.Prelude
+import Premises.Meridian.Names (n)
+
 import Premises.Meridian.Fixtures.Common (holding, defaultFixture, energy, facilities, fixture)
 import Premises.Kit (market)
 import Premises.Meridian.Entities.Capabilities (defenceAccess)
 import Premises.Meridian (defenceTerms, deployment, resources)
-
-import Schema.Build.World (entitiesOf, byKey)
-import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer, mayTransform)
-import Schema.Build.Quantity (q)
-
-import Schema.Build.Fixture (balances, noExpect, noRound, proposal)
-import Schema.Build.Intent (trade, transfer, transform)
-import Core.Types (EntityId, Entity, Market, MarketId, Transformation, TransformationId)
-import Data.Maybe (Maybe(..))
 
 -- | Fixture R (docs/05_test_instance.md §13.3): the US reserves 60 Mil for a deployment and sells
 -- | 40 Mil on the defence-goods Market (limit 2.4) in the same round, as the Deployer preset does.
@@ -40,8 +30,8 @@ fixtureR = fixture "R"
       , transformations = reservationFacilities
       , entities = usAndJapan
       , rounds = Just
-          ( [ (noRound { proposals = Just ([ proposal { author: N.us, intents: [ transform { by: N.us, transformation: N.militaryDeployment, quantity: q 60 } ] }, proposal { author: N.us, intents: [ trade { market: N.defenceGoods, quantity: q (-40), limit: Just (q "2.4") } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.mil := 57, N.money := "366.78" ]) ]) })) })
-            , (noRound { proposals = Just ([ proposal { author: N.us, intents: [ transfer { from: N.us, to: N.jp, resource: N.mil, quantity: q 50 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.mil := 7 ]), Tuple N.jp (keyed [ N.mil := 86 ]) ]) })) })
+          ( [ (noRound { proposals = Just ([ proposal { author: n.us, intents: [ transform { by: n.us, transformation: n.militaryDeployment, quantity: q 60 } ] }, proposal { author: n.us, intents: [ trade { market: n.defenceGoods, quantity: q (-40), limit: Just (q "2.4") } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.mil := 57, n.money := "366.78" ]) ]) })) })
+            , (noRound { proposals = Just ([ proposal { author: n.us, intents: [ transfer { from: n.us, to: n.jp, resource: n.mil, quantity: q 50 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.mil := 7 ]), Tuple n.jp (keyed [ n.mil := 86 ]) ]) })) })
             ]
           )
       }
@@ -52,21 +42,21 @@ fixtureR = fixture "R"
 -- | Military is 95 - 40 = 55 and US Money 260 + 112 = 372, against R's 57 and 366.78: the reserved
 -- | deployment leaves the sale 2 units short, and the sale clears at 2.81 rather than 2.80.
 fixtureRAlone :: Tuple String Json
-fixtureRAlone = fixture "R-alone" (defaultFixture { resources = resources, markets = defenceMarkets, transformations = reservationFacilities, entities = usAndJapan, proposals = Just ([ proposal { author: N.us, intents: [ trade { market: N.defenceGoods, quantity: q (-40), limit: Just (q "2.4") } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple N.us (keyed [ N.mil := 55, N.money := 372 ]) ]) })) })
+fixtureRAlone = fixture "R-alone" (defaultFixture { resources = resources, markets = defenceMarkets, transformations = reservationFacilities, entities = usAndJapan, proposals = Just ([ proposal { author: n.us, intents: [ trade { market: n.defenceGoods, quantity: q (-40), limit: Just (q "2.4") } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.mil := 55, n.money := 372 ]) ]) })) })
 
 -- | The shared facilities, with the military deployment facility the reservation fixtures use.
 reservationFacilities :: Map TransformationId Transformation
-reservationFacilities = Map.union facilities (byKey [ Tuple N.militaryDeployment deployment ])
+reservationFacilities = Map.union facilities (byKey [ Tuple n.militaryDeployment deployment ])
 
 -- | The Energy Markets and the defence-goods Market, with Japan and the US as its access holders.
 defenceMarkets :: Map MarketId Market
-defenceMarkets = Map.union (energy [ N.us ] [ N.jp ]) (byKey [ Tuple N.defenceGoods (market defenceTerms defenceAccess) ])
+defenceMarkets = Map.union (energy [ n.us ] [ n.jp ]) (byKey [ Tuple n.defenceGoods (market defenceTerms defenceAccess) ])
 
 -- | The two Mil holders of fixtures R and R-alone: the US seat, which may deploy and sell Mil on the
 -- | defence-goods Market, and Japan, an ally.
 usAndJapan :: Map EntityId Entity
 usAndJapan = entitiesOf
-  [ Tuple N.us (holding N.us [ N.money, N.energy, N.mil ] [ mayTransform N.militaryDeployment, mayTrade N.defenceGoods, mayTransfer N.mil ])
-  , Tuple N.jp (holding N.jp [ N.money, N.energy, N.mil ] [])
+  [ Tuple n.us (holding n.us [ n.money, n.energy, n.mil ] [ mayTransform n.militaryDeployment, mayTrade n.defenceGoods, mayTransfer n.mil ])
+  , Tuple n.jp (holding n.jp [ n.money, n.energy, n.mil ] [])
   ]
 
