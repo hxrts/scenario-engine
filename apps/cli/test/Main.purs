@@ -7,7 +7,6 @@ import Core.Draw (Seed(..))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Data.Tuple (Tuple(..))
 
 import Handlers.Store (validRunId)
 import Options (runFlags, sessionFlags)
@@ -53,5 +52,3 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.id o `shouldEqual` Right "session-1"
     it "rejects an id that is not a valid run id" do
       map _.id (parseWith (sessionFlags "meridian") [ "--id", "../x" ]) `shouldEqual` Left "--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got ../x"
-  where
-  pair k v = Tuple k v

@@ -33,5 +33,4 @@ package:
       - effect
       - spec
       - spec-node
-      - tuples
       - sp-core

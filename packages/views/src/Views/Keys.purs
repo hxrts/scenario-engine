@@ -50,11 +50,11 @@ import Type.Proxy (Proxy(..))
 import Schema.View (View(..))
 import Views.Actions (ActionsView)
 import Views.Balance (BalanceView)
-import Views.Common (Bars, Chart, Table)
-import Views.Compare (CompareView, Marked)
+import Views.Common (Chart, Table)
+import Views.Compare (CompareView)
 import Views.Entity (EntityList, History)
 import Views.Glossary (Glossary)
-import Views.Overview (RunFlags, RunList, RunOverview)
+import Views.Overview (RunList, RunOverview)
 import Views.Setting (Setting)
 import Schema.Run (DeriveKind, deriveKindShape)
 
@@ -124,9 +124,6 @@ table = viewShape
 chart :: Shape Chart
 chart = viewShape
 
-bars :: Shape Bars
-bars = viewShape
-
 actionsView :: Shape ActionsView
 actionsView = viewShape
 
@@ -138,9 +135,6 @@ economyView = viewShape
 
 runOverview :: Shape RunOverview
 runOverview = viewShape
-
-runFlags :: Shape RunFlags
-runFlags = viewShape
 
 runList :: Shape RunList
 runList = viewShape
@@ -160,9 +154,6 @@ entityList = viewShape
 
 history :: Shape History
 history = viewShape
-
-marked :: Shape Marked
-marked = viewShape
 
 compare :: Shape CompareView
 compare = viewShape

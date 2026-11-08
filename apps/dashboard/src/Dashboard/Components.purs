@@ -20,18 +20,16 @@ module Dashboard.Components
   , statistic
   ) where
 
-import Core.Num (Kind)
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, fromNumber, fromString)
 import Prelude
 
-import Core.Num (displayTick)
+import Core.Num (Kind, displayTick)
 import Dashboard.Api (useLoad)
 import Dashboard.Chart (barRows, chartRows, tooltipFormatter)
 import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runColour, runLabel, seriesColour)
 import Dashboard.UI as UI
-import Data.Argonaut.Core (fromNumber, fromString)
 import Data.Array (cons, find, index, mapWithIndex, zip)
 import Data.Either (Either(..))
 import Data.Int (toNumber)

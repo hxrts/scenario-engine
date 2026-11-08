@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const COLUMNS_JSON = JSON.parse(readFileSync(new URL("./generated/columns.json", import.meta.url), "utf8"));
+// Read by Playwright from apps/dashboard and by the suite's FFI from the repository root.
+const COLUMNS_JSON = JSON.parse(readFileSync(["e2e/generated/columns.json", "apps/dashboard/e2e/generated/columns.json"].find(existsSync), "utf8"));
 
 // Shared fixtures for the dashboard tests. Every request these tests depend on is answered by page.route,
 // so they do not depend on the e2e server's seeded data: each mock answers the contract (apps/server).
