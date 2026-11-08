@@ -123,7 +123,7 @@ spec = describe "API status rules, startup and cache" do
       Nothing -> fail "no stored spec"
     overview <- env.api "GET" "/api/runs/run-1/overview" ""
     overview.body `shouldSatisfy` contains (Pattern "\"target\":5")
-  it "startup fails the server's leftover runs and runs with no owner, and leaves another process's run running" do
+  it "startup fails the server's leftover runs and runs with no owner, fails a run whose process has gone, and leaves a live process's run running" do
     env <- setup
     launch env 2
     manifest <- liftEffect (runObserve env.store (readManifest "run-1")) >>= case _ of
@@ -133,14 +133,15 @@ spec = describe "API status rules, startup and cache" do
       new id owner = createRun { id, name: id, created: "2026-01-01T00:00:00Z", spec: Object.empty, manifest, source: Nothing, kind: Nothing, owner }
     liftEffect do
       runStore env.store (new "left" "server:1:0")
-      runStore env.store (new "session-1" "session:2:0")
+      runStore env.store (new "session-1" "session:1:0")
+      runStore env.store (new "crashed" "session:99999999:0")
       runStore env.store (new "old" "server:1:0")
       rawExec env.db "update runs set owner = null where id = 'old'"
     n <- liftEffect (failInterrupted env.store)
-    n `shouldEqual` 2
+    n `shouldEqual` 3
     runs <- liftEffect (runObserve env.store listRuns)
     map (\r -> { id: r.id, status: r.status }) runs `shouldEqual`
-      [ { id: "run-1", status: Completed }, { id: "left", status: Failed }, { id: "session-1", status: Running }, { id: "old", status: Failed } ]
+      [ { id: "run-1", status: Completed }, { id: "left", status: Failed }, { id: "session-1", status: Running }, { id: "crashed", status: Failed }, { id: "old", status: Failed } ]
   it "the run cache keeps a finished run until a write, and never keeps a running one" do
     env <- setup
     launch env 2
