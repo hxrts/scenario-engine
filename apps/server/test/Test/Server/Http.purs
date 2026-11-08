@@ -13,17 +13,16 @@ import Data.String.CodeUnits (fromCharArray)
 import Effect (Effect)
 import Effect.Aff (Aff, bracket)
 import Effect.Class (liftEffect)
-import Effects.Api (ApiRequest)
+import Effects.Api (ApiRequest, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Handlers.Api.Route (apiPrefix, route)
-import Http (Request, Response)
+import Handlers.Api.Route (apiPrefix, route, Request)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
 foreign import data Running :: Type
 foreign import siteDir :: Effect String
-foreign import startServerImpl :: String -> String -> (Request -> Effect Response) -> Effect (Promise Running)
+foreign import startServerImpl :: String -> String -> (Request -> Effect Reply) -> Effect (Promise Running)
 foreign import portOf :: Running -> Int
 foreign import stopServerImpl :: Running -> Effect (Promise Unit)
 foreign import exchangeImpl :: Int -> String -> String -> Object String -> Array String -> Effect (Promise Answer)
@@ -34,12 +33,12 @@ foreign import rawExec :: Db -> String -> Effect Unit
 type Answer = { status :: Int, headers :: Object String, text :: String }
 
 -- | A POST is echoed; every other request goes through the real route, over an operation that answers 200.
-handler :: Request -> Effect Response
+handler :: Request -> Effect Reply
 handler r
   | r.method == "POST" = pure { status: 200, body: r.body }
   | otherwise = route answer r
       where
-      answer :: ApiRequest -> Effect Response
+      answer :: ApiRequest -> Effect Reply
       answer _ = pure { status: 200, body: "{}" }
 
 withServer :: forall a. (Int -> Aff a) -> Aff a

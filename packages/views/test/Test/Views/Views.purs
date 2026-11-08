@@ -24,10 +24,12 @@ import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)
 import Game.Premise (GameboardParts)
+import Game.Recipe (Kind(..), encodeSpec)
+import Foreign.Object as Object
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (orThrow)
 import Views.Balances (balances, events)
-import Views.Common (StoredRun, Table, defaultMetricSpec, final, quantity)
+import Views.Common (StoredRun, Table, completed, defaultMetricSpec, final, quantity, specKeys, specValue, storedRun)
 import Views.Balance (measures)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Entity (entityHistory)
@@ -48,7 +50,7 @@ conservative = everySeat "Conservative"
 
 -- | A simulated run as the Run Store reads it back: the same records and snapshots.
 toStored :: String -> SimRun -> StoredRun
-toStored id r =
+toStored id r = storedRun
   { id
   , name: id
   , status: "completed"
@@ -56,11 +58,10 @@ toStored id r =
   , playerSeed: case r.playerSeed of
       Seed n -> show n
   , spec: []
-  , records: map _.record r.records
-  , snapshots: map _.world r.records
-  , assertions: map (const []) r.records
   , sourceDeleted: false
   }
+  r.records
+  (map (const []) r.records)
 
 -- | The verdict column of a compatibility table.
 verdicts :: Table -> Array String
@@ -77,6 +78,15 @@ play ctx s = do
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Views and error paths" do
+  it "the views read the specification keys Game.Recipe writes" do
+    let
+      written = Object.toUnfoldable (encodeSpec { gameId: "g", playerSeed: Seed 7, preset: "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }) :: Array (Tuple String String)
+    specValue written specKeys.gameId `shouldEqual` Just "g"
+    specValue written specKeys.preset `shouldEqual` Just "P"
+    specValue written specKeys.playerSeed `shouldEqual` Just "7"
+    specValue written specKeys.rounds `shouldEqual` Just "3"
+    specValue written specKeys.source `shouldEqual` Just "run-1"
+    specValue written specKeys.kind `shouldEqual` Just "variant"
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
@@ -130,7 +140,7 @@ spec context = describe "Views and error paths" do
       held = holding (final base) e money
       -- the other run's every round has no Money account for US, so it lacks what the baseline holds
       dropped w = w { entities = Map.update (\en -> Just en { accounts = Map.delete money en.accounts }) e w.entities }
-      other = base { id = "other", snapshots = map dropped base.snapshots }
+      other = base { id = "other", rounds = map (\x -> x { world = dropped x.world }) base.rounds }
       rows = (baselineDiff base [ other ]).rows
     (held == Q.zero) `shouldEqual` false
     any (\row -> row == [ "other", show e, show money, quantity (Q.neg held) ]) rows `shouldEqual` true
@@ -200,7 +210,7 @@ spec context = describe "Views and error paths" do
       money = s.manifest.initial.numeraire
       -- the round-2 snapshot (index 1) holds a known amount of Money for US; the others are unchanged
       setMoney w = w { entities = Map.update (\en -> Just en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) e w.entities }
-      known = s { snapshots = mapWithIndex (\i w -> if i == 1 then setMoney w else w) s.snapshots }
+      known = s { rounds = mapWithIndex (\i x -> if i == 1 then x { world = setMoney x.world } else x) s.rounds }
       moneyRow h = filter (\row -> index row 0 == Just (show money)) h.table.rows
     case entityHistory known e of
       Left err -> fail err
@@ -233,7 +243,7 @@ spec context = describe "Views and error paths" do
     , gameboard: s.manifest.gameboard
     , gameSeed: show s.manifest.initial.seed
     , playerSeed: s.playerSeed
-    , rounds: length s.records
+    , rounds: completed s
     , assertionsFailing: 0
     , archived: false
     , source: Nothing

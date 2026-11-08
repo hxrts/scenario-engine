@@ -14,13 +14,13 @@ module Views.Markets
 
 import Prelude
 
-import Core.Market (marginal)
+import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (countEvents, eventsOf, lookupQ, priceOf, totalHolding)
 import Core.Types (Id(..), Market, MarketId, ResourceId)
 import Core.World (Event(..), RoundRecord, WorldState)
-import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe, mapWithIndex)
+import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
 import Data.Either (Either(..), hush)
 import Data.Foldable (for_)
 import Data.Map as Map
@@ -28,14 +28,14 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
 import Views.Actions (rejectionCount)
-import Views.Common (Chart, StoredRun, Table, exact, kindOf, quantity, series, unitOf)
+import Views.Common (Chart, StoredRun, Table, exact, kindOf, pointsOf, quantity, recordPoints, records, series, unitOf)
 import Views.Drivers (shortfallTotal)
 
 -- | A Market's price after a World State, as the views show it.
 type MarketPrice = { market :: MarketId, price :: Q }
 
 marketPrices :: WorldState -> Array MarketPrice
-marketPrices w = map (\(Tuple id m) -> { market: id, price: marginal m.cost m.position }) (Map.toUnfoldable w.markets)
+marketPrices w = map (\(Tuple id m) -> { market: id, price: marketPrice m }) (Map.toUnfoldable w.markets)
 
 -- | The Energy Resource and the money numeraire the Energy Markets quote in; their units are the
 -- | manifest's, so the chart units are not spelled out here.
@@ -44,7 +44,7 @@ energy = Id "E"
 
 markets :: StoredRun -> Array Chart
 markets r =
-  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r energy, kind: Price, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (marginal m.cost m.position)) (Map.toUnfoldable w.markets)) exact }
+  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r energy, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.market) p.price) (marketPrices w)) exact }
   , { title: "Energy reserves", unit: unitOf r energy, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.markets)) exact }
   , { title: "Traded volume", unit: unitOf r energy, kind: Quantity, series: volume }
   ]
@@ -52,22 +52,16 @@ markets r =
   volume = map
     ( \(Tuple id _) ->
         { name: show id
-        , points: mapWithIndex
-            ( \i rec ->
-                { round: i + 1
-                , value: exact
-                    ( Q.sumQ
-                        ( eventsOf
-                            ( case _ of
-                                Traded t | t.market == id && t.quantity > Q.zero -> Just t.quantity
-                                _ -> Nothing
-                            )
-                            rec.events
-                        )
+        , points: recordPoints r \rec -> exact
+            ( Q.sumQ
+                ( eventsOf
+                    ( case _ of
+                        Traded t | t.market == id && t.quantity > Q.zero -> Just t.quantity
+                        _ -> Nothing
                     )
-                }
+                    rec.events
+                )
             )
-            r.records
         }
     )
     (Map.toUnfoldable r.manifest.initial.markets :: Array _)
@@ -80,7 +74,7 @@ facilities r =
       ( \rec -> map (\t -> [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ])
           (eventsOf transformed rec.events)
       )
-      r.records
+      (records r)
   }
   where
   transformed = case _ of
@@ -103,7 +97,7 @@ moneyFlows :: StoredRun -> Table
 moneyFlows r =
   { title: "Money circulation (from → to category)"
   , columns: [ "From", "To", "Money" ]
-  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events r.records)))
+  , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (concatMap _.events (records r))))
   }
   where
   w0 = r.manifest.initial
@@ -138,7 +132,7 @@ pressure :: StoredRun -> Table
 pressure r =
   { title: "Pressure"
   , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
-  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) r.records
+  , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) (records r)
   }
 
 -- | The Market a name stands for, checked once against every run: a run without it is an error that
@@ -167,7 +161,7 @@ trajectory runs m = do
     { title: "Price, " <> show m
     , unit
     , kind: Price
-    , series: map (\r -> { name: r.id, points: mapWithIndex (\i w -> { round: i, value: exact (priceAt w) }) ([ r.manifest.initial ] <> r.snapshots) }) runs
+    , series: map (\r -> { name: r.id, points: pointsOf r (Just <<< exact <<< priceAt) }) runs
     }
   where
   priceAt w = fromMaybe Q.zero (priceOf w m)

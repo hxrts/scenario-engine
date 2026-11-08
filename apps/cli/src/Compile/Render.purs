@@ -8,14 +8,14 @@ module Compile.Render
 
 import Prelude
 
-import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, stringifyWithIndent)
+import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (sortWith)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
-import Core.Shape (Format(..), encodeWith)
+import Core.Shape (Format(..), encodeWith, prettyJson)
 import Schema.Premise.Strategy (presetsShape)
 import Foreign.Object as Object
 import Premises.Capstone as Capstone
@@ -55,7 +55,7 @@ validate = do
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.
 render :: Json -> String
-render j = stringifyWithIndent 1 (sortKeys j) <> "\n"
+render = prettyJson <<< sortKeys
 
 sortKeys :: Json -> Json
 sortKeys j = caseJson (const jsonNull) fromBoolean fromNumber fromString (fromArray <<< map sortKeys)

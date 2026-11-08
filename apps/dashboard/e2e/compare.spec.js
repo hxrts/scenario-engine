@@ -5,7 +5,7 @@
 // for, the way the server builds it, so each test checks the page's mapping of the view, not the statistics.
 import { test, expect } from "@playwright/test";
 import { mockReads, json, COLUMNS } from "./mocks.js";
-import { section } from "./helpers.js";
+import { section , choice } from "./helpers.js";
 
 const NAMES = { "run-a": "Alpha", "run-b": "Beta" };
 // A run's row in the run list: one cell per column the list shows.
@@ -62,9 +62,6 @@ test.beforeEach(async ({ page }) => {
     return route.fulfill(json(comparison(ids)));
   });
 });
-
-// The choice list's checkbox for one run: the label whose run-id text is exactly that id.
-const choice = (page, id) => page.locator("label").filter({ has: page.getByText(id, { exact: true }) }).getByRole("checkbox");
 
 // The key-values table: the section headed "Key values".
 const keyValues = (page) => section(page, "Key values");

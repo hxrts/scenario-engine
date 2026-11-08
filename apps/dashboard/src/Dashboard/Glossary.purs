@@ -2,7 +2,7 @@
 -- | `Views.Glossary`): this module only finds the entry for a name and fills its placeholders.
 -- | The app provides the loaded glossary through `glossaryContext`, and renders nothing until it is loaded,
 -- | so a lookup without one is blank.
-module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyCell) where
+module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyCell, emptyValue) where
 
 import Prelude
 
@@ -12,6 +12,8 @@ import Data.String (Pattern(..), Replacement(..), replaceAll, stripPrefix)
 import Foreign.Object as Object
 import React.Basic (ReactContext, createContext)
 import Effect.Unsafe (unsafePerformEffect)
+import React.Basic.DOM as D
+import React.Basic.Hooks (JSX)
 
 -- | The loaded glossary, or Nothing before it arrives.
 glossaryContext :: ReactContext (Maybe Glossary)
@@ -43,3 +45,9 @@ emptyCell = case _ of
   Just g -> \name -> case Object.lookup name g.reasons of
     Just r -> { label: r.label, reason: r.reason }
     Nothing -> { label: g.unnamed.reason.label, reason: fill "name" name g.unnamed.reason.reason }
+
+-- | An empty value of a column or field: what it means, with the reason on hover.
+emptyValue :: Lookup -> String -> JSX
+emptyValue glossary name = D.span { className: "italic text-muted-foreground", title: e.reason, children: [ D.text e.label ] }
+  where
+  e = emptyCell glossary name

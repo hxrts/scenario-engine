@@ -3,6 +3,8 @@
 -- | which carry each view's title and purpose.
 module Dashboard.Components
   ( stale
+  , loaded
+  , selectInput
   , tableOf
   , diffTable
   , metricChart
@@ -18,7 +20,6 @@ module Dashboard.Components
   , statistic
   , Render
   , as
-  , StatVariant(..)
   ) where
 
 import Prelude
@@ -26,7 +27,7 @@ import Prelude
 import Core.Num (displayTick)
 import Dashboard.Api (useLoad)
 import Dashboard.Chart (barRows, chartRows, tooltipFormatter)
-import Dashboard.DataTable (DataTable)
+import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runColour, runLabel, seriesColour)
 import Dashboard.UI as UI
@@ -52,37 +53,22 @@ import React.Basic.Hooks as React
 
 type Render = Json -> JSX
 
--- | A statistic's name and its one-line definition, shown above the view that holds it.
--- | `Figure` is a key figure: its name, the question it answers, its definition and its formula.
-data StatVariant = Figure | Definition
-
-statistic :: StatVariant -> Statistic -> JSX
-statistic variant s = case variant of
-  Figure -> D.div
-    { className: "flex min-w-0 flex-col gap-1 text-sm"
-    , children:
-        [ D.p { className: "font-medium", children: [ D.text s.name ] }
-        , D.p { className: "text-muted-foreground", children: [ D.text (s.question <> " " <> s.definition) ] }
-        , D.p { className: "text-muted-foreground", children: [ D.text ("Formula: " <> s.formula) ] }
-        ]
-    }
-  Definition -> D.p
-    { className: "text-sm text-muted-foreground"
-    , children: [ D.span { className: "font-medium text-foreground", children: [ D.text (s.name <> ": ") ] }, D.text s.definition ]
-    }
+-- | A key figure: its name, the question it answers, its definition and its formula.
+statistic :: Statistic -> JSX
+statistic s = D.div
+  { className: "flex min-w-0 flex-col gap-1 text-sm"
+  , children:
+      [ D.p { className: "font-medium", children: [ D.text s.name ] }
+      , D.p { className: "text-muted-foreground", children: [ D.text (s.question <> " " <> s.definition) ] }
+      , D.p { className: "text-muted-foreground", children: [ D.text ("Formula: " <> s.formula) ] }
+      ]
+  }
 
 -- | A view-model Table as a sortable table. Its cells are plain text.
 tableOf :: DataTable -> Table -> JSX
 tableOf grid t = D.div
   { className: "max-h-[28rem] overflow-auto"
-  , children: [ linkedTable grid (\_ _ -> Nothing) t ]
-  }
-
--- | A view-model Table with no links.
-linkedTable :: DataTable -> (Int -> Array String -> Maybe String) -> Table -> JSX
-linkedTable grid link t = D.div
-  { className: "overflow-x-auto"
-  , children: [ grid { columns: t.columns, rows: t.rows, link, mark: \_ _ -> false, onRow: Nothing, activeRow: \_ -> false } ]
+  , children: [ D.div { className: "overflow-x-auto", children: [ grid (defaults t) ] } ]
   }
 
 -- | A fetch in progress, or its error.
@@ -90,6 +76,13 @@ status :: Maybe String -> JSX
 status = case _ of
   Nothing -> D.p { className: "text-muted-foreground", children: [ D.text "Loading…" ] }
   Just e -> D.pre { className: "text-destructive", children: [ D.text e ] }
+
+-- | A loaded value's view; while it loads or when it failed, its status.
+loaded :: forall a. Maybe (Either String a) -> (a -> JSX) -> JSX
+loaded value f = case value of
+  Just (Right a) -> f a
+  Just (Left e) -> status (Just e)
+  Nothing -> status Nothing
 
 -- | A failure message, shown where a form or an action can fail; nothing when there is none.
 errorBlock :: Maybe String -> JSX
@@ -107,12 +100,21 @@ textInput p = element UI.input
   , onChange: handler targetValue (\v -> p.onChange (fromMaybe "" v))
   }
 
+-- | A select over its options; `onChange` receives the chosen value.
+selectInput :: { value :: String, options :: Array String, onChange :: Maybe String -> Effect Unit } -> JSX
+selectInput p = D.select
+  { value: p.value
+  , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+  , onChange: handler targetValue p.onChange
+  , children: p.options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
+  }
+
 -- | A Table with the cells the view marked highlighted. A row is found by its cells, so the marks hold
 -- | after the table is sorted.
 diffTable :: DataTable -> Marked -> JSX
 diffTable grid m = D.div
   { className: "overflow-x-auto"
-  , children: [ grid { columns: m.table.columns, rows: m.table.rows, link: \_ _ -> Nothing, mark, onRow: Nothing, activeRow: \_ -> false } ]
+  , children: [ grid ((defaults m.table) { mark = mark }) ]
   }
   where
   marks = zip m.table.rows m.marked
@@ -120,55 +122,47 @@ diffTable grid m = D.div
 
 -- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
 metricChart :: Chart -> JSX
-metricChart c = D.div
-  { className: "flex min-w-0 flex-col gap-2"
-  , children:
-      [ Layout.caption (c.title <> " (" <> c.unit <> ")")
-      , element UI.chartContainer
-          { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
-          , className: "h-96 w-full"
-          , children:
-              [ element UI.lineChart
-                  { data: chartRows c.kind c.series
-                  , children:
-                      [ element UI.cartesianGrid { vertical: false }
-                      , element UI.xAxis { dataKey: "round" }
-                      , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind) }
-                      , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
-                      , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                      ] <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
-                  }
-              ]
-          }
-      ]
-  }
+metricChart c = Layout.captioned (c.title <> " (" <> c.unit <> ")")
+  [ element UI.chartContainer
+      { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
+      , className: "h-96 w-full"
+      , children:
+          [ element UI.lineChart
+              { data: chartRows c.kind c.series
+              , children:
+                  [ element UI.cartesianGrid { vertical: false }
+                  , element UI.xAxis { dataKey: "round" }
+                  , element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick c.kind) }
+                  , element UI.chartTooltip { content: element UI.chartTooltipContent { formatter: tooltipFormatter } }
+                  , element UI.chartLegend { content: element UI.chartLegendContent {} }
+                  ] <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
+              }
+          ]
+      }
+  ]
 
 -- | A stacked bar chart: one bar per player, stacked by kind, with a legend of the kinds' labels. The
 -- | chart's purpose line is shown above it; the counts are the view model's, mapped onto the bars here.
 stackedBars :: ActionsChart -> JSX
-stackedBars c = D.div
-  { className: "flex min-w-0 flex-col gap-2"
-  , children:
-      [ Layout.caption c.title
-      , Layout.purpose c.purpose
-      , element UI.chartContainer
-          { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: seriesColour i }) c.kinds)
-          , className: "h-96 w-full"
-          , children:
-              [ element UI.barChart
-                  { data: map bar c.bars
-                  , children:
-                      [ element UI.cartesianGrid { vertical: false }
-                      , element UI.xAxis { dataKey: "player" }
-                      , element UI.yAxis { allowDecimals: false }
-                      , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
-                      , element UI.chartLegend { content: element UI.chartLegendContent {} }
-                      ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: seriesColour i, isAnimationActive: false }) c.kinds
-                  }
-              ]
-          }
-      ]
-  }
+stackedBars c = Layout.captioned c.title
+  [ Layout.purpose c.purpose
+  , element UI.chartContainer
+      { config: Object.fromFoldable (mapWithIndex (\i k -> Tuple k.key { label: k.label, color: seriesColour i }) c.kinds)
+      , className: "h-96 w-full"
+      , children:
+          [ element UI.barChart
+              { data: map bar c.bars
+              , children:
+                  [ element UI.cartesianGrid { vertical: false }
+                  , element UI.xAxis { dataKey: "player" }
+                  , element UI.yAxis { allowDecimals: false }
+                  , element UI.chartTooltip { content: element UI.chartTooltipContent {} }
+                  , element UI.chartLegend { content: element UI.chartLegendContent {} }
+                  ] <> mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "actions", fill: seriesColour i, isAnimationActive: false }) c.kinds
+              }
+          ]
+      }
+  ]
   where
   bar b = Object.fromFoldable (cons (Tuple "player" (fromString b.player)) (map (\s -> Tuple s.key (fromNumber (toNumber s.count))) b.counts))
 
@@ -243,11 +237,8 @@ as f j = case decodeJson j of
 -- | while a new one loads.
 fetched :: Component { key :: String, load :: Aff (Either String Json), render :: Render }
 fetched = component "Fetched" \p -> React.do
-  loaded <- useLoad p.key p.load
-  pure $ stale loaded.busy case loaded.value of
-    Just (Right j) -> p.render j
-    Just (Left e) -> status (Just e)
-    Nothing -> status Nothing
+  view <- useLoad p.key p.load
+  pure $ stale view.busy (loaded view.value p.render)
 
 -- | Dims content that is the previous selection while its replacement loads. The wrapper is always
 -- | present, so toggling it never remounts the content (a remount would detach it for a frame).

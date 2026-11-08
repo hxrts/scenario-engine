@@ -16,16 +16,16 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Core.Num (Kind(..))
+import Core.Map as CoreMap
 import Core.Num as Q
-import Core.Query (accountsOf, holding)
-import Core.Types (EntityId, EntityKind(..), ResourceId)
-import Core.World (WorldState)
-import Data.Array (any, concatMap, cons, filter, find, fromFoldable, head, length, nub, range, sort)
+import Core.Query (accountsOf, holding, isAggregate)
+import Core.Types (EntityId, ResourceId)
+import Data.Array (any, concatMap, cons, filter, find, fromFoldable, head, nub, range, sort)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, exact, joinComma, quantity, series, unitOf)
+import Views.Common (Chart, StoredRun, Table, completed, exact, joinComma, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings
@@ -51,10 +51,7 @@ entityList r =
   where
   entities :: Array EntityChoice
   entities = map choice (Map.toUnfoldable r.manifest.initial.entities)
-  choice (Tuple e ent) = { id: show e, seat: notAggregate ent.kind }
-  notAggregate = case _ of
-    Aggregate _ -> false
-    _ -> true
+  choice (Tuple e ent) = { id: show e, seat: not (isAggregate ent) }
 
 -- | An Entity's balance sheet after every round, from round 0 to the final round. An Entity the run
 -- | does not have is an error that lists the valid ones.
@@ -67,7 +64,7 @@ entityHistory r e
         { table:
             { title: "Balance sheet of " <> show e <> " by round"
             , columns: [ "Resource" ] <> map (\i -> "Round " <> show i) rounds
-            , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> quantity (netWorth w e)) worlds ]
+            , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> quantity (netWorth w e)) states ]
             }
         , chart:
             { title: "Holdings of " <> show e
@@ -83,19 +80,17 @@ entityHistory r e
             }
         }
       where
-      -- the World States: round 0 is the initial one, then one per completed round (the index is the round)
-      worlds :: Array WorldState
-      worlds = [ r.manifest.initial ] <> r.snapshots
+      states = worlds r
 
       rounds :: Array Int
-      rounds = range 0 (length r.snapshots)
+      rounds = range 0 (completed r)
 
       -- the Resources the Entity holds at some round (a non-zero holding), in Resource order
       held :: Array ResourceId
-      held = sort (nub (filter (\res -> any (\w -> holding w e res /= Q.zero) worlds) (concatMap (\w -> fromFoldable (Map.keys (accountsOf w e))) worlds)))
+      held = sort (nub (filter (\res -> any (\w -> holding w e res /= Q.zero) states) (concatMap (\w -> fromFoldable (Map.keys (accountsOf w e))) states)))
 
       -- the Resources held or quoted by a Market at some round: the table's rows
       resources :: Array ResourceId
-      resources = sort (nub (held <> concatMap (\w -> concatMap (\m -> [ m.base, m.quote ]) (fromFoldable (Map.values w.markets))) worlds))
+      resources = sort (nub (held <> concatMap (\w -> concatMap (\m -> [ m.base, m.quote ]) (CoreMap.values w.markets)) states))
 
-      resourceRow res = cons (show res) (map (\w -> quantity (holding w e res)) worlds)
+      resourceRow res = cons (show res) (map (\w -> quantity (holding w e res)) states)

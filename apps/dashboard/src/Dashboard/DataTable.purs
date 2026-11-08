@@ -12,6 +12,7 @@
 module Dashboard.DataTable
   ( Props
   , DataTable
+  , defaults
   , mkDataTable
   , sortRows
   , compareCells
@@ -23,7 +24,7 @@ import Prelude
 import Data.Array (index, mapWithIndex, sortBy)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Core.Num as Q
-import Dashboard.Glossary (definitionOf, emptyCell, glossaryContext)
+import Dashboard.Glossary (definitionOf, emptyValue, glossaryContext)
 import Effect (Effect)
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
@@ -40,6 +41,10 @@ type Props =
   -- | A row that is the current selection is highlighted.
   , activeRow :: Array String -> Boolean
   }
+
+-- | The props of a static table: no links, no marks, no selection.
+defaults :: forall r. { columns :: Array String, rows :: Array (Array String) | r } -> Props
+defaults t = { columns: t.columns, rows: t.rows, link: \_ _ -> Nothing, mark: \_ _ -> false, onRow: Nothing, activeRow: \_ -> false }
 
 -- | A rendered table: a function from props to JSX, created once and passed down.
 type DataTable = Props -> JSX
@@ -100,7 +105,7 @@ mkDataTable = component "DataTable" \p -> React.do
       { key: show i
       , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-500/20 font-medium" else "")
       , children:
-          [ if value == "" then emptyText (emptyCell glossary (fromMaybe "" (index p.columns i)))
+          [ if value == "" then emptyValue glossary (fromMaybe "" (index p.columns i))
             else case p.onRow, i == 0 of
               Just select, true -> D.button { className: "underline", onClick: handler_ (select row), children: [ D.text value ] }
               _, _ -> case p.link i row of
@@ -108,7 +113,6 @@ mkDataTable = component "DataTable" \p -> React.do
                 Nothing -> D.text value
           ]
       }
-    emptyText e = D.span { className: "italic text-muted-foreground", title: e.reason, children: [ D.text e.label ] }
     rowEl ri row = D.tr
       { key: show ri
       , className: "border-b transition-colors hover:bg-muted/50" <> (if p.activeRow row then " bg-muted" else "") <> (if isJust p.onRow then " cursor-pointer" else "")

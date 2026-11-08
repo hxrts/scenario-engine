@@ -15,7 +15,7 @@ import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Views.Common (StoredRun, Table, at, kindOf, outOfRange, quantity)
+import Views.Common (StoredRun, Table, at, kindOf, outOfRange, quantity, records)
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
 balances :: StoredRun -> Int -> Either String Table
@@ -36,6 +36,6 @@ balances r n = case at r n of
 
 -- | A round's events in canonical phase order (the order the engine records them).
 events :: StoredRun -> Int -> Either String Table
-events r n = case index r.records (n - 1) of
+events r n = case index (records r) (n - 1) of
   Just rec | n >= 1 -> Right { title: "Events, round " <> show n, columns: [ "Event" ], rows: map (\e -> [ show e ]) rec.events }
   _ -> Left (outOfRange r 1 n)

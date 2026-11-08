@@ -4,7 +4,7 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (page, section, grid, panel, caption, purpose) where
+module Dashboard.Layout (page, section, grid, panel, caption, captioned, purpose) where
 
 import Prelude
 
@@ -84,3 +84,7 @@ purpose t = D.p { className: "text-sm text-muted-foreground", children: [ D.text
 -- | A caption: a small, medium-weight line that names a plot or a table.
 caption :: String -> JSX
 caption t = D.p { className: "text-sm font-medium", children: [ D.text t ] }
+
+-- | A caption above its content.
+captioned :: String -> Array JSX -> JSX
+captioned t children = D.div { className: "flex min-w-0 flex-col gap-2", children: [ caption t ] <> children }

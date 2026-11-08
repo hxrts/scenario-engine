@@ -8,6 +8,7 @@
 module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
+  , View(..)
   , Launch
   , DeriveRequest
   , Reply
@@ -43,6 +44,25 @@ type DeriveRequest =
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
 
+-- | A view of a stored run (`GET /api/runs/:id/:view`). `Handlers.Api.Route` holds its path segment.
+data View
+  = Overview
+  | Balances
+  | Markets
+  | Facilities
+  | Economy
+  | Representation
+  | Procedures
+  | Objectives
+  | Standings
+  | NetWorth
+  | Actions
+  | Drivers
+  | Balance
+  | Events
+
+derive instance Eq View
+
 -- | One operation per route. Query values the routes validate (the round, the seed, the confirmation)
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
@@ -53,7 +73,7 @@ data ApiRequest
   | LaunchRun Launch
   | Entities String
   | Entity String String
-  | RunView { id :: String, view :: String, round :: Maybe String }
+  | RunView { id :: String, view :: View, round :: Maybe String }
   | Compare { runs :: Array String, market :: Maybe String }
   | Agency { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
   | Derive { id :: String, body :: DeriveRequest }

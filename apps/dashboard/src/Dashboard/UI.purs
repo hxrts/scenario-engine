@@ -29,22 +29,6 @@ foreign import bar :: C
 foreign import xAxis :: C
 foreign import yAxis :: C
 foreign import cartesianGrid :: C
-foreign import sheet :: C
-foreign import sheetTrigger :: C
-foreign import sheetContent :: C
-foreign import sheetHeader :: C
-foreign import sheetTitle :: C
-foreign import sidebarProvider :: C
-foreign import sidebar :: C
-foreign import sidebarHeader :: C
-foreign import sidebarContent :: C
-foreign import sidebarGroup :: C
-foreign import sidebarMenu :: C
-foreign import sidebarMenuItem :: C
-foreign import sidebarMenuButton :: C
-foreign import sidebarInset :: C
-foreign import sidebarTrigger :: C
-foreign import separator :: C
 -- Grouped bars (the Compare page): a bar chart, and one bar series per run.
 foreign import groupedBarChart :: C
 foreign import groupedBar :: C
