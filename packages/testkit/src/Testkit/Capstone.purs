@@ -5,18 +5,15 @@ module Testkit.Capstone (Capstone, load, runOf) where
 
 import Prelude
 
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff (Aff)
-import Effect.Exception (error)
 import Game.Assemble (assemble, withRounds)
 import Game.Premise (GameboardParts, Premise(..))
 import Game.Types (Bindings, Game)
 import Premises.Capstone as C
 import Premises.Capstone (ObjectiveExpect, RoundExpect)
-import Simulator.Simulate (SimRun, simulate)
+import Simulator.Simulate (SimRun)
 import Testkit.Meridian (orThrow, premise, run)
 
 type Capstone =
