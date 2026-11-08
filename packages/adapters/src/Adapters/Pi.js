@@ -30,14 +30,18 @@ export const piImpl = (model) => (rawDir) => (system) => (input) => (onError, on
     }
     if (code !== 0) return fail(new Error(`pi exited with ${signal ?? code}; raw output: ${path}`));
     let text = "";
+    let answered = false;
     for (const line of raw.split("\n")) {
       if (!line.trim()) continue;
       try {
         const e = JSON.parse(line);
-        if (e.type === "message_end" && e.message?.role === "assistant")
+        if (e.type === "message_end" && e.message?.role === "assistant") {
+          answered = true;
           text = (e.message.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+        }
       } catch { /* not a record */ }
     }
+    if (!answered) return fail(new Error(`pi wrote no assistant message; raw output: ${path}`));
     settled = true;
     onSuccess({ text, raw: path });
   });

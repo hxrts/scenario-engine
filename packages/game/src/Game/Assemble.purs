@@ -6,6 +6,7 @@ module Game.Assemble
   , configuredSeats
   , presetBindings
   , liveBindings
+  , unknownSeats
   , assemblePreset
   , withRounds
   ) where
@@ -16,7 +17,7 @@ import Board.Gameboard.Instantiate (instantiate)
 import Core.Draw (drawVersion)
 import Core.Strategy (InWorld, Strategy)
 import Core.Types (EntityId)
-import Data.Array (elem, fromFoldable, null)
+import Data.Array (elem, fromFoldable, null, filter)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -88,6 +89,10 @@ assemblePreset p preset overrides rounds = do
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
 withRounds :: Maybe Int -> Game -> Game
 withRounds = maybe identity (\n g -> g { rounds = n })
+
+-- | The named humans that are not configured seats of the premise, a usage error at the composition root.
+unknownSeats :: Array EntityId -> InstantiationConfig -> Array EntityId
+unknownSeats humans config = filter (\h -> not (elem h (configuredSeats config))) humans
 
 -- | The seat bindings of a live session: each listed human is a Human seat, and every other configured
 -- | seat is an Agent.

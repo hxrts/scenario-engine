@@ -4,6 +4,7 @@ module Test.Game.Main where
 
 import Prelude
 
+import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Proposal (proposalAt)
 import Core.Types (Id(..))
@@ -13,9 +14,10 @@ import Data.Maybe (Maybe(..))
 import Data.Map as Map
 import Effect (Effect)
 import Foreign.Object as Object
-import Game.Assemble (presetBindings)
+import Game.Assemble (presetBindings, unknownSeats)
 import Game.Error (renderGameError)
 import Game.Override (Override(..), decodeOverrides, encodeOverrides)
+import Unsafe.Coerce (unsafeCoerce)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -31,6 +33,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (proposalAt 2 (Id "DE") 1 body).author `shouldEqual` Id "DE"
 
   describe "Seat presets" do
+    it "a human named for a live session must be a configured seat" do
+      let config = { seats: Map.singleton (Id "US") "seat-1", npcs: Map.empty, representations: [], fallbacks: Map.empty, seed: Seed 1, rounds: 5, label: Nothing }
+      unknownSeats [ Id "US", Id "USA" ] (unsafeCoerce config) `shouldEqual` [ Id "USA" ]
     it "a preset that does not exist is an error, and no seat is bound silently" do
       case presetBindings Object.empty (const "Missing") [ Id "US" ] of
         Left e -> renderGameError e `shouldEqual` "unknown preset Missing"

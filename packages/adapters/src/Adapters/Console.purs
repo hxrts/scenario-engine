@@ -17,5 +17,5 @@ readLine question = fromEffectFnAff (readLineImpl question)
 
 foreign import writeLine :: String -> Effect Unit
 
--- | End the input: a pending prompt fails, and a later `readLine` opens the terminal again.
+-- | End the input for good: a pending prompt fails, and so does every later `readLine`.
 foreign import closeInput :: Effect Unit

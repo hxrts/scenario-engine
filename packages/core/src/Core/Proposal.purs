@@ -26,8 +26,9 @@ import Core.Query (isAggregate)
 import Core.Shape (Shape, arrayOf, field, optionalOf, rec2, rec3, rec4, stringShape)
 import Core.Types (Entity, EntityId, Intent, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
 import Core.Num (Q)
-import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null)
+import Data.Array (concatMap, elem, filter, mapMaybe, mapWithIndex, nub, null, sort)
 import Data.Either (Either, either)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (mapAccumL)
@@ -89,10 +90,11 @@ proposalAt :: RoundIndex -> EntityId -> Int -> ProposalBody -> Proposal
 proposalAt r author index d =
   { id: proposalId r author index, author, intents: d.intents, signers: d.signers, procedure: d.procedure }
 
--- | The joint pass's Proposals, each with its author's index counted across the joint reply, ids
--- | assigned as `proposalsOf` assigns a seat's own, so that replay assigns the same ids.
-numberJoint :: RoundIndex -> Array { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId } -> Array { proposal :: Proposal, signed :: Array EntityId }
-numberJoint r joint = (mapAccumL step Map.empty joint).value
+-- | The joint pass's Proposals, each numbered after the author's `own` Proposals of the round and
+-- | counted across the joint reply, ids assigned as `proposalsOf` assigns a seat's own, so that
+-- | replay assigns the same ids.
+numberJoint :: RoundIndex -> Map EntityId Int -> Array { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId } -> Array { proposal :: Proposal, signed :: Array EntityId }
+numberJoint r own joint = (mapAccumL step own joint).value
   where
   step seen j =
     let
@@ -129,11 +131,11 @@ jointProposals known transcripts = mapMaybe joint
 signableBy :: Entity -> Array Proposal -> Array Proposal
 signableBy e = filter (\p -> e.id `elem` p.signers && p.author /= e.id && not (isAggregate e))
 
--- | Each Proposal with the Entities that signed it: the Entities whose Sign named its id, in the
--- | order given, then the joint pass's signers for it.
+-- | Each Proposal with the Entities that signed it: the Entities whose Sign named its id and the
+-- | joint pass's signers for it, once each and in id order, so a replay assembles the same list.
 assembleSigned :: Array Proposal -> Array { entity :: EntityId, ids :: Array ProposalId } -> Array { proposal :: Proposal, signed :: Array EntityId } -> Array SignedProposal
 assembleSigned proposals signatures jointNumbered = map
-  (\p -> { proposal: p, signatures: map _.entity (filter (\s -> p.id `elem` s.ids) signatures) <> jointSigned p.id })
+  (\p -> { proposal: p, signatures: sort (nub (map _.entity (filter (\s -> p.id `elem` s.ids) signatures) <> jointSigned p.id)) })
   proposals
   where
   jointSigned pid = concatMap _.signed (filter (\j -> j.proposal.id == pid) jointNumbered)

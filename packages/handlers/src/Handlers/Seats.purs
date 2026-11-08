@@ -18,7 +18,7 @@ import Prelude
 import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Proposal (ProposalBody, submissionOrder)
-import Core.Types (EntityId, MarketId, ProposalId)
+import Core.Types (EntityId, ProposalId)
 import Core.World (RoundRecord, RoundResult, View)
 import Data.Array (concatMap, elem, filter, find, nub, sortWith)
 import Data.Either (Either(..))

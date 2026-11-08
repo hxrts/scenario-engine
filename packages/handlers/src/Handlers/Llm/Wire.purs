@@ -1,7 +1,7 @@
 -- | The model wire format (docs/06_simulator.md §14). Each request's payload and each reply is a shape
 -- | (`Core.Shape`), so the JSON the model sees and writes is the description the premise and the game
 -- | use. The prompts are the role briefing and framing prose, with the action list and the reply's
--- | schema rendered from those shapes (`prose`). A reply is one JSON object, the first `{...}` in its
+-- | schema rendered from those shapes (`prose`). A reply is one JSON object, the first balanced `{...}` in its
 -- | text. Only this module and `Handlers.Llm` know these texts; the `pi` process that carries them is in
 -- | `Adapters.Pi`.
 module Handlers.Llm.Wire
@@ -27,9 +27,12 @@ import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, field, intShape, 
 import Core.Types (EntityId, MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Either (Either)
-import Data.Maybe (Maybe(..))
+import Data.Array (drop, length, zip, (..))
+import Data.Foldable (foldl)
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.String (Pattern(..))
-import Data.String.CodeUnits (indexOf, lastIndexOf, slice)
+import Data.String.CodeUnits (indexOf, slice, toCharArray)
+import Data.Tuple (Tuple(..))
 import Schema.Decode.Common (readJsonWith)
 
 -- | The joint pass's payload: the round, its seat transcripts, and the Entities and Markets a
@@ -98,11 +101,27 @@ narratePrompt = common <> "\nTask: write the round's front page: a short newspap
 speakPrompt :: String
 speakPrompt = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply {\"text\":string}: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any deal you propose and the party it is with."
 
--- | The first {...} object in a reply (models sometimes wrap JSON in prose or fences).
+-- | The first balanced {...} object in a reply (models sometimes wrap JSON in prose or fences).
+-- | Braces inside JSON strings do not count. Text with no balanced object is returned whole.
 firstObject :: String -> String
-firstObject s = case indexOf (Pattern "{") s, lastIndexOf (Pattern "}") s of
-  Just i, Just j | j > i -> slice i (j + 1) s
-  _, _ -> s
+firstObject s = case indexOf (Pattern "{") s of
+  Nothing -> s
+  Just i -> maybe s (\end -> slice i (end + 1) s) (closing i)
+  where
+  chars = toCharArray s
+  closing i = (foldl step { depth: 0, inString: false, escaped: false, at: Nothing } (zip (i .. (length chars - 1)) (drop i chars))).at
+  step st (Tuple n c)
+    | isJust st.at = st
+    | st.escaped = st { escaped = false }
+    | st.inString = case c of
+        '\\' -> st { escaped = true }
+        '"' -> st { inString = false }
+        _ -> st
+    | otherwise = case c of
+        '"' -> st { inString = true }
+        '{' -> st { depth = st.depth + 1 }
+        '}' -> if st.depth == 1 then st { depth = 0, at = Just n } else st { depth = st.depth - 1 }
+        _ -> st
 
 -- | Decode a reply's text through a shape: its first object, read in the snapshot form.
 decodeReply :: forall a. Shape a -> String -> Either String a

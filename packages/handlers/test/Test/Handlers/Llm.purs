@@ -19,9 +19,9 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Data.String.CodeUnits as SCU
-import Effect.Aff (Aff, attempt)
+import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
 import Effect.Class (liftEffect)
-import Effect.Exception (error, message)
+import Effect.Exception (error, message, message)
 import Effect.Ref as Ref
 import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
@@ -103,6 +103,12 @@ spec = do
 
     it "a reply wrapped in prose or a code fence still decodes" do
       decodeJoint "Here is the joint pass:\n```json\n{\"proposals\":[]}\n```" `shouldEqual` Right []
+
+    it "a reply with trailing prose containing a brace decodes its first object" do
+      decodeJoint "```json\n{\"proposals\":[]}\n```\nNote: `{}` means none" `shouldEqual` Right []
+
+    it "a brace inside a JSON string does not close the object" do
+      decodeText "{\"text\":\"a } and a \\\" quote\"} trailing }" `shouldEqual` Right "a } and a \" quote"
 
     it "a clarification is not a Proposal list, so it does not decode" do
       isLeft (decodeJoint "{\"kind\":\"clarify\",\"message\":\"How much energy?\"}") `shouldEqual` true
@@ -199,13 +205,7 @@ spec = do
       g <- setup
       evidence <- liftEffect (Ref.new [])
       let
-        backend =
-          { model: "fake/model"
-          , call: \_ _ -> pure { text: replyJoint [], raw: "raw/1.jsonl" }
-          , digest
-          , evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence
-          , exchange: \_ -> pure unit
-          }
+        backend = (backendOf \_ _ -> pure { text: replyJoint [], raw: "raw/1.jsonl" }) { model = "fake/model", evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       _ <- jointWith g backend [ tr "US" "buy ten energy" ]
       evs <- liftEffect (Ref.read evidence)
       map _.effect evs `shouldEqual` [ "interpret" ]
@@ -216,7 +216,7 @@ spec = do
     it "a reply that does not decode is a Left, and each attempt's evidence says so" do
       g <- setup
       evidence <- liftEffect (Ref.new [])
-      let backend = { model: "fake/model", call: \_ _ -> pure { text: "not json", raw: "" }, digest, evidence: \e -> Ref.modify_ (_ <> [ e ]) evidence, exchange: \_ -> pure unit }
+      let backend = (backendOf \_ _ -> pure { text: "not json", raw: "" }) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
       evs <- liftEffect (Ref.read evidence)
@@ -226,13 +226,7 @@ spec = do
       g <- setup
       exchanges <- liftEffect (Ref.new [])
       let
-        live =
-          { model: "live"
-          , call: \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }
-          , digest
-          , evidence: \_ -> pure unit
-          , exchange: \x -> Ref.modify_ (_ <> [ x ]) exchanges
-          }
+        live = (backendOf \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
       j1 <- single =<< jointWith g live [ tr "US" "buy ten energy" ]
       rec <- liftEffect (Ref.read exchanges)
       length rec `shouldEqual` 1
@@ -242,17 +236,26 @@ spec = do
       j2.signed `shouldEqual` j1.signed
       j2.author `shouldEqual` j1.author
 
+    it "a failed call leaves evidence naming why, and rethrows" do
+      g <- setup
+      evidence <- liftEffect (Ref.new [])
+      let failing = (backendOf \_ _ -> throwError (error "down")) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
+      out <- attempt (jointWith g failing [ tr "US" "buy ten energy" ])
+      isLeft out `shouldEqual` true
+      evs <- liftEffect (Ref.read evidence)
+      map _.decoded evs `shouldEqual` [ "error: the call failed: down" ]
+
+    it "a model call that never returns fails at the backend's timeout" do
+      g <- setup
+      let hung = (backendOf \_ _ -> makeAff \_ -> pure nonCanceler) { timeoutMs = 5 }
+      out <- attempt (jointWith g hung [ tr "US" "buy ten energy" ])
+      either (contains (Pattern "timed out") <<< message) (const false) out `shouldEqual` true
+
     it "a failed call is not recorded" do
       g <- setup
       exchanges <- liftEffect (Ref.new [])
       let
-        failing =
-          { model: "x"
-          , call: \_ _ -> throwError (error "down")
-          , digest
-          , evidence: \_ -> pure unit
-          , exchange: \x -> Ref.modify_ (_ <> [ x ]) exchanges
-          }
+        failing = (backendOf \_ _ -> throwError (error "down")) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
       _ <- attempt (jointWith g failing [ tr "US" "buy ten energy" ])
       rec <- liftEffect (Ref.read exchanges)
       length rec `shouldEqual` 0

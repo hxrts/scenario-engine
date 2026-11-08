@@ -6,21 +6,28 @@ module Test.Adapters.Primitives (spec) where
 import Prelude
 
 import Adapters.Clock (nowIso)
+import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile, readPremise)
 import Adapters.Random (resolveSeed)
 import Core.Draw (Seed(..))
 import Data.Array (length, sort)
-import Data.Either (Either(..))
+import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Data.String.CodeUnits as SCU
+import Effect.Aff (attempt)
 import Effect.Class (liftEffect)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Spec Unit
 spec = describe "Primitives: seed, clock, premise reads" do
+  it "input closed once stays closed: a later prompt fails" do
+    liftEffect closeInput
+    out <- attempt (readLine "> ")
+    isLeft out `shouldEqual` true
+
   it "an injected seed is used as given" do
     s <- liftEffect (resolveSeed (Just (Seed 7)))
     s `shouldEqual` Seed 7

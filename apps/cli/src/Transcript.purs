@@ -27,7 +27,7 @@ import Effect.Console (log)
 import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Effects.Signatures (InterpretF(..))
-import Handlers.Llm (interpreter)
+import Handlers.Llm (interpreter, backend)
 import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (writeTextFile)
@@ -55,9 +55,9 @@ main :: Effect Unit
 main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (const (pure unit))) do
   w <- worldOf
   ref <- liftEffect (Ref.new [])
-  let backend = { model: "capstone-stub", call: answer, digest: sha256, evidence: const (pure unit), exchange: \x -> Ref.modify_ (_ <> [ x ]) ref }
+  let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) ref }
   for_ jointLines \l -> do
-    out <- interpreter backend w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
+    out <- interpreter llm w (Interpret 1 [ { seat: Id "US", text: l.text } ] identity)
     case out of
       Left why -> throwError (error ("the capstone exchange \"" <> l.text <> "\" did not decode: " <> why))
       Right js

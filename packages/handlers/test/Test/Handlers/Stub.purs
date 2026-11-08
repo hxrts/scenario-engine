@@ -35,7 +35,7 @@ import Effect.Ref as Ref
 import Foreign.Object as Object
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
-import Handlers.Llm (Backend, Call)
+import Handlers.Llm (Backend, Call, backend)
 import Core.Proposal (ProposedDeal, proposedDealShape)
 import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
@@ -46,7 +46,7 @@ digest = const "stub-digest-0000"
 
 -- | A backend over a raw call: the model is named "stub", and its evidence and exchanges are discarded.
 backendOf :: Call -> Backend
-backendOf call = { model: "stub", call, digest, evidence: \_ -> pure unit, exchange: \_ -> pure unit }
+backendOf call = backend { model: "stub", call, digest }
 
 -- | A backend that answers each call with `answer system input` and counts the calls in `counter`.
 answering :: Ref Int -> (String -> String -> String) -> Backend

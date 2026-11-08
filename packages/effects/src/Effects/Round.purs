@@ -18,6 +18,7 @@ import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), isNothing)
+import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..))
 import Policy.InWorld (policyOf)
@@ -45,14 +46,15 @@ runRound inWorld w0 = do
   joint <-
     if null transcripts then pure []
     else map jointProposalsOf (lift _interpret (Interpret w.round transcripts identity))
-  let
-    jointNumbered = numberJoint w.round joint
   drafted <- for entities \e -> proposalsOf w.round e.id <$> proposeFor e (view e)
   let
+    own = Map.fromFoldableWith (+) (map (\p -> Tuple p.author 1) (concat drafted))
+    jointNumbered = numberJoint w.round own joint
     proposals = concat drafted <> map _.proposal jointNumbered
   signatures <- for entities \e -> do
     let signable = signableBy e proposals
-    ids <- if signable == [] then pure [] else signFor e ((view e) { toSign = signable })
+    -- asked even with nothing to sign: a replay answers from the record, the author's signature included
+    ids <- signFor e ((view e) { toSign = signable })
     pure { entity: e.id, ids }
   let
     result = resolveRound w (assembleSigned proposals signatures jointNumbered)

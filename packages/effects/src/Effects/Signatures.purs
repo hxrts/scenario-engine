@@ -12,7 +12,6 @@ module Effects.Signatures
   , InterpretF(..)
   , NARRATE
   , NarrateF(..)
-  , Deadline(..)
   , OBSERVE
   , ObserveF(..)
   , STORE
@@ -71,16 +70,6 @@ data NarrateF a = Narrate RoundResult (String -> a)
 derive instance Functor NarrateF
 
 type NARRATE r = (narrate :: NarrateF | r)
-
--- | Session deadlines (live play only): the propose and sign windows of a round. The live handler
--- | waits out each window; no program requests a wait.
-data Deadline = ProposeDeadline | SignDeadline
-
-derive instance Eq Deadline
-
-instance Show Deadline where
-  show ProposeDeadline = "propose"
-  show SignDeadline = "sign"
 
 -- | A run's specification: the string fields it was launched or derived with (the preset, the seeds,
 -- | the overrides, and the source it was derived from). Each producer writes its own fields.

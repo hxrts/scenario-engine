@@ -10,6 +10,7 @@ module Handlers.Store
   , AppendRound
   , Metric
   , validRunId
+  , startRun
   , runStore
   , runObserve
   , recorder
@@ -22,7 +23,8 @@ import Core.Engine.Prepare (prepareRound)
 import Core.Invariants (Failure, check)
 import Core.Proposal (Transcript)
 import Core.World (RoundResult, RoundRecord, WorldState)
-import Data.Array (all, length, uncons)
+import Data.Array (all, any, length, uncons)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (toCharArray)
 import Effect (Effect)
@@ -99,6 +101,13 @@ validRunId s = case uncons cs of
   where
   cs = toCharArray s
   alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+
+-- | Register a new run, or say why it cannot be: its id is already in the store.
+startRun :: StoreBackend -> NewRun -> Effect (Either String Unit)
+startRun b n = do
+  existing <- b.listRuns
+  if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
+  else Right <$> b.createRun n
 
 -- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
 persister :: StoreBackend -> (RoundResult -> Array Metric) -> String -> WorldState -> Effect (RoundResult -> Effect Unit)

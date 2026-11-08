@@ -27,7 +27,7 @@ import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
 import Effects.Observe (listRuns, listSummaries, readManifest, readMetric, readRounds)
 import Views.Metrics (metricsVersion, roundMetrics)
-import Handlers.Store (persister, recorder, runStore, runObserve)
+import Handlers.Store (persister, recorder, runStore, runObserve, startRun)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (presetSeats)
@@ -57,6 +57,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PiTests.spec
   PrimitiveTests.spec
   describe "Run Store" do
+    it "a run id already in the store is a usable error, not a constraint failure" do
+      g <- presetSeats [ "US" ] "Passive" Nothing
+      db <- liftEffect (open ":memory:")
+      let
+        port = sqliteBackend db
+        new = { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: Object.empty, manifest: g.manifest, source: Nothing, kind: Nothing }
+      first <- liftEffect (startRun port new)
+      first `shouldEqual` Right unit
+      second <- liftEffect (startRun port new)
+      second `shouldEqual` Left "a run named session-1 already exists; choose another --id"
+
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
       g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
       let
