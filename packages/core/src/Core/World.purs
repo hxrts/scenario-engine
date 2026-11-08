@@ -8,8 +8,8 @@ import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, pairOf, stringShape, unitShape)
-import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Payment, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
+import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, decodeJsonWith, encodeWith, fieldOf, intShape, iso, mapOf, object, optionalOf, pairOf, stringShape, unitShape)
+import Core.Types (BehaviorDomain, CapacityEffect, CapacityRef, CostFunction, Entity, EntityId, Estimator, Id, Interval, Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -194,67 +194,67 @@ instance Show ShortfallEffect where
   show = genericShow
 
 instance EncodeJson Endpoint where
-  encodeJson = encodeJsonWith Snapshot endpointShape
+  encodeJson = encodeWith Snapshot endpointShape
 
 instance DecodeJson Endpoint where
   decodeJson = decodeJsonWith Snapshot endpointShape
 
 instance EncodeJson Mechanism where
-  encodeJson = encodeJsonWith Snapshot mechanismShape
+  encodeJson = encodeWith Snapshot mechanismShape
 
 instance DecodeJson Mechanism where
   decodeJson = decodeJsonWith Snapshot mechanismShape
 
 instance EncodeJson Cause where
-  encodeJson = encodeJsonWith Snapshot causeShape
+  encodeJson = encodeWith Snapshot causeShape
 
 instance DecodeJson Cause where
   decodeJson = decodeJsonWith Snapshot causeShape
 
 instance EncodeJson RecurringSource where
-  encodeJson = encodeJsonWith Snapshot recurringSourceShape
+  encodeJson = encodeWith Snapshot recurringSourceShape
 
 instance DecodeJson RecurringSource where
   decodeJson = decodeJsonWith Snapshot recurringSourceShape
 
 instance EncodeJson RecurringDestination where
-  encodeJson = encodeJsonWith Snapshot recurringDestinationShape
+  encodeJson = encodeWith Snapshot recurringDestinationShape
 
 instance DecodeJson RecurringDestination where
   decodeJson = decodeJsonWith Snapshot recurringDestinationShape
 
 instance EncodeJson RecurringAmount where
-  encodeJson = encodeJsonWith Snapshot recurringAmountShape
+  encodeJson = encodeWith Snapshot recurringAmountShape
 
 instance DecodeJson RecurringAmount where
   decodeJson = decodeJsonWith Snapshot recurringAmountShape
 
 instance EncodeJson Window where
-  encodeJson = encodeJsonWith Snapshot windowShape
+  encodeJson = encodeWith Snapshot windowShape
 
 instance DecodeJson Window where
   decodeJson = decodeJsonWith Snapshot windowShape
 
 instance EncodeJson Side where
-  encodeJson = encodeJsonWith Snapshot sideShape
+  encodeJson = encodeWith Snapshot sideShape
 
 instance DecodeJson Side where
   decodeJson = decodeJsonWith Snapshot sideShape
 
 instance EncodeJson CausePattern where
-  encodeJson = encodeJsonWith Snapshot causePatternShape
+  encodeJson = encodeWith Snapshot causePatternShape
 
 instance DecodeJson CausePattern where
   decodeJson = decodeJsonWith Snapshot causePatternShape
 
 instance EncodeJson LegAggregate where
-  encodeJson = encodeJsonWith Snapshot legAggregateShape
+  encodeJson = encodeWith Snapshot legAggregateShape
 
 instance DecodeJson LegAggregate where
   decodeJson = decodeJsonWith Snapshot legAggregateShape
 
 instance EncodeJson ShortfallEffect where
-  encodeJson = encodeJsonWith Snapshot shortfallEffectShape
+  encodeJson = encodeWith Snapshot shortfallEffectShape
 
 instance DecodeJson ShortfallEffect where
   decodeJson = decodeJsonWith Snapshot shortfallEffectShape
@@ -358,7 +358,7 @@ renderReason = case _ of
   Blocked k -> "blocked by a Rule of kind " <> show k
 
 instance EncodeJson RejectReason where
-  encodeJson = encodeJsonWith Snapshot rejectReasonShape
+  encodeJson = encodeWith Snapshot rejectReasonShape
 
 instance DecodeJson RejectReason where
   decodeJson = decodeJsonWith Snapshot rejectReasonShape
@@ -555,20 +555,14 @@ roundRecordShape = object "RoundRecord"
       <*> fieldOf "events" "the round's events" (arrayOf eventShape) _.events
   )
 
-instance Described Target where
-  shape = targetShape
-
-instance Described Event where
-  shape = eventShape
-
 instance EncodeJson Target where
-  encodeJson = encodeJsonWith Snapshot targetShape
+  encodeJson = encodeWith Snapshot targetShape
 
 instance DecodeJson Target where
   decodeJson = decodeJsonWith Snapshot targetShape
 
 instance EncodeJson Event where
-  encodeJson = encodeJsonWith Snapshot eventShape
+  encodeJson = encodeWith Snapshot eventShape
 
 instance DecodeJson Event where
   decodeJson = decodeJsonWith Snapshot eventShape

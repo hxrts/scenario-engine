@@ -9,7 +9,7 @@ module Session (Options, session) where
 
 import Prelude
 
-import Adapters.Clock (delayMs, nowIso)
+import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine, writeLine)
 import Adapters.Digest (sha256)
 import Adapters.Filesystem (fileOps, lineSink)
@@ -22,7 +22,7 @@ import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (elem, filter, find)
+import Data.Array (elem, filter)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_, traverse_)
 import Data.Map as Map
@@ -31,11 +31,12 @@ import Data.Newtype (unwrap)
 import Data.String (Pattern(..), joinWith, split)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Aff (attempt, launchAff_)
+import Data.Int (toNumber)
+import Data.Time.Duration (Milliseconds(..))
+import Effect.Aff (attempt, delay, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Effects.Signatures (NarrateF(..))
-import Foreign.Object as Object
 import Handlers.Live (runLive)
 import Handlers.Llm (backend, interpreter, narrator, speak)
 import Views.Common (quantity)
@@ -45,7 +46,6 @@ import Exit (fail)
 import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Game.Setting (Setting(..))
 import Game.Recipe (encodeSpec)
-import Settings.Presets (presetNames)
 import Schema.Gameboard (gameIdOf)
 import Settings.Load (loadFrom)
 
@@ -78,9 +78,7 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       created <- liftEffect nowIso
       owner <- liftEffect (processOwner "session")
       let
-        -- every seat of a run derived from this session plays the setting's first preset
-        preset = fromMaybe "" (find (\n -> Object.member n parts.presets) presetNames)
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
       started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec, manifest: game.manifest, source: Nothing, kind: Nothing, owner })
       liftEffect $ either (\why -> fail ("error: " <> why)) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
@@ -89,7 +87,7 @@ session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
       out <- attempt $ runLive
         { seed
         , input: readLine
-        , window: if o.window > 0 then Just (delayMs (o.window * 1000)) else Nothing
+        , window: if o.window > 0 then Just (delay (Milliseconds (toNumber (o.window * 1000)))) else Nothing
         , say: writeLine
         , notify: \_ text -> liftEffect (writeLine ("  " <> text))
         , interpret: interpreter llm w0

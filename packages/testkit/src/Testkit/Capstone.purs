@@ -1,7 +1,7 @@
 -- | The capstone run as the test suites read it: the Meridian setting assembled with the capstone's seat
 -- | bindings (and its counterfactual's), its expectations and objectives, and the run it produces. The
 -- | values come from `Settings.Meridian.Capstone`; nothing decodes `capstone/run.json`. Test support only.
-module Testkit.Capstone (Capstone, load, runOf) where
+module Testkit.Capstone (Capstone, load) where
 
 import Prelude
 
@@ -13,8 +13,7 @@ import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Bindings, Game)
 import Settings.Meridian.Capstone as C
 import Settings.Meridian.Capstone (ObjectiveExpect, RoundExpect)
-import Simulator.Simulate (SimRun)
-import Testkit.Meridian (orThrow, setting, run)
+import Testkit.Meridian (orThrow, setting)
 
 type Capstone =
   { rounds :: Int
@@ -45,6 +44,3 @@ load = do
   assembled :: GameboardParts -> Bindings -> Aff Game
   assembled p bindings = orThrow (map (withRounds (Just C.rounds)) (assemble (GameboardSetting p) bindings []))
 
--- | Play a game to its end under a player seed; a simulation or engine failure is an error.
-runOf :: Seed -> Game -> Aff SimRun
-runOf = run

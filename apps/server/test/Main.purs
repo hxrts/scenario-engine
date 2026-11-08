@@ -21,7 +21,6 @@ import Testkit.Meridian (anyRounds, setting)
 import Core.Types (Id(..))
 import Data.Map as Map
 import Core.World (Event(..), RoundRecord)
-import Simulator.Records (recordsEqual)
 import Server.Launch (Launched)
 import Handlers.Api.Route (route)
 import Server.Cache (newCache)
@@ -48,12 +47,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         r1 = { round: 1, inputs: [], events: [] } :: RoundRecord
         r2 = { round: 2, inputs: [], events: [ Repealed { round: 2, id: Id "rule" } ] } :: RoundRecord
-      recordsEqual [] [] `shouldEqual` true
-      recordsEqual [ r1, r2 ] [ r1, r2 ] `shouldEqual` true
-      recordsEqual [ r1, r2 ] [ r1, r2 { events = [] } ] `shouldEqual` false
-      recordsEqual [ r1, r2 ] [ r1, r2 { round = 3 } ] `shouldEqual` false
-      recordsEqual [ r1, r2 ] [ r1 ] `shouldEqual` false
-      recordsEqual [ r1 ] [ r1, r2 ] `shouldEqual` false
+      (([] :: Array RoundRecord) == []) `shouldEqual` true
+      ([ r1, r2 ] == [ r1, r2 ]) `shouldEqual` true
+      ([ r1, r2 ] == [ r1, r2 { events = [] } ]) `shouldEqual` false
+      ([ r1, r2 ] == [ r1, r2 { round = 3 } ]) `shouldEqual` false
+      ([ r1, r2 ] == [ r1 ]) `shouldEqual` false
+      ([ r1 ] == [ r1, r2 ]) `shouldEqual` false
   describe "Read API" do
     it "a launch or a variant outside the setting's rounds is refused; the configured count applies when none is given; resume is not bounded" do
       map Right setting >>= case _ of

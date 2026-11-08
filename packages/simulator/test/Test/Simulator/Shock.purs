@@ -23,8 +23,7 @@ import Settings.Presets (presetNames)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Testkit.Capstone (runOf)
-import Testkit.Meridian (presetGame, seats)
+import Testkit.Meridian (run, presetGame, seats)
 
 -- | The Presets whose behaviour the shock is checked on (Passive proposes nothing, so it cannot flip).
 shockPresets :: Array String
@@ -83,7 +82,7 @@ prices' m r = map (\x -> fromMaybe Q.zero (priceOf x.world (Id m))) r.records
 
 -- | The same, as the two-decimal display (docs/05 §13.6 prints them so).
 prices :: String -> SimRun -> Array String
-prices m r = map Q.displayPrice (prices' m r)
+prices m r = map Q.displayQuantity (prices' m r)
 
 range' :: Array Q.Q -> Maybe { min :: Q.Q, max :: Q.Q }
 range' xs = case minimum xs, maximum xs of
@@ -97,4 +96,4 @@ q s = fromMaybe Q.zero (Q.parse s)
 play :: GameboardParts -> String -> Array Override -> Aff SimRun
 play p preset overrides = do
   g <- presetGame p preset overrides Nothing
-  runOf (Seed 1) g
+  run (Seed 1) g

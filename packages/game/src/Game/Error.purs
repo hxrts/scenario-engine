@@ -1,6 +1,6 @@
 -- | Why a setting cannot be assembled into a game, or a game cannot be simulated. Each constructor names
 -- | one check; `renderGameError` is the only place the words are written.
-module Game.Error (GameError(..), Stage(..), renderGameError) where
+module Game.Error (GameError(..), renderGameError) where
 
 import Prelude
 
@@ -10,7 +10,7 @@ import Data.Array (intercalate)
 
 data GameError
   = UnknownPreset String
-  | Invalid Stage (Array ValidationError) -- the Gameboard or its configuration fails its checks
+  | Invalid (Array ValidationError) -- the Gameboard or its configuration fails its checks
   | Unresolved String RefKind String -- a Policy or preset names something the Gameboard lacks
   | NotSimulable EntityId -- a seat played by a human or an agent cannot be simulated
   | LiteralOverrides -- a literal setting is a World State as written, so it takes no overrides
@@ -20,19 +20,13 @@ data GameError
 
 derive instance Eq GameError
 
--- | Where a setting was found invalid: at load, before any override, or once overrides are applied.
-data Stage = AtLoad | AfterOverrides
-
-derive instance Eq Stage
-
 instance Show GameError where
   show = renderGameError
 
 renderGameError :: GameError -> String
 renderGameError = case _ of
   UnknownPreset name -> "unknown preset " <> name
-  Invalid AtLoad es -> "invalid setting: " <> intercalate "; " (map show es)
-  Invalid AfterOverrides es -> show es
+  Invalid es -> "invalid setting: " <> intercalate "; " (map show es)
   Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref
   NotSimulable e -> "seat " <> show e <> " is played by a human or an agent, which the simulator does not run"
   LiteralOverrides -> "a literal setting takes no overrides"

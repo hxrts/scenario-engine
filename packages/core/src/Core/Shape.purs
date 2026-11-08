@@ -1,11 +1,9 @@
 -- | The `Shape` description algebra. A Shape is built once from combinators. The
 -- | same value carries a description (for prose) and a codec per format (setting,
 -- | snapshot). Nothing here is a second description of a type: the codec and the interpreters read
--- | the same combinator calls. Instances of `Described` sit beside their types (PureScript forbids
--- | orphan instances), so this module imports no domain type.
+-- | the same combinator calls.
 module Core.Shape
   ( Format(..)
-  , encodeJsonWith
   , prettyJson
   , decodeJsonWith
   , Shape
@@ -79,8 +77,6 @@ module Core.Shape
   , encodeWith
   , parse
   , prose
-  , class Described
-  , shape
   ) where
 
 import Prelude
@@ -846,9 +842,6 @@ parse :: forall a. Format -> Shape a -> String -> Either J.JsonDecodeError a
 parse fmt s = parseJson >=> decodeJsonWith fmt s
 
 -- | The encoder of a shape in one format, for an `EncodeJson` instance.
-encodeJsonWith :: forall a. Format -> Shape a -> a -> Json
-encodeJsonWith = encodeWith
-
 -- | Prose for prompts and docs: the record and sum names, field names, and short descriptions.
 prose :: Desc -> String
 prose = go 0
@@ -884,8 +877,4 @@ instance showTagForm :: Show TagForm where
   show Bare = "bare string"
   show Literal = "literal"
   show Mixed = "mixed"
-
--- | A type with a description. Instances sit beside their types.
-class Described a where
-  shape :: Shape a
 

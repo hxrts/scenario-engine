@@ -10,17 +10,17 @@ module Core.Engine.Circulate
 import Prelude
 
 import Core.Engine.Settle (Account(..), Settlement, adjust, minOwedHeld, net, transfer)
-import Core.Map (entries, sumInto)
+import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityHeld, entitiesOf, lookupQ)
 import Core.Slice (runLegQuery)
-import Core.Types (EntityId, ResourceId)
+import Core.Types (EntityId)
 import Core.World (addEvents, Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Target(..), WorldState, coupled)
 import Data.Array (filter, findIndex, foldl, fromFoldable, index, length)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 

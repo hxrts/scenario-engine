@@ -14,7 +14,7 @@ import Prelude
 import Board.Gameboard.Validate (gameboardNames, unknownNames)
 import Core.Map (values)
 import Core.Strategy (Strategy)
-import Core.Types (Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
+import Core.Types (CapacityRef, Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..))
 import Data.Array (all, concat, elem, filter, fromFoldable, mapMaybe, nub)
 import Data.Either (Either(..), isRight)
@@ -24,7 +24,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Game.Error (GameError(..), Stage(..))
+import Game.Error (GameError(..))
 import Game.Setting (GameboardParts, checkSetting, checkRefs)
 import Schema.Gameboard (Gameboard)
 
@@ -53,7 +53,7 @@ everything gb =
 restrict :: Selection -> GameboardParts -> Either GameError GameboardParts
 restrict s p = case unknownNames (gameboardNames p.gameboard) named of
   [] -> checkSetting (filtered s p)
-  es -> Left (Invalid AtLoad es)
+  es -> Left (Invalid es)
   where
   named = concat
     [ map (Tuple EntityRef <<< idText) (s.entities <> fromFoldable (Map.keys s.accounts))
@@ -152,7 +152,7 @@ flowResources r = case r.amount of
   _ -> []
 
 -- | The capacity a recurring flow produces from.
-producedFrom :: RecurringFlow -> Maybe _
+producedFrom :: RecurringFlow -> Maybe CapacityRef
 producedFrom r = case r.amount of
   CapacityHeld c -> Just c
   _ -> Nothing

@@ -7,7 +7,7 @@ _default:
 
 # Compile every package
 build:
-    spago build
+    spago build --strict
 
 # Run every package's test suite
 test: _premises

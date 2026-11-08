@@ -41,7 +41,6 @@ import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
-import Foreign.Object (Object)
 import Type.Proxy (Proxy(..))
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in

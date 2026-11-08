@@ -11,14 +11,12 @@ module Views.Drivers
   ) where
 
 import Prelude
-import Core.World (Focus)
-import Core.Types (idText)
+import Core.World (Focus, RoundRecord, WorldState)
+import Core.Types (idText, FlowEffect(..), EntityId, ResourceId, Rule, RuleF(..), ruleKind)
 
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Slice (Slice, describeSlice, foldEvents, groupBy, ignore, read, runSlice, shortfalls, total)
-import Core.Types (FlowEffect(..), EntityId, ResourceId, Rule, RuleF(..), ruleKind)
-import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, length, nub)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))

@@ -15,7 +15,7 @@ import Testkit.Json (strategyOrThrow)
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
-import Core.Slice (event, matches, conversions)
+import Core.Slice (conversions, matches)
 import Data.Array (any, filter, length, nubEq, range)
 import Data.Either (Either(..))
 import Data.Map as Map

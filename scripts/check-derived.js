@@ -176,7 +176,7 @@ const isCodecInstance = (s) => /^instance-(Encode|Decode)Json-/.test(s);
 
 const fixes = {
   "sum-projection": "describe the sum through genericSum (Core.Shape) rather than a projection for each constructor",
-  "hand-codec": "define the instance through the type's Shape (encodeJsonWith / decodeJsonWith), or give it a Shape",
+  "hand-codec": "define the instance through the type's Shape (encodeWith / decodeJsonWith), or give it a Shape",
   "implicit-codec": "encode and decode through the type's Shape; a value crossing a boundary does not use argonaut's implicit codec",
   "hand-json": "write a Shape for the payload, or build it through an existing one",
   "event-match": "read the Event through a selector or Slice; a computation over many kinds goes through foldEvents",
@@ -227,7 +227,7 @@ function scan(file, text, ctx) {
     if (inst) {
       const body = [];
       for (let j = i + 1; j < bare.length && (bare[j].trim() === "" ? false : /^\s/.test(bare[j])); j++) body.push(bare[j]);
-      if (!/\b(encodeJsonWith|decodeJsonWith|encodeWith|decodeWith)\b/.test(body.join("\n"))) add("hand-codec", i);
+      if (!/\b(decodeJsonWith|encodeWith|decodeWith)\b/.test(body.join("\n"))) add("hand-codec", i);
     }
     if (/\b(genericEncodeJson|genericDecodeJson)\b|\.:[?!]?\s|\bgetField\b/.test(l) && sym !== header) add("hand-codec", i);
 

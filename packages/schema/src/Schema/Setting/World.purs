@@ -16,14 +16,13 @@ module Schema.Setting.World
   ) where
 
 import Prelude
-import Core.World (focusShape)
+import Core.World (focusShape, FlowGate, UnseededWorld)
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, arrayOf, defaulted, atBare, atKindArg, boolShape, contramapRec, defaultsTo, emptyByDefault, fieldOf, genericSettingSum, intShape, iso, listOf, nameShape, object, optionalOf, recordShape, refined, stringShape)
 import Core.Types (Aggregate, CapacityEffect, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, idMap, idMapWith, idShape, idText)
 import Core.Types as Types
-import Core.World (FlowGate, UnseededWorld)
 import Data.Array as Array
 import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
 import Data.Either (Either(..))

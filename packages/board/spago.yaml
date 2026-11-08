@@ -14,6 +14,5 @@ package:
     dependencies:
       - sp-testkit
       - effect
-      - unsafe-coerce
       - spec
       - spec-node

@@ -32,7 +32,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Simulator.Simulate (Checkpoint, resumeFrom)
+import Simulator.Simulate (Checkpoint, fromCheckpoint, simulate)
 import Core.Strategy (Strategy)
 import Adapters.Filesystem (fileOps)
 import Settings.Layout (fixturePath)
@@ -363,6 +363,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       full <- run (Seed 1) g
       case index full.records 2 of
         Nothing -> fail "rounds"
-        Just r3 -> case resumeFrom (Seed 1) g ({ world: r3.world, done: 3 } :: Checkpoint) of
+        Just r3 -> case simulate (Seed 1) (fromCheckpoint g ({ world: r3.world, done: 3 } :: Checkpoint)) of
           Left e -> fail (show e)
           Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 3 full.records)

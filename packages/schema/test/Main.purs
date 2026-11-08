@@ -5,8 +5,7 @@ import Prelude
 import Data.Map as Map
 
 import Core.World (RecurringAmount(..))
-import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
-import Core.Types (proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
+import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)

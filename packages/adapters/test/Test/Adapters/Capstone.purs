@@ -21,7 +21,6 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Store (createRun)
 import Effects.Observe (readRounds)
-import Foreign.Object as Object
 import Game.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)

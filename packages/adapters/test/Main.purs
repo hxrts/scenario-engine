@@ -21,7 +21,6 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message, try)
-import Foreign.Object as Object
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)

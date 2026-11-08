@@ -17,21 +17,22 @@ import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Simulator.Simulate (Checkpoint, resumeFrom)
+import Simulator.Simulate (Checkpoint, fromCheckpoint, simulate)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-import Testkit.Capstone (load, runOf)
+import Testkit.Capstone (load)
+import Testkit.Meridian (run)
 
 spec :: Spec Unit
 spec = describe "Capstone (DSL-authored run)" do
   it "the checked invariants hold in every round (see docs/02 §9)" do
     cap <- load
-    r <- runOf cap.playerSeed cap.game
+    r <- run cap.playerSeed cap.game
     checkRun r.manifest.initial r.records `shouldEqual` []
 
   it "stored records encode the same through their shapes as through the generic encoder, and read back" do
     cap <- load
-    r <- runOf cap.playerSeed cap.game
+    r <- run cap.playerSeed cap.game
     let
       same :: forall a. EncodeJson a => Eq a => Show a => Shape a -> a -> _
       same s x = do
@@ -44,7 +45,7 @@ spec = describe "Capstone (DSL-authored run)" do
 
   it "every round's DSL expectations hold" do
     cap <- load
-    r <- runOf cap.playerSeed cap.game
+    r <- run cap.playerSeed cap.game
     for_ cap.expectations \e ->
       case index r.records (e.round - 1) of
         Just rr -> checkRound e.expect rr `shouldEqual` []
@@ -52,7 +53,7 @@ spec = describe "Capstone (DSL-authored run)" do
 
   it "replays byte-identically from its records" do
     cap <- load
-    r <- runOf cap.playerSeed cap.game
+    r <- run cap.playerSeed cap.game
     case runReplay (seatEnv cap.playerSeed cap.game) cap.rounds (map _.record r.records) cap.game of
       Left e -> fail (show e)
       Right out -> do
@@ -61,11 +62,11 @@ spec = describe "Capstone (DSL-authored run)" do
 
   it "a run resumed from round 4's snapshot matches the uninterrupted run" do
     cap <- load
-    full <- runOf cap.playerSeed cap.game
+    full <- run cap.playerSeed cap.game
     case index full.records 3 of
       Nothing -> fail "rounds"
       Just r4 -> do
         let snap = { world: r4.world, done: 4 } :: Checkpoint
-        case resumeFrom cap.playerSeed cap.game snap of
+        case simulate cap.playerSeed (fromCheckpoint cap.game snap) of
           Left e -> fail (show e)
           Right rest -> map _.world rest.records `shouldEqual` map _.world (drop 4 full.records)

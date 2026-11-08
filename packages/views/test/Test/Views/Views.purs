@@ -11,14 +11,13 @@ import Testkit.Edit (onEntity)
 
 import Test.Views.Support (toStored)
 
-import Schema.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec)
+import Schema.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec, specPairs)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Query (holding)
-import Core.Types (Id(..))
 import Data.Array (all, filter, find, index, length, mapWithIndex)
 import Data.Map as Map
 import Data.Either (Either(..), isLeft)
@@ -31,11 +30,9 @@ import Simulator.Simulate (SimRun)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override(..), resolve)
 import Game.Setting (GameboardParts)
-import Schema.Run (specPairs)
 import Game.Recipe (encodeSpec)
 import Foreign.Object as Object
-import Testkit.Capstone (runOf)
-import Testkit.Meridian (orThrow)
+import Testkit.Meridian (run, orThrow)
 import Views.Balances (balances, events)
 import Views.Common (Table, completed, exact, final, quantity)
 import Views.Balance (measures, measuresOf)
@@ -68,12 +65,12 @@ cell row i = fromMaybe "" (index row i)
 play :: GameboardParts -> Setup -> Aff SimRun
 play ctx s = do
   g <- orThrow (assemblePreset ctx s.preset s.overrides (Just s.rounds))
-  runOf (Seed s.seed) g
+  run (Seed s.seed) g
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Views and error paths" do
   it "the stored specification is typed: what Game.Recipe writes is what the views read" do
-    let written = encodeSpec { gameId: "g", playerSeed: Seed 7, preset: "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
+    let written = encodeSpec { gameId: "g", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
     written.gameId `shouldEqual` Just "g"
     written.preset `shouldEqual` Just "P"
     written.playerSeed `shouldEqual` Just 7

@@ -32,10 +32,10 @@ type Derivation = { source :: String, kind :: DeriveKind }
 
 -- | The stored specification of a run: its Gameboard, the player seed it was resolved to, its recipe,
 -- | the run it was derived from, if any, and, for a live session, its model and human seats.
-encodeSpec :: { gameId :: String, playerSeed :: Seed, preset :: String, rounds :: Maybe Int, overrides :: Array Override, derivation :: Maybe Derivation, model :: Maybe String, humans :: Maybe String } -> Spec
+encodeSpec :: { gameId :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, derivation :: Maybe Derivation, model :: Maybe String, humans :: Maybe String } -> Spec
 encodeSpec r =
   { gameId: Just r.gameId
-  , preset: Just r.preset
+  , preset: r.preset
   , playerSeed: Just (unwrap r.playerSeed)
   , overrides: Just (stringify (encodeOverrides r.overrides))
   , rounds: r.rounds
@@ -83,7 +83,7 @@ deriveRecipe kind body base = case kind of
     [] -> pure unit
     xs -> Left (deriveKindName kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
 
--- | The recipe a stored specification was played with.
+-- | The recipe a stored specification was played with. A live session has no preset and so no recipe.
 decodeSpec :: Spec -> Either String Recipe
 decodeSpec s = do
   preset <- note "the stored spec has no preset" s.preset

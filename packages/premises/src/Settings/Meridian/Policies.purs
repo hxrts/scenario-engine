@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..))
 
 import Core.Strategy (Clause, Strategy)
 import Data.Tuple (Tuple(..))
-import Schema.Build.Decision (asTemplate, orderAt, selfTransform, each, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, named, not', param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, signFacility, subQ, tradeAt, transformedLastRound)
+import Schema.Build.Decision (asTemplate, each, factor, ge, gt, holding, le, lit, mulQ, named, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, rule, selfTransform, signFacility, subQ, tradeAt, transformedLastRound)
 import Schema.Build.Intent (transfer)
 import Settings.Meridian.Parameters (disruptionRound, euMatchingTariff, majorActionThreshold, supplierAsia, supplierAtlantic, supplierHighPrice)
 import Settings.Meridian.Names (n)

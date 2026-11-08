@@ -18,8 +18,7 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag)
-import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
+import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
@@ -52,12 +51,12 @@ import Settings.Load (decodePresets, fromFiles, loadFrom)
 import Settings.Meridian.Names (meridianDir)
 import Game.Setting (GameboardParts, checkSetting)
 import Data.Bifunctor (lmap)
-import Settings.Compose as Compose
+import Settings.Compose (files, presetsJson) as Compose
 import Settings.Meridian (defaultDials, gameboard, meridian)
 import Settings.Meridian.Fixtures (fixtures)
 import Schema.Setting.Gameboard (gameboardShape)
 import Settings.Meridian.Policies (policies)
-import Test.Settings.Compose as Compose
+import Test.Settings.Compose (spec) as Compose
 import Test.Settings.Dials as Dials
 import Test.Settings.Flows as Flows
 import Test.Settings.Golden (failWith, fixture, golden)

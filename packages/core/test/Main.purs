@@ -19,8 +19,7 @@ import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RejectReason(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
-import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
-import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
+import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -358,8 +357,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       Q.displayRatio (q "0.125") `shouldEqual` "0.12"
       Q.displayRatio (q "0.135") `shouldEqual` "0.14"
       Q.displayRatio (q "-0.125") `shouldEqual` "-0.12"
-      Q.displayPrice (q "2.675") `shouldEqual` "2.68"
-      Q.displayPrice (q "2.665") `shouldEqual` "2.66"
+      Q.displayQuantity (q "2.675") `shouldEqual` "2.68"
+      Q.displayQuantity (q "2.665") `shouldEqual` "2.66"
       Q.displayQuantity (q "12.125") `shouldEqual` "12.12"
       Q.displayQuantity (q "12.375") `shouldEqual` "12.38"
     it "display trims trailing zeros and shows the kind's precision" do
@@ -374,8 +373,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       Q.displayQuantity (q "0.004") `shouldEqual` "<0.01"
       Q.displayQuantity (q "-0.0001") `shouldEqual` "-<0.01"
       Q.displayQuantity (q "0.01") `shouldEqual` "0.01"
-      Q.displayPrice (q "3.10") `shouldEqual` "3.1"
-      Q.displayPrice (q "3.00") `shouldEqual` "3"
+      Q.displayQuantity (q "3.10") `shouldEqual` "3.1"
+      Q.displayQuantity (q "3.00") `shouldEqual` "3"
       Q.displayRatio (Q.fromInt 1) `shouldEqual` "1.00"
       Q.displayRatio (q "0.5") `shouldEqual` "0.50"
       Q.displayRatio (q "-0.25") `shouldEqual` "-0.25"
@@ -386,11 +385,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a whole number shows no decimals" do
       quickCheck do
         n <- chooseInt (-100000) 100000
-        pure (((Q.displayQuantity (Q.fromInt n) == show n) && (Q.displayPrice (Q.fromInt n) == show n)) === true)
+        pure (((Q.displayQuantity (Q.fromInt n) == show n) && (Q.displayQuantity (Q.fromInt n) == show n)) === true)
     it "display stays within half a hundredth, never drops digits, and trims" do
       quickCheck do
         x <- genQ
-        pure ((displayWithin false x (Q.displayQuantity x) && displayWithin false x (Q.displayPrice x) && displayWithin true x (Q.displayRatio x)) === true)
+        pure ((displayWithin false x (Q.displayQuantity x) && displayWithin false x (Q.displayQuantity x) && displayWithin true x (Q.displayRatio x)) === true)
     it "display rounds every tie half to even" do
       quickCheck do
         -- k = 0 is 0.005, which rounds to zero but is not zero, so it shows as "<0.01" by design
@@ -400,7 +399,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           x = Q.fromUnits (BI.fromInt (50 * (2 * k + 1)))
           expected = if k `mod` 2 == 0 then k else k + 1
           shown s = (Q.toUnits <$> Q.parse s) == Just (BI.fromInt (100 * expected))
-        pure ((shown (Q.displayPrice x) && shown (Q.displayRatio x) && shown (Q.displayQuantity x)) === true)
+        pure ((shown (Q.displayQuantity x) && shown (Q.displayRatio x) && shown (Q.displayQuantity x)) === true)
   describe "Core.Market clearing" do
     let
       cost = { intercept: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.fromInt 0, hi: Q.fromInt 100 } }
@@ -721,7 +720,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           map _.invariant (check w (res { world = res.world { entities = map (\e -> e { capabilities = [] }) res.world.entities } })) `shouldEqual` [ "INV-03" ]
         Left e -> show e `shouldEqual` "a round"
 
-  describe "Funding, shipping, the record, and ownership (work/6)" do
+  describe "Funding, shipping, the record, and ownership" do
     let
       transport = { id: Id "ship", inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Nothing, capacity: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [] }
       holder name = (actor name [ MayTransform (Id "ship") ]) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt 50) ] }
@@ -873,7 +872,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ [ a.capabilities, [], [ MayEnact (Id "accessBan") ], [ MayTransfer (Id "M") ] ] \caps ->
         ask (viewFacts (observe w a)) caps `shouldEqual` ask (worldFacts w) caps
 
-  describe "Tampered results trip each invariant (work/6)" do
+  describe "Tampered results trip each invariant" do
     let
       invariantsOf w r = map _.invariant (check w r)
       empty w = either (\e -> unsafeCrashWith (show e)) identity (resolveRound w [])

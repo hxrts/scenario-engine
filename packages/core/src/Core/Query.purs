@@ -36,10 +36,10 @@ import Core.Map (values)
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, CapacityRef, Capability, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, Quantity, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Core.Types (Aggregate, Capability, CapacityRef, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
 import Core.World (Event, WorldState)
-import Data.Array (any, concatMap, filter, find, mapMaybe)
+import Data.Array (concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map

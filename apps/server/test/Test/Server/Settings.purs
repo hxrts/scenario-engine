@@ -6,7 +6,7 @@ import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
 import Core.Draw (Seed(..))
-import Core.Types (Id(..), Transferability(..))
+import Core.Types (Entity, Id(..), Transferability(..))
 import Core.World (Focus)
 import Data.Either (Either(..), isLeft)
 import Data.Map as Map
@@ -21,6 +21,7 @@ import Settings.Kit (Cover(..), HoldingTable, market, seat)
 import Settings.Kit.Presets (standardThresholds)
 import Settings.Load (fromFiles)
 import Schema.Build.Decision (lit)
+import Schema.Gameboard (ActorDefinition)
 import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (atLeast, byKey, emptyCirculation, emptyWorld, entitiesOf, finishes, noResource, resourcesOf)
@@ -39,7 +40,7 @@ table =
   , Tuple "B" { accounts: [ "G" := 80, "C" := 20 ], capacities: [] }
   ]
 
-seats :: Array (Tuple String _)
+seats :: Array (Tuple String (Tuple Entity ActorDefinition))
 seats = map (\k -> Tuple k (seat table k spec')) [ "A", "B" ]
   where
   spec' =

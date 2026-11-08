@@ -6,7 +6,7 @@ import Prelude
 import Schema.Run (emptySpec, RunStatus(..))
 import Adapters.SQLite (Db, open, sqliteBackend)
 import Core.Draw (Seed(..))
-import Data.Either (Either(..), isLeft)
+import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
@@ -14,17 +14,17 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
-import Effects.Observe (listRuns, readManifest)
-import Effects.Store (createRun, failRun)
+import Effects.Observe (listRuns, readManifest, readRounds)
+import Effects.Store (createRun, failRun, setStatus)
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)
 import Game.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
-import Handlers.Store (StoreBackend, runObserve, runStore)
+import Handlers.Store (StoreBackend, runObserve, runStore, validRunId)
 import Effects.Api (Reply)
 import Server.Cache (Cache, cached, cachedAgency, clear, newCache)
 import Server.Implementation (implement)
-import Server.Launch (checkRunId, failInterrupted)
+import Server.Launch (failInterrupted)
 import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
@@ -55,8 +55,11 @@ launch env rounds = void (env.api "POST" "/api/runs" ("{\"name\":\"r\",\"preset\
 spec :: Spec Unit
 spec = describe "API status rules, startup and cache" do
   it "a run id the server mints passes the run-id rule; one that could escape runs/ does not" do
-    checkRunId "run-1" `shouldEqual` Right "run-1"
-    checkRunId "../etc" `shouldSatisfy` isLeft
+    env <- setup
+    launched <- env.api "POST" "/api/runs" "{\"name\":\"r\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
+    launched.status `shouldEqual` 200
+    launched.body `shouldSatisfy` contains (Pattern "\"run-1\"")
+    validRunId "../etc" `shouldEqual` false
   it "every view of a run answers 200" do
     env <- setup
     launch env 3
@@ -180,16 +183,32 @@ spec = describe "API status rules, startup and cache" do
     liftEffect (clear env.cache)
     failed <- env.api "GET" "/api/runs/run-1/overview" ""
     failed.body `shouldSatisfy` contains (Pattern "\"resumable\":false")
-  it "a run can be derived from a session: its stored spec carries the recipe" do
+  it "a session has no preset: duplicate and rerun replay it, variant and counterfactual and resume are refused" do
     env <- setup
     launch env 2
-    manifest <- liftEffect (runObserve env.store (readManifest "run-1")) >>= case _ of
+    run1 <- liftEffect (runObserve env.store (readManifest "run-1"))
+    manifest <- case run1 of
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
-    let spec = encodeSpec { gameId: "meridian/meridian-test-01", playerSeed: Seed 1, preset: "Conservative", rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
-    liftEffect (runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec, manifest, source: Nothing, kind: Nothing, owner: "session:1:0" }))
-    r <- env.api "POST" "/api/runs/session-1/derive" "{\"kind\":\"duplicate\"}"
-    r.status `shouldEqual` 201
+    rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
+    let written = encodeSpec { gameId: "meridian/meridian-test-01", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    liftEffect do
+      runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, source: Nothing, kind: Nothing, owner: "session:1:0" })
+      for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of
+        Right record, Right snapshot, Right assertions, Right transcripts -> env.store.appendRound { run: "session-1", round: r.round, record, snapshot, assertions, transcripts, metrics: [] }
+        _, _, _, _ -> throw "an unreadable stored round"
+      runStore env.store (setStatus "session-1" Completed Nothing)
+    let deriveWith body = env.api "POST" "/api/runs/session-1/derive" body
+    duplicated <- deriveWith "{\"kind\":\"duplicate\"}"
+    duplicated.status `shouldEqual` 201
+    rerun <- deriveWith "{\"kind\":\"rerun\"}"
+    rerun.status `shouldEqual` 201
+    rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+    variant <- deriveWith "{\"kind\":\"variant\",\"preset\":\"Passive\"}"
+    variant.status `shouldEqual` 400
+    counterfactual <- deriveWith "{\"kind\":\"counterfactual\",\"overrides\":[]}"
+    counterfactual.status `shouldEqual` 400
+    (env.api "POST" "/api/runs/session-1/resume" "{\"rounds\":3}" <#> _.status) >>= (_ `shouldEqual` 400)
   it "the agency cache keeps a success and not a failure" do
     c <- liftEffect newCache
     loads <- liftEffect (Ref.new 0)

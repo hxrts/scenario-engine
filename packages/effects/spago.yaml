@@ -8,7 +8,6 @@ package:
     - arrays
     - either
     - foldable-traversable
-    - foreign-object
     - maybe
     - ordered-collections
     - tuples

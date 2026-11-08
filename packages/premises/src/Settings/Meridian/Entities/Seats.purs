@@ -6,18 +6,17 @@ module Settings.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco
 
 import Prelude (negate, (<>))
 
-import Core.Num (Q)
 import Settings.Kit (Cover(..))
 import Settings.Kit as Kit
 import Settings.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Settings.Meridian.Holdings (holdings)
 import Settings.Meridian.Names (n)
 import Settings.Meridian.Rules (withholding)
-import Schema.Build.Base (capacityOf, cumulative, coverage, final, holdingOf, institutional, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
-import Schema.Build.World (noEntity, atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)
-import Schema.Gameboard (ActorDefinition, Fallback, Objective)
-import Core.Types (Capability, Capacities, Entity, Holdings)
-import Data.Tuple (Tuple(..))
+import Schema.Build.Base (capacityOf, cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
+import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
+import Schema.Gameboard (ActorDefinition)
+import Core.Types (Capability, Entity)
+import Data.Tuple (Tuple)
 
 seat :: String -> Kit.SeatSpec -> Tuple Entity ActorDefinition
 seat = Kit.seat holdings

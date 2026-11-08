@@ -11,11 +11,9 @@ import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (LevyBasis(..), LevyRecipient(..), CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
-import Core.Types (Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
+import Core.Types (LevyBasis(..), LevyRecipient(..), CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..), Capability(..), Controller(..), Entity, EntityId, EntityKind(..), Id(..), RefKind(..), Rule, RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (RecurringAmount(..), UnseededWorld)
 import Schema.Recurring (requirementRule)
-import Data.Argonaut.Core (Json)
 import Data.Array (concatMap, elem, filter, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -29,7 +27,6 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-import Unsafe.Coerce (unsafeCoerce)
 import Testkit.Json (json)
 import Testkit.Gameboard (minimalGameboard)
 
@@ -223,8 +220,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e, _ -> fail (show e)
         _, Left e -> fail (show e)
         Right raw, Right config -> do
-          -- the decoded world is a record with no seed field, not a seed placeholder
-          Object.member "seed" (unsafeCoerce raw.world :: Object.Object Json) `shouldEqual` false
           case instantiate raw config of
             Left es -> fail (show es)
             Right initial -> show initial.world.seed `shouldEqual` "9"

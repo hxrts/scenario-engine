@@ -19,7 +19,7 @@ import Schema.Gameboard (Gameboard)
 import Schema.Run (RunStatus(..), runStatusName)
 import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Checks.Objectives (evaluateObjectives)
 import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, joinComma, names, ofCount, quantity, roundResults, target)
 
@@ -128,7 +128,7 @@ overview r =
   { id: r.id
   , rounds
   , target: launched
-  , resumable: r.status == Completed
+  , resumable: r.status == Completed && isJust r.spec.preset
   , facts:
       [ fact col.name r.name
       , fact presetColumn (fromMaybe "" r.spec.preset)

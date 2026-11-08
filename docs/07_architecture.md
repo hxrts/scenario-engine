@@ -124,7 +124,6 @@ sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 ```purescript
 data Format = Authored | Snapshot          -- authored setting files; stored runs and model replies
 codec :: forall a. Format -> Shape a -> JsonCodec a
-class Described a where shape :: Shape a
 ```
 
 **Event slices** (`core`, `Core.Slice`). A selector (`event @"Coupled"`, or a projection over legs and causes such as `exchanges`, `conversions`, `shortfalls`) names what to read; the kind and field names are checked at compile time against `Event`. A `Slice` is a value: its kinds, field filters, the field read, and its aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a Statistic's or Glossary entry's formula is generated from its calculation. A computation that treats several kinds differently is a total fold, `foldEvents`, one handler per kind; a kind with no effect is `ignore`d, so a new kind fails to compile.

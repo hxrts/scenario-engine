@@ -17,9 +17,9 @@ module Views.Markets
   ) where
 
 import Prelude
-import Core.World (Focus)
-import Core.Types (idText)
-import Views.Common (focusOf)
+import Core.World (Focus, RoundRecord, WorldState)
+import Core.Types (idText, Market, MarketId, ResourceId)
+import Views.Common (focusOf, Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
 
 import Core.Map (sumInto)
 
@@ -29,8 +29,6 @@ import Core.Num as Q
 import Core.Query (lookupQ, priceOf, totalHolding)
 import Core.Slice (Slice, conversions, count, describeSlice, event, exchanges, read, runSlice, select, sunk, total, transfers, whereEq, whereGt)
 import Schema.Recurring (kinds)
-import Core.Types (Id(..), Market, MarketId, ResourceId)
-import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
 import Data.Either (Either(..), hush)
 import Data.Foldable (for_)
@@ -39,7 +37,6 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
 import Views.Actions (rejectionCount, rejections)
-import Views.Common (Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
 import Views.Drivers (shortfallTotal, shortfallsColumn)
 
 -- | A Market's price after a World State, as the views show it.

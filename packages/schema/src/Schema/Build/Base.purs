@@ -32,7 +32,6 @@ import Core.Num (Q)
 import Core.Types (Capability(..), Id(..))
 import Schema.Setting.Query (ShareMeasure)
 import Schema.Recurring as Recurring
-import Core.World as W
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))

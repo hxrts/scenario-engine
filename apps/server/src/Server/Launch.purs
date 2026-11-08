@@ -6,7 +6,8 @@ module Server.Launch
   , launchedShape
   , launch
   , start
-  , checkRunId
+  , freshRunId
+  , serverRole
   , play
   , failInterrupted
   , settingInfo
@@ -84,9 +85,13 @@ launch p store l = either (pure <<< Left <<< show) (const (startRun)) (traverse_
 -- | value. Nothing is stored unless the game assembles. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
 start :: GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
-start p store l = nextRunId store >>= checkRunId >>> case _ of
+start p store l = freshRunId store >>= case _ of
   Left e -> pure (Left e)
   Right id -> startAs id p store l
+
+-- | A freshly minted run id, or why it may not name a run.
+freshRunId :: StoreBackend -> Effect (Either String String)
+freshRunId store = checkRunId <$> nextRunId store
 
 -- | A minted id, or why it may not name a run. The rule is `Handlers.Store.validRunId`, the one the CLI's
 -- | `--id` obeys: an id names a directory under runs/ as well as a row.
@@ -102,7 +107,7 @@ startAs id p store l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: Just l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
         source = _.source <$> l.derivation
         kind = _.kind <$> l.derivation
       created <- nowIso

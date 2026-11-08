@@ -11,9 +11,7 @@ module Settings.Meridian.Fixtures.Common
   , money
   ) where
 
-import Prelude
-
-import Settings.Kit.Prelude
+import Settings.Kit.Prelude (Capability, Json, Maybe(..), Tuple)
 
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)

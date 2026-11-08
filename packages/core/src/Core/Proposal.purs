@@ -9,14 +9,12 @@ module Core.Proposal
   , signableBy
   , assembleSigned
   , submissionOrder
-  , proposalBodyShape
   ) where
 
 import Prelude
 
 import Core.Query (isAggregate)
-import Core.Shape (Shape, arrayOf, fieldOf, object, optionalOf)
-import Core.Types (Entity, EntityId, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, idShape, intentShape, proposalId, submissionIndex)
+import Core.Types (Entity, EntityId, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
 import Core.Num (Q)
 import Data.Array (concatMap, elem, filter, mapWithIndex, nub, sort)
 import Data.Maybe (fromMaybe)
@@ -25,16 +23,6 @@ import Data.Tuple (Tuple(..))
 -- | What a Proposal says before its id and author are assigned: a Strategy's draft, a seat's
 -- | submission, and a joint-pass draft all have this shape (`ProposalF` at `MarketId` and `Q`).
 type ProposalBody = ProposalF MarketId Q
-
--- | A ProposalBody in the snapshot form. A record synonym cannot carry a class instance, so this is a
--- | value; a body that crosses a boundary is encoded through `Core.Shape.codec` over it.
-proposalBodyShape :: Shape ProposalBody
-proposalBodyShape = object "ProposalBody"
-  ( (\i s p -> { intents: i, signers: s, procedure: p })
-      <$> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
-      <*> fieldOf "signers" "the Entities asked to sign" (arrayOf idShape) _.signers
-      <*> fieldOf "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure
-  )
 
 -- | The Proposals of one author in a round. Each takes the id of its index in the author's
 -- | submission, so the same drafts always get the same ids (replay depends on this).

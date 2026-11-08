@@ -5,7 +5,7 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, atTagged, class Described, decodeJsonWith, encodeJsonWith, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -498,12 +498,6 @@ idMap s = idMapWith (const s)
 idMapWith :: forall t a. (Id t -> Shape a) -> Shape (Map (Id t) a)
 idMapWith = keyedBy Id idText
 
-instance Described (RuleChangeF Q) where
-  shape = ruleChangeShape
-
-instance Described (IntentF MarketId Q) where
-  shape = intentShape
-
 directionShape :: Shape Direction
 directionShape = genericEnum "Direction"
 
@@ -677,56 +671,44 @@ signedProposalShape = object "SignedProposal"
       <*> fieldOf "signatures" "the Entities that signed it" (arrayOf idShape) _.signatures
   )
 
-instance Described Transferability where
-  shape = transferabilityShape
-
-instance Described Capability where
-  shape = capabilityShape
-
-instance Described Controller where
-  shape = controllerShape
-
-instance Described EntityKind where
-  shape = entityKindShape
-
 instance EncodeJson Transferability where
-  encodeJson = encodeJsonWith Snapshot transferabilityShape
+  encodeJson = encodeWith Snapshot transferabilityShape
 
 instance DecodeJson Transferability where
   decodeJson = decodeJsonWith Snapshot transferabilityShape
 
 instance EncodeJson Capability where
-  encodeJson = encodeJsonWith Snapshot capabilityShape
+  encodeJson = encodeWith Snapshot capabilityShape
 
 instance DecodeJson Capability where
   decodeJson = decodeJsonWith Snapshot capabilityShape
 
 instance EncodeJson Controller where
-  encodeJson = encodeJsonWith Snapshot controllerShape
+  encodeJson = encodeWith Snapshot controllerShape
 
 instance DecodeJson Controller where
   decodeJson = decodeJsonWith Snapshot controllerShape
 
 instance EncodeJson EntityKind where
-  encodeJson = encodeJsonWith Snapshot entityKindShape
+  encodeJson = encodeWith Snapshot entityKindShape
 
 instance DecodeJson EntityKind where
   decodeJson = decodeJsonWith Snapshot entityKindShape
 
 instance EncodeJson Direction where
-  encodeJson = encodeJsonWith Snapshot directionShape
+  encodeJson = encodeWith Snapshot directionShape
 
 instance DecodeJson Direction where
   decodeJson = decodeJsonWith Snapshot directionShape
 
 instance EncodeJson (RuleChangeF Q) where
-  encodeJson = encodeJsonWith Snapshot ruleChangeShape
+  encodeJson = encodeWith Snapshot ruleChangeShape
 
 instance DecodeJson (RuleChangeF Q) where
   decodeJson = decodeJsonWith Snapshot ruleChangeShape
 
 instance EncodeJson (IntentF MarketId Q) where
-  encodeJson = encodeJsonWith Snapshot intentShape
+  encodeJson = encodeWith Snapshot intentShape
 
 instance DecodeJson (IntentF MarketId Q) where
   decodeJson = decodeJsonWith Snapshot intentShape
@@ -751,19 +733,19 @@ submissionIndex :: ProposalId -> Maybe Int
 submissionIndex (Id s) = Int.fromString =<< last (split (Pattern "/") s)
 
 instance EncodeJson (RuleF Q) where
-  encodeJson = encodeJsonWith Snapshot ruleShape
+  encodeJson = encodeWith Snapshot ruleShape
 
 instance DecodeJson (RuleF Q) where
   decodeJson = decodeJsonWith Snapshot ruleShape
 
 instance EncodeJson RuleForm where
-  encodeJson = encodeJsonWith Snapshot ruleFormShape
+  encodeJson = encodeWith Snapshot ruleFormShape
 
 instance DecodeJson RuleForm where
   decodeJson = decodeJsonWith Snapshot ruleFormShape
 
 instance EncodeJson FlowGovernance where
-  encodeJson = encodeJsonWith Snapshot flowGovernanceShape
+  encodeJson = encodeWith Snapshot flowGovernanceShape
 
 instance DecodeJson FlowGovernance where
   decodeJson = decodeJsonWith Snapshot flowGovernanceShape

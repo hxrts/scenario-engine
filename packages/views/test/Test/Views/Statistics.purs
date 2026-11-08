@@ -21,8 +21,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Game.Setting (GameboardParts)
-import Testkit.Meridian (presetGame)
-import Testkit.Capstone (runOf)
+import Testkit.Meridian (presetGame, run)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
 import Views.Common (StoredRun, Table, players)
@@ -49,7 +48,7 @@ energy = Id "E"
 baseRun :: GameboardParts -> Aff StoredRun
 baseRun p = do
   g <- presetGame p "Conservative" [] (Just 2)
-  r <- runOf (Seed 1) g
+  r <- run (Seed 1) g
   pure (toStoredWith (emptySpec { preset = Just "Conservative", playerSeed = Just 1 }) "base" r)
 
 -- | A holding set to an amount in one Entity's account.

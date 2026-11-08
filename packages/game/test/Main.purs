@@ -36,7 +36,6 @@ import Simulator.Simulate (simulate)
 import Game.Patch (setCapacity, setCurve)
 import Testkit.Meridian (setting)
 import Testkit.Json (strategyOrThrow)
-import Unsafe.Coerce (unsafeCoerce)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -53,8 +52,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Seat presets" do
     it "a human named for a live session must be a configured seat" do
-      let config = { seats: Map.singleton (Id "US") "seat-1", npcs: Map.empty, representations: [], fallbacks: Map.empty, seed: Seed 1, rounds: 5, label: Nothing }
-      unknownSeats [ Id "US", Id "USA" ] (unsafeCoerce config) `shouldEqual` [ Id "USA" ]
+      let config = { seats: Map.singleton (Id "US") "seat-1", npcs: Map.empty, representations: [], fallbacks: Map.empty, seed: Seed 1, rounds: 5 }
+      unknownSeats [ Id "US", Id "USA" ] config `shouldEqual` [ Id "USA" ]
     it "a preset that does not exist is an error, and no seat is bound silently" do
       case presetBindings Object.empty (const "Missing") [ Id "US" ] of
         Left e -> renderGameError e `shouldEqual` "unknown preset Missing"

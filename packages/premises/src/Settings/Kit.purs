@@ -46,16 +46,14 @@ import Prelude
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
 import Core.Strategy (Clause, Expr, IntentTemplate, Strategy, selfName)
-import Core.Types (Capability, Capacities, CostFunction, Direction(..), Entity, EntityId, EntityKind, FlowEffect(..), Holdings, Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, RuleChangeF(..), RuleF(..), RuleKindDecl, RuleKindId, SignedProposal, Transformation, TransformationId)
-import Core.World (FlowGate)
+import Core.Types (Capability, Capacities, CostFunction, Direction(..), Entity, EntityId, EntityKind, FlowEffect(..), Holdings, Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, RuleChangeF(..), RuleF(..), RuleKindDecl, RuleKindId, SignedProposal, Transformation, TransformationId)
 import Data.Argonaut.Core (Json)
 import Data.Array (filter, find, mapWithIndex)
 import Data.Array as Array
-import Data.Foldable (any)
+import Data.Foldable (any, foldM)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Either (Either(..), either)
-import Data.Foldable (foldM)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst)
@@ -66,10 +64,10 @@ import Game.Setting (GameboardParts)
 import Game.Restrict (restrict)
 import Schema.Build.Base (coverage, institutional, keyed, mayEnact, (:=))
 import Schema.Build.Decision (eqQ, ge, gt, le, lit, max', named, not', orderAt, param, priceAt, roundQ, rule, selfEnact, subQ)
-import Schema.Build.World (definition, emptyCirculation, emptyWorld, noEntity, noMarket, objective)
+import Schema.Build.World (definition, noEntity, noMarket, objective)
 import Schema.Gameboard (ActorDefinition, Criterion, Fallback, Gameboard)
 import Schema.Setting.Fixture (Fixture, RoundSpec, fixtureShape)
-import Schema.Recurring (Circulation, Decay, Flow, Requirement, compileIn)
+import Schema.Recurring (Circulation, Flow, Requirement)
 import Schema.Round (Authored)
 
 -- Seats -----------------------------------------------------------------------------------------

@@ -1,9 +1,6 @@
 alias packages/adapters/test/Test/Adapters/Files.purs 1
-alias packages/core/src/Core/Num.purs 2
 alias packages/core/src/Core/Represent.purs 1
-alias packages/core/src/Core/Shape.purs 1
 alias packages/premises/src/Settings/Load.purs 1
-alias packages/testkit/src/Testkit/Capstone.purs 1
 alias packages/views/src/Views/Common.purs 4
 hand-instance packages/core/src/Core/World.purs 1
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
@@ -32,9 +29,8 @@ repeated-idiom packages/simulator/src/Simulator/Simulate.purs 1
 repeated-idiom packages/views/src/Views/Common.purs 1
 repeated-idiom packages/views/src/Views/Markets.purs 1
 repeated-idiom packages/views/src/Views/Standings.purs 1
-test-literal packages/board/test/Main.purs 1
 test-literal packages/experiments/test/Test/Experiments/Mandatory.purs 1
-test-literal packages/game/test/Main.purs 4
+test-literal packages/game/test/Main.purs 3
 test-literal packages/handlers/test/Main.purs 5
 test-literal packages/policy/test/Main.purs 37
 test-literal packages/premises/test/Main.purs 1

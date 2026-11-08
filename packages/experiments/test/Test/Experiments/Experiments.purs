@@ -7,7 +7,7 @@ import Prelude
 
 import Core.Map (values)
 
-import Testkit.Meridian (orThrow, seats)
+import Testkit.Meridian (orThrow, seats, run)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
@@ -36,7 +36,6 @@ import Game.Assemble (assemble, presetBindings)
 import Game.Override (Override(..))
 import Game.Setting (GameboardParts, Setting(..))
 import Game.Types (Game)
-import Testkit.Capstone (runOf)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
@@ -55,7 +54,7 @@ gameOf p v = do
 play :: GameboardParts -> Variant -> Aff SimRun
 play ctx v = do
   g <- gameOf ctx v
-  runOf (Seed v.seed) g
+  run (Seed v.seed) g
 
 -- | The §12 indicators of one run, as a printed row.
 indicators :: GameboardParts -> SimRun -> { row :: String, failures :: Int }
@@ -68,7 +67,7 @@ indicators ctx r = { row, failures }
   lapsed = count (matches (event @"Lapsed") (const true))
   proposals = length (concatMap _.record.inputs r.records)
   final = fromMaybe r.manifest.initial (map _.world (last r.records))
-  price w m = maybe "—" Q.displayPrice (priceOf w (Id m))
+  price w m = maybe "—" Q.displayQuantity (priceOf w (Id m))
   money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (values w.entities)
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in maybe "—" Q.displayRatio (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))

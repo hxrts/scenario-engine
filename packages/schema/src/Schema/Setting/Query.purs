@@ -7,8 +7,6 @@ module Schema.Setting.Query
   , atParty
   ) where
 
-import Prelude
-
 import Core.Shape (Shape, atBare, atOneKey, genericSettingSum, nameShape, optionalOf, recordShape)
 import Core.Types (EntityId, ResourceId, idShape)
 import Core.World (CausePattern, LegAggregate(..), LegQuery, Side(..), Window(..))

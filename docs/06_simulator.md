@@ -163,7 +163,7 @@ Each round follows the canonical sequence (Type System [§8.1](02_type_system.md
 
 The engine performs phases 1–2 and 4–7. The simulator never evaluates NPC or Aggregate Policies itself, computes Representation estimates or procedure support, or repeats Aggregate actions. It delegates to the round runner, which is the same code used in live play.
 
-The simulator exposes **run to completion** (`simulate`, or `simulateWith` with a per-round sink) and **extend** (`resumeFrom`, which continues from a stored snapshot). **Planned:** a single-round step operation.
+The simulator exposes **run to completion** (`simulate`, or `simulateWith` with a per-round sink) and **extend** (`resumeWith`, which continues from a stored snapshot). **Planned:** a single-round step operation.
 
 ### 6.1 Invalid actions and failures
 
@@ -319,10 +319,10 @@ The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Rout
 Operation rules:
 
 - **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec and its own columns.
-- **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `Simulator.Records.recordsEqual`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
+- **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `==`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
+- **Sessions.** A live session stores no preset. `variant` and `counterfactual` from one are refused with 400, and so is `resume`. `duplicate` and `rerun` replay its recorded Proposals and signatures (`Handlers.Replay`), so they reproduce it without a model call.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
-- **Setting route.** `GET /api/setting` was named `GET /api/scenario` before the setting naming. No alias is kept.
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
@@ -509,7 +509,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
 | 1 | Full game | Three preset configurations: all `Conservative`. All `Passive`. `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with the invariants [§7.1](#71-required-assertions) marks Implemented holding. The cycle sustains five years ([INV-05](02_type_system.md#inv-05)). The same seeds reproduce, a drawn player seed and the same value injected give identical records and spec, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
-| 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records, snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
+| 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records (`==` on round records), snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values. [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
 | 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: Germany signs vs does not sign. | Fixture values. The procedure Proposal executes in the same round only when support exceeds the threshold ([INV-10](02_type_system.md#inv-10)). Signing moves no resources ([INV-03](02_type_system.md#inv-03)). |

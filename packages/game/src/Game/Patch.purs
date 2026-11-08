@@ -20,7 +20,7 @@ import Core.Types (Capability, CapacityRef, CostFunction, EntityId, MarketId, Re
 import Data.Either (Either(..))
 import Data.Map as Map
 import Foreign.Object as Object
-import Game.Error (GameError(..), Stage(..))
+import Game.Error (GameError(..))
 import Game.Setting (GameboardParts)
 import Schema.Gameboard (Gameboard)
 import Schema.Setting.World (rulesFromList)
@@ -30,31 +30,31 @@ import Schema.Recurring (Circulation, compileIn)
 setCapacity :: EntityId -> CapacityRef -> Q -> Gameboard -> Either GameError Gameboard
 setCapacity e ref q gb
   | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { capacities = Map.insert ref q x.capacities }) e gb.world.entities } }
-  | otherwise = Left (Invalid AfterOverrides [ UnknownReference EntityRef (idText e) ])
+  | otherwise = Left (Invalid [ UnknownReference EntityRef (idText e) ])
 
 -- | Set a Market's curve.
 setCurve :: MarketId -> CostFunction -> Gameboard -> Either GameError Gameboard
 setCurve m cost gb
   | Map.member m gb.world.markets = Right gb { world { markets = Map.update (\x -> pure x { cost = cost }) m gb.world.markets } }
-  | otherwise = Left (Invalid AfterOverrides [ UnknownReference Market (idText m) ])
+  | otherwise = Left (Invalid [ UnknownReference Market (idText m) ])
 
 -- | Set what an Entity holds of a Resource.
 setAccount :: EntityId -> ResourceId -> Q -> Gameboard -> Either GameError Gameboard
 setAccount e r q gb
   | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { accounts = Map.insert r q x.accounts }) e gb.world.entities } }
-  | otherwise = Left (Invalid AfterOverrides [ UnknownReference EntityRef (idText e) ])
+  | otherwise = Left (Invalid [ UnknownReference EntityRef (idText e) ])
 
 -- | Replace an Entity's capabilities.
 setCapabilities :: EntityId -> Array Capability -> Gameboard -> Either GameError Gameboard
 setCapabilities e capabilities gb
   | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { capabilities = capabilities }) e gb.world.entities } }
-  | otherwise = Left (Invalid AfterOverrides [ UnknownReference EntityRef (idText e) ])
+  | otherwise = Left (Invalid [ UnknownReference EntityRef (idText e) ])
 
 -- | Set a Market's starting position.
 setPosition :: MarketId -> Q -> Gameboard -> Either GameError Gameboard
 setPosition m q gb
   | Map.member m gb.world.markets = Right gb { world { markets = Map.update (\x -> pure x { position = q }) m gb.world.markets } }
-  | otherwise = Left (Invalid AfterOverrides [ UnknownReference Market (idText m) ])
+  | otherwise = Left (Invalid [ UnknownReference Market (idText m) ])
 
 -- | The Rules in force at the start. The check after filtering rejects one naming what the setting lacks.
 setRules :: Array (RuleF Q) -> Gameboard -> Either GameError Gameboard

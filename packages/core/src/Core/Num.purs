@@ -30,7 +30,6 @@ module Core.Num
   , display
   , displayQuantity
   , formatMinimal
-  , displayPrice
   , displayRatio
   , displayTick
   ) where
@@ -38,14 +37,14 @@ module Core.Num
 import Prelude hiding (add, sub, mul, div, zero, one)
 import Prelude as P
 
-import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeJsonWith, nameShape, prim)
+import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeWith, nameShape)
 
 import Data.Argonaut.Core (fromString, toString) as J
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Array (all, any, findIndex, foldl, mapWithIndex, sortBy, zipWith)
 import Data.Char (toCharCode)
-import Data.Either (Either(..), note)
+import Data.Either (note)
 import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Number (round)
@@ -66,7 +65,7 @@ instance Show Q where
   show = format
 
 instance EncodeJson Q where
-  encodeJson = encodeJsonWith Snapshot qShape
+  encodeJson = encodeWith Snapshot qShape
 
 instance DecodeJson Q where
   decodeJson = decodeJsonWith Snapshot qShape
@@ -260,7 +259,7 @@ kindShape :: Shape Kind
 kindShape = nameShape "Kind" "display kind: quantity, price or ratio" kindName [ Quantity, Price, Ratio ]
 
 instance EncodeJson Kind where
-  encodeJson = encodeJsonWith Snapshot kindShape
+  encodeJson = encodeWith Snapshot kindShape
 
 instance DecodeJson Kind where
   decodeJson = decodeJsonWith Snapshot kindShape
@@ -269,19 +268,18 @@ instance DecodeJson Kind where
 display :: Kind -> Q -> String
 display = case _ of
   Quantity -> displayQuantity
-  Price -> displayPrice
+  Price -> displayQuantity
   Ratio -> displayRatio
 
 -- | Counts of units (the numeraire, Resources): a whole number shows no decimals; otherwise at most two,
 -- | with trailing zeros trimmed (12, 12.5, 12.25). A value that would round to zero but is not
 -- | zero shows as "<0.01" (or "-<0.01").
 displayQuantity :: Q -> String
-displayQuantity = displayTrimmed
-
--- | Prices (quote per base unit): two decimals with trailing zeros trimmed, under the same rule as
--- | `displayQuantity`. The displayed value is the exact one rounded half-to-even at two decimals.
-displayPrice :: Q -> String
-displayPrice = displayTrimmed
+displayQuantity q =
+  let
+    h = hundredths q
+  in
+    if q /= zero && h == P.zero then (if q < zero then "-<0.01" else "<0.01") else trimmed2 h
 
 -- | Ratios and shares (Gini, influence, shrinkage, factors): always two decimals, half-to-even.
 displayRatio :: Q -> String
@@ -298,13 +296,6 @@ displayTick k n = case BI.fromNumber (round (n * BI.toNumber scale)) of
 -- | The exact value in hundredths (10⁻²), rounded half-to-even.
 hundredths :: Q -> BigInt
 hundredths (Q u) = divRound u (BI.fromInt 100)
-
-displayTrimmed :: Q -> String
-displayTrimmed q =
-  let
-    h = hundredths q
-  in
-    if q /= zero && h == P.zero then (if q < zero then "-<0.01" else "<0.01") else trimmed2 h
 
 -- | The sign, integer part and fraction of `u` counted in units of `unit`: the fraction is the
 -- | part of `u` below one whole unit, so `int * unit + frac` is `u` in magnitude.

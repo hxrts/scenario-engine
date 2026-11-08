@@ -19,11 +19,11 @@ import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)
 import Data.Foldable (any, foldM, for_)
 import Data.Generic.Rep (class Generic)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
-import Game.Error (GameError(..), Stage(..))
+import Game.Error (GameError(..))
 import Game.Patch (setCapacity)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
@@ -53,12 +53,12 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
   where
   -- a Shrinkage names a scheme, which `unknownNames` does not cover: schemes are the Gameboard's strings
   schemes = for_ overrides case _ of
-    Shrinkage s _ | not (any ((_ == s) <<< _.id) base.gameboard.schemes) -> Left (Invalid AfterOverrides [ UnknownScheme s ])
+    Shrinkage s _ | not (any ((_ == s) <<< _.id) base.gameboard.schemes) -> Left (Invalid [ UnknownScheme s ])
     _ -> Right unit
   checked = maybe (Right unit) (Left <<< unresolved) (head (unknownNames (gameboardNames base.gameboard) (concatMap overrideRefs overrides)))
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved "override" kind ref
-    e -> Invalid AfterOverrides [ e ]
+    e -> Invalid [ e ]
   apply acc = case _ of
     GameSeed s -> Right acc { config { seed = Seed s } }
     Parameter name q -> Right acc { gameboard { parameters = Object.insert name q acc.gameboard.parameters } }

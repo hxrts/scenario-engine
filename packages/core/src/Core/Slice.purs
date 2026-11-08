@@ -51,7 +51,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
 import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
-import Data.Array (concatMap, elem, filter, foldl, head, index, length, mapMaybe, nubEq, snoc)
+import Data.Array (concatMap, elem, filter, foldl, head, index, length, nubEq, snoc)
 import Data.Foldable (any, maximum)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), Sum(..), from)

@@ -19,7 +19,7 @@ import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Game.Error (GameError(..), Stage(..))
+import Game.Error (GameError(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
@@ -40,7 +40,7 @@ checkSetting p = do
   pure p { gameboard = gameboard }
   where
   lmapInvalid = case _ of
-    Left es -> Left (Invalid AtLoad es)
+    Left es -> Left (Invalid es)
     Right g -> Right g
 
 -- | The first name a Strategy uses that the world or the parameters lack. A Market selector names a
@@ -54,4 +54,4 @@ checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknown
   ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ EntityRef, Market, ResourceRef, TransformationRef, ParameterRef, CapacityName, ProcedureRef, PolicyRef, RuleKindRef ]
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved what kind ref
-    e -> Invalid AtLoad [ e ]
+    e -> Invalid [ e ]

@@ -23,7 +23,7 @@ module Settings.Meridian.Capstone
   , matchesExpect
   ) where
 
-import Prelude (map, otherwise, ($), (<<<), (<>), (==))
+import Prelude (map, ($), (<<<), (<>), (==))
 import Settings.Meridian.Names (n, seatActors)
 import Settings.Meridian.Rules (accessBan, withholding)
 import Game.Assemble (assemble)
@@ -37,13 +37,13 @@ import Data.Map as Map
 import Schema.Joint (JointProposal)
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (find, mapMaybe, sort)
+import Data.Array (find, sort)
 import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (BehaviorDomain, EntityId, Id(..), MarketId, ResourceId, idText, proposalId)
+import Core.Types (EntityId, Id(..), idText)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Gameboard (Outcome(..))

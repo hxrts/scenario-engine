@@ -16,7 +16,7 @@ import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RefKind(..), RuleF(..))
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RuleF(..))
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, seeded)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, nubByEq, null)
 import Data.Either (Either(..))

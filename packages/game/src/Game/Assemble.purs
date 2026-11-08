@@ -32,7 +32,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Game.Error (GameError(..), Stage(..))
+import Game.Error (GameError(..))
 import Game.Override (Override, resolve)
 import Game.Setting (GameboardParts, Setting(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
@@ -47,7 +47,7 @@ assemble :: Setting -> Bindings -> Array Override -> Either GameError Game
 assemble setting bindings overrides = case setting of
   GameboardSetting p -> do
     resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
-    initial <- lmap (Invalid AfterOverrides) (instantiate resolved.gameboard resolved.config)
+    initial <- lmap (Invalid) (instantiate resolved.gameboard resolved.config)
     checkSeats (configuredSeats resolved.config) bindings
     checkStrategies (gameboardNames resolved.gameboard) bindings
     pure

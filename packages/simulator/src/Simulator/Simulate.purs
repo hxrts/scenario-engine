@@ -1,12 +1,13 @@
 -- | The simulator (docs/06_simulator.md §3–§6): the one fold over a `Game`. `simulate` plays a game with
--- | machine seats (Strategy, Script) and is pure; `resumeFrom` continues a snapshot; the
+-- | machine seats (Strategy, Script) and is pure; `fromCheckpoint` continues a snapshot; the
 -- | `…With` variants persist each round through a store as it completes. The simulator imports no
 -- | setting, board, or policy module: a Game is all it sees.
 module Simulator.Simulate
   ( SimRun
   , Checkpoint
   , simulate
-  , resumeFrom
+  , fromCheckpoint
+  , replayGame
   , simulateWith
   , resumeWith
   ) where
@@ -16,7 +17,7 @@ import Prelude
 import Core.Draw (Seed)
 import Core.Engine.Commit (EngineError)
 import Core.Types (EntityId)
-import Core.World (Manifest, RoundResult, WorldState)
+import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Map as Map
@@ -24,6 +25,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Game.Error (GameError(..))
 import Game.Types (Game, SeatBinding(..))
+import Handlers.Replay (runReplay)
 import Handlers.Seats (RecordSink, playPure, playWith, seatEnv)
 
 -- | One simulated run: its manifest, the player seed it was played with, its round records, and the
@@ -49,13 +51,14 @@ simulate seed g = do
   let out = playPure (seatEnv seed g) g.seats g.inWorld g.rounds g.world
   pure { manifest: g.manifest, playerSeed: seed, records: out.records, final: out.value }
 
--- | Continue a game from a saved snapshot. `rounds` is the game's total, so the snapshot's completed
+-- | A game continued from a saved snapshot. `rounds` is the game's total, so the snapshot's completed
 -- | rounds are subtracted. Seat randomness is keyed by round, so a resumed run matches the uninterrupted one.
-resumeFrom :: Seed -> Game -> Checkpoint -> Either GameError SimRun
-resumeFrom seed g snap = simulate seed (fromCheckpoint g snap)
-
 fromCheckpoint :: Game -> Checkpoint -> Game
 fromCheckpoint g snap = g { world = snap.world, rounds = g.rounds - snap.done }
+
+-- | A game played from its round records, its seats answered by what was recorded (`Handlers.Replay`).
+replayGame :: Seed -> Game -> Array RoundRecord -> Either String { records :: Array RoundResult, value :: Either EngineError WorldState }
+replayGame seed g records = runReplay (seatEnv seed g) g.rounds records g
 
 -- | Play a game under the Sim runner, persisting each round through `store` as it completes. `store` runs
 -- | only once the game is machine-playable, so a rejected game leaves the caller's store untouched.

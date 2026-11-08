@@ -9,7 +9,7 @@
 
 ## 1. Purpose
 
-This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **Meridian**. It was first called *The Fractured World*. That name is retired, and runs recorded under it keep their old game ids (`fractured-world/...`).
+This document defines a concrete reference instance of the Scenario Planning Game, provisionally titled **Meridian**.
 
 It makes experimental choices about resources, participants, markets, facilities, circulation, policies, and rules on top of the Type System, Gameboard, and Instantiated Game specifications. Terms follow the Type System Glossary ([§2.5](02_type_system.md#25-glossary)). Invariants are cited by ID ([§9](02_type_system.md#9-architectural-invariants-and-numerics)). Changing this instance should normally mean changing data, not engine code. A mechanic that does not fit the existing types is a finding, not a special case.
 

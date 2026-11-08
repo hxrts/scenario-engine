@@ -22,7 +22,7 @@ import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
-import Data.Either (Either(..), note)
+import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map

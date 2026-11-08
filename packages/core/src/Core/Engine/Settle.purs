@@ -26,7 +26,7 @@ import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capacityOf, conversionPrice, holding, lookupQ, poolCeiling, poolOf)
-import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RoundIndex, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
+import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
 import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), Target(..), WorldState, coupled, orderRemoved, rejection)
 import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))

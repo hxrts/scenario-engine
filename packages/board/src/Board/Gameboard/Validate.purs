@@ -29,7 +29,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
+import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 

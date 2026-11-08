@@ -63,8 +63,7 @@
             "effect",
             "sp-testkit",
             "spec",
-            "spec-node",
-            "unsafe-coerce"
+            "spec-node"
           ]
         }
       },
@@ -226,7 +225,6 @@
             "arrays",
             "either",
             "foldable-traversable",
-            "foreign-object",
             "maybe",
             "ordered-collections",
             "prelude",
@@ -527,7 +525,6 @@
         "path": "packages/simulator",
         "core": {
           "dependencies": [
-            "arrays",
             "effect",
             "either",
             "foldable-traversable",

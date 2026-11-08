@@ -29,7 +29,6 @@ module Views.Keys
   ) where
 
 import Core.Num (kindShape)
-import Schema.Run (runStatusShape)
 import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, optionalOf, recordShape, stringShape)
 import Schema.View (View(..))
 import Views.Actions (ActionsChart, ActionsView)

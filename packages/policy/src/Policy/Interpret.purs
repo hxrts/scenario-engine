@@ -20,14 +20,12 @@ import Core.Num as Q
 import Core.Proposal (ProposalBody)
 import Core.Query (lookupQ, enactedAtBoundary)
 import Core.Slice (runLegQuery)
-import Core.Slice (conversions, select)
-import Core.Strategy (RecordQuery(..))
-import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
+import Core.Strategy (RecordQuery(..), Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (governorOf, EntityId, Id(..), Intent, IntentF(..), MarketId, ProposalF, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withMarket)
 import Core.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
-import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
+import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub)
 import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -95,7 +93,7 @@ sign strategy env = map _.id (filter (\p -> any (matches p) strategy.sign) env.v
 -- | to the Markets picked. A clause with no selector has one, with none; a selector with no candidate
 -- | leaves none.
 instancesFor :: Env -> Array Cond -> Array Template -> Array Env
-instancesFor env when propose = map resolved (foldl extend [ Map.empty ] (selectors when propose))
+instancesFor env conds templates = map resolved (foldl extend [ Map.empty ] (selectors conds templates))
   where
   extend insts sel = concatMap (\inst -> map (\m -> Map.insert sel m inst) (candidates env.view sel)) insts
   resolved inst = env { market = \ref -> maybe (nameOnly ref) Just (Map.lookup ref inst) }
@@ -123,7 +121,7 @@ candidates view = case _ of
 -- | The selectors a clause uses, each once, in order of first appearance. A `Named` reference is not a
 -- | selector: it needs no instantiation.
 selectors :: Array Cond -> Array Template -> Array MarketRef
-selectors when propose = nub (filter isSelector (concatMap (foldCond refExpr refCond) when <> concatMap (foldTemplate refExpr refTemplate) propose))
+selectors conds templates = nub (filter isSelector (concatMap (foldCond refExpr refCond) conds <> concatMap (foldTemplate refExpr refTemplate) templates))
   where
   isSelector = case _ of
     Named _ -> false

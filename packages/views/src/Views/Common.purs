@@ -49,8 +49,8 @@ module Views.Common
   ) where
 
 import Prelude
-import Core.World (Focus)
-import Core.Types (idText)
+import Core.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
+import Core.Types (idText, EntityId, ProposalId, ResourceId)
 
 import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
@@ -58,8 +58,6 @@ import Core.Num as Q
 import Core.Query (isAggregate)
 import Core.Slice (event, select)
 import Schema.Run (RunStatus, Spec)
-import Core.Types (EntityId, ProposalId, ResourceId)
-import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
 import Data.Foldable (lookup)
 import Data.Map as Map
@@ -210,7 +208,7 @@ quantity = Q.displayQuantity
 
 -- | A price (quote per base unit) as a cell.
 price :: Q -> String
-price = Q.displayPrice
+price = Q.displayQuantity
 
 -- | A ratio or share (Gini, influence, shrinkage, factors, support) as a cell.
 ratio :: Q -> String
@@ -260,9 +258,9 @@ kindOf w e
 -- | One named series per key of `f` over the initial state and every snapshot, each point the
 -- | value of that key at a round (0 = initial).
 series :: forall a. StoredRun -> (WorldState -> Array (Tuple String a)) -> (a -> String) -> Array { name :: String, points :: Array Point }
-series r f g = map (\name -> { name, points: pointsOf r (\w -> g <$> lookup name (f w)) }) names
+series r f g = map (\name -> { name, points: pointsOf r (\w -> g <$> lookup name (f w)) }) seriesNames
   where
-  names = nub (concatMap (map fst <<< f) (worlds r))
+  seriesNames = nub (concatMap (map fst <<< f) (worlds r))
 
 -- | A point per World State of the run (the index is the round) where `f` gives a value.
 pointsOf :: StoredRun -> (WorldState -> Maybe String) -> Array Point

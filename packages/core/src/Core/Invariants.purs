@@ -13,7 +13,7 @@ module Core.Invariants
 
 import Prelude
 
-import Core.Map (entries, sumInto, sumMaps)
+import Core.Map (entries, sumInto)
 
 import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
