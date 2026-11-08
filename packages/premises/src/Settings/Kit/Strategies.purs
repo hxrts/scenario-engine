@@ -9,6 +9,7 @@ module Settings.Kit.Strategies
 
 import Prelude
 import Core.Num (Q)
+import Core.Types (MarketId)
 import Core.Strategy (Clause)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple)
@@ -17,7 +18,7 @@ import Schema.Build.Decision (eqQ, ge, gt, le, lit, max', named, not', orderAt, 
 
 -- | A price band: trade `below` while the Market's price is at or below `threshold`, and `above`
 -- | while it is above.
-banded :: String -> Int -> Int -> Int -> Array Clause
+banded :: MarketId -> Int -> Int -> Int -> Array Clause
 banded m threshold below above =
   [ rule [ le (priceAt (named m)) (lit threshold) ] [ orderAt (named m) (lit below) Nothing ]
   , rule [ gt (priceAt (named m)) (lit threshold) ] [ orderAt (named m) (lit above) Nothing ]
@@ -45,7 +46,7 @@ supplier suffix v = { names, entries: [ names.offer := v.offer, names.high := v.
 -- | above it, the high volume. In the round the parameter `disruptionRound` names, the offer is cut by
 -- | the disruption amount and never below zero: a cut larger than the offer removes it, and never
 -- | turns it into a purchase.
-supplierOffers :: { disruptionRound :: String, highPrice :: String } -> String -> SupplierNames -> Array Clause
+supplierOffers :: { disruptionRound :: String, highPrice :: String } -> MarketId -> SupplierNames -> Array Clause
 supplierOffers ps m names =
   [ rule [ notDisruption, low ] [ offer (subQ (lit 0) (param names.offer)) ]
   , rule [ notDisruption, high ] [ offer (subQ (lit 0) (param names.high)) ]

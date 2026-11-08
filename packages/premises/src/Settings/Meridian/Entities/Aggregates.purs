@@ -14,7 +14,7 @@ import Data.Tuple (Tuple(..))
 import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, aggregateWith, collective)
-import Core.Types (Aggregate, Entity, EntityKind(Aggregate), Id(..))
+import Core.Types (Aggregate, Entity, EntityId, EntityKind(Aggregate))
 import Settings.Meridian.Entities.Capabilities (dealer, shipping)
 import Settings.Kit.Seats (aggregateEntity)
 import Settings.Meridian.Holdings (holdings)
@@ -23,11 +23,11 @@ eu :: Entity
 eu = aggregateEntity holdings n.eu { capabilities: dealer n.energyAtlantic <> [ tariff.may ] <> shipping, kind: Aggregate euAggregate }
 
 -- | The seats an Aggregate covers: its members, by the same declaration that resolves a seat with no player.
-coveredBy :: String -> Array String
+coveredBy :: EntityId -> Array EntityId
 coveredBy agg = mapMaybe covering seats
   where
   covering (Tuple e (Tuple _ d)) = case d.fallback of
-    Just (ImplicitCoverage a) | a == Id agg -> Just e
+    Just (ImplicitCoverage a) | a == agg -> Just e
     _ -> Nothing
 
 -- | The EU's solidarity pool (docs/05 §10.1): an Entity of its own, with no policy, that starts

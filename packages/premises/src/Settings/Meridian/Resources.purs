@@ -14,7 +14,7 @@ import Data.Map as Map
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noResource, resourcesOf)
 
-import Core.Types (Id(..), ResourceDefinition, ResourceId, Transferability(..))
+import Core.Types (ResourceDefinition, ResourceId, Transferability(..))
 import Data.Map (Map)
 import Schema.Recurring (Decay)
 
@@ -23,10 +23,10 @@ resources = Map.union (coreResources) (resourcesOf [ Tuple n.softPower (noResour
 
 -- | What a facility may reserve, and each Resource's decay: the setting document holds them.
 reservable :: Array ResourceId
-reservable = [ Id n.mil ]
+reservable = [ n.mil ]
 
 decays :: Array Decay
-decays = [ { resource: Id n.softPower, rate: q "0.1" } ]
+decays = [ { resource: n.softPower, rate: q "0.1" } ]
 
 -- | Money, Energy, and Military: the Resources every fixture uses.
 coreResources :: Map ResourceId ResourceDefinition

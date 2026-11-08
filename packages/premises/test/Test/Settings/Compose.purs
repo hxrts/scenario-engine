@@ -6,7 +6,7 @@ import Prelude
 
 import Board.Error (ValidationError(..))
 import Core.Shape (Format(..), encodeWith)
-import Core.Types (Id(..), RefKind(..))
+import Core.Types (Id(..), RefKind(..), idText)
 import Data.Argonaut.Core (stringify)
 import Data.Array (elem, filter)
 import Data.Either (Either(..))
@@ -45,7 +45,7 @@ spec = do
     it "a dropped Entity takes what belongs to it, and the rest still checks" do
       withSetting \p ->
         let
-          dropped = Id n.ng
+          dropped = n.ng
           s = (everything p.gameboard) { entities = filter (_ /= dropped) (everything p.gameboard).entities }
         in
           do
@@ -59,36 +59,36 @@ spec = do
     it "accounts can be narrowed for one Entity" do
       withSetting \p ->
         let
-          s = (everything p.gameboard) { accounts = Map.singleton (Id n.us) [ Id n.money ] }
+          s = (everything p.gameboard) { accounts = Map.singleton n.us [ n.money ] }
         in
           do
             r <- orThrow (restrict s p)
-            map (Map.keys <<< _.accounts) (Map.lookup (Id n.us) r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton (Id n.money) unit))
+            map (Map.keys <<< _.accounts) (Map.lookup n.us r.gameboard.world.entities) `shouldEqual` Just (Map.keys (Map.singleton n.money unit))
 
     it "a kept thing that refers to a dropped one is an error" do
       withSetting \p ->
         let
-          s = (everything p.gameboard) { resources = filter (_ /= Id n.energy) (everything p.gameboard).resources }
+          s = (everything p.gameboard) { resources = filter (_ /= n.energy) (everything p.gameboard).resources }
         in
           case restrict s p of
-            Left (Invalid es) -> (UnknownReference RefResource n.energy `elem` es) `shouldEqual` true
+            Left (Invalid es) -> (UnknownReference RefResource (idText n.energy) `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a Market whose base Resource was dropped should not pass"
 
     it "an Aggregate's member cannot be dropped from under it" do
       withSetting \p ->
         let
-          s = (everything p.gameboard) { entities = filter (_ /= Id n.aid) (everything p.gameboard).entities }
+          s = (everything p.gameboard) { entities = filter (_ /= n.aid) (everything p.gameboard).entities }
         in
           case restrict s p of
-            Left (Invalid es) -> (UnknownReference RefEntity n.aid `elem` es) `shouldEqual` true
+            Left (Invalid es) -> (UnknownReference RefEntity (idText n.aid) `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a kept Aggregate's dropped member should not pass"
 
     it "a flow gate goes with the Transformation that carries it" do
       withSetting \p ->
         let
-          s = (everything p.gameboard) { transformations = filter (_ /= Id n.energyShipping) (everything p.gameboard).transformations }
+          s = (everything p.gameboard) { transformations = filter (_ /= n.energyShipping) (everything p.gameboard).transformations }
         in
           do
             r <- orThrow (restrict s (engineOnly p))

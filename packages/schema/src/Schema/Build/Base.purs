@@ -28,7 +28,8 @@ module Schema.Build.Base
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (Capability(..), Id(..))
+import Core.Types (Capability(..), CapacityTag, EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
+import Schema.Build.Named (class Named, named)
 import Schema.Setting.Query (ShareMeasure)
 import Schema.Recurring as Recurring
 import Data.Map (Map)
@@ -38,8 +39,8 @@ import Schema.Build.Quantity (class ToQty, q)
 import Schema.Gameboard (Fallback(..), Measure(..), Span(..))
 
 -- | A Map from named values, keyed by id.
-keyed :: forall t a. Array (Tuple String a) -> Map (Id t) a
-keyed = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
+keyed :: forall k t a. Named k t => Array (Tuple k a) -> Map (Id t) a
+keyed = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (named k) v)
 
 -- | A holding: `"M" := 260`, `"E" := "0.5"`.
 entry :: forall k a. ToQty a => k -> a -> Tuple k Q
@@ -49,48 +50,48 @@ infix 6 entry as :=
 
 -- Capabilities -----------------------------------------------------------------------------
 
-mayTrade :: String -> Capability
-mayTrade m = MayTrade (Id m)
+mayTrade :: forall a. Named a MarketTag => a -> Capability
+mayTrade m = MayTrade (named m)
 
-mayTransfer :: String -> Capability
-mayTransfer r = MayTransfer (Id r)
+mayTransfer :: forall a. Named a ResourceTag => a -> Capability
+mayTransfer r = MayTransfer (named r)
 
-mayTransform :: String -> Capability
-mayTransform t = MayTransform (Id t)
+mayTransform :: forall a. Named a TransformationTag => a -> Capability
+mayTransform t = MayTransform (named t)
 
 -- | May enact a Rule of a declared kind.
-mayEnact :: String -> Capability
-mayEnact = MayEnact <<< Id
+mayEnact :: forall a. Named a RuleKindTag => a -> Capability
+mayEnact = MayEnact <<< named
 
 -- Fallbacks --------------------------------------------------------------------------------
 
 -- | The Actor's accounts and activity stay in an Aggregate.
-coverage :: String -> Fallback
-coverage a = ImplicitCoverage (Id a)
+coverage :: forall a. Named a EntityTag => a -> Fallback
+coverage a = ImplicitCoverage (named a)
 
 -- | The same accounts, driven by an in-world Policy.
-institutional :: String -> Fallback
-institutional p = InstitutionalPolicy (Id p)
+institutional :: forall a. Named a PolicyTag => a -> Fallback
+institutional p = InstitutionalPolicy (named p)
 
 -- Measures and spans -----------------------------------------------------------------------
 
-holdingOf :: String -> Measure
-holdingOf r = HoldingOf (Id r)
+holdingOf :: forall a. Named a ResourceTag => a -> Measure
+holdingOf r = HoldingOf (named r)
 
-capacityOf :: String -> Measure
-capacityOf c = CapacityAmount (Id c)
+capacityOf :: forall a. Named a CapacityTag => a -> Measure
+capacityOf c = CapacityAmount (named c)
 
-shortfallOf :: String -> Measure
-shortfallOf r = ShortfallOf (Id r)
+shortfallOf :: forall a. Named a ResourceTag => a -> Measure
+shortfallOf r = ShortfallOf (named r)
 
-shortfallRounds :: String -> Measure
-shortfallRounds r = ShortfallRounds (Id r)
+shortfallRounds :: forall a. Named a ResourceTag => a -> Measure
+shortfallRounds r = ShortfallRounds (named r)
 
 payeeReceipts :: Measure
 payeeReceipts = PayeeReceipts
 
-volumeOf :: String -> Measure
-volumeOf t = VolumeOf (Id t)
+volumeOf :: forall a. Named a TransformationTag => a -> Measure
+volumeOf t = VolumeOf (named t)
 
 final :: Span
 final = Final
@@ -103,8 +104,8 @@ cumulative = Cumulative
 
 -- Share sources ----------------------------------------------------------------------------
 
-sales :: String -> ShareMeasure
-sales r = Recurring.salesOf (Id r)
+sales :: forall a. Named a ResourceTag => a -> ShareMeasure
+sales r = Recurring.salesOf (named r)
 
 payee :: ShareMeasure
 payee = Recurring.payeeReceipts

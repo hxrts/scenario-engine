@@ -172,7 +172,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Templates" do
     it "a joint Proposal drafts its transfers with self bound to the author, and its signers" do
       let
-        text = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
+        text = { rules: [ rule [] [ joint { signers: [ Id "DE" ], transfers: [ { from: Id "self", to: Id "DE", resource: Id "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
       propose text env `shouldEqual`
         [ { intents: [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ], signers: [ Id "DE" ], procedure: Nothing } ]
     it "a Procedure drafts its intents, its signers and its id" do
@@ -307,7 +307,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
     it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
-      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { jurisdiction: Id selfEntity, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { jurisdiction: selfEntity, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
         `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
       intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (holdR { capacity: Id "semiconductors", units: lit 5 })) ] ], sign: [] }) (enacting [ MayEnact (Id "withholding") ]))
@@ -329,7 +329,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intentsOf (propose text (as Restricted [])) `shouldEqual` []
       intentsOf (propose text (as Restricted [ MayTransfer (Id "M") ])) `shouldEqual` give
     it "a joint Proposal bundles its transforms with its transfers, all by the author" do
-      let text = { rules: [ rule [] [ joint { signers: [ "EU", "IN" ], transfers: [], transforms: [ { transformation: "energy-shipping", quantity: lit 5 } ] } ] ], sign: [] }
+      let text = { rules: [ rule [] [ joint { signers: [ Id "EU", Id "IN" ], transfers: [], transforms: [ { transformation: Id "energy-shipping", quantity: lit 5 } ] } ] ], sign: [] }
       intentsOf (propose text env) `shouldEqual` [ [ Transform { by: Id "EU", transformation: Id "energy-shipping", quantity: Q.fromInt 5 } ] ]
     it "signIf signs a Proposal only while its conditions hold" do
       let

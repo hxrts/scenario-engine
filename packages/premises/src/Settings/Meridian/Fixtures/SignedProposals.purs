@@ -16,7 +16,7 @@ import Settings.Kit.Fixtures (KeptEntity)
 import Settings.Meridian.Fixtures.Common (cut, defaultFixture, fixture, holding, money)
 
 -- | An Entity that may transfer Money and Energy.
-transferring :: String -> KeptEntity
+transferring :: EntityId -> KeptEntity
 transferring e = holding e money [ mayTransfer n.money, mayTransfer n.energy ]
 
 -- | Fixtures G1 to G5: transfers between Saudi Arabia and Japan, with and without signatures.
@@ -24,10 +24,10 @@ saAndJp :: Array KeptEntity
 saAndJp = [ transferring n.sa, transferring n.jp ]
 
 fixtureG1 :: Tuple String Json
-fixtureG1 = fixture "G1" (defaultFixture { cut = cut { entities = saAndJp }, proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 } ] }) { proposal { signers = map Id [ n.jp ] }, signatures = map Id [ n.jp ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 203, n.energy := 90 ]), Tuple n.jp (keyed [ n.money := 102, n.energy := 60 ]) ]) })) })
+fixtureG1 = fixture "G1" (defaultFixture { cut = cut { entities = saAndJp }, proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 } ] }) { proposal { signers = [ n.jp ] }, signatures = [ n.jp ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 203, n.energy := 90 ]), Tuple n.jp (keyed [ n.money := 102, n.energy := 60 ]) ]) })) })
 
 fixtureG2 :: Tuple String Json
-fixtureG2 = fixture "G2" (defaultFixture { cut = cut { entities = saAndJp }, proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 } ] }) { proposal { signers = map Id [ n.jp ] }, signatures = map Id [] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 155, n.energy := 110 ]), Tuple n.jp (keyed [ n.money := 150, n.energy := 40 ]) ]), lapsed = Just ([ ref n.sa ]) })) })
+fixtureG2 = fixture "G2" (defaultFixture { cut = cut { entities = saAndJp }, proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 } ] }) { proposal { signers = [ n.jp ] }, signatures = map Id [] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 155, n.energy := 110 ]), Tuple n.jp (keyed [ n.money := 150, n.energy := 40 ]) ]), lapsed = Just ([ ref n.sa ]) })) })
 
 fixtureG3Ban :: Tuple String Json
 fixtureG3Ban = fixture "G3-ban"
@@ -41,7 +41,7 @@ fixtureG3Ban = fixture "G3-ban"
               , holding n.ship money []
               ]
           }
-      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.de, resource: n.energy, quantity: q 20 }, transfer { from: n.de, to: n.sa, resource: n.money, quantity: q 48 }, transform { by: n.sa, transformation: n.energyShipping, quantity: q 20 } ] }) { proposal { signers = map Id [ n.de, n.ship ] }, signatures = map Id [ n.de, n.ship ] } ])
+      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.de, resource: n.energy, quantity: q 20 }, transfer { from: n.de, to: n.sa, resource: n.money, quantity: q 48 }, transform { by: n.sa, transformation: n.energyShipping, quantity: q 20 } ] }) { proposal { signers = [ n.de, n.ship ] }, signatures = [ n.de, n.ship ] } ])
       , expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 155, n.energy := 110 ]), Tuple n.de (keyed [ n.money := 125, n.energy := 38 ]), Tuple n.ship (keyed [ n.money := 110, n.energy := 65 ]) ]), rejected = Just ([ ref n.sa ]) }))
       }
   )
@@ -57,7 +57,7 @@ fixtureG3 = fixture "G3"
               , holding n.ship money []
               ]
           }
-      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.de, resource: n.energy, quantity: q 20 }, transfer { from: n.de, to: n.sa, resource: n.money, quantity: q 48 }, transform { by: n.sa, transformation: n.energyShipping, quantity: q 20 } ] }) { proposal { signers = map Id [ n.de, n.ship ] }, signatures = map Id [ n.de, n.ship ] } ])
+      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.de, resource: n.energy, quantity: q 20 }, transfer { from: n.de, to: n.sa, resource: n.money, quantity: q 48 }, transform { by: n.sa, transformation: n.energyShipping, quantity: q 20 } ] }) { proposal { signers = [ n.de, n.ship ] }, signatures = [ n.de, n.ship ] } ])
       , expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 197, n.energy := 90 ]), Tuple n.de (keyed [ n.money := 77, n.energy := 58 ]), Tuple n.ship (keyed [ n.money := 116, n.energy := 65 ]) ]) }))
       }
   )
@@ -87,7 +87,7 @@ fixtureG5Unsigned = fixture "G5-unsigned"
               , transferring n.ship
               ]
           }
-      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 }, transfer { from: n.jp, to: n.ship, resource: n.money, quantity: q 10 } ] }) { proposal { signers = map Id [ n.jp, n.ship ] }, signatures = map Id [ n.jp ] } ])
+      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 }, transfer { from: n.jp, to: n.ship, resource: n.money, quantity: q 10 } ] }) { proposal { signers = [ n.jp, n.ship ] }, signatures = [ n.jp ] } ])
       , expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 155, n.energy := 110 ]), Tuple n.jp (keyed [ n.money := 150, n.energy := 40 ]), Tuple n.ship (keyed [ n.money := 110, n.energy := 65 ]) ]), lapsed = Just ([ ref n.sa ]) }))
       }
   )
@@ -102,7 +102,7 @@ fixtureG5 = fixture "G5"
               , transferring n.ship
               ]
           }
-      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 }, transfer { from: n.jp, to: n.ship, resource: n.money, quantity: q 10 } ] }) { proposal { signers = map Id [ n.jp, n.ship ] }, signatures = map Id [ n.jp, n.ship ] } ])
+      , proposals = Just ([ (proposal { author: n.sa, intents: [ transfer { from: n.sa, to: n.jp, resource: n.energy, quantity: q 20 }, transfer { from: n.jp, to: n.sa, resource: n.money, quantity: q 48 }, transfer { from: n.jp, to: n.ship, resource: n.money, quantity: q 10 } ] }) { proposal { signers = [ n.jp, n.ship ] }, signatures = [ n.jp, n.ship ] } ])
       , expect = Just ((noExpect { accounts = balances ([ Tuple n.sa (keyed [ n.money := 203, n.energy := 90 ]), Tuple n.jp (keyed [ n.money := 92, n.energy := 60 ]), Tuple n.ship (keyed [ n.money := 120, n.energy := 65 ]) ]) }))
       }
   )

@@ -32,7 +32,8 @@ import Prelude (map, (<<<))
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), Id(..), Market, ResourceDefinition, ResourceId, Transferability(..), Transformation)
+import Core.Types (Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), EntityTag, Id(..), Market, PolicyTag, ResourceDefinition, ResourceId, ResourceTag, Transferability(..), Transformation, idText)
+import Schema.Build.Named (class Named, named)
 import Core.World (UnseededWorld)
 import Schema.Recurring (Circulation)
 import Data.Map (Map)
@@ -44,19 +45,19 @@ import Schema.Build.Quantity (q)
 import Schema.Gameboard (ActorDefinition, Bound(..), Criterion, Fallback, Measure, MetricRef, Objective, Span)
 
 -- | A catalog from named records: each takes its id from its key.
-byKey :: forall t r. Array (Tuple String { id :: Id t | r }) -> Map (Id t) { id :: Id t | r }
-byKey = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) (v { id = Id k }))
+byKey :: forall k t r. Named k t => Array (Tuple k { id :: Id t | r }) -> Map (Id t) { id :: Id t | r }
+byKey = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (named k) (v { id = named k }))
 
 -- | A Resource catalog: each takes its id and unit from its key.
-resourcesOf :: Array (Tuple String ResourceDefinition) -> Map ResourceId ResourceDefinition
-resourcesOf = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) (v { id = Id k, unit = k }))
+resourcesOf :: forall k. Named k ResourceTag => Array (Tuple k ResourceDefinition) -> Map ResourceId ResourceDefinition
+resourcesOf = Map.fromFoldable <<< map (\(Tuple k v) -> let i = named k in Tuple i (v { id = i, unit = idText (i :: ResourceId) }))
 
 -- | An Entity catalog: each takes its id from its key, and an Actor its seat.
-entitiesOf :: Array (Tuple String Entity) -> Map EntityId Entity
-entitiesOf = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) (v { id = Id k, kind = kindOf k v.kind }))
+entitiesOf :: forall k. Named k EntityTag => Array (Tuple k Entity) -> Map EntityId Entity
+entitiesOf = Map.fromFoldable <<< map (\(Tuple k v) -> let i = named k in Tuple i (v { id = i, kind = kindOf (i :: EntityId) v.kind }))
   where
   kindOf k = case _ of
-    Actor _ -> Actor (Seat (Id k))
+    Actor _ -> Actor (Seat (Id (idText k)))
     other -> other
 
 -- | A Resource: tradable; id and unit come from its key. Override `transferability` (required).
@@ -134,20 +135,20 @@ matching :: MetricRef -> Bound
 matching = Of
 
 -- | One Entity's own measure.
-own :: String -> Measure -> MetricRef
-own e m = metric { entities: [ e ], measure: m, negated: false }
+own :: forall a. Named a EntityTag => a -> Measure -> MetricRef
+own e m = metric { entities: [ named e :: EntityId ], measure: m, negated: false }
 
 -- | The Entity finishes the game with at least the bound of a measure.
-finishes :: String -> Measure -> Bound -> Criterion
+finishes :: forall a. Named a EntityTag => a -> Measure -> Bound -> Criterion
 finishes e m b = criterion { metric: own e m, over: final, atLeast: b }
 
 -- | The Entities' total of a measure over the whole game is at least the bound.
-totalAtLeast :: Array String -> Measure -> Bound -> Criterion
+totalAtLeast :: forall a. Named a EntityTag => Array a -> Measure -> Bound -> Criterion
 totalAtLeast es m b = criterion { metric: metric { entities: es, measure: m, negated: false }, over: cumulative, atLeast: b }
 
 -- | The Entity is never short of a Resource in any round.
-neverShort :: String -> String -> Criterion
-neverShort e r = criterion { metric: metric { entities: [ e ], measure: shortfallOf r, negated: true }, over: everyRound, atLeast: atLeast 0 }
+neverShort :: forall a b. Named a EntityTag => Named b ResourceTag => a -> b -> Criterion
+neverShort e r = criterion { metric: metric { entities: [ named e :: EntityId ], measure: shortfallOf (named r :: ResourceId), negated: true }, over: everyRound, atLeast: atLeast 0 }
 
 -- | An objective: a description and its criteria.
 objective :: { description :: String, criteria :: Array Criterion } -> Objective
@@ -158,29 +159,31 @@ criterion :: { metric :: MetricRef, over :: Span, atLeast :: Bound } -> Criterio
 criterion c = c
 
 -- | A metric.
-metric :: { entities :: Array String, measure :: Measure, negated :: Boolean } -> MetricRef
-metric m = { entities: map Id m.entities, measure: m.measure, negated: m.negated }
+metric :: forall a. Named a EntityTag => { entities :: Array a, measure :: Measure, negated :: Boolean } -> MetricRef
+metric m = { entities: map named m.entities, measure: m.measure, negated: m.negated }
 
 -- | An Actor definition.
 definition
-  :: { required :: Boolean
+  :: forall p
+   . Named p PolicyTag
+  => { required :: Boolean
      , seat :: Boolean
-     , npc :: Array String
+     , npc :: Array p
      , fallback :: Maybe Fallback
      , objective :: Objective
      , description :: String
      , dependency :: String
      }
   -> ActorDefinition
-definition d = d { npc = map Id d.npc, objective = Just d.objective }
+definition d = d { npc = map named d.npc, objective = Just d.objective }
 
 -- | An Aggregate with its members and no procedures.
-aggregate :: { policy :: String, members :: Array String } -> Aggregate
-aggregate a = { policy: Id a.policy, members: map Id a.members, procedures: Map.empty }
+aggregate :: forall p. Named p PolicyTag => { policy :: p, members :: Array EntityId } -> Aggregate
+aggregate a = { policy: named a.policy, members: a.members, procedures: Map.empty }
 
 -- | An Aggregate with its members and its collective procedures.
-aggregateWith :: { policy :: String, members :: Array String, procedures :: Map CollectiveProcedureId CollectiveProcedure } -> Aggregate
-aggregateWith a = { policy: Id a.policy, members: map Id a.members, procedures: a.procedures }
+aggregateWith :: forall p. Named p PolicyTag => { policy :: p, members :: Array EntityId, procedures :: Map CollectiveProcedureId CollectiveProcedure } -> Aggregate
+aggregateWith a = { policy: named a.policy, members: a.members, procedures: a.procedures }
 
 -- | A collective procedure on an Aggregate's own Proposals.
 collective :: { weights :: Map EntityId Q, residualWeight :: Q, threshold :: Q, authorizes :: Array Capability } -> CollectiveProcedure

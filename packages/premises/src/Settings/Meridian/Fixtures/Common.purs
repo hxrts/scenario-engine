@@ -15,6 +15,7 @@ import Settings.Kit.Prelude (Capability, Json, Maybe(..), Tuple)
 
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)
+import Core.Types (EntityId, ResourceId)
 import Settings.Kit.Fixtures (Cut, FixtureSpec, KeptEntity)
 import Settings.Kit.Fixtures as Kit
 import Settings.Meridian (defaultDials, gameSeed, meridian)
@@ -22,11 +23,11 @@ import Settings.Meridian.Names (n)
 import Schema.Build.World (emptyCirculation)
 
 -- | Money and Energy, the two accounts most fixtures keep.
-money :: Array String
+money :: Array ResourceId
 money = [ n.money, n.energy ]
 
 -- | Every Resource of the setting.
-allResources :: Array String
+allResources :: Array ResourceId
 allResources = [ n.money, n.energy, n.mil, n.softPower ]
 
 -- | The default cut: Money, Energy and Military, both Energy Markets, no Transformations, no recurring
@@ -53,9 +54,9 @@ fixture :: String -> FixtureSpec -> Tuple String Json
 fixture = Kit.fixture { seed: gameSeed, base }
 
 -- | An Entity with these accounts, its starting amounts from the setting, and exactly these capabilities.
-holding :: String -> Array String -> Array Capability -> KeptEntity
+holding :: EntityId -> Array ResourceId -> Array Capability -> KeptEntity
 holding key accounts capabilities = { key, accounts: Just accounts, capabilities: Just capabilities }
 
 -- | An Entity with these accounts and its own capabilities: an Aggregate whose procedures need them.
-keeping :: String -> Array String -> KeptEntity
+keeping :: EntityId -> Array ResourceId -> KeptEntity
 keeping key accounts = { key, accounts: Just accounts, capabilities: Nothing }

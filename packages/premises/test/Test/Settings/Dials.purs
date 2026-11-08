@@ -6,7 +6,6 @@ import Prelude
 
 import Core.Num as Q
 import Core.Shape (Format(..), encodeWith)
-import Core.Types (Id(..))
 import Data.Argonaut.Core (stringify)
 import Data.Array (find)
 import Data.Either (Either(..), isLeft)
@@ -30,11 +29,11 @@ spec = describe "Dials and Premises" do
   it "a dial changes what it names" do
     let
       doubled = meridian defaultDials { flow = \f -> f { amount = Q.add f.amount f.amount } }
-      firstFlow = find (\f -> f.from == Id n.usWorkers && f.to == Id n.us)
+      firstFlow = find (\f -> f.from == n.usWorkers && f.to == n.us)
     map _.amount (firstFlow doubled.gameboard.authored.circulation.flows) `shouldEqual` Just (Q.fromInt 30)
   it "Meridian's Premises combine; a key two Premises define fails" do
     case assemble (fold premises) of
       Left e -> fail e
-      Right p -> Map.member (Id n.mil) p.resources `shouldEqual` true
+      Right p -> Map.member n.mil p.resources `shouldEqual` true
     let gold = premise emptyParts { resources = resourcesOf [ Tuple "gold" noResource ] }
     isLeft (assemble (gold <> gold)) `shouldEqual` true

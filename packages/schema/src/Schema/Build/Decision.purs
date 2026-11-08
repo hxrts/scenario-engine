@@ -49,30 +49,32 @@ import Data.Maybe (Maybe(..))
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
 import Core.Strategy as S
 import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
-import Core.Types (Id(..), IntentF(..), RuleChangeF(..), RuleF)
+import Core.Types (EntityId, EntityTag, Id(..), IntentF(..), MarketTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
+import Schema.Build.Named (class Named)
+import Schema.Build.Named (named) as N
 import Schema.Build.Quantity (class ToQty, q)
 
 -- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
-selfEntity :: String
-selfEntity = S.selfName
+selfEntity :: EntityId
+selfEntity = Id S.selfName
 
 -- Market references ----------------------------------------------------------------------
 
 -- | One Market, by id.
-named :: String -> MarketRef
-named = Named <<< Id
+named :: forall a. Named a MarketTag => a -> MarketRef
+named = Named <<< N.named
 
 -- | Every accessible Market for the Resource: the clause runs once per Market.
-each :: String -> MarketRef
-each = Each <<< Id
+each :: forall a. Named a ResourceTag => a -> MarketRef
+each = Each <<< N.named
 
 -- | The accessible Market with the lowest beginning-of-round price for the Resource.
-cheapest :: String -> MarketRef
-cheapest = Cheapest <<< Id
+cheapest :: forall a. Named a ResourceTag => a -> MarketRef
+cheapest = Cheapest <<< N.named
 
 -- | The accessible Market with the highest beginning-of-round price for the Resource.
-costliest :: String -> MarketRef
-costliest = Costliest <<< Id
+costliest :: forall a. Named a ResourceTag => a -> MarketRef
+costliest = Costliest <<< N.named
 
 -- | An order on the Market a reference picks; `limit` is the optional limit price.
 tradeAt :: { market :: MarketRef, quantity :: Expr, limit :: Maybe Expr } -> IntentTemplate
@@ -94,11 +96,11 @@ roundQ = Round
 priceAt :: MarketRef -> Expr
 priceAt = Price
 
-holding :: String -> Expr
-holding = Holding <<< Id
+holding :: forall a. Named a ResourceTag => a -> Expr
+holding = Holding <<< N.named
 
-factor :: String -> Expr
-factor = Factor <<< Id
+factor :: forall a. Named a ResourceTag => a -> Expr
+factor x = Factor (Id (idText (N.named x :: ResourceId)))
 
 mulQ :: Expr -> Expr -> Expr
 mulQ = Mul
@@ -127,14 +129,14 @@ not' :: Cond -> Cond
 not' = Not
 
 -- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
-transformedLastRound :: { by :: String, transformation :: String, atLeast :: Expr } -> Cond
-transformedLastRound r = Recorded { query: S.OfLegs { party: Id r.by, window: LastRound, side: Outgoing, resource: Nothing, cause: ConversionOf (Id r.transformation), aggregate: LargestUnits }, atLeast: r.atLeast }
+transformedLastRound :: forall b t. Named b EntityTag => Named t TransformationTag => { by :: b, transformation :: t, atLeast :: Expr } -> Cond
+transformedLastRound r = Recorded { query: S.OfLegs { party: N.named r.by, window: LastRound, side: Outgoing, resource: Nothing, cause: ConversionOf (N.named r.transformation), aggregate: LargestUnits }, atLeast: r.atLeast }
 
-restrictedLastRound :: { by :: String, target :: String } -> Cond
-restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: Id r.by, counterparty: Id r.target }, atLeast: lit 1 }
+restrictedLastRound :: forall b t. Named b EntityTag => Named t EntityTag => { by :: b, target :: t } -> Cond
+restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: N.named r.by, counterparty: N.named r.target }, atLeast: lit 1 }
 
-restrictionInForce :: { by :: String } -> Cond
-restrictionInForce r = Recorded { query: S.RulesInForce { governor: Id r.by }, atLeast: lit 1 }
+restrictionInForce :: forall b. Named b EntityTag => { by :: b } -> Cond
+restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by }, atLeast: lit 1 }
 
 -- Templates ------------------------------------------------------------------------------
 
@@ -149,8 +151,8 @@ orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
 -- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the setting
 -- | format writes no `by` for a template, so these three builders take none. (`Schema.Build.Intent`'s
 -- | `transform`, `enactTariff` and `enactAccessBan` are the fixture forms, with `Q` quantities.)
-selfTransform :: { transformation :: String, quantity :: Expr } -> IntentTemplate
-selfTransform r = Transform { by: Id S.selfName, transformation: Id r.transformation, quantity: r.quantity }
+selfTransform :: forall t. Named t TransformationTag => { transformation :: t, quantity :: Expr } -> IntentTemplate
+selfTransform r = Transform { by: Id S.selfName, transformation: N.named r.transformation, quantity: r.quantity }
 
 -- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or owner (a capacity).
 selfEnact :: RuleF Expr -> IntentTemplate
@@ -158,27 +160,27 @@ selfEnact r = ChangeRule (Enact r)
 
 -- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
 -- | the collective procedure the Proposal runs under).
-procedure :: { id :: String, signers :: Array String, intents :: Array IntentTemplate } -> Template
-procedure r = ProposalT { signers: map Id r.signers, intents: r.intents, procedure: Just (Id r.id) }
+procedure :: forall s i. Named i ProcedureTag => Named s EntityTag => { id :: i, signers :: Array s, intents :: Array IntentTemplate } -> Template
+procedure r = ProposalT { signers: map N.named r.signers, intents: r.intents, procedure: Just (N.named r.id) }
 
 -- | A joint Proposal: a Proposal with no procedure, bundling only transfers and transforms (`jointIntent`). Its
 -- | transfers come first, then its transforms, each run by the acting Entity. A joint Proposal of any other
 -- | Intent has no form here, so it does not typecheck.
 joint
-  :: { signers :: Array String
-     , transfers :: Array { from :: String, to :: String, resource :: String, quantity :: Expr }
-     , transforms :: Array { transformation :: String, quantity :: Expr }
+  :: { signers :: Array EntityId
+     , transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }
+     , transforms :: Array { transformation :: TransformationId, quantity :: Expr }
      }
   -> Template
 joint r = ProposalT
-  { signers: map Id r.signers
-  , intents: map (\x -> Transfer { from: Id x.from, to: Id x.to, resource: Id x.resource, quantity: x.quantity }) r.transfers <> map selfTransform r.transforms
+  { signers: r.signers
+  , intents: map (\x -> Transfer { from: x.from, to: x.to, resource: x.resource, quantity: x.quantity }) r.transfers <> map selfTransform r.transforms
   , procedure: Nothing
   }
 
 -- | Enact the restriction `target` enacted against this Entity last round.
-reciprocate :: { target :: String } -> Template
-reciprocate r = Mirror { governor: Id r.target, counterparty: Id S.selfName }
+reciprocate :: forall t. Named t EntityTag => { target :: t } -> Template
+reciprocate r = Mirror { governor: N.named r.target, counterparty: Id S.selfName }
 
 choose :: Array Template -> Template
 choose = Choose
@@ -189,11 +191,11 @@ noAction = NoAction
 
 -- Sign rules -----------------------------------------------------------------------------
 
-signProcedures :: Array String -> SignRule
-signProcedures xs = SignProcedures (map Id xs)
+signProcedures :: forall a. Named a ProcedureTag => Array a -> SignRule
+signProcedures xs = SignProcedures (map N.named xs)
 
-signFacility :: String -> SignRule
-signFacility = SignConversion <<< Id
+signFacility :: forall a. Named a TransformationTag => a -> SignRule
+signFacility = SignConversion <<< N.named
 
 signAll :: SignRule
 signAll = SignAll

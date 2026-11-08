@@ -15,12 +15,12 @@ import Settings.Meridian.Rules (withholding)
 import Schema.Build.Base (capacityOf, cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
 import Schema.Gameboard (ActorDefinition)
-import Core.Types (Capability, Entity)
+import Core.Types (Capability, Entity, EntityId, MarketId)
 import Data.Tuple (Tuple, fst)
 
-type CatalogSeat = Tuple String (Tuple Entity ActorDefinition)
+type CatalogSeat = Tuple EntityId (Tuple Entity ActorDefinition)
 
-seat :: String -> Kit.SeatSpec -> CatalogSeat
+seat :: EntityId -> Kit.SeatSpec -> CatalogSeat
 seat = Kit.seat holdings
 
 -- | The fifteen seat Actors, in catalog order: the one list every seat enumeration uses. Seat
@@ -29,14 +29,14 @@ seats :: Array CatalogSeat
 seats = [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ]
 
 -- | The seat Actors' names, in catalog order.
-seatActors :: Array String
+seatActors :: Array EntityId
 seatActors = map fst seats
 
 -- | The two regional Energy Markets, by name.
-atlantic :: String
+atlantic :: MarketId
 atlantic = n.energyAtlantic
 
-asia :: String
+asia :: MarketId
 asia = n.energyAsia
 
 -- | The capacity-investment capability every energy-production government and firm holds.

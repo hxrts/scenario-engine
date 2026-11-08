@@ -3,6 +3,7 @@
 -- | shorter D-minor carries the major action alone. Fixtures D and D-minor.
 module Settings.Meridian.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
+import Core.Types (ResourceId)
 import Settings.Kit.Prelude
 import Settings.Meridian.Names (n)
 
@@ -37,12 +38,12 @@ fixtureD = fixture "D"
           }
       , rounds = Just
           ( [ (noRound { proposals = Just ([ proposal { author: n.us, intents: [ transform { by: n.us, transformation: n.majorMilitaryAction, quantity: q 12 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.mil := 92, n.money := 260 ]) ]) })) })
-            , (noRound { proposals = Just ([ proposal { author: n.cn, intents: [ transform { by: n.cn, transformation: n.defenseProcurementCn, quantity: q 4 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.cn (keyed [ n.money := 219, n.energy := 87, n.mil := 88 ]), Tuple n.cnPrivate (keyed [ n.money := 246 ]) ]), deliveries = Just ([ { entity: Id n.cn, resource: Id n.mil, quantity: q 4 } ]) })) })
+            , (noRound { proposals = Just ([ proposal { author: n.cn, intents: [ transform { by: n.cn, transformation: n.defenseProcurementCn, quantity: q 4 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.cn (keyed [ n.money := 219, n.energy := 87, n.mil := 88 ]), Tuple n.cnPrivate (keyed [ n.money := 246 ]) ]), deliveries = Just ([ { entity: n.cn, resource: n.mil, quantity: q 4 } ]) })) })
             , (noRound { expect = Just ((noExpect { accounts = balances ([ Tuple n.cn (keyed [ n.mil := 92 ]) ]) })) })
             ]
           )
       }
   )
 
-withMil :: Array String
+withMil :: Array ResourceId
 withMil = [ n.money, n.energy, n.mil ]

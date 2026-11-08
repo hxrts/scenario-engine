@@ -111,8 +111,8 @@ softPower = premise emptyParts
 premises :: Array Premise
 premises = [ energy, shipping, defence, softPower ]
 
-only :: forall t v. Array String -> Map (Id t) v -> Map (Id t) v
-only keys = Map.filterKeys (\k -> elem k (map Id keys))
+only :: forall t v. Array (Id t) -> Map (Id t) v -> Map (Id t) v
+only keys = Map.filterKeys (\k -> elem k keys)
 
 -- | The reference Gameboard as written.
 gameboard :: Gameboard
@@ -136,8 +136,8 @@ gameboardWith d = case assemble (energy <> shipping <> defence <> softPower) of
       , actors
       , authored: { circulation: circulation', reservable, decays }
       , world: emptyWorld
-          { numeraire = Id n.money
-          , focus = Just { resource: Id n.energy, label: "Energy" }
+          { numeraire = n.money
+          , focus = Just { resource: n.energy, label: "Energy" }
           , resources = p.resources
           , markets = Map.mapMaybeWithKey (\k m -> Just m { cost = d.curve k m.cost }) p.markets
           , transformations = p.transformations
@@ -145,7 +145,7 @@ gameboardWith d = case assemble (energy <> shipping <> defence <> softPower) of
           , groups = groups
           , ruleKinds = p.ruleKinds
           , entities = map (\e -> e { accounts = Map.mapMaybeWithKey (\r v -> Just (d.holding e.id r v)) e.accounts }) entities
-          , recurring = compileIn (Id n.money) circulation' decays
+          , recurring = compileIn n.money circulation' decays
           }
       }
 
@@ -169,8 +169,8 @@ instantiation =
   { seed: Seed gameSeed
   , rounds: years
   , seats: keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) seatActors)
-  , npcs: keyed [ Tuple n.cn (Id n.policyChinaStrategic) ]
+  , npcs: keyed [ Tuple n.cn n.policyChinaStrategic ]
   , fallbacks: Map.empty
-  , representations: [ { scheme: smeSample.id, actor: Id smeSample.actor, weight: (q 1) } ]
+  , representations: [ { scheme: smeSample.id, actor: smeSample.actor, weight: (q 1) } ]
   }
 

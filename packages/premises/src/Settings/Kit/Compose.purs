@@ -10,7 +10,7 @@ module Settings.Kit.Compose
 import Prelude
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (Market, MarketId, ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId)
+import Core.Types (Market, MarketId, PolicyId, ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
 import Data.Array as Array
 import Data.Map (Map)
 import Data.Map as Map
@@ -27,7 +27,7 @@ type PremiseParts =
   , transformations :: Map TransformationId Transformation
   , ruleKinds :: Map RuleKindId RuleKindDecl
   , flows :: Array Flow
-  , policies :: Array (Tuple String Strategy)
+  , policies :: Array (Tuple PolicyId Strategy)
   , parameters :: Array (Tuple String Q)
   }
 
@@ -49,8 +49,8 @@ instance Semigroup Premise where
     markets <- union "Market" x.markets y.markets
     transformations <- union "Transformation" x.transformations y.transformations
     ruleKinds <- union "Rule kind" x.ruleKinds y.ruleKinds
-    policies <- pairs "Policy" x.policies y.policies
-    parameters <- pairs "parameter" x.parameters y.parameters
+    policies <- pairs idText "Policy" x.policies y.policies
+    parameters <- pairs identity "parameter" x.parameters y.parameters
     pure { resources, markets, transformations, ruleKinds, flows: x.flows <> y.flows, policies, parameters }
     where
     union :: forall k v. Ord k => Show k => String -> Map k v -> Map k v -> Either String (Map k v)
@@ -58,9 +58,9 @@ instance Semigroup Premise where
       Just k -> Left ("two Premises define the " <> what <> " " <> show k)
       Nothing -> Right (Map.union l r)
 
-    pairs :: forall v. String -> Array (Tuple String v) -> Array (Tuple String v) -> Either String (Array (Tuple String v))
-    pairs what l r = case Array.head (Array.intersect (map fst l) (map fst r)) of
-      Just k -> Left ("two Premises define the " <> what <> " " <> k)
+    pairs :: forall k v. Eq k => (k -> String) -> String -> Array (Tuple k v) -> Array (Tuple k v) -> Either String (Array (Tuple k v))
+    pairs text what l r = case Array.head (Array.intersect (map fst l) (map fst r)) of
+      Just k -> Left ("two Premises define the " <> what <> " " <> text k)
       Nothing -> Right (l <> r)
 
 instance Monoid Premise where

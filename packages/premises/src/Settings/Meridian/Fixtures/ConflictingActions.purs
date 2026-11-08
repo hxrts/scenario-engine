@@ -23,7 +23,7 @@ fixtureF = fixture "F"
               ]
           }
       , proposals = Just ([ proposal { author: n.us, intents: [ transform { by: n.us, transformation: n.defenseProcurement, quantity: q 15 } ] }, proposal { author: n.uk, intents: [ transform { by: n.uk, transformation: n.defenseProcurement, quantity: q 8 } ] }, proposal { author: n.jp, intents: [ transform { by: n.jp, transformation: n.defenseProcurement, quantity: q 9 } ] } ])
-      , expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 43, n.energy := 42 ]), Tuple n.uk (keyed [ n.money := 6, n.energy := 14 ]), Tuple n.jp (keyed [ n.money := 26, n.energy := 24 ]), Tuple n.def (keyed [ n.money := 575, n.energy := 30 ]) ]), deliveries = Just ([ { entity: Id n.jp, resource: Id n.mil, quantity: q 8 }, { entity: Id n.uk, resource: Id n.mil, quantity: q 8 }, { entity: Id n.us, resource: Id n.mil, quantity: q 14 } ]) }))
+      , expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 43, n.energy := 42 ]), Tuple n.uk (keyed [ n.money := 6, n.energy := 14 ]), Tuple n.jp (keyed [ n.money := 26, n.energy := 24 ]), Tuple n.def (keyed [ n.money := 575, n.energy := 30 ]) ]), deliveries = Just ([ { entity: n.jp, resource: n.mil, quantity: q 8 }, { entity: n.uk, resource: n.mil, quantity: q 8 }, { entity: n.us, resource: n.mil, quantity: q 14 } ]) }))
       }
   )
 

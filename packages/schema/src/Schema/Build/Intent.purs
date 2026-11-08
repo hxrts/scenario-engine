@@ -14,29 +14,30 @@ module Schema.Build.Intent
   ) where
 
 import Core.Num (Q)
-import Core.Types (Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), RuleF)
+import Core.Types (EntityTag, Intent, IntentF(..), MarketId, MarketTag, ResourceTag, RuleChangeF(..), RuleF, RuleTag, TransformationTag)
+import Schema.Build.Named (class Named, named)
 import Data.Maybe (Maybe(..))
 
 -- | An order on a Market, by id; `limit` is the optional limit price. A Strategy that picks its Market
 -- | by selector writes `Schema.Build.Decision.tradeAt`.
-trade :: forall v. { market :: String, quantity :: v, limit :: Maybe v } -> IntentF MarketId v
-trade r = Trade { market: Id r.market, quantity: r.quantity, limitPrice: r.limit }
+trade :: forall a v. Named a MarketTag => { market :: a, quantity :: v, limit :: Maybe v } -> IntentF MarketId v
+trade r = Trade { market: named r.market, quantity: r.quantity, limitPrice: r.limit }
 
 -- | A routed order: no Market is named, so `base` and `quote` give the pair.
-route :: forall m v. { base :: String, quote :: String, quantity :: v, limit :: v } -> IntentF m v
-route r = Route { pair: { base: Id r.base, quote: Id r.quote }, quantity: r.quantity, limitPrice: Just r.limit }
+route :: forall b q m v. Named b ResourceTag => Named q ResourceTag => { base :: b, quote :: q, quantity :: v, limit :: v } -> IntentF m v
+route r = Route { pair: { base: named r.base, quote: named r.quote }, quantity: r.quantity, limitPrice: Just r.limit }
 
 -- | The `from` Entity gives `quantity` of `resource` to `to`.
-transfer :: forall m v. { from :: String, to :: String, resource :: String, quantity :: v } -> IntentF m v
-transfer r = Transfer { from: Id r.from, to: Id r.to, resource: Id r.resource, quantity: r.quantity }
+transfer :: forall f t r m v. Named f EntityTag => Named t EntityTag => Named r ResourceTag => { from :: f, to :: t, resource :: r, quantity :: v } -> IntentF m v
+transfer r = Transfer { from: named r.from, to: named r.to, resource: named r.resource, quantity: r.quantity }
 
-transform :: { by :: String, transformation :: String, quantity :: Q } -> Intent
-transform r = Transform { by: Id r.by, transformation: Id r.transformation, quantity: r.quantity }
+transform :: forall b t. Named b EntityTag => Named t TransformationTag => { by :: b, transformation :: t, quantity :: Q } -> Intent
+transform r = Transform { by: named r.by, transformation: named r.transformation, quantity: r.quantity }
 
 -- | Enact a Rule of a declared kind.
 enactRule :: forall m v. RuleF v -> IntentF m v
 enactRule r = ChangeRule (Enact r)
 
 -- | Repeal a Rule by the id the engine assigned it.
-repeal :: forall m v. { rule :: String } -> IntentF m v
-repeal r = ChangeRule (Repeal (Id r.rule))
+repeal :: forall a m v. Named a RuleTag => { rule :: a } -> IntentF m v
+repeal r = ChangeRule (Repeal (named r.rule))

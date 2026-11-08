@@ -122,7 +122,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
           let p = fromMaybe passive (Object.lookup name ps)
-          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple (Id s) p) seatActors))
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) seatActors))
           length records `shouldEqual` 5
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
@@ -156,7 +156,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       records <- play g 1
         ( Map.fromFoldable
             [ Tuple (Id "DE") (({ rules: [], sign: [ signProcedures [ "eu-solidarity" ] ] }))
-            , Tuple (Id "SA") (({ rules: [ rule [] [ joint { signers: [ "CN" ], transfers: [ { from: "self", to: "CN", resource: "E", quantity: lit 10 }, { from: "CN", to: "self", resource: "M", quantity: lit 25 } ], transforms: [] } ] ], sign: [] }))
+            , Tuple (Id "SA") (({ rules: [ rule [] [ joint { signers: [ Id "CN" ], transfers: [ { from: Id "self", to: Id "CN", resource: Id "E", quantity: lit 10 }, { from: Id "CN", to: Id "self", resource: Id "M", quantity: lit 25 } ], transforms: [] } ] ], sign: [] }))
             ]
         )
       let events = concatMap (_.record.events) records

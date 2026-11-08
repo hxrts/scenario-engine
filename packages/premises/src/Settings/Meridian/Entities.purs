@@ -17,7 +17,7 @@ import Settings.Meridian.Entities.Aggregates (cnPrivate, energySuppliers, eu, eu
 import Settings.Meridian.Entities.Seats (cn, seats)
 
 -- | The Entities with an Actor definition: the seats in catalog order, then CN.
-seated :: Array (Tuple String (Tuple Entity ActorDefinition))
+seated :: Array (Tuple EntityId (Tuple Entity ActorDefinition))
 seated = seats <> [ cn ]
 
 -- | Every Actor's definition.

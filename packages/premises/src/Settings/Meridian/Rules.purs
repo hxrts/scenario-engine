@@ -17,7 +17,7 @@ import Schema.Build.Base (keyed)
 
 -- | What Meridian's flows Rules cover: the gated Resource.
 covered :: Array ResourceId
-covered = [ Id n.energy ]
+covered = [ n.energy ]
 
 tariffKind :: String
 tariffKind = "tariff"
@@ -37,7 +37,7 @@ ruleKinds = keyed
   ]
 
 tariff :: LevyKit
-tariff = levyRule { kind: tariffKind, covered, paidIn: Id n.money }
+tariff = levyRule { kind: tariffKind, covered, paidIn: n.money }
 
 accessBan :: BlockKit
 accessBan = blockRule { kind: accessBanKind, covered }

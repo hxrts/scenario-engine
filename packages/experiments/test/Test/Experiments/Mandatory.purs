@@ -59,12 +59,12 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "14 Agency: every role has a measurable effect and its objectives are reported" do
     ctx <- context
     random <- everySeat ctx "RandomValid"
-    ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) random "Aggressive" (map Id seatActors))
+    ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) random "Aggressive" seatActors)
     length ps `shouldEqual` 15
     -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
     map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
     g <- everySeat ctx "Conservative"
-    profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seatActors))
+    profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
     -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
     -- is asserted on the RandomValid baseline. Pinned here so a setting change is noticed.

@@ -10,7 +10,7 @@ module Settings.Kit.Fixtures
 
 import Prelude
 import Core.Shape (encodeWith, Format(..))
-import Core.Types (Capability, Id(..), SignedProposal)
+import Core.Types (Capability, EntityId, MarketId, ResourceId, SignedProposal, TransformationId)
 import Data.Argonaut.Core (Json)
 import Data.Array (mapWithIndex)
 import Data.Array as Array
@@ -38,17 +38,17 @@ type FixtureContext =
 -- | One Entity a cut keeps: the accounts it keeps (`Nothing`, all of them) and, when given, the
 -- | capabilities that replace its own.
 type KeptEntity =
-  { key :: String
-  , accounts :: Maybe (Array String)
+  { key :: EntityId
+  , accounts :: Maybe (Array ResourceId)
   , capabilities :: Maybe (Array Capability)
   }
 
 -- | A setting cut down to one fixture's world: what to keep, the recurring flows, and named patches.
 type Cut =
   { entities :: Array KeptEntity
-  , resources :: Array String
-  , markets :: Array String
-  , transformations :: Array String
+  , resources :: Array ResourceId
+  , markets :: Array MarketId
+  , transformations :: Array TransformationId
   , circulation :: Circulation
   , patches :: Array (Gameboard -> Either GameError Gameboard)
   }
@@ -59,13 +59,13 @@ cutOf base c = either (unsafeCrashWith <<< renderGameError) identity do
   gameboard <- foldM (#) (withCirculation c.circulation base.gameboard) (map capabilitiesOf c.entities <> c.patches)
   restrict selection (engineOnly base { gameboard = gameboard })
   where
-  capabilitiesOf e = maybe Right (setCapabilities (Id e.key)) e.capabilities
+  capabilitiesOf e = maybe Right (setCapabilities e.key) e.capabilities
   selection =
-    { entities: map (Id <<< _.key) c.entities
-    , resources: map Id c.resources
-    , markets: map Id c.markets
-    , transformations: map Id c.transformations
-    , accounts: Map.fromFoldable (Array.mapMaybe (\e -> map (Tuple (Id e.key) <<< map Id) e.accounts) c.entities)
+    { entities: map _.key c.entities
+    , resources: c.resources
+    , markets: c.markets
+    , transformations: c.transformations
+    , accounts: Map.fromFoldable (Array.mapMaybe (\e -> map (Tuple e.key) e.accounts) c.entities)
     }
 
 -- | What a fixture gives: its cut of the setting, and one round's inputs and checks, or several rounds'.

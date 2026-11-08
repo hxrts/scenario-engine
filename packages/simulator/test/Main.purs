@@ -284,7 +284,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- setting
       g <- everySeat p "Passive"
       let
-        banChina = ({ rules: [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: "CN" }) ] ], sign: [] })
+        banChina = ({ rules: [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: Id "CN" }) ] ], sign: [] })
         rules i r = maybe [] (\rec -> values rec.world.rules) (index r.records i)
         isBan a b = case _ of
           FlowRule { scope: f, effect: Block } -> f.governor == Id a && f.counterparty == Id b

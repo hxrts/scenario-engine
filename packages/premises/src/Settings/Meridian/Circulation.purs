@@ -13,16 +13,16 @@ import Settings.Meridian.Holdings (capacityHolders)
 import Schema.Build.Base (payee, sales, (:=))
 import Schema.Build.Quantity (q)
 import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
-import Core.Types (Id(..))
+
 import Schema.Recurring (Circulation, Flow, Production, Requirement, Share)
 
 -- | The Entities that produce Energy: every Entity that holds an energy-production capacity
 -- | (Meridian.Holdings), in catalog order.
 productionCapacity :: Array Production
-productionCapacity = map (\entity -> { entity: Id entity, resource: Id n.energy, capacity: Id n.energyProduction }) (capacityHolders n.energyProduction)
+productionCapacity = map (\entity -> { entity: entity, resource: n.energy, capacity: n.energyProduction }) (capacityHolders n.energyProduction)
 
 flows :: Array Flow
-flows = flowsOf (Id n.money)
+flows = flowsOf n.money
   [ n.usWorkers ~> n.us := 15
   , n.globalSmes ~> n.us := 5
   , n.cnPrivate ~> n.cn := 20
@@ -57,12 +57,12 @@ flows = flowsOf (Id n.money)
 
 shares :: Array Share
 shares =
-  [ { from: Id n.energySuppliers, to: Id n.worldHouseholds, share: q "0.5", source: sales n.energy }
-  , { from: Id n.def, to: Id n.usWorkers, share: q "0.25", source: payee }
+  [ { from: n.energySuppliers, to: n.worldHouseholds, share: q "0.5", source: sales n.energy }
+  , { from: n.def, to: n.usWorkers, share: q "0.25", source: payee }
   ]
 
 requirements :: Array Requirement
-requirements = requirementsOf { resource: Id n.energy, penalty: q 2 }
+requirements = requirementsOf { resource: n.energy, penalty: q 2 }
   [ n.us := 10
   , n.cn := 10
   , n.de := 8

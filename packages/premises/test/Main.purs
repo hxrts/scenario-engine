@@ -19,7 +19,7 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
+import Core.Types (idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled, seeded)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
@@ -204,23 +204,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
         _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case decodeJsonWith Authored intentShape (encodeWith Authored intentShape (accessBan.enact { jurisdiction: "US", target: "CN" })) of
+      case decodeJsonWith Authored intentShape (encodeWith Authored intentShape (accessBan.enact { jurisdiction: Id "US", target: Id "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (FlowRule { scope: a }))) -> do
           a.governor `shouldEqual` Id "US"
           a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "a tariff Rule decodes to a Levy" do
-      case decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (tariff.rule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (tariff.rule { jurisdiction: Id "US", origin: Id "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (FlowRule { scope: t }) -> do
           t.governor `shouldEqual` Id "US"
           t.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (withholding.rule { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Authored ruleShape (encodeWith Authored ruleShape (withholding.rule { capacity: Id "semiconductors", units: q 3 }))
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      decodeJsonWith Authored intentShape (encodeWith Authored intentShape (withholding.enact { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Authored intentShape (encodeWith Authored intentShape (withholding.enact { capacity: Id "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", tariff.may, accessBan.may, withholding.may ] \c ->
@@ -229,12 +229,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Just _ -> isRight (decodeJsonWith Authored capabilityShape (encodeWith Authored capabilityShape c)) `shouldEqual` true
     it "a joint Proposal of a Transfer and a Transform round-trips through the setting form" do
       let
-        p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "plant", quantity: lit 1 } ] } ] ], sign: [] }
+        p = { rules: [ rule [] [ joint { signers: [ Id "DE" ], transfers: [ { from: Id "self", to: Id "DE", resource: Id "E", quantity: lit 2 } ], transforms: [ { transformation: Id "plant", quantity: lit 1 } ] } ] ], sign: [] }
       (decodeStrategy (encodeStrategy p) == Right p) `shouldEqual` true
 
     it "a joint Proposal decodes, and the parties and Resource it names are reported" do
       let
-        p = { rules: [ rule [] [ joint { signers: [ "DE" ], transfers: [ { from: "self", to: "DE", resource: "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
+        p = { rules: [ rule [] [ joint { signers: [ Id "DE" ], transfers: [ { from: Id "self", to: Id "DE", resource: Id "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }
       prog <- orThrow (decodeStrategy (encodeStrategy p))
       (prog == p) `shouldEqual` true
       let refs = strategyRefs prog
@@ -506,26 +506,26 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a policy that names an unknown market fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
-        catalog = policies <> [ Tuple "bad-v0" bad ]
-      checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
+        catalog = policies <> [ Tuple (Id "bad-v0") bad ]
+      checked (withSection "policies.json" (encodeWith Authored policiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" RefMarket "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
-        catalog = policies <> [ Tuple "bad-v0" bad ]
-      checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
+        catalog = policies <> [ Tuple (Id "bad-v0") bad ]
+      checked (withSection "policies.json" (encodeWith Authored policiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
         `shouldEqual` Left (show (Unresolved "policy bad-v0" RefParameter "no-such-parameter"))
     it "a procedure a Strategy names that no Aggregate holds fails the check: in a sign rule, and in a Proposal template" do
       { gameboard, config } <- loaded
       let
         signing = { rules: [], sign: [ signProcedures [ "no-such-procedure" ] ] }
-        proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: [], intents: [] } ] ], sign: [] }
+        proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: ([] :: Array String), intents: [] } ] ], sign: [] }
         check p = map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
       check signing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
       check proposing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
     it "a capacity a Withholding names that no Entity holds fails the check" do
       { gameboard, config } <- loaded
-      let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
+      let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: Id "no-such-capacity", units: lit 1 }) ] ], sign: [] }
       map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" bad }))
         `shouldEqual` Left (show (Unresolved "preset Bad" RefCapacity "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do

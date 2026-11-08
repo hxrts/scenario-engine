@@ -3,134 +3,135 @@
 -- | this record, so a name is spelled once (`n.us`, `n.energyAtlantic`).
 module Settings.Meridian.Names where
 
+import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, PolicyId, ResourceId, TransformationId)
 import Settings.Layout (settingDir)
 
 -- | The type of `n`.
 type Names =
-  { us :: String
-  , de :: String
-  , india :: String
-  , jp :: String
-  , uk :: String
-  , br :: String
-  , sa :: String
-  , ng :: String
-  , enco :: String
-  , chip :: String
-  , ship :: String
-  , def :: String
-  , labor :: String
-  , sme :: String
-  , aid :: String
-  , cn :: String
-  , eu :: String
-  , euPool :: String
-  , cnPrivate :: String
-  , usWorkers :: String
-  , globalSmes :: String
-  , energySuppliers :: String
-  , worldHouseholds :: String
-  , energyAtlantic :: String
-  , energyAsia :: String
-  , defenceGoods :: String
-  , money :: String
-  , energy :: String
-  , mil :: String
-  , softPower :: String
-  , defenseProcurement :: String
-  , defenseProcurementCn :: String
-  , publicAttention :: String
-  , energyShipping :: String
-  , humanitarianAid :: String
-  , militaryDeployment :: String
-  , majorMilitaryAction :: String
-  , logisticsInvestment :: String
-  , energyCapacityInvestment :: String
-  , strike :: String
-  , energyProduction :: String
-  , semiconductors :: String
-  , transport :: String
-  , attention :: String
-  , policyChinaStrategic :: String
-  , policyEuCoordination :: String
-  , policyGlobalSmes :: String
-  , policyCnPrivate :: String
-  , policyUsWorkers :: String
-  , policyWorldHouseholds :: String
-  , policyEnergySuppliers :: String
-  , policyGovernmentDefault :: String
-  , policyFirmDefault :: String
-  , policySolidarityPool :: String
-  , euSolidarity :: String
-  , euTrade :: String
+  { us :: EntityId
+  , de :: EntityId
+  , india :: EntityId
+  , jp :: EntityId
+  , uk :: EntityId
+  , br :: EntityId
+  , sa :: EntityId
+  , ng :: EntityId
+  , enco :: EntityId
+  , chip :: EntityId
+  , ship :: EntityId
+  , def :: EntityId
+  , labor :: EntityId
+  , sme :: EntityId
+  , aid :: EntityId
+  , cn :: EntityId
+  , eu :: EntityId
+  , euPool :: EntityId
+  , cnPrivate :: EntityId
+  , usWorkers :: EntityId
+  , globalSmes :: EntityId
+  , energySuppliers :: EntityId
+  , worldHouseholds :: EntityId
+  , energyAtlantic :: MarketId
+  , energyAsia :: MarketId
+  , defenceGoods :: MarketId
+  , money :: ResourceId
+  , energy :: ResourceId
+  , mil :: ResourceId
+  , softPower :: ResourceId
+  , defenseProcurement :: TransformationId
+  , defenseProcurementCn :: TransformationId
+  , publicAttention :: TransformationId
+  , energyShipping :: TransformationId
+  , humanitarianAid :: TransformationId
+  , militaryDeployment :: TransformationId
+  , majorMilitaryAction :: TransformationId
+  , logisticsInvestment :: TransformationId
+  , energyCapacityInvestment :: TransformationId
+  , strike :: TransformationId
+  , energyProduction :: CapacityRef
+  , semiconductors :: CapacityRef
+  , transport :: CapacityRef
+  , attention :: CapacityRef
+  , policyChinaStrategic :: PolicyId
+  , policyEuCoordination :: PolicyId
+  , policyGlobalSmes :: PolicyId
+  , policyCnPrivate :: PolicyId
+  , policyUsWorkers :: PolicyId
+  , policyWorldHouseholds :: PolicyId
+  , policyEnergySuppliers :: PolicyId
+  , policyGovernmentDefault :: PolicyId
+  , policyFirmDefault :: PolicyId
+  , policySolidarityPool :: PolicyId
+  , euSolidarity :: CollectiveProcedureId
+  , euTrade :: CollectiveProcedureId
   }
 
 -- | Every name, one per line.
 n :: Names
 n =
   -- Entities (docs/05_test_instance.md §9 and §10)
-  { us: "US"
-  , de: "DE"
-  , india: "IN"
-  , jp: "JP"
-  , uk: "UK"
-  , br: "BR"
-  , sa: "SA"
-  , ng: "NG"
-  , enco: "ENCO"
-  , chip: "CHIP"
-  , ship: "SHIP"
-  , def: "DEF"
-  , labor: "LABOR"
-  , sme: "SME"
-  , aid: "AID"
-  , cn: "CN"
-  , eu: "EU"
-  , euPool: "EU_POOL"
-  , cnPrivate: "CN_PRIVATE"
-  , usWorkers: "US_WORKERS"
-  , globalSmes: "GLOBAL_SMES"
-  , energySuppliers: "ENERGY_SUPPLIERS"
-  , worldHouseholds: "WORLD_HOUSEHOLDS"
+  { us: Id "US"
+  , de: Id "DE"
+  , india: Id "IN"
+  , jp: Id "JP"
+  , uk: Id "UK"
+  , br: Id "BR"
+  , sa: Id "SA"
+  , ng: Id "NG"
+  , enco: Id "ENCO"
+  , chip: Id "CHIP"
+  , ship: Id "SHIP"
+  , def: Id "DEF"
+  , labor: Id "LABOR"
+  , sme: Id "SME"
+  , aid: Id "AID"
+  , cn: Id "CN"
+  , eu: Id "EU"
+  , euPool: Id "EU_POOL"
+  , cnPrivate: Id "CN_PRIVATE"
+  , usWorkers: Id "US_WORKERS"
+  , globalSmes: Id "GLOBAL_SMES"
+  , energySuppliers: Id "ENERGY_SUPPLIERS"
+  , worldHouseholds: Id "WORLD_HOUSEHOLDS"
   -- Markets
-  , energyAtlantic: "energy-atlantic"
-  , energyAsia: "energy-asia"
-  , defenceGoods: "defence-goods"
+  , energyAtlantic: Id "energy-atlantic"
+  , energyAsia: Id "energy-asia"
+  , defenceGoods: Id "defence-goods"
   -- Resources (Money, Energy, Military, Soft Power)
-  , money: "M"
-  , energy: "E"
-  , mil: "Mil"
-  , softPower: "S"
+  , money: Id "M"
+  , energy: Id "E"
+  , mil: Id "Mil"
+  , softPower: Id "S"
   -- Transformations and facilities
-  , defenseProcurement: "defense-procurement"
-  , defenseProcurementCn: "defense-procurement-cn"
-  , publicAttention: "public-attention"
-  , energyShipping: "energy-shipping"
-  , humanitarianAid: "humanitarian-aid"
-  , militaryDeployment: "military-deployment"
-  , majorMilitaryAction: "major-military-action"
-  , logisticsInvestment: "logistics-investment"
-  , energyCapacityInvestment: "energy-capacity-investment"
-  , strike: "strike"
+  , defenseProcurement: Id "defense-procurement"
+  , defenseProcurementCn: Id "defense-procurement-cn"
+  , publicAttention: Id "public-attention"
+  , energyShipping: Id "energy-shipping"
+  , humanitarianAid: Id "humanitarian-aid"
+  , militaryDeployment: Id "military-deployment"
+  , majorMilitaryAction: Id "major-military-action"
+  , logisticsInvestment: Id "logistics-investment"
+  , energyCapacityInvestment: Id "energy-capacity-investment"
+  , strike: Id "strike"
   -- Capacities
-  , energyProduction: "energy-production"
-  , semiconductors: "semiconductors"
-  , transport: "transport"
-  , attention: "attention"
+  , energyProduction: Id "energy-production"
+  , semiconductors: Id "semiconductors"
+  , transport: Id "transport"
+  , attention: Id "attention"
   -- Policies (in-world Policy catalog, Meridian.Policies)
-  , policyChinaStrategic: "china-strategic-v0"
-  , policyEuCoordination: "eu-coordination-v0"
-  , policyGlobalSmes: "global-smes-v0"
-  , policyCnPrivate: "cn-private-v0"
-  , policyUsWorkers: "us-workers-v0"
-  , policyWorldHouseholds: "world-households-v0"
-  , policyEnergySuppliers: "energy-suppliers-v0"
-  , policyGovernmentDefault: "government-default-v0"
-  , policyFirmDefault: "firm-default-v0"
-  , policySolidarityPool: "solidarity-pool-v0"
+  , policyChinaStrategic: Id "china-strategic-v0"
+  , policyEuCoordination: Id "eu-coordination-v0"
+  , policyGlobalSmes: Id "global-smes-v0"
+  , policyCnPrivate: Id "cn-private-v0"
+  , policyUsWorkers: Id "us-workers-v0"
+  , policyWorldHouseholds: Id "world-households-v0"
+  , policyEnergySuppliers: Id "energy-suppliers-v0"
+  , policyGovernmentDefault: Id "government-default-v0"
+  , policyFirmDefault: Id "firm-default-v0"
+  , policySolidarityPool: Id "solidarity-pool-v0"
   -- Procedures (the collective procedures of the EU Aggregate, Meridian.Entities.Aggregates)
-  , euSolidarity: "eu-solidarity"
-  , euTrade: "eu-trade"
+  , euSolidarity: Id "eu-solidarity"
+  , euTrade: Id "eu-trade"
   }
 
 -- The compiled setting's directory under the setting root --------------------------------------

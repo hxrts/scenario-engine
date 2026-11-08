@@ -53,8 +53,8 @@ import Core.Shape (encodeWith, Format(..))
 import Schema.Build.Fixture (noExpect)
 
 -- | The id the engine gives the first Rule of an Entity's first Proposal in a round.
-firstRuleOf :: Int -> String -> String
-firstRuleOf r e = idText (ruleIdOf (proposalId r (Id e) 0) 0)
+firstRuleOf :: Int -> EntityId -> String
+firstRuleOf r e = idText (ruleIdOf (proposalId r e 0) 0)
 
 -- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
 rounds :: Int
@@ -152,10 +152,10 @@ chip =
   }
 
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
-seats :: Strategy -> Array (Tuple String Strategy)
-seats usStrategy = map (\e -> Tuple e (fromMaybe passive (Object.lookup e assigned))) seatActors
+seats :: Strategy -> Array (Tuple EntityId Strategy)
+seats usStrategy = map (\e -> Tuple e (fromMaybe passive (Map.lookup e assigned))) seatActors
   where
-  assigned = Object.fromFoldable
+  assigned = Map.fromFoldable
     [ Tuple n.us usStrategy
     , Tuple n.de de
     , Tuple n.india india
@@ -185,7 +185,7 @@ authoredExpectations =
           , lapsed = Just [ at n.eu 1 ] -- Germany does not sign the solidarity procedure: 0.4 < 0.45
           , procedures = Just [ { proposal: at n.eu 1, support: q "0.4", executed: false } ]
           , accounts = single n.us n.mil "85.5" -- 60 reserved, 38 scaled action
-          , factors = single n.globalSmes n.energy "0.9437"
+          , factors = single n.globalSmes (Id (idText n.energy)) "0.9437"
           }
       )
   , roundExp 5
@@ -196,29 +196,29 @@ authoredExpectations =
       )
   , roundExp 6 (noExpect { scheduled = Just 2 }) -- both repeals are scheduled
   , roundExp 7 (noExpect { rejected = Just [] }) -- the round-7 shipment clears after the ban's repeal
-  , roundExp 8 (noExpect { factors = single n.globalSmes n.energy "0.9406" })
+  , roundExp 8 (noExpect { factors = single n.globalSmes (Id (idText n.energy)) "0.9406" })
   ]
   where
   roundExp :: Int -> Authored -> { round :: Int, expect :: Authored }
   roundExp r e = { round: r, expect: e }
 
 -- | A Proposal by its author and its position among the author's Proposals in the round.
-at :: String -> Int -> ProposalRef
-at author i = { author: Id author, index: i }
+at :: EntityId -> Int -> ProposalRef
+at author i = { author: author, index: i }
 
 -- | One balance (or factor) of one Entity: the leaf the expectation checks.
-single :: forall a b. String -> String -> String -> Map.Map (Id a) (Map.Map (Id b) (Maybe Q))
-single e k v = Map.singleton (Id e) (Map.singleton (Id k) (Just (q v)))
+single :: forall a b. Id a -> Id b -> String -> Map.Map (Id a) (Map.Map (Id b) (Maybe Q))
+single e k v = Map.singleton e (Map.singleton k (Just (q v)))
 
 -- | An objective's expected outcome, by its Entity.
 type ObjectiveExpect = { entity :: EntityId, outcome :: Outcome }
 
-objective :: String -> Outcome -> ObjectiveExpect
-objective e o = { entity: Id e, outcome: o }
+objective :: EntityId -> Outcome -> ObjectiveExpect
+objective e o = { entity: e, outcome: o }
 
 -- | Every Actor's objective, as the Entities that hold one (the shipped objectives).
-allActors :: Array String
-allActors = map idText (Set.toUnfoldable (Map.keys actors))
+allActors :: Array EntityId
+allActors = Set.toUnfoldable (Map.keys actors)
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
@@ -243,19 +243,19 @@ assembled p bindings = map (withRounds (Just rounds)) (assemble (GameboardSettin
 
 -- | The seats of the capstone: each named seat bound to its Strategy.
 seatBindings :: Bindings
-seatBindings = strategyBindings (map (lmap Id) (seats us))
+seatBindings = strategyBindings (seats us)
 
 -- | The counterfactual's seats: the capstone's, with the US's Strategy replaced (the left operand wins).
 counterfactualBindings :: Bindings
-counterfactualBindings = Map.union (strategyBindings [ Tuple (Id n.us) usWithoutDeployment ]) seatBindings
+counterfactualBindings = Map.union (strategyBindings [ Tuple n.us usWithoutDeployment ]) seatBindings
 
 -- | the recording port and writes `capstone/transcript.json`; the handler suite replays that file.
 type JointLine = { text :: String, reply :: Json, expect :: Array Intent }
 
 -- | The model's reply to one transcript: one Proposal by `author`, agreed by its own seat.
-proposalReply :: String -> Intent -> Json
+proposalReply :: EntityId -> Intent -> Json
 proposalReply author i = encodeWith Snapshot jointReplyShape
-  { proposals: [ { author: Id author, intents: [ i ], signers: [], agreed: [ Id author ] } ] }
+  { proposals: [ { author, intents: [ i ], signers: [], agreed: [ author ] } ] }
 
 -- | The US's ban on shipments into India, as the joint pass reads it.
 banIntent :: Intent

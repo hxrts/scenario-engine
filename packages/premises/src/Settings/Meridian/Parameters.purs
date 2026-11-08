@@ -30,7 +30,7 @@ import Schema.Build.Quantity (q)
 
 import Schema.Gameboard (Scheme)
 
-import Core.Types (Estimator, Id(..))
+import Core.Types (EntityId, Estimator, Id(..), ResourceId, idText)
 
 import Settings.Kit.Strategies (Supplier, supplier)
 
@@ -72,9 +72,9 @@ parameters = Object.fromFoldable
 -- | sample. Its scheme and the fixtures' Representations share these values.
 smeSample
   :: { id :: String
-     , actor :: String
-     , aggregate :: String
-     , domain :: String
+     , actor :: EntityId
+     , aggregate :: EntityId
+     , domain :: ResourceId
      , estimator :: Q -> Estimator
      }
 smeSample =
@@ -87,7 +87,7 @@ smeSample =
 
 schemes :: Array Scheme
 schemes =
-  [ { id: smeSample.id, eligibleActors: [ Id smeSample.actor ], target: Id smeSample.aggregate, domain: Id smeSample.domain, observes: Id smeSample.domain, estimator: smeSample.estimator (q "0.1") }
+  [ { id: smeSample.id, eligibleActors: [ smeSample.actor ], target: smeSample.aggregate, domain: Id (idText smeSample.domain), observes: smeSample.domain, estimator: smeSample.estimator (q "0.1") }
   ]
 
 -- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's

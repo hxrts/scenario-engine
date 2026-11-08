@@ -13,7 +13,7 @@ import Core.Engine.Commit (resolveRound)
 import Core.Invariants (check)
 import Core.Num as Q
 import Core.Engine.Prepare (observe)
-import Core.Types (Id(..), IntentF(..), SignedProposal)
+import Core.Types (Id(..), IntentF(..), SignedProposal, idText)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (cons, deleteAt, head, index, length, range, uncons, concatMap)
 import Data.Either (Either(..), hush)
@@ -70,16 +70,16 @@ golden = describe "Golden fixtures" do
   it "C4: GLOBAL_SMES drafts its high-price baseline times the stored factor" do
     p <- setting
     g <- unseated
-    strategy <- maybe (failWith "no GLOBAL_SMES policy") pure (Map.lookup (Id n.policyGlobalSmes) p.gameboard.policies)
-    entity <- maybe (failWith "no GLOBAL_SMES") pure (Map.lookup (Id n.globalSmes) g.world.entities)
+    strategy <- maybe (failWith "no GLOBAL_SMES policy") pure (Map.lookup n.policyGlobalSmes p.gameboard.policies)
+    entity <- maybe (failWith "no GLOBAL_SMES") pure (Map.lookup n.globalSmes g.world.entities)
     let
       view = (observe g.world entity)
-        { prices = Map.singleton (Id n.energyAtlantic) (q "3.51")
-        , factors = Map.singleton (Id n.energy) (q "0.95")
+        { prices = Map.singleton n.energyAtlantic (q "3.51")
+        , factors = Map.singleton (Id (idText n.energy)) (q "0.95")
         }
     -- docs/05 C4: the baseline above 3.5 M/E is 32 E, and 32 x 0.95 = 30.4
     map _.intents (propose strategy { view, params: Object.empty, random: const Q.zero, market: nameOnly })
-      `shouldEqual` [ [ Trade { market: Id n.energyAtlantic, quantity: q "30.4", limitPrice: Nothing } ] ]
+      `shouldEqual` [ [ Trade { market: n.energyAtlantic, quantity: q "30.4", limitPrice: Nothing } ] ]
   it "C5: seeded noise stays in range, replays, and varies with the seed" do
     f <- fixture "C5"
     let

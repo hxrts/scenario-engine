@@ -14,7 +14,8 @@ module Schema.Build.Fixture
 import Prelude (map, (<<<))
 
 import Core.Num (Q)
-import Core.Types (Id(..), Intent, SignedProposal)
+import Core.Types (EntityTag, Id, Intent, SignedProposal)
+import Schema.Build.Named (class Named, named)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -24,17 +25,17 @@ import Schema.Round (ProcedureOf, ProposalRef)
 import Schema.Round (noExpect) as Exports
 
 -- | An expectation's balances, from each key's literals: each is a leaf asserted.
-balances :: forall a b. Array (Tuple String (Map (Id b) Q)) -> Map (Id a) (Map (Id b) (Maybe Q))
-balances = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) (map Just v))
+balances :: forall k a b. Named k a => Array (Tuple k (Map (Id b) Q)) -> Map (Id a) (Map (Id b) (Maybe Q))
+balances = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (named k) (map Just v))
 
 -- | An unsigned Proposal with no signers, signatures or procedure, not yet numbered. Those keys are
 -- | given by record update (`p { signatures = [ ... ], proposal { signers = [ ... ] } }`).
-proposal :: { author :: String, intents :: Array Intent } -> SignedProposal
-proposal p = { proposal: { id: unnumbered, author: Id p.author, intents: p.intents, signers: [], procedure: Nothing }, signatures: [] }
+proposal :: forall a. Named a EntityTag => { author :: a, intents :: Array Intent } -> SignedProposal
+proposal p = { proposal: { id: unnumbered, author: named p.author, intents: p.intents, signers: [], procedure: Nothing }, signatures: [] }
 
 -- | A Proposal named in an expectation: its author's first Proposal in the round.
-ref :: String -> ProposalRef
-ref author = { author: Id author, index: 0 }
+ref :: forall a. Named a EntityTag => a -> ProposalRef
+ref author = { author: named author, index: 0 }
 
 -- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
 procedureOutcome :: ProposalRef -> Q -> Boolean -> ProcedureOf ProposalRef

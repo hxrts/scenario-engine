@@ -37,7 +37,7 @@ shockPresets = filter (_ /= "Passive") presetNames
 roundKinds :: SimRun -> Int -> Array String
 roundKinds r i = case index r.records i of
   Nothing -> []
-  Just rr -> nub (concatMap (\x -> if elem (show x.proposal.author) seatActors then map kindOf x.proposal.intents else []) rr.record.inputs)
+  Just rr -> nub (concatMap (\x -> if elem x.proposal.author seatActors then map kindOf x.proposal.intents else []) rr.record.inputs)
   where
   kindOf = case _ of
     Trade o -> (if o.quantity < Q.zero then "sell " else "buy ") <> show o.market

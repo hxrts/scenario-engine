@@ -10,16 +10,16 @@ module Settings.Kit.RuleKinds
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, Direction(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
+import Core.Types (Capability, CapacityRef, Direction(..), EntityId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
 import Schema.Build.Base (mayEnact)
 import Schema.Build.Decision (selfEnact)
 
 -- | A levy on inbound flows of the covered Resources, per unit, paid in a Resource to the destination.
 type LevyKit =
   { may :: Capability
-  , rule :: { jurisdiction :: String, origin :: String, rate :: Q } -> RuleF Q
-  , enact :: { jurisdiction :: String, origin :: String, rate :: Q } -> Intent
-  , self :: { origin :: String, rate :: Expr } -> IntentTemplate
+  , rule :: { jurisdiction :: EntityId, origin :: EntityId, rate :: Q } -> RuleF Q
+  , enact :: { jurisdiction :: EntityId, origin :: EntityId, rate :: Q } -> Intent
+  , self :: { origin :: EntityId, rate :: Expr } -> IntentTemplate
   }
 
 levyRule :: { kind :: String, covered :: Array ResourceId, paidIn :: ResourceId } -> LevyKit
@@ -27,18 +27,18 @@ levyRule d =
   { may: mayEnact d.kind
   , rule: \r -> levyOf r.jurisdiction r.origin r.rate
   , enact: \r -> ChangeRule (Enact (levyOf r.jurisdiction r.origin r.rate))
-  , self: \r -> selfEnact (levyOf selfName r.origin r.rate)
+  , self: \r -> selfEnact (levyOf (Id selfName) r.origin r.rate)
   }
   where
-  levyOf :: forall v. String -> String -> v -> RuleF v
-  levyOf jurisdiction origin rate = FlowRule { kind: Id d.kind, scope: { governor: Id jurisdiction, counterparty: Id origin, direction: Inbound, over: d.covered }, effect: Levy { rate, basis: PerUnit, in: d.paidIn, to: LevyToDestination } }
+  levyOf :: forall v. EntityId -> EntityId -> v -> RuleF v
+  levyOf jurisdiction origin rate = FlowRule { kind: Id d.kind, scope: { governor: jurisdiction, counterparty: origin, direction: Inbound, over: d.covered }, effect: Levy { rate, basis: PerUnit, in: d.paidIn, to: LevyToDestination } }
 
 -- | A block of flows of the covered Resources, either way.
 type BlockKit =
   { may :: Capability
-  , rule :: { jurisdiction :: String, target :: String } -> RuleF Q
-  , enact :: { jurisdiction :: String, target :: String } -> Intent
-  , self :: { target :: String } -> IntentTemplate
+  , rule :: { jurisdiction :: EntityId, target :: EntityId } -> RuleF Q
+  , enact :: { jurisdiction :: EntityId, target :: EntityId } -> Intent
+  , self :: { target :: EntityId } -> IntentTemplate
   }
 
 blockRule :: { kind :: String, covered :: Array ResourceId } -> BlockKit
@@ -46,18 +46,18 @@ blockRule d =
   { may: mayEnact d.kind
   , rule: \r -> blockOf r.jurisdiction r.target
   , enact: \r -> ChangeRule (Enact (blockOf r.jurisdiction r.target))
-  , self: \r -> selfEnact (blockOf selfName r.target)
+  , self: \r -> selfEnact (blockOf (Id selfName) r.target)
   }
   where
-  blockOf :: forall v. String -> String -> RuleF v
-  blockOf jurisdiction target = FlowRule { kind: Id d.kind, scope: { governor: Id jurisdiction, counterparty: Id target, direction: EitherWay, over: d.covered }, effect: Block }
+  blockOf :: forall v. EntityId -> EntityId -> RuleF v
+  blockOf jurisdiction target = FlowRule { kind: Id d.kind, scope: { governor: jurisdiction, counterparty: target, direction: EitherWay, over: d.covered }, effect: Block }
 
 -- | A reduction of a capacity. Its enactment is polymorphic in its filling: a fixture's takes `Q`, a
 -- | Strategy's an expression.
 type ReduceKit =
   { may :: Capability
-  , rule :: { capacity :: String, units :: Q } -> RuleF Q
-  , enact :: forall m v. { capacity :: String, units :: v } -> IntentF m v
+  , rule :: { capacity :: CapacityRef, units :: Q } -> RuleF Q
+  , enact :: forall m v. { capacity :: CapacityRef, units :: v } -> IntentF m v
   }
 
 reduceRule :: { kind :: String } -> ReduceKit
@@ -67,5 +67,5 @@ reduceRule d =
   , enact: \r -> ChangeRule (Enact (reduceOf r.capacity r.units))
   }
   where
-  reduceOf :: forall v. String -> v -> RuleF v
-  reduceOf capacity units = CapacityRule { kind: Id d.kind, capacity: Id capacity, reduce: units }
+  reduceOf :: forall v. CapacityRef -> v -> RuleF v
+  reduceOf capacity units = CapacityRule { kind: Id d.kind, capacity: capacity, reduce: units }

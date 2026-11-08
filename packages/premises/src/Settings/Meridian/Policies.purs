@@ -3,6 +3,7 @@
 -- | `packages/premises/meridian/v0/policies.json`.
 module Settings.Meridian.Policies (policies) where
 
+import Core.Types (EntityId, PolicyId)
 import Prelude (negate, (<>))
 
 import Data.Maybe (Maybe(..))
@@ -17,7 +18,7 @@ import Settings.Kit.Strategies (banded, supplierOffers)
 import Settings.Meridian.Rules (tariff)
 
 -- | The in-world Policy catalog (NPCs, Aggregates, institutional fallbacks).
-policies :: Array (Tuple String Strategy)
+policies :: Array (Tuple PolicyId Strategy)
 policies =
   [ Tuple n.policyChinaStrategic chinaStrategic
   , Tuple n.policyEuCoordination euCoordination
@@ -58,7 +59,7 @@ euCoordination =
   }
 
 -- | The EU matches a rival's restriction with a tariff of its own, unless it already has one in force.
-tariffMatch :: String -> Clause
+tariffMatch :: EntityId -> Clause
 tariffMatch origin = rule [ restrictionInForce { by: origin }, not' (restrictionInForce { by: n.eu }) ]
   [ procedure { id: n.euTrade, signers: [ n.de ], intents: [ tariff.self { origin, rate: param euMatchingTariff } ] } ]
 

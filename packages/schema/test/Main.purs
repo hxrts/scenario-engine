@@ -86,7 +86,7 @@ roundTripStrategies =
     }
   , { rules:
         [ D.rule [] [ procedure { id: "proc", signers: [ "DE" ], intents: [ transfer { from: "self", to: "EU", resource: "E", quantity: lit 8 } ] } ]
-        , D.rule [] [ joint { signers: [ "DE", "IN" ], transfers: [ { from: "self", to: "IN", resource: "E", quantity: lit 2 } ], transforms: [ { transformation: "t", quantity: lit 1 } ] } ]
+        , D.rule [] [ joint { signers: [ Id "DE", Id "IN" ], transfers: [ { from: Id "self", to: Id "IN", resource: Id "E", quantity: lit 2 } ], transforms: [ { transformation: Id "t", quantity: lit 1 } ] } ]
         ]
     , sign: []
     }

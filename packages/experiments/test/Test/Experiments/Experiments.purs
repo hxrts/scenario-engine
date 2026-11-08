@@ -49,7 +49,7 @@ spec' preset overrides seed = { preset, overrides, seed }
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
 gameOf :: GameboardParts -> Variant -> Aff Game
 gameOf p v = do
-  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) (map Id seatActors))
+  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) seatActors)
   orThrow (assemble (GameboardSetting p) bindings v.overrides)
 
 play :: GameboardParts -> Variant -> Aff SimRun
@@ -120,7 +120,7 @@ spec context = describe "Experiments (§11) and performance" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" (map Id seatActors))
+      ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
       log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
       length ps `shouldEqual` 15
   it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do

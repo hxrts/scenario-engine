@@ -11,6 +11,7 @@ module Settings.Kit.Presets
 import Prelude
 
 import Core.Strategy (Clause, Expr, Strategy)
+import Core.Types (EntityId, MarketId, ResourceId, TransformationId)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Settings.Presets (presetId)
@@ -40,11 +41,11 @@ standardThresholds =
 -- | What a setting binds: the staple the market strategies trade, the numeraire, and what building,
 -- | investing, and deploying mean in it.
 type PresetBinding =
-  { staple :: String
-  , money :: String
-  , build :: Maybe { transformation :: String, quantity :: Expr }
-  , invest :: Maybe { transformation :: String, signer :: String }
-  , deploy :: Maybe { reference :: String, priceAbove :: Expr, transformation :: String, quantity :: Expr, sellAt :: String, sellQuantity :: Expr, sellLimit :: Expr }
+  { staple :: ResourceId
+  , money :: ResourceId
+  , build :: Maybe { transformation :: TransformationId, quantity :: Expr }
+  , invest :: Maybe { transformation :: TransformationId, signer :: EntityId }
+  , deploy :: Maybe { reference :: MarketId, priceAbove :: Expr, transformation :: TransformationId, quantity :: Expr, sellAt :: MarketId, sellQuantity :: Expr, sellLimit :: Expr }
   , thresholds :: Thresholds
   }
 

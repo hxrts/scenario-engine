@@ -10,7 +10,7 @@ import Settings.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
-import Core.Types (Holdings)
+import Core.Types (CapacityRef, EntityId, Holdings)
 
 -- | Every Entity's holding, in catalog order (`Settings.Meridian.Entities`).
 holdings :: HoldingTable
@@ -41,9 +41,9 @@ holdings =
   ]
 
 -- | An Entity's accounts, as the Entity declares them.
-accountsOf :: String -> Holdings
+accountsOf :: EntityId -> Holdings
 accountsOf = accountsIn holdings
 
 -- | The Entities that hold a capacity, in catalog order.
-capacityHolders :: String -> Array String
+capacityHolders :: CapacityRef -> Array EntityId
 capacityHolders = capacityHoldersIn holdings

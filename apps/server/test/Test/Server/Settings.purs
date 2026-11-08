@@ -6,7 +6,7 @@ import Prelude
 
 import Adapters.SQLite (open, sqliteBackend)
 import Core.Draw (Seed(..))
-import Core.Types (Entity, Id(..), Transferability(..))
+import Core.Types (Entity, EntityId, Id(..), Transferability(..))
 import Core.World (Focus)
 import Data.Either (Either(..), isLeft)
 import Data.Map as Map
@@ -38,12 +38,12 @@ focus = { resource: Id "C", label: "Corn" }
 
 table :: HoldingTable
 table =
-  [ Tuple "A" { accounts: [ "G" := 100, "C" := 10 ], capacities: [] }
-  , Tuple "B" { accounts: [ "G" := 80, "C" := 20 ], capacities: [] }
+  [ Tuple (Id "A") { accounts: [ Id "G" := 100, Id "C" := 10 ], capacities: [] }
+  , Tuple (Id "B") { accounts: [ Id "G" := 80, Id "C" := 20 ], capacities: [] }
   ]
 
-seats :: Array (Tuple String (Tuple Entity ActorDefinition))
-seats = map (\k -> seat table k spec') [ "A", "B" ]
+seats :: Array (Tuple EntityId (Tuple Entity ActorDefinition))
+seats = map (\k -> seat table k spec') [ Id "A", Id "B" ]
   where
   spec' =
     { capabilities: [ mayTrade "corn", mayTransfer "G", mayTransfer "C" ]
@@ -67,19 +67,19 @@ harbor =
       , label: Just "harbor-01"
       , parameters: Object.empty
       , schemes: []
-      , policies: keyed []
+      , policies: Map.empty
       , actors: keyed (map (map snd) seats)
       , authored: { circulation: emptyCirculation, reservable: [], decays: [] }
       , world: emptyWorld
           { numeraire = Id "G"
           , focus = Just focus
           , resources = resourcesOf [ Tuple "G" (noResource { transferability = Free }), Tuple "C" (noResource { transferability = Free }) ]
-          , markets = byKey [ Tuple "corn" (market { base: "C", quote: "G", cost: { intercept: q 2, slope: q "0.01", domain: { lo: q (-50), hi: q 50 } }, reserves: keyed [ "G" := 500, "C" := 200 ] } [ "A", "B" ]) ]
+          , markets = byKey [ Tuple "corn" (market { base: Id "C", quote: Id "G", cost: { intercept: q 2, slope: q "0.01", domain: { lo: q (-50), hi: q 50 } }, reserves: keyed [ "G" := 500, "C" := 200 ] } [ Id "A", Id "B" ]) ]
           , entities = entitiesOf (map (map fst) seats)
           }
       }
   , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], npcs: Map.empty, fallbacks: Map.empty, representations: [] }
-  , presets: { staple: "C", money: "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
+  , presets: { staple: Id "C", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
   }
 
 spec :: Spec Unit
@@ -90,7 +90,7 @@ spec = describe "A second Setting" do
       _, Left e -> fail e
       Left e, _ -> fail e
   it "a preset naming what the Setting lacks is refused" do
-    isLeft (parts harbor { presets { build = Just { transformation: "no-such", quantity: lit 1 } } }) `shouldEqual` true
+    isLeft (parts harbor { presets { build = Just { transformation: Id "no-such", quantity: lit 1 } } }) `shouldEqual` true
   it "is played and viewed, and compared with Meridian as a batch; each run records its Setting" do
     meridian <- setting
     case parts harbor of

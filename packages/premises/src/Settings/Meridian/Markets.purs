@@ -38,11 +38,11 @@ markets = byKey
   ]
 
 -- | The Atlantic Energy Market with these access holders.
-atlanticMarket :: Array String -> Market
+atlanticMarket :: Array EntityId -> Market
 atlanticMarket access = market atlanticTerms access
 
 -- | The Asian Energy Market with these access holders.
-asiaMarket :: Array String -> Market
+asiaMarket :: Array EntityId -> Market
 asiaMarket access = market asiaTerms access
 
 -- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
@@ -69,16 +69,16 @@ asiaTerms = energyTerms { hi: q 200, reserves: keyed [ n.money := 500, n.energy 
 
 -- | A Transfer of Energy between parties who share no Market for it must be carried by shipping orders.
 flowGates :: Array FlowGate
-flowGates = [ { resource: Id n.energy, exemptSharedMarket: true, bundled: Just (Id n.energyShipping) } ]
+flowGates = [ { resource: n.energy, exemptSharedMarket: true, bundled: Just n.energyShipping } ]
 
 -- | The group each Entity counts as for flows Rules, where it is not its own: its governing country.
 groups :: Map EntityId EntityId
 groups = keyed
-  [ Tuple n.enco (Id n.us)
-  , Tuple n.def (Id n.us)
-  , Tuple n.labor (Id n.us)
-  , Tuple n.sme (Id n.us)
-  , Tuple n.usWorkers (Id n.us)
-  , Tuple n.cnPrivate (Id n.cn)
-  , Tuple n.de (Id n.eu)
+  [ Tuple n.enco n.us
+  , Tuple n.def n.us
+  , Tuple n.labor n.us
+  , Tuple n.sme n.us
+  , Tuple n.usWorkers n.us
+  , Tuple n.cnPrivate n.cn
+  , Tuple n.de n.eu
   ]
