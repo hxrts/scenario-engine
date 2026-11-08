@@ -18,7 +18,7 @@ import Core.Shape as Shape
 import Core.Query (capacityHeld, capacityOf, holding, owner)
 import Core.Represent as Represent
 import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
+import Core.World (CausePattern(..), LegAggregate(..), Side(..), Window(..), Cause(..), Endpoint(..), Event(..), Mechanism(..), RejectReason(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, ShortfallEffect(..), costFunctionShape, coupled, Target(..), WorldState, renderReason)
 import Core.Types (LevyBasis(..), LevyRecipient(..), conforms, CapacityTag, Direction(..), FlowEffect(..), RuleForm(..), EntityTag, RuleKindDecl, RuleKindTag, RuleF(..), FlowGovernance(..))
 import Core.Types (EntityId, MarketTag, ResourceId, TransformationId, Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), jointIntent, Proposal, Rule, RuleChangeF(..), SignedProposal, Transferability(..), idShape, proposalAuthor, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
@@ -1019,6 +1019,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "EntityKind" $ quickCheck (roundTrip genKind)
     it "Event" $ quickCheck (roundTrip (genQ <#> \x -> tradeE (Id "energy-atlantic") (Id "US") x x))
     it "Transferability" $ quickCheck (roundTrip (elements (cons' Free [ Restricted, NonTransferable ])))
+    it "a rejection reason compares by its value, and a stored reason reads back equal" do
+      let
+        r1 = OutOfScope (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })
+        r2 = OutOfScope (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.25" })
+      (r1 /= r2) `shouldEqual` true
+      renderReason r1 `shouldEqual` renderReason r2
+      for_ [ r1, CapacityExceeded, NoRouteAccess (Id "A") (Id "E") (Id "M"), Blocked (Id "tariff") ] \r ->
+        decodeJson (encodeJson r) `shouldEqual` Right r
     it "the snapshot form of an Intent is the stored record's form" do
       stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"market\":\"energy-asia\",\"limitPrice\":null}],\"tag\":\"Trade\"}"

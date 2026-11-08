@@ -8,14 +8,12 @@ import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, stringShape, unitShape)
+import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, class Described, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, pairOf, stringShape, unitShape)
 import Core.Types (RecurringFlowId, RecurringKindId, RuleKindDecl, RuleKindId, ruleKindDeclShape, Transferability, CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Payment, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleKind, ruleShape, signedProposalShape)
-import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
-import Data.Either (note)
 import Data.Maybe (Maybe)
 import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
@@ -290,8 +288,8 @@ type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
 type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 
 -- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
--- | matches on the specific failure. `renderReason` gives the text the record stores and the
--- | dashboard shows; it is the only place that text is written.
+-- | matches on the specific failure. The record stores the value through `rejectReasonShape`;
+-- | `renderReason` is the one place its display text is written.
 data RejectReason
   = CapacityExceeded
   | LimitPriceNotMet
@@ -320,13 +318,9 @@ data RejectReason
   | OwnerMustSign TransformationId
   | MissingBundledOrder
   | Blocked RuleKindId
-  | Recorded String -- a reason read back from the store: the text is all the record keeps
 
--- | Stored as text by decision (docs/02 §9, "Rejection reasons in records").
--- | Two reasons are equal when their texts are: a reason read back from the store is its text, so
--- | a stored event compares equal to the event that was recorded.
-instance Eq RejectReason where
-  eq a b = renderReason a == renderReason b
+derive instance Generic RejectReason _
+derive instance Eq RejectReason
 
 instance Show RejectReason where
   show = renderReason
@@ -361,9 +355,7 @@ renderReason = case _ of
   OwnerMustSign t -> "the owner of " <> show t <> "'s capacity must sign"
   MissingBundledOrder -> "this Transfer needs a matching bundled order by the sender"
   Blocked k -> "blocked by a Rule of kind " <> show k
-  Recorded text -> text
 
--- | The only place a rejection reason is stored: its rendered text, so the record is unchanged.
 instance EncodeJson RejectReason where
   encodeJson = encodeJsonWith Snapshot rejectReasonShape
 
@@ -431,11 +423,38 @@ engineVersion = "sp-engine/v1"
 manifestOf :: String -> WorldState -> Manifest
 manifestOf gameboard initial = { gameboard, engine: engineVersion, draw: drawVersion, initial }
 
--- Shapes. The rejection reason is stored as its text; the event, target and View
--- shapes carry the closure the model and the Run Store encode.
+-- Shapes. The event, target and View shapes carry the closure the model and the Run Store encode.
 
 rejectReasonShape :: Shape RejectReason
-rejectReasonShape = prim "RejectReason" (fromString <<< renderReason) (\j -> map Recorded (note "expected a rejection reason text" (toString j)))
+rejectReasonShape = genericSum "RejectReason"
+  { "CapacityExceeded": atTagged "a capacity was exceeded" unitShape
+  , "LimitPriceNotMet": atTagged "the limit price was not met" unitShape
+  , "QuoteReservesShort": atTagged "the Market cannot pay its sellers" unitShape
+  , "InputsNotHeld": atTagged "the Transformation's inputs are not held" idShape
+  , "PartyCannotFund": atTagged "a party cannot fund the joint Proposal" unitShape
+  , "JointBundlesOnlyTransfers": atTagged "a joint Proposal bundles something else" unitShape
+  , "DuplicateProposalId": atTagged "the Proposal's id is already used" unitShape
+  , "OutsideProcedureAuthority": atTagged "outside the procedure's authority" unitShape
+  , "UnknownProcedure": atTagged "no such procedure" unitShape
+  , "UnknownEntity": atTagged "no such Entity" idShape
+  , "MustSign": atTagged "the Entity's signature is missing" idShape
+  , "NotAuthorized": atTagged "the Entity is not authorized" idShape
+  , "UnknownMarket": atTagged "no such Market" idShape
+  , "UnknownResource": atTagged "no such Resource" idShape
+  , "UnknownTransformation": atTagged "no such Transformation" idShape
+  , "UnknownRule": atTagged "no such Rule" idShape
+  , "RouteNeedsLimit": atTagged "a routed order has no limit price" unitShape
+  , "NoMarketAccess": atTagged "the Entity has no access to the Market" (pairOf idShape idShape)
+  , "NoRouteAccess": atTagged "the Entity has no accessible Market for the pair" (pairOf idShape (pairOf idShape idShape))
+  , "NotTransferable": atTagged "the Resource is not transferable" idShape
+  , "OutOfScope": atTagged "the Rule is outside its governor's scope or declared form" ruleShape
+  , "OnlyGoverningRepeal": atTagged "only the governing authority may repeal" unitShape
+  , "BelowMinimum": atTagged "the order is below the Transformation's minimum" idShape
+  , "AboveMaximum": atTagged "the order is above the Transformation's maximum" idShape
+  , "OwnerMustSign": atTagged "the capacity's owner has not signed" idShape
+  , "MissingBundledOrder": atTagged "the Transfer has no matching bundled order" unitShape
+  , "Blocked": atTagged "blocked by a Rule of this kind" idShape
+  }
 
 targetShape :: Shape Target
 targetShape = genericSum "Target"

@@ -5,7 +5,7 @@ alias packages/core/src/Core/Shape.purs 1
 alias packages/premises/src/Premises/Load.purs 1
 alias packages/testkit/src/Testkit/Capstone.purs 1
 alias packages/views/src/Views/Common.purs 4
-hand-instance packages/core/src/Core/World.purs 2
+hand-instance packages/core/src/Core/World.purs 1
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
 hand-json apps/dashboard/src/Dashboard/Components.purs 1
 hand-json packages/premises/src/Premises/Capstone.purs 1
