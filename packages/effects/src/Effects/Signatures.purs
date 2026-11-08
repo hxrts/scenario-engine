@@ -87,6 +87,7 @@ type NewRun =
   , manifest :: Manifest
   , source :: Maybe String
   , kind :: Maybe String
+  , owner :: String -- the process that created the run (`Adapters.SQLite.processOwner`): role, process id, start time
   }
 
 -- | A run's row for the run list: its status, and why it failed if it did.
@@ -128,7 +129,7 @@ data StoreF a
   = CreateRun NewRun (Unit -> a)
   | SetStatus String String (Unit -> a)
   | FailRun String String (Unit -> a)
-  | FailRunning String (Int -> a)
+  | FailRunning { role :: String, reason :: String } (Int -> a)
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)

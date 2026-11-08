@@ -16,7 +16,7 @@ import Prelude
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Effects.Signatures (RunInfo, RunSummary, StoredManifest, StoredRound)
 import Handlers.Store (StoreBackend, runObserve)
-import Server.Cache (Cache, cached)
+import Server.Cache (Cache, cached, cachedAgency)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip)
@@ -194,7 +194,7 @@ compareView cache ctx store { runs: ids, market } = do
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.
-agencyView :: GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Response
-agencyView ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
+agencyView :: Cache -> GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Response
+agencyView cache ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
   Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> viewOr (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))
+  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe "Conservative" preset, fromMaybe "Aggressive" alternative ]) $ viewOr (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe "Conservative" preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe "Aggressive" alternative) (configuredSeats ctx.config)))

@@ -30,7 +30,7 @@ implement ctx store cache = case _ of
   Entity id entity -> entityView cache store id entity
   RunView r -> getView cache ctx store r
   Compare r -> compareView cache ctx store r
-  Agency r -> agencyView ctx r
+  Agency r -> agencyView cache ctx r
   Derive { id, body } -> writing (deriveRun cache ctx store id body)
   Resume { id, rounds } -> writing (resumeRun ctx store id rounds)
   Archive id -> writing (setArchive store id true)

@@ -37,6 +37,7 @@ package:
   test:
     main: Test.Server.Main
     dependencies:
+      - aff-promise
       - effect
       - spec
       - spec-node

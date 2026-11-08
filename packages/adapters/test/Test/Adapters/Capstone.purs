@@ -45,7 +45,7 @@ spec = describe "Capstone: the Run Store" do
     db <- liftEffect (open ":memory:")
     let port = sqliteBackend db
     stored <- liftEffect $ simulateWith seed g \manifest -> do
-      runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
+      runStore port (createRun { owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
       persister port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
     rows <- liftEffect (runObserve port (readRounds "capstone"))
@@ -66,7 +66,7 @@ spec = describe "Capstone: the Run Store" do
     db <- liftEffect (open ":memory:")
     let port = sqliteBackend db
     stored <- liftEffect $ simulateWith seed g \manifest -> do
-      runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
+      runStore port (createRun { owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
       persister port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
     rows <- liftEffect (runObserve port (readRounds "capstone"))

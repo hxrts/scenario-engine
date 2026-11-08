@@ -547,6 +547,7 @@
         },
         "test": {
           "dependencies": [
+            "aff-promise",
             "effect",
             "quickcheck",
             "sp-testkit",

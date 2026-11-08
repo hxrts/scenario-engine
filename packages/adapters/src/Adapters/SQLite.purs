@@ -11,6 +11,7 @@ module Adapters.SQLite
   , busyTimeout
   , configuredBusyTimeout
   , sqliteBackend
+  , processOwner
   , Db
   ) where
 
@@ -21,7 +22,7 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, runFn1, runFn2, runFn3, runFn4, runFn8)
+import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, Fn9, runFn1, runFn2, runFn3, runFn4, runFn8, runFn9)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
 import Effects.Signatures (MetricRow, RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
@@ -52,7 +53,7 @@ type RoundRow = { round :: Int, record :: String, snapshot :: String, assertions
 foreign import openImpl :: String -> Effect Db
 foreign import openReadOnlyImpl :: String -> Effect Db
 foreign import schemaVersionImpl :: Db -> Effect Int
-foreign import createRunImpl :: Fn8 Db String String String String String (Nullable String) (Nullable String) (Effect Unit)
+foreign import createRunImpl :: Fn9 Db String String String String String (Nullable String) (Nullable String) String (Effect Unit)
 foreign import setArchivedImpl :: Fn3 Db String Boolean (Effect Unit)
 foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
 foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
@@ -61,12 +62,18 @@ foreign import busyTimeoutMs :: Int
 foreign import appendRoundImpl :: Fn8 Db String Int String String String String (Array Metric) (Effect Unit)
 foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
-foreign import failRunningImpl :: Fn2 Db String (Effect Int)
+foreign import failRunningImpl :: Fn3 Db String String (Effect Int)
+foreign import processOwnerImpl :: String -> Effect String
 foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfoRow))
 foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummaryRow))
 foreign import manifestImpl :: Fn2 Db String (Effect (Nullable ManifestRow))
 foreign import roundsImpl :: Fn2 Db String (Effect (Array RoundRow))
 foreign import metricImpl :: Fn4 Db String String String (Effect (Array MetricRow))
+
+-- | The owner token of this process in a role (`server`, `session`), written on every run it creates
+-- | (docs/06_simulator.md §6.1): the role, the process id, and the process start time.
+processOwner :: String -> Effect String
+processOwner = processOwnerImpl
 
 -- | Open the store read-write: created and migrated if needed. Other connections' locks are
 -- | waited for (busy timeout) rather than failing at once.
@@ -104,11 +111,11 @@ fromText what text = lmap (\e -> what <> ": " <> e) (readJson text)
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn8 createRunImpl db r.id r.name (toText r.spec) (toText r.manifest) r.created (toNullable r.source) (toNullable r.kind)
+  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (toText r.manifest) r.created (toNullable r.source) (toNullable r.kind) r.owner
   , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (toText r.record) (toText r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
   , setStatus: \id status -> runFn3 setStatusImpl db id status
   , failRun: \id reason -> runFn3 failRunImpl db id reason
-  , failRunning: \reason -> runFn2 failRunningImpl db reason
+  , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
   , setSpec: \id spec -> runFn3 setSpecImpl db id (toText spec)
   , setArchived: \id archived -> runFn3 setArchivedImpl db id archived
   , deleteRun: \id -> runFn2 deleteRunImpl db id

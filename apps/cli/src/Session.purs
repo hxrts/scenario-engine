@@ -15,7 +15,7 @@ import Adapters.Digest (sha256)
 import Adapters.Filesystem (appendLine, fileOps)
 import Adapters.Pi (pi)
 import Adapters.Random (resolveSeed)
-import Adapters.SQLite (open, sqliteBackend)
+import Adapters.SQLite (open, processOwner, sqliteBackend)
 import Core.Draw (Seed)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
@@ -71,7 +71,8 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
       db <- liftEffect (open o.db)
       let store = sqliteBackend db
       created <- liftEffect nowIso
-      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: game.manifest, source: Nothing, kind: Nothing })
+      owner <- liftEffect (processOwner "session")
+      started <- liftEffect $ startRun store ({ id: o.id, name: "live session", created, spec: Object.fromFoldable [ Tuple "model" o.model, Tuple "humans" o.humans, Tuple "playerSeed" (show (unwrap seed)) ], manifest: game.manifest, source: Nothing, kind: Nothing, owner })
       liftEffect $ either (\why -> writeLine ("error: " <> why) *> exit' 1) pure started
       save <- liftEffect (recorder store roundMetrics o.id w0)
       liftEffect $ writeLine (parts.gameboard.id <> "@" <> parts.gameboard.version <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))

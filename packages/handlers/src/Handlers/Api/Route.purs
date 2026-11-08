@@ -28,7 +28,7 @@ import Effect (Effect)
 import Effects.Api (ApiRequest(..), Launch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import JSURI (encodeURIComponent)
+import JSURI (decodeURIComponent, encodeURIComponent)
 import Schema.Decode.Common (readJson)
 
 -- | The path prefix every operation's URL starts with: the HTTP device hands these requests to the route.
@@ -72,7 +72,8 @@ parse req = case req.method, segments of
   "GET", [ "api", "agency" ] -> Right (Agency { playerSeed: Object.lookup "playerSeed" req.query, preset: Object.lookup "preset" req.query, alternative: Object.lookup "alternative" req.query })
   _, _ -> Left (failWith 404 req.path)
   where
-  segments = filter (_ /= "") (split (Pattern "/") req.path)
+  -- the client percent-encodes each segment (`wire`), so each is decoded after the path is split
+  segments = map (\s -> fromMaybe s (decodeURIComponent s)) (filter (_ /= "") (split (Pattern "/") req.path))
   param k d = fromMaybe d (Object.lookup k req.query)
 
 -- | A body decoded as the typed record it must be; a body that does not decode is a 400.
