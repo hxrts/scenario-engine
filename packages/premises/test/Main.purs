@@ -1,3 +1,4 @@
+-- | Pins: setting section JSON (docs/03) and Meridian's catalog values (docs/05 §2 to §18).
 module Test.Settings.Main where
 
 import Testkit.Meridian (orThrow)

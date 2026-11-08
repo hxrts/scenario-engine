@@ -1,6 +1,7 @@
 -- | The model handler (docs/06_simulator.md §14): the prompts each request sends, how a reply decodes,
 -- | the joint pass's reconciliation and fallbacks, the evidence each call leaves, and the recording of
 -- | exchanges that replays. The model is a stub backend (`Test.Handlers.Stub`); no `pi` process runs.
+-- | Pins: the model wire and reply JSON of docs/06 §14 (the prompt text is read through the prompt names).
 module Test.Handlers.Llm (spec) where
 
 import Prelude
@@ -30,7 +31,6 @@ import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
 import Effect.Class (liftEffect)
 import Effect.Exception (error, message)
 import Effect.Ref as Ref
-import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Narrate (listing, narrator)

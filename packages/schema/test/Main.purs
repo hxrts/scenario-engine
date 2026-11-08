@@ -1,3 +1,4 @@
+-- | Pins: setting and strategy JSON of docs/03 (each case marked `Pins`), and the shape formats of docs/02 §8.4.
 module Test.Schema.Main where
 
 import Testkit.Meridian (orThrow)

@@ -1,3 +1,4 @@
+-- | Pins: request bodies and reply JSON are the wire format of docs/06 §8.1; the `Keys` shapes decode them.
 module Test.Dashboard.Main where
 
 import Prelude

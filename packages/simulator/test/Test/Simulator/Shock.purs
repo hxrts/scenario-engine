@@ -1,6 +1,7 @@
 -- | The major shock (docs/05 §13.6, `Settings.Meridian.majorShock`): a designed test case beside the
 -- | reference disruption. Calm and shocked games have the same seats, presets and player seed, so a
 -- | difference in a seat's proposals is the shock's doing.
+-- | Pins: docs/05 §13.6 (the major shock).
 module Test.Simulator.Shock (spec) where
 
 import Schema.Build.Quantity (q)

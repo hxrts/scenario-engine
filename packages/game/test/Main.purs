@@ -1,6 +1,7 @@
 -- | The game package's tests: seat confinement (a ProposalBody carries no author, and the runner assigns
 -- | the seat it asked), the seat presets' name check, assembly's checks over the bindings and every
 -- | bound Strategy, and the overrides' JSON round trip.
+-- | Pins: override and specification JSON are the stored spec format of docs/06 §8, each case marked `Pins` where it pins bytes.
 module Test.Game.Main where
 
 import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restrictionInForce, rule)

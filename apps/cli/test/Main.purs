@@ -1,3 +1,4 @@
+-- | Pins: the option error texts of docs/06 §6.2.
 module Test.Cli.Main where
 
 import Prelude

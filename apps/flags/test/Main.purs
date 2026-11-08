@@ -1,3 +1,4 @@
+-- | Pins: the flag error texts of docs/06 §1 and the usage line format.
 module Test.Flags.Main where
 
 import Prelude

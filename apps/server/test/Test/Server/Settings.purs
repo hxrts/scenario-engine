@@ -1,5 +1,6 @@
 -- | A second Setting, built only from the Kit: compiled, loaded, played, viewed, and compared with Meridian
 -- | as a batch.
+-- | Pins: the numbers of this suite's own small Kit-built Setting (docs/03 §12); no docs/05 values.
 module Test.Server.Settings (spec) where
 
 import Prelude

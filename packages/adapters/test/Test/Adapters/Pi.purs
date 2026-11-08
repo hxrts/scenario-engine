@@ -2,6 +2,7 @@
 -- | with a canned event stream and records its arguments. The prompts, the decoding, and the evidence
 -- | are the handler's and are tested in `Test.Handlers.Llm`. `Test.Adapters.LiveInterpret` is the one
 -- | billed check.
+-- | Pins: the raw `pi` event-stream format (docs/06 §5) and the prompt passing on its command line.
 module Test.Adapters.Pi (spec) where
 
 import Prelude

@@ -1,6 +1,7 @@
 -- | The view models and the spec's error paths: unknown presets and overrides, out-of-range
 -- | rounds, the last round's "n/a" cells, run compatibility, unreadable runs in the list, and
 -- | objectives over no rounds.
+-- | Pins: reply and column texts of docs/06 §9 and §10.
 module Test.Views.Views (spec) where
 
 import Prelude

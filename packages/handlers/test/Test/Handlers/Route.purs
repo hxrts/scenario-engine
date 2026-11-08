@@ -1,5 +1,6 @@
 -- | The route table's two directions (docs/06_simulator.md §8): every operation reads back from what
 -- | `wire` sends, and the URLs and bodies are pinned literally (S8: the literals are the API's format).
+-- | Pins: every operation's method, URL and body as docs/06 §8.1 states them.
 module Test.Handlers.Route (spec) where
 
 import Prelude

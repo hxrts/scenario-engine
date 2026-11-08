@@ -1,5 +1,6 @@
 -- | The mandatory tests of docs/06_simulator.md §14. Fixture tests cite their fixture and
 -- | use the shared checker; game tests compose `simulate`.
+-- | Pins: docs/06 §14's mandatory test expectations, and the fixture values of docs/05 Part IV.
 module Test.Simulator.Main where
 
 import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)

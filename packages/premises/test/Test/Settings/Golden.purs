@@ -1,6 +1,7 @@
 -- | Literal settings (docs/05_test_instance.md Part IV) through the shared checker. The fixtures are
 -- | decoded from the DSL's own JSON, so these tests need no compiled output, and the golden names are
 -- | the fixture list itself. Every fixture plays through `simulate` (`Testkit.Fixture.checkLiteral`).
+-- | Pins: expected values are those of docs/05 Part IV (Fixtures A to G, §21 to §27), held in the fixture modules.
 module Test.Settings.Golden (golden, fixture, failWith) where
 
 import Schema.Build.Quantity (q)

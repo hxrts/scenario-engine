@@ -1,3 +1,4 @@
+-- | Pins: strategy JSON is the setting format of docs/03 §11 (marked `Pins`), and the expected Proposals are the policy semantics of docs/02 §7.
 module Test.Policy.Main where
 
 import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfEntity, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)

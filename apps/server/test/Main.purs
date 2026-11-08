@@ -1,3 +1,4 @@
+-- | Pins: the status codes, reply bodies and JSON of docs/06 §8 and §8.1. Expected values are read from a played run, or are the worked examples they name.
 module Test.Server.Main where
 
 import Prelude

@@ -1,6 +1,7 @@
 -- | The dashboard's statistics (docs/06_simulator.md §9.2, §10.2) on small hand-built runs: net worth
 -- | of a known holding at a known price, the Gini coefficient and the spread, standings and rank, the
 -- | action counts, the seed variation, and the grouping of runs by specification.
+-- | Pins: net worth, Gini and spread on hand-built runs, each with its calculation stated (docs/02 §2.5 definitions, docs/06 §9.2 and §10.2).
 module Test.Views.Statistics (spec) where
 
 import Prelude

@@ -1,3 +1,4 @@
+-- | Pins: expected engine values are the worked arithmetic of docs/02 §5 to §9 and the numerics of docs/02 §9.1, each case stating its calculation.
 module Test.Core.Main where
 
 import Prelude

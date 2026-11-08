@@ -1,3 +1,4 @@
+-- | Pins: the Gameboard setting JSON of docs/03 in each `-- Pins` case; the rest use `Schema.Build`.
 module Test.Board.Main where
 
 import Testkit.Meridian (orThrow)
