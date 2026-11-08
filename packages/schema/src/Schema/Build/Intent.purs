@@ -17,7 +17,7 @@ module Schema.Build.Intent
 
 import Core.Num (Q)
 import Core.Types (Id(..), Intent, IntentF(..), MarketId, RuleChangeF(..), RuleF(..))
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 
 -- | An order on a Market, by id; `limit` is the optional limit price. A Strategy that picks its Market
 -- | by selector writes `Schema.Build.Decision.tradeAt`.
@@ -25,8 +25,8 @@ trade :: forall v. { market :: String, quantity :: v, limit :: Maybe v } -> Inte
 trade r = Trade { market: Id r.market, quantity: r.quantity, limitPrice: r.limit }
 
 -- | A routed order: no Market is named, so `base` and `quote` give the pair.
-route :: forall m v. { base :: String, quote :: String, quantity :: v, limit :: Maybe v } -> IntentF m v
-route r = Route { pair: { base: Id r.base, quote: Id r.quote }, quantity: r.quantity, limitPrice: r.limit }
+route :: forall m v. { base :: String, quote :: String, quantity :: v, limit :: v } -> IntentF m v
+route r = Route { pair: { base: Id r.base, quote: Id r.quote }, quantity: r.quantity, limitPrice: Just r.limit }
 
 -- | The `from` Entity gives `quantity` of `resource` to `to`.
 transfer :: forall m v. { from :: String, to :: String, resource :: String, quantity :: v } -> IntentF m v

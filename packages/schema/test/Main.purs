@@ -74,7 +74,7 @@ roundTripStrategies =
   [ { rules: [ D.rule [] [ asTemplate (D.tradeAt { market: D.named "m", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
   , { rules:
         [ D.rule [ gt (priceAt (named "m")) (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
-            [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: Just (lit 2) })
+            [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: lit 2 })
             , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
             , asTemplate (selfTariff { origin: "CN", rate: lit "0.5" })
@@ -167,6 +167,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Just (fromMaybe Q.zero (Q.parse "2.04")) })
     it "a Trade has no form in a Deal: it cannot be built by `deal` (a compile error), and as JSON does not read as one" do
       isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"deal":{"signers":["DE"],"transfers":[{"trade":{"market":"E","quantity":"1"}}]}}]}]}""")) `shouldEqual` true
+
+    it "a routed order's template must state its limit: no limit, or a null one, does not decode" do
+      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1"}}]}]}""")) `shouldEqual` true
+      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1","limit":null}}]}]}""")) `shouldEqual` true
+      isLeft (decodeStrategy (json """{"rules":[{"when":[],"propose":[{"route":{"base":"E","quote":"M","quantity":"1","limit":"2"}}]}]}""")) `shouldEqual` false
 
     it "decodes a routed trade, with a null market, by its pair" do
       intent (json """{ "trade": { "market": null, "base": "E", "quote": "M", "quantity": "10", "limit": "2.04" } }""")

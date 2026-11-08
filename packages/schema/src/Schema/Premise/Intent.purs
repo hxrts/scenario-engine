@@ -114,7 +114,7 @@ tradeBody = partialIso bodyShape read write
         <*> fieldOf "base" "the base Resource of a routed order" (optionalOf idShape) _.base
         <*> fieldOf "quote" "the quote Resource of a routed order" (optionalOf idShape) _.quote
         <*> fieldOf "quantity" "the quantity" qShape _.quantity
-        <*> fieldOf "limit" "the limit price, if any" (optionalOf qShape) _.limit
+        <*> fieldOf "limit" "the limit price, optional for a Market order and required for a routed order" (optionalOf qShape) _.limit
     )
     where
     mk m b qt qn l = { market: m, base: b, quote: qt, quantity: qn, limit: l }

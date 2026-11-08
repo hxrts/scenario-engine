@@ -13,7 +13,7 @@ module Schema.Premise.Strategy
 import Prelude
 
 import Core.Query (transfersOf, transformsOf)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, iso, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, recursive, requiredMaybe, stringShape, unitShape)
 import Core.Num (qShape)
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, dealIntent, idShape, ownAccessBanBody, ownTariffBody, transferBody, withholdingBody)
@@ -375,7 +375,7 @@ intentTemplateShape = premiseSum "Intent template"
     ( mk4 <$> fieldOf "base" "the base Resource" idShape _.pair.base
         <*> fieldOf "quote" "the quote Resource" idShape _.pair.quote
         <*> fieldOf "quantity" "the quantity" exprShape _.quantity
-        <*> fieldOf "limit" "the limit price, if any" (optionalOf exprShape) _.limitPrice
+        <*> fieldOf "limit" "the limit price, which a routed order must state" (requiredMaybe exprShape) _.limitPrice
     )
     where
     mk4 b qu q l = { pair: { base: b, quote: qu }, quantity: q, limitPrice: l }

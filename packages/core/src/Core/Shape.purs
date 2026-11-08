@@ -24,6 +24,7 @@ module Core.Shape
   , optionalOf
   , mapOf
   , requiredOf
+  , requiredMaybe
   , ctorOf
   , sumOf
   , PCtor
@@ -440,6 +441,20 @@ pairOf sa sb =
 -- | default. A model reply's fields are required, so a reply that omits one does not decode.
 requiredOf :: forall a. Shape a -> Shape a
 requiredOf s = s { missing = Nothing }
+
+-- | A value a reader must supply where the type keeps it optional: described as the value itself, and
+-- | a missing key or a null is a decode error. A routed order's limit is one.
+requiredMaybe :: forall a. Shape a -> Shape (Maybe a)
+requiredMaybe s =
+  { desc: s.desc
+  , codec: \fmt ->
+      let
+        c = s.codec fmt
+      in
+        { enc: maybe jsonNull c.enc, dec: map Just <<< c.dec }
+  , absent: const false
+  , missing: Nothing
+  }
 
 -- | A Map: the snapshot writes it as its key and value pairs, in key order (the stored runs' form).
 mapOf :: forall k v. Ord k => Shape k -> Shape v -> Shape (Map k v)

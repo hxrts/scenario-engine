@@ -487,7 +487,8 @@ intentShape = sumOf "Intent" [ trade, route, transfer, transform, changeRule ]
     ( (\p q l -> { pair: p, quantity: q, limitPrice: l })
         <$> fieldOf "pair" "the base and quote Resources" pairShape _.pair
         <*> fieldOf "quantity" "+ buys, - sells the base Resource" qShape _.quantity
-        <*> fieldOf "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice
+        -- required by the rule, not the decoder: the engine records the rejection of a stored or model-written order without one
+        <*> fieldOf "limitPrice" "the limit price, which a routed order must state; an order without one is rejected" ((optionalOf qShape) { desc = qShape.desc }) _.limitPrice
     )
   pairShape = object "Pair"
     ( (\b q -> { base: b, quote: q })
