@@ -17,15 +17,19 @@ module Handlers.Api.Route
 
 import Prelude
 
-import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode (class DecodeJson)
+import Core.Shape as Shape
+import Core.Shape (Shape, decodeWith, encodeWith, fieldOf, intShape, object, optionalOf, prim, stringShape)
+import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (catMaybes, filter)
 import Data.Either (Either(..), either)
-import Data.Maybe (fromMaybe)
+import Data.Bifunctor (lmap)
+import Data.Int (toNumber)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.String (Pattern(..), joinWith, split)
 import Effect (Effect)
-import Effects.Api (ApiRequest(..), Launch, Reply)
+import Effects.Api (ApiRequest(..), DeriveRequest, Launch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -60,7 +64,7 @@ parse req = case req.method, segments of
   "GET", [ "api", "premise" ] -> Right Premise
   "GET", [ "api", "glossary" ] -> Right Glossary
   "POST", [ "api", "runs" ] -> map LaunchRun (decodeBody req.body :: Either Reply Launch)
-  "POST", [ "api", "runs", id, "derive" ] -> Right (Derive { id, body: req.body })
+  "POST", [ "api", "runs", id, "derive" ] -> map (\body -> Derive { id, body }) (decodeDerive req.body)
   "POST", [ "api", "runs", id, "resume" ] -> map (\b -> Resume { id, rounds: b.rounds }) (decodeBody req.body :: Either Reply { rounds :: Int })
   "POST", [ "api", "runs", id, "archive" ] -> Right (Archive id)
   "POST", [ "api", "runs", id, "unarchive" ] -> Right (Unarchive id)
@@ -80,6 +84,30 @@ parse req = case req.method, segments of
 decodeBody :: forall a. DecodeJson a => String -> Either Reply a
 decodeBody text = either (\e -> Left (failWith 400 e)) Right (readJson text)
 
+-- | A derive body: a body that does not match `deriveShape` is a 400.
+decodeDerive :: String -> Either Reply DeriveRequest
+decodeDerive text = either (Left <<< failWith 400) Right (readJson text >>= decodeWith Shape.Premise deriveShape)
+
+-- | `playerSeed` in a derive body: absent keeps the source's seed, null draws a new one, a number names one.
+seedChoiceShape :: Shape (Maybe (Maybe Int))
+seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Just Nothing }
+  where
+  encode = maybe jsonNull (maybe jsonNull (fromNumber <<< toNumber))
+  decode j
+    | isNull j = Right (Just Nothing)
+    | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJson j) <#> (Just <<< Just)
+
+-- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Game.Recipe`).
+deriveShape :: Shape DeriveRequest
+deriveShape = object "DeriveRequest" ado
+  kind <- fieldOf "kind" "how the run is derived" stringShape _.kind
+  name <- fieldOf "name" "the new run's name" (optionalOf stringShape) _.name
+  preset <- fieldOf "preset" "a variant's preset" (optionalOf stringShape) _.preset
+  playerSeed <- fieldOf "playerSeed" "a variant's player seed" seedChoiceShape _.playerSeed
+  rounds <- fieldOf "rounds" "a variant's round count" (optionalOf intShape) _.rounds
+  overrides <- fieldOf "overrides" "a counterfactual's overrides" (optionalOf (prim "overrides" identity (Right :: Json -> Either String Json))) _.overrides
+  in { kind, name, preset, playerSeed, rounds, overrides }
+
 -- | An operation as the client sends it. Ids and query values are percent-encoded.
 wire :: ApiRequest -> Wire
 wire = case _ of
@@ -92,7 +120,7 @@ wire = case _ of
   RunView { id, view, round } -> get (run id <> "/" <> view <> query (catMaybes [ optional "round" round ]))
   Compare { runs, market } -> get ("/api/compare" <> query ([ "runs=" <> joinWith "," (map enc runs) ] <> catMaybes [ optional "market" market ]))
   Agency { playerSeed, preset, alternative } -> get ("/api/agency" <> query (catMaybes [ optional "playerSeed" playerSeed, optional "preset" preset, optional "alternative" alternative ]))
-  Derive { id, body } -> post (run id <> "/derive") body
+  Derive { id, body } -> post (run id <> "/derive") (stringify (encodeWith Shape.Premise deriveShape body))
   Resume { id, rounds } -> post (run id <> "/resume") (stringify (encodeJson { rounds }))
   Archive id -> post (run id <> "/archive") "{}"
   Unarchive id -> post (run id <> "/unarchive") "{}"
