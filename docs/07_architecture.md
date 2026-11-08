@@ -47,7 +47,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `board` | `core`, `schema` | World realization and validation, and their errors | JSON, fixtures, seat binding, policy concepts |
 | `policy` | `core`, `schema` | The pure Strategy interpreter | `run` or any effect library; codecs; World State access |
 | `game` | `core`, `schema`, `board`, `policy` | Assembling a premise into a `Game`; seat bindings, overrides, and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, premise content |
-| `premises` | `core`, `schema`, `game` | Authored premises, presets, fixtures, and the premise file tree, as typed values | IO, compiling, decoders, computed expected values |
+| `premises` | `core`, `schema`, `game` | Authored premises, presets, fixtures, and the premise file tree, as typed values. `Premises.Kit` holds the generic definitions, `Premises.Compose` the operations on a Setting, and `Premises.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-premises-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
 | `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |

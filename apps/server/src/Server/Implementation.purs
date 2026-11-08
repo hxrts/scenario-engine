@@ -17,7 +17,10 @@ import Views.Overview as Overview
 import Server.Cache (Cache, clear)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
-import Server.Launch (launch, launchedShape, premiseInfo)
+import Core.Shape (listOf)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Traversable (traverse)
+import Server.Launch (batchedShape, launch, launchBatch, launchedShape, premiseInfo)
 import Server.Premises (Premises, chosen)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
@@ -28,6 +31,7 @@ implement premises store cache = case _ of
   Premise -> premiseInfo premises store >>= ok Keys.premises
   Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus premises))
   LaunchRun l -> writing (either (pure <<< Left) (\p -> launch p store l) (chosen premises l.premise) >>= either (failWith 400) (ok launchedShape))
+  LaunchBatch b -> writing (either (pure <<< Left) (\ps -> launchBatch ps store b) (maybe (Right premises) (traverse (chosen premises <<< Just)) b.premises) >>= either (failWith 400) (ok (listOf batchedShape)))
   Entities id -> entitiesView cache store id
   Entity id entity -> entityView cache store id entity
   RunView r -> getView cache premises store r

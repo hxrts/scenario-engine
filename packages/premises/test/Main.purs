@@ -53,11 +53,12 @@ import Premises.Meridian.Names (meridianDir)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
 import Premises.Compose as Compose
-import Premises.Meridian (gameboard, meridian)
+import Premises.Meridian (defaultDials, gameboard, meridian)
 import Premises.Meridian.Fixtures (fixtures)
 import Schema.Premise.Gameboard (gameboardShape)
 import Premises.Meridian.Policies (policies)
 import Test.Premises.Compose as Compose
+import Test.Premises.Dials as Dials
 import Test.Premises.Flows as Flows
 import Test.Premises.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
@@ -108,10 +109,10 @@ loaded = do
 -- | The reference instance's Meridian files, as name-and-JSON sections.
 -- | Meridian's presets, encoded and decoded exactly as a compiled premise is read.
 shippedPresets :: Either String (Object Strategy)
-shippedPresets = decodePresets (Compose.presetsJson meridian)
+shippedPresets = decodePresets (Compose.presetsJson (meridian defaultDials))
 
 sections :: Array { name :: String, json :: Json }
-sections = map (\(Tuple name json) -> { name, json }) (Compose.files meridian)
+sections = map (\(Tuple name json) -> { name, json }) (Compose.files (meridian defaultDials))
 
 -- | The sections with one replaced.
 withSection :: String -> Json -> Array { name :: String, json :: Json }
@@ -189,6 +190,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   golden
   Flows.spec
+  Dials.spec
   Compose.spec
 
   describe "Premise DSL builders" do

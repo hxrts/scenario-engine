@@ -29,6 +29,7 @@ import Server.Implementation (implement)
 import Test.Server.Api as Api
 import Test.Server.Http as HttpDevice
 import Schema.Run (DeriveKind(Counterfactual))
+import Test.Server.Settings as Settings
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -41,6 +42,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   HttpDevice.spec
   Api.spec
+  Settings.spec
   describe "Round-record equality" do
     it "equal record sequences are equal; one differing field, or a different length, is not" do
       let

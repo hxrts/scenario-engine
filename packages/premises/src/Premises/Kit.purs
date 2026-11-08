@@ -29,6 +29,11 @@ module Premises.Kit
   , flowsOf
   , (~>)
   , requirementsOf
+  , Premise
+  , PremiseParts
+  , emptyParts
+  , premise
+  , assemble
   , FixtureContext
   , FixtureSpec
   , fixture
@@ -38,7 +43,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Shape (encodeWith, Format(..))
-import Core.Strategy (Clause, Expr, IntentTemplate, selfName)
+import Core.Strategy (Clause, Expr, IntentTemplate, Strategy, selfName)
 import Core.Types (Capability, Capacities, CostFunction, Direction(..), Entity, EntityId, EntityKind, FlowEffect(..), Holdings, Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, RuleChangeF(..), RuleF(..), RuleKindDecl, RuleKindId, SignedProposal, Transformation, TransformationId)
 import Core.World (FlowGate)
 import Data.Argonaut.Core (Json)
@@ -47,7 +52,9 @@ import Data.Array as Array
 import Data.Foldable (any)
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Set as Set
 import Data.Tuple (Tuple(..), fst)
 import Partial.Unsafe (unsafeCrashWith)
 import Schema.Build.Base (coverage, institutional, keyed, mayEnact, (:=))
@@ -288,6 +295,58 @@ reduceRule d =
   where
   reduceOf :: forall v. String -> v -> RuleF v
   reduceOf capacity units = CapacityRule { kind: Id d.kind, capacity: Id capacity, reduce: units }
+
+-- Premises --------------------------------------------------------------------------------------
+
+-- | What a reusable piece of a Setting contributes.
+type PremiseParts =
+  { resources :: Map ResourceId ResourceDefinition
+  , markets :: Map MarketId Market
+  , transformations :: Map TransformationId Transformation
+  , ruleKinds :: Map RuleKindId RuleKindDecl
+  , flows :: Array Flow
+  , policies :: Array (Tuple String Strategy)
+  , parameters :: Array (Tuple String Q)
+  }
+
+-- | A piece nothing has been put in; a `Premise` is built by updating it.
+emptyParts :: PremiseParts
+emptyParts = { resources: Map.empty, markets: Map.empty, transformations: Map.empty, ruleKinds: Map.empty, flows: [], policies: [], parameters: [] }
+
+-- | A reusable piece of a Setting. Pieces combine with `<>`; a key two pieces both define fails, naming it.
+newtype Premise = Pieces (Either String PremiseParts)
+
+premise :: PremiseParts -> Premise
+premise = Pieces <<< Right
+
+instance Semigroup Premise where
+  append (Pieces a) (Pieces b) = Pieces do
+    x <- a
+    y <- b
+    resources <- union "Resource" x.resources y.resources
+    markets <- union "Market" x.markets y.markets
+    transformations <- union "Transformation" x.transformations y.transformations
+    ruleKinds <- union "Rule kind" x.ruleKinds y.ruleKinds
+    policies <- pairs "Policy" x.policies y.policies
+    parameters <- pairs "parameter" x.parameters y.parameters
+    pure { resources, markets, transformations, ruleKinds, flows: x.flows <> y.flows, policies, parameters }
+    where
+    union :: forall k v. Ord k => Show k => String -> Map k v -> Map k v -> Either String (Map k v)
+    union what l r = case Array.head (Set.toUnfoldable (Set.intersection (Map.keys l) (Map.keys r))) of
+      Just k -> Left ("two Premises define the " <> what <> " " <> show k)
+      Nothing -> Right (Map.union l r)
+
+    pairs :: forall v. String -> Array (Tuple String v) -> Array (Tuple String v) -> Either String (Array (Tuple String v))
+    pairs what l r = case Array.head (Array.intersect (map fst l) (map fst r)) of
+      Just k -> Left ("two Premises define the " <> what <> " " <> k)
+      Nothing -> Right (l <> r)
+
+instance Monoid Premise where
+  mempty = premise emptyParts
+
+-- | The combined parts, or the key two Premises both defined.
+assemble :: Premise -> Either String PremiseParts
+assemble (Pieces p) = p
 
 -- Fixtures --------------------------------------------------------------------------------------
 

@@ -140,6 +140,11 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **NPC** | An Actor whose Policy is part of the premise. |
 | **Seat** | An Actor whose Policy is supplied from outside the premise. Swapping the implementation never changes the Actor. |
 | **Policy kind** | How a Policy is implemented: declarative strategy, AI agent, or human. |
+| **Setting** | The whole thing a game is launched from, such as Meridian. |
+| **Premise piece** | A reusable part a Setting combines, such as energy, shipping, or defence. |
+| **Composition** | Building a Setting up from generic definitions and premise pieces. |
+| **Derivation of a Setting** | Changing values of a base Setting, through dials and named patches, to make a variant. It is distinct from deriving a run ([06 §9.1](06_simulator.md#91-simulation-runs)), which starts a new run from a stored one. |
+| **Filtering** | Taking a subset of a Setting with `restrict`. It fails if what is kept refers to what was dropped. |
 | **Preset** | A named parameter set for a declarative strategy, such as the seat-policy preset `Conservative`. |
 | **Strategy** | The declarative rules a Policy runs on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)). A Policy is the actor-level concept (a seat, NPC or Aggregate decides); its Strategy is the rules it runs. Only declarative Policies have one. |
 | **View** | What a Policy sees of the Snapshot: its own Entity, prices, Rules in force, permitted events, stored adjustment factors, the Proposals awaiting its signature, the Markets it has access to, and the known Entities and Transformations with their order bounds. |

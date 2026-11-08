@@ -9,6 +9,7 @@ module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
   , Launch
+  , LaunchBatch
   , DeriveRequest
   , Reply
   , API
@@ -31,6 +32,10 @@ import Data.Maybe (Maybe)
 -- | at launch; the reply carries the seed used either way. `premise` names one of `GET /api/premise`; absent
 -- | is the first.
 type Launch = { premise :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
+
+-- | `POST /api/batch` body: one run of one preset on every seat of each named Setting, or of every loaded
+-- | one when none is named, so their results can be compared.
+type LaunchBatch = { premises :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
 -- | `POST /api/runs/:id/derive` body: the kind, the new run's name, and what the kind may change. A
 -- | field left absent keeps the source's value. `playerSeed` is doubly optional: absent keeps the
@@ -56,6 +61,7 @@ data ApiRequest
   | Premise
   | Glossary
   | LaunchRun Launch
+  | LaunchBatch LaunchBatch
   | Entities String
   | Entity String String
   | RunView { id :: String, view :: View, round :: Maybe String }

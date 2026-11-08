@@ -10,6 +10,8 @@ module Server.Launch
   , play
   , failInterrupted
   , premiseInfo
+  , batchedShape
+  , launchBatch
   ) where
 
 import Prelude
@@ -24,14 +26,14 @@ import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either)
-import Data.Foldable (traverse_)
+import Data.Foldable (foldM, traverse_)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
 import Effect.Exception (throwException, try)
-import Effects.Api (Launch)
+import Effects.Api (Launch, LaunchBatch)
 import Effects.Observe (listSummaries)
 import Effects.Store (createRun, failRunning)
 import Foreign.Object as Object
@@ -130,6 +132,19 @@ nextRunId store = do
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
+
+-- | One run of a batch: its Setting and its run.
+batchedShape :: Shape { premise :: String, id :: String, playerSeed :: Int }
+batchedShape = recordShape "Batched" { premise: stringShape, id: stringShape, playerSeed: intShape }
+
+-- | Launch one run of each Setting, in order. The first that does not start stops the batch; the runs
+-- | before it stay, as any launched run does.
+launchBatch :: Array GameboardParts -> StoreBackend -> LaunchBatch -> Effect (Either String (Array { premise :: String, id :: String, playerSeed :: Int }))
+launchBatch ps store b = foldM step (Right []) ps
+  where
+  step acc p = case acc of
+    Left e -> pure (Left e)
+    Right done -> launch p store { premise: Nothing, name: "batch " <> p.gameboard.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { premise: p.gameboard.id, id: l.id, playerSeed: l.playerSeed } ])
 
 -- | `GET /api/premise`: the premises the launch form offers (`Views.Premise`).
 premiseInfo :: Array GameboardParts -> StoreBackend -> Effect (Array Premise)

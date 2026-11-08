@@ -3,7 +3,7 @@
 module Premises.Catalog (settings) where
 
 import Premises.Compose (Setting)
-import Premises.Meridian (meridian)
+import Premises.Meridian (defaultDials, meridian)
 
 settings :: Array Setting
-settings = [ meridian ]
+settings = [ meridian defaultDials ]

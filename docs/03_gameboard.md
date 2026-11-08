@@ -323,6 +323,12 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 Premises are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/premises/src/Premises/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _premises` runs `apps/cli`'s `Compile`, which checks each premise with `checkPremise` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
 
+## 12a. How premises are made
+
+A Setting is made from the definitions in the DSL by three operations ([02 §2.5](02_type_system.md#25-glossary)). **Composition** builds it up: `Premises.Kit` holds generic definitions that name no Setting, premise pieces combine with `<>`, and a key two pieces define fails. **Derivation** changes the values of a base Setting: dials, and named patches that fail on a missing key. **Filtering** (`restrict`) takes a subset, and fails if what is kept refers to what was dropped. All three are read-only over the authored source.
+
+`Premises.Catalog` lists the Settings the compiler writes. Each compiles to `<id>/<version>/` under the premise root, with its own `presets.json`.
+
 ## 13. Provenance and Versioning
 
 - A run's manifest records `<id>@<version>` and the full initial World State ([04 §9](04_instantiated_game.md#9-runtime-state-and-lifecycle)), so Instantiated Games reference the exact version.

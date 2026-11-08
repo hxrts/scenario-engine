@@ -25,7 +25,7 @@ import Control.Alt ((<|>))
 import Schema.Run (deriveKindShape)
 import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Core.Shape (class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
+import Core.Shape (arrayOf, class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Array (catMaybes, filter, findMap, length, zipWith)
@@ -43,7 +43,7 @@ import Prim.Row as Row
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
-import Effects.Api (ApiRequest, DeriveRequest, Launch, Reply)
+import Effects.Api (ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -245,6 +245,7 @@ endpoints = table
   , "Premise": get "/api/premise" (pure unit)
   , "Glossary": get "/api/glossary" (pure unit)
   , "LaunchRun": post "/api/runs" (bodyOf launchShape identity)
+  , "LaunchBatch": post "/api/batch" (bodyOf batchShape identity)
   , "Entities": get "/api/runs/:id/entities" (capture "id" identity)
   , "Entity": get "/api/runs/:id/entity/:entity" (Tuple <$> capture "id" fst <*> capture "entity" snd)
   , "RunView": get "/api/runs/:id/:view"
@@ -314,6 +315,15 @@ launchShape = object "Launch" ado
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
   in { premise, name, preset, playerSeed, rounds }
+
+-- | The body of `POST /api/batch`.
+batchShape :: Shape LaunchBatch
+batchShape = object "LaunchBatch" ado
+  premises <- fieldOf "premises" "the Settings to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.premises
+  preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
+  playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one per run" (optionalOf intShape) _.playerSeed
+  rounds <- fieldOf "rounds" "the round count; absent keeps each Setting's" (optionalOf intShape) _.rounds
+  in { premises, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }

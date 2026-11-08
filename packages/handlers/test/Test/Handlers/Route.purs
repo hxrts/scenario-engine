@@ -38,6 +38,7 @@ nameOf = case _ of
   Premise -> "Premise"
   Glossary -> "Glossary"
   LaunchRun _ -> "LaunchRun"
+  LaunchBatch _ -> "LaunchBatch"
   Entities _ -> "Entities"
   Entity _ _ -> "Entity"
   RunView _ -> "RunView"
@@ -55,6 +56,7 @@ examples =
   , Tuple (ListRuns { archived: true }) (g "/api/runs?archived=true")
   , Tuple Premise (g "/api/premise")
   , Tuple Glossary (g "/api/glossary")
+  , Tuple (LaunchBatch { premises: Nothing, preset: "Trader", playerSeed: Just 7, rounds: Nothing }) (p "/api/batch" "{\"playerSeed\":7,\"preset\":\"Trader\"}")
   , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Just 7, rounds: Just 3 }) (p "/api/runs" "{\"name\":\"n\",\"playerSeed\":7,\"preset\":\"Trader\",\"rounds\":3}")
   , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Nothing, rounds: Nothing }) (p "/api/runs" "{\"name\":\"n\",\"preset\":\"Trader\"}")
   , Tuple (Entities "run 1") (g "/api/runs/run%201/entities")
