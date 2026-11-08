@@ -1,4 +1,4 @@
-// The file walker the check scripts share (check-deps, check-layout).
+// The file walker the check scripts share (check-deps.js, check-layout.js).
 const fs = require("fs");
 const path = require("path");
 

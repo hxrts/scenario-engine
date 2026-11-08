@@ -32,19 +32,24 @@ _fmt-check:
 
 # Check package dependency direction
 _deps:
-    node scripts/check-deps
+    node scripts/check-deps.js
 
 # Check the named layout rules (docs/07 §3)
 _layout:
-    node scripts/check-layout
+    node scripts/check-layout.js
+
+# Manual implementations of what should be derived (docs/07 §3)
+_derived:
+    node scripts/check-derived --samples
+    node scripts/check-derived
 
 # Compile the premise DSL to JSON, then generate the capstone recording (no model call)
 _premises:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript
 
-# fmt-check, deps, layout, build, test
-check: _fmt-check build _deps _layout test
+# fmt-check, deps, layout, derived, build, test
+check: _fmt-check build _deps _layout _derived test
 
 # check + dashboard smoke test
 all: check dashboard-test
