@@ -15,7 +15,7 @@ import Data.Maybe (Maybe, maybe)
 
 -- | p(q) = base + slope·q
 marginal :: CostFunction -> Quantity -> Price
-marginal c q = Q.add c.base (Q.mul c.slope q)
+marginal c q = Q.add c.intercept (Q.mul c.slope q)
 
 -- | C(q) = base·q + slope·q²/2
 -- | A Market's current marginal price.
@@ -27,7 +27,7 @@ marketPrice m = marginal m.cost m.position
 -- | price at the midpoint, base + slope·(2·x0 + d)/2. Computing it that way rounds twice, not
 -- | once per integral, so the error stays within one step however small `d` is.
 averagePrice :: CostFunction -> Quantity -> Quantity -> Price
-averagePrice c x0 d = Q.add c.base (Q.div (Q.mul c.slope (Q.add (Q.mul (Q.fromInt 2) x0) d)) (Q.fromInt 2))
+averagePrice c x0 d = Q.add c.intercept (Q.div (Q.mul c.slope (Q.add (Q.mul (Q.fromInt 2) x0) d)) (Q.fromInt 2))
 
 type BatchOrder r = { quantity :: Quantity, limitPrice :: Maybe Price | r }
 

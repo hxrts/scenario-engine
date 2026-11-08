@@ -59,7 +59,7 @@ type Keyed a = Array (Tuple String a)
 
 type ResourceDoc = { transferability :: Transferability, reservable :: Maybe Boolean, decay :: Maybe Q }
 
-type CostDoc = { base :: Q, slope :: Q, lo :: Q, hi :: Q }
+type CostDoc = { intercept :: Q, slope :: Q, lo :: Q, hi :: Q }
 
 type MarketDoc = { base :: ResourceId, quote :: ResourceId, cost :: CostDoc, reserves :: Keyed Q, access :: Array EntityId, position :: Maybe Q }
 
@@ -68,7 +68,7 @@ type MarketDoc = { base :: ResourceId, quote :: ResourceId, cost :: CostDoc, res
 type FacilityDoc =
   { inputs :: Maybe (Keyed Q)
   , outputs :: Maybe (Keyed Q)
-  , reserves :: Maybe (Keyed Q)
+  , escrowPerUnit :: Maybe (Keyed Q)
   , cost :: Maybe CostDoc
   , capacity :: Maybe CapacityRef
   , payee :: Maybe EntityId
@@ -170,13 +170,13 @@ resourceShape = object "Resource"
 
 costShape :: Shape CostDoc
 costShape = object "Cost"
-  ( mk <$> fieldOf "base" "the price at zero" qShape _.base
+  ( mk <$> fieldOf "intercept" "the price at zero" qShape _.intercept
       <*> fieldOf "slope" "the price per unit" qShape _.slope
       <*> fieldOf "lo" "the lower bound of the domain" qShape _.lo
       <*> fieldOf "hi" "the upper bound of the domain" qShape _.hi
   )
   where
-  mk b s l h = { base: b, slope: s, lo: l, hi: h }
+  mk b s l h = { intercept: b, slope: s, lo: l, hi: h }
 
 marketShape :: Shape MarketDoc
 marketShape = object "Market"
@@ -204,7 +204,7 @@ facilityShape :: Shape FacilityDoc
 facilityShape = object "Facility"
   ( mk <$> fieldOf "inputs" "consumed per unit" (optionalOf (keyedAlways qShape)) _.inputs
       <*> fieldOf "outputs" "produced per unit" (optionalOf (keyedAlways qShape)) _.outputs
-      <*> fieldOf "reserves" "reserved per unit, released within the round" (optionalOf (keyedAlways qShape)) _.reserves
+      <*> fieldOf "escrowPerUnit" "reserved per unit, released within the round" (optionalOf (keyedAlways qShape)) _.escrowPerUnit
       <*> fieldOf "cost" "the cost curve of the facility" (optionalOf costShape) _.cost
       <*> fieldOf "capacity" "the capacity it draws on" (optionalOf idShape) _.capacity
       <*> fieldOf "payee" "the Entity paid" (optionalOf idShape) _.payee
@@ -216,7 +216,7 @@ facilityShape = object "Facility"
       <*> fieldOf "effects" "changes to capacities" (optionalOf (listOf effectShape)) _.effects
   )
   where
-  mk i o r c cap p d mn mx cu os ef = { inputs: i, outputs: o, reserves: r, cost: c, capacity: cap, payee: p, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
+  mk i o r c cap p d mn mx cu os ef = { inputs: i, outputs: o, escrowPerUnit: r, cost: c, capacity: cap, payee: p, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
 
 aggregateShape :: Shape AggregateDoc
 aggregateShape = object "Aggregate"
@@ -465,8 +465,8 @@ resourceToCore k r =
   , reservable: fromMaybe false r.reservable
   }
 
-costToCore :: CostDoc -> { base :: Q, slope :: Q, domain :: Interval }
-costToCore c = { base: c.base, slope: c.slope, domain: { lo: c.lo, hi: c.hi } }
+costToCore :: CostDoc -> { intercept :: Q, slope :: Q, domain :: Interval }
+costToCore c = { intercept: c.intercept, slope: c.slope, domain: { lo: c.lo, hi: c.hi } }
 
 marketToCore :: String -> MarketDoc -> Market
 marketToCore k m =
@@ -484,7 +484,7 @@ facilityToCore k f =
   { id: Id k
   , inputs: keyedToMap (fromMaybe [] f.inputs)
   , outputs: keyedToMap (fromMaybe [] f.outputs)
-  , reserves: keyedToMap (fromMaybe [] f.reserves)
+  , escrowPerUnit: keyedToMap (fromMaybe [] f.escrowPerUnit)
   , cost: map costToCore f.cost
   , capacity: f.capacity
   , payee: f.payee

@@ -35,7 +35,7 @@ world =
       [ Tuple "m"
           { base: Id "E"
           , quote: Id "M"
-          , cost: { base: Q.fromInt 2, slope: Q.fromInt 0, lo: Q.fromInt (-100), hi: Q.fromInt 100 }
+          , cost: { intercept: Q.fromInt 2, slope: Q.fromInt 0, lo: Q.fromInt (-100), hi: Q.fromInt 100 }
           , reserves: [ Tuple "E" (Q.fromInt 50), Tuple "M" (Q.fromInt 0) ]
           , access: [ Id "B" ]
           , position: Nothing

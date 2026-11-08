@@ -47,7 +47,6 @@ data RefKind
   | TransformationRef
   | EntityRef
   | CapacityName
-  | SchemeRef
   | PolicyRef
   | ParameterRef
   | ProcedureRef
@@ -62,7 +61,6 @@ instance Show RefKind where
     TransformationRef -> "transformation"
     EntityRef -> "entity"
     CapacityName -> "capacity"
-    SchemeRef -> "scheme"
     PolicyRef -> "policy"
     ParameterRef -> "parameter"
     ProcedureRef -> "procedure"
@@ -329,8 +327,8 @@ type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
 -- Markets and Transformations (§5) ------------------------------------------------
 
 type CostFunction =
-  { base :: Price
-  , slope :: Price -- p(q) = base + slope·q
+  { intercept :: Price
+  , slope :: Price -- p(q) = intercept + slope·q
   , domain :: Interval
   }
 
@@ -348,7 +346,7 @@ type Transformation =
   { id :: TransformationId
   , inputs :: Holdings
   , outputs :: Holdings
-  , reserves :: Holdings -- reserved per unit ordered: escrowed and released within the round, never consumed
+  , escrowPerUnit :: Holdings -- reserved per unit ordered: escrowed and released within the round, never consumed
   , cost :: Maybe CostFunction
   , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , payee :: Maybe EntityId
@@ -452,10 +450,10 @@ instance Show v => Show (EffectF v) where
 instance Show v => Show (RuleChangeF v) where
   show = genericShow
 
--- Described shapes (design 4, §5.3). The engine's Intents, Rules and rule changes are described once
+-- Described shapes. The engine's Intents, Rules and rule changes are described once
 -- here. Their JSON codecs are the snapshot codec of the shape, so no second codec exists for them.
 -- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the premise-format tags of
--- these types are added with the `schema` package (design 4, Phase 3).
+-- these types are in the `schema` package.
 
 idShape :: forall t. Shape (Id t)
 idShape = prim "Id" (\(Id s) -> fromString s) (\j -> note "expected an id string" (map Id (toString j)))
@@ -557,7 +555,7 @@ intentShape = genericSum "Intent"
         <*> fieldOf "quantity" "the quantity run" qShape _.quantity
     )
 
--- The entity, capability, and proposal shapes (design 4, §5.3). The closure of a View is described
+-- The entity, capability, and proposal shapes. The closure of a View is described
 -- here, so the model's requests and the Run Store's records encode through these shapes.
 
 transferabilityShape :: Shape Transferability

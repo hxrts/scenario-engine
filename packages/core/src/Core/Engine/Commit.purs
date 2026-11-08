@@ -42,7 +42,7 @@ instance Show EngineError where
   show (NegativeReserve m r) = "negative reserve: " <> show m <> " " <> show r
   show (NegativeFlow from to) = "negative fixed flow: " <> show from <> " to " <> show to
 
--- | Resolve one round. The World State is prepared first (Phase 1), so the caller passes it in
+-- | Resolve one round. The World State is prepared first, so the caller passes it in
 -- | either prepared or not; the result is the same.
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
 resolveRound w0 inputs0 = case findMap negativeFixed w0.recurring of

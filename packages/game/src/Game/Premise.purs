@@ -51,7 +51,7 @@ checkRefs :: forall m r t k. String -> Names m r t k -> Strategy -> Either GameE
 checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknownNames names ordered))
   where
   refs = strategyRefs s
-  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ EntityRef, Market, ResourceRef, TransformationRef, ParameterRef, CapacityName, ProcedureRef, SchemeRef, PolicyRef, RuleKindRef ]
+  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ EntityRef, Market, ResourceRef, TransformationRef, ParameterRef, CapacityName, ProcedureRef, PolicyRef, RuleKindRef ]
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved what kind ref
     e -> Invalid AtLoad [ e ]

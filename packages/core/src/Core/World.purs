@@ -244,7 +244,7 @@ type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 data RejectReason
   = CapacityExceeded
   | LimitPriceNotMet
-  | MarketCannotPaySellers
+  | QuoteReservesShort
   | InputsNotHeld TransformationId
   | PartyCannotFund
   | JointBundlesOnlyTransfers
@@ -285,7 +285,7 @@ renderReason :: RejectReason -> String
 renderReason = case _ of
   CapacityExceeded -> "capacity exceeded"
   LimitPriceNotMet -> "limit price not met"
-  MarketCannotPaySellers -> "the market cannot pay its sellers"
+  QuoteReservesShort -> "the market cannot pay its sellers"
   InputsNotHeld t -> show t <> ": inputs are not held"
   PartyCannotFund -> "a party cannot fund the joint Proposal"
   JointBundlesOnlyTransfers -> "joint Proposals bundle only Transfers and Transforms"
@@ -380,7 +380,7 @@ engineVersion = "sp-engine/v1"
 manifestOf :: String -> WorldState -> Manifest
 manifestOf gameboard initial = { gameboard, engine: engineVersion, draw: drawVersion, initial }
 
--- Shapes (design 4, §5.3). The rejection reason is stored as its text; the event, target and View
+-- Shapes. The rejection reason is stored as its text; the event, target and View
 -- shapes carry the closure the model and the Run Store encode.
 
 rejectReasonShape :: Shape RejectReason
@@ -501,7 +501,7 @@ intervalShape :: Shape Interval
 intervalShape = recordShape "Interval" { lo: qShape, hi: qShape }
 
 costFunctionShape :: Shape CostFunction
-costFunctionShape = recordShape "CostFunction" { base: qShape, slope: qShape, domain: intervalShape }
+costFunctionShape = recordShape "CostFunction" { intercept: qShape, slope: qShape, domain: intervalShape }
 
 holdingsShape :: forall t. Shape (Map (Id t) Q)
 holdingsShape = mapOf idShape qShape
@@ -513,7 +513,7 @@ capacityEffectShape :: Shape CapacityEffect
 capacityEffectShape = recordShape "CapacityEffect" { capacity: idShape, holder: (optionalOf idShape), perUnit: qShape, rounds: (optionalOf intShape) }
 
 transformationShape :: Shape Transformation
-transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, reserves: holdingsShape, cost: (optionalOf costFunctionShape), capacity: (optionalOf idShape), payee: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
+transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, escrowPerUnit: holdingsShape, cost: (optionalOf costFunctionShape), capacity: (optionalOf idShape), payee: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
 resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, reservable: boolShape }

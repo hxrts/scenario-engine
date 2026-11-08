@@ -18,7 +18,7 @@ import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (ProposalBody)
-import Core.Query (lookupQ, restrictedAtBoundary)
+import Core.Query (lookupQ, enactedAtBoundary)
 import Core.Slice (conversions, select)
 import Core.Strategy (RecordQuery(..))
 import Core.Strategy (Cond, Expr, IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
@@ -200,7 +200,7 @@ recordHolds env query least = case query of
 
 -- | The Rules a governor enacted against a counterparty, as they took effect at this round's boundary.
 enacted :: Env -> { governor :: EntityId, counterparty :: EntityId } -> Array Rule
-enacted env x = restrictedAtBoundary env.view.round (entityRef env x.governor) (entityRef env x.counterparty) env.view.events
+enacted env x = enactedAtBoundary env.view.round (entityRef env x.governor) (entityRef env x.counterparty) env.view.events
 
 -- | The Proposals one template yields, and the draw counter after it. A Choose consumes one draw for
 -- | its pick, then interprets the chosen option with the next counter value.

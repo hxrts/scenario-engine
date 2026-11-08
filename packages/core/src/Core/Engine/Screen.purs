@@ -61,7 +61,7 @@ duplicatedIds inputs = nub (filter (\i -> length (filter (_ == i) ids) > 1) ids)
   where
   ids = map (_.proposal.id) inputs
 
--- | Phase 4: signature completeness, shape, authority, and transfer conditions. `duplicated` is the
+-- | Screening: signature completeness, shape, authority, and transfer conditions. `duplicated` is the
 -- | set of ids `duplicatedIds` found in the round.
 screen :: WorldState -> Array ProposalId -> SignedProposal -> Either (Array Event) Item
 screen w duplicated { proposal: p, signatures } =

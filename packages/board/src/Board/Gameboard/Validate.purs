@@ -71,7 +71,7 @@ validateGameboard gb config =
   references =
     unknownEntity (concatMap (\m -> m.access) markets)
       <> unknownResource (concatMap (\m -> [ m.base, m.quote ] <> fromFoldable (Map.keys m.reserves)) markets)
-      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs) <> fromFoldable (Map.keys t.reserves)) facilities)
+      <> unknownResource (concatMap (\t -> fromFoldable (Map.keys t.inputs) <> fromFoldable (Map.keys t.outputs) <> fromFoldable (Map.keys t.escrowPerUnit)) facilities)
       <> unknownCapacity (mapMaybe _.capacity facilities)
       <> unknownCapacity (concatMap (\t -> map _.capacity t.effects) facilities)
       <> unknownEntity (concatMap (\t -> mapMaybe _.holder t.effects) facilities)
@@ -97,7 +97,7 @@ validateGameboard gb config =
         (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)
       <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
   -- a reservation must name a reservable Resource; an unknown Resource is reported by `references`
-  reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.reserves)))) facilities
+  reservations = concatMap (\t -> map (ReservesNonReservable t.id) (filter notReservable (fromFoldable (Map.keys t.escrowPerUnit)))) facilities
   notReservable r = maybe false (not <<< _.reservable) (Map.lookup r w.resources)
   ruleRefs r = (if Map.member r.kind w.ruleKinds then [] else unknownKind r.kind) <> case r.scope of
     Flows f -> unknownEntity [ f.governor, f.counterparty ]
@@ -190,7 +190,6 @@ type Names m r t k =
   , transformations :: Map TransformationId t
   , ruleKinds :: Map RuleKindId k
   , parameters :: Set String
-  , schemes :: Set String
   , policies :: Set PolicyId
   }
 
@@ -203,7 +202,6 @@ worldNames w =
   , transformations: w.transformations
   , ruleKinds: w.ruleKinds
   , parameters: Set.empty
-  , schemes: Set.empty
   , policies: Set.empty
   }
 
@@ -211,7 +209,6 @@ worldNames w =
 gameboardNames :: Gameboard -> Names Market ResourceDefinition Transformation RuleKindDecl
 gameboardNames gb = (worldNames gb.world)
   { parameters = Set.fromFoldable (Object.keys gb.parameters)
-  , schemes = Set.fromFoldable (map _.id gb.schemes)
   , policies = Map.keys gb.policies
   }
 
@@ -227,6 +224,5 @@ unknownNames w = map (\(Tuple kind name) -> UnknownReference kind name) <<< filt
     ParameterRef -> Set.member name w.parameters
     CapacityName -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
     ProcedureRef -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
-    SchemeRef -> Set.member name w.schemes
     PolicyRef -> Set.member (Id name) w.policies
     RuleKindRef -> Map.member (Id name) w.ruleKinds

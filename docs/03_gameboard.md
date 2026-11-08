@@ -78,7 +78,7 @@ The engine attaches no behavior to a Resource's name. Its effects come from the 
 `markets.json` maps each Market id to:
 
 - `base`, `quote`: the traded Resources.
-- `cost`: a linear CostFunction `{ base, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
+- `cost`: a linear CostFunction `{ intercept, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
 - `reserves`: the initial reserves by Resource. Reserves are the only liquidity. There is no separate liquidity parameter.
 - `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. EU_POOL is the only one in the reference premise, and its authority comes from the EU's procedure ([05 §10](05_test_instance.md#10-aggregate-catalog)).
 - `position` (default `0`): the initial position on the cost curve.
@@ -90,7 +90,7 @@ Limit-price orders and clearing are Intents and clearing rules (Type System [§3
 `transformations.json` maps each Facility (Transformation) id to:
 
 - `inputs`, `outputs`: Resource to quantity per unit.
-- `reserves`: reservable Resources the Facility locks per unit. A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
+- `escrowPerUnit`: reservable Resources the Facility locks per unit. A non-reservable Resource fails validation ([§12.2](#122-checks-implemented)).
 - `cost` (optional): a CostFunction giving the price per unit. A costed Facility requires `payee`.
 - `payee` (optional): the Entity paid for the Facility's output.
 - `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.

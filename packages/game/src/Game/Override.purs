@@ -17,7 +17,7 @@ import Core.Types (CapacityRef, EntityId, RefKind(..), idShape, idText)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
 import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)
-import Data.Foldable (foldM)
+import Data.Foldable (any, foldM, for_)
 import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -43,14 +43,18 @@ overrideRefs = case _ of
   GameSeed _ -> []
   Parameter name _ -> [ Tuple ParameterRef name ]
   Capacity e ref _ -> [ Tuple EntityRef (idText e), Tuple CapacityName (idText ref) ]
-  Shrinkage scheme _ -> [ Tuple SchemeRef scheme ]
+  Shrinkage _ _ -> []
   Implicit e -> [ Tuple EntityRef (idText e) ]
 
 -- | Apply overrides to the baseline Gameboard and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.
 resolve :: { gameboard :: Gameboard, config :: InstantiationConfig } -> Array Override -> Either GameError { gameboard :: Gameboard, config :: InstantiationConfig }
-resolve base overrides = checked *> foldM apply base overrides
+resolve base overrides = checked *> schemes *> foldM apply base overrides
   where
+  -- a Shrinkage names a scheme, which `unknownNames` does not cover: schemes are the Gameboard's strings
+  schemes = for_ overrides case _ of
+    Shrinkage s _ | not (any ((_ == s) <<< _.id) base.gameboard.schemes) -> Left (Invalid AfterOverrides [ UnknownScheme s ])
+    _ -> Right unit
   checked = maybe (Right unit) (Left <<< unresolved) (head (unknownNames (gameboardNames base.gameboard) (concatMap overrideRefs overrides)))
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved "override" kind ref

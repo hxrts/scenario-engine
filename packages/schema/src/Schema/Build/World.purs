@@ -46,7 +46,7 @@ noFacility :: FacilityDoc
 noFacility =
   { inputs: Nothing
   , outputs: Nothing
-  , reserves: Nothing
+  , escrowPerUnit: Nothing
   , cost: Nothing
   , capacity: Nothing
   , payee: Nothing

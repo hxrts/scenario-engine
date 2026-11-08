@@ -381,7 +381,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editConfig \c -> c { rounds = 9 })
       (RoundsOutOfRange { rounds: 9, min: 4, max: 8 })
     rejects "ReservesNonReservable: a facility reserves Money, which is not reservable"
-      (editWorld \w -> w { transformations = Map.update (\t -> Just t { reserves = Map.insert (Id "M") (Q.fromInt 1) t.reserves }) (Id "military-deployment") w.transformations })
+      (editWorld \w -> w { transformations = Map.update (\t -> Just t { escrowPerUnit = Map.insert (Id "M") (Q.fromInt 1) t.escrowPerUnit }) (Id "military-deployment") w.transformations })
       (ReservesNonReservable (Id "military-deployment") (Id "M"))
     rejects "UnknownReference: a market's base is not a Resource"
       (editWorld \w -> w { markets = Map.update (\m -> Just m { base = Id "X" }) (Id "energy-atlantic") w.markets })
@@ -483,7 +483,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case Map.lookup (Id "military-deployment") gameboard.world.transformations of
         Nothing -> fail "military-deployment is missing"
         Just t -> do
-          Map.toUnfoldable t.reserves `shouldEqual` [ Tuple (Id "Mil") (Q.fromInt 1) ]
+          Map.toUnfoldable t.escrowPerUnit `shouldEqual` [ Tuple (Id "Mil") (Q.fromInt 1) ]
           Map.isEmpty t.inputs `shouldEqual` true
           Map.isEmpty t.outputs `shouldEqual` true
     it "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" do

@@ -60,7 +60,7 @@ instantiate gb config =
     ( \r -> case schemeOf r.scheme of
         Just s | r.actor `elem` s.eligibleActors && selected r.actor -> []
         Just _ -> [ IneligibleRepresentative r.actor ]
-        Nothing -> [ UnknownReference SchemeRef (show r.scheme) ]
+        Nothing -> [ UnknownScheme r.scheme ]
     )
     config.representations
   schemeOf id = case filter (\s -> s.id == id) gb.schemes of

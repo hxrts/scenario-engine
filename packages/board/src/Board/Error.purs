@@ -15,6 +15,7 @@ import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, RefKind, Resour
 -- | constructor names one check, so a caller and its tests match on the specific failure.
 data ValidationError
   = UnknownReference RefKind String
+  | UnknownScheme String -- a Representation scheme the Gameboard does not define
   | DuplicateCapacityOwner String
   | ProductionWithoutCapacity EntityId String -- a producer does not hold the capacity it produces from
   | FacilityWithoutPayee TransformationId
@@ -36,6 +37,7 @@ derive instance Eq ValidationError
 instance Show ValidationError where
   show = case _ of
     UnknownReference k r -> "unknown " <> show k <> " reference: " <> r
+    UnknownScheme s -> "unknown scheme reference: " <> s
     DuplicateCapacityOwner c -> "capacity has more than one owner: " <> c
     ProductionWithoutCapacity e c -> show e <> " produces from " <> c <> " but does not hold it"
     FacilityWithoutPayee t -> "facility has a cost but no payee: " <> show t

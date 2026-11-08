@@ -24,7 +24,7 @@ module Core.Query
   , tradesOf
   , transfersOf
   , transformsOf
-  , restrictedAtBoundary
+  , enactedAtBoundary
   , droppedProposals
   ) where
 
@@ -111,12 +111,12 @@ owner w ref = _.id <$> (find (\e -> lookupQ ref e.capacities > Q.zero) entities 
   where
   entities = entitiesOf w
 
--- | Effective capacity: the owner's capacity less withheld units.
+-- | Effective capacity: the owner's capacity less what Rules reduce it by.
 capacityOf :: WorldState -> CapacityRef -> Q
 capacityOf w ref =
   let
     held = maybe Q.zero (\o -> capacityHeld w o ref) (owner w ref)
-    withheld = Q.sumQ
+    reduced = Q.sumQ
       ( map
           ( \r -> case r.scope, r.effect of
               OnCapacity c, Reduce units | c == ref -> units
@@ -125,7 +125,7 @@ capacityOf w ref =
           (rulesOf w)
       )
   in
-    max Q.zero (Q.sub held withheld)
+    max Q.zero (Q.sub held reduced)
 
 -- | A Transformation's uniform price at a total of `q` units: its cost function's average price, or
 -- | zero for a Transformation with no cost function.
@@ -186,8 +186,8 @@ droppedProposals = select (orKind (read @"proposal" (event @"Rejected")) (read @
 
 -- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
 -- | were proposed in the round before: a flows Rule of `by`'s whose counterparty is `target`.
-restrictedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
-restrictedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enacted")
+enactedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
+enactedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enacted")
   where
   rulesOf' e
     | e.round /= round = []

@@ -120,8 +120,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         scope = gameboardNames p.gameboard
         firstPolicy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.gameboard.policies) :: Array PolicyId)))
-      unknownNames scope [ Tuple SchemeRef "no-such-scheme", Tuple PolicyRef "no-such-policy", Tuple RuleKindRef "no-such-kind" ]
-        `shouldEqual` [ UnknownReference SchemeRef "no-such-scheme", UnknownReference PolicyRef "no-such-policy", UnknownReference RuleKindRef "no-such-kind" ]
+      unknownNames scope [ Tuple PolicyRef "no-such-policy", Tuple RuleKindRef "no-such-kind" ]
+        `shouldEqual` [ UnknownReference PolicyRef "no-such-policy", UnknownReference RuleKindRef "no-such-kind" ]
       unknownNames scope [ Tuple PolicyRef firstPolicy, Tuple RuleKindRef "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
       p <- premise

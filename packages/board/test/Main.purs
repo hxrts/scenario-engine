@@ -67,8 +67,8 @@ coverageGameboard =
     { id: Id "fac"
     , inputs: Map.empty
     , outputs: Map.empty
-    , reserves: Map.empty
-    , cost: Just { base: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
+    , escrowPerUnit: Map.empty
+    , cost: Just { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
     , capacity: Nothing
     , payee: Just us
     , delay: 0

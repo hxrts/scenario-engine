@@ -238,7 +238,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
             { positions = Map.insert id (Q.add m.position r.net) acc.positions
             , events = filled.events
                 <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected
-                <> map (\o -> orderRemoved w.round o.pid MarketCannotPaySellers) unpaid
+                <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) unpaid
             }
 
 -- | Settle one Proposal's filled Transforms: pay the Transformation's payee, consume inputs, produce
