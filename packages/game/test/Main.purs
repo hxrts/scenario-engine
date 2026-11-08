@@ -14,7 +14,7 @@ import Core.Types (Id(..), PolicyId, RefKind(..), proposalId)
 import Data.Array (fromFoldable, head)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Either (Either(..))
+import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Effect (Effect)
@@ -157,11 +157,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           ]
       stringify (encodeOverrides overrides) `shouldEqual` stored
       map (map (const unit)) (jsonParser stored >>= decodeOverrides) `shouldEqual` Right (map (const unit) overrides)
-    it "a stored spec keeps reading: an old default round count, and a present non-integer fails" do
+    it "a stored spec reads an absent round count, a number, and fails on a present non-integer" do
       let
         -- the stored text, through the one shape; the format is pinned here (S8)
         spec rounds = bimap printJsonDecodeError identity (Shape.parse Shape.Premise specShape ("{\"preset\":\"Passive\",\"playerSeed\":\"1\"" <> rounds <> "}")) >>= decodeSpec
-      map _.rounds (spec ",\"rounds\":\"default\"") `shouldEqual` Right Nothing
+      isLeft (spec ",\"rounds\":\"default\"") `shouldEqual` true
       map _.rounds (spec "") `shouldEqual` Right Nothing
       map _.rounds (spec ",\"rounds\":\"3\"") `shouldEqual` Right (Just 3)
       (lmapContains (map _.rounds (spec ",\"rounds\":\"lots\""))) `shouldEqual` true

@@ -88,8 +88,6 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
   where
   read = case _ of
     Nothing -> Right Nothing
-    -- rows written before the key was omitted hold "default" for a configured round count
-    Just "default" -> Right Nothing
     Just text -> Just <$> note ("the stored spec's " <> what <> " is not an integer: " <> text) (Int.fromString text)
 
 -- | The keys of a stored specification, in one place.

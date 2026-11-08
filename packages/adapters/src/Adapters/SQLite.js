@@ -148,11 +148,11 @@ const alive = (pid) => {
 };
 
 // Every run still marked running that was left behind becomes failed with the reason: one a process
-// of the role created (at startup that role has no live runs of its own), one whose creating process
-// has gone (a crashed session), and one with no recorded owner (made before migration 5). Returns how many.
+// of the role created (at startup that role has no live runs of its own), and one whose creating process
+// has gone (a crashed session). Returns how many.
 export const failRunningImpl = (db, role, reason) => () => {
   const left = statement(db, "select id, owner from runs where status = 'running'").all()
-    .filter((r) => r.owner == null || r.owner.startsWith(`${role}:`) || !alive(Number(r.owner.split(":")[1])));
+    .filter((r) => r.owner.startsWith(`${role}:`) || !alive(Number(r.owner.split(":")[1])));
   for (const r of left) statement(db, "update runs set status = 'failed', reason = ? where id = ?").run(reason, r.id);
   return left.length;
 };
