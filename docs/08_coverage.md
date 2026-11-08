@@ -47,15 +47,15 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Conditions `restrictionInForce`, `transformedLastRound` | `packages/policy/test/Main.purs` | covered | yes (EU tariff, China's procurement) |
 | Condition `restrictedLastRound` | `packages/policy/test/Main.purs` :: "restrictedLastRound holds only…" | covered | no |
 | Presets (eleven, incl. Deployer) | `packages/simulator/test/Main.purs` :: "Every preset plays 8 rounds…". "7c Deployer". `packages/premises/test/Main.purs` :: "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" | covered | partial (the US seat uses an inline copy of the Deployer clauses) |
-| Market access rules | `packages/core/test/Main.purs` :: "rejects a Trade by an Entity outside the Market's access" | covered | partial (access is set by the shipped Markets, no rejection in the run) |
+| Market access rules | `packages/core/test/Main.purs` :: "rejects a Trade by an Entity outside the Market's access". `packages/simulator/test/Main.purs` :: "6 Market access: in the shipped opening round…" | covered | no (the shipped capabilities and access agree, so the run has no rejection) |
 
 ## Engine: markets, facilities, capacity
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Market exchange, limit prices | `packages/simulator/test/Main.purs` :: "4 Market exchange: Fixture A and A2" | covered | yes (SME and the US trade each round) |
-| Facility `ownerSigns` | none directly. Enforced in `packages/core/src/Core/Engine/Screen.purs` | partial | yes (SHIP signs the shipment) |
-| Facility `effects` (capacity change, holder, rounds) | `packages/simulator/test/Main.purs` :: "Soft Power is produced, spent, and decays" | partial | no |
+| Facility `ownerSigns` | `packages/core/test/Main.purs` :: "a facility whose owner does not sign is rejected, and accepted once the owner signs". `packages/simulator/test/Main.purs` :: "7d Investor…" | covered | yes (SHIP signs the shipment; ENCO signs its investment) |
+| Facility `effects` (capacity change, holder, rounds) | `packages/core/test/Main.purs` :: "a capacity effect changes only its named holder's capacity, for its rounds". `packages/simulator/test/Main.purs` :: "Soft Power is produced, spent, and decays" | covered | no |
 | Capacity escrow and pooled facility ceiling | `packages/core/test/Main.purs` :: "caps an uncapped facility's fills…" | covered | partial |
 | Reservations (Mil escrow, scaling, release at commit) | `packages/core/test/Main.purs`. `packages/simulator/test/Main.purs` :: "7b Reservation", "7c Deployer" | covered | yes (US round 4: 60 reserved, 38 of 40 ordered, 85.5 Mil held) |
 | Fixed flows | `packages/simulator/test/Main.purs` :: "1 Full game…" (full-game runs only) | partial | yes (every shipped flow runs each round) |
@@ -70,8 +70,8 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Tariff enactment and in-force condition | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes (EU tariff on the US, in force from round 4) |
 | Access ban enacted by a seat's strategy | `packages/policy/test/Main.purs` :: "enactAccessBan drafts a ban…" | covered | yes: US bans shipments into India in round 2, in force from round 3 |
 | Access ban blocks a real shipment | `packages/simulator/test/Main.purs` :: "11 Trade restriction…" | covered | yes: ENCO's round-4 shipment rejected, "shipment banned". Round 7 clears |
-| Repeal of a Rule | `packages/core/test/Main.purs` :: "rejects repealing an unknown rule" | partial | yes: US ban and CHIP withholding repealed in round 6 |
-| Withholding changes capacity | decode only (`packages/premises/test/Main.purs` :: "a withholding rule and an enactment of one decode…") | partial | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
+| Repeal of a Rule | `packages/core/test/Main.purs` :: "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later", "rejects repealing an unknown rule" | covered | yes: US ban and CHIP withholding repealed in round 6 |
+| Withholding changes capacity | `packages/core/test/Main.purs` :: "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" | covered | yes: CHIP withholds 5 semiconductor units from round 4 (enacted, scheduled, then repealed) |
 
 ## Deals and signed Proposals
 
@@ -96,13 +96,13 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
 | Unmet requirement is a shortfall | `packages/core/test/Main.purs` :: "an overdrawing Transfer records a shortfall…" | covered | partial (JP's shortfalls are recorded in rounds 3 and 4, not asserted) |
-| Penalty reduces incoming flows per unit unmet | none directly | partial | no (the shortfall is recorded, the penalty's size is not asserted) |
+| Penalty reduces incoming flows per unit unmet | `packages/core/test/Main.purs` :: "a shortfall cuts an incoming fixed flow by the penalty per unit unmet" | covered | no (the capstone records its shortfalls, not their penalty) |
 
 ## Objectives
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| Objective outcomes computed | `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "14 Agency: every role is analysed and its objectives reported" (count only) | partial | yes |
+| Objective outcomes computed | `packages/views/test/Test/Views/Capstone.purs` :: "every objective has an explicit outcome, and the run's are the DSL's". `packages/experiments/test/Test/Experiments/Mandatory.purs` :: "14 Agency…" (Conservative outcomes, by Actor) | covered | yes |
 | Explicit met / not met / not evaluated. None met by default | `packages/views/test/Test/Views/Views.purs` :: "a run with no rounds: every objective is not evaluated, never met (§10.5)". `packages/views/test/Test/Views/Capstone.purs` :: "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" | covered | yes: all 16 Actor objectives asserted in the base run (none met) and in the counterfactual (US met) |
 | Objective met in one case, missed in another | capstone only | covered | yes: the US objective is met without the deployment and missed with it |
 
@@ -110,8 +110,8 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| INV-02, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied through `checkRun` in `packages/simulator/test/Main.purs` :: "1 Full game" and `packages/simulator/test/Test/Simulator/Capstone.purs` :: "the checked invariants hold in every round" | covered | yes |
-| Other INV-xx in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) | no predicate in `Core.Invariants`. The rows above and the tests named there | partial | partial |
+| INV-02, 03, 04, 05, 06, 10 each round | `packages/core/src/Core/Invariants.purs` (predicates), applied through `checkRun` in `packages/simulator/test/Main.purs` :: "1 Full game" and `packages/simulator/test/Test/Simulator/Capstone.purs` :: "the checked invariants hold in every round". INV-03 also: `packages/core/test/Main.purs` :: "INV-03 reports a round that changes an Entity's capabilities" | covered | yes |
+| Other INV-xx in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) | no predicate; the reasons are in 02 §9. The tests named in the rows above | partial | partial |
 | A tampered result trips INV-05 | `packages/premises/test/Test/Premises/Golden.purs` :: "a deliberately unbalanced result trips INV-05" | covered | n/a |
 
 ## Simulation: replay, store, counterfactual, resume, archive
@@ -134,7 +134,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | View models: overview, balances, events, facilities, pressure, economy, representation, procedures, objectives, final state, markets | `packages/views/test/Test/Views/Views.purs` (edge cases only) | partial | yes (`packages/views/test/Test/Views/Capstone.purs` :: "every dashboard view model is non-empty for the run") |
 | Trajectories, baseline and config diffs, compatibility, agency table | `packages/views/test/Test/Views/Views.purs` | partial | no |
 | Baseline diff reports a resource the baseline holds and the other run lacks | `packages/views/test/Test/Views/Views.purs` :: "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" | covered | no |
-| Dashboard tabs (UI) | `apps/dashboard/test/Main.purs`. Playwright smoke in `apps/dashboard` | partial | no |
+| Dashboard tabs (UI) | `apps/dashboard/test/Main.purs`. Playwright smoke in `apps/dashboard`. Left partial: the tabs render the view models above, which are checked for content only in part | partial | no |
 
 ## Live and AI seats
 
@@ -147,7 +147,6 @@ Test references are `file :: test name`, relative to the repository root. Test m
 | The `pi` process boundary, with no model (a fake `pi` on the PATH); seed, clock, and premise reads | `packages/adapters/test/Test/Adapters/Pi.purs`, `packages/adapters/test/Test/Adapters/Primitives.purs` | covered | no |
 | Round's one-sided deal lapses through the signature rule; a matched deal is signed by both | `packages/handlers/test/Test/Handlers/Live.purs` :: "a one-sided deal lapses; a deal both sides describe is signed by both" | covered | no |
 | Joint pass against the real model (billed, one-off) | `packages/adapters/test/Test/Adapters/LiveInterpret.purs`, run by `just live-interpret` | manual (not in any suite) | no |
-| Audio submission and transcription | none yet | gap: not implemented | no |
 | Backend failure is a run failure | `packages/handlers/test/Test/Handlers/Llm.purs` :: "a backend failure is fatal to the call: the error propagates with its cause". `packages/handlers/test/Test/Handlers/Capstone.purs` :: "a recorded backend failure is a run failure, naming the model and its cause" | covered | yes |
 | Scripted live session replays exactly | `packages/handlers/test/Test/Handlers/Live.purs` :: "a scripted live session equals replaying…" | covered | no |
 
@@ -155,7 +154,7 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 | Feature | Tested today | Status | Capstone |
 |---|---|---|---|
-| CLI argument handling | `apps/cli/test/Main.purs` | partial | no |
+| CLI argument handling | `apps/cli/test/Main.purs`. Left partial: argument parsing has no game behaviour to assert beyond the runs it starts | partial | no |
 | Server API: runs, run detail, comparison, launch | `apps/server/test/Main.purs` | covered | no |
 
 ## Summary
@@ -167,21 +166,18 @@ Test references are `file :: test name`, relative to the repository root. Test m
 
 ## Gaps in this repo
 
-1. **Penalty size.** The capstone records shortfalls but does not assert the penalty's effect on
-   incoming flows.
-2. **Entity effects.** Facility `effects` (capacity changes by holder and round) are used only by
-   the shipped Soft Power test, not by the capstone.
-3. **Archive, delete and derive kinds.** These are server behaviours (`apps/server`) and are not
+1. **Entity effects in the capstone.** Facility `effects` are covered at unit level and by the Soft
+   Power test. No capstone round uses them.
+2. **Archive, delete and derive kinds.** These are server behaviours (`apps/server`) and are not
    exercised by the capstone.
-4. **CLI and dashboard tabs.** Not exercised by the capstone. The view models are checked for
+3. **CLI and dashboard tabs.** Not exercised by the capstone. The view models are checked for
    non-emptiness only, not for content.
-5. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
+4. **Preset Deployer.** The capstone's US seat is an inline copy of the Deployer clauses, so the
    shipped preset is exercised only by its own test.
-6. **Agency.** The capstone does not compute the agency table. That stays in
+5. **Agency.** The capstone does not compute the agency table. That stays in
    `Test.Experiments.Mandatory` :: "14 Agency…".
-7. **Invariants.** Only INV-02, 04, 05, 06 and 10 have predicates. The other IDs in
-   [02 §9](02_type_system.md#9-architectural-invariants-and-numerics) are checked, if at all, by the
-   tests named in their rows.
+6. **Invariants.** Only INV-02, 03, 04, 05, 06 and 10 have predicates. The other IDs have none, for
+   the reasons in [02 §9](02_type_system.md#9-architectural-invariants-and-numerics).
 
 ## Expected numbers
 

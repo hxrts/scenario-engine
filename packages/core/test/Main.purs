@@ -12,7 +12,7 @@ import Core.Market (averagePrice, clear)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Proposal (jointProposals)
-import Core.Query (capacityHeld, holding)
+import Core.Query (capacityHeld, capacityOf, holding)
 import Core.Represent as Represent
 import Core.World (Event(..), RoundResult, Target(..), WorldState, renderReason)
 import Core.Types (Capability(..), Controller(..), Entity, Market, EntityKind(..), Id(..), Intent, IntentF(..), Proposal, Rule, RuleF(..), RuleChangeF(..), RuleKind(..), SignedProposal, Transferability(..), proposalId)
@@ -22,7 +22,7 @@ import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (all, concatMap, filter, length, zip)
 import Data.Array.NonEmpty (cons')
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.String (Pattern(..)) as S
 import Data.String as Str
@@ -607,6 +607,73 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           check w res `shouldEqual` []
           holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.fromInt 10
           holding res.world (Id "US") (Id "E") `shouldEqual` Q.fromInt 2
+
+  describe "Penalties, capacity effects, rules, and ownership" do
+    let
+      -- a flow of 5 M from US to UK, and UK requiring 10 E at a penalty of 0.25 per unit unmet, holding `held` E
+      penalised held = (baseWorld [ actor "US" [], (actor "UK" []) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt held) ] } ])
+        { circulation =
+            { production: []
+            , shares: []
+            , flows: [ { from: Id "US", to: Id "UK", resource: Id "M", amount: Q.fromInt 5 } ]
+            , requirements: [ { entity: Id "UK", resource: Id "E", amount: Just (Q.fromInt 10), penalty: q "0.25" } ]
+            }
+        }
+      -- UK's Money after one round of no Intents
+      moneyAfter w = either (const Q.zero) (\r -> holding r.world (Id "UK") (Id "M")) (resolveRound w [])
+      -- the World State after one round of the given submissions; a failed round leaves it unchanged
+      advance w inputs = either (const w) _.world (resolveRound w inputs)
+    it "a shortfall cuts an incoming fixed flow by the penalty per unit unmet" do
+      -- 4 E held of 10 required: 6 unmet, a penalty of 1.5 against the 5 owed
+      moneyAfter (penalised 4) `shouldEqual` q "103.5"
+      -- 8 E held: 2 unmet, a penalty of 0.5
+      moneyAfter (penalised 8) `shouldEqual` q "104.5"
+      -- nothing unmet: the flow arrives in full
+      moneyAfter (penalised 10) `shouldEqual` Q.fromInt 105
+    it "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" do
+      let
+        uk = (actor "UK" [ MayEnact WithholdingRule ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        ruleId = Id (show (proposalId 1 (Id "UK") 0) <> "/rule-0")
+        round1 = advance (baseWorld [ uk ]) [ submit "UK" 0 [ ChangeRule (Enact (Withholding { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
+        round2 = advance round1 [ submit "UK" 0 [ ChangeRule (Repeal ruleId) ] ]
+      -- scheduled in round 1 and in force from round 2, so the round-1 world reads its scheduled Rule as not yet applied
+      capacityOf round1 (Id "plant") `shouldEqual` Q.fromInt 10
+      capacityOf (prepareRound round1) (Id "plant") `shouldEqual` Q.fromInt 6
+      -- repealed in round 2: still in force in round 2, and gone from round 3
+      capacityOf (prepareRound round2) (Id "plant") `shouldEqual` Q.fromInt 10
+    it "a capacity effect changes only its named holder's capacity, for its rounds" do
+      let
+        -- each unit ordered adds one unit of plant to JP in the round after the order, for two rounds
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Nothing, capacity: Nothing, payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: false, effects: [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
+        w = (baseWorld [ actor "UK" [ MayTransform (Id "F") ], actor "JP" [], actor "US" [] ]) { transformations = Map.singleton (Id "F") fac }
+        held e world = capacityHeld (prepareRound world) (Id e) (Id "plant")
+        round2 = advance w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 3 } ] ]
+        round3 = advance round2 []
+        round4 = advance round3 []
+      held "JP" round2 `shouldEqual` Q.fromInt 3
+      held "JP" round3 `shouldEqual` Q.fromInt 3
+      held "JP" round4 `shouldEqual` Q.zero
+      held "UK" round2 `shouldEqual` Q.zero
+      held "US" round2 `shouldEqual` Q.zero
+    it "a facility whose owner does not sign is rejected, and accepted once the owner signs" do
+      let
+        fac = { id: Id "F", inputs: Map.empty, outputs: Map.empty, reserves: Map.empty, cost: Nothing, capacity: Just (Id "plant"), payee: Nothing, delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt 1, ownerSigns: true, effects: [] }
+        w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
+        order = Transform { by: Id "US", transformation: Id "F", quantity: Q.fromInt 1 }
+        p signers =
+          { proposal: { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ order ], signers: map Id signers, procedure: Nothing }
+          , signatures: map Id signers
+          }
+      rejections (resolveRound w [ p [] ]) `shouldEqual` [ "the owner of F's capacity must sign" ]
+      rejections (resolveRound w [ p [ "UK" ] ]) `shouldEqual` []
+      concatMap transformedQ (eventsOf (resolveRound w [ p [ "UK" ] ])) `shouldEqual` [ Q.fromInt 1 ]
+    it "INV-03 reports a round that changes an Entity's capabilities" do
+      let w = baseWorld [ actor "US" [ MayTrade (Id "EM") ] ]
+      case resolveRound w [] of
+        Right res -> do
+          map _.invariant (check w res) `shouldEqual` []
+          map _.invariant (check w (res { world = res.world { entities = map (\e -> e { capabilities = [] }) res.world.entities } })) `shouldEqual` [ "INV-03" ]
+        Left e -> show e `shouldEqual` "a round"
 
   describe "Joint pass rule (docs/04 §11)" do
     let

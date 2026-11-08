@@ -14,12 +14,12 @@ import Checks.Run (checkRun)
 import Core.Market (marginal)
 import Core.Num as Q
 import Core.Query (holding)
-import Core.Types (Id(..), RuleF(..))
+import Core.Types (Capability(..), Id(..), IntentF(..), RuleF(..), proposalId)
 import Core.World (Event(..), RejectReason(..), RoundResult, WorldState, renderReason)
 import Data.Array (any, concatMap, drop, findMap, fromFoldable, index, length, reverse)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
 import Effect (Effect)
@@ -72,7 +72,7 @@ strategy text = case jsonParser text of
 run :: Seed -> Game -> Aff SimRun
 run = runOf
 
--- | Every round's invariants (INV-02, 04, 05, 06, 10) hold.
+-- | Every round's invariants (INV-02, 03, 04, 05, 06, 10) hold.
 valid :: WorldState -> SimRun -> Aff Unit
 valid initial r = checkRun initial r.records `shouldEqual` []
 
@@ -287,6 +287,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       procedureRan `shouldEqual` true
       tariffOnUs `shouldEqual` true
       banned `shouldEqual` true
+
+    it "6 Market access: in the shipped opening round, an Entity outside a Market's access is rejected and the Entity inside it settles" do
+      p <- premise
+      g <- presetGame p "Passive" [] (Just 1)
+      let
+        -- ENCO holds no defence-goods trade capability in the shipped premise, so it is granted one here: its
+        -- authority then passes and only the Market's access (US, DE, UK, JP) can reject its order
+        w = prepareRound g.world
+        enco = map (\e -> e { capabilities = e.capabilities <> [ MayTrade (Id "defence-goods") ] }) (Map.lookup (Id "ENCO") w.entities)
+        world = maybe w (\e -> w { entities = Map.insert (Id "ENCO") e w.entities }) enco
+        order who = { proposal: { id: proposalId 1 (Id who) 0, author: Id who, intents: [ Trade { market: Id "defence-goods", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }, signatures: [] }
+      case resolveRound world [ order "ENCO", order "US" ] of
+        Left e -> fail (show e)
+        Right r -> do
+          concatMap
+            ( case _ of
+                Rejected x -> [ renderReason x.reason ]
+                _ -> []
+            )
+            r.record.events `shouldEqual` [ "ENCO has no access to defence-goods" ]
+          holding r.world (Id "ENCO") (Id "Mil") `shouldEqual` holding world (Id "ENCO") (Id "Mil")
+          (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true
 
     it "12 Resolution consistency: Germany explicit vs implicit" do
       p <- premise

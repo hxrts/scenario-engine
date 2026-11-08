@@ -23,13 +23,14 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 
 -- | A checked invariant (docs/02 §9), named by its number.
-data Invariant = INV02 | INV04 | INV05 | INV06 | INV10
+data Invariant = INV02 | INV03 | INV04 | INV05 | INV06 | INV10
 
 derive instance Eq Invariant
 
 instance Show Invariant where
   show = case _ of
     INV02 -> "INV-02"
+    INV03 -> "INV-03"
     INV04 -> "INV-04"
     INV05 -> "INV-05"
     INV06 -> "INV-06"
@@ -39,7 +40,7 @@ instance Show Invariant where
 type Failure = { invariant :: String, detail :: String }
 
 check :: WorldState -> RoundResult -> Array Failure
-check before r = concatMap (\f -> f before r) [ inv02, inv04, inv05, inv06, inv10 ]
+check before r = concatMap (\f -> f before r) [ inv02, inv03, inv04, inv05, inv06, inv10 ]
 
 failure :: Invariant -> String -> Failure
 failure inv detail = { invariant: show inv, detail }
@@ -72,6 +73,15 @@ inv02 w r = concatMap one (executed r)
   procedureAuthority pid author = case Map.lookup author w.entities >>= aggregateOf of
     Just a -> maybe [] _.authorizes (Map.lookup pid a.procedures)
     Nothing -> []
+
+-- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
+-- | membership (its kind). Only holdings, capacities, and Rules move.
+inv03 :: WorldState -> RoundResult -> Array Failure
+inv03 before r = concatMap one (fromFoldable (Map.values r.world.entities))
+  where
+  one e = case Map.lookup e.id before.entities of
+    Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
+    _ -> []
 
 -- | INV-04 Resource consistency: no negative holdings or reserves.
 inv04 :: WorldState -> RoundResult -> Array Failure

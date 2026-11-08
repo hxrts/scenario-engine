@@ -92,7 +92,10 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       Right profiles -> do
         length profiles `shouldEqual` 15
         base <- run g
-        length (evaluateObjectives ctx.gameboard base.records) `shouldEqual` 16
+        -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
+        map (\o -> show o.actor <> ":" <> show o.outcome) (evaluateObjectives ctx.gameboard base.records)
+          `shouldEqual`
+            [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 
   it "player seeds vary seat behaviour while every Game-stream draw stays identical" do
     ctx <- context
