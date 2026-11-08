@@ -25,7 +25,7 @@ import Prelude
 
 import Core.Num as Q
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, encodeWith, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
+import Core.Shape (Format(..), Shape, arrayOf, encodeWith, field, intShape, parse, prim, prose, recordOf, requiredOf, stringShape, (&.))
 import Core.Types (EntityId, Id(..), Intent, IntentF(..), MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json, stringify)
@@ -43,50 +43,45 @@ import Schema.Decode.Common (decodeError)
 type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, entities :: Array EntityId, markets :: Array MarketId }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = object "JointRequest"
-  ( (\r t e m -> { round: r, transcripts: t, entities: e, markets: m })
-      <$> fieldOf "round" "the round" intShape _.round
-      <*> fieldOf "transcripts" "the seats' transcripts of the round" (arrayOf transcriptShape) _.transcripts
-      <*> fieldOf "entities" "the Entities a Proposal may name" (arrayOf idShape) _.entities
-      <*> fieldOf "markets" "the Markets a Proposal may name" (arrayOf idShape) _.markets
+jointRequestShape = recordOf "JointRequest"
+  ( field @"round" "the round" intShape
+      &. field @"transcripts" "the seats' transcripts of the round" (arrayOf transcriptShape)
+      &. field @"entities" "the Entities a Proposal may name" (arrayOf idShape)
+      &. field @"markets" "the Markets a Proposal may name" (arrayOf idShape)
   )
 
 -- | The narrator's payload: the round and its resolved events.
 type NarrateRequest = { round :: RoundIndex, events :: Array Event }
 
 narrateRequestShape :: Shape NarrateRequest
-narrateRequestShape = object "NarrateRequest"
-  ( (\r e -> { round: r, events: e })
-      <$> fieldOf "round" "the round" intShape _.round
-      <*> fieldOf "events" "the round's resolved events" (arrayOf eventShape) _.events
+narrateRequestShape = recordOf "NarrateRequest"
+  ( field @"round" "the round" intShape
+      &. field @"events" "the round's resolved events" (arrayOf eventShape)
   )
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { actor :: EntityId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
-speakRequestShape = object "SpeakRequest"
-  ( (\a b v -> { actor: a, briefing: b, view: v })
-      <$> fieldOf "actor" "the seat" idShape _.actor
-      <*> fieldOf "briefing" "the seat's role" stringShape _.briefing
-      <*> fieldOf "view" "what the seat can see" viewShape _.view
+speakRequestShape = recordOf "SpeakRequest"
+  ( field @"actor" "the seat" idShape
+      &. field @"briefing" "the seat's role" stringShape
+      &. field @"view" "what the seat can see" viewShape
   )
 
 -- | A narrator's or seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }
-textReplyShape = object "TextReply"
-  ( (\t -> { text: t })
-      <$> fieldOf "text" "the text" (requiredOf stringShape) _.text
+textReplyShape = recordOf "TextReply"
+  ( field @"text" "the text" (requiredOf stringShape)
   )
 
 -- | A correction's payload: the original request, the previous reply's text, and the decode error as
 -- | the decoder reports it.
 correctionShape :: Shape { request :: Json, previous_reply :: String, error :: String }
-correctionShape = object "Correction"
-  ( (\r p e -> { request: r, previous_reply: p, error: e })
-      <$> fieldOf "request" "the original request" (prim "Json" identity Right) _.request
-      <*> fieldOf "previous_reply" "the reply that did not decode" stringShape _.previous_reply
-      <*> fieldOf "error" "why it did not decode" stringShape _.error
+correctionShape = recordOf "Correction"
+  ( field @"request" "the original request" (prim "Json" identity Right)
+      &. field @"previous_reply" "the reply that did not decode" stringShape
+      &. field @"error" "why it did not decode" stringShape
   )
 
 common :: String

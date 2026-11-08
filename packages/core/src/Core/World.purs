@@ -8,7 +8,7 @@ import Core.Draw (Seed(..), drawVersion)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (atTagged, genericEnum, genericSum, recordShape, Format(..), Shape, arrayOf, boolShape, decodeJsonWith, encodeWith, fieldOf, intShape, iso, mapOf, object, optionalOf, pairOf, stringShape, unitShape)
+import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Core.Types (BehaviorDomain, CapacityEffect, CapacityRef, CostFunction, Entity, EntityId, Estimator, Id, Interval, Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -288,6 +288,14 @@ type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
 -- | A Market as a Policy sees it: where a Resource (the base) is traded for the quote.
 type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
 
+-- | What a Venue shows of a Market.
+venueOf :: Market -> Venue
+venueOf m = { id: m.id, base: m.base, quote: m.quote }
+
+-- | What a View shows of a Transformation.
+boundsOf :: Transformation -> Bounds
+boundsOf t = { minimum: t.minimum, maximum: t.maximum }
+
 -- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
 -- | matches on the specific failure. The record stores the value through `rejectReasonShape`;
 -- | `renderReason` is the one place its display text is written.
@@ -514,45 +522,41 @@ eventShape = genericSum "Event"
 
 -- | A View: what a Policy or a seat sees (INV-16).
 viewShape :: Shape View
-viewShape = object "View"
-  ( (\r s p rs tr e f t m es ts oc rk -> { round: r, self: s, prices: p, rules: rs, transferability: tr, events: e, factors: f, toSign: t, markets: m, entities: es, transformations: ts, ownedCapacities: oc, ruleKinds: rk })
-      <$> fieldOf "round" "the round" intShape _.round
-      <*> fieldOf "self" "the Entity seeing it" entityShape _.self
-      <*> fieldOf "prices" "the price of each Market" (mapOf idShape qShape) _.prices
-      <*> fieldOf "rules" "the Rules in force, by id" (mapOf idShape ruleShape) _.rules
-      <*> fieldOf "transferability" "how each Resource may move" (mapOf idShape transferabilityShape) _.transferability
-      <*> fieldOf "events" "the public history" (arrayOf eventShape) _.events
-      <*> fieldOf "factors" "the factors of each behaviour domain" (mapOf idShape qShape) _.factors
-      <*> fieldOf "toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape) _.toSign
-      <*> fieldOf "markets" "the Markets the Entity has access to" (arrayOf venueShape) _.markets
-      <*> fieldOf "entities" "the known Entities" (arrayOf idShape) _.entities
-      <*> fieldOf "transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape) _.transformations
-      <*> fieldOf "ownedCapacities" "the capacities the Entity owns" (arrayOf idShape) _.ownedCapacities
-      <*> fieldOf "ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape) _.ruleKinds
+viewShape = recordOf "View"
+  ( field @"round" "the round" intShape
+      &. field @"self" "the Entity seeing it" entityShape
+      &. field @"prices" "the price of each Market" (mapOf idShape qShape)
+      &. field @"rules" "the Rules in force, by id" (mapOf idShape ruleShape)
+      &. field @"transferability" "how each Resource may move" (mapOf idShape transferabilityShape)
+      &. field @"events" "the public history" (arrayOf eventShape)
+      &. field @"factors" "the factors of each behaviour domain" (mapOf idShape qShape)
+      &. field @"toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape)
+      &. field @"markets" "the Markets the Entity has access to" (arrayOf venueShape)
+      &. field @"entities" "the known Entities" (arrayOf idShape)
+      &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
+      &. field @"ownedCapacities" "the capacities the Entity owns" (arrayOf idShape)
+      &. field @"ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape)
   )
 
 boundsShape :: Shape Bounds
-boundsShape = object "Bounds"
-  ( (\a b -> { minimum: a, maximum: b })
-      <$> fieldOf "minimum" "the smallest order accepted" qShape _.minimum
-      <*> fieldOf "maximum" "the largest order accepted, if any" (optionalOf qShape) _.maximum
+boundsShape = recordOf "Bounds"
+  ( field @"minimum" "the smallest order accepted" qShape
+      &. field @"maximum" "the largest order accepted, if any" (optionalOf qShape)
   )
 
 venueShape :: Shape Venue
-venueShape = object "Venue"
-  ( (\i b q -> { id: i, base: b, quote: q })
-      <$> fieldOf "id" "the Market" idShape _.id
-      <*> fieldOf "base" "the Resource traded" idShape _.base
-      <*> fieldOf "quote" "the Resource it is priced in" idShape _.quote
+venueShape = recordOf "Venue"
+  ( field @"id" "the Market" idShape
+      &. field @"base" "the Resource traded" idShape
+      &. field @"quote" "the Resource it is priced in" idShape
   )
 
 -- | A round's record as the Run Store holds it.
 roundRecordShape :: Shape RoundRecord
-roundRecordShape = object "RoundRecord"
-  ( (\r i e -> { round: r, inputs: i, events: e })
-      <$> fieldOf "round" "the round" intShape _.round
-      <*> fieldOf "inputs" "every Proposal submitted in the round, with its signatures" (arrayOf signedProposalShape) _.inputs
-      <*> fieldOf "events" "the round's events" (arrayOf eventShape) _.events
+roundRecordShape = recordOf "RoundRecord"
+  ( field @"round" "the round" intShape
+      &. field @"inputs" "every Proposal submitted in the round, with its signatures" (arrayOf signedProposalShape)
+      &. field @"events" "the round's events" (arrayOf eventShape)
   )
 
 instance EncodeJson Target where

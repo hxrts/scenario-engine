@@ -23,7 +23,7 @@ import Core.Invariants (failureShape)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Argonaut.Core (fromString, stringify)
 import Schema.Joint (transcriptShape)
-import Schema.Run (RunStatus, Spec, deriveKindName, runStatusName, runStatusShape, specShape)
+import Schema.Run (RunStatus, Spec, runStatusShape, specShape)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Either (either)
@@ -120,9 +120,9 @@ statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeE
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn9 createRunImpl db r.id r.name (specText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (deriveKindName <$> r.kind)) r.owner
+  { createRun: \r -> runFn9 createRunImpl db r.id r.name (specText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable (show <$> r.kind)) r.owner
   , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (shapeText roundRecordShape r.record) (shapeText worldStateShape r.snapshot) (shapeText (arrayOf failureShape) r.assertions) (shapeText (arrayOf transcriptShape) r.transcripts) r.metrics
-  , setStatus: \id status reason -> runFn4 setStatusImpl db id (runStatusName status) (toNullable reason)
+  , setStatus: \id status reason -> runFn4 setStatusImpl db id (show status) (toNullable reason)
   , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
   , setSpec: \id spec -> runFn3 setSpecImpl db id (specText spec)
   , setArchived: \id archived -> runFn3 setArchivedImpl db id archived

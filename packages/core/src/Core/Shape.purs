@@ -55,11 +55,20 @@ module Core.Shape
   , atFields
   , RecF
   , fieldOf
+  , Fields
+  , field
+  , fieldAs
+  , andField
+  , (&.)
+  , recordOf
   , contramapRec
   , object
   , class RecordFields
   , recordShape
   , nameShape
+  , genericNameShape
+  , enumName
+  , lowerName
   , pairOf
   , keyedOf
   , listOf
@@ -90,9 +99,9 @@ import Data.Array (sortBy)
 import Data.Tuple (Tuple(..), fst)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.String (joinWith, toLower)
 import Data.String.CodeUnits (drop, take)
 import Data.String.CodeUnits as SCU
-import Data.Foldable (foldl)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Traversable (traverse)
@@ -266,7 +275,7 @@ bare :: forall a. Eq a => { tag :: String, desc :: String } -> a -> PCtor a
 bare t value =
   { tag: t.tag
   , desc: t.desc
-  , payload: DPrim "null"
+  , payload: unitDesc
   , form: Bare
   , project: \x -> if x == value then Just (fromString t.tag) else Nothing
   , inject: \j -> if toString j == Just t.tag then Just (Right value) else Nothing
@@ -357,7 +366,7 @@ atTagged desc s = At \tag proj inj ->
     , desc
     , payload: s.desc
     , form: Tagged
-    , project: \_ x -> map (\b -> objectOf Snapshot [ Tuple "tag" (fromString tag), Tuple "values" (fromArray (if s.desc == DPrim "null" then [] else [ c.enc b ])) ]) (proj x)
+    , project: \_ x -> map (\b -> objectOf Snapshot [ Tuple "tag" (fromString tag), Tuple "values" (fromArray (if isUnit s.desc then [] else [ c.enc b ])) ]) (proj x)
     , inject: \_ j -> Just (map inj (c.dec (fromMaybe jsonNull (toObject j >>= Object.lookup "values" >>= toArray >>= Array.head))))
     }
 
@@ -374,7 +383,7 @@ atBare :: { tag :: String, desc :: String } -> At Unit
 atBare t = At \_ proj inj ->
   { tag: t.tag
   , desc: t.desc
-  , payload: DPrim "null"
+  , payload: unitDesc
   , form: Bare
   , project: \_ x -> map (const (fromString t.tag)) (proj x)
   , inject: \_ j -> if toString j == Just t.tag then Just (Right (inj unit)) else Nothing
@@ -463,7 +472,27 @@ arms :: forall a rep row. Generic a rep => SumCtors rep row => Record row -> Arr
 arms r = sumArms r (Just <<< from) to
 
 descOf :: forall a. String -> TagForm -> Array (Arm a) -> Desc
-descOf name form as = DSum name form (map (\c -> { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form }) as)
+descOf name form as = DSum name form (map dctorOf as)
+
+dctorOf :: forall r. { tag :: String, desc :: String, payload :: Desc, form :: TagForm | r } -> DCtor
+dctorOf c = { tag: c.tag, desc: c.desc, payload: c.payload, form: c.form }
+
+-- | The description of a constructor with no payload.
+unitDesc :: Desc
+unitDesc = DPrim "null"
+
+isUnit :: Desc -> Boolean
+isUnit d = d == unitDesc
+
+-- | Read a snapshot sum's tag and find its constructor: what `reading` gives is the decoded value.
+withTag :: forall c a. Array { tag :: String | c } -> ({ tag :: String | c } -> Either String a) -> Json -> Either String a
+withTag cs reading j = do
+  o <- note "expected a tagged object" (toObject j)
+  tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
+  _ <- note "missing values" (Object.lookup "values" o >>= toArray)
+  case Array.find (\c -> c.tag == tag) cs of
+    Just c -> reading c
+    Nothing -> Left ("no constructor " <> tag)
 
 -- | A sum in the snapshot form, derived from its `Generic` representation. Each constructor is described
 -- | by `atTagged`, under its own name; a constructor's position in the description is its place in `data`.
@@ -483,13 +512,7 @@ genericSum name r =
   }
   where
   cs = arms r :: Array (Arm a)
-  dec j = do
-    o <- note "expected a tagged object" (toObject j)
-    tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
-    _ <- note "missing values" (Object.lookup "values" o >>= toArray)
-    case Array.find (\c -> c.tag == tag) cs of
-      Just c -> fromMaybe (Left ("no constructor " <> tag)) (c.inject Snapshot j)
-      Nothing -> Left ("no constructor " <> tag)
+  dec j = withTag cs (\c -> fromMaybe (Left ("no constructor " <> c.tag)) (c.inject Snapshot j)) j
 
 -- | A sum in a setting form, derived from its `Generic` representation: as `settingSum`, with each
 -- | constructor described by `atOneKey`, `atKindArg`, `atBare`, `atLiteral` or `atEmbedded`; a value
@@ -559,10 +582,25 @@ instance IsSymbol name => EnumCtors (Constructor name NoArguments) where
   enumCtors _ inj = [ { tag: reflectSymbol (Proxy :: Proxy name), value: inj (Constructor NoArguments) } ]
   enumTag _ = reflectSymbol (Proxy :: Proxy name)
 
+-- | A constructor's name, for a sum of constructors with no argument.
+enumName :: forall a rep. Generic a rep => EnumCtors rep => a -> String
+enumName = enumTag <<< from
+
+-- | A constructor's name in lower case. Where this text is stored, renaming the constructor changes it.
+lowerName :: forall a rep. Generic a rep => EnumCtors rep => a -> String
+lowerName = toLower <<< enumName
+
+-- | A closed set of values written by name: every constructor, spelled by `text`; `message` reads the
+-- | spellings to say what was expected.
+genericNameShape :: forall a rep. Generic a rep => EnumCtors rep => String -> (Array String -> String) -> (a -> String) -> Shape a
+genericNameShape name message text = nameShape name (message (map text values)) text values
+  where
+  values = map _.value (enumCtors (Proxy :: Proxy rep) to)
+
 -- | A sum of constructors with no argument, written as `{"tag":..,"values":[]}`: its tag alone.
 genericEnum :: forall a rep. Generic a rep => EnumCtors rep => String -> Shape a
 genericEnum name =
-  { desc: DSum name Tagged (map (\c -> { tag: c.tag, desc: "", payload: DPrim "null", form: Tagged }) cs)
+  { desc: DSum name Tagged (map (\c -> { tag: c.tag, desc: "", payload: unitDesc, form: Tagged }) cs)
   , codec: \_ -> { enc, dec }
   , absent: const false
   , missing: Nothing
@@ -570,13 +608,7 @@ genericEnum name =
   where
   cs = enumCtors (Proxy :: Proxy rep) to :: Array { tag :: String, value :: a }
   enc x = objectOf Snapshot [ Tuple "tag" (fromString (enumTag (from x))), Tuple "values" (fromArray []) ]
-  dec j = do
-    o <- note "expected a tagged object" (toObject j)
-    tag <- note "missing tag" (Object.lookup "tag" o >>= toString)
-    _ <- note "missing values" (Object.lookup "values" o >>= toArray)
-    case Array.find (\c -> c.tag == tag) cs of
-      Just c -> Right c.value
-      Nothing -> Left ("no constructor " <> tag)
+  dec = withTag cs (Right <<< _.value)
 
 -- | The fields of a record, as an applicative over the value it builds. Any number of fields works.
 newtype RecF a b = RecF
@@ -608,6 +640,44 @@ fieldOf key desc s get = RecF
       Just j -> (s.codec fmt).dec j
       Nothing -> note ("missing key " <> key) s.missing
   }
+
+-- | Fields of the record `whole`, building `to` from `from`: one or more labelled fields, composed with `&.`.
+type Fields whole from to = RecF (Record whole) (Builder (Record from) (Record to))
+
+-- | A field by its label: the label is the key and the getter, so swapping two fields of one type does not compile.
+field
+  :: forall @key b from to whole w
+   . IsSymbol key
+  => Row.Cons key b w whole
+  => Row.Cons key b from to
+  => Row.Lacks key from
+  => String
+  -> Shape b
+  -> Fields whole from to
+field note s = fieldAs @key (reflectSymbol (Proxy :: Proxy key)) note s
+
+-- | A field whose key differs from its label.
+fieldAs
+  :: forall @key b from to whole w
+   . IsSymbol key
+  => Row.Cons key b w whole
+  => Row.Cons key b from to
+  => Row.Lacks key from
+  => String
+  -> String
+  -> Shape b
+  -> Fields whole from to
+fieldAs jsonKey note s = Builder.insert (Proxy :: Proxy key) <$> fieldOf jsonKey note s (Record.get (Proxy :: Proxy key))
+
+-- | Two runs of fields in written order.
+andField :: forall whole a b c. Fields whole b c -> Fields whole a b -> Fields whole a c
+andField left right = (<<<) <$> left <*> right
+
+infixr 5 andField as &.
+
+-- | A record's shape from labelled fields, in written order.
+recordOf :: forall whole. String -> Fields whole () whole -> Shape (Record whole)
+recordOf name fs = object name (map (\b -> Builder.build b {}) fs)
 
 -- | The same fields over a wider value: `f` reads the record out of it. A section of a larger record
 -- | is a field set over the whole record, so one description serves both the section and the whole.
@@ -852,7 +922,7 @@ prose = go 0
     DSum name form ctors -> name <> " (" <> show form <> "): " <> joinWith " | " (map (\c -> ctor c <> noteOf c.desc) ctors)
     where
     ctor c = case c.form of
-      Tagged -> "{\"tag\":\"" <> c.tag <> "\",\"values\":[" <> (if c.payload == DPrim "null" then "" else go n c.payload) <> "]}"
+      Tagged -> "{\"tag\":\"" <> c.tag <> "\",\"values\":[" <> (if isUnit c.payload then "" else go n c.payload) <> "]}"
       _ -> tagOf c.form c <> " " <> go n c.payload
     tagOf Tagged c = c.tag
     tagOf OneKey c = "{\"" <> c.tag <> "\": ...}"
@@ -862,7 +932,6 @@ prose = go 0
     tagOf Mixed c = c.tag
   noteOf "" = ""
   noteOf s = " - " <> s
-  joinWith sep xs = foldl (\acc x -> if acc == "" then x else acc <> sep <> x) "" xs
 
 instance showTagForm :: Show TagForm where
   show Tagged = "tagged"

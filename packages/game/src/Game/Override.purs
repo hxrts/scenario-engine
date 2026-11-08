@@ -41,10 +41,10 @@ derive instance Eq Override
 overrideRefs :: Override -> Array (Tuple RefKind String)
 overrideRefs = case _ of
   GameSeed _ -> []
-  Parameter name _ -> [ Tuple ParameterRef name ]
-  Capacity e ref _ -> [ Tuple EntityRef (idText e), Tuple CapacityName (idText ref) ]
+  Parameter name _ -> [ Tuple RefParameter name ]
+  Capacity e ref _ -> [ Tuple RefEntity (idText e), Tuple RefCapacity (idText ref) ]
   Shrinkage _ _ -> []
-  Implicit e -> [ Tuple EntityRef (idText e) ]
+  Implicit e -> [ Tuple RefEntity (idText e) ]
 
 -- | Apply overrides to the baseline Gameboard and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.

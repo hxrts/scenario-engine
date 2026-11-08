@@ -11,7 +11,7 @@ import Testkit.Edit (onEntity)
 
 import Test.Views.Support (toStored)
 
-import Schema.Run (DeriveKind(..), RunStatus(..), runStatusName, emptySpec, specPairs)
+import Schema.Run (DeriveKind(..), RunStatus(..), emptySpec, specPairs)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Gameboard (Outcome(..))
 
@@ -197,7 +197,7 @@ spec context = describe "Views and error paths" do
     r <- play ctx (conservative 2)
     let
       t = runList [ Right (summary (toStored "run-1" r)), Left { id: "run-2", name: "broken", reason: "manifest: bad json" } ]
-    map (\row -> cell row 6) t.rows `shouldEqual` [ runStatusName Completed, "unreadable" ]
+    map (\row -> cell row 6) t.rows `shouldEqual` [ show Completed, "unreadable" ]
     map (\row -> cell row 8) t.rows `shouldEqual` [ "", "manifest: bad json" ]
 
   it "an Entity's history shows each round's holding, and its net worth matches the standings (§9.2)" do

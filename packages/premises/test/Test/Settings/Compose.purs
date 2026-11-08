@@ -71,7 +71,7 @@ spec = do
           s = (everything p.gameboard) { resources = filter (_ /= Id n.energy) (everything p.gameboard).resources }
         in
           case restrict s p of
-            Left (Invalid es) -> (UnknownReference ResourceRef n.energy `elem` es) `shouldEqual` true
+            Left (Invalid es) -> (UnknownReference RefResource n.energy `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a Market whose base Resource was dropped should not pass"
 
@@ -81,7 +81,7 @@ spec = do
           s = (everything p.gameboard) { entities = filter (_ /= Id n.aid) (everything p.gameboard).entities }
         in
           case restrict s p of
-            Left (Invalid es) -> (UnknownReference EntityRef n.aid `elem` es) `shouldEqual` true
+            Left (Invalid es) -> (UnknownReference RefEntity n.aid `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "a kept Aggregate's dropped member should not pass"
 
@@ -100,7 +100,7 @@ spec = do
           s = (everything p.gameboard) { entities = [ Id "NOBODY" ] }
         in
           case restrict s p of
-            Left (Invalid es) -> es `shouldEqual` [ UnknownReference EntityRef "NOBODY" ]
+            Left (Invalid es) -> es `shouldEqual` [ UnknownReference RefEntity "NOBODY" ]
             Left e -> fail (show e)
             Right _ -> fail "an unknown Entity should not pass"
   where

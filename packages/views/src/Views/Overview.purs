@@ -16,7 +16,7 @@ module Views.Overview
 import Prelude
 
 import Schema.Gameboard (Gameboard)
-import Schema.Run (RunStatus(..), runStatusName)
+import Schema.Run (RunStatus(..))
 import Data.String (joinWith)
 import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
@@ -62,7 +62,7 @@ runList rows =
   -- an unreadable run's archive flag and source are not decoded, so they show as unknown
   row = case _ of
     Left u -> [ u.id, u.name, "—", "—", "—", "—", "unreadable", "—", u.reason, "—", "—" ]
-    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, runStatusName s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
+    Right s -> [ s.id, s.name, s.gameboard, s.gameSeed, s.playerSeed, show s.rounds, show s.status, show s.assertionsFailing, fromMaybe "" s.reason, yesNo s.archived, sourceCell s.source s.sourceDeleted ]
   flags = case _ of
     Left u -> { id: u.id, archived: false, readable: false }
     Right s -> { id: s.id, archived: s.archived, readable: true }
@@ -134,7 +134,7 @@ overview r =
       [ fact col.name r.name
       , fact presetColumn (fromMaybe "" r.spec.preset)
       , fact settingColumn r.manifest.gameboard
-      , fact col.status (runStatusName r.status)
+      , fact col.status (show r.status)
       , fact roundsCompleted (ofCount rounds launched)
       , fact gameIdColumn (fromMaybe "" r.spec.gameId)
       ]

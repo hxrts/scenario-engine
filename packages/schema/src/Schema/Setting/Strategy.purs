@@ -10,29 +10,27 @@ module Schema.Setting.Strategy
   , encodeStrategy
   ) where
 
+import Partial.Unsafe (unsafeCrashWith)
+import Core.Sum (ctor)
 import Prelude
 
 import Core.Query (transfersOf, transformsOf)
-import Core.Shape (Format(..), Shape, arrayOf, atLiteral, atOneKey, decodeJsonWith, embedded, encodeWith, fieldOf, genericSettingSum, iso, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, settingSum, recordShape, recursive, requiredMaybe, stringShape, unitShape)
+import Core.Shape (genericSettingSum, atOneKey, atEmbedded, iso, partialIso, Format(..), Shape, arrayOf, atLiteral, decodeJsonWith, embedded, encodeWith, field, fieldOf, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, recordOf, recordShape, recursive, requiredMaybe, settingSum, stringShape, unitShape, (&.))
 import Core.Num (qShape)
-import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfName)
+import Core.Strategy (selfId, Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfName)
 import Schema.Setting.Intent (ruleBody)
 import Schema.Setting.Query (legQueryShape)
-import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), TransformationId, jointIntent, idShape, transferBody)
+import Core.Types (ownTransformBody, repealBody, CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, TransformationId, idShape, jointIntent, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
-import Data.Either (Either)
-import Data.Maybe (Maybe(..))
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Tuple (Tuple)
 
 -- The setting tags used more than once. Private to this module.
 noActionT :: String
 noActionT = "noAction"
-
--- | The entity a Strategy's `self` names.
-selfId :: EntityId
-selfId = Id selfName
 
 -- | An Entity that defaults to the acting one, and is not written when it is.
 selfIdShape :: Shape EntityId
@@ -72,10 +70,9 @@ condShape = recursive "Cond" \c -> genericSettingSum "Cond"
   , "Recorded": atOneKey "recorded" "what a query of the record reads is at least the threshold" recordedBody
   }
   where
-  recordedBody = object "Recorded"
-    ( (\q a -> { query: q, atLeast: a })
-        <$> fieldOf "query" "what to read from the record" recordQueryShape _.query
-        <*> fieldOf "atLeast" "the threshold" exprShape _.atLeast
+  recordedBody = recordOf "Recorded"
+    ( field @"query" "what to read from the record" recordQueryShape
+        &. field @"atLeast" "the threshold" exprShape
     )
 
 -- | A question of the record.
@@ -94,55 +91,29 @@ transferObject = transferBody exprShape
 
 -- | A transform as a plain object: how a joint Proposal writes its transforms, run by the acting Entity.
 transformObject :: Shape TransformRec
-transformObject = object "Transform"
-  ( mk2 <$> fieldOf "transformation" "the transformation" idShape _.transformation
-      <*> fieldOf "quantity" "the quantity run" exprShape _.quantity
-  )
-  where
-  mk2 t q = { transformation: t, quantity: q }
+transformObject = ownTransformBody exprShape
 
 -- | An Intent a Strategy writes as a template. `self` is implicit: the jurisdiction of an enactment,
 -- | and the `by` of a transform.
 intentTemplateShape :: Shape IntentTemplate
-intentTemplateShape = settingSum "Intent template"
-  [ oneKey "trade" "an order in a Market" tradeBody
-      ( \x -> case x of
-          Trade r -> Just r
-          _ -> Nothing
-      )
-      Trade
-  , oneKey "route" "a routed order on a pair" routeBody
-      ( \x -> case x of
-          Route r -> Just r
-          _ -> Nothing
-      )
-      Route
-  , oneKey "transform" "a run of a transformation by the acting Entity" transformObject
-      ( \x -> case x of
-          Transform r | r.by == selfId -> Just { transformation: r.transformation, quantity: r.quantity }
-          _ -> Nothing
-      )
-      (\r -> Transform { by: selfId, transformation: r.transformation, quantity: r.quantity })
-  , oneKey "transfer" "a Resource given by the Entity" transferObject
-      ( \x -> case x of
-          Transfer r -> Just r
-          _ -> Nothing
-      )
-      Transfer
-  , oneKey "enact" "enact a Rule, with the acting Entity as its governor by default" (ruleBody selfIdShape exprShape)
-      ( \i -> case i of
-          ChangeRule (Enact r) -> Just r
-          _ -> Nothing
-      )
-      (ChangeRule <<< Enact)
-  , oneKey "repeal" "repeal a Rule the author governs" repealBody
-      ( \x -> case x of
-          ChangeRule (Repeal r) -> Just { rule: r }
-          _ -> Nothing
-      )
-      (\r -> ChangeRule (Repeal r.rule))
-  ]
+intentTemplateShape = genericSettingSum "Intent template"
+  { "Trade": atOneKey "trade" "an order in a Market" tradeBody
+  , "Route": atOneKey "route" "a routed order on a pair" routeBody
+  , "Transfer": atOneKey "transfer" "a Resource given by the Entity" transferObject
+  , "Transform": atOneKey "transform" "a run of a transformation by the acting Entity" selfTransformShape
+  , "ChangeRule": atEmbedded ruleChangeShape
+  }
   where
+  ruleChangeShape = genericSettingSum "Rule change"
+    { "Enact": atOneKey "enact" "enact a Rule, with the acting Entity as its governor by default" (ruleBody selfIdShape exprShape)
+    , "Repeal": atOneKey "repeal" "repeal a Rule the author governs" (iso _.rule (\r -> { rule: r }) repealBody)
+    }
+  selfTransformShape = partialIso transformObject
+    (\r -> Right { by: selfId, transformation: r.transformation, quantity: r.quantity })
+    ( \r ->
+        if r.by == selfId then { transformation: r.transformation, quantity: r.quantity }
+        else unsafeCrashWith ("a template's Transform must be run by self, not " <> show r.by)
+    )
   tradeBody = object "Trade"
     ( mk3 <$> fieldOf "market" "the Market, by id or by selector" marketRefShape _.market
         <*> fieldOf "quantity" "the quantity" exprShape _.quantity
@@ -158,9 +129,6 @@ intentTemplateShape = settingSum "Intent template"
     )
     where
     mk4 b qu q l = { pair: { base: b, quote: qu }, quantity: q, limitPrice: l }
-  repealBody = object "Repeal" (mk1 <$> fieldOf "rule" "the Rule, by the id the engine gave it" idShape _.rule)
-    where
-    mk1 r = { rule: r }
 
 -- | A Procedure's Intents: each a template Intent. A `noAction` among them contributes nothing.
 procedureIntentsShape :: Shape (Array IntentTemplate)
@@ -182,15 +150,9 @@ jointShaped xs = Array.all jointIntent xs && Array.all isSelfTransform fs && xs 
   where
   ts = Array.filter isTransfer xs
   fs = Array.filter isTransform xs
-  isTransfer = case _ of
-    Transfer _ -> true
-    _ -> false
-  isTransform = case _ of
-    Transform _ -> true
-    _ -> false
-  isSelfTransform = case _ of
-    Transform r -> r.by == selfId
-    _ -> false
+  isTransfer = isJust <<< ctor @"Transfer"
+  isTransform = isJust <<< ctor @"Transform"
+  isSelfTransform = maybe false (\r -> r.by == selfId) <<< ctor @"Transform"
 
 -- | The Proposal templates and the choices among them.
 templateShape :: Shape Template
@@ -262,30 +224,24 @@ signRuleShape = recursive "SignRule" \s -> genericSettingSum "SignRule"
   , "SignIf": atOneKey "signIf" "the inner rule, while every condition holds" (signIfBody s)
   }
   where
-  signIfBody s = object "SignIf"
-    ( mk2 <$> fieldOf "when" "the conditions" (omittedWhen (const false) (arrayOf condShape)) _.when
-        <*> fieldOf "rule" "the inner sign rule" s _.rule
+  signIfBody s = recordOf "SignIf"
+    ( field @"when" "the conditions" (omittedWhen (const false) (arrayOf condShape))
+        &. field @"rule" "the inner sign rule" s
     )
-    where
-    mk2 w r = { when: w, rule: r }
 
 -- | A clause: when every condition holds, propose its templates.
 clauseShape :: Shape Clause
-clauseShape = object "Clause"
-  ( mk <$> fieldOf "when" "the conditions" (omittedWhen (const false) (arrayOf condShape)) _.when
-      <*> fieldOf "propose" "the templates proposed" (arrayOf templateShape) _.propose
+clauseShape = recordOf "Clause"
+  ( field @"when" "the conditions" (omittedWhen (const false) (arrayOf condShape))
+      &. field @"propose" "the templates proposed" (arrayOf templateShape)
   )
-  where
-  mk w p = { when: w, propose: p }
 
 -- | A Strategy: its clauses, and its sign rules.
 strategyShape :: Shape Strategy
-strategyShape = object "Strategy"
-  ( mk <$> fieldOf "rules" "the clauses" (omittedWhen Array.null (arrayOf clauseShape)) _.rules
-      <*> fieldOf "sign" "the sign rules" (omittedWhen Array.null (arrayOf signRuleShape)) _.sign
+strategyShape = recordOf "Strategy"
+  ( field @"rules" "the clauses" (omittedWhen Array.null (arrayOf clauseShape))
+      &. field @"sign" "the sign rules" (omittedWhen Array.null (arrayOf signRuleShape))
   )
-  where
-  mk r s = { rules: r, sign: s }
 
 -- | The policies file: the Gameboard's Policy catalog, each Policy's name and its Strategy.
 policiesShape :: Shape (Array (Tuple String Strategy))

@@ -13,13 +13,14 @@ module Core.Strategy
   , MarketRef(..)
   , IntentTemplate
   , selfName
+  , selfId
   ) where
 
 import Prelude
 
 import Core.Num (Q)
 import Core.World (LegQuery)
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
+import Core.Types (Id(..), BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Show.Generic (genericShow)
@@ -29,6 +30,10 @@ import Foreign.Object (Object)
 -- | interpreter resolves it (`Policy.Interpret`).
 selfName :: String
 selfName = "self"
+
+-- | The acting Entity, as an id a template names.
+selfId :: EntityId
+selfId = Id selfName
 
 -- | How a Strategy names a Market (docs/02 §4.4): one Market by id, or a selector over the Markets
 -- | the acting Entity has access to whose base is the Resource. A clause that uses selectors is

@@ -36,7 +36,8 @@ module Core.Num
 import Prelude hiding (add, sub, mul, div, zero, one)
 import Prelude as P
 
-import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeWith, nameShape)
+import Data.Generic.Rep (class Generic)
+import Core.Shape (Desc(..), Format(..), Shape, decodeJsonWith, encodeWith, genericNameShape, lowerName)
 
 import Data.Argonaut.Core (fromString, toString) as J
 import Data.Argonaut.Decode (class DecodeJson)
@@ -243,19 +244,15 @@ toDisplayNumber (Q u) = BI.toNumber u / BI.toNumber scale
 
 -- | A display kind (docs/02 §9.1): how a value is shown. Each kind has one display function below;
 -- | every view, table, chart and CLI line names its kind and calls that function.
+-- | Renaming a constructor changes the text written for it.
 data Kind = Quantity | Price | Ratio
 
 derive instance Eq Kind
-
-kindName :: Kind -> String
-kindName = case _ of
-  Quantity -> "quantity"
-  Price -> "price"
-  Ratio -> "ratio"
+derive instance Generic Kind _
 
 -- | A display kind, written as its name.
 kindShape :: Shape Kind
-kindShape = nameShape "Kind" "display kind: quantity, price or ratio" kindName [ Quantity, Price, Ratio ]
+kindShape = genericNameShape "Kind" (const "display kind: quantity, price or ratio") lowerName
 
 instance EncodeJson Kind where
   encodeJson = encodeWith Snapshot kindShape

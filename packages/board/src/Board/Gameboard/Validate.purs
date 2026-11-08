@@ -63,11 +63,11 @@ validateGameboard gb config =
   -- An unknown name in any position: one error per name.
   unknown :: forall t. RefKind -> Array (Id t) -> Array ValidationError
   unknown kind = unknownNames (gameboardNames gb) <<< map (Tuple kind <<< idText)
-  unknownEntity = unknown EntityRef
-  unknownResource = unknown ResourceRef
-  unknownTransformation = unknown TransformationRef
+  unknownEntity = unknown RefEntity
+  unknownResource = unknown RefResource
+  unknownTransformation = unknown RefTransformation
   -- a capacity named by a facility, effect, rule, or production entry must be held by some Entity
-  unknownCapacity xs = map (UnknownReference CapacityName <<< show) (filter (\c -> not (show c `elem` held)) xs)
+  unknownCapacity xs = map (UnknownReference RefCapacity <<< show) (filter (\c -> not (show c `elem` held)) xs)
 
   references =
     unknownEntity (concatMap (\m -> m.access) markets)
@@ -79,7 +79,7 @@ validateGameboard gb config =
       <> unknownEntity (map _.to (mapMaybe _.payment facilities))
       <> unknownResource (map _.resource (mapMaybe _.payment facilities))
       <> unknownResource (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities)
-      <> map (UnknownReference CapacityName) (filter (\c -> not (c `elem` referenced)) held)
+      <> map (UnknownReference RefCapacity) (filter (\c -> not (c `elem` referenced)) held)
       <> concatMap recurringRefs w.recurring
       <> unknownEntity (concatMap (\(Tuple k v) -> [ k, v ]) (Map.toUnfoldable w.groups :: Array _))
       <> concatMap ruleRefs (values w.rules)
@@ -88,28 +88,28 @@ validateGameboard gb config =
       <> unknownResource ([ w.numeraire ] <> foldMap (pure <<< _.resource) w.focus)
       <> concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective (values gb.actors)) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
       <> unknownEntity (concatMap coverageOf (mapMaybe _.fallback (values gb.actors) <> values config.fallbacks))
-      <> map (UnknownReference EntityRef <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
+      <> map (UnknownReference RefEntity <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
       <> unknownResource (map _.resource w.flowGates)
       <> unknownTransformation (mapMaybe _.bundled w.flowGates)
       <> unknownEntity (map _.target gb.schemes)
       <> unknownEntity (concatMap _.eligibleActors gb.schemes)
-      <> map (\s -> UnknownReference ResourceRef (show s.observes)) (filter (\s -> not (Map.member s.observes w.resources)) gb.schemes)
+      <> map (\s -> UnknownReference RefResource (show s.observes)) (filter (\s -> not (Map.member s.observes w.resources)) gb.schemes)
       <> unknownEntity (concatMap _.aggregate.members aggregates)
       <> unknownEntity
         (concatMap (\x -> concatMap (\p -> fromFoldable (Map.keys p.weights)) (values x.aggregate.procedures)) aggregates)
-      <> map (\x -> UnknownReference PolicyRef (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
+      <> map (\x -> UnknownReference RefPolicy (show x)) (filter (\p -> not (Map.member p gb.policies)) (aggregatePolicies <> concatMap _.npc (values gb.actors) <> fallbackPolicies))
   ruleRefs r = (if Map.member (ruleKind r) w.ruleKinds then [] else unknownKind (ruleKind r)) <> case r of
     FlowRule x -> unknownEntity [ x.scope.governor, x.scope.counterparty ] <> unknownResource x.scope.over <> levyRefs x.effect
     CapacityRule x -> unknownCapacity [ x.capacity ]
-  unknownKind k = [ UnknownReference RuleKindRef (show k) ]
+  unknownKind k = [ UnknownReference RefRuleKind (show k) ]
   levyRefs = case _ of
     Levy l -> unknownResource [ l.in ] <> case l.basis of
       PerUnit -> []
-      AdValorem m -> unknown Market [ m ]
+      AdValorem m -> unknown RefMarket [ m ]
     Block -> []
   -- a capability names a Market, a Resource, a Transformation, or a declared Rule kind
   capabilityRefs = case _ of
-    MayTrade m -> unknown Market [ m ]
+    MayTrade m -> unknown RefMarket [ m ]
     MayTransfer r -> unknownResource [ r ]
     MayTransform t -> unknownTransformation [ t ]
     MayEnact k -> if Map.member k w.ruleKinds then [] else unknownKind k
@@ -219,12 +219,12 @@ unknownNames :: forall m r t k. Names m r t k -> Array (Tuple RefKind String) ->
 unknownNames w = map (\(Tuple kind name) -> UnknownReference kind name) <<< filter (\(Tuple kind name) -> not (known kind name))
   where
   known kind name = case kind of
-    EntityRef -> Map.member (Id name) w.entities
-    Market -> Map.member (Id name) w.markets
-    ResourceRef -> Map.member (Id name) w.resources
-    TransformationRef -> Map.member (Id name) w.transformations
-    ParameterRef -> Set.member name w.parameters
-    CapacityName -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
-    ProcedureRef -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
-    PolicyRef -> Set.member (Id name) w.policies
-    RuleKindRef -> Map.member (Id name) w.ruleKinds
+    RefEntity -> Map.member (Id name) w.entities
+    RefMarket -> Map.member (Id name) w.markets
+    RefResource -> Map.member (Id name) w.resources
+    RefTransformation -> Map.member (Id name) w.transformations
+    RefParameter -> Set.member name w.parameters
+    RefCapacity -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
+    RefProcedure -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
+    RefPolicy -> Set.member (Id name) w.policies
+    RefRuleKind -> Map.member (Id name) w.ruleKinds

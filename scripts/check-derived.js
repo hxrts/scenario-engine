@@ -288,7 +288,7 @@ function scan(file, text, ctx) {
       const i = s.line - 1;
       const sym = symbols[i];
       const before = (raw[i].split(`"${s.value}"`)[0] || "") + '"';
-      const keyed = fieldPosition.test(before) || raw[i].includes(`"${s.value}":`) || raw[i].includes(`"${s.value}" :`);
+      const keyed = fieldPosition.test(before) || before.endsWith('@"') || raw[i].includes(`"${s.value}":`) || raw[i].includes(`"${s.value}" :`);
       // a view
       if (ctx.viewNames.includes(s.value) && !keyed && file.startsWith("apps/")) hit("view", i);
       // an Event kind, by name or in formula text

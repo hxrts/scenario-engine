@@ -9,10 +9,8 @@ module Schema.Setting.Actor
   , fallbackShape
   ) where
 
-import Prelude
-
 import Core.Num (qShape)
-import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, fieldOf, genericSettingSum, listOf, object, optionalOf, stringShape)
+import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, field, genericSettingSum, listOf, optionalOf, recordOf, stringShape, (&.))
 import Core.Types (idShape)
 import Schema.Gameboard (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
@@ -57,43 +55,35 @@ cumulativeTag = "cumulative"
 -- Shapes --------------------------------------------------------------------------------------
 
 definitionShape :: Shape ActorDefinition
-definitionShape = object "Definition"
-  ( mk <$> fieldOf "required" "must be seated (default false)" (defaultsTo false boolShape) _.required
-      <*> fieldOf "seat" "may be seated (default true)" (defaultsTo true boolShape) _.seat
-      <*> fieldOf "npc" "the NPC Policies it may take" (arrayOf idShape) _.npc
-      <*> fieldOf "fallback" "what covers it when it has no player" (optionalOf fallbackShape) _.fallback
-      <*> fieldOf "objective" "its measurable objective" (optionalOf objectiveShape) _.objective
-      <*> fieldOf "description" "what the Actor does (prose)" (defaultsTo "" stringShape) _.description
-      <*> fieldOf "dependency" "what the Actor depends on (prose)" (defaultsTo "" stringShape) _.dependency
+definitionShape = recordOf "Definition"
+  ( field @"required" "must be seated (default false)" (defaultsTo false boolShape)
+      &. field @"seat" "may be seated (default true)" (defaultsTo true boolShape)
+      &. field @"npc" "the NPC Policies it may take" (arrayOf idShape)
+      &. field @"fallback" "what covers it when it has no player" (optionalOf fallbackShape)
+      &. field @"objective" "its measurable objective" (optionalOf objectiveShape)
+      &. field @"description" "what the Actor does (prose)" (defaultsTo "" stringShape)
+      &. field @"dependency" "what the Actor depends on (prose)" (defaultsTo "" stringShape)
   )
-  where
-  mk r s n f o d p = { required: r, seat: s, npc: n, fallback: f, objective: o, description: d, dependency: p }
 
 objectiveShape :: Shape Objective
-objectiveShape = object "Objective"
-  ( mk <$> fieldOf "description" "what the objective is" stringShape _.description
-      <*> fieldOf "criteria" "the criteria it is met by" (listOf criterionShape) _.criteria
+objectiveShape = recordOf "Objective"
+  ( field @"description" "what the objective is" stringShape
+      &. field @"criteria" "the criteria it is met by" (listOf criterionShape)
   )
-  where
-  mk d c = { description: d, criteria: c }
 
 criterionShape :: Shape Criterion
-criterionShape = object "Criterion"
-  ( mk <$> fieldOf "metric" "the measured quantity" metricShape _.metric
-      <*> fieldOf "over" "the span of rounds (default final)" (defaultsTo Final spanShape) _.over
-      <*> fieldOf "atLeast" "the bound" boundShape _.atLeast
+criterionShape = recordOf "Criterion"
+  ( field @"metric" "the measured quantity" metricShape
+      &. field @"over" "the span of rounds (default final)" (defaultsTo Final spanShape)
+      &. field @"atLeast" "the bound" boundShape
   )
-  where
-  mk m o a = { metric: m, over: o, atLeast: a }
 
 metricShape :: Shape MetricRef
-metricShape = object "Metric"
-  ( mk <$> fieldOf "entities" "the Entities summed" (listOf idShape) _.entities
-      <*> fieldOf "measure" "the measure" measureShape _.measure
-      <*> fieldOf "negated" "true for \"at most\" (default false)" (defaultsTo false boolShape) _.negated
+metricShape = recordOf "Metric"
+  ( field @"entities" "the Entities summed" (listOf idShape)
+      &. field @"measure" "the measure" measureShape
+      &. field @"negated" "true for \"at most\" (default false)" (defaultsTo false boolShape)
   )
-  where
-  mk e m n = { entities: e, measure: m, negated: n }
 
 boundShape :: Shape Bound
 boundShape = genericSettingSum "Bound"

@@ -11,10 +11,7 @@ import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(.
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
-import Core.Types as Types
-import Data.Array as Array
-import Schema.Setting.Tags as Tags
-import Core.Shape (Desc(..), Format(..), Shape, encodeWith, decodeJsonWith, prose)
+import Core.Shape (Format(..), decodeJsonWith, encodeWith, prose)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
@@ -151,10 +148,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (decodeGameboard (json (doc ""))) `shouldEqual` true
       isLeft (decodeGameboard (json (doc """, "reservable": true"""))) `shouldEqual` false
 
-  describe "Transferability tags" do
-    it "describes Restricted as authority-gated transfer" do
-      map _.desc (Array.filter (\p -> p.setting == "Restricted") Tags.transferabilityTags) `shouldEqual` [ "transferred only by an Entity with the matching transfer capability" ]
-
   describe "Rule forms" do
     -- Pins the setting format the schema decoders read (docs/03).
     it "a combination that would do nothing has no form" do
@@ -230,15 +223,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (intent (json """{ "gift": {} }""")) `shouldEqual` true
 
   describe "Setting tag pairs" do
-    it "every pair names a constructor of the snapshot shape, and every constructor has a pair" do
-      let
-        tagsOf :: forall a. Shape a -> Array String
-        tagsOf s = case s.desc of
-          DSum _ _ cs -> Array.sort (map _.tag cs)
-          _ -> []
-        pairs ps = Array.sort (map _.snapshot ps)
-      pairs Tags.transferabilityTags `shouldEqual` tagsOf Types.transferabilityShape
-      pairs [ Tags.capabilityTags.trade, Tags.capabilityTags.transfer, Tags.capabilityTags.transform, Tags.capabilityTags.enact ] `shouldEqual` tagsOf Types.capabilityShape
     it "a trade's description lists its body's fields" do
       contains (Pattern "market") (prose intentShape.desc) `shouldEqual` true
       contains (Pattern "quantity") (prose intentShape.desc) `shouldEqual` true

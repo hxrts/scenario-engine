@@ -238,8 +238,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       prog <- orThrow (decodeStrategy (encodeStrategy p))
       (prog == p) `shouldEqual` true
       let refs = strategyRefs prog
-      namesOf ResourceRef refs `shouldEqual` [ "E" ]
-      namesOf EntityRef refs `shouldEqual` [ "DE", "DE" ]
+      namesOf RefResource refs `shouldEqual` [ "E" ]
+      namesOf RefEntity refs `shouldEqual` [ "DE", "DE" ]
     it "a bound given as a metric is the metric object itself" do
       let m = own "CN" (holdingOf "Mil")
       stringify (encodeWith Authored boundShape (matching m)) `shouldEqual` stringify (encodeWith Authored metricShape m)
@@ -319,31 +319,31 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Gameboard validation: each check reports its own error" do
     rejects "UnknownReference: a market access list names no Entity"
       (editWorld \w -> onMarket (Id "energy-atlantic") (\m -> m { access = m.access <> [ Id "NOBODY" ] }) w)
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: a market's quote is not a Resource"
       (editWorld \w -> onMarket (Id "energy-asia") (\m -> m { quote = Id "X" }) w)
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a facility's payee is not an Entity"
       (editWorld \w -> onTransformation (Id "energy-shipping") (\t -> t { payment = map (_ { to = Id "NOBODY" }) t.payment }) w)
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: a capability names a Rule kind the setting does not declare"
       (editWorld \w -> w { ruleKinds = Map.delete (Id "tariff") w.ruleKinds })
-      (UnknownReference RuleKindRef "tariff")
+      (UnknownReference RefRuleKind "tariff")
     rejects "UnknownReference: a jurisdiction is not an Entity"
       (editWorld \w -> w { groups = Map.insert (Id "DE") (Id "NOBODY") w.groups })
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: what a Representation scheme observes is not a Resource"
       (\g c -> Tuple g { schemes = map (\s -> s { observes = Id "NOPE" }) g.schemes } c)
-      (UnknownReference ResourceRef "NOPE")
+      (UnknownReference RefResource "NOPE")
     rejects "UnknownReference: an Aggregate member is not an Entity"
       (editWorld (onEntity (Id "EU") \e -> e { kind = Aggregate { policy: Id "eu-coordination-v0", members: [ Id "NOBODY" ], procedures: Map.empty } }))
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: an Actor's NPC policy is not in the catalog"
       (\g c -> Tuple (onActor (Id "CN") (\d -> d { npc = [ Id "no-such-policy" ] }) g) c)
-      (UnknownReference PolicyRef "no-such-policy")
+      (UnknownReference RefPolicy "no-such-policy")
     rejects "UnknownReference: a Withholding rule names a capacity no Entity holds"
       (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
-      (UnknownReference CapacityName "nowhere")
+      (UnknownReference RefCapacity "nowhere")
     rejects "MissingFallback: a non-required Actor with no fallback"
       (\g c -> Tuple (onActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
       (MissingFallback (Id "DE"))
@@ -379,55 +379,55 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (RoundsOutOfRange { rounds: 9, min: 4, max: 8 })
     rejects "UnknownReference: a market's base is not a Resource"
       (editWorld \w -> onMarket (Id "energy-atlantic") (\m -> m { base = Id "X" }) w)
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a market's reserve is not a Resource"
       (editWorld \w -> onMarket (Id "energy-asia") (\m -> m { reserves = Map.insert (Id "X") (Q.fromInt 1) m.reserves }) w)
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a facility input is not a Resource"
       (editWorld \w -> onTransformation (Id "defense-procurement") (\t -> t { inputs = Map.insert (Id "X") (Q.fromInt 1) t.inputs }) w)
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a facility output is not a Resource"
       (editWorld \w -> onTransformation (Id "defense-procurement") (\t -> t { outputs = Map.insert (Id "X") (Q.fromInt 1) t.outputs }) w)
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a facility effect names a capacity no Entity holds"
       (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { capacity = Id "nowhere" }) t.effects }) w)
-      (UnknownReference CapacityName "nowhere")
+      (UnknownReference RefCapacity "nowhere")
     rejects "UnknownReference: a facility effect's holder is not an Entity"
       (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { holder = Just (Id "NOBODY") }) t.effects }) w)
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: an Entity account in a Resource that does not exist"
       (editWorld (onEntity (Id "US") \e -> e { accounts = Map.insert (Id "X") (Q.fromInt 1) e.accounts }))
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: an Entity capacity no facility or production uses"
       (editWorld (onEntity (Id "US") \e -> e { capacities = Map.insert (Id "unused") (Q.fromInt 1) e.capacities }))
-      (UnknownReference CapacityName "unused")
+      (UnknownReference RefCapacity "unused")
     rejects "UnknownReference: a production entry's Resource that does not exist"
       (editWorld \w -> w { recurring = map (\p -> if p.kind == kinds.production then p { resource = Id "X" } else p) w.recurring })
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a flow from an Entity that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "NOBODY", to: Id "US", resource: Id "M", amount: Q.fromInt 1 } ] })
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: a flow of a Resource that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ flowRule { from: Id "US", to: Id "DE", resource: Id "X", amount: Q.fromInt 1 } ] })
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a share sourced from a Resource that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ shareRule (Id "M") { from: Id "US", to: Id "DE", share: Q.fromInt 1, source: salesOf (Id "X") } ] })
-      (UnknownReference ResourceRef "X")
+      (UnknownReference RefResource "X")
     rejects "UnknownReference: a requirement on an Entity that does not exist"
       (editWorld \w -> w { recurring = w.recurring <> [ requirementRule { entity: Id "NOBODY", resource: Id "E", amount: Just (Q.fromInt 1), penalty: Q.zero } ] })
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: an access ban whose target is not an Entity"
       (editWorld \w -> w { rules = Map.insert (Id "rule-y") (banR { jurisdiction: Id "US", target: Id "NOBODY" }) w.rules })
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: a tariff whose origin is not an Entity"
       (editWorld \w -> w { rules = Map.insert (Id "rule-z") (tariffR { jurisdiction: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     rejects "UnknownReference: a transport entry whose facility does not exist"
       (editWorld \w -> w { flowGates = [ { resource: Id "E", exemptSharedMarket: true, bundled: Just (Id "no-such-facility") } ] })
-      (UnknownReference TransformationRef "no-such-facility")
+      (UnknownReference RefTransformation "no-such-facility")
     rejects "UnknownReference: a procedure weight on an Entity that does not exist"
       (editWorld (onEntity (Id "EU") (withWeightOf "NOBODY")))
-      (UnknownReference EntityRef "NOBODY")
+      (UnknownReference RefEntity "NOBODY")
     it "ResolutionInconsistent: an implicit Actor whose authority its Aggregate would not keep" do
       { gameboard, config } <- loaded
       -- DE may enact tariffs, but once the EU covers DE, DE's authority disappears
@@ -508,32 +508,32 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
-        `shouldEqual` Left (show (Unresolved "policy bad-v0" Market "energy-nowhere"))
+        `shouldEqual` Left (show (Unresolved "policy bad-v0" RefMarket "energy-nowhere"))
     it "a policy that reads an unknown parameter fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { market: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = policies <> [ Tuple "bad-v0" bad ]
       checked (withSection "policies.json" (encodeWith Authored policiesShape catalog))
-        `shouldEqual` Left (show (Unresolved "policy bad-v0" ParameterRef "no-such-parameter"))
+        `shouldEqual` Left (show (Unresolved "policy bad-v0" RefParameter "no-such-parameter"))
     it "a procedure a Strategy names that no Aggregate holds fails the check: in a sign rule, and in a Proposal template" do
       { gameboard, config } <- loaded
       let
         signing = { rules: [], sign: [ signProcedures [ "no-such-procedure" ] ] }
         proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: [], intents: [] } ] ], sign: [] }
         check p = map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
-      check signing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
-      check proposing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
+      check signing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
+      check proposing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
     it "a capacity a Withholding names that no Entity holds fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
       map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" bad }))
-        `shouldEqual` Left (show (Unresolved "preset Bad" CapacityName "no-such-capacity"))
+        `shouldEqual` Left (show (Unresolved "preset Bad" RefCapacity "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
       p <- orThrow (decodeStrategy (encodeStrategy bad))
       map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" p }))
-        `shouldEqual` Left (show (Unresolved "preset Bad" TransformationRef "no-such-facility"))
+        `shouldEqual` Left (show (Unresolved "preset Bad" RefTransformation "no-such-facility"))
 
   describe "Fixture documents" do
     -- Pins a setting file as `Settings.Load` reads it (docs/03).

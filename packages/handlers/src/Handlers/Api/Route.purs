@@ -25,7 +25,7 @@ import Control.Alt ((<|>))
 import Schema.Run (deriveKindShape)
 import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Core.Shape (arrayOf, class Payload, Shape, encodeWith, fieldOf, fromPayload, intShape, object, optionalOf, prim, stringShape, toPayload)
+import Core.Shape (class Payload, Shape, arrayOf, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Array (catMaybes, filter, findMap, length, zipWith)
@@ -76,7 +76,9 @@ failWith status error = { status, body: stringify (encodeWith Shape.Snapshot err
 
 -- | An error reply's body.
 errorShape :: Shape { error :: String }
-errorShape = object "ErrorBody" ((\error -> { error }) <$> fieldOf "error" "what went wrong" stringShape _.error)
+errorShape = recordOf "ErrorBody"
+  ( field @"error" "what went wrong" stringShape
+  )
 
 -- | Answer a request: parse it (an error reply when it is not a route or its body does not decode),
 -- | then run the operation.
@@ -327,7 +329,9 @@ batchShape = object "LaunchBatch" ado
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }
-resumeShape = object "Resume" ((\rounds -> { rounds }) <$> fieldOf "rounds" "the new total round count" intShape _.rounds)
+resumeShape = recordOf "Resume"
+  ( field @"rounds" "the new total round count" intShape
+  )
 
 -- | `playerSeed` in a derive body: absent keeps the source's seed, null draws a new one, a number names one.
 seedChoiceShape :: Shape (Maybe (Maybe Int))

@@ -21,6 +21,8 @@ module Core.Query
   , conversionPrice
   , poolOf
   , poolCeiling
+  , procedureOf
+  , procedureSupport
   , tradesOf
   , transfersOf
   , transformsOf
@@ -30,13 +32,15 @@ module Core.Query
 
 import Prelude
 
+import Core.Sum (ctor)
+
 import Control.Alt ((<|>))
 import Core.Map (values)
 
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, Capability, CapacityRef, Entity, EntityId, EntityKind(..), IntentF(..), Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Core.Types (drawsOnCapacity, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, CapacityRef, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
 import Core.World (Event, WorldState)
 import Data.Array (concatMap, filter, find, mapMaybe)
@@ -135,9 +139,7 @@ conversionPrice tr q = maybe Q.zero (\p -> averagePrice p.curve Q.zero q) tr.pay
 -- | The pool a Transformation's fills draw on: the shared capacity if it is capped, else the Transformation
 -- | alone. Allocation in one pool are allocated together and priced at one uniform price.
 poolOf :: TransformationId -> Transformation -> Either TransformationId CapacityRef
-poolOf tid tr = case tr.capacity of
-  Just ref | tr.capacityUse > Q.zero -> Right ref
-  _ -> Left tid
+poolOf tid tr = maybe (Left tid) Right (drawsOnCapacity tr)
 
 -- | The most units a Transformation's pool can fill in total, its ceiling, which escrow prices at in full
 -- | and settlement never exceeds (§5.3). The pool is every Transformation drawing on the same capped
@@ -147,8 +149,8 @@ poolOf tid tr = case tr.capacity of
 -- | An uncapped Transformation's ceiling is the domain top of its cost function. Nothing means no
 -- | ceiling, which only a Transformation with no cost function has, and that one is priced at zero.
 poolCeiling :: WorldState -> Transformation -> Maybe Q
-poolCeiling w tr = case tr.capacity of
-  Just ref | tr.capacityUse > Q.zero -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
+poolCeiling w tr = case drawsOnCapacity tr of
+  Just ref -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
   _ -> _.curve.domain.hi <$> tr.payment
 
 -- | The smallest `capacityUse` among the capped Transformations on `ref`, starting from `use` (the
@@ -156,29 +158,25 @@ poolCeiling w tr = case tr.capacity of
 smallestUse :: WorldState -> CapacityRef -> Q -> Q
 smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (transformationsOf w)))
   where
-  drawsOn x = x.capacity == Just ref && x.capacityUse > Q.zero
+  drawsOn x = drawsOnCapacity x == Just ref
+
+-- | The collective procedure a Proposal is put to, through its author Aggregate.
+procedureOf :: WorldState -> EntityId -> CollectiveProcedureId -> Maybe CollectiveProcedure
+procedureOf w author pid = Map.lookup author w.entities >>= aggregateOf >>= Map.lookup pid <<< _.procedures
+
+-- | A procedure's support: its residual weight and the weights of those who signed, the author aside.
+procedureSupport :: CollectiveProcedure -> EntityId -> Array EntityId -> Q
+procedureSupport proc author signed = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= author) signed)))
 
 -- | The Trade orders of one Intent list, in order: the one place that selects a Trade.
 tradesOf :: forall m v. Array (IntentF m v) -> Array { market :: m, quantity :: v, limitPrice :: Maybe v }
-tradesOf = mapMaybe
-  ( case _ of
-      Trade o -> Just o
-      _ -> Nothing
-  )
+tradesOf = mapMaybe (ctor @"Trade")
 
 transfersOf :: forall m v. Array (IntentF m v) -> Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
-transfersOf = mapMaybe
-  ( case _ of
-      Transfer t -> Just t
-      _ -> Nothing
-  )
+transfersOf = mapMaybe (ctor @"Transfer")
 
 transformsOf :: forall m v. Array (IntentF m v) -> Array { by :: EntityId, transformation :: TransformationId, quantity :: v }
-transformsOf = mapMaybe
-  ( case _ of
-      Transform t -> Just t
-      _ -> Nothing
-  )
+transformsOf = mapMaybe (ctor @"Transform")
 
 -- | The Proposals a round turned down whole: rejected or lapsed. A Proposal that lost one order is not among them.
 droppedProposals :: Array Event -> Array ProposalId

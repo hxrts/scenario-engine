@@ -5,7 +5,8 @@ module Core.Types where
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, prim, recordShape, stringShape, unitShape)
+import Core.Num as Q
+import Core.Shape (enumName, Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, field, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, prim, recordOf, recordShape, stringShape, unitShape, (&.))
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -21,7 +22,9 @@ import Data.Maybe (Maybe(..))
 import Data.Const (Const(..))
 import Data.Newtype (class Newtype, un)
 import Data.Show.Generic (genericShow)
-import Data.String (Pattern(..), split)
+import Data.String (Pattern(..), Replacement(..), replaceAll, split)
+import Data.String as String
+import Type.Proxy (Proxy)
 
 -- Identifiers ----------------------------------------------------------------
 
@@ -43,29 +46,52 @@ instance Show (Id tag) where
 
 -- | The kind of thing a reference names, for a load-time check: the runtime twin of the tags below.
 data RefKind
-  = ResourceRef
-  | Market
-  | TransformationRef
-  | EntityRef
-  | CapacityName
-  | PolicyRef
-  | ParameterRef
-  | ProcedureRef
-  | RuleKindRef
+  = RefResource
+  | RefMarket
+  | RefTransformation
+  | RefEntity
+  | RefCapacity
+  | RefPolicy
+  | RefParameter
+  | RefProcedure
+  | RefRuleKind
 
 derive instance Eq RefKind
 
+derive instance Generic RefKind _
+
+-- | The kind in words: the constructor without `Ref`, in lower case, a capital K as a word break (`RefRuleKind` is "rule kind").
 instance Show RefKind where
-  show = case _ of
-    ResourceRef -> "resource"
-    Market -> "market"
-    TransformationRef -> "transformation"
-    EntityRef -> "entity"
-    CapacityName -> "capacity"
-    PolicyRef -> "policy"
-    ParameterRef -> "parameter"
-    ProcedureRef -> "procedure"
-    RuleKindRef -> "rule kind"
+  show k = String.toLower (replaceAll (Pattern "K") (Replacement " K") (String.drop 3 (enumName k)))
+
+-- | The kind of reference an id of this tag is, so a reference cannot pair a kind with the wrong id.
+class RefKindOf :: Type -> Constraint
+class RefKindOf tag where
+  refKindOf :: Proxy tag -> RefKind
+
+instance RefKindOf EntityTag where
+  refKindOf _ = RefEntity
+
+instance RefKindOf ResourceTag where
+  refKindOf _ = RefResource
+
+instance RefKindOf MarketTag where
+  refKindOf _ = RefMarket
+
+instance RefKindOf TransformationTag where
+  refKindOf _ = RefTransformation
+
+instance RefKindOf CapacityTag where
+  refKindOf _ = RefCapacity
+
+instance RefKindOf PolicyTag where
+  refKindOf _ = RefPolicy
+
+instance RefKindOf ProcedureTag where
+  refKindOf _ = RefProcedure
+
+instance RefKindOf RuleKindTag where
+  refKindOf _ = RefRuleKind
 
 data EntityTag
 data ResourceTag
@@ -324,19 +350,18 @@ jointIntent = case _ of
 -- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
 -- | Intent kind (docs/02 §3). A Strategy's Joint and Procedure templates are `ProposalF MarketRef Expr`.
-type ProposalF m v =
-  { intents :: Array (IntentF m v)
-  , signers :: Array EntityId
-  , procedure :: Maybe CollectiveProcedureId
-  }
+type ProposalF m v = Record (ProposalRow m v ())
 
-type Proposal =
-  { id :: ProposalId
-  , author :: EntityId
-  , intents :: Array Intent
+-- | The Intents a Proposal holds and whom it asks to sign: what every form of a Proposal shares.
+type ProposalCore m v r =
+  ( intents :: Array (IntentF m v)
   , signers :: Array EntityId
-  , procedure :: Maybe CollectiveProcedureId
-  }
+  | r
+  )
+
+type ProposalRow m v r = ProposalCore m v (procedure :: Maybe CollectiveProcedureId | r)
+
+type Proposal = Record (ProposalRow MarketId Q (id :: ProposalId, author :: EntityId))
 
 type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
 
@@ -502,12 +527,11 @@ directionShape :: Shape Direction
 directionShape = genericEnum "Direction"
 
 flowScopeShape :: Shape FlowScope
-flowScopeShape = object "FlowScope"
-  ( (\governor counterparty direction over -> { governor, counterparty, direction, over })
-      <$> fieldOf "governor" "the Entity that governs the Rule" idShape _.governor
-      <*> fieldOf "counterparty" "the other party" idShape _.counterparty
-      <*> fieldOf "direction" "inbound to the governor, outbound from it, or either way" directionShape _.direction
-      <*> fieldOf "over" "the Resources the Rule covers" (arrayOf idShape) _.over
+flowScopeShape = recordOf "FlowScope"
+  ( field @"governor" "the Entity that governs the Rule" idShape
+      &. field @"counterparty" "the other party" idShape
+      &. field @"direction" "inbound to the governor, outbound from it, or either way" directionShape
+      &. field @"over" "the Resources the Rule covers" (arrayOf idShape)
   )
 
 flowEffectShape :: forall v. Shape v -> Shape (FlowEffect v)
@@ -552,12 +576,11 @@ ruleFormShape = genericSum "RuleForm"
 
 -- | A Transfer.
 transferBody :: forall v. Shape v -> Shape { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
-transferBody v = object "Transfer"
-  ( (\f t r q -> { from: f, to: t, resource: r, quantity: q })
-      <$> fieldOf "from" "the giving Entity" idShape _.from
-      <*> fieldOf "to" "the receiving Entity" idShape _.to
-      <*> fieldOf "resource" "the Resource" idShape _.resource
-      <*> fieldOf "quantity" "the quantity" v _.quantity
+transferBody v = recordOf "Transfer"
+  ( field @"from" "the giving Entity" idShape
+      &. field @"to" "the receiving Entity" idShape
+      &. field @"resource" "the Resource" idShape
+      &. field @"quantity" "the quantity" v
   )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
@@ -575,11 +598,10 @@ intentShape = genericSum "Intent"
   , "ChangeRule": atTagged "enact or repeal a Rule" ruleChangeShape
   }
   where
-  tradeShape = object "Trade"
-    ( (\m q l -> { market: m, quantity: q, limitPrice: l })
-        <$> fieldOf "market" "the Market" idShape _.market
-        <*> fieldOf "quantity" "+ buys, - sells the Market's base Resource" qShape _.quantity
-        <*> fieldOf "limitPrice" "the limit price, if any" (optionalOf qShape) _.limitPrice
+  tradeShape = recordOf "Trade"
+    ( field @"market" "the Market" idShape
+        &. field @"quantity" "+ buys, - sells the Market's base Resource" qShape
+        &. field @"limitPrice" "the limit price, if any" (optionalOf qShape)
     )
   routeShape = object "Route"
     ( (\p q l -> { pair: p, quantity: q, limitPrice: l })
@@ -588,17 +610,15 @@ intentShape = genericSum "Intent"
         -- required by the rule, not the decoder: the engine records the rejection of a stored or model-written order without one
         <*> fieldOf "limitPrice" "the limit price, which a routed order must state; an order without one is rejected" ((optionalOf qShape) { desc = qShape.desc }) _.limitPrice
     )
-  pairShape = object "Pair"
-    ( (\b q -> { base: b, quote: q })
-        <$> fieldOf "base" "the base Resource" idShape _.base
-        <*> fieldOf "quote" "the quote Resource" idShape _.quote
+  pairShape = recordOf "Pair"
+    ( field @"base" "the base Resource" idShape
+        &. field @"quote" "the quote Resource" idShape
     )
   transferShape = transferBody qShape
-  transformShape = object "Transform"
-    ( (\b t q -> { by: b, transformation: t, quantity: q })
-        <$> fieldOf "by" "the Entity that runs it" idShape _.by
-        <*> fieldOf "transformation" "the transformation" idShape _.transformation
-        <*> fieldOf "quantity" "the quantity run" qShape _.quantity
+  transformShape = recordOf "Transform"
+    ( field @"by" "the Entity that runs it" idShape
+        &. field @"transformation" "the transformation" idShape
+        &. field @"quantity" "the quantity run" qShape
     )
 
 -- The entity, capability, and proposal shapes. The closure of a View is described
@@ -622,20 +642,18 @@ controllerShape = genericSum "Controller"
   }
 
 collectiveProcedureShape :: Shape CollectiveProcedure
-collectiveProcedureShape = object "CollectiveProcedure"
-  ( (\w r t a -> { weights: w, residualWeight: r, threshold: t, authorizes: a })
-      <$> fieldOf "weights" "the weight of each member" (mapOf idShape qShape) _.weights
-      <*> fieldOf "residualWeight" "the weight of the residual" qShape _.residualWeight
-      <*> fieldOf "threshold" "the support needed" qShape _.threshold
-      <*> fieldOf "authorizes" "the Capabilities the procedure authorizes" (arrayOf capabilityShape) _.authorizes
+collectiveProcedureShape = recordOf "CollectiveProcedure"
+  ( field @"weights" "the weight of each member" (mapOf idShape qShape)
+      &. field @"residualWeight" "the weight of the residual" qShape
+      &. field @"threshold" "the support needed" qShape
+      &. field @"authorizes" "the Capabilities the procedure authorizes" (arrayOf capabilityShape)
   )
 
 aggregateShape :: Shape Aggregate
-aggregateShape = object "Aggregate"
-  ( (\p m pr -> { policy: p, members: m, procedures: pr })
-      <$> fieldOf "policy" "the Policy that decides for it" idShape _.policy
-      <*> fieldOf "members" "the Entities it is made of" (arrayOf idShape) _.members
-      <*> fieldOf "procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape) _.procedures
+aggregateShape = recordOf "Aggregate"
+  ( field @"policy" "the Policy that decides for it" idShape
+      &. field @"members" "the Entities it is made of" (arrayOf idShape)
+      &. field @"procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape)
   )
 
 entityKindShape :: Shape EntityKind
@@ -645,30 +663,27 @@ entityKindShape = genericSum "EntityKind"
   }
 
 entityShape :: Shape Entity
-entityShape = object "Entity"
-  ( (\i a c cs k -> { id: i, accounts: a, capacities: c, capabilities: cs, kind: k })
-      <$> fieldOf "id" "the Entity's id" idShape _.id
-      <*> fieldOf "accounts" "its holdings of each Resource" (mapOf idShape qShape) _.accounts
-      <*> fieldOf "capacities" "its capacities" (mapOf idShape qShape) _.capacities
-      <*> fieldOf "capabilities" "what it may do" (arrayOf capabilityShape) _.capabilities
-      <*> fieldOf "kind" "an Actor or an Aggregate" entityKindShape _.kind
+entityShape = recordOf "Entity"
+  ( field @"id" "the Entity's id" idShape
+      &. field @"accounts" "its holdings of each Resource" (mapOf idShape qShape)
+      &. field @"capacities" "its capacities" (mapOf idShape qShape)
+      &. field @"capabilities" "what it may do" (arrayOf capabilityShape)
+      &. field @"kind" "an Actor or an Aggregate" entityKindShape
   )
 
 proposalShape :: Shape Proposal
-proposalShape = object "Proposal"
-  ( (\i a is ss p -> { id: i, author: a, intents: is, signers: ss, procedure: p })
-      <$> fieldOf "id" "the Proposal's id" idShape _.id
-      <*> fieldOf "author" "the Entity that submitted it" idShape _.author
-      <*> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
-      <*> fieldOf "signers" "the Entities asked to sign" (arrayOf idShape) _.signers
-      <*> fieldOf "procedure" "the collective procedure, if any" (optionalOf idShape) _.procedure
+proposalShape = recordOf "Proposal"
+  ( field @"id" "the Proposal's id" idShape
+      &. field @"author" "the Entity that submitted it" idShape
+      &. field @"intents" "the Intents" (arrayOf intentShape)
+      &. field @"signers" "the Entities asked to sign" (arrayOf idShape)
+      &. field @"procedure" "the collective procedure, if any" (optionalOf idShape)
   )
 
 signedProposalShape :: Shape SignedProposal
-signedProposalShape = object "SignedProposal"
-  ( (\p s -> { proposal: p, signatures: s })
-      <$> fieldOf "proposal" "the Proposal" proposalShape _.proposal
-      <*> fieldOf "signatures" "the Entities that signed it" (arrayOf idShape) _.signatures
+signedProposalShape = recordOf "SignedProposal"
+  ( field @"proposal" "the Proposal" proposalShape
+      &. field @"signatures" "the Entities that signed it" (arrayOf idShape)
   )
 
 instance EncodeJson Transferability where
@@ -715,6 +730,27 @@ instance DecodeJson (IntentF MarketId Q) where
 
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
 proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
+
+-- | The capacity a Transformation's orders draw on, if they draw on one.
+drawsOnCapacity :: Transformation -> Maybe CapacityRef
+drawsOnCapacity tr = if tr.capacityUse > Q.zero then tr.capacity else Nothing
+
+-- | A Transform's body, and one whose `by` is implicit, and a repeal's: the forms every Intent format writes.
+transformBody :: forall v. Shape v -> Shape { by :: EntityId, transformation :: TransformationId, quantity :: v }
+transformBody v = recordOf "Transform"
+  ( field @"by" "the Entity that runs it" idShape
+      &. field @"transformation" "the transformation" idShape
+      &. field @"quantity" "the quantity run" v
+  )
+
+ownTransformBody :: forall v. Shape v -> Shape { transformation :: TransformationId, quantity :: v }
+ownTransformBody v = recordOf "Transform"
+  ( field @"transformation" "the transformation" idShape
+      &. field @"quantity" "the quantity run" v
+  )
+
+repealBody :: Shape { rule :: RuleId }
+repealBody = recordOf "Repeal" (field @"rule" "the Rule, by the id the engine gave it" idShape)
 
 ruleIdOf :: ProposalId -> Int -> RuleId
 ruleIdOf p i = Id (show p <> "/rule-" <> show i)

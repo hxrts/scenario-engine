@@ -17,7 +17,7 @@ import Prelude
 
 import Core.Query (owner, marketsOf)
 import Core.Types (CapacityRef, Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
-import Core.World (Bounds, RejectReason(..), Venue, View, WorldState)
+import Core.World (venueOf, boundsOf, Bounds, RejectReason(..), Venue, View, WorldState)
 import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
@@ -52,7 +52,7 @@ worldFacts w =
   { transferability: \r -> _.transferability <$> Map.lookup r w.resources
   , rule: \id -> Map.lookup id w.rules
   , entity: \e -> Map.member e w.entities
-  , venues: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (marketsOf w)
+  , venues: map venueOf (marketsOf w)
   , access: \who m -> maybe false (elem who <<< _.access) (Map.lookup m w.markets)
   , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
   , capacityOwner: owner w

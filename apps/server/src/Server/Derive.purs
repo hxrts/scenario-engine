@@ -34,7 +34,7 @@ import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
 import Server.Settings (Settings, ofSpec)
-import Schema.Run (Spec, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
+import Schema.Run (Spec, deriveKindShape, DeriveKind(..), RunStatus(..))
 import Core.Shape (Format(Authored), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
@@ -68,7 +68,7 @@ deriveFromRecipe cache settings store sourceId body info = do
       Just (Left Missing) -> failWith 404 ("no run " <> sourceId)
       Just (Left (Unreadable why)) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": " <> why)
       Just (Right src)
-        | info.status /= Completed -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> runStatusName info.status <> ", not completed")
+        | info.status /= Completed -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it is " <> show info.status <> ", not completed")
         | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
       _ -> do
         stored <- runObserve store (readManifest sourceId)
@@ -79,7 +79,7 @@ deriveFromRecipe cache settings store sourceId body info = do
             Left e -> failWith 400 e
             Right _ | kind == Variant, Just bad <- outOfRange setting -> failWith 400 bad
             Right recipe -> do
-              let name = fromMaybe (info.name <> " (" <> deriveKindName kind <> ")") body.name
+              let name = fromMaybe (info.name <> " (" <> show kind <> ")") body.name
               started <- start setting store
                 { name
                 , preset: recipe.preset
@@ -108,8 +108,8 @@ deriveFromRecipe cache settings store sourceId body info = do
 -- | from it; a duplicate or rerun replays its recorded Proposals and signatures (docs/06 §9.1).
 deriveSession :: forall r. Cache -> Settings -> StoreBackend -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Effect Reply
 deriveSession cache settings store sourceId body info spec
-  | body.kind == Variant || body.kind == Counterfactual = failWith 400 ("a live session has no preset, so a " <> deriveKindName body.kind <> " cannot be derived from " <> sourceId)
-  | info.status /= Completed = failWith 409 ("cannot replay " <> sourceId <> ": it is " <> runStatusName info.status <> ", not completed")
+  | body.kind == Variant || body.kind == Counterfactual = failWith 400 ("a live session has no preset, so a " <> show body.kind <> " cannot be derived from " <> sourceId)
+  | info.status /= Completed = failWith 409 ("cannot replay " <> sourceId <> ": it is " <> show info.status <> ", not completed")
   | otherwise =
       case deriveRecipe body.kind body { preset: "", playerSeed: spec.playerSeed, rounds: spec.rounds, overrides: [] }, ofSpec settings spec of
         Left e, _ -> failWith 400 e
@@ -131,7 +131,7 @@ deriveSession cache settings store sourceId body info spec
               created <- nowIso
               owner <- processOwner serverRole
               attempt <- play store id do
-                runStore store (createRun { id, name: fromMaybe (info.name <> " (" <> deriveKindName body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, source: Just sourceId, kind: Just body.kind, owner })
+                runStore store (createRun { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, source: Just sourceId, kind: Just body.kind, owner })
                 save <- recorder store roundMetrics id g.world
                 traverse_ (\r -> save r []) out.records
                 pure (Right out.value :: Either String _)
@@ -157,7 +157,7 @@ resumeRun settings store id rounds =
   runInfo store id >>= case _ of
     Nothing -> failWith 404 ("no run " <> id)
     Just info
-      | info.status /= Completed -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> runStatusName info.status)
+      | info.status /= Completed -> failWith 400 ("only a completed run can be resumed; " <> id <> " is " <> show info.status)
       | otherwise -> do
           stored <- runObserve store (readManifest id)
           rows <- runObserve store (readRounds id)

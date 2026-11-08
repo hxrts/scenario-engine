@@ -8,15 +8,15 @@ module Schema.Setting.Intent
   , capabilityShape
   ) where
 
+import Core.Sum (ctor)
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, listOf, refined, atBare, atKindArg, atOneKey, fieldOf, genericSettingSum, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, settingSum, recordShape, requiredOf)
-import Core.Types (Capability, Direction(..), EntityId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Core.Shape (Shape, atBare, atKindArg, atOneKey, field, fieldOf, genericSettingSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordOf, recordShape, refined, requiredOf, settingSum)
+import Core.Types (transformBody, repealBody, Capability, Direction(..), EntityId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
-import Schema.Setting.Tags (capabilityTags)
 
 -- | The Intent tags. Private: the sums below are the only place they are written or read.
 tradeTag :: String
@@ -87,17 +87,9 @@ intentShape = settingSum "Intent"
           _ -> Nothing
       )
       (either Trade Route)
-  , oneKey transferTag "a Resource given from one Entity to another" (transferBody qShape)
-      ( case _ of
-          Transfer r -> Just r
-          _ -> Nothing
-      )
+  , oneKey transferTag "a Resource given from one Entity to another" (transferBody qShape) (ctor @"Transfer")
       Transfer
-  , oneKey transformTag "a run of a transformation" transformBody
-      ( case _ of
-          Transform r -> Just r
-          _ -> Nothing
-      )
+  , oneKey transformTag "a run of a transformation" (transformBody qShape) (ctor @"Transform")
       Transform
   , oneKey enactTag "enact a Rule" ruleShape
       ( case _ of
@@ -108,16 +100,8 @@ intentShape = settingSum "Intent"
   , oneKey repealTag "repeal a Rule by the id the engine gave it" repealBody repealOf (\r -> ChangeRule (Repeal r.rule))
   ]
   where
-  repealBody = object "Repeal" ((\r -> { rule: r }) <$> fieldOf "rule" "the Rule, by the id the engine gave it" idShape _.rule)
   repealOf (ChangeRule (Repeal r)) = Just { rule: r }
   repealOf _ = Nothing
-  transformBody = object "Transform"
-    ( mk3 <$> fieldOf "by" "the Entity that runs it" idShape _.by
-        <*> fieldOf "transformation" "the transformation" idShape _.transformation
-        <*> fieldOf "quantity" "the quantity run" qShape _.quantity
-    )
-    where
-    mk3 b t q' = { by: b, transformation: t, quantity: q' }
 
 type TradeRec = { market :: MarketId, quantity :: Q, limitPrice :: Maybe Q }
 
@@ -164,9 +148,9 @@ tradeBody = partialIso bodyShape read write
 -- | `enact:<kind>`, a kind the setting declares.
 capabilityShape :: Shape Capability
 capabilityShape = genericSettingSum "Capability"
-  { "MayTrade": atKindArg { tag: capabilityTags.trade.setting, desc: capabilityTags.trade.desc } idShape
-  , "MayTransfer": atKindArg { tag: capabilityTags.transfer.setting, desc: capabilityTags.transfer.desc } idShape
-  , "MayTransform": atKindArg { tag: capabilityTags.transform.setting, desc: capabilityTags.transform.desc } idShape
-  , "MayEnact": atKindArg { tag: capabilityTags.enact.setting, desc: capabilityTags.enact.desc } idShape
+  { "MayTrade": atKindArg { tag: tradeTag, desc: "may trade in the Market" } idShape
+  , "MayTransfer": atKindArg { tag: transferTag, desc: "may transfer the Resource" } idShape
+  , "MayTransform": atKindArg { tag: transformTag, desc: "may run the transformation" } idShape
+  , "MayEnact": atKindArg { tag: enactTag, desc: "may enact a Rule of the kind" } idShape
   }
 

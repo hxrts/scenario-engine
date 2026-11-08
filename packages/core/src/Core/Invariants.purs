@@ -13,14 +13,19 @@ module Core.Invariants
 
 import Prelude
 
+import Core.Shape (enumName, Shape, recordShape, stringShape)
+import Core.Sum (class EnumFields, enumFields)
+import Data.Generic.Rep (class Generic)
+import Data.String as String
+import Type.Proxy (Proxy(..))
+
 import Core.Map (entries, sumInto)
 
 import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Core.Shape (Shape, recordShape, stringShape)
-import Core.Query (capabilitiesOf, accountsOf, droppedProposals, aggregateOf, capacityOf, lookupQ, poolCeiling, totalHolding, entitiesOf, transformationsOf, marketsOf)
-import Core.Types (IntentF(..), SignedProposal)
+import Core.Query (accountsOf, capabilitiesOf, capacityOf, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
+import Core.Types (drawsOnCapacity, IntentF(..), SignedProposal)
 import Core.Slice (conversions, event, foldEvents, ignore, select)
 import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, find, fromFoldable, index, length, nub)
@@ -35,27 +40,27 @@ data Invariant = INV01 | INV02 | INV03 | INV04 | INV05 | INV06 | INV08 | INV09 |
 
 derive instance Eq Invariant
 
+derive instance Generic Invariant _
+
+-- | `INV-01`: the constructor's name with its dash.
 instance Show Invariant where
-  show = case _ of
-    INV01 -> "INV-01"
-    INV02 -> "INV-02"
-    INV03 -> "INV-03"
-    INV04 -> "INV-04"
-    INV05 -> "INV-05"
-    INV06 -> "INV-06"
-    INV08 -> "INV-08"
-    INV09 -> "INV-09"
-    INV10 -> "INV-10"
+  show i = String.take 3 (enumName i) <> "-" <> String.drop 3 (enumName i)
 
 -- | A failed check: the invariant's name as it prints, and what failed.
 type Failure = { invariant :: String, detail :: String }
+
+type CheckFn = WorldState -> RoundResult -> Array Failure
+
+type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "INV04" :: CheckFn, "INV05" :: CheckFn, "INV06" :: CheckFn, "INV08" :: CheckFn, "INV09" :: CheckFn, "INV10" :: CheckFn)
 
 -- | How a failed check is stored.
 failureShape :: Shape Failure
 failureShape = recordShape "Failure" { invariant: stringShape, detail: stringShape }
 
-check :: WorldState -> RoundResult -> Array Failure
-check before r = concatMap (\f -> f before r) [ inv01, inv02, inv03, inv04, inv05, inv06, inv08, inv09, inv10 ]
+check :: forall rep. Generic Invariant rep => EnumFields rep CheckRow CheckFn => WorldState -> RoundResult -> Array Failure
+check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) checks)
+  where
+  checks = { "INV01": inv01, "INV02": inv02, "INV03": inv03, "INV04": inv04, "INV05": inv05, "INV06": inv06, "INV08": inv08, "INV09": inv09, "INV10": inv10 }
 
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
@@ -83,9 +88,7 @@ inv02 w r = concatMap one (executed r)
         Nothing -> capabilitiesOf w who
     in
       if authorized (worldFacts w) caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
-  procedureAuthority pid author = case Map.lookup author w.entities >>= aggregateOf of
-    Just a -> maybe [] _.authorizes (Map.lookup pid a.procedures)
-    Nothing -> []
+  procedureAuthority pid author = maybe [] _.authorizes (procedureOf w author pid)
 
 -- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
 -- | membership (its kind). Only holdings, capacities, and Rules move.
@@ -220,7 +223,7 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (
   filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of
-    Just tr | Just ref <- tr.capacity, tr.capacityUse > Q.zero -> sumInto ref (Q.mul tr.capacityUse t.quantity) m
+    Just tr | Just ref <- drawsOnCapacity tr -> sumInto ref (Q.mul tr.capacityUse t.quantity) m
     _ -> m
   overCapacity (Tuple ref q) = if q > capacityOf before ref then [ failure INV06 (show ref <> " drew " <> show q <> ", above its capacity") ] else []
   overCeiling (Tuple tid q) = case Map.lookup tid before.transformations >>= poolCeiling before of
@@ -259,8 +262,8 @@ inv10 before r = concatMap one (executed r)
     Nothing ->
       if not (all (\s -> s == p.author || s `elem` signatures) p.signers) then [ failure INV10 (show p.id <> " executed without every signature") ]
       else []
-    Just pid -> case Map.lookup p.author before.entities >>= aggregateOf >>= Map.lookup pid <<< _.procedures of
+    Just pid -> case procedureOf before p.author pid of
       Just proc
-        | Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) (nub signatures)))) <= proc.threshold ->
+        | procedureSupport proc p.author (nub signatures) <= proc.threshold ->
             [ failure INV10 (show p.id <> " executed without enough support") ]
       _ -> []

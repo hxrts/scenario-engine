@@ -56,10 +56,10 @@ restrict s p = case unknownNames (gameboardNames p.gameboard) named of
   es -> Left (Invalid es)
   where
   named = concat
-    [ map (Tuple EntityRef <<< idText) (s.entities <> fromFoldable (Map.keys s.accounts))
-    , map (Tuple ResourceRef <<< idText) s.resources
-    , map (Tuple Market <<< idText) s.markets
-    , map (Tuple TransformationRef <<< idText) s.transformations
+    [ map (Tuple RefEntity <<< idText) (s.entities <> fromFoldable (Map.keys s.accounts))
+    , map (Tuple RefResource <<< idText) s.resources
+    , map (Tuple RefMarket <<< idText) s.markets
+    , map (Tuple RefTransformation <<< idText) s.transformations
     ]
 
 filtered :: Selection -> GameboardParts -> GameboardParts

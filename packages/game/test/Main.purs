@@ -95,14 +95,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         typo = ({ rules: [ rule [ gt (param "no-such-parameter") (lit 0) ] [] ], sign: [] })
         bindings = Map.insert (Id "US") (Strategy typo) (silent p)
-      assembled p bindings `shouldEqual` Left (Unresolved "seat US" ParameterRef "no-such-parameter")
+      assembled p bindings `shouldEqual` Left (Unresolved "seat US" RefParameter "no-such-parameter")
     it "a bound Strategy naming an unknown Market or Entity is an error" do
       p <- setting
       let
         market = ({ rules: [ rule [] [ orderAt (named "energy-nowhere") (lit 1) Nothing ] ], sign: [] })
         entity = ({ rules: [ rule [ restrictionInForce { by: "ATLANTIS" } ] [] ], sign: [] })
-      assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" Market "energy-nowhere")
-      assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" EntityRef "ATLANTIS")
+      assembled p (Map.insert (Id "US") (Strategy market) (silent p)) `shouldEqual` Left (Unresolved "seat US" RefMarket "energy-nowhere")
+      assembled p (Map.insert (Id "US") (Strategy entity) (silent p)) `shouldEqual` Left (Unresolved "seat US" RefEntity "ATLANTIS")
     it "a literal setting takes no overrides" do
       p <- setting
       let world = (_.world) <$> assemble (GameboardSetting p) (silent p) []
@@ -110,25 +110,25 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (const unit) (assemble (LiteralSetting { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
     it "an override naming an unknown Entity is an error" do
       p <- setting
-      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefEntity "NOBODY")
     it "an override naming an unknown capacity, or making an unknown Entity implicit, is an error" do
       p <- setting
-      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" CapacityName "no-such-capacity")
-      map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefCapacity "no-such-capacity")
+      map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" RefEntity "NOBODY")
     -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
     it "a recipe read back from a stored spec checks its overrides when it is played" do
       p <- setting
       case decodeOverrides =<< jsonParser """[{"type":"implicit","entity":"NOBODY"}]""" of
         Left e -> fail e
-        Right overrides -> map (const unit) (assemblePreset p "Passive" overrides Nothing) `shouldEqual` Left (Unresolved "override" EntityRef "NOBODY")
+        Right overrides -> map (const unit) (assemblePreset p "Passive" overrides Nothing) `shouldEqual` Left (Unresolved "override" RefEntity "NOBODY")
     it "the name check knows every kind of reference" do
       p <- setting
       let
         scope = gameboardNames p.gameboard
         firstPolicy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.gameboard.policies) :: Array PolicyId)))
-      unknownNames scope [ Tuple PolicyRef "no-such-policy", Tuple RuleKindRef "no-such-kind" ]
-        `shouldEqual` [ UnknownReference PolicyRef "no-such-policy", UnknownReference RuleKindRef "no-such-kind" ]
-      unknownNames scope [ Tuple PolicyRef firstPolicy, Tuple RuleKindRef "tariff" ] `shouldEqual` []
+      unknownNames scope [ Tuple RefPolicy "no-such-policy", Tuple RefRuleKind "no-such-kind" ]
+        `shouldEqual` [ UnknownReference RefPolicy "no-such-policy", UnknownReference RefRuleKind "no-such-kind" ]
+      unknownNames scope [ Tuple RefPolicy firstPolicy, Tuple RefRuleKind "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
       p <- setting
       g <- orThrow (assemble (GameboardSetting p) (Map.insert (Id "US") Agent (silent p)) [])

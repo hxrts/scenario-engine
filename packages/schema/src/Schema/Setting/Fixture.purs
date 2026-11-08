@@ -22,7 +22,7 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Core.Num (Q, qShape)
-import Core.Shape (Format(..), RecF, Shape, arrayOf, boolShape, contramapRec, decodeJsonWith, defaultsTo, embedded, emptyByDefault, fieldOf, intShape, iso, listOf, literal, object, optionalOf, settingSum, stringShape)
+import Core.Shape (Format(..), RecF, Shape, arrayOf, boolShape, contramapRec, decodeJsonWith, defaultsTo, embedded, emptyByDefault, field, fieldOf, intShape, iso, listOf, literal, object, optionalOf, recordOf, settingSum, stringShape, (&.))
 import Core.Types (Id(..), ProposalId, RoundIndex, SignedProposal, idMap, idShape, proposalId)
 import Core.World (UnseededWorld, WorldState, seeded)
 import Data.Argonaut.Core (Json)
@@ -68,13 +68,11 @@ unnumbered = Id ""
 -- Shapes --------------------------------------------------------------------------------------
 
 deliveryShape :: Shape Delivery
-deliveryShape = object "Delivery"
-  ( mk <$> fieldOf "entity" "the Entity that receives" idShape _.entity
-      <*> fieldOf "resource" "the Resource" idShape _.resource
-      <*> fieldOf "quantity" "the quantity" qShape _.quantity
+deliveryShape = recordOf "Delivery"
+  ( field @"entity" "the Entity that receives" idShape
+      &. field @"resource" "the Resource" idShape
+      &. field @"quantity" "the quantity" qShape
   )
-  where
-  mk e r q' = { entity: e, resource: r, quantity: q' }
 
 -- | A Proposal by its author and its position among the author's Proposals; the position is omitted when 0.
 proposalAtRec :: RecF ProposalRef ProposalRef
@@ -118,40 +116,33 @@ balances :: forall a b. Shape (Map (Id a) (Map (Id b) (Maybe Q)))
 balances = emptyByDefault (idMap (iso (map Just) (Map.mapMaybe identity) (idMap qShape)))
 
 expectShape :: Shape Authored
-expectShape = object "Expect"
-  ( mk <$> fieldOf "accounts" "the balances, by Entity and Resource" balances _.accounts
-      <*> fieldOf "reserves" "the reserves, by Market and Resource" balances _.reserves
-      <*> fieldOf "deliveries" "the deliveries made" (optionalOf (listOf deliveryShape)) _.deliveries
-      <*> fieldOf "rejected" "the Proposals rejected" (optionalOf (listOf proposalRefShape)) _.rejected
-      <*> fieldOf "lapsed" "the Proposals that lapsed" (optionalOf (listOf proposalRefShape)) _.lapsed
-      <*> fieldOf "factors" "the stored factors, by Entity and domain" balances _.factors
-      <*> fieldOf "scheduled" "the number of changes scheduled" (optionalOf intShape) _.scheduled
-      <*> fieldOf "procedures" "the outcomes of the procedures" (optionalOf (listOf procedureShape)) _.procedures
+expectShape = recordOf "Expect"
+  ( field @"accounts" "the balances, by Entity and Resource" balances
+      &. field @"reserves" "the reserves, by Market and Resource" balances
+      &. field @"deliveries" "the deliveries made" (optionalOf (listOf deliveryShape))
+      &. field @"rejected" "the Proposals rejected" (optionalOf (listOf proposalRefShape))
+      &. field @"lapsed" "the Proposals that lapsed" (optionalOf (listOf proposalRefShape))
+      &. field @"factors" "the stored factors, by Entity and domain" balances
+      &. field @"scheduled" "the number of changes scheduled" (optionalOf intShape)
+      &. field @"procedures" "the outcomes of the procedures" (optionalOf (listOf procedureShape))
   )
-  where
-  mk a r d rj l f s p = { accounts: a, reserves: r, deliveries: d, rejected: rj, lapsed: l, factors: f, scheduled: s, procedures: p }
 
 roundShape :: Shape RoundSpec
-roundShape = object "Round"
-  ( mk <$> fieldOf "proposals" "the Proposals the round receives" (optionalOf (listOf proposalShape)) _.proposals
-      <*> fieldOf "expect" "the checks the round makes" (optionalOf expectShape) _.expect
+roundShape = recordOf "Round"
+  ( field @"proposals" "the Proposals the round receives" (optionalOf (listOf proposalShape))
+      &. field @"expect" "the checks the round makes" (optionalOf expectShape)
   )
-  where
-  mk p e = { proposals: p, expect: e }
 
 bindingShape :: Shape Binding
-bindingShape = object "Binding"
-  (mk <$> fieldOf "proposals" "the Proposals the round receives, in order" (listOf proposalShape) _.proposals)
-  where
-  mk p = { proposals: p }
+bindingShape = recordOf "Binding"
+  ( field @"proposals" "the Proposals the round receives, in order" (listOf proposalShape)
+  )
 
 expectationShape :: Shape { round :: Int, expect :: Authored }
-expectationShape = object "Expectation"
-  ( mk <$> fieldOf "round" "the round it checks" intShape _.round
-      <*> fieldOf "expect" "the checks the round makes" expectShape _.expect
+expectationShape = recordOf "Expectation"
+  ( field @"round" "the round it checks" intShape
+      &. field @"expect" "the checks the round makes" expectShape
   )
-  where
-  mk r e = { round: r, expect: e }
 
 settingShape :: Shape { seed :: Int, name :: String, world :: SettingWorld }
 settingShape = object "Setting"

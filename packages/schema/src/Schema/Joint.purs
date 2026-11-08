@@ -16,8 +16,9 @@ module Schema.Joint
 import Prelude
 
 import Core.Proposal (ProposalBody, proposalAt)
-import Core.Shape (Shape, arrayOf, fieldOf, object, requiredOf, stringShape)
-import Core.Types (EntityId, Intent, Proposal, RoundIndex, idShape, intentShape)
+import Core.Shape (Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
+import Core.Num (Q)
+import Core.Types (ProposalCore, MarketId, EntityId, Intent, Proposal, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map (Map)
@@ -29,10 +30,9 @@ import Data.Traversable (mapAccumL)
 type Transcript = { seat :: EntityId, text :: String }
 
 transcriptShape :: Shape Transcript
-transcriptShape = object "Transcript"
-  ( (\s t -> { seat: s, text: t })
-      <$> fieldOf "seat" "the seat that spoke" idShape _.seat
-      <*> fieldOf "text" "what it said" stringShape _.text
+transcriptShape = recordOf "Transcript"
+  ( field @"seat" "the seat that spoke" idShape
+      &. field @"text" "what it said" stringShape
   )
 
 -- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the joint Proposal
@@ -43,15 +43,14 @@ type JointProposal = { author :: EntityId, draft :: ProposalBody, signed :: Arra
 -- | One Proposal as the model states it in a joint pass's reply, before the engine's checks: its
 -- | author, its Intents, the other signers the joint Proposal asks for, and the seats whose transcripts describe
 -- | it. `jointProposals` reconciles these into JointProposals.
-type ProposedJoint = { author :: EntityId, intents :: Array Intent, signers :: Array EntityId, agreed :: Array EntityId }
+type ProposedJoint = Record (ProposalCore MarketId Q (author :: EntityId, agreed :: Array EntityId))
 
 proposedJointShape :: Shape ProposedJoint
-proposedJointShape = object "ProposedJoint"
-  ( (\a i s g -> { author: a, intents: i, signers: s, agreed: g })
-      <$> fieldOf "author" "the seat that submits it" idShape _.author
-      <*> fieldOf "intents" "the Intents" (arrayOf intentShape) _.intents
-      <*> fieldOf "signers" "the other Entities the joint Proposal asks for" (arrayOf idShape) _.signers
-      <*> fieldOf "agreed" "the seats whose transcripts describe it" (arrayOf idShape) _.agreed
+proposedJointShape = recordOf "ProposedJoint"
+  ( field @"author" "the seat that submits it" idShape
+      &. field @"intents" "the Intents" (arrayOf intentShape)
+      &. field @"signers" "the other Entities the joint Proposal asks for" (arrayOf idShape)
+      &. field @"agreed" "the seats whose transcripts describe it" (arrayOf idShape)
   )
 
 -- | The Proposals of a reply; one malformed entry fails only the reply it is in.
@@ -60,9 +59,8 @@ proposedJointsShape = arrayOf proposedJointShape
 
 -- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
 jointReplyShape :: Shape { proposals :: Array ProposedJoint }
-jointReplyShape = object "JointReply"
-  ( (\p -> { proposals: p })
-      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape) _.proposals
+jointReplyShape = recordOf "JointReply"
+  ( field @"proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape)
   )
 
 -- | The joint pass's Proposals, each numbered after the author's `own` Proposals of the round and

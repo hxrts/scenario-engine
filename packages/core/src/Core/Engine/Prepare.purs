@@ -14,7 +14,7 @@ import Core.Map (entries)
 import Core.Num as Q
 import Core.Query (lookupQ, marketsOf, owner, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
-import Core.World (addEvents, Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
+import Core.World (venueOf, boundsOf, addEvents, Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
@@ -80,9 +80,9 @@ observe w self =
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
-  , markets: map (\m -> { id: m.id, base: m.base, quote: m.quote }) (filter (\m -> self.id `elem` m.access) (marketsOf w))
+  , markets: map venueOf (filter (\m -> self.id `elem` m.access) (marketsOf w))
   , entities: fromFoldable (Map.keys w.entities)
-  , transformations: map (\t -> { minimum: t.minimum, maximum: t.maximum }) w.transformations
+  , transformations: map boundsOf w.transformations
   , ownedCapacities: filter (\c -> owner w c == Just self.id) (fromFoldable (Map.keys self.capacities))
   , ruleKinds: w.ruleKinds
   }

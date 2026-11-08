@@ -16,10 +16,12 @@ module Policy.Strategy
 
 import Prelude
 
+import Type.Proxy (Proxy(..))
+
 import Core.Num (Q)
 import Core.Strategy (Cond(..), Expr(..), MarketRef(..), RecordQuery(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.World (CausePattern(..))
-import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), ResourceId, TransformationId, foldIntent, idText, ignorePositions)
+import Core.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
 import Data.Const (Const(..))
 import Data.Maybe (maybe)
@@ -145,7 +147,7 @@ foldStrategy alg p =
 -- | `self` is not listed: the interpreter resolves it at every position it can appear. A Market
 -- | selector names its Resource; the Markets it picks are the interpreter's.
 strategyRefs :: Strategy -> Array (Tuple RefKind String)
-strategyRefs p = filter (\(Tuple kind name) -> not (kind == EntityRef && name == selfName)) (concatMap (\r -> concat r.when <> concat r.propose) folded.rules <> concat folded.sign)
+strategyRefs p = filter (\(Tuple kind name) -> not (kind == RefEntity && name == selfName)) (concatMap (\r -> concat r.when <> concat r.propose) folded.rules <> concat folded.sign)
   where
   folded = foldStrategy
     { expr: refsExpr, cond: refsCond, template: refsTemplate, sign: refsSign }
@@ -153,10 +155,10 @@ strategyRefs p = filter (\(Tuple kind name) -> not (kind == EntityRef && name ==
 
 refsExpr :: ExprAlg (Array (Tuple RefKind String))
 refsExpr = monoidExpr
-  { param = \name -> [ Tuple ParameterRef name ]
+  { param = \name -> [ Tuple RefParameter name ]
   , price = marketRefs
-  , holding = \r -> [ Tuple ResourceRef (idText r) ]
-  , factor = \d -> [ Tuple ResourceRef (idText d) ]
+  , holding = \r -> [ Tuple RefResource (idText r) ]
+  , factor = \d -> [ Tuple RefResource (idText d) ]
   }
 
 refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
@@ -172,17 +174,17 @@ refsCond =
 -- | The names a query of the record reads.
 queryRefs :: RecordQuery -> Array (Tuple RefKind String)
 queryRefs = case _ of
-  OfLegs q -> [ Tuple EntityRef (idText q.party) ] <> maybe [] (named ResourceRef) q.resource <> case q.cause of
-    ConversionOf t -> [ Tuple TransformationRef (idText t) ]
+  OfLegs q -> [ Tuple RefEntity (idText q.party) ] <> maybe [] (named) q.resource <> case q.cause of
+    ConversionOf t -> [ Tuple RefTransformation (idText t) ]
     _ -> []
-  RulesEnacted x -> [ Tuple EntityRef (idText x.governor), Tuple EntityRef (idText x.counterparty) ]
-  RulesInForce x -> [ Tuple EntityRef (idText x.governor) ]
+  RulesEnacted x -> [ Tuple RefEntity (idText x.governor), Tuple RefEntity (idText x.counterparty) ]
+  RulesInForce x -> [ Tuple RefEntity (idText x.governor) ]
 
 refsTemplate :: TemplateAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsTemplate =
   { intent: intentRefs
-  , proposal: \x -> map (Tuple EntityRef <<< idText) x.signers <> concatMap intentRefs x.intents <> maybe [] (named ProcedureRef) x.procedure
-  , mirror: \x -> [ Tuple EntityRef (idText x.governor), Tuple EntityRef (idText x.counterparty) ]
+  , proposal: \x -> map (Tuple RefEntity <<< idText) x.signers <> concatMap intentRefs x.intents <> maybe [] (named) x.procedure
+  , mirror: \x -> [ Tuple RefEntity (idText x.governor), Tuple RefEntity (idText x.counterparty) ]
   , choose: concat
   , noAction: []
   }
@@ -191,30 +193,30 @@ refsTemplate =
   intentRefs = foldIntent
     ( ignorePositions
         { market = Const <<< marketRefs
-        , entity = Const <<< named EntityRef
-        , resource = Const <<< named ResourceRef
-        , transformation = Const <<< named TransformationRef
-        , capacity = Const <<< named CapacityName
+        , entity = Const <<< named
+        , resource = Const <<< named
+        , transformation = Const <<< named
+        , capacity = Const <<< named
         , value = Const
         }
     )
 
 -- | A reference by its kind and name.
-named :: forall t. RefKind -> Id t -> Array (Tuple RefKind String)
-named kind x = [ Tuple kind (idText x) ]
+named :: forall t. RefKindOf t => Id t -> Array (Tuple RefKind String)
+named x = [ Tuple (refKindOf (Proxy :: Proxy t)) (idText x) ]
 
 refsSign :: SignAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsSign =
-  { procedures: concatMap (named ProcedureRef)
-  , facility: \t -> [ Tuple TransformationRef (idText t) ]
+  { procedures: concatMap (named)
+  , facility: \t -> [ Tuple RefTransformation (idText t) ]
   , all: []
   , signIf: \x -> concat x.when <> x.rule
   }
 
 marketRefs :: MarketRef -> Array (Tuple RefKind String)
 marketRefs = case _ of
-  Named m -> [ Tuple Market (idText m) ]
-  Each r -> [ Tuple ResourceRef (idText r) ]
-  Cheapest r -> [ Tuple ResourceRef (idText r) ]
-  Costliest r -> [ Tuple ResourceRef (idText r) ]
+  Named m -> [ Tuple RefMarket (idText m) ]
+  Each r -> [ Tuple RefResource (idText r) ]
+  Cheapest r -> [ Tuple RefResource (idText r) ]
+  Costliest r -> [ Tuple RefResource (idText r) ]
 

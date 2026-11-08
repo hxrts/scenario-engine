@@ -147,7 +147,7 @@ chooseTwice =
 -- Tests -------------------------------------------------------------------------------
 
 strategyParams :: Strategy -> Array String
-strategyParams = map snd <<< Array.filter ((_ == ParameterRef) <<< fst) <<< strategyRefs
+strategyParams = map snd <<< Array.filter ((_ == RefParameter) <<< fst) <<< strategyRefs
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -218,7 +218,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let one m = { rules: [ rule [] [ choose [ noAction, orderAt m (lit 3) Nothing ] ] ], sign: [] }
       propose (one (each "E")) env { random = highDraws } `shouldEqual` propose (one (named "energy-atlantic")) env { random = highDraws }
     it "an unknown Market id is a load-time name" do
-      strategyRefs (({ rules: [ rule [] [ orderAt (named "$home") (lit 3) Nothing ] ], sign: [] })) `shouldEqual` [ Tuple Market "$home" ]
+      strategyRefs (({ rules: [ rule [] [ orderAt (named "$home") (lit 3) Nothing ] ], sign: [] })) `shouldEqual` [ Tuple RefMarket "$home" ]
     it "a route drafts a routed Trade with its pair and limit" do
       intentsOf (propose ({ rules: [ rule [] [ asTemplate (route { base: "E", quote: "M", quantity: lit 3, limit: lit 2 }) ] ], sign: [] }) env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
@@ -341,7 +341,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Load-time references" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
       strategyRefs (({ rules: [ rule [] [ asTemplate (transfer { from: "self", to: "bogus", resource: "E", quantity: lit 2 }) ] ], sign: [] })) `shouldEqual`
-        [ Tuple ResourceRef "E", Tuple EntityRef "bogus" ]
+        [ Tuple RefResource "E", Tuple RefEntity "bogus" ]
 
 -- Rules of the three kinds the test settings declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id EntityTag, origin :: Id EntityTag, rate :: v } -> RuleF v

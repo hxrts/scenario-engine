@@ -33,16 +33,13 @@ module Core.Slice
   , select
   , pickOf
   , matches
-  , class Pick
-  , pick
-  , class HandlerRow
-  , class Handles
-  , handles
   , foldEvents
   , ignore
   ) where
 
 import Prelude
+
+import Core.Sum (class HandlerRow, class Handles, class Pick, handles, pick)
 
 import Control.Alt ((<|>))
 import Core.Num (Q)
@@ -52,38 +49,15 @@ import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAg
 import Data.Array (concatMap, filter, foldl, head, index, length, nubEq, snoc)
 import Data.Foldable (any, maximum)
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), Sum(..), from)
+import Data.Generic.Rep (class Generic, from)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Tuple (Tuple(..))
 import Prim.Row as Row
-import Prim.TypeError (class Fail, Beside, QuoteLabel, Text)
 import Record as Record
 import Type.Proxy (Proxy(..))
 
 -- Selectors -------------------------------------------------------------------------------------
-
--- | Find the payload of the constructor `name` in a sum's representation. A name that is no
--- | constructor of the sum is a compile error naming it.
-class Pick :: Symbol -> Type -> Type -> Constraint
-class Pick name rep b | name rep -> b where
-  pick :: Proxy name -> rep -> Maybe b
-
-instance Pick name (Constructor name (Argument b)) b where
-  pick _ (Constructor (Argument b)) = Just b
-
-else instance Pick name (Sum (Constructor name (Argument b)) r) b where
-  pick _ = case _ of
-    Inl (Constructor (Argument b)) -> Just b
-    Inr _ -> Nothing
-
-else instance Pick name r b => Pick name (Sum (Constructor other a) r) b where
-  pick p = case _ of
-    Inr r -> pick p r
-    Inl _ -> Nothing
-
-else instance Fail (Beside (Text "Event has no kind named ") (QuoteLabel name)) => Pick name rep b where
-  pick _ _ = Nothing
 
 -- | Some Events and what is read from each, with the description of the choice made so far.
 newtype Select r = Select
@@ -320,27 +294,6 @@ describeSlice :: forall a. Slice a -> String
 describeSlice (Slice s) = s.describe
 
 -- Total folds -----------------------------------------------------------------------------------
-
--- | One handler per constructor: the record a total match over a sum needs.
-class HandlerRow :: Type -> Type -> Row Type -> Constraint
-class HandlerRow rep res row | rep res -> row
-
-instance (HandlerRow a res l, HandlerRow b res r, Row.Union l r row) => HandlerRow (Sum a b) res row
-
-instance Row.Cons name (b -> res) () row => HandlerRow (Constructor name (Argument b)) res row
-
--- | Applying the handler the value's constructor names.
-class Handles :: Type -> Row Type -> Type -> Constraint
-class Handles rep row res | rep row -> res where
-  handles :: Record row -> rep -> res
-
-instance (Handles a row res, Handles b row res) => Handles (Sum a b) row res where
-  handles r = case _ of
-    Inl x -> handles r x
-    Inr x -> handles r x
-
-instance (IsSymbol name, Row.Cons name (b -> res) t row) => Handles (Constructor name (Argument b)) row res where
-  handles r (Constructor (Argument b)) = Record.get (Proxy :: Proxy name) r b
 
 -- | Match an Event, one handler per kind: a new kind fails to compile here.
 matchEvent :: forall rep row res. Generic Event rep => HandlerRow rep res row => Handles rep row res => Record row -> Event -> res

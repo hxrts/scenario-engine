@@ -3,10 +3,8 @@
 -- | same text it always kept; `Adapters.SQLite` converts at the boundary.
 module Schema.Run
   ( RunStatus(..)
-  , runStatusName
   , runStatusShape
   , DeriveKind(..)
-  , deriveKindName
   , deriveKindShape
   , Spec
   , emptySpec
@@ -17,9 +15,11 @@ module Schema.Run
 
 import Prelude
 
-import Core.Shape (Desc(..), Format(..), Shape, encodeWith, fieldOf, object, optionalOf, partialIso, prim, stringShape)
-import Data.Argonaut.Core (fromString, toObject, toString)
-import Data.Array (find, mapMaybe)
+import Core.Shape (class EnumCtors, genericNameShape, lowerName, Desc(..), Format(..), Shape, encodeWith, fieldOf, object, optionalOf, partialIso, stringShape)
+import Data.Generic.Rep (class Generic)
+
+import Data.Argonaut.Core (toObject, toString)
+import Data.Array (mapMaybe)
 import Data.Either (Either(..), note)
 import Data.Int as Int
 import Data.Maybe (Maybe(..))
@@ -32,37 +32,28 @@ data RunStatus = Running | Completed | Failed
 
 derive instance Eq RunStatus
 
-instance Show RunStatus where
-  show = runStatusName
+derive instance Generic RunStatus _
 
--- | A status as the store and the views write it.
-runStatusName :: RunStatus -> String
-runStatusName = case _ of
-  Running -> "running"
-  Completed -> "completed"
-  Failed -> "failed"
+-- | Written as its name, in the store and the views: renaming a constructor changes stored text.
+instance Show RunStatus where
+  show = lowerName
 
 runStatusShape :: Shape RunStatus
-runStatusShape = nameShape "status" runStatusName [ Running, Completed, Failed ]
+runStatusShape = closedName "status"
 
 -- | How a run is derived from another.
 data DeriveKind = Duplicate | Rerun | Variant | Counterfactual
 
 derive instance Eq DeriveKind
 
-instance Show DeriveKind where
-  show = deriveKindName
+derive instance Generic DeriveKind _
 
--- | A kind as a request and a stored spec write it.
-deriveKindName :: DeriveKind -> String
-deriveKindName = case _ of
-  Duplicate -> "duplicate"
-  Rerun -> "rerun"
-  Variant -> "variant"
-  Counterfactual -> "counterfactual"
+-- | Written as its name, in requests and stored specs: renaming a constructor changes stored text.
+instance Show DeriveKind where
+  show = lowerName
 
 deriveKindShape :: Shape DeriveKind
-deriveKindShape = nameShape "kind" deriveKindName [ Duplicate, Rerun, Variant, Counterfactual ]
+deriveKindShape = closedName "kind"
 
 -- | A run's stored specification: what it was played from and where it came from. `overrides` is the
 -- | JSON text of the overrides (`Game.Override`). A run stored without a field reads as Nothing.
@@ -120,9 +111,6 @@ specPairs s = case specShape.desc of
     Just o -> o
     Nothing -> Object.empty
 
--- | One of a closed set of values, written by name.
-nameShape :: forall a. String -> (a -> String) -> Array a -> Shape a
-nameShape label name values = prim label (fromString <<< name) \j ->
-  note message (toString j >>= \s -> find (\v -> name v == s) values)
-  where
-  message = label <> " must be one of " <> joinWith ", " (map name values)
+-- | One of a closed set of values, written by its lower-case name.
+closedName :: forall a rep. Generic a rep => EnumCtors rep => String -> Shape a
+closedName label = genericNameShape label (\names -> label <> " must be one of " <> joinWith ", " names) lowerName

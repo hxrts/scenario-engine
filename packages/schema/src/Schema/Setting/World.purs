@@ -20,7 +20,7 @@ import Core.World (focusShape, FlowGate, UnseededWorld)
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, arrayOf, defaulted, atBare, atKindArg, boolShape, contramapRec, defaultsTo, emptyByDefault, fieldOf, genericSettingSum, intShape, iso, listOf, nameShape, object, optionalOf, recordShape, refined, stringShape)
+import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericSettingSum, intShape, iso, listOf, nameShape, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
 import Core.Types (Aggregate, CapacityEffect, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, idMap, idMapWith, idShape, idText)
 import Core.Types as Types
 import Data.Array as Array
@@ -35,25 +35,26 @@ import Data.Tuple (Tuple(..), snd)
 import Schema.Gameboard (Scheme)
 import Schema.Setting.Intent (capabilityShape, ruleShape)
 import Schema.Setting.Query (measureShape)
-import Schema.Setting.Tags (settingEnum, transferabilityTags)
 import Schema.Recurring (Authored, Circulation, Flow, Production, Requirement, Share, compileIn)
 
 -- Resources and Markets -----------------------------------------------------------------------
 
 transferabilityShape :: Shape Transferability
-transferabilityShape = settingEnum "Transferability" Types.transferabilityShape transferabilityTags
+transferabilityShape = genericSettingSum "Transferability"
+  { "Free": atBare { tag: "Free", desc: "tradable and transferable" }
+  , "Restricted": atBare { tag: "Restricted", desc: "transferred only by an Entity with the matching transfer capability" }
+  , "NonTransferable": atBare { tag: "NonTransferable", desc: "never moves between Entities" }
+  }
 
 -- | A Resource as a setting writes it: what the World holds, and what only the document holds.
 type ResourceEntry = { transferability :: Transferability, reservable :: Boolean, decay :: Maybe Q }
 
 resourceEntry :: Shape ResourceEntry
-resourceEntry = object "Resource"
-  ( mk <$> fieldOf "transferability" "how it may move" transferabilityShape _.transferability
-      <*> fieldOf "reservable" "may be escrowed by a facility (default false)" (defaultsTo false boolShape) _.reservable
-      <*> fieldOf "decay" "the share lost per round" (optionalOf qShape) _.decay
+resourceEntry = recordOf "Resource"
+  ( field @"transferability" "how it may move" transferabilityShape
+      &. field @"reservable" "may be escrowed by a facility (default false)" (defaultsTo false boolShape)
+      &. field @"decay" "the share lost per round" (optionalOf qShape)
   )
-  where
-  mk t r d = { transferability: t, reservable: r, decay: d }
 
 -- | A curve, its domain written as its `lo` and `hi`.
 costShape :: Shape CostFunction
@@ -79,14 +80,12 @@ marketShape k = object "Market"
   mk b q' c r a p = { id: k, base: b, quote: q', cost: c, position: p, reserves: r, access: a }
 
 effectShape :: Shape CapacityEffect
-effectShape = object "Effect"
-  ( mk <$> fieldOf "capacity" "the capacity changed" idShape _.capacity
-      <*> fieldOf "holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf idShape) _.holder
-      <*> fieldOf "perUnit" "the change per unit ordered" qShape _.perUnit
-      <*> fieldOf "rounds" "how many rounds it lasts" (optionalOf intShape) _.rounds
+effectShape = recordOf "Effect"
+  ( field @"capacity" "the capacity changed" idShape
+      &. field @"holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf idShape)
+      &. field @"perUnit" "the change per unit ordered" qShape
+      &. field @"rounds" "how many rounds it lasts" (optionalOf intShape)
   )
-  where
-  mk c h p r = { capacity: c, holder: h, perUnit: p, rounds: r }
 
 paymentShape :: Shape Payment
 paymentShape = recordShape "Payment" { curve: costShape, resource: idShape, to: idShape }
@@ -112,23 +111,19 @@ facilityShape k = object "Facility"
 -- Entities ------------------------------------------------------------------------------------
 
 aggregateShape :: Shape Aggregate
-aggregateShape = object "Aggregate"
-  ( mk <$> fieldOf "policy" "the Policy that drives it" idShape _.policy
-      <*> fieldOf "members" "the Entities that are its members" (arrayOf idShape) _.members
-      <*> fieldOf "procedures" "its collective procedures, by name" (emptyByDefault (idMap procedureShape)) _.procedures
+aggregateShape = recordOf "Aggregate"
+  ( field @"policy" "the Policy that drives it" idShape
+      &. field @"members" "the Entities that are its members" (arrayOf idShape)
+      &. field @"procedures" "its collective procedures, by name" (emptyByDefault (idMap procedureShape))
   )
-  where
-  mk p m ps = { policy: p, members: m, procedures: ps }
 
 procedureShape :: Shape CollectiveProcedure
-procedureShape = object "Procedure"
-  ( mk <$> fieldOf "weights" "the weight of each member" (idMap qShape) _.weights
-      <*> fieldOf "residualWeight" "the weight of the rest" qShape _.residualWeight
-      <*> fieldOf "threshold" "the weight that carries it" qShape _.threshold
-      <*> fieldOf "authorizes" "the capabilities it grants" (listOf capabilityShape) _.authorizes
+procedureShape = recordOf "Procedure"
+  ( field @"weights" "the weight of each member" (idMap qShape)
+      &. field @"residualWeight" "the weight of the rest" qShape
+      &. field @"threshold" "the weight that carries it" qShape
+      &. field @"authorizes" "the capabilities it grants" (listOf capabilityShape)
   )
-  where
-  mk w r t a = { weights: w, residualWeight: r, threshold: t, authorizes: a }
 
 -- | An Entity: its accounts, capabilities and capacities, and its Aggregate when it is one. An Entity
 -- | with no Aggregate is an Actor at the seat of its own id.
@@ -196,25 +191,22 @@ schemeShape = object "Scheme"
 
 -- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
 assignmentShape :: Shape { scheme :: String, actor :: EntityId, weight :: Q.Q }
-assignmentShape = object "Assignment"
-  ( mk <$> fieldOf "scheme" "the scheme assigned" stringShape _.scheme
-      <*> fieldOf "actor" "the Actor assigned" idShape _.actor
-      <*> fieldOf "weight" "the weight (default 1)" (defaultsTo Q.one qShape) _.weight
+assignmentShape = recordOf "Assignment"
+  ( field @"scheme" "the scheme assigned" stringShape
+      &. field @"actor" "the Actor assigned" idShape
+      &. field @"weight" "the weight (default 1)" (defaultsTo Q.one qShape)
   )
-  where
-  mk s a w = { scheme: s, actor: a, weight: w }
 
 -- Circulation ---------------------------------------------------------------------------------
 
 circulationShape :: Shape Circulation
-circulationShape = defaulted emptyCirculation none $ object "Circulation"
-  ( mk <$> fieldOf "production" "capacity that produces a Resource" (arrayOf productionShape) _.production
-      <*> fieldOf "flows" "fixed payments per round" (arrayOf flowShape) _.flows
-      <*> fieldOf "shares" "variable payments, as shares" (arrayOf shareShape) _.shares
-      <*> fieldOf "requirements" "what an Entity must consume" (arrayOf requirementShape) _.requirements
+circulationShape = defaulted emptyCirculation none $ recordOf "Circulation"
+  ( field @"production" "capacity that produces a Resource" (arrayOf productionShape)
+      &. field @"flows" "fixed payments per round" (arrayOf flowShape)
+      &. field @"shares" "variable payments, as shares" (arrayOf shareShape)
+      &. field @"requirements" "what an Entity must consume" (arrayOf requirementShape)
   )
   where
-  mk p f s r = { production: p, flows: f, shares: s, requirements: r }
   emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }
   none c = Array.null c.production && Array.null c.flows && Array.null c.shares && Array.null c.requirements
 
@@ -226,21 +218,19 @@ flowShape :: Shape Flow
 flowShape = recordShape "Flow" { from: idShape, to: idShape, resource: idShape, amount: refined "a flow amount must not be negative" (_ >= Q.zero) qShape }
 
 shareShape :: Shape Share
-shareShape = object "Share"
-  ( (\f t s src -> { from: f, to: t, share: s, source: src })
-      <$> fieldOf "from" "the paying Entity" idShape _.from
-      <*> fieldOf "to" "the receiving Entity" idShape _.to
-      <*> fieldOf "share" "the share of the source" qShape _.share
-      <*> fieldOf "source" "what the share is of: a query with no party, the payer being it" measureShape _.source
+shareShape = recordOf "Share"
+  ( field @"from" "the paying Entity" idShape
+      &. field @"to" "the receiving Entity" idShape
+      &. field @"share" "the share of the source" qShape
+      &. field @"source" "what the share is of: a query with no party, the payer being it" measureShape
   )
 
 requirementShape :: Shape Requirement
-requirementShape = object "Requirement"
-  ( (\e r a p -> { entity: e, resource: r, amount: a, penalty: p })
-      <$> fieldOf "entity" "the Entity that needs it" idShape _.entity
-      <*> fieldOf "resource" "the Resource needed" idShape _.resource
-      <*> fieldOf "amount" "the amount per round (default: this round's purchases)" (optionalOf qShape) _.amount
-      <*> fieldOf "penalty" "the reduction of fixed incomes per unit unmet (default 0)" (defaultsTo Q.zero qShape) _.penalty
+requirementShape = recordOf "Requirement"
+  ( field @"entity" "the Entity that needs it" idShape
+      &. field @"resource" "the Resource needed" idShape
+      &. field @"amount" "the amount per round (default: this round's purchases)" (optionalOf qShape)
+      &. field @"penalty" "the reduction of fixed incomes per unit unmet (default 0)" (defaultsTo Q.zero qShape)
   )
 
 -- The World -----------------------------------------------------------------------------------

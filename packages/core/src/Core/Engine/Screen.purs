@@ -17,7 +17,7 @@ import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capabilitiesOf, aggregateOf, lookupQ, owner, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
+import Core.Query (procedureSupport, capabilitiesOf, aggregateOf, lookupQ, owner, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
 import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
@@ -132,7 +132,7 @@ procedureProposal :: WorldState -> Proposal -> Array EntityId -> CollectiveProce
 procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggregateOf of
   Just a | Just proc <- Map.lookup pid a.procedures ->
     let
-      support = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= p.author) signed)))
+      support = procedureSupport proc p.author signed
       passes = support > proc.threshold
       outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
       -- A member with no weight in the procedure acts for the Aggregate without signing (docs/02 §2.2).

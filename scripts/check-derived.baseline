@@ -3,7 +3,6 @@ alias packages/views/src/Views/Common.purs 4
 hand-instance packages/core/src/Core/World.purs 1
 hand-json apps/dashboard/src/Dashboard/Chart.purs 2
 hand-json apps/dashboard/src/Dashboard/Components.purs 1
-hand-json packages/schema/src/Schema/Setting/Tags.purs 1
 implicit-codec apps/cli/src/Session.purs 2
 implicit-codec apps/server/test/Main.purs 10
 implicit-codec packages/adapters/test/Test/Adapters/Pi.purs 1

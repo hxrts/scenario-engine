@@ -148,11 +148,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "an institutional fallback naming no catalog Policy is an unknown reference" do
       let gb = coverageGameboard { actors = map (_ { fallback = Just (InstitutionalPolicy (Id "nope")) }) coverageGameboard.actors }
       case validateGameboard gb config of
-        Left es -> (UnknownReference PolicyRef "nope" `elem` es) `shouldEqual` true
+        Left es -> (UnknownReference RefPolicy "nope" `elem` es) `shouldEqual` true
         Right _ -> fail "expected an unknown policy"
     it "a configured fallback override naming no catalog Policy is an unknown reference" do
       case validateGameboard coverageGameboard (config { fallbacks = Map.singleton (Id "US") (InstitutionalPolicy (Id "nope")) }) of
-        Left es -> (UnknownReference PolicyRef "nope" `elem` es) `shouldEqual` true
+        Left es -> (UnknownReference RefPolicy "nope" `elem` es) `shouldEqual` true
         Right _ -> fail "expected an unknown policy"
     it "a facility with a negative delay is a validation error" do
       let gb = coverageGameboard { world = coverageGameboard.world { transformations = map (_ { delay = -1 }) coverageGameboard.world.transformations } }
@@ -183,30 +183,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       withObjective measure = coverageGameboard { actors = map (_ { objective = Just (objective measure) }) coverageGameboard.actors }
     it "a capability naming an unknown Market, Resource or Transformation" do
       reports (withCapabilities [ MayTrade (Id "m0"), MayTransfer (Id "r0"), MayTransform (Id "t0") ]) config
-        [ ref Market "m0", ref ResourceRef "r0", ref TransformationRef "t0" ]
+        [ ref RefMarket "m0", ref RefResource "r0", ref RefTransformation "t0" ]
     it "a procedure authorizing an unknown name" do
       let
         procedure = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: Q.fromInt 1, authorizes: [ MayTrade (Id "m1"), MayTransform (Id "t1") ] }
         gb = coverageGameboard { world = onEntity eu (\x -> x { kind = Aggregate { policy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) w }
-      reports gb config [ ref Market "m1", ref TransformationRef "t1" ]
+      reports gb config [ ref RefMarket "m1", ref RefTransformation "t1" ]
     it "an objective's Entities and Measure" do
-      reports (withObjective (HoldingOf (Id "r2"))) config [ ref EntityRef "ghost", ref ResourceRef "r2" ]
-      reports (withObjective (CapacityAmount (Id "c2"))) config [ ref CapacityName "c2" ]
-      reports (withObjective (ShortfallOf (Id "r3"))) config [ ref ResourceRef "r3" ]
-      reports (withObjective (ShortfallRounds (Id "r4"))) config [ ref ResourceRef "r4" ]
-      reports (withObjective (VolumeOf (Id "t2"))) config [ ref TransformationRef "t2" ]
+      reports (withObjective (HoldingOf (Id "r2"))) config [ ref RefEntity "ghost", ref RefResource "r2" ]
+      reports (withObjective (CapacityAmount (Id "c2"))) config [ ref RefCapacity "c2" ]
+      reports (withObjective (ShortfallOf (Id "r3"))) config [ ref RefResource "r3" ]
+      reports (withObjective (ShortfallRounds (Id "r4"))) config [ ref RefResource "r4" ]
+      reports (withObjective (VolumeOf (Id "t2"))) config [ ref RefTransformation "t2" ]
     it "a bound that is another metric is read too" do
       let
         metric = { entities: [ us ], measure: HoldingOf (Id "M"), negated: false }
         bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }) } ] }
-      reports (coverageGameboard { actors = map (_ { objective = Just bounded }) coverageGameboard.actors }) config [ ref ResourceRef "r5" ]
+      reports (coverageGameboard { actors = map (_ { objective = Just bounded }) coverageGameboard.actors }) config [ ref RefResource "r5" ]
     it "an implicit coverage fallback naming no Entity" do
-      reports (coverageGameboard { actors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coverageGameboard.actors }) config [ ref EntityRef "nowhere" ]
+      reports (coverageGameboard { actors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coverageGameboard.actors }) config [ ref RefEntity "nowhere" ]
     it "a configured fallback for an unknown Actor, or covering by an unknown Entity" do
-      reports coverageGameboard (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref EntityRef "ghost" ]
-      reports coverageGameboard (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref EntityRef "nowhere" ]
+      reports coverageGameboard (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref RefEntity "ghost" ]
+      reports coverageGameboard (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref RefEntity "nowhere" ]
     it "a numeraire that is not a Resource" do
-      reports (coverageGameboard { world = w { numeraire = Id "gold" } }) config [ ref ResourceRef "gold" ]
+      reports (coverageGameboard { world = w { numeraire = Id "gold" } }) config [ ref RefResource "gold" ]
 
   describe "Instantiation" do
     -- Pins the instantiation configuration file format (docs/03 §5.2).

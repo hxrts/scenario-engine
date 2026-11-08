@@ -13,7 +13,7 @@ module Game.Recipe
 import Prelude
 
 import Core.Draw (Seed)
-import Schema.Run (DeriveKind(..), Spec, deriveKindName, specKey)
+import Schema.Run (DeriveKind(..), Spec, specKey)
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, null)
@@ -81,7 +81,7 @@ deriveRecipe kind body base = case kind of
   unchanged :: Array { name :: String, given :: Boolean } -> Either String Unit
   unchanged fields = case filter _.given fields of
     [] -> pure unit
-    xs -> Left (deriveKindName kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
+    xs -> Left (show kind <> " does not take " <> joinWith ", " (map _.name xs) <> "; only a variant or counterfactual changes the spec")
 
 -- | The recipe a stored specification was played with. A live session has no preset and so no recipe.
 decodeSpec :: Spec -> Either String Recipe
