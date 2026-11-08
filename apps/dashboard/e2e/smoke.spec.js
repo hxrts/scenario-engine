@@ -247,14 +247,15 @@ test("sorting by a column does not move the header: its width is the same before
 });
 
 test("the launch form on Prepare offers the known presets and the premise's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
-  const { presets } = await (await request.get("/api/premise")).json();
+  const [{ presets }] = await (await request.get("/api/premise")).json();
   const posts = postSpy(page);
   await page.goto("/#/prepare");
   await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
   await expect(page.getByLabel("Preset").locator("option")).toHaveText(presets);
   await expect(page.getByLabel("Rounds")).toHaveValue("5");
   await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
-  await expect(page.getByLabel("Premise").locator("option")).toHaveText(["meridian@v0"]);
+  // one composition is present, so there is no choice to offer
+  await expect(page.getByLabel("Premise")).toHaveCount(0);
   await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByLabel("Player seed").fill("x");
   await page.getByRole("button", { name: "Run", exact: true }).click();
@@ -273,7 +274,7 @@ test("Run with no edits launches the default run: Conservative, the premise's ro
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
   // the request leaves the seed and the rounds to the server, and the name is the default
-  expect(spy.body).toEqual({ name, preset: "Conservative" });
+  expect(spy.body).toEqual({ premise: "meridian", name, preset: "Conservative" });
   // the run is in the list with the premise's rounds and a seed, and its overview names the preset
   const row = rowWith(page, [id]);
   await expect(row.getByRole("cell").nth(5)).toHaveText("5");
@@ -298,7 +299,7 @@ test("a non-default preset and round count are sent, and the run plays them", as
   expect(overview.facts).toContainEqual({ label: "Preset", value: "Trader" });
 });
 
-test("the Premise and Game seed are shown read-only, with the premise's seed as the default", async ({ page }) => {
+test("the Game seed is shown read-only, with the premise's seed as the default", async ({ page }) => {
   await page.goto("/#/prepare");
   await expect(page.getByText("Game seed", { exact: true })).toBeVisible();
   await expect(page.getByText("26021", { exact: true })).toBeVisible();
@@ -320,12 +321,11 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
 test("the launch form marks its required fields, and states the default of each optional one", async ({ page }) => {
   await page.goto("/#/prepare");
   await expect(page.locator("label", { hasText: "Preset" })).toContainText("required");
-  await expect(page.locator("label", { hasText: "Premise" })).toContainText("required");
   await expect(page.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
   await expect(page.locator("label", { hasText: "Player seed" })).toContainText("optional");
   await expect(page.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
   await expect(page.locator("label", { hasText: "Game seed" })).toHaveCount(0);
-  await expect(page.getByText("Required: Preset and Premise.")).toBeVisible();
+  await expect(page.getByText("Required: Preset.")).toBeVisible();
 });
 
 test("a launch opens the new run's page", async ({ page }) => {

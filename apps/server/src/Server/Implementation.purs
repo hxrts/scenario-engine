@@ -6,8 +6,7 @@ module Server.Implementation (implement) where
 
 import Prelude
 
-import Data.Either (either)
-import Game.Premise (GameboardParts)
+import Data.Either (Either(..), either)
 import Effects.Api (ApiRequest(..))
 import Handlers.Api.Route (Implementation)
 import Handlers.Store (StoreBackend)
@@ -18,22 +17,23 @@ import Server.Cache (Cache, clear)
 import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
 import Server.Errors (failWith, ok)
 import Server.Launch (launch, launchedShape, premiseInfo)
+import Server.Premises (Premises, chosen)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
--- | The implementation of every operation over one premise, one store, and the store's run cache.
-implement :: GameboardParts -> StoreBackend -> Cache -> Implementation
-implement ctx store cache = case _ of
+-- | The implementation of every operation over the loaded premises, one store, and the store's run cache.
+implement :: Premises -> StoreBackend -> Cache -> Implementation
+implement premises store cache = case _ of
   ListRuns { archived } -> runSummaries archived store >>= ok Keys.runList <<< Overview.runList
-  Premise -> premiseInfo ctx store >>= ok Keys.premise
+  Premise -> premiseInfo premises store >>= ok Keys.premises
   Glossary -> ok Keys.glossary glossary
-  LaunchRun l -> writing (launch ctx store l >>= either (failWith 400) (ok launchedShape))
+  LaunchRun l -> writing (either (pure <<< Left) (\p -> launch p store l) (chosen premises l.premise) >>= either (failWith 400) (ok launchedShape))
   Entities id -> entitiesView cache store id
   Entity id entity -> entityView cache store id entity
-  RunView r -> getView cache ctx store r
-  Compare r -> compareView cache ctx store r
-  Agency r -> agencyView cache ctx r
-  Derive { id, body } -> writing (deriveRun cache ctx store id body)
-  Resume { id, rounds } -> writing (resumeRun ctx store id rounds)
+  RunView r -> getView cache premises store r
+  Compare r -> compareView cache premises store r
+  Agency r -> agencyView cache premises r
+  Derive { id, body } -> writing (deriveRun cache premises store id body)
+  Resume { id, rounds } -> writing (resumeRun premises store id rounds)
   Archive id -> writing (setArchive store id true)
   Unarchive id -> writing (setArchive store id false)
   Delete { id, confirm } -> writing (deleteOne store id confirm)

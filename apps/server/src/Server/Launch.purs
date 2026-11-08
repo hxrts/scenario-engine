@@ -131,11 +131,13 @@ nextRunId store = do
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
 
--- | `GET /api/premise`: the premise the launch form runs (`Views.Premise`).
-premiseInfo :: GameboardParts -> StoreBackend -> Effect Premise
-premiseInfo p store = do
+-- | `GET /api/premise`: the premises the launch form offers (`Views.Premise`).
+premiseInfo :: Array GameboardParts -> StoreBackend -> Effect (Array Premise)
+premiseInfo ps store = do
   next <- nextRunId store
-  pure
+  pure (map (info next) ps)
+  where
+  info next p =
     { name: p.gameboard.id
     , version: p.gameboard.version
     , rounds: { min: p.gameboard.rounds.min, max: p.gameboard.rounds.max, default: p.config.rounds }

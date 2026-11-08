@@ -6,6 +6,7 @@
 module Dashboard.Launch
   ( LaunchForm
   , emptyForm
+  , selected
   , validate
   , summary
   , roundChoices
@@ -15,7 +16,8 @@ module Dashboard.Launch
 import Prelude
 
 import Dashboard.RunForms (rounds)
-import Data.Array (elem, range)
+import Control.Alt ((<|>))
+import Data.Array (elem, find, head, range)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -25,11 +27,11 @@ import Views.Premise (Premise, RoundRange)
 
 -- | The raw text of each field. A blank name is the default name; a blank preset cannot occur (it is a
 -- | select), and a blank rounds or player seed is the default.
-type LaunchForm = { name :: String, preset :: String, playerSeed :: String, rounds :: String }
+type LaunchForm = { premise :: String, name :: String, preset :: String, playerSeed :: String, rounds :: String }
 
 -- | Blank name, the preset every seat plays, and blank seed and rounds (the defaults).
 emptyForm :: LaunchForm
-emptyForm = { name: "", preset: "Conservative", playerSeed: "", rounds: "" }
+emptyForm = { premise: "", name: "", preset: "Conservative", playerSeed: "", rounds: "" }
 
 -- | The first problem with the form, or the request it describes. A blank name is the premise's
 -- | default name; a blank rounds is the premise's default rounds (sent as null).
@@ -46,7 +48,11 @@ validate s f = do
   roundCount <- case trim f.rounds of
     "" -> Right Nothing
     t -> Just <$> rounds t
-  pure { name, preset: f.preset, playerSeed, rounds: roundCount }
+  pure { premise: Just s.name, name, preset: f.preset, playerSeed, rounds: roundCount }
+
+-- | The premise a form launches: the one it names, or the first when it names none.
+selected :: LaunchForm -> Array Premise -> Maybe Premise
+selected f ps = find (\p -> p.name == f.premise) ps <|> head ps
 
 -- | The round count a form shows and plays: its rounds, or the premise's default when blank.
 roundValue :: RoundRange -> String -> Int

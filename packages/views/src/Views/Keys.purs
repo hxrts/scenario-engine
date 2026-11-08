@@ -21,6 +21,7 @@ module Views.Keys
   , table
   , runList
   , premise
+  , premises
   , glossary
   , entityList
   , history
@@ -112,6 +113,10 @@ runList = recordShape "RunList" { title: stringShape, columns: strings, rows: li
 
 roundRange :: Shape RoundRange
 roundRange = recordShape "RoundRange" { min: intShape, max: intShape, default: intShape }
+
+-- | `GET /api/premise`: the premises the launch form offers.
+premises :: Shape (Array Premise)
+premises = listOf premise
 
 premise :: Shape Premise
 premise = recordShape "Premise"

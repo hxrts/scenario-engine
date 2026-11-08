@@ -165,7 +165,7 @@ spec context = describe "Capstone (DSL-authored run)" do
             , (Compare.finalState runs).table
             , Compare.baselineDiff sr [ other ]
             , (Compare.configDiff sr [ other ]).table
-            , Compare.keyValues ctx.gameboard runs
+            , Compare.keyValues (const (Just ctx.gameboard)) runs
             , Compare.agencyTable []
             ]
           <> either (const []) (\t -> [ t ]) (Balances.balances sr 1)

@@ -9,18 +9,19 @@ module Premises.Tree
   , FileOps
   , readPremise
   , readRootFile
+  , compositionDirs
   , premiseRoot
   ) where
 
 import Prelude
 
-import Data.Array (filter, sort)
+import Data.Array (catMaybes, concat, elem, filter, sort)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe, fromMaybe, isJust)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.String (Pattern(..), stripSuffix)
 import Data.Traversable (sequence, traverse)
-import Premises.Layout (presetsFile)
+import Premises.Layout (premiseFile, presetsFile)
 
 -- | One premise file: its name (`markets.json`), its path under the working directory (used in
 -- | failure messages), and its text.
@@ -53,6 +54,22 @@ readPremise ops dir = do
         ss <- sections
         p <- presets
         pure { sections: ss, presets: p }
+
+-- | Every premise directory under the root (`<id>/<version>`, the ones holding a `premise.json`), sorted.
+compositionDirs :: forall m. Monad m => FileOps m -> m (Either String (Array String))
+compositionDirs ops = do
+  root <- premiseRoot ops
+  listed <- ops.list root
+  case listed of
+    Left e -> pure (Left (unreadable e))
+    Right ids -> map (Right <<< sort <<< concat) (traverse (versionsOf root) ids)
+  where
+  versionsOf root id = ops.list (root <> id <> "/") >>= case _ of
+    Left _ -> pure []
+    Right versions -> map catMaybes (traverse (premiseDir root id) versions)
+  premiseDir root id version = ops.list (root <> id <> "/" <> version <> "/") <#> case _ of
+    Right names | elem premiseFile names -> Just (id <> "/" <> version)
+    _ -> Nothing
 
 -- | A file's text at a path under the root (`presets.json`, `capstone/run.json`). A failure names
 -- | the full path.

@@ -90,10 +90,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Launch form: defaults" do
     it "the empty form is a valid request: the default name, Conservative, a drawn seed, the premise's rounds" do
-      validate premise emptyForm `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate premise emptyForm `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "a blank or spaced name is the default name; a typed name is trimmed" do
-      validate premise (emptyForm { name = "  " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-      validate premise (emptyForm { name = " copy " }) `shouldEqual` Right { name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate premise (emptyForm { name = "  " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate premise (emptyForm { name = " copy " }) `shouldEqual` Right { premise: Just premise.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "the round count shown is the premise's default when blank, and the typed count otherwise" do
       roundValue premiseRounds "" `shouldEqual` 5
       roundValue premiseRounds " 7 " `shouldEqual` 7
@@ -103,16 +103,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       summary premiseRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
     it "rounds, when given, must be a whole number; the premise's range is the server's" do
-      validate premise (emptyForm { rounds = " 6 " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
-      validate premise (emptyForm { rounds = "4" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
-      validate premise (emptyForm { rounds = "8" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
+      validate premise (emptyForm { rounds = " 6 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
+      validate premise (emptyForm { rounds = "4" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
+      validate premise (emptyForm { rounds = "8" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
+      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
       validate premise (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
     it "a preset must be one the premise offers; Trader is accepted" do
       validate premise (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
-      validate premise (emptyForm { preset = "Trader" }) `shouldEqual` Right { name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
+      validate premise (emptyForm { preset = "Trader" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
     it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
-      validate premise (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
+      validate premise (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
       validate premise (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Premise reply" do
     it "the premise's name, round range, game seed, default name and presets are decoded from GET /api/premise" do

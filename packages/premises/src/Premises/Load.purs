@@ -7,6 +7,7 @@ module Premises.Load
   ( fromFiles
   , loadPremise
   , loadFrom
+  , loadAll
   , loadPresets
   , decodePresets
   , shippedPresets
@@ -23,7 +24,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Array (filter, find, foldl)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Premise (GameboardParts, checkPremise)
@@ -70,6 +71,13 @@ loadPremise s = do
 -- | A premise directory read through the file operations given, decoded and checked.
 loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String GameboardParts)
 loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
+
+-- | Every premise directory under the root, loaded and checked. A root with none is a failure.
+loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array GameboardParts))
+loadAll ops = Tree.compositionDirs ops >>= case _ of
+  Left e -> pure (Left e)
+  Right [] -> pure (Left "no premise under the premise root; run `just _premises`")
+  Right dirs -> map sequence (traverse (loadFrom ops) dirs)
 
 -- | A literal premise's file text, decoded and named `name`.
 loadLiteral :: String -> String -> Either String Literal

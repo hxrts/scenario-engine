@@ -29,7 +29,7 @@ import Server.Launch (play, start)
 import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemblePreset, checkRounds)
-import Game.Premise (GameboardParts)
+import Server.Premises (Premises, ofSpec)
 import Schema.Run (Spec, DeriveKind, deriveKindShape, DeriveKind(..), RunStatus(..), deriveKindName, runStatusName)
 import Core.Shape (Format(Premise), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
 import Handlers.Api.Route as Route
@@ -47,8 +47,8 @@ import Simulator.Simulate (resumeWith)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Cache -> GameboardParts -> StoreBackend -> String -> DeriveRequest -> Effect Reply
-deriveRun cache premise store sourceId body = do
+deriveRun :: Cache -> Premises -> StoreBackend -> String -> DeriveRequest -> Effect Reply
+deriveRun cache premises store sourceId body = do
   let kind = body.kind
   runInfo store sourceId >>= case _ of
     Nothing -> failWith 404 ("no run " <> sourceId)
@@ -63,12 +63,12 @@ deriveRun cache premise store sourceId body = do
           | null (records src) -> failWith 409 ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
         _ -> do
           stored <- runObserve store (readManifest sourceId)
-          case stored <#> \m -> m.spec >>= decodeSpec of
+          case stored <#> \m -> m.spec >>= \spec -> { base: _, premise: _ } <$> decodeSpec spec <*> ofSpec premises spec of
             Nothing -> failWith 500 ("run " <> sourceId <> " has no stored spec")
             Just (Left e) -> failWith 500 ("run " <> sourceId <> " is unreadable: " <> e)
-            Just (Right base) -> case deriveRecipe kind body base of
+            Just (Right { base, premise }) -> case deriveRecipe kind body base of
               Left e -> failWith 400 e
-              Right _ | kind == Variant, Just bad <- outOfRange -> failWith 400 bad
+              Right _ | kind == Variant, Just bad <- outOfRange premise -> failWith 400 bad
               Right recipe -> do
                 let name = fromMaybe (info.name <> " (" <> deriveKindName kind <> ")") body.name
                 started <- start premise store
@@ -91,7 +91,7 @@ deriveRun cache premise store sourceId body = do
   where
   -- a variant is a new game, so a round count it asks for obeys the Gameboard's range; a duplicate or a
   -- rerun replays what was recorded
-  outOfRange = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.gameboard) body.rounds)
+  outOfRange premise = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.gameboard) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
   replied id recordsMatch = pure (Route.replyIn Premise derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch })
 
@@ -101,8 +101,8 @@ derivedShape = recordShape "Derived" { id: stringShape, source: stringShape, kin
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: GameboardParts -> StoreBackend -> String -> Int -> Effect Reply
-resumeRun premise store id rounds =
+resumeRun :: Premises -> StoreBackend -> String -> Int -> Effect Reply
+resumeRun premises store id rounds =
   runInfo store id >>= case _ of
     Nothing -> failWith 404 ("no run " <> id)
     Just info
@@ -116,7 +116,7 @@ resumeRun premise store id rounds =
               Right p
                 | rounds <= p.done -> failWith 400 ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
                 | otherwise -> do
-                    case assemblePreset premise p.base.preset p.base.overrides (Just rounds) of
+                    case assemblePreset p.premise p.base.preset p.base.overrides (Just rounds) of
                       Left e -> failWith 400 (show e)
                       Right game -> do
                         attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
@@ -129,13 +129,14 @@ resumeRun premise store id rounds =
             _, _ -> failWith 500 ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
-  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, seed :: Seed, snapshot :: WorldState, done :: Int }
+  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, premise :: _, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
     spec <- text
     base <- decodeSpec spec
+    premise <- ofSpec premises spec
     seed <- note "the stored spec has no player seed" base.playerSeed
     snapshot <- latest.snapshot
-    pure { spec, base, seed: Seed seed, snapshot, done }
+    pure { spec, base, premise, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
 setArchive :: StoreBackend -> String -> Boolean -> Effect Reply

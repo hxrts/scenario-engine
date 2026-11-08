@@ -13,7 +13,7 @@ import Dashboard.Client as Client
 import Dashboard.Components (diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
-import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, summary, validate)
+import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, selected, summary, validate)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
@@ -23,7 +23,7 @@ import Dashboard.Runs (flagsOf, latestReadable, mergeRuns, readableIds, shownRun
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
 import Data.Array (elem, filter, find, findIndex, index, length, null)
-import Data.Either (Either(..))
+import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
 import Data.Tuple (Tuple(..))
@@ -108,6 +108,7 @@ type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
   , premise :: Premise
+  , premises :: Array Premise
   , defaultName :: String
   , failure :: Maybe String
   , launch :: Effect Unit
@@ -121,7 +122,7 @@ launchAction v = D.div
       [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.premise.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose "Required: Preset and Premise. Every other field has a default, so Run needs no edits."
+      , Layout.purpose (if length v.premises > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
       ]
   }
 
@@ -132,26 +133,27 @@ launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-      , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
-      , selectField { label: "Premise", required: true, note: "required, the one premise the server runs" } premiseName [ premiseName ] (\_ f -> f)
-      , selectField
-          { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
-          (show (roundValue v.premise.rounds v.form.rounds))
-          (map show (roundChoices v.premise.rounds))
-          (\x f -> f { rounds = x })
-      , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
-      , D.div
-          { className: "flex flex-col gap-1 text-sm"
-          , children:
-              [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
-              , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
-              ]
-          }
-      ]
+      picker <>
+        [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
+        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
+        , selectField
+            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
+            (show (roundValue v.premise.rounds v.form.rounds))
+            (map show (roundChoices v.premise.rounds))
+            (\x f -> f { rounds = x })
+        , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
+        , D.div
+            { className: "flex flex-col gap-1 text-sm"
+            , children:
+                [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
+                , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
+                ]
+            }
+        ]
   }
   where
-  premiseName = v.premise.name <> "@" <> v.premise.version
+  -- the picker appears only when there is a choice; a build with one composition has none
+  picker = if length v.premises > 1 then [ selectField { label: "Premise", required: true, note: "required: which premise to play" } v.premise.name (map _.name v.premises) (\x f -> f { premise = x }) ] else []
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -173,14 +175,16 @@ mkPrepare = component "Prepare" \_ -> React.do
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
   premiseLoad <- useLoad unit Client.premise
   let
-    premise = case premiseLoad.value of
-      Just (Right s) -> Just s
-      _ -> Nothing
+    premises = case premiseLoad.value of
+      Just (Right ps) -> ps
+      _ -> []
+    premise = selected form premises
     -- the default name is known once the premise is; until then it is "run"
     loadedName = maybe "" _.defaultName premise
     defaultName = if loadedName == "" then "run" else loadedName
 
-    view s = { form, setForm, premise: s, defaultName, failure, launch }
+    chosenPremise = (_ >>= note "The server offers no premise." <<< selected form)
+    view s = { form, setForm, premise: s, premises, defaultName, failure, launch }
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
     launch = case premise of
@@ -209,14 +213,14 @@ mkPrepare = component "Prepare" \_ -> React.do
                 , title: "Options"
                 , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
                 , children:
-                    [ loaded premiseLoad.value (launchFields <<< view) ]
+                    [ loaded (chosenPremise <$> premiseLoad.value) (launchFields <<< view) ]
                 }
             , Layout.panel
                 { span: 6
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ loaded premiseLoad.value (launchAction <<< view) ]
+                    [ loaded (chosenPremise <$> premiseLoad.value) (launchAction <<< view) ]
                 }
             ]
         ]

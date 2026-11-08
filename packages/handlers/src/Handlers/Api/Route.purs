@@ -260,10 +260,11 @@ endpoints = table
         in { runs, market }
   , "Agency": get "/api/agency"
       ado
+        premise <- optionalParam "premise" _.premise
         playerSeed <- optionalParam "playerSeed" _.playerSeed
         preset <- optionalParam "preset" _.preset
         alternative <- optionalParam "alternative" _.alternative
-        in { playerSeed, preset, alternative }
+        in { premise, playerSeed, preset, alternative }
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
   , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
@@ -307,11 +308,12 @@ decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.par
 -- | The body of `POST /api/runs`.
 launchShape :: Shape Launch
 launchShape = object "Launch" ado
+  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
   name <- fieldOf "name" "the new run's name" stringShape _.name
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
-  in { name, preset, playerSeed, rounds }
+  in { premise, name, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }

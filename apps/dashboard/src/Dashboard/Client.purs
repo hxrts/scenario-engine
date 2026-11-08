@@ -55,9 +55,9 @@ launch = typed launchedShape <<< LaunchRun
   where
   launchedShape = recordShape "Launched" { id: stringShape }
 
--- | The premise the launch form runs, with its rounds, seed, default run name and presets.
-premise :: Aff (Either String Premise)
-premise = typed Keys.premise Premise
+-- | The premises the launch form offers, each with its rounds, seed, default run name and presets.
+premise :: Aff (Either String (Array Premise))
+premise = typed Keys.premises Premise
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)
@@ -85,7 +85,7 @@ compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
 
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
-agency = typed Keys.table (Agency { playerSeed: Nothing, preset: Nothing, alternative: Nothing })
+agency = typed Keys.table (Agency { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | Archive a run, or unarchive it.
 archive :: String -> Boolean -> Aff (Either String Unit)

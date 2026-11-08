@@ -35,7 +35,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Experiments.Agency (agency)
 import Game.Assemble (assemblePreset, configuredSeats)
-import Game.Premise (GameboardParts)
+import Server.Premises (Premises, chosen, ofRun, ofSpec)
 import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Balance as Balance
@@ -135,8 +135,8 @@ runInfo store id = find (\r -> r.id == id) <$> runObserve store listRuns
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: Cache -> GameboardParts -> StoreBackend -> { id :: String, view :: View, round :: Maybe String } -> Effect Reply
-getView cache ctx store { id, view, round } = withRun cache store id runView
+getView :: Cache -> Premises -> StoreBackend -> { id :: String, view :: View, round :: Maybe String } -> Effect Reply
+getView cache premises store { id, view, round } = withRun cache store id runView
   where
   -- each view's reply goes through its key's shape, the one the dashboard decodes with
   answer :: forall a. ViewKey a -> a -> Effect Reply
@@ -151,6 +151,9 @@ getView cache ctx store { id, view, round } = withRun cache store id runView
     Nothing -> Right d
     Just s -> maybe (Left ("round must be an integer, got " <> s)) Right (Int.fromString s)
 
+  -- the Gameboard of the run's own premise; a run whose premise is not loaded cannot be read against it
+  onBoard r f = either (failWith 409) (f <<< _.gameboard) (ofSpec premises r.spec)
+
   runView r = case view of
     Overview -> answer Keys.overview (Overview.overview r)
     Balances -> answerOr Keys.balances (roundParam (completed r) >>= Balances.balances r)
@@ -159,12 +162,12 @@ getView cache ctx store { id, view, round } = withRun cache store id runView
     Economy -> answer Keys.economy (Markets.economy r)
     Representation -> answer Keys.representation (Representation.representation r)
     Procedures -> answer Keys.procedures (Representation.procedures r)
-    Objectives -> answer Keys.objectives (Overview.objectives ctx.gameboard r)
+    Objectives -> onBoard r \gb -> answer Keys.objectives (Overview.objectives gb r)
     Standings -> answer Keys.standings (Standings.standings r)
     NetWorth -> answer Keys.netWorth (Standings.netWorthChart r)
     Actions -> answer Keys.actions (Actions.actions r)
     Drivers -> answer Keys.drivers (Drivers.drivers r)
-    Balance -> answer Keys.balance (Balance.balanceView ctx.gameboard r)
+    Balance -> onBoard r \gb -> answer Keys.balance (Balance.balanceView gb r)
     Events -> answerOr Keys.events (roundParam 1 >>= Balances.events r)
 
 -- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
@@ -178,8 +181,8 @@ entityView cache store id entity = withRun cache store id (\r -> viewOr Keys.his
 
 -- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: Cache -> GameboardParts -> StoreBackend -> { runs :: Array String, market :: Maybe String } -> Effect Reply
-compareView cache ctx store { runs: ids, market } = do
+compareView :: Cache -> Premises -> StoreBackend -> { runs :: Array String, market :: Maybe String } -> Effect Reply
+compareView cache premises store { runs: ids, market } = do
   loaded <- traverse (loadRun cache store) ids
   let
     good = catMaybes (map hush loaded)
@@ -195,7 +198,7 @@ compareView cache ctx store { runs: ids, market } = do
           , netWorth: Compare.netWorthCharts good
           , standings: Compare.standingsBars good
           , balance: Compare.balanceBars good
-          , keyValues: Compare.keyValues ctx.gameboard good
+          , keyValues: Compare.keyValues (ofRun premises) good
           , final: Compare.finalState good
           , baseline: base.id
           , diff: Compare.baselineDiff base others
@@ -207,7 +210,8 @@ compareView cache ctx store { runs: ids, market } = do
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.
-agencyView :: Cache -> GameboardParts -> { playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Reply
-agencyView cache ctx { playerSeed, preset, alternative } = case Int.fromString (fromMaybe "1" playerSeed) of
-  Nothing -> failWith 400 "playerSeed must be an integer"
-  Just s -> cachedAgency cache (joinWith "|" [ show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))
+agencyView :: Cache -> Premises -> { premise :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Effect Reply
+agencyView cache premises { premise, playerSeed, preset, alternative } = case chosen premises premise, Int.fromString (fromMaybe "1" playerSeed) of
+  Left e, _ -> failWith 400 e
+  _, Nothing -> failWith 400 "playerSeed must be an integer"
+  Right ctx, Just s -> cachedAgency cache (joinWith "|" [ ctx.gameboard.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))

@@ -16,8 +16,7 @@ import Flags (flagNames, flagOr, intFlag, parseFlags)
 import Handlers.Api.Route (apiPrefix, route)
 import Http (serve)
 import Node.Process (argv, exit')
-import Premises.Load (loadFrom)
-import Premises.Meridian.Names (meridianDir)
+import Premises.Load (loadAll)
 import Server.Cache (newCache)
 import Server.Launch (failInterrupted)
 import Server.Implementation (implement)
@@ -29,13 +28,13 @@ main = do
     Left e -> usage e
     -- the default port is also apps/dashboard/ports.mjs's API_PORT, which scripts/free-port.sh reads
     Right flags -> case intFlag "--port" 8787 (\p -> p > 0 && p < 65536) "a port number" flags of
-      Right port -> loadFrom fileOps meridianDir >>= case _ of
-        Right ctx -> do
+      Right port -> loadAll fileOps >>= case _ of
+        Right premises -> do
           store <- sqliteBackend <$> open (flagOr "--db" "runs.db" flags)
           stale <- failInterrupted store
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
           cache <- newCache
-          serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement ctx store cache))
+          serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement premises store cache))
         Left e -> log e *> exit' 1
       Left e -> usage e
   where

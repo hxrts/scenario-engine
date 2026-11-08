@@ -268,8 +268,8 @@ numeraireUnit runs = maybe "" (\r -> unitOf r r.manifest.initial.numeraire) (hea
 -- | Key values across the runs: one row per measure or per Player, one column per run (its header is
 -- | the run's name and id). Every value is read from the view that defines it: the standings, the
 -- | balance measures, the action totals, the objective completion and the Market prices.
-keyValues :: Gameboard -> Array StoredRun -> Table
-keyValues gb runs =
+keyValues :: (StoredRun -> Maybe Gameboard) -> Array StoredRun -> Table
+keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs
   , rows: concat [ perPlayer, [ spreadRow, giniRow ], objectiveRows, [ rejectedRow ], priceRows ]
@@ -280,7 +280,7 @@ keyValues gb runs =
     { run: r
     , standings: standingsOf r
     , measures: measuresOf r
-    , completion: completionOf gb r
+    , completion: maybe [] (\gb -> completionOf gb r) (boardOf r)
     , actions: actionTotals r
     , prices: marketPrices (final r)
     }

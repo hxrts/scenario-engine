@@ -46,7 +46,7 @@ setup = do
   cache <- liftEffect newCache
   let
     store = sqliteBackend db
-    api method path body = liftEffect (route (implement ctx store cache) { method, path, query: Object.empty, body })
+    api method path body = liftEffect (route (implement [ ctx ] store cache) { method, path, query: Object.empty, body })
   pure { api, store, db, cache, ctx }
 
 launch :: Env -> Int -> Aff Unit
@@ -165,7 +165,7 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
     _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Aggressive\",\"playerSeed\":2,\"rounds\":2}"
-    r <- liftEffect (route (implement env.ctx env.store env.cache) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
+    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
     r.status `shouldEqual` 200
     r.body `shouldSatisfy` contains (Pattern "[\"seat Policy\",\"preset\",\"Conservative\",\"Aggressive\"]")
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")

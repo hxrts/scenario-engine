@@ -98,7 +98,7 @@ spec context = describe "Views and error paths" do
       r1 = toStored "run-1" a
       r2 = toStored "run-2" b
       runs = [ r1, r2 ]
-      kv = keyValues ctx.gameboard runs
+      kv = keyValues (const (Just ctx.gameboard)) runs
       rowOf label = fromMaybe [] (find (\row -> cell row 0 == label) kv.rows)
       valueIn label r = fromMaybe "" (find (\row -> cell row 0 == label) (measures r).rows >>= \row -> index row 1)
       standingOf p r = fromMaybe "" (find (\row -> cell row 0 == p) (standings r).rows >>= \row -> index row 1)
