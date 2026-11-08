@@ -369,8 +369,6 @@ const summary = (hits) => {
 // Modes ----------------------------------------------------------------------------------------------
 
 function runSamples(ctx) {
-  // the samples are gitignored: a checkout without them has nothing to self-test against
-  if (!fs.existsSync(samplesDir)) { console.log("check-derived samples skipped (no scripts/check-derived-samples)"); return; }
   const problems = [];
   for (const rule of ruleIds) {
     for (const kind of ["positive", "negative"]) {

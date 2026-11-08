@@ -27,6 +27,3 @@ packages/premises/capstone/
 
 # local pi agent state: never source
 .pi/
-
-# check-derived self-test samples, local only
-scripts/check-derived-samples/
