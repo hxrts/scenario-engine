@@ -4,11 +4,12 @@ module Core.World where
 
 import Prelude
 
-import Core.Draw (Seed)
+import Core.Draw (Seed(..))
+import Core.Num (Q)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, intShape, mapOf, object, prim, qShape, sumOf)
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, proposalShape, ruleShape, signedProposalShape)
+import Core.Shape (Format(..), Shape, arrayOf, boolShape, class Described, ctorOf, decodeJsonWith, encodeJsonWith, fieldOf, intShape, iso, mapOf, object, optionalOf, prim, qShape, stringShape, sumOf, unitShape)
+import Core.Types (CapacityEffect, CostFunction, Estimator, Id, Interval, BehaviorDomain, Entity, EntityId, Market, MarketId, Price, Proposal, ProposalId, Quantity, Ratio, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, SignedProposal, Transformation, TransformationId, CapacityRef, entityShape, idShape, transferabilityShape, proposalShape, ruleShape, signedProposalShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Decode.Generic (genericDecodeJson)
@@ -18,6 +19,7 @@ import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Either (note)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.Show.Generic (genericShow)
 
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
@@ -514,3 +516,187 @@ instance EncodeJson Event where
 
 instance DecodeJson Event where
   decodeJson = decodeJsonWith Snapshot eventShape
+
+-- The stored run ------------------------------------------------------------------------------
+--
+-- A Run Store row holds these shapes' snapshot form: its bytes are what argonaut's generic record
+-- encoder writes (test: "stored records encode the same"), so stored rows read back unchanged.
+
+intervalShape :: Shape Interval
+intervalShape = object "Interval"
+  ( { lo: _, hi: _ }
+      <$> fieldOf "lo" "" qShape _.lo
+      <*> fieldOf "hi" "" qShape _.hi
+  )
+
+costFunctionShape :: Shape CostFunction
+costFunctionShape = object "CostFunction"
+  ( { base: _, slope: _, domain: _ }
+      <$> fieldOf "base" "" qShape _.base
+      <*> fieldOf "slope" "" qShape _.slope
+      <*> fieldOf "domain" "" intervalShape _.domain
+  )
+
+holdingsShape :: forall t. Shape (Map (Id t) Q)
+holdingsShape = mapOf idShape qShape
+
+marketShape :: Shape Market
+marketShape = object "Market"
+  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "base" "" idShape _.base
+      <*> fieldOf "quote" "" idShape _.quote
+      <*> fieldOf "cost" "" costFunctionShape _.cost
+      <*> fieldOf "position" "" qShape _.position
+      <*> fieldOf "reserves" "" holdingsShape _.reserves
+      <*> fieldOf "access" "" (arrayOf idShape) _.access
+  )
+
+capacityEffectShape :: Shape CapacityEffect
+capacityEffectShape = object "CapacityEffect"
+  ( { capacity: _, holder: _, perUnit: _, rounds: _ }
+      <$> fieldOf "capacity" "" idShape _.capacity
+      <*> fieldOf "holder" "" (optionalOf idShape) _.holder
+      <*> fieldOf "perUnit" "" qShape _.perUnit
+      <*> fieldOf "rounds" "" (optionalOf intShape) _.rounds
+  )
+
+transformationShape :: Shape Transformation
+transformationShape = object "Transformation"
+  ( { id: _, inputs: _, outputs: _, reserves: _, cost: _, capacity: _, payee: _, delay: _, minimum: _, maximum: _, capacityUse: _, ownerSigns: _, effects: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "inputs" "" holdingsShape _.inputs
+      <*> fieldOf "outputs" "" holdingsShape _.outputs
+      <*> fieldOf "reserves" "" holdingsShape _.reserves
+      <*> fieldOf "cost" "" (optionalOf costFunctionShape) _.cost
+      <*> fieldOf "capacity" "" (optionalOf idShape) _.capacity
+      <*> fieldOf "payee" "" (optionalOf idShape) _.payee
+      <*> fieldOf "delay" "" intShape _.delay
+      <*> fieldOf "minimum" "" qShape _.minimum
+      <*> fieldOf "maximum" "" (optionalOf qShape) _.maximum
+      <*> fieldOf "capacityUse" "" qShape _.capacityUse
+      <*> fieldOf "ownerSigns" "" boolShape _.ownerSigns
+      <*> fieldOf "effects" "" (arrayOf capacityEffectShape) _.effects
+  )
+
+resourceDefinitionShape :: Shape ResourceDefinition
+resourceDefinitionShape = object "ResourceDefinition"
+  ( { id: _, unit: _, transferability: _, decay: _, reservable: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "unit" "" stringShape _.unit
+      <*> fieldOf "transferability" "" transferabilityShape _.transferability
+      <*> fieldOf "decay" "" (optionalOf (object "DecayRule" ({ rate: _ } <$> fieldOf "rate" "" qShape _.rate))) _.decay
+      <*> fieldOf "reservable" "" boolShape _.reservable
+  )
+
+estimatorShape :: Shape Estimator
+estimatorShape = object "Estimator"
+  ( { reference: _, shrinkage: _, deviationBound: _, noiseSpread: _ }
+      <$> fieldOf "reference" "" qShape _.reference
+      <*> fieldOf "shrinkage" "" qShape _.shrinkage
+      <*> fieldOf "deviationBound" "" (optionalOf intervalShape) _.deviationBound
+      <*> fieldOf "noiseSpread" "" qShape _.noiseSpread
+  )
+
+representationShape :: Shape Representation
+representationShape = object "Representation"
+  ( { id: _, actor: _, aggregate: _, domain: _, weight: _, estimator: _ }
+      <$> fieldOf "id" "" idShape _.id
+      <*> fieldOf "actor" "" idShape _.actor
+      <*> fieldOf "aggregate" "" idShape _.aggregate
+      <*> fieldOf "domain" "" idShape _.domain
+      <*> fieldOf "weight" "" qShape _.weight
+      <*> fieldOf "estimator" "" estimatorShape _.estimator
+  )
+
+deliveryShape :: Shape Delivery
+deliveryShape = object "Delivery"
+  ( { round: _, entity: _, target: _, quantity: _ }
+      <$> fieldOf "round" "" intShape _.round
+      <*> fieldOf "entity" "" idShape _.entity
+      <*> fieldOf "target" "" targetShape _.target
+      <*> fieldOf "quantity" "" qShape _.quantity
+  )
+
+shareSourceShape :: Shape ShareSource
+shareSourceShape = sumOf "ShareSource"
+  [ ctorOf { tag: "SalesOf", desc: "sales revenue of a Resource" } idShape
+      ( case _ of
+          SalesOf r -> Just r
+          _ -> Nothing
+      )
+      SalesOf
+  , ctorOf { tag: "PayeeReceipts", desc: "what the Entity received as a payee" } unitShape
+      ( case _ of
+          PayeeReceipts -> Just unit
+          _ -> Nothing
+      )
+      (const PayeeReceipts)
+  ]
+
+circulationShape :: Shape Circulation
+circulationShape = object "Circulation"
+  ( { production: _, flows: _, shares: _, requirements: _ }
+      <$> fieldOf "production" "" (arrayOf productionShape) _.production
+      <*> fieldOf "flows" "" (arrayOf flowShape) _.flows
+      <*> fieldOf "shares" "" (arrayOf shareShape) _.shares
+      <*> fieldOf "requirements" "" (arrayOf requirementShape) _.requirements
+  )
+  where
+  productionShape = object "Production"
+    ( { entity: _, resource: _, capacity: _ }
+        <$> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "capacity" "" idShape _.capacity
+    )
+  flowShape = object "Flow"
+    ( { from: _, to: _, resource: _, amount: _ }
+        <$> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "amount" "" qShape _.amount
+    )
+  shareShape = object "Share"
+    ( { from: _, to: _, share: _, source: _ }
+        <$> fieldOf "from" "" idShape _.from
+        <*> fieldOf "to" "" idShape _.to
+        <*> fieldOf "share" "" qShape _.share
+        <*> fieldOf "source" "" shareSourceShape _.source
+    )
+  requirementShape = object "Requirement"
+    ( { entity: _, resource: _, amount: _, penalty: _ }
+        <$> fieldOf "entity" "" idShape _.entity
+        <*> fieldOf "resource" "" idShape _.resource
+        <*> fieldOf "amount" "" (optionalOf qShape) _.amount
+        <*> fieldOf "penalty" "" qShape _.penalty
+    )
+
+worldStateShape :: Shape WorldState
+worldStateShape = object "WorldState"
+  ( { round: _, seed: _, entities: _, resources: _, markets: _, transformations: _, representations: _, numeraire: _, transport: _, jurisdiction: _, rules: _, scheduled: _, deliveries: _, factors: _, circulation: _, events: _ }
+      <$> fieldOf "round" "" intShape _.round
+      <*> fieldOf "seed" "" (iso Seed unwrap intShape) _.seed
+      <*> fieldOf "entities" "" (mapOf idShape entityShape) _.entities
+      <*> fieldOf "resources" "" (mapOf idShape resourceDefinitionShape) _.resources
+      <*> fieldOf "markets" "" (mapOf idShape marketShape) _.markets
+      <*> fieldOf "transformations" "" (mapOf idShape transformationShape) _.transformations
+      <*> fieldOf "representations" "" (arrayOf representationShape) _.representations
+      <*> fieldOf "numeraire" "" idShape _.numeraire
+      <*> fieldOf "transport" "" (mapOf idShape idShape) _.transport
+      <*> fieldOf "jurisdiction" "" (mapOf idShape idShape) _.jurisdiction
+      <*> fieldOf "rules" "" (mapOf idShape ruleShape) _.rules
+      <*> fieldOf "scheduled" "" (mapOf idShape (optionalOf ruleShape)) _.scheduled
+      <*> fieldOf "deliveries" "" (arrayOf deliveryShape) _.deliveries
+      <*> fieldOf "factors" "" (mapOf idShape holdingsShape) _.factors
+      <*> fieldOf "circulation" "" circulationShape _.circulation
+      <*> fieldOf "events" "" (arrayOf eventShape) _.events
+  )
+
+manifestShape :: Shape Manifest
+manifestShape = object "Manifest"
+  ( { gameboard: _, engine: _, draw: _, initial: _ }
+      <$> fieldOf "gameboard" "" stringShape _.gameboard
+      <*> fieldOf "engine" "" stringShape _.engine
+      <*> fieldOf "draw" "" stringShape _.draw
+      <*> fieldOf "initial" "" worldStateShape _.initial
+  )

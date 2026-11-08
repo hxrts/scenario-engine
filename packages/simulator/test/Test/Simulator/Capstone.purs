@@ -7,6 +7,10 @@ import Prelude
 
 import Checks.Round (checkRound)
 import Checks.Run (checkRun)
+import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith)
+import Core.World (manifestShape, roundRecordShape, worldStateShape)
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (drop, index)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -21,10 +25,23 @@ import Testkit.Capstone (load, runOf)
 
 spec :: Spec Unit
 spec = describe "Capstone (DSL-authored run, )" do
-  it "the checked invariants hold in every round (INV-02, 04, 05, 06, 10; see docs/02 §9)" do
+  it "the checked invariants hold in every round (see docs/02 §9)" do
     cap <- load
     r <- runOf cap.playerSeed cap.game
     checkRun r.manifest.initial r.records `shouldEqual` []
+
+  it "stored records encode the same through their shapes as through the generic encoder, and read back" do
+    cap <- load
+    r <- runOf cap.playerSeed cap.game
+    let
+      same :: forall a. EncodeJson a => Eq a => Show a => Shape a -> a -> _
+      same s x = do
+        stringify (encodeWith Snapshot s x) `shouldEqual` stringify (encodeJson x)
+        decodeJsonWith Snapshot s (encodeJson x) `shouldEqual` Right x
+      worlds = [ r.manifest.initial ] <> map _.world r.records
+    stringify (encodeWith Snapshot manifestShape r.manifest) `shouldEqual` stringify (encodeJson r.manifest)
+    for_ worlds \w -> stringify (encodeWith Snapshot worldStateShape w) `shouldEqual` stringify (encodeJson w)
+    for_ r.records \x -> same roundRecordShape x.record
 
   it "every round's DSL expectations hold" do
     cap <- load
