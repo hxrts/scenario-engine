@@ -53,7 +53,7 @@ type DeriveRequest =
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
 
--- | One operation per route. Query values the routes validate (the round, the seed, the confirmation)
+-- | One operation per route. A query value a route part can read (the round) is typed; other query values the routes validate (the seed, the confirmation)
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
 data ApiRequest
@@ -64,7 +64,7 @@ data ApiRequest
   | LaunchBatch LaunchBatch
   | Entities String
   | Entity String String
-  | RunView { id :: String, view :: View, round :: Maybe String }
+  | RunView { id :: String, view :: View, round :: Maybe Int }
   | Compare { runs :: Array String, market :: Maybe String }
   | Agency { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
   | Derive { id :: String, body :: DeriveRequest }

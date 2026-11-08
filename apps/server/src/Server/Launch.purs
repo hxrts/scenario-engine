@@ -3,7 +3,6 @@
 -- | and the play-to-completion that persists every round. Derived runs start through `start` too.
 module Server.Launch
   ( Launched
-  , launchedShape
   , launch
   , start
   , freshRunId
@@ -11,7 +10,6 @@ module Server.Launch
   , play
   , failInterrupted
   , settingInfo
-  , batchedShape
   , launchBatch
   ) where
 
@@ -50,9 +48,6 @@ import Simulator.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
-
-launchedShape :: Shape Launched
-launchedShape = recordShape "Launched" { id: stringShape, playerSeed: intShape }
 
 -- | A run to start: its name, what it is played from, and, when it is derived, its source and kind.
 type Start =
@@ -137,10 +132,6 @@ nextRunId store = do
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
-
--- | One run of a batch: its Setting and its run.
-batchedShape :: Shape { setting :: String, id :: String, playerSeed :: Int }
-batchedShape = recordShape "Batched" { setting: stringShape, id: stringShape, playerSeed: intShape }
 
 -- | Launch one run of each Setting, in order. The first that does not start stops the batch; the runs
 -- | before it stay, as any launched run does.

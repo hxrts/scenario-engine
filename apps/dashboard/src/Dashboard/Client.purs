@@ -50,10 +50,8 @@ runs :: Aff (Either String RunList)
 runs = typed Keys.runList (ListRuns { archived: true })
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
-launch :: Launch -> Aff (Either String { id :: String })
-launch = typed launchedShape <<< LaunchRun
-  where
-  launchedShape = recordShape "Launched" { id: stringShape }
+launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })
+launch = typed Keys.launched <<< LaunchRun
 
 -- | The settings the launch form offers, each with its rounds, seed, default run name and presets.
 setting :: Aff (Either String (Array Setting))
@@ -77,7 +75,7 @@ entity id e = typed Keys.history (Entity id e)
 
 -- | One view of a run, decoded through its key; `balances` and `events` at a round take the round as well.
 runView :: forall a. ViewKey a -> String -> Maybe Int -> Aff (Either String a)
-runView key id round = typed key.shape (RunView { id, view: key.view, round: show <$> round })
+runView key id round = typed key.shape (RunView { id, view: key.view, round })
 
 -- | The comparison of the runs, the first being the baseline.
 compare :: Array String -> Aff (Either String CompareView)

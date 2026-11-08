@@ -143,5 +143,9 @@ for (const d of packageDirs().flatMap((p) => walkDirs(path.join(p, "src")))) {
   if (purs.length === 1 && subdirs.length === 0) errors.push(`${rel}: a directory holding one module; move the module up`);
 }
 for (const d of Object.keys(moduleDirs)) if (!fs.existsSync(path.join(root, d))) errors.push(`moduleDirs names ${d}, which does not exist`);
+// the server's default port and the dashboard's API_PORT are the same literal
+const apiPort = /export const API_PORT = (\d+);/.exec(fs.readFileSync(path.join(root, "apps/dashboard/ports.mjs"), "utf8"))?.[1];
+const serverPort = /"--port" "1-65535" (\d+) /.exec(fs.readFileSync(path.join(root, "apps/flags/src/Flags.purs"), "utf8"))?.[1];
+if (!apiPort || !serverPort || apiPort !== serverPort) errors.push(`apps/dashboard/ports.mjs API_PORT (${apiPort}) and apps/flags/src/Flags.purs --port default (${serverPort}) must agree`);
 if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
 console.log("layout ok");

@@ -4,6 +4,12 @@
 -- | implicit record codec wrote: keys descending, a `Maybe` as its value or null.
 module Views.Keys
   ( ViewKey
+  , launched
+  , batched
+  , resumed
+  , archived
+  , deleted
+  , derived
   , overview
   , balances
   , markets
@@ -28,6 +34,7 @@ module Views.Keys
   , compare
   ) where
 
+import Data.Maybe (Maybe)
 import Core.Num (kindShape)
 import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, optionalOf, recordShape, stringShape)
 import Schema.View (View(..))
@@ -39,6 +46,7 @@ import Views.Entity (EntityChoice, EntityList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (Fact, RunFlags, RunList, RunOverview)
 import Views.Setting (Setting, RoundRange)
+import Schema.Run (DeriveKind, deriveKindShape)
 
 -- | A view of a stored run, and the shape of its reply.
 type ViewKey a = { view :: View, shape :: Shape a }
@@ -211,3 +219,25 @@ balance = key Balance balanceView
 
 events :: ViewKey Table
 events = key Events table
+
+-- Reply shapes of the write endpoints ------------------------------------------------------------
+
+launched :: Shape { id :: String, playerSeed :: Int }
+launched = recordShape "Launched" { id: stringShape, playerSeed: intShape }
+
+-- | One run of a batch: its Setting and its run.
+batched :: Shape { setting :: String, id :: String, playerSeed :: Int }
+batched = recordShape "Batched" { setting: stringShape, id: stringShape, playerSeed: intShape }
+
+resumed :: Shape { id :: String, rounds :: Int }
+resumed = recordShape "Resumed" { id: stringShape, rounds: intShape }
+
+archived :: Shape { id :: String, archived :: Boolean }
+archived = recordShape "Archived" { id: stringShape, archived: boolShape }
+
+deleted :: Shape { deleted :: String }
+deleted = recordShape "Deleted" { deleted: stringShape }
+
+-- | The reply to a derive; `recordsMatch` only for a rerun.
+derived :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
+derived = recordShape "Derived" { id: stringShape, source: stringShape, kind: deriveKindShape, recordsMatch: optionalOf boolShape }

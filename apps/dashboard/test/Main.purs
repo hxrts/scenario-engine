@@ -19,6 +19,7 @@ import Core.Shape (Format(Snapshot))
 import Core.Shape as Shape
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Views.Keys as Keys
+import Test.Mocks (overviewJson, runListJson)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
@@ -147,6 +148,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "the latest readable run is the last one in the list that can be read" do
       latestReadable runList `shouldEqual` Just "run-3"
       latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
+  describe "the Playwright mocks" do
+    it "answer the same reply shapes the pages decode" do
+      isLeft (Shape.parse Snapshot Keys.runList runListJson) `shouldEqual` false
+      isLeft (Shape.parse Snapshot Keys.overview.shape overviewJson) `shouldEqual` false
   where
   row1 = [ "run-1", "base", "no" ]
   row2 = [ "run-2", "seed", "no" ]

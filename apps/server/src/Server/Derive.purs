@@ -23,6 +23,7 @@ import Effects.Api (DeriveRequest)
 import Effects.Signatures (RunError(..), Stored, StoredRound)
 import Effects.Observe (readManifest, readRounds)
 import Effects.Store (deleteRun, setArchived, setSpec, setStatus, createRun)
+import Views.Keys as Keys
 import Views.Metrics (roundMetrics)
 import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
@@ -34,8 +35,8 @@ import Server.Cache (Cache)
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
 import Server.Settings (Settings, ofSpec)
-import Schema.Run (Spec, deriveKindShape, DeriveKind(..), RunStatus(..))
-import Core.Shape (Format(Authored), Shape, boolShape, intShape, optionalOf, recordShape, stringShape)
+import Schema.Run (Spec, DeriveKind(..), RunStatus(..))
+import Core.Shape (Format(Authored))
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Views.Common (records)
@@ -102,7 +103,7 @@ deriveFromRecipe cache settings store sourceId body info = do
   -- rerun replays what was recorded
   outOfRange setting = either (Just <<< show) (const Nothing) (traverse_ (checkRounds setting.gameboard) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
-  replied id recordsMatch = pure (Right (Route.replyIn Authored derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
+  replied id recordsMatch = pure (Right (Route.replyIn Authored Keys.derived 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
 
 -- | A derive from a live session. It has no preset, so a variant or counterfactual cannot be played
 -- | from it; a duplicate or rerun replays its recorded Proposals and signatures (docs/06 §9.1).
@@ -144,11 +145,7 @@ deriveSession cache settings store sourceId body info spec
                     Right n -> replied id (Just (records src == records n))
                     Left e -> internal ("the rerun " <> id <> " is unreadable: " <> describe e)
                 Right (Right _) -> replied id Nothing
-      replied id recordsMatch = pure (Right (Route.replyIn Authored derivedShape 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
-
--- | The reply to a derive; `recordsMatch` only for a rerun. The setting format leaves it out otherwise.
-derivedShape :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
-derivedShape = recordShape "Derived" { id: stringShape, source: stringShape, kind: deriveKindShape, recordsMatch: optionalOf boolShape }
+      replied id recordsMatch = pure (Right (Route.replyIn Authored Keys.derived 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
@@ -177,7 +174,7 @@ resumeRun settings store id rounds =
                           recorder store roundMetrics id p.snapshot
                         case attempt of
                           Left e -> badRequest e
-                          Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok resumedShape { id, rounds })) r
+                          Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok Keys.resumed { id, rounds })) r
             _, _ -> internal ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
@@ -197,7 +194,7 @@ setArchive store id archived = do
   if not present then notFound ("no run " <> id)
   else do
     runStore store (setArchived id archived)
-    ok archivedShape { id, archived }
+    ok Keys.archived { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
@@ -206,16 +203,7 @@ deleteOne store id confirm
   | confirm /= id = badRequest ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
       n <- runStore store (deleteRun id)
-      if n == 0 then notFound ("no run " <> id) else ok deletedShape { deleted: id }
-
-resumedShape :: Shape { id :: String, rounds :: Int }
-resumedShape = recordShape "Resumed" { id: stringShape, rounds: intShape }
-
-archivedShape :: Shape { id :: String, archived :: Boolean }
-archivedShape = recordShape "Archived" { id: stringShape, archived: boolShape }
-
-deletedShape :: Shape { deleted :: String }
-deletedShape = recordShape "Deleted" { deleted: stringShape }
+      if n == 0 then notFound ("no run " <> id) else ok Keys.deleted { deleted: id }
 
 hasRun :: StoreBackend -> String -> Effect Boolean
 hasRun store id = isJust <$> runInfo store id

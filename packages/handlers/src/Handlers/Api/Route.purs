@@ -32,6 +32,7 @@ import Data.Array (catMaybes, filter, findMap, length, zipWith)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
 import Data.Int (toNumber)
+import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Generic.Rep (class Generic, Constructor(..), Sum(..), from, to)
 import Data.String (Pattern(..), joinWith, split, stripPrefix)
@@ -130,6 +131,15 @@ optionalParam :: forall a. String -> (a -> Maybe String) -> Part a (Maybe String
 optionalParam key get = Part
   { read: \i -> Right (Object.lookup key i.query)
   , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc v) ]) (get a) }
+  }
+
+-- | An optional whole-number query value; any other text is a 400 naming it.
+optionalIntParam :: forall a. String -> (a -> Maybe Int) -> Part a (Maybe Int)
+optionalIntParam key get = Part
+  { read: \i -> case Object.lookup key i.query of
+      Nothing -> Right Nothing
+      Just s -> maybe (Left (failWith 400 (key <> " must be an integer, got " <> s))) (Right <<< Just) (Int.fromString s)
+  , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc (show v)) ]) (get a) }
   }
 
 -- | A query value that is empty when it is missing, and always sent.
@@ -254,7 +264,7 @@ endpoints = table
       ado
         id <- capture "id" _.id
         view <- viewCapture "view" _.view
-        round <- optionalParam "round" _.round
+        round <- optionalIntParam "round" _.round
         in { id, view, round }
   , "Compare": get "/api/compare"
       ado

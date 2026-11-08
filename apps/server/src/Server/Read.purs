@@ -133,7 +133,7 @@ runInfo store id = find (\r -> r.id == id) <$> runObserve store listRuns
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: Cache -> Settings -> StoreBackend -> { id :: String, view :: View, round :: Maybe String } -> Effect Answer
+getView :: Cache -> Settings -> StoreBackend -> { id :: String, view :: View, round :: Maybe Int } -> Effect Answer
 getView cache settings store { id, view, round } = withRun cache store id runView
   where
   -- each view's reply goes through its key's shape, the one the dashboard decodes with
@@ -143,18 +143,12 @@ getView cache settings store { id, view, round } = withRun cache store id runVie
   answerOr :: forall a. ViewKey a -> Either String a -> Effect Answer
   answerOr k = viewOr k.shape
 
-  -- an optional round parameter; the view checks that the round exists
-  roundParam :: Int -> Either String Int
-  roundParam d = case round of
-    Nothing -> Right d
-    Just s -> maybe (Left ("round must be an integer, got " <> s)) Right (Int.fromString s)
-
   -- the Gameboard of the run's own setting; a run whose setting is not loaded cannot be read against it
   onBoard r f = either (conflict) (f <<< _.gameboard) (ofSpec settings r.spec)
 
   runView r = case view of
     Overview -> answer Keys.overview (Overview.overview r)
-    Balances -> answerOr Keys.balances (roundParam (completed r) >>= Balances.balances r)
+    Balances -> answerOr Keys.balances (Balances.balances r (fromMaybe (completed r) round))
     Markets -> answer Keys.markets (Markets.markets r)
     Facilities -> answer Keys.facilities (Markets.facilities r)
     Economy -> answer Keys.economy (Markets.economy r)
@@ -166,7 +160,7 @@ getView cache settings store { id, view, round } = withRun cache store id runVie
     Actions -> answer Keys.actions (Actions.actions r)
     Drivers -> answer Keys.drivers (Drivers.drivers r)
     Balance -> onBoard r \gb -> answer Keys.balance (Balance.balanceView gb r)
-    Events -> answerOr Keys.events (roundParam 1 >>= Balances.events r)
+    Events -> answerOr Keys.events (Balances.events r (fromMaybe 1 round))
 
 -- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
 entitiesView :: Cache -> StoreBackend -> String -> Effect Answer

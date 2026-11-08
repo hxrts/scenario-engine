@@ -62,7 +62,7 @@ examples =
   , Tuple (Entities "run 1") (g "/api/runs/run%201/entities")
   , Tuple (Entity "run-1" "US") (g "/api/runs/run-1/entity/US")
   , Tuple (RunView { id: "run-1", view: NetWorth, round: Nothing }) (g "/api/runs/run-1/networth")
-  , Tuple (RunView { id: "run-1", view: Balances, round: Just "2" }) (g "/api/runs/run-1/balances?round=2")
+  , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
   , Tuple (Compare { runs: [ "a", "b" ], market: Just "m 1" }) (g "/api/compare?runs=a,b&market=m%201")
   , Tuple (Compare { runs: [], market: Nothing }) (g "/api/compare?runs=")
   , Tuple (Agency { setting: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")

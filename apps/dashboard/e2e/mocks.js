@@ -1,4 +1,6 @@
-import COLUMNS_JSON from "./generated/columns.json";
+import { readFileSync } from "node:fs";
+
+const COLUMNS_JSON = JSON.parse(readFileSync(new URL("./generated/columns.json", import.meta.url), "utf8"));
 
 // Shared fixtures for the dashboard tests. Every request these tests depend on is answered by page.route,
 // so they do not depend on the e2e server's seeded data: each mock answers the contract (apps/server).
