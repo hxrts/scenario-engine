@@ -16,7 +16,7 @@ module Settings.Meridian
 
 import Prelude (identity, map, negate, not, show, (+), (<>))
 
-import Core.World (FlowGate)
+
 import Settings.Meridian.Names (n, seatActors)
 import Settings.Meridian.Rules (ruleKinds)
 
@@ -29,25 +29,25 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 import Settings.Meridian.Entities (actors, entities)
-import Settings.Meridian.Holdings (capacityHolders)
-import Settings.Meridian.Parameters (disruptionRound, majorActionThreshold, parameters, supplierAsia, supplierAtlantic, smeSample, schemes)
+
+import Settings.Meridian.Parameters (majorActionThreshold, parameters, schemes, smeSample)
 import Settings.Meridian.Policies (policies)
-import Schema.Build.Base (keyed, (:=), payee, sales)
+import Schema.Build.Base (keyed)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, noFacility, noResource, resourcesOf)
+import Schema.Build.World (emptyWorld)
 import Settings.Compose (Setting)
-import Settings.Kit.Markets (MarketTerms, market)
+
 import Settings.Kit.Compose (Premise, assemble, emptyParts, premise)
-import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
-import Settings.Kit.Markets as Kit
-import Settings.Meridian.Entities.Capabilities (defenceAccess)
+
+
+
 import Settings.Kit.Presets (PresetBinding, standardThresholds)
 import Schema.Build.Decision (lit)
-import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
+import Schema.Gameboard (Gameboard, InstantiationConfig)
 import Core.Draw (Seed(..))
-import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
+import Core.Types (CostFunction, EntityId, Id(..), MarketId, ResourceId)
 import Data.Map (Map)
-import Schema.Recurring (Circulation, Decay, Flow, Production, Requirement, Share, compileIn)
+import Schema.Recurring (Flow, Requirement, compileIn)
 import Settings.Meridian.Resources (resources, reservable, decays)
 import Settings.Meridian.Markets (markets, flowGates, groups)
 import Settings.Meridian.Transformations (transformations)

@@ -11,33 +11,33 @@ module Settings.Meridian.Markets
   , groups
   ) where
 
-import Prelude (identity, map, negate, not, show, (+), (<>))
+import Prelude (negate)
 import Core.World (FlowGate)
-import Settings.Meridian.Names (n, seatActors)
+import Settings.Meridian.Names (n)
 import Core.Num (Q)
-import Data.Array (elem, mapWithIndex)
-import Data.Either (Either(..))
-import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
+
+
+
+
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Data.Map as Map
-import Schema.Build.Base (keyed, (:=), payee, sales)
+
+import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, noFacility, noResource, resourcesOf)
-import Settings.Compose (Setting)
+import Schema.Build.World (byKey)
+
 import Settings.Kit.Markets (MarketTerms, market)
-import Settings.Kit.Compose (Premise, assemble, emptyParts, premise)
-import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
-import Settings.Kit.Markets as Kit
+
+
+
 import Settings.Meridian.Entities.Capabilities (defenceAccess)
-import Settings.Kit.Presets (PresetBinding, standardThresholds)
-import Schema.Build.Decision (lit)
-import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
-import Core.Draw (Seed(..))
-import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
+
+
+
+
+import Core.Types (EntityId, Holdings, Id(..), Market, MarketId)
 import Data.Map (Map)
-import Schema.Recurring (Circulation, Decay, Flow, Production, Requirement, Share, compileIn)
+
 
 markets :: Map MarketId Market
 markets = byKey

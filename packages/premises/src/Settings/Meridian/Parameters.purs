@@ -15,35 +15,35 @@ module Settings.Meridian.Parameters
   , parameters
   ) where
 
-import Prelude (identity, map, negate, not, show, (+), (<>))
-import Core.World (FlowGate)
-import Settings.Meridian.Names (n, seatActors)
+import Prelude ((<>))
+
+import Settings.Meridian.Names (n)
 import Core.Num (Q)
-import Data.Array (elem, mapWithIndex)
-import Data.Either (Either(..))
-import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
-import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
-import Data.Map as Map
-import Schema.Build.Base (keyed, (:=), payee, sales)
-import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, noFacility, noResource, resourcesOf)
-import Settings.Compose (Setting)
-import Settings.Kit.Markets (MarketTerms, market)
-import Settings.Kit.Compose (Premise, assemble, emptyParts, premise)
-import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
-import Settings.Kit.Markets as Kit
-import Settings.Kit.Presets (PresetBinding, standardThresholds)
-import Schema.Build.Decision (lit)
-import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
-import Core.Draw (Seed(..))
-import Core.Types (CostFunction, EntityId, Estimator, Holdings, Id(..), Market, MarketId, Payment, ResourceDefinition, ResourceId, Transferability(..), Transformation, TransformationId)
-import Data.Map (Map)
-import Schema.Recurring (Circulation, Decay, Flow, Production, Requirement, Share, compileIn)
-import Prelude
+
 
 import Foreign.Object as Object
+
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
+
+import Schema.Build.Base ((:=))
+import Schema.Build.Quantity (q)
+
+
+
+
+
+
+
+
+import Schema.Gameboard (Scheme)
+
+import Core.Types (Estimator, Id(..))
+
+
+import Prelude
+
+
 import Settings.Kit.Strategies (Supplier, supplier)
 
 supplierAtlantic :: Supplier

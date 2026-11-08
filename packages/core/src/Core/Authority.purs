@@ -17,7 +17,7 @@ import Prelude
 
 import Core.Query (owner, marketsOf)
 import Core.Types (CapacityRef, Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
-import Core.World (venueOf, boundsOf, Bounds, RejectReason(..), Venue, View, WorldState)
+import Core.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
 import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
