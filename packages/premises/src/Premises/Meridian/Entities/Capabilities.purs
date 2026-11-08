@@ -5,6 +5,7 @@
 module Premises.Meridian.Entities.Capabilities
   ( dealer
   , allied
+  , defenceAccess
   , military
   , shipping
   , government
@@ -12,19 +13,25 @@ module Premises.Meridian.Entities.Capabilities
 
 import Prelude ((<>))
 
+import Data.Array (elem)
+
 import Core.Types (Capability)
 import Schema.Build.Base (mayTrade, mayTransfer, mayTransform)
 import Premises.Meridian.Names as N
-import Premises.Rules (mayEnactAccessBan, mayEnactTariff)
+import Premises.Meridian.Rules (accessBan, tariff)
 
 -- | Trading in one Energy market, and holding Money and Energy.
 dealer :: String -> Array Capability
 dealer m = [ mayTrade m, mayTransfer N.money, mayTransfer N.energy ]
 
--- | Trading in the defence-goods Market: the US and its allies (DE, UK, JP), who are listed in
--- | its access rule (Meridian.purs `defenceAccess`).
-allied :: Array Capability
-allied = [ mayTrade N.defenceGoods ]
+-- | Who may trade Military: the US and its allies, Germany, the UK, and Japan. The Market's access list
+-- | and each Entity's capability both read this one list.
+defenceAccess :: Array String
+defenceAccess = [ N.us, N.de, N.uk, N.jp ]
+
+-- | The defence-goods trading capability, for an Entity `defenceAccess` lists.
+allied :: String -> Array Capability
+allied e = if elem e defenceAccess then [ mayTrade N.defenceGoods ] else []
 
 -- | A government's military powers. `procurement` is the Actor's own procurement facility.
 military :: String -> Array Capability
@@ -33,7 +40,7 @@ military procurement =
 
 -- | Enacting tariffs and access bans.
 legislate :: Array Capability
-legislate = [ mayEnactTariff, mayEnactAccessBan ]
+legislate = [ tariff.may, accessBan.may ]
 
 -- | Running the shipping facility.
 shipping :: Array Capability

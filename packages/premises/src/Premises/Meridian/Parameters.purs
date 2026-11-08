@@ -16,26 +16,8 @@ import Prelude
 
 import Core.Num (Q)
 import Foreign.Object as Object
+import Premises.Kit (Supplier, supplier)
 import Schema.Build.Base ((:=))
-import Data.Tuple (Tuple)
-
--- | The names of one regional Market's supplier parameters: the offer below the high price, the
--- | offer at or above it, and the disruption cut.
-type SupplierNames = { offer :: String, high :: String, cut :: String }
-
--- | A regional Market's supplier parameters: their names, and their entries with the values given.
-type Supplier = { names :: SupplierNames, entries :: Array (Tuple String Q) }
-
--- | The supplier parameters of the Market with this suffix: `supplier-offer-<suffix>`,
--- | `supplier-offer-<suffix>-high`, and `disruption-cut-<suffix>`.
-supplier :: String -> { offer :: Int, high :: Int, cut :: Int } -> Supplier
-supplier suffix v = { names, entries: [ names.offer := v.offer, names.high := v.high, names.cut := v.cut ] }
-  where
-  names =
-    { offer: "supplier-offer-" <> suffix
-    , high: "supplier-offer-" <> suffix <> "-high"
-    , cut: "disruption-cut-" <> suffix
-    }
 
 supplierAtlantic :: Supplier
 supplierAtlantic = supplier "atlantic" { offer: 24, high: 30, cut: 12 }

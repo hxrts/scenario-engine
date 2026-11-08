@@ -25,18 +25,16 @@ module Premises.Meridian
   , deployment
   , majorMilitaryAction
   , defenceTerms
-  , defenceAccess
   , smeSample
   , majorShock
   , gameboard
-  , market
   ) where
 
 import Prelude (map, negate, show, (+), (<>))
 
 import Core.World (FlowGate)
 import Premises.Meridian.Names as N
-import Premises.Rules (ruleKinds)
+import Premises.Meridian.Rules (ruleKinds)
 
 import Core.Num (Q)
 import Data.Array (mapWithIndex)
@@ -49,8 +47,11 @@ import Premises.Meridian.Parameters (disruptionRound, parameters, supplierAsia, 
 import Premises.Meridian.Policies (policies)
 import Schema.Build.Base (keyed, (:=), payee, sales)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, noFacility, noMarket, noResource, resourcesOf)
+import Schema.Build.World (byKey, emptyWorld, noFacility, noResource, resourcesOf)
 import Premises.Compose (Composition)
+import Premises.Kit (MarketTerms, market)
+import Premises.Kit as Kit
+import Premises.Meridian.Entities.Capabilities (defenceAccess)
 import Premises.Presets as Presets
 import Schema.Gameboard (Gameboard, InstantiationConfig, Scheme)
 import Core.Draw (Seed(..))
@@ -127,10 +128,6 @@ markets = byKey
   , Tuple N.defenceGoods (market defenceTerms defenceAccess)
   ]
 
--- | A Market from its terms and the Entities that may trade in it.
-market :: MarketTerms -> Array String -> Market
-market t access = noMarket { base = Id t.base, quote = Id t.quote, cost = t.cost, reserves = t.reserves, access = map Id access }
-
 -- | The Atlantic Energy Market with these access holders.
 atlanticMarket :: Array String -> Market
 atlanticMarket access = market atlanticTerms access
@@ -138,16 +135,6 @@ atlanticMarket access = market atlanticTerms access
 -- | The Asian Energy Market with these access holders.
 asiaMarket :: Array String -> Market
 asiaMarket access = market asiaTerms access
-
--- | The Entities that may trade Military: the US and its allies, Germany, the UK, and Japan.
--- | Each holds the `trade "defence-goods"` capability (Entities/Capabilities.purs), so the Market's access
--- | list and the capabilities agree.
-defenceAccess :: Array String
-defenceAccess = [ N.us, N.de, N.uk, N.jp ]
-
--- | What a Meridian Market trades and prices: its base and quote Resources, its curve, and its
--- | reserves. Access is set per use.
-type MarketTerms = { base :: String, quote :: String, cost :: CostFunction, reserves :: Holdings }
 
 -- | The defence-goods Market (docs/05_test_instance.md §3.5): Military for Money. Its curve is
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
@@ -218,7 +205,7 @@ procurement payeeEntity =
 
 -- | A facility's price, paid in the numeraire to the Entity.
 paid :: CostFunction -> EntityId -> Maybe Payment
-paid curve to = Just { curve, resource: Id N.money, to }
+paid = Kit.paid (Id N.money)
 
 energyShipping :: Transformation
 energyShipping = noFacility { payment = paid { intercept: q "0.3", slope: q 0, domain: { lo: q 0, hi: q 60 } } (Id N.ship), capacity = Just (Id N.transport), ownerSigns = true }

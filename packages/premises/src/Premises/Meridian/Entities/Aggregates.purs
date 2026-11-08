@@ -3,7 +3,7 @@
 module Premises.Meridian.Entities.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds, euAggregate, euPoolAggregate, globalSmesAggregate) where
 
 import Prelude ((<>))
-import Premises.Rules (mayEnactTariff)
+import Premises.Meridian.Rules (tariff)
 import Premises.Meridian.Names as N
 
 import Data.Tuple (Tuple(..))
@@ -18,7 +18,7 @@ eu :: Entity
 eu =
   { id: Id ""
   , accounts: accountsOf N.eu
-  , capabilities: dealer N.energyAtlantic <> [ mayEnactTariff ] <> shipping
+  , capabilities: dealer N.energyAtlantic <> [ tariff.may ] <> shipping
   , capacities: (capacitiesOf N.eu)
   , kind: Aggregate euAggregate
   }
@@ -89,7 +89,7 @@ euAggregate = aggregateWith { policy: N.policyEuCoordination, members: [ N.de, N
   where
   -- The pool is a member with no weight: it acts for the EU in this procedure without signing (docs/02 §2.2).
   solidarity = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.4", threshold: q "0.45", authorizes: [ mayTrade N.energyAtlantic, mayTransfer N.energy ] }
-  tradeProcedure = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ mayEnactTariff ] }
+  tradeProcedure = collective { weights: keyed [ N.de := "0.2" ], residualWeight: q "0.48", threshold: q "0.45", authorizes: [ tariff.may ] }
 
 -- | Global small businesses, represented by the SME owner; fixtures reuse it.
 globalSmesAggregate :: Aggregate

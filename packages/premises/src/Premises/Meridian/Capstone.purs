@@ -25,7 +25,7 @@ module Premises.Meridian.Capstone
 
 import Prelude (map, otherwise, ($), (<<<), (<>), (==))
 import Premises.Meridian.Names as N
-import Premises.Rules (enactWithholding, selfAccessBan)
+import Premises.Meridian.Rules (accessBan, withholding)
 import Game.Assemble (assemble)
 import Game.Bindings (strategyBindings)
 import Game.Error (GameError)
@@ -82,7 +82,7 @@ us = usWithoutDeployment
 usWithoutDeployment :: Strategy
 usWithoutDeployment =
   { rules:
-      [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfAccessBan { target: N.india }) ]
+      [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: N.india }) ]
       , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ]
       ]
   , sign: []
@@ -145,7 +145,7 @@ india = { rules: [], sign: [ signAll ] }
 chip :: Strategy
 chip =
   { rules:
-      [ rule [ eqQ roundQ (lit 4) ] [ asTemplate (enactWithholding { capacity: N.semiconductors, units: lit 5 }) ]
+      [ rule [ eqQ roundQ (lit 4) ] [ asTemplate (withholding.enact { capacity: N.semiconductors, units: lit 5 }) ]
       , rule [ eqQ roundQ (lit 6) ] [ asTemplate (repeal { rule: "r4/CHIP/0/rule-0" }) ]
       ]
   , sign: []

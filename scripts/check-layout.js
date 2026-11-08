@@ -25,6 +25,11 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
+    name: "Premises.Kit is generic: it imports no premise (Premises.Meridian)",
+    files: (f) => f.startsWith("packages/premises/src/Premises/Kit"),
+    bad: (line) => /^import Premises\.Meridian\b/.test(line),
+  },
+  {
     name: "effects declare operations only: no interpret, on, or handler definition",
     files: (f) => f.startsWith("packages/effects/src/"),
     // a top-level definition or type named like an interpreter; `_interpret` row labels are not definitions

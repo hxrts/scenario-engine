@@ -8,7 +8,7 @@ import Data.Map (Map)
 import Prelude (map)
 
 import Premises.Meridian.Names as N
-import Premises.Rules (accessBanRule)
+import Premises.Meridian.Rules (accessBan)
 import Core.Types (EntityId, Id(..))
 
 import Data.Argonaut.Core (Json)
@@ -40,7 +40,7 @@ fixtureG2 = fixture "G2" (defaultFixture { entities = saAndJp, proposals = Just 
 fixtureG3Ban :: Tuple String Json
 fixtureG3Ban = fixture "G3-ban"
   ( defaultFixture
-      { rules = [ accessBanRule { jurisdiction: N.sa, target: N.de } ]
+      { rules = [ accessBan.rule { jurisdiction: N.sa, target: N.de } ]
       , entities = entitiesOf
           [ Tuple N.sa
               ( (holding N.sa [ N.money, N.energy ] [ mayTransfer N.money, mayTransfer N.energy, mayTransform N.energyShipping ])

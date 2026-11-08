@@ -3,25 +3,17 @@
 -- | `Entities.Aggregates`) take their accounts and capacities from here, and the fixtures take
 -- | the accounts they need from here, so no Entity's holdings are copied. Expected values in the
 -- | fixtures stay literal; only the inputs are shared.
-module Premises.Meridian.Holdings (Holding, holdings, accountsOf, capacitiesOf, pickAccounts, capacityHolders) where
+module Premises.Meridian.Holdings (holdings, accountsOf, capacitiesOf, pickAccounts, capacityHolders) where
 
-import Prelude (map, (<>), (==))
+import Premises.Kit (HoldingTable, accountsIn, capacitiesIn, capacityHoldersIn, pickAccountsIn)
 import Premises.Meridian.Names as N
 
-import Data.Array (filter, find)
-import Data.Foldable (any)
-import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..), fst)
-import Core.Num (Q)
-import Schema.Build.Base (keyed, (:=))
+import Data.Tuple (Tuple(..))
+import Schema.Build.Base ((:=))
 import Core.Types (Capacities, Holdings)
-import Partial.Unsafe (unsafeCrashWith)
-
--- | One Entity's holdings: its accounts and its capacities, in declaration order.
-type Holding = { accounts :: Array (Tuple String Q), capacities :: Array (Tuple String Q) }
 
 -- | Every Entity's holding, in catalog order (`Premises.Meridian.Entities`).
-holdings :: Array (Tuple String Holding)
+holdings :: HoldingTable
 holdings =
   [ Tuple N.us { accounts: [ N.money := 260, N.energy := 70, N.mil := 95, N.softPower := 60 ], capacities: [] }
   , Tuple N.de { accounts: [ N.money := 125, N.energy := 38, N.mil := 24, N.softPower := 45 ], capacities: [] }
@@ -48,32 +40,18 @@ holdings =
   , Tuple N.worldHouseholds { accounts: [ N.money := 360, N.energy := 90, N.softPower := 35 ], capacities: [ N.attention := 50 ] }
   ]
 
--- | The holding of a named Entity. Every Entity in the catalog has one, so a missing name is a
--- | programming error.
-holding :: String -> Holding
-holding name = case find (\(Tuple n _) -> n == name) holdings of
-  Just (Tuple _ h) -> h
-  Nothing -> unsafeCrashWith ("no holding for Entity " <> name)
-
 -- | An Entity's accounts, as the Entity declares them.
 accountsOf :: String -> Holdings
-accountsOf name = keyed (holding name).accounts
+accountsOf = accountsIn holdings
 
 -- | An Entity's capacities, as the Entity declares them.
 capacitiesOf :: String -> Capacities
-capacitiesOf name = keyed (holding name).capacities
+capacitiesOf = capacitiesIn holdings
 
--- | Some of an Entity's accounts, in the order given: a fixture's inputs are a subset of the
--- | Entity's accounts. A name the Entity does not hold is a programming error.
+-- | Some of an Entity's accounts: a fixture's inputs are a subset of the Entity's accounts.
 pickAccounts :: String -> Array String -> Holdings
-pickAccounts name wanted = keyed (map pick wanted)
-  where
-  pick k = case find (\(Tuple n _) -> n == k) (holding name).accounts of
-    Just kv -> kv
-    Nothing -> unsafeCrashWith ("Entity " <> name <> " holds no account " <> k)
+pickAccounts = pickAccountsIn holdings
 
 -- | The Entities that hold a capacity, in catalog order.
 capacityHolders :: String -> Array String
-capacityHolders capacity = map fst (filter holds holdings)
-  where
-  holds (Tuple _ h) = any (\(Tuple n _) -> n == capacity) h.capacities
+capacityHolders = capacityHoldersIn holdings

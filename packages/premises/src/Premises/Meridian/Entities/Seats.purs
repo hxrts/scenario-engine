@@ -4,74 +4,19 @@
 -- | and both its NPC Policy and its fallback derive from that name.
 module Premises.Meridian.Entities.Seats (us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid, cn) where
 
-import Prelude (negate, pure, (<>))
+import Prelude (negate, (<>))
 
 import Core.Num (Q)
-import Data.Maybe (Maybe(..), maybe)
+import Premises.Kit (Cover(..), seat)
 import Premises.Meridian.Entities.Capabilities (allied, dealer, government, shipping)
 import Premises.Meridian.Holdings (accountsOf, capacitiesOf)
 import Premises.Meridian.Names as N
-import Premises.Rules (mayEnactWithholding)
+import Premises.Meridian.Rules (withholding)
 import Schema.Build.Base (capacityOf, cumulative, coverage, final, holdingOf, institutional, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (noEntity, atLeast, criterion, definition, finishes, matching, metric, neverShort, objective, own, totalAtLeast)
 import Schema.Gameboard (ActorDefinition, Fallback, Objective)
 import Core.Types (Capability, Capacities, Entity, Holdings)
 import Data.Tuple (Tuple(..))
-
--- | How a seat is driven when it has no player, and what covers it.
-data Cover
-  = Unassigned -- no NPC Policy and no fallback
-  | NpcOnly String -- an in-world Policy, with no fallback
-  | Governed String -- an in-world Policy, which is also the seat's fallback
-  | Covered String -- the Aggregate that covers the seat's accounts when it has no player
-
--- | One seat: its accounts, capabilities and capacities, its objective, its description and
--- | dependency, and how it is covered.
-type SeatSpec =
-  { accounts :: Holdings
-  , capabilities :: Array Capability
-  , capacities :: Capacities
-  , required :: Boolean
-  , cover :: Cover
-  , objective :: Objective
-  , description :: String
-  , dependency :: String
-  }
-
--- | A seat Actor: an Entity whose definition is a seat, built from its spec.
-seat :: SeatSpec -> Tuple Entity ActorDefinition
-seat s = Tuple
-  ( noEntity
-      { accounts = s.accounts
-      , capabilities = s.capabilities
-      , capacities = s.capacities
-      }
-  )
-  (definitionOf s)
-
--- | The seat's definition. Its fallback is written only when the seat has one.
-definitionOf :: SeatSpec -> ActorDefinition
-definitionOf s = definition
-  { required: s.required
-  , seat: true
-  , npc: maybe [] pure (npcOf s.cover)
-  , fallback: fallbackOf s.cover
-  , objective: s.objective
-  , description: s.description
-  , dependency: s.dependency
-  }
-
-npcOf :: Cover -> Maybe String
-npcOf = case _ of
-  NpcOnly p -> Just p
-  Governed p -> Just p
-  _ -> Nothing
-
-fallbackOf :: Cover -> Maybe Fallback
-fallbackOf = case _ of
-  Governed p -> Just (institutional p)
-  Covered a -> Just (coverage a)
-  _ -> Nothing
 
 -- | The two regional Energy Markets, by name.
 atlantic :: String
@@ -87,7 +32,7 @@ investment = [ mayTransform N.energyCapacityInvestment ]
 us :: Tuple Entity ActorDefinition
 us = seat
   { accounts: accountsOf N.us
-  , capabilities: government atlantic N.defenseProcurement <> allied
+  , capabilities: government atlantic N.defenseProcurement <> allied N.us
   , capacities: capacitiesOf N.us
   , required: true
   , cover: Unassigned
@@ -105,7 +50,7 @@ us = seat
 de :: Tuple Entity ActorDefinition
 de = seat
   { accounts: accountsOf N.de
-  , capabilities: dealer atlantic <> allied <> [ mayTransform N.publicAttention, mayTransform N.humanitarianAid, mayTransform N.militaryDeployment, mayTransfer N.mil, mayTransfer N.energy ] <> shipping
+  , capabilities: dealer atlantic <> allied N.de <> [ mayTransform N.publicAttention, mayTransform N.humanitarianAid, mayTransform N.militaryDeployment, mayTransfer N.mil, mayTransfer N.energy ] <> shipping
   , capacities: capacitiesOf N.de
   , required: false
   , cover: Covered N.eu
@@ -141,7 +86,7 @@ india = seat
 jp :: Tuple Entity ActorDefinition
 jp = seat
   { accounts: accountsOf N.jp
-  , capabilities: government asia N.defenseProcurement <> allied
+  , capabilities: government asia N.defenseProcurement <> allied N.jp
   , capacities: capacitiesOf N.jp
   , required: false
   , cover: Governed N.policyGovernmentDefault
@@ -159,7 +104,7 @@ jp = seat
 uk :: Tuple Entity ActorDefinition
 uk = seat
   { accounts: accountsOf N.uk
-  , capabilities: government atlantic N.defenseProcurement <> allied
+  , capabilities: government atlantic N.defenseProcurement <> allied N.uk
   , capacities: capacitiesOf N.uk
   , required: false
   , cover: Governed N.policyGovernmentDefault
@@ -246,7 +191,7 @@ enco = seat
 chip :: Tuple Entity ActorDefinition
 chip = seat
   { accounts: accountsOf N.chip
-  , capabilities: dealer asia <> [ mayEnactWithholding, mayTransform N.publicAttention ] <> shipping
+  , capabilities: dealer asia <> [ withholding.may, mayTransform N.publicAttention ] <> shipping
   , capacities: capacitiesOf N.chip
   , required: false
   , cover: Governed N.policyFirmDefault

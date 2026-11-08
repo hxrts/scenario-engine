@@ -12,7 +12,9 @@ import Premises.Meridian.Names as N
 import Data.Argonaut.Core (Json)
 import Data.Tuple (Tuple(..))
 import Premises.Meridian.Fixtures.Common (holding, defaultFixture, energy, facilities, fixture)
-import Premises.Meridian (defenceAccess, defenceTerms, deployment, market, resources)
+import Premises.Kit (market)
+import Premises.Meridian.Entities.Capabilities (defenceAccess)
+import Premises.Meridian (defenceTerms, deployment, resources)
 
 import Schema.Build.World (entitiesOf, byKey)
 import Schema.Build.Base (keyed, (:=), mayTrade, mayTransfer, mayTransform)

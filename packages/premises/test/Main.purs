@@ -41,7 +41,7 @@ import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
 import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape)
 import Schema.Build.Quantity (q)
-import Premises.Rules (enactAccessBan, enactWithholding, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, tariffRule, withholdingRule)
+import Premises.Meridian.Rules (accessBan, tariff, withholding)
 import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.World (matching, own)
 import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named, param, procedure, rule, signProcedures, tradeAt)
@@ -203,26 +203,26 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
+      case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (accessBan.enact { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (FlowRule { scope: a }))) -> do
           a.governor `shouldEqual` Id "US"
           a.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariff.rule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (FlowRule { scope: t }) -> do
           t.governor `shouldEqual` Id "US"
           t.counterparty `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholding.rule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise intentShape (encodeWith Premise intentShape (withholding.enact { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
-      for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
+      for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", tariff.may, accessBan.may, withholding.may ] \c ->
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
           Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
@@ -527,7 +527,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       check proposing `shouldEqual` Left (show (Unresolved "preset Bad" ProcedureRef "no-such-procedure"))
     it "a capacity a Withholding names that no Entity holds fails the check" do
       { gameboard, config } <- loaded
-      let bad = { rules: [ rule [] [ asTemplate (enactWithholding { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
+      let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: "no-such-capacity", units: lit 1 }) ] ], sign: [] }
       map (const unit) (lmap show (checkPremise { gameboard, config, presets: Object.singleton "Bad" bad }))
         `shouldEqual` Left (show (Unresolved "preset Bad" CapacityName "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do

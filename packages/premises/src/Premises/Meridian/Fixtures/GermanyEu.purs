@@ -7,7 +7,7 @@ import Data.Map (Map)
 import Prelude (map, negate)
 
 import Premises.Meridian.Names as N
-import Premises.Rules (enactTariff, mayEnactTariff)
+import Premises.Meridian.Rules (tariff)
 import Core.Types (EntityKind(Aggregate), EntityId, Id(..))
 
 import Core.Num (Q)
@@ -30,7 +30,7 @@ import Data.Maybe (Maybe(..))
 germanyAndEu :: Q -> Map EntityId Entity
 germanyAndEu pool = keyed
   [ Tuple N.de (holding N.de [ N.money, N.energy ] [ mayTransfer N.energy, mayTrade N.energyAtlantic ])
-  , Tuple N.eu ((noEntity { accounts = pickAccounts N.eu [ N.money, N.energy ], capabilities = [ mayTrade N.energyAtlantic, mayEnactTariff ], kind = Aggregate (euAggregate) }))
+  , Tuple N.eu ((noEntity { accounts = pickAccounts N.eu [ N.money, N.energy ], capabilities = [ mayTrade N.energyAtlantic, tariff.may ], kind = Aggregate (euAggregate) }))
   , Tuple N.euPool ((noEntity { accounts = keyed [ N.energy := pool ], capabilities = [], kind = Aggregate euPoolAggregate }))
   ]
 
@@ -64,7 +64,7 @@ euTariffProcedure name signatures support = fixture name
       , markets = energyAt (q 0) atlanticAccess [ N.sa, N.jp ]
       , entities = germanyAndEu (q 0)
       , proposals = Just
-          [ (proposal { author: N.eu, intents: [ enactTariff { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ] }) { proposal { procedure = Just (Id N.euTrade), signers = map Id [ N.de ] }, signatures = map Id signatures } ]
+          [ (proposal { author: N.eu, intents: [ tariff.enact { jurisdiction: N.eu, origin: N.us, rate: q "0.5" } ] }) { proposal { procedure = Just (Id N.euTrade), signers = map Id [ N.de ] }, signatures = map Id signatures } ]
       , expect = Just (noExpect { scheduled = Just 1, procedures = Just [ procedureOutcome (ref N.eu) (q support) true ] })
       }
   )

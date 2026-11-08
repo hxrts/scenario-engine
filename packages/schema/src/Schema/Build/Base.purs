@@ -44,7 +44,7 @@ keyed :: forall t a. Array (Tuple String a) -> Map (Id t) a
 keyed = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (Id k) v)
 
 -- | A holding: `"M" := 260`, `"E" := "0.5"`.
-entry :: forall a. ToQty a => String -> a -> Tuple String Q
+entry :: forall k a. ToQty a => k -> a -> Tuple k Q
 entry k v = Tuple k (q v)
 
 infix 6 entry as :=
