@@ -4,7 +4,6 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
-import Core.Query (priceOf)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult)
