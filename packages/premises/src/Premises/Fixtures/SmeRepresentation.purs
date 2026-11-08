@@ -48,8 +48,8 @@ fixtureC2 = fixture "C2" (defaultFixture { markets = energy [ N.sme, N.globalSme
 fixtureC3 :: Tuple String Json
 fixtureC3 = fixture "C3" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q 0) ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q 1) } ] } ]), expect = Just ((noExpect { accounts = Just (keyed [ Tuple N.sme (keyed [ N.money := 15, N.energy := 5 ]) ]), factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.95" ]) ]), rejected = Just ([ ref N.sme ]) })) })
 
--- | C5 checks only the seeded noise and the invariants: the golden test's C5 case compares
--- | the sampled factor against the closed form and reruns it under another seed.
+-- | C5 pins the seeded noise (docs/05 §23): the draw for game seed 26021 gives a factor of 0.9358. The
+-- | golden test also reruns it under another seed.
 fixtureC5 :: Tuple String Json
-fixtureC5 = fixture "C5" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q "0.1") ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q "2.1") } ] } ]) })
+fixtureC5 = fixture "C5" (defaultFixture { markets = energy [ N.sme, N.globalSmes ] [ N.sa, N.jp ], entities = smeAndGlobalSmes, representations = Just ([ smeRepresentation (q "0.1") ]), proposals = Just ([ proposal { author: N.sme, intents: [ trade { market: N.energyAtlantic, quantity: q 4, limit: Just (q "2.1") } ] } ]), expect = Just (noExpect { factors = Just (keyed [ Tuple N.globalSmes (keyed [ N.energy := "0.9358" ]) ]) }) })
 

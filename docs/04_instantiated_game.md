@@ -51,6 +51,7 @@ data Controller = Seat SeatId | NPC PolicyId
 - **Seat.** Permitted only if the definition's `seat` is true (the default). The Policy that drives a seat is bound outside the premise: a human's text in a live session, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-policies)). Swapping that Policy never changes the Actor's definition or makes it an NPC ([INV-30](02_type_system.md#inv-30)). The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
 - **NPC.** Permitted only if the Policy id is in the definition's `npc` list. The Policy is in-world ([03 §8](03_gameboard.md#8-policy-catalog)).
 - **Required.** A `required` Actor must be selected (`RequiredNotSelected`).
+- **Unselected Actors.** An Actor that no seat, NPC, or fallback selects keeps the `Seat` of its own id as its controller: a Seat with no binding is the representation of an Actor the configuration does not select, and it submits nothing. It is not a configured seat, so `assemble` neither asks for nor accepts a binding for it.
 - **CLI session.** `session --humans` lists the Actors played by humans. Every other seat is an AI agent ([apps/cli](../apps/cli/src/Session.purs)).
 
 ### 3.2 Fallback resolution

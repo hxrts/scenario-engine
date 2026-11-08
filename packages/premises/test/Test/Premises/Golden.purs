@@ -5,7 +5,7 @@ module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Prelude
 
-import Core.Draw (Seed(..), draw)
+import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Invariants (check)
 import Core.Num as Q
@@ -69,9 +69,9 @@ golden = describe "Golden fixtures" do
       factorWith seed = do
         r <- hush (resolveRound f.world { seed = Seed seed } (firstInputs f))
         Map.lookup (Id "GLOBAL_SMES") r.world.factors >>= Map.lookup (Id "E")
-      u = draw (Seed gameSeed) { round: f.world.round, source: "sme-energy-sample", entity: "SME", category: "sampling", index: 0 }
-      eps = Q.mul (q "0.1") (Q.sub (Q.mul (Q.fromInt 2) u) (Q.fromInt 1))
-    factorWith gameSeed `shouldEqual` Just (Q.add (Q.fromInt 1) (Q.mul (q "0.25") (Q.add (q "-0.2") eps)))
+    -- docs/05 §23: the recorded draw for game seed 26021 is u = 0.2158, so ε = −0.0568 and the
+    -- factor is 1 + 0.25 × (−0.20 − 0.0568)
+    factorWith gameSeed `shouldEqual` Just (q "0.9358")
     map (\t -> t >= Q.fromInt 37 && t <= Q.fromInt 39) (map (adjustedTarget (Q.fromInt 40)) (factorWith gameSeed)) `shouldEqual` Just true
     (factorWith gameSeed /= factorWith 1) `shouldEqual` true
   where

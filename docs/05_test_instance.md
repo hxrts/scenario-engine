@@ -659,6 +659,8 @@ Verifies [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06),
 
 **B2-pool: the pool drawn first.** As B2, with 10 E in the pool. The pool gives 8 E to the EU, which sells 8 E: pool 10 → 2, EU account 125 unchanged.
 
+In both B2 and B2-pool the Atlantic reserves end at Money 675.04 and Energy 358.
+
 **B3: Germany does not sign, high prices.** Support = 0.40. The Proposal lapses and the round resolves.
 
 **B4: `eu-trade`.** A US shipment ban on China is in force, so the EU publishes the tariff Proposal. Support is 0.68 with Germany's signature and 0.48 without ([§12.1](#121-germany--eu-collective-procedure)). Either way it passes and the tariff is in force next round.
@@ -669,12 +671,12 @@ Verifies that signing and transfers are independent, that a procedure Proposal e
 
 [Fixtures C1](#23-fixture-c-small-business-owner-representation)–C3 set the noise spread to 0 so their values are exact. C5 checks the seeded noise.
 
-In round r the owner submits a purchase of 4 E (reference 5 E). Deviation −20%, within the clamp, so the stored factor is 0.95. Global SMEs uses its 40 E baseline in round r. In round r+1 its target is 40 × 0.95 = **38 E**, replacing the 40 E baseline. The owner's 4 E executes separately in round r.
+In round r the owner submits a purchase of 4 E (reference 5 E). Deviation −20%, within the clamp, so the stored factor is 0.95. Global SMEs uses its 40 E baseline in round r. In round r+1 its target is 40 × 0.95 = **38 E**, replacing the 40 E baseline. The owner's 4 E executes separately in round r, at 2.04 M/E for 8.16 M: Money 15 → 6.84, Energy 5 → 9.
 
 - **C2 (clamp):** owner proposes 0 E → clamped to −50% → factor 0.875 → 35 E next round.
 - **C3 (proposed vs executed):** owner proposes 4 E with a limit violated at clearing. The observation is still 4 E and the next-round target is 38 E. The record shows 4 E proposed, 0 E executed.
 - **C4 (high price):** when the round r+1 price is above 3.5 M/E the baseline is 32 E. The 0.95 factor from a 4 E observation gives 32 × 0.95 = 30.4 E. This is a golden test case on the adjustment arithmetic, not a fixture file.
-- **C5 (seeded noise):** noise spread 0.10, game seed `26021`. The next-round target for a 4 E observation lies in [37, 39] E and equals 40 × (1 + 0.25 × (−0.20 + ε)) for the recorded draw. Replaying with the same seed gives the identical target. A different seed generally gives a different target in the same range. A 0 E proposal still gives exactly 35 E.
+- **C5 (seeded noise):** noise spread 0.10, game seed `26021`. The recorded draw is u = 0.2158, so ε = 0.10 × (2u − 1) = −0.0568 and the factor is 1 + 0.25 × (−0.20 − 0.0568) = 0.9358 (quantities carry four decimals). The next-round target for a 4 E observation lies in [37, 39] E and equals 40 × (1 + 0.25 × (−0.20 + ε)) for the recorded draw. Replaying with the same seed gives the identical target. A different seed generally gives a different target in the same range. A 0 E proposal still gives exactly 35 E.
 
 Verifies bounded extrapolation, separate ownership, and no double-counting ([INV-08](02_type_system.md#inv-08), [INV-09](02_type_system.md#inv-09)).
 
