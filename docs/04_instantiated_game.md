@@ -90,6 +90,7 @@ Each unselected coverage Actor is merged into its Aggregate, one at a time:
 - its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
 - Market access lists, jurisdiction entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Requirements for the same Entity and Resource are summed, except that an explicit amount and one equal to purchases stay separate.
+- Facility `payee`s and effect `holder`s, Rules in force and scheduled (a Tariff's jurisdiction and origin, an AccessBan's jurisdiction and target), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A Withholding names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
 

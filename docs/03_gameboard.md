@@ -175,7 +175,7 @@ A fallback is a tag, in an Actor's `fallback` or in the configuration's `fallbac
 
 | Tag | Effect when the Actor is unselected |
 |---|---|
-| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, and jurisdiction move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
+| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, jurisdiction, facility payees and effect holders, Rules in force and scheduled, and Aggregate member lists and other Aggregates' procedure weights that name the Actor move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
 | `policy:<policy>` | The Entity stays and is driven by that in-world Policy as an NPC. Its capabilities stay with it. |
 | `omission` | No change. Its holdings and capabilities remain in World State with no controller, so it submits nothing. |
 

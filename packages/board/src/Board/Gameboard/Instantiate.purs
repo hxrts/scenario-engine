@@ -14,12 +14,12 @@ import Core.Draw (drawVersion)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (aggregateOf, lookupQ)
-import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..))
+import Core.Types (Controller(..), EntityId, EntityKind(..), Id(..), RuleF(..))
 import Core.World (Requirement, UnseededWorld, seeded)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 
 -- | Controllers and fallbacks, account partitioning and procedure weights, Representation
@@ -85,7 +85,7 @@ mergeInto :: EntityId -> EntityId -> UnseededWorld -> UnseededWorld
 mergeInto agg e w = case Map.lookup e w.entities of
   Nothing -> w
   Just gone -> w
-    { entities = Map.update (Just <<< absorb gone) agg (Map.delete e w.entities)
+    { entities = map membership (Map.update (Just <<< absorb gone) agg (Map.delete e w.entities))
     , markets = map (\m -> m { access = nub (map retarget m.access) }) w.markets
     , circulation = c
         { flows = filter (\f -> f.from /= f.to) (map (\f -> f { from = retarget f.from, to = retarget f.to }) c.flows)
@@ -94,6 +94,9 @@ mergeInto agg e w = case Map.lookup e w.entities of
         , requirements = mergeRequirements (map (\r -> r { entity = retarget r.entity }) c.requirements)
         }
     , jurisdiction = map retarget (Map.delete e w.jurisdiction)
+    , transformations = map facility w.transformations
+    , rules = map rule w.rules
+    , scheduled = map (map rule) w.scheduled
     }
   where
   c = w.circulation
@@ -107,6 +110,29 @@ mergeInto agg e w = case Map.lookup e w.entities of
   foldWeights a = case aggregateOf a of
     Just x -> Aggregate x { procedures = map (\p -> p { residualWeight = Q.add p.residualWeight (lookupQ e p.weights), weights = Map.delete e p.weights }) x.procedures }
     Nothing -> a.kind
+  -- a payee and an effect's holder that were the Actor are the Aggregate now
+  facility t = t
+    { payee = map retarget t.payee
+    , effects = map (\ef -> ef { holder = map retarget ef.holder }) t.effects
+    }
+  -- a Rule's Entities: a Tariff's jurisdiction and origin, an AccessBan's jurisdiction and target
+  rule = case _ of
+    Tariff x -> Tariff (x { jurisdiction = retarget x.jurisdiction, origin = retarget x.origin })
+    AccessBan x -> AccessBan (x { jurisdiction = retarget x.jurisdiction, target = retarget x.target })
+    Withholding x -> Withholding x
+  -- the Actor's membership and procedure weight pass to the Aggregate in every Aggregate's lists;
+  -- an Aggregate is never its own member (lists that do not name the Actor are left as written)
+  membership x = case x.kind of
+    Aggregate a -> x
+      { kind = Aggregate a
+          { members = if elem e a.members then filter (\m -> m /= x.id) (nub (map retarget a.members)) else a.members
+          , procedures = map (\p -> p { weights = moveWeight p.weights }) a.procedures
+          }
+      }
+    _ -> x
+  moveWeight ws = case Map.lookup e ws of
+    Nothing -> ws
+    Just wt -> Map.insert agg (maybe wt (Q.add wt) (Map.lookup agg ws)) (Map.delete e ws)
 
 -- | Requirements of one Entity and Resource, merged as docs/04 §4.2 says: their explicit amounts
 -- | are summed. Two requirements that are both "equal to purchases" (Nothing) stay one. An
