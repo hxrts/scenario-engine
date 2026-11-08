@@ -17,7 +17,9 @@ import Data.Array as Array
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Either (Either(..), either)
 import Data.Foldable (any)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
+import Data.String (Pattern(..), stripPrefix)
+import Foreign.Object as Object
 import Effect.Aff (Aff)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load, runOf)
@@ -31,7 +33,8 @@ import Views.Balances as Balances
 import Views.Common as Common
 import Views.Drivers as Drivers
 import Views.Compare as Compare
-import Views.Glossary (glossary)
+import Views.Entity as Entity
+import Views.Glossary (allColumns, glossary)
 import Views.Keys as Keys
 import Views.Markets as Markets
 import Views.Overview as Overview
@@ -87,7 +90,6 @@ spec context = describe "Capstone (DSL-authored run)" do
       fromEither name = case _ of
         Left e -> fail (name <> ": " <> e)
         Right t -> table name t
-    table "overview" (Overview.overview Common.defaultMetricSpec sr)
     fromEither "balances" (Balances.balances sr 1)
     fromEither "events" (Balances.events sr 4)
     table "facilities" (Markets.facilities sr)
@@ -117,7 +119,7 @@ spec context = describe "Capstone (DSL-authored run)" do
 
       encoded :: forall a. Shape a -> a -> String
       encoded s = prettyJson <<< encodeWith Snapshot s
-    same Keys.overview (Overview.overview Common.defaultMetricSpec sr)
+    same Keys.overview (Overview.overview sr)
     either fail (same Keys.balances) (Balances.balances sr 1)
     same Keys.markets (Markets.markets sr)
     same Keys.facilities (Markets.facilities sr)
@@ -132,6 +134,44 @@ spec context = describe "Capstone (DSL-authored run)" do
     same Keys.balance (Balance.balanceView ctx.gameboard sr)
     either fail (same Keys.events) (Balances.events sr 1)
     reads Keys.glossary glossary
+
+  it "no column lacks a definition, and every column a view shows has one in the glossary" do
+    ctx <- context
+    cap <- load
+    r <- runOf cap.playerSeed cap.game
+    Array.filter (\c -> c.definition == "") allColumns `shouldEqual` []
+    let
+      sr = toStored "capstone" r
+      other = sr { id = "other", name = "other" }
+      runs = [ sr, other ]
+      dynamic name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern glossary.round.prefix) name)
+      undefined' t = Array.filter (\name -> not (Object.member name glossary.definitions || dynamic name)) t.columns
+      tables =
+        [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.gameboard sr ]
+          <>
+            [ Markets.facilities sr
+            , (Markets.economy sr).flows
+            , (Markets.economy sr).pressure
+            , Representation.representation sr
+            , Representation.procedures sr
+            , Standings.standings sr
+            , (Actions.actions sr).totals
+            , (Actions.actions sr).byRound
+            , Drivers.drivers sr
+            , (Balance.balanceView ctx.gameboard sr).measures
+            , (Balance.balanceView ctx.gameboard sr).completion
+            , Balance.seedVariation runs
+            , Compare.compatible runs
+            , (Compare.finalState runs).table
+            , Compare.baselineDiff sr [ other ]
+            , (Compare.configDiff sr [ other ]).table
+            , Compare.keyValues ctx.gameboard runs
+            , Compare.agencyTable []
+            ]
+          <> either (const []) (\t -> [ t ]) (Balances.balances sr 1)
+          <> either (const []) (\t -> [ t ]) (Balances.events sr 1)
+          <> either (const []) (\h -> [ h.table ]) (Entity.entityHistory sr (Id "US"))
+    Array.concatMap undefined' tables `shouldEqual` []
 
 -- | The holdings and prices that differ between two finished runs (none when one did not finish).
 differenceOf :: SimRun -> SimRun -> Difference

@@ -33,10 +33,10 @@ import Core.Shape (Shape, boolShape, intShape, listOf, objectValuesOf, recordSha
 import Core.View (View(..))
 import Views.Actions (ActionsChart, ActionsView)
 import Views.Balance (BalanceView)
-import Views.Common (Bars, Chart, Point, Table)
+import Views.Common (Bars, Chart, Point, Reason, Table)
 import Views.Compare (CompareView, Marked)
 import Views.Entity (EntityChoice, EntityList, History)
-import Views.Glossary (Glossary, Reason)
+import Views.Glossary (Glossary)
 import Views.Overview (Fact, RunFlags, RunList, RunOverview)
 import Views.Premise (Premise, RoundRange)
 
@@ -97,10 +97,7 @@ fact = recordShape "Fact" { label: stringShape, value: stringShape }
 
 runOverview :: Shape RunOverview
 runOverview = recordShape "RunOverview"
-  { title: stringShape
-  , columns: strings
-  , rows: listOf strings
-  , id: stringShape
+  { id: stringShape
   , rounds: intShape
   , target: intShape
   , resumable: boolShape
@@ -134,7 +131,7 @@ glossary = recordShape "Glossary"
   { definitions: objectValuesOf stringShape
   , reasons: objectValuesOf reason
   , unnamed: recordShape "Unnamed" { definition: stringShape, reason }
-  , price: recordShape "PriceEntry" { prefix: stringShape, definition: stringShape }
+  , round: recordShape "RoundEntry" { prefix: stringShape, definition: stringShape }
   }
 
 entityChoice :: Shape EntityChoice

@@ -32,7 +32,7 @@ import Foreign.Object as Object
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (orThrow)
 import Views.Balances (balances, events)
-import Views.Common (Table, completed, defaultMetricSpec, final, quantity, specKeys, specValue)
+import Views.Common (Table, completed, final, quantity, specKeys, specValue)
 import Views.Balance (measures)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Entity (entityHistory)
@@ -217,11 +217,10 @@ spec context = describe "Views and error paths" do
         map (\row -> cell row 1) standing `shouldEqual` [ finalNw ]
     isLeft (entityHistory s (Id "NoSuchEntity")) `shouldEqual` true
 
-  it "the overview labels procurement from the metric spec" do
+  it "the overview returns the header's facts, in order" do
     ctx <- context
     r <- play ctx (conservative 2)
-    let t = overview defaultMetricSpec (toStored "run-1" r)
-    map (\row -> cell row 0) t.rows `shouldSatisfy` \labels -> length (filter (_ == "Military procured") labels) == 1
+    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Premise", "Status", "Rounds completed", "Game ID" ]
   where
   summary s =
     { id: s.id

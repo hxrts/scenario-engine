@@ -10,23 +10,18 @@ module Views.Overview
   , RunOverview
   , overview
   , objectives
+  , columns
   ) where
 
 import Prelude
 
 import Schema.Gameboard (Gameboard)
-import Core.Num as Q
-import Core.Slice (event, read, runSlice, total, whereIn)
-import Core.Types (Id(..))
 import Core.Run (RunStatus(..), runStatusName)
-import Data.Array (concat, concatMap, length, mapWithIndex)
+import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..))
-import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Checks.Objectives (evaluateObjectives)
-import Views.Actions (rejectionCount)
-import Views.Common (MetricSpec, StoredRun, Table, TableRow, completed, final, joinComma, ofCount, price, quantity, records, roundResults, specKeys, specValue, target)
-import Views.Markets (marketPrices)
+import Views.Common (Column, StoredRun, Table, TableRow, col, column, completed, emptied, joinComma, names, ofCount, quantity, roundResults, specKeys, specValue, target)
 
 -- | A run as the list shows it: its summary, read without its records or snapshots. `source` is
 -- | the run it was derived from; `sourceDeleted` marks a source the store no longer holds.
@@ -58,7 +53,7 @@ type RunList = Record (TableRow (runs :: Array RunFlags))
 runList :: Array (Either Unreadable ListedRun) -> RunList
 runList rows =
   { title: "Simulation runs"
-  , columns: [ "Run", "Name", "Gameboard", "Game seed", "Player seed", "Rounds", "Status", "Assertions failing", "Reason", "Archived", "Source" ]
+  , columns: names [ col.run, col.name, col.gameboard, col.gameSeed, col.playerSeed, col.rounds, col.status, assertionsFailing, reasonColumn, archivedColumn, sourceColumn ]
   , rows: map row rows
   , runs: map flags rows
   }
@@ -72,6 +67,43 @@ runList rows =
     Right s -> { id: s.id, archived: s.archived, readable: true }
   yesNo b = if b then "yes" else "no"
 
+assertionsFailing :: Column
+assertionsFailing = column "Assertions failing" "Assertion failures across all rounds. An assertion checks an economic invariant (INV-xx), so 0 means none failed."
+
+reasonColumn :: Column
+reasonColumn = column "Reason" "Why the run failed or cannot be read. Empty for a run that did not fail." # emptied { label: "none", reason: "The run did not fail, so it has no failure reason." }
+
+archivedColumn :: Column
+archivedColumn = column "Archived" "yes if the run is archived, which hides it from the default list. It stays in the store."
+
+sourceColumn :: Column
+sourceColumn = column "Source" "The run this one was derived from (duplicate, rerun, variant or counterfactual). Empty for an original run." # emptied { label: "none", reason: "Original run: launched directly, not derived from another run." }
+
+presetColumn :: Column
+presetColumn = column "Preset" "The preset every seat plays in this run."
+
+premiseColumn :: Column
+premiseColumn = column "Premise" "The premise (Gameboard version) the run was played on."
+
+roundsCompleted :: Column
+roundsCompleted = column "Rounds completed" "Rounds completed so far, out of the rounds the run was launched for. A run shorter than its target can be resumed to it."
+
+gameIdColumn :: Column
+gameIdColumn = column "Game ID" "The premise's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
+
+criterionColumn :: Column
+criterionColumn = column "Criterion" "The number of the criterion within its objective."
+
+valuesColumn :: Column
+valuesColumn = column "Values" "The measured values for the criterion, in their own units."
+
+boundColumn :: Column
+boundColumn = column "Bound" "The threshold the measured values are compared with."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ assertionsFailing, reasonColumn, archivedColumn, sourceColumn, presetColumn, premiseColumn, roundsCompleted, gameIdColumn, criterionColumn, valuesColumn, boundColumn ]
+
 -- | The source a derived run cites: its id, marked when the store no longer holds that run.
 sourceCell :: Maybe String -> Boolean -> String
 sourceCell source deleted = case source of
@@ -84,63 +116,37 @@ type Fact = { label :: String, value :: String }
 -- | The overview of one run (`GET /api/runs/:id/overview`). `id` names the run these figures are of;
 -- | `rounds` is the completed rounds, `target` the rounds the run was launched for, and `resumable`
 -- | whether Resume may be offered (docs/06_simulator.md §9.1: only a completed run can be extended);
--- | `facts` is the header's fields in order. The table is the same overview as a table, with a row per field.
-type RunOverview = Record (TableRow (id :: String, rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact))
+-- | `facts` is the header's fields in order.
+type RunOverview = { id :: String, rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact }
 
-overview :: MetricSpec -> StoredRun -> RunOverview
-overview spec r =
+-- | A fact under a column's name.
+fact :: Column -> String -> Fact
+fact c value = { label: c.name, value }
+
+overview :: StoredRun -> RunOverview
+overview r =
   { id: r.id
-  , title: "Overview"
-  , columns: [ "Field", "Value" ]
-  , rows: map (\f -> [ f.label, f.value ]) tableFacts
   , rounds
   , target: launched
   , resumable: r.status == Completed
-  , facts: [ name, premise, status, roundsCompleted, gameId ]
+  , facts:
+      [ fact col.name r.name
+      , fact presetColumn (fromMaybe "" (specValue r.spec specKeys.preset))
+      , fact premiseColumn r.manifest.gameboard
+      , fact col.status (runStatusName r.status)
+      , fact roundsCompleted (ofCount rounds launched)
+      , fact gameIdColumn (fromMaybe "" (specValue r.spec specKeys.gameId))
+      ]
   }
   where
   rounds = completed r
   launched = target r
-  name = { label: "Name", value: r.name }
-  gameId = { label: "Game ID", value: fromMaybe "" (specValue r.spec specKeys.gameId) }
-  premise = { label: "Premise", value: r.manifest.gameboard }
-  status = { label: "Status", value: runStatusName r.status }
-  roundsCompleted = { label: "Rounds completed", value: ofCount rounds launched }
-  source = specValue r.spec specKeys.source
-  sourceStatus = case source of
-    Nothing -> ""
-    Just _
-      | r.sourceDeleted -> "deleted"
-      | otherwise -> "present"
-  field label value = { label, value }
-  -- the overview table, a row per field; the header's facts are named above and shared with it
-  tableFacts =
-    [ field "Run" r.id
-    , name
-    , field "Preset" (fromMaybe "" (specValue r.spec specKeys.preset))
-    , gameId
-    , field "Derived from" (fromMaybe "" source)
-    , field "Kind" (fromMaybe "" (specValue r.spec specKeys.kind))
-    , field "Source" sourceStatus
-    , field "Gameboard" r.manifest.gameboard
-    , field "Engine" r.manifest.engine
-    , field "Draws" r.manifest.draw
-    , field "Game seed" (show r.manifest.initial.seed)
-    , field "Player seed" r.playerSeed
-    , field "Rounds" (show rounds)
-    -- the round count the run was launched for
-    , field "Rounds target" (show launched)
-    , field "Assertions failing" (show (length (concat r.assertions)))
-    , field "Rejected Proposals" (show (sum (map rejectionCount (records r))))
-    , field (spec.procurementLabel <> " procured") (quantity (Q.sumQ (map (\rec -> runSlice procured rec.events) (records r))))
-    ] <> map (\p -> field ("Final price " <> show p.market) (price p.price)) (marketPrices (final r))
-  procured = total (read @"quantity" (whereIn @"transformation" "the procurement facilities" (map Id spec.procurement) (event @"Transformed")))
 
 -- | Every Actor's objective criteria as met, not met, or not evaluated, with the measured values.
 objectives :: Gameboard -> StoredRun -> Table
 objectives gb r =
   { title: "Objectives"
-  , columns: [ "Actor", "Objective", "Criterion", "Outcome", "Values", "Bound" ]
+  , columns: names [ col.actor, col.objective, criterionColumn, col.outcome, valuesColumn, boundColumn ]
   , rows: concatMap (\o -> mapWithIndex (\i c -> [ show o.actor, o.description, show (i + 1), show c.outcome, joinComma (map quantity c.values), joinComma (map quantity c.bound) ]) o.criteria)
       (evaluateObjectives gb (roundResults r))
   }

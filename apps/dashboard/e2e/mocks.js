@@ -18,21 +18,12 @@ export const ARCHIVED = ["run-9", "old", "meridian@v0", "26021", "4", "3", "comp
 // run (the server's `resumable`). The header facts are the server's.
 export const overview = (target, { id = "run-1", status = "completed" } = {}) => ({
   id,
-  title: "Overview",
-  columns: ["Field", "Value"],
-  rows: [
-    ["Run", "run-1"],
-    ["Name", "base"],
-    ["Gameboard", "meridian@v0"],
-    ["Game ID", "meridian/meridian-test-01"],
-    ["Rounds", "3"],
-    ["Rounds target", String(target)],
-  ],
   rounds: 3,
   target,
   resumable: status === "completed",
   facts: [
     { label: "Name", value: "base" },
+    { label: "Preset", value: "Conservative" },
     { label: "Premise", value: "meridian@v0" },
     { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },

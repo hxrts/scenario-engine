@@ -8,6 +8,13 @@ module Views.Common
   , Point
   , Bars
   , Statistic
+  , Reason
+  , Column
+  , column
+  , emptied
+  , names
+  , col
+  , sharedColumns
   , StoredRun
   , RunHeader
   , storedRun
@@ -66,6 +73,69 @@ import Data.Tuple (Tuple(..), fst)
 type TableRow r = (title :: String, columns :: Array String, rows :: Array (Array String) | r)
 
 type Table = Record (TableRow ())
+
+-- | What an empty value of a column shows: a short label, and the reason on hover.
+type Reason = { label :: String, reason :: String }
+
+-- | A column or header field: its name, what it means, and what an empty value of it means. Tables and
+-- | facts are built from these, and the glossary is generated from them, so a column cannot go undefined.
+type Column = { name :: String, definition :: String, emptyReason :: Maybe Reason }
+
+-- | A column with its plain-language definition.
+column :: String -> String -> Column
+column name definition = { name, definition, emptyReason: Nothing }
+
+-- | A column whose empty value has a reason of its own.
+emptied :: Reason -> Column -> Column
+emptied emptyReason c = c { emptyReason = Just emptyReason }
+
+-- | The headings of a table's columns.
+names :: Array Column -> Array String
+names = map _.name
+
+-- | The columns several views share. A view's own columns are defined where it builds its table.
+col
+  :: { run :: Column
+     , name :: Column
+     , gameboard :: Column
+     , gameSeed :: Column
+     , playerSeed :: Column
+     , rounds :: Column
+     , status :: Column
+     , actor :: Column
+     , objective :: Column
+     , outcome :: Column
+     , round :: Column
+     , entity :: Column
+     , kind :: Column
+     , resource :: Column
+     , player :: Column
+     , measure :: Column
+     , spread :: Column
+     }
+col =
+  { run: column "Run" "The run's id in the Run Store. Selecting a row shows that run's results."
+  , name: column "Name" "The name the run was given at launch, or by the derivation that created it." # emptied { label: "not recorded", reason: "The run was stored without a name." }
+  , gameboard: column "Gameboard" "The Gameboard version (the premise) the run was played on."
+  , gameSeed: column "Game seed" "The seed fixed by the premise. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
+  , playerSeed: column "Player seed" "The seed for seat-policy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
+  , rounds: column "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
+  , status: column "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
+  , actor: column "Actor" "The Actor (or Aggregate) this row describes."
+  , objective: column "Objective" "A goal from the Gameboard for one Actor. It is measured from the run and never changes the economy."
+  , outcome: column "Outcome" "For objectives: met, not met or not evaluated. A criterion is not evaluated when the run has no rounds or no data, and is never reported as met. For procedures: executed if the support reached the threshold, lapsed otherwise."
+  , round: column "Round" "The round this row belongs to. Round 1 is the first round after the initial state."
+  , entity: column "Entity" "The Entity whose balance sheet this is: an Actor or an Aggregate."
+  , kind: column "Kind" "Actor, or Aggregate (residual): a residual representation of many holders, not one Actor."
+  , resource: column "Resource" "The Resource held, for example Money, Energy, Military or Soft Power."
+  , player: column "Player" "The Actor this row describes, by its seat."
+  , measure: column "Measure" "What this row measures."
+  , spread: column "Spread (M)" "The highest final net worth minus the lowest, in Money. Larger means less even."
+  }
+
+-- | The shared columns, for the glossary.
+sharedColumns :: Array Column
+sharedColumns = [ col.run, col.name, col.gameboard, col.gameSeed, col.playerSeed, col.rounds, col.status, col.actor, col.objective, col.outcome, col.round, col.entity, col.kind, col.resource, col.player, col.measure, col.spread ]
 
 -- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
 -- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.
@@ -135,16 +205,12 @@ target r = fromMaybe (completed r) (specValue r.spec specKeys.rounds >>= Int.fro
 -- | The premise-specific names the metric views use. The default is the reference premise
 -- | (docs/05_test_instance.md); a caller passes its own to view another premise.
 type MetricSpec =
-  { procurement :: Array String -- transformations counted as procurement of the military
-  , procurementLabel :: String -- the overview's label for that procurement
-  , market :: String -- the Market a trajectory comparison shows by default
+  { market :: String -- the Market a trajectory comparison shows by default
   }
 
 defaultMetricSpec :: MetricSpec
 defaultMetricSpec =
-  { procurement: [ "defense-procurement", "defense-procurement-cn" ]
-  , procurementLabel: "Military"
-  , market: "energy-atlantic"
+  { market: "energy-atlantic"
   }
 
 -- | Display (docs/02 §9.1): a count of units (Money, Resource holdings and flows) as a cell.

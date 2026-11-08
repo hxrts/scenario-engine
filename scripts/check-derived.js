@@ -154,9 +154,9 @@ function loadContext() {
   const columns = new Set();
   for (const f of walk(path.join(root, "packages/views/src"), (n) => n.endsWith(".purs"))) {
     const src = fs.readFileSync(f, "utf8");
-    for (const m of src.matchAll(/\bcolumns:\s*\[([\s\S]*?)\]/g)) for (const s of m[1].matchAll(/"([^"]+)"/g)) columns.add(s[1]);
+    for (const m of src.matchAll(/\bcolumn\s+"([^"]+)"/g)) columns.add(m[1]);
   }
-  need("column names in the views' `columns:` lists", [...columns]);
+  need("column names in the views' `column` definitions", [...columns]);
   return { eventKinds, intentCtors, viewNames, routeSegments, specKeys, presets, columns };
 }
 
@@ -301,8 +301,8 @@ function scan(file, text, ctx) {
       if (file === "packages/views/src/Views/Common.purs" && sym === "specKeys" && ctx.specKeys.includes(s.value)) hit("spec", i);
       // a preset
       if (ctx.presets.includes(s.value) && file !== presetsFile) hit("preset", i);
-      // a column: a key of the Glossary repeats the views' columns
-      if (file === "packages/views/src/Views/Glossary.purs" && ctx.columns.has(s.value) && /\bTuple\s+"$/.test(before)) hit("column", i);
+      // a column: a table heading is a Column, so a literal in a `columns:` list repeats it
+      if (file.startsWith("packages/views/src/") && ctx.columns.has(s.value) && /\bcolumns:\s*\[[^\]]*"$/.test(before)) hit("column", i);
     }
   }
   return hits;

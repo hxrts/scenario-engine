@@ -9,6 +9,7 @@ module Views.Standings
   , standingsOf
   , standings
   , netWorthChart
+  , columns
   ) where
 
 import Prelude
@@ -25,7 +26,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf)
+import Views.Common (Column, Chart, Statistic, StoredRun, Table, completed, exact, final, players, quantity, series, unitOf, col, column, names)
 
 netWorthStat :: Statistic
 netWorthStat =
@@ -68,11 +69,24 @@ standingsOf r = map standing ranked
   rankOf v = 1 + length (filter (\(Tuple _ u) -> u > v) ranked)
   standing (Tuple e v) = { player: e, netWorth: v, change: Q.sub v (fromMaybe Q.zero (Map.lookup e start)), rank: rankOf v }
 
+netWorthColumn :: Column
+netWorthColumn = column "Net worth (M)" "Money plus each held Resource valued at its Market's marginal price, after the final round."
+
+changeColumn :: Column
+changeColumn = column "Change from start (M)" "Net worth after the final round minus net worth at the start of the run."
+
+rankColumn :: Column
+rankColumn = column "Rank" "The player's place by final net worth, 1 being highest."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ netWorthColumn, changeColumn, rankColumn ]
+
 -- | The standings table: the net worth, its change from the start, and the rank of each Actor.
 standings :: StoredRun -> Table
 standings r =
   { title: "Standings after round " <> show (completed r)
-  , columns: [ "Player", "Net worth (M)", "Change from start (M)", "Rank" ]
+  , columns: names [ col.player, netWorthColumn, changeColumn, rankColumn ]
   , rows: map (\s -> [ show s.player, quantity s.netWorth, quantity s.change, show s.rank ]) (standingsOf r)
   }
 

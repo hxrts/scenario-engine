@@ -26,15 +26,15 @@ type Lookup = Maybe Glossary
 fill :: String -> String -> String -> String
 fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
 
--- | The definition of a column or field. Overview prices are named by the glossary's price prefix, and
+-- | The definition of a column or field. A per-round column is named by the glossary's round prefix, and
 -- | a compared run's column is named by its id; a name with no entry gets the unnamed definition.
 definitionOf :: Lookup -> String -> String
 definitionOf = case _ of
   Nothing -> const ""
   Just g -> \name -> case Object.lookup name g.definitions of
     Just d -> d
-    Nothing -> case stripPrefix (Pattern g.price.prefix) name of
-      Just market -> fill "market" market g.price.definition
+    Nothing -> case stripPrefix (Pattern g.round.prefix) name of
+      Just round -> fill "round" round g.round.definition
       Nothing -> fill "name" name g.unnamed.definition
 
 -- | What an empty value means for a column or field. The reason is shown on hover, so no empty

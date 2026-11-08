@@ -3,6 +3,7 @@
 module Views.Balances
   ( balances
   , events
+  , columns
   ) where
 
 import Prelude
@@ -15,7 +16,23 @@ import Data.Array (concatMap, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Views.Common (StoredRun, Table, at, kindOf, outOfRange, quantity, records)
+import Views.Common (Column, StoredRun, Table, at, col, column, kindOf, names, outOfRange, quantity, records)
+
+initialColumn :: Column
+initialColumn = column "Initial" "The holding before round 1."
+
+currentColumn :: Column
+currentColumn = column "Current" "The holding after the selected round. It includes any reserved quantity."
+
+changeColumn :: Column
+changeColumn = column "Change" "Current holding minus initial holding."
+
+eventColumn :: Column
+eventColumn = column "Event" "One engine event, listed in the canonical phase order."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ initialColumn, currentColumn, changeColumn, eventColumn ]
 
 -- | Every Actor's and Aggregate's balance sheet after round `n` (0 = initial).
 balances :: StoredRun -> Int -> Either String Table
@@ -23,7 +40,7 @@ balances r n = case at r n of
   Nothing -> Left (outOfRange r 0 n)
   Just w -> Right
     { title: "Balance sheets after round " <> show n
-    , columns: [ "Entity", "Kind", "Resource", "Initial", "Current", "Change" ]
+    , columns: names [ col.entity, col.kind, col.resource, initialColumn, currentColumn, changeColumn ]
     , rows: concatMap (sheet w) (fromFoldable (Map.keys w.entities))
     }
   where
@@ -37,5 +54,5 @@ balances r n = case at r n of
 -- | A round's events in canonical phase order (the order the engine records them).
 events :: StoredRun -> Int -> Either String Table
 events r n = case index (records r) (n - 1) of
-  Just rec | n >= 1 -> Right { title: "Events, round " <> show n, columns: [ "Event" ], rows: map (\e -> [ show e ]) rec.events }
+  Just rec | n >= 1 -> Right { title: "Events, round " <> show n, columns: names [ eventColumn ], rows: map (\e -> [ show e ]) rec.events }
   _ -> Left (outOfRange r 1 n)

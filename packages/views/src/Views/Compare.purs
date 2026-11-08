@@ -15,6 +15,7 @@ module Views.Compare
   , netWorthCharts
   , standingsBars
   , balanceBars
+  , columns
   ) where
 
 import Prelude
@@ -33,7 +34,7 @@ import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniCell, measuresOf, spreadCell)
-import Views.Common (Bars, Chart, StoredRun, Table, completed, exact, final, joinComma, ofCount, players, pointsOf, price, quantity, ratioUnit, specKeys, specValue, unitOf)
+import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, joinComma, names, ofCount, players, pointsOf, price, quantity, ratioUnit, specKeys, specValue, unitOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -97,7 +98,7 @@ fields = [ gameboardField, engineField, roundCountField, unitsField, marketsFiel
 compatible :: Array StoredRun -> Table
 compatible runs =
   { title: "Compatibility"
-  , columns: [ "Run", "Gameboard", "Engine", "Rounds", "Units", "Market definitions", "Actor selection", "Comparable with the first" ]
+  , columns: names [ col.run, col.gameboard, engineColumn, col.rounds, unitsColumn, marketDefinitions, actorSelection, comparableColumn ]
   , rows: map (\r -> row (fromMaybe r (index runs 0)) r) runs
   }
   where
@@ -106,6 +107,48 @@ compatible runs =
   verdict first r = case map _.name (filter (\f -> not (f.same first r)) fields) of
     [] -> "yes"
     ms -> "no: flagged, not combined (" <> joinComma ms <> ")"
+
+engineColumn :: Column
+engineColumn = column "Engine" "The version of the round engine that resolved each round."
+
+unitsColumn :: Column
+unitsColumn = column "Units" "Whether every Resource has the same unit in each run."
+
+marketDefinitions :: Column
+marketDefinitions = column "Market definitions" "Whether the Markets are defined the same way in each run."
+
+actorSelection :: Column
+actorSelection = column "Actor selection" "The preset every seat plays. differs means the runs used different presets."
+
+comparableColumn :: Column
+comparableColumn = column "Comparable with the first" "yes, or no with the reasons. A run flagged no is shown but not combined with the first run."
+
+deltaColumn :: Column
+deltaColumn = column "Δ" "Difference in holding from the baseline run."
+
+categoryColumn :: Column
+categoryColumn = column "Category" "What kind of setting this is: a version, a seat policy, a seed, or another setting."
+
+parameterColumn :: Column
+parameterColumn = column "Parameter" "A specification setting, compared across the runs."
+
+unitColumn :: Column
+unitColumn = column "Unit" "The unit of this row's values."
+
+agencyColumns :: Array Column
+agencyColumns =
+  [ column "Alternative" "A counterfactual choice the Actor could have made instead."
+  , column "Price change" "Change in the market price the alternative would cause."
+  , column "Others' holdings" "Change in the other Actors' holdings under the alternative."
+  , column "Aggregate holdings" "Change in the Aggregate's holdings under the alternative."
+  , column "Institutional decisions" "Decisions made through the Aggregates' collective procedures under the alternative."
+  , column "Own criteria changed" "Whether the Actor's own objective criteria change under the alternative."
+  , column "Measurable" "Whether the effect can be measured from the run's records."
+  ]
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ engineColumn, unitsColumn, marketDefinitions, actorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ] <> agencyColumns
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.
@@ -118,7 +161,7 @@ finalState :: Array StoredRun -> Marked
 finalState runs =
   { table:
       { title: "Final state"
-      , columns: [ "Entity", "Resource" ] <> map _.id runs
+      , columns: names [ col.entity, col.resource ] <> map _.id runs
       , rows: map (\k@(Tuple e res) -> perRunRow runs [ show e, show res ] (cell k)) keys
       }
   , marked: map (\k -> [ false, false ] <> differsFromBaseline runs (cell k)) keys
@@ -134,7 +177,7 @@ finalState runs =
 baselineDiff :: StoredRun -> Array StoredRun -> Table
 baselineDiff base others =
   { title: "Difference from baseline " <> base.id
-  , columns: [ "Run", "Entity", "Resource", "Δ" ]
+  , columns: names [ col.run, col.entity, col.resource, deltaColumn ]
   , rows: concatMap (\r -> map (\h -> [ r.id, show h.entity, show h.resource, quantity h.delta ]) (differenceOfWorlds (final base) (final r)).holdings) others
   }
 
@@ -169,7 +212,7 @@ configDiff :: StoredRun -> Array StoredRun -> Marked
 configDiff base others =
   { table:
       { title: "Configuration differences"
-      , columns: [ "Category", "Parameter", base.id ] <> map _.id others
+      , columns: names [ categoryColumn, parameterColumn ] <> [ base.id ] <> map _.id others
       , rows: map (\k -> perRunRow allRuns [ categoryLabel (categoryOf k), k ] (\r -> value r k)) shown
       }
   , marked: map (\k -> [ false, false ] <> differsFromBaseline allRuns (\r -> value r k)) shown
@@ -201,7 +244,7 @@ sameSpecification runs = case uncons runs of
 agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =
   { title: "Agency"
-  , columns: [ "Actor", "Alternative", "Price change", "Others' holdings", "Aggregate holdings", "Institutional decisions", "Own criteria changed", "Measurable" ]
+  , columns: names ([ col.actor ] <> agencyColumns)
   , rows: map (\p -> [ show p.actor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
   }
 
@@ -225,7 +268,7 @@ numeraireUnit runs = maybe "" (\r -> unitOf r r.manifest.initial.numeraire) (hea
 keyValues :: Gameboard -> Array StoredRun -> Table
 keyValues gb runs =
   { title: "Key values by run"
-  , columns: [ "Measure", "Unit" ] <> map runHeader runs
+  , columns: names [ col.measure, unitColumn ] <> map runHeader runs
   , rows: concat [ perPlayer, [ spreadRow, giniRow ], objectiveRows, [ rejectedRow ], priceRows ]
   }
   where

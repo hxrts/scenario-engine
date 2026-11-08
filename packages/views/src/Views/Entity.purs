@@ -25,7 +25,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, completed, exact, joinComma, quantity, series, unitOf, worlds)
+import Views.Common (Chart, StoredRun, Table, col, completed, exact, joinComma, names, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings
@@ -63,7 +63,7 @@ entityHistory r e
       Right
         { table:
             { title: "Balance sheet of " <> show e <> " by round"
-            , columns: [ "Resource" ] <> map (\i -> "Round " <> show i) rounds
+            , columns: names [ col.resource ] <> map (\i -> "Round " <> show i) rounds
             , rows: map resourceRow resources <> [ [ "Net worth (M)" ] <> map (\w -> quantity (netWorth w e)) states ]
             }
         , chart:

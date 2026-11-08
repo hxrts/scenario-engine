@@ -16,6 +16,7 @@ module Views.Balance
   , completionOf
   , completion
   , seedVariation
+  , columns
   ) where
 
 import Prelude
@@ -29,7 +30,7 @@ import Core.Types (EntityId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
 import Data.Maybe (Maybe(..), maybe)
-import Views.Common (Statistic, StoredRun, Table, completed, final, quantity, ratio, roundResults)
+import Views.Common (Column, Statistic, StoredRun, Table, completed, final, quantity, ratio, roundResults, col, column, names)
 import Views.Standings (netWorths)
 
 spreadStat :: Statistic
@@ -88,13 +89,38 @@ spreadCell = maybe "n/a" quantity
 giniCell :: Maybe Q -> String
 giniCell = maybe "n/a" ratio
 
+valueColumn :: Column
+valueColumn = column "Value" "The value of the measure."
+
+roleColumn :: Column
+roleColumn = column "Role" "The Actor whose objective this row counts."
+
+criteriaColumn :: Column
+criteriaColumn = column "Criteria" "How many criteria the objective has."
+
+metColumn :: Column
+metColumn = column "Met" "How many of the objective's criteria were met."
+
+notMetColumn :: Column
+notMetColumn = column "Not met" "How many of the objective's criteria were evaluated and not met."
+
+notEvaluatedColumn :: Column
+notEvaluatedColumn = column "Not evaluated" "How many of the objective's criteria could not be evaluated, because the run has no rounds or no data."
+
+giniColumn :: Column
+giniColumn = column "Gini" "The Gini coefficient of final net worth, from 0 (even) to 1 (one player holds everything)."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ valueColumn, roleColumn, criteriaColumn, metColumn, notMetColumn, notEvaluatedColumn, giniColumn ]
+
 -- | The measures over a run's final net worths: the spread and the Gini coefficient.
 measures :: StoredRun -> Table
 measures r =
   { title: "Balance after round " <> show (completed r)
-  , columns: [ "Measure", "Value" ]
+  , columns: names [ col.measure, valueColumn ]
   , rows:
-      [ [ "Spread (M)", spreadCell m.spread ]
+      [ [ col.spread.name, spreadCell m.spread ]
       , [ "Gini coefficient", giniCell m.gini ]
       ]
   }
@@ -119,7 +145,7 @@ completionOf gb r = map row (evaluateObjectives gb (roundResults r))
 completion :: Gameboard -> StoredRun -> Table
 completion gb r =
   { title: "Objective completion by role"
-  , columns: [ "Role", "Objective", "Criteria", "Met", "Not met", "Not evaluated", "Outcome" ]
+  , columns: names [ roleColumn, col.objective, criteriaColumn, metColumn, notMetColumn, notEvaluatedColumn, col.outcome ]
   , rows: map (\c -> [ show c.actor, c.description, show c.criteria, show c.met, show c.notMet, show c.notEvaluated, show c.outcome ]) (completionOf gb r)
   }
 
@@ -134,7 +160,7 @@ balanceView gb r = { measures: measures r, completion: completion gb r }
 seedVariation :: Array StoredRun -> Table
 seedVariation runs =
   { title: "Seed-to-seed variation"
-  , columns: [ "Run", "Game seed", "Player seed", "Spread (M)", "Gini" ]
+  , columns: names [ col.run, col.gameSeed, col.playerSeed, col.spread, giniColumn ]
   , rows: if length runs < 2 then [ [ "one run of this specification", "", "", "n/a", "n/a" ], [ "seed-to-seed variation needs more runs of this specification; none is reported", "", "", "n/a", "n/a" ] ] else perRun <> summary
   }
   where

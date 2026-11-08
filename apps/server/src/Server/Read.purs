@@ -155,7 +155,7 @@ getView cache ctx store { id, view, round } = withRun cache store id runView
     Just s -> maybe (Left ("round must be an integer, got " <> s)) Right (Int.fromString s)
 
   runView r = case view of
-    Overview -> answer Keys.overview (Overview.overview defaultMetricSpec r)
+    Overview -> answer Keys.overview (Overview.overview r)
     Balances -> answerOr Keys.balances (roundParam (completed r) >>= Balances.balances r)
     Markets -> answer Keys.markets (Markets.markets r)
     Facilities -> answer Keys.facilities (Markets.facilities r)

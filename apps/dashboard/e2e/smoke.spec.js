@@ -102,7 +102,7 @@ test("the removed sections and the overview fields that left the page are absent
   for (const title of ["Overview", "Actions by round", "Markets", "Facilities", "World economy", "Balance sheets by round", "Representation", "Procedures", "Events"])
     await expect(page.getByRole("heading", { name: title, exact: true }), `no ${title} section`).toHaveCount(0);
   // Game seed and Assertions failing remain columns of the run list beside the results; the overview rows are what left the page
-  for (const field of ["Engine", "Draws", "Rejected Proposals"])
+  for (const field of ["Engine", "Draws", "Rejected Proposals"]) // no longer served by the overview either
     await expect(page.getByText(field, { exact: true }), `no ${field} row`).toHaveCount(0);
   await expect(page.getByLabel("Round", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Event round", { exact: true })).toHaveCount(0);
@@ -279,7 +279,7 @@ test("Run with no edits launches the default run: Conservative, the premise's ro
   await expect(row.getByRole("cell").nth(5)).toHaveText("5");
   await expect(row.getByRole("cell").nth(4)).toHaveText(/^\d+$/);
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
-  expect(overview.rows).toContainEqual(["Preset", "Conservative"]);
+  expect(overview.facts).toContainEqual({ label: "Preset", value: "Conservative" });
 });
 
 test("a non-default preset and round count are sent, and the run plays them", async ({ page, request }) => {
@@ -295,7 +295,7 @@ test("a non-default preset and round count are sent, and the run plays them", as
   expect(spy.body).not.toHaveProperty("playerSeed");
   await expect(rowWith(page, [id]).getByRole("cell").nth(5)).toHaveText("6");
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
-  expect(overview.rows).toContainEqual(["Preset", "Trader"]);
+  expect(overview.facts).toContainEqual({ label: "Preset", value: "Trader" });
 });
 
 test("the Premise and Game seed are shown read-only, with the premise's seed as the default", async ({ page }) => {

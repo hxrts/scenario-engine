@@ -12,6 +12,7 @@ module Views.Actions
   , actions
   , ActionsChart
   , ActionsView
+  , columns
   ) where
 
 import Prelude
@@ -22,7 +23,7 @@ import Core.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
 import Core.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
-import Views.Common (Statistic, StoredRun, Table, players, records)
+import Views.Common (Column, Statistic, StoredRun, Table, col, column, names, players, records)
 
 actionsStat :: Statistic
 actionsStat =
@@ -58,13 +59,13 @@ type Counts = { trades :: Int, transforms :: Int, transfers :: Int, deals :: Int
 -- | The kinds of action counted, in stacking order, with the plain-language label each is shown
 -- | under, the short column heading of the per-round table, and the count it takes from a player's
 -- | counts. The tables are built from this list, so their headings and cells cannot drift.
-actionKinds :: Array { key :: String, label :: String, short :: String, count :: Counts -> Int }
+actionKinds :: Array { key :: String, label :: String, short :: String, definition :: String, count :: Counts -> Int }
 actionKinds =
-  [ { key: "trades", label: "Market trades (buys and sells)", short: "Trades", count: _.trades }
-  , { key: "transforms", label: "Production and procurement", short: "Transforms", count: _.transforms }
-  , { key: "transfers", label: "Payments to other players", short: "Transfers", count: _.transfers }
-  , { key: "deals", label: "Deals signed", short: "Deals signed", count: _.deals }
-  , { key: "rejected", label: "Proposals rejected", short: "Proposals rejected", count: _.rejected }
+  [ { key: "trades", label: "Market trades (buys and sells)", short: "Trades", definition: "Market trades the player made: buys and sells on a Market.", count: _.trades }
+  , { key: "transforms", label: "Production and procurement", short: "Transforms", definition: "Productions and procurements the player made through a Transformation.", count: _.transforms }
+  , { key: "transfers", label: "Payments to other players", short: "Transfers", definition: "Payments the player made to other players, including those inside a deal.", count: _.transfers }
+  , { key: "deals", label: "Deals signed", short: "Deals signed", definition: "Deals the player signed.", count: _.deals }
+  , { key: "rejected", label: "Proposals rejected", short: "Proposals rejected", definition: ("Proposals of the player the engine rejected. Computed as: " <> describeSlice rejections <> "."), count: _.rejected }
   ]
 
 -- | The run chart: one bar per player, ordered by total actions (highest first), each stacked by
@@ -142,6 +143,19 @@ actionTotals r = map totalsOf (players r.manifest.initial)
     in
       { player: e, counts, total: totalOf counts }
 
+labelColumn :: forall r. { label :: String, definition :: String | r } -> Column
+labelColumn k = column k.label k.definition
+
+shortColumn :: forall r. { short :: String, definition :: String | r } -> Column
+shortColumn k = column k.short k.definition
+
+totalColumn :: Column
+totalColumn = column "Total" "The sum of the five kinds. A deal that is also a payment is counted in both."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = map labelColumn actionKinds <> map shortColumn actionKinds <> [ totalColumn ]
+
 -- | The per-round table (every Actor in every round), the run totals per Actor, and the run chart.
 actions :: StoredRun -> ActionsView
 actions r = { chart, totals, byRound }
@@ -150,12 +164,12 @@ actions r = { chart, totals, byRound }
   totalsRows = actionTotals r
   byRound =
     { title: "Actions by round"
-    , columns: [ "Round", "Player" ] <> map _.short actionKinds
+    , columns: names ([ col.round, col.player ] <> map shortColumn actionKinds)
     , rows: concatMap (\rec -> map (\e -> [ show rec.round, show e ] <> cellsOf (countsOf rec e)) ps) (records r)
     }
   totals =
     { title: "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a deal that is also a payment is counted in both."
-    , columns: [ "Player" ] <> map _.label actionKinds <> [ "Total" ]
+    , columns: names ([ col.player ] <> map labelColumn actionKinds <> [ totalColumn ])
     , rows: map (\x -> [ show x.player ] <> cellsOf x.counts <> [ show x.total ]) totalsRows
     }
   chart =

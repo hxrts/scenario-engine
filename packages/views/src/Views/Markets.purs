@@ -13,6 +13,7 @@ module Views.Markets
   , trajectories
   , marketCharts
   , marketUnit
+  , columns
   ) where
 
 import Prelude
@@ -23,7 +24,7 @@ import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Core.Query (lookupQ, priceOf, totalHolding)
-import Core.Slice (Slice, count, event, read, runSlice, select, total, whereEq, whereGt)
+import Core.Slice (Slice, count, describeSlice, event, read, runSlice, select, total, whereEq, whereGt)
 import Core.Types (Id(..), Market, MarketId, ResourceId)
 import Core.World (RoundRecord, WorldState)
 import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
@@ -33,9 +34,9 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
-import Views.Actions (rejectionCount)
-import Views.Common (Chart, StoredRun, Table, exact, kindOf, pointsOf, quantity, recordPoints, records, series, unitOf)
-import Views.Drivers (shortfallTotal)
+import Views.Actions (rejectionCount, rejections)
+import Views.Common (Chart, Column, StoredRun, Table, col, column, exact, kindOf, names, pointsOf, quantity, recordPoints, records, series, unitOf)
+import Views.Drivers (shortfallTotal, shortfallsColumn)
 
 -- | A Market's price after a World State, as the views show it.
 type MarketPrice = { market :: MarketId, price :: Q }
@@ -66,7 +67,7 @@ markets r =
 facilities :: StoredRun -> Table
 facilities r =
   { title: "Facilities"
-  , columns: [ "Round", "Facility", "Ordered by", "Kind", "Quantity", "Paid" ]
+  , columns: names [ col.round, facilityColumn, orderedBy, col.kind, quantityColumn, paidColumn ]
   , rows: concatMap
       ( \rec -> map (\t -> [ show rec.round, show t.transformation, show t.by, kindOf r.manifest.initial t.by, quantity t.quantity, quantity t.paid ])
           (select (event @"Transformed") rec.events)
@@ -89,7 +90,7 @@ resourceTotals r =
 moneyFlows :: StoredRun -> Table
 moneyFlows r =
   { title: "Money circulation (from → to category)"
-  , columns: [ "From", "To", "Money" ]
+  , columns: names [ fromColumn, toColumn, moneyColumn ]
   , rows: map (\(Tuple (Tuple a b) m) -> [ a, b, quantity m ]) (Map.toUnfoldable (foldl add Map.empty (select numeraireMoves (concatMap _.events (records r)))))
   }
   where
@@ -121,11 +122,48 @@ roundPressure rec =
   , lapsed: runSlice lapsedCount rec.events
   }
 
+facilityColumn :: Column
+facilityColumn = column "Facility" "The facility that filled the order: defense procurement, public attention or energy shipping."
+
+orderedBy :: Column
+orderedBy = column "Ordered by" "The Entity that placed the order."
+
+quantityColumn :: Column
+quantityColumn = column "Quantity" "The quantity of the facility's output that the order bought."
+
+paidColumn :: Column
+paidColumn = column "Paid" "The Money paid for the order."
+
+fromColumn :: Column
+fromColumn = column "From" "The category of the paying Entity: Actor, or Aggregate (residual)."
+
+toColumn :: Column
+toColumn = column "To" "The category of the receiving Entity: Actor, or Aggregate (residual)."
+
+moneyColumn :: Column
+moneyColumn = column "Money" "Total Money moved from one category to the other over the run (Circulation between Entity categories)."
+
+rejectedColumn :: Column
+rejectedColumn = column "Rejected" ("Proposals the engine rejected in the round (rejected Proposals). Computed as: " <> describeSlice rejections <> ".")
+
+lapsedColumn :: Column
+lapsedColumn = column "Lapsed" ("Proposals whose signature rule was not met in the round, so they lapsed without executing. Computed as: " <> describeSlice lapsedCount <> ".")
+
+consumedColumn :: Column
+consumedColumn = column "Consumed (E)" ("Energy consumed in the round. Computed as: " <> describeSlice consumedTotal <> ".")
+
+decayedColumn :: Column
+decayedColumn = column "Decayed" ("Quantity that decayed in the round. Computed as: " <> describeSlice decayedTotal <> ".")
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ facilityColumn, orderedBy, quantityColumn, paidColumn, fromColumn, toColumn, moneyColumn, rejectedColumn, lapsedColumn, consumedColumn, decayedColumn ]
+
 -- | Per round: shortfalls, rejected and lapsed Proposals, consumption, and decay.
 pressure :: StoredRun -> Table
 pressure r =
   { title: "Pressure"
-  , columns: [ "Round", "Shortfalls (E)", "Rejected", "Lapsed", "Consumed (E)", "Decayed" ]
+  , columns: names [ col.round, shortfallsColumn, rejectedColumn, lapsedColumn, consumedColumn, decayedColumn ]
   , rows: map (\rec -> let p = roundPressure rec in [ show rec.round, quantity p.shortfall, show p.rejected, show p.lapsed, quantity p.consumed, quantity p.decayed ]) (records r)
   }
 

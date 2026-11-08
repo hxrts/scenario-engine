@@ -6,6 +6,8 @@ module Views.Drivers
   , shortfallSum
   , shortfallTotal
   , drivers
+  , columns
+  , shortfallsColumn
   ) where
 
 import Prelude
@@ -17,7 +19,7 @@ import Core.Types (EntityId, ResourceId, Rule, RuleF(..))
 import Core.World (RoundRecord)
 import Data.Array (concatMap, length, nub)
 import Data.Tuple (Tuple(..))
-import Views.Common (Procedure, Statistic, StoredRun, Table, asProcedure, outcomeLabel, quantity, ratio, records, supportThreshold)
+import Views.Common (Column, Procedure, Statistic, StoredRun, Table, asProcedure, col, column, names, outcomeLabel, quantity, ratio, records, supportThreshold)
 
 driversStat :: Statistic
 driversStat =
@@ -55,12 +57,29 @@ ruleText = case _ of
 procedureRow :: Procedure -> Array String
 procedureRow p = [ show p.round, "Collective procedure", show p.proposal, "", outcomeLabel p.executed <> ": " <> supportThreshold p.support p.threshold ]
 
+driverColumn :: Column
+driverColumn = column "Driver" "The kind of force at work: a Rule enacted or repealed, a collective procedure, or a shortfall."
+
+subjectColumn :: Column
+subjectColumn = column "Subject" "What the driver is about: the Rule, the Proposal or the Resource."
+
+amountColumn :: Column
+amountColumn = column "Amount" "The size of the driver, where it has one, in its own unit."
+
+-- | The Energy shortfall of a round; also a column of the pressure table.
+shortfallsColumn :: Column
+shortfallsColumn = column "Shortfalls (E)" ("Energy wanted but not supplied in the round (a Shortfall). 0 means every request was filled. Computed as: " <> describeSlice shortfallSum <> ".")
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ driverColumn, subjectColumn, amountColumn, shortfallsColumn ]
+
 -- | The drivers table: each round's enacted and repealed rules and procedure outcomes in the order the
 -- | engine recorded them, then that round's shortfalls per Resource.
 drivers :: StoredRun -> Table
 drivers r =
   { title: "Drivers by round"
-  , columns: [ "Round", "Driver", "Subject", "Amount", "Outcome" ]
+  , columns: names [ col.round, driverColumn, subjectColumn, amountColumn, col.outcome ]
   , rows: concatMap roundRows (records r)
   }
   where
