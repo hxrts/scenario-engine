@@ -15,7 +15,6 @@ import Control.Monad.Error.Class (throwError)
 import Core.Types (Id(..))
 import Core.World (WorldState)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_)
@@ -34,7 +33,7 @@ import Node.FS.Sync (writeTextFile)
 import Node.Process (exit')
 import Game.Assemble (assemble)
 import Game.Premise (Premise(..))
-import Premises.Capstone (jointLineFor, jointLines, seatBindings)
+import Premises.Capstone (jointLineFor, jointLines, matchesExpect, seatBindings)
 import Premises.Load (loadPremise)
 
 -- | The capstone's world: the shipped Meridian at its default configuration, assembled with the capstone's seats.
@@ -61,7 +60,7 @@ main = runAff_ (either (\e -> log ("transcript: " <> message e) *> exit' 1) (con
     case out of
       Left why -> throwError (error ("the capstone exchange \"" <> l.text <> "\" did not decode: " <> why))
       Right js
-        | map (\j -> stringify (encodeJson j.draft.intents)) js == [ stringify (encodeJson l.expect) ] -> pure unit
+        | matchesExpect l js -> pure unit
         | otherwise -> throwError (error ("the capstone exchange \"" <> l.text <> "\" does not give the Intents the DSL expects"))
   rec <- liftEffect (Ref.read ref)
   root <- liftEffect (premiseRoot fileOps)

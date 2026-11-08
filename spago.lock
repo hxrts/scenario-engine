@@ -75,6 +75,7 @@
             "effect",
             "partial",
             "quickcheck",
+            "sp-testkit",
             "spec",
             "spec-node",
             "spec-quickcheck",

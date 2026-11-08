@@ -19,6 +19,7 @@ module Premises.Capstone
   , JointLine
   , jointLines
   , jointLineFor
+  , matchesExpect
   ) where
 
 import Prelude (map, otherwise, ($), (<<<), (==))
@@ -28,7 +29,8 @@ import Game.Types (Bindings)
 import Data.Bifunctor (lmap)
 import Data.Map as Map
 
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull)
+import Core.Proposal (JointProposal)
+import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonNull, stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (find, mapMaybe)
 import Data.String (Pattern(..), contains)
@@ -373,6 +375,10 @@ jointLines =
   [ { text: "ban shipments into India", reply: proposalReply N.us banIntent, expect: [ banIntent ] }
   , { text: "buy ten energy", reply: proposalReply N.us tradeIntent, expect: [ tradeIntent ] }
   ]
+
+-- | Whether a joint pass gave exactly the Intents a line expects, compared in the engine's JSON encoding.
+matchesExpect :: forall r. { expect :: Array Json | r } -> Array JointProposal -> Boolean
+matchesExpect l js = map (\j -> stringify (encodeJson j.draft.intents)) js == [ stringify (encodeJson l.expect) ]
 
 -- | The line whose transcript a joint call's payload names: the model's reply to that call.
 jointLineFor :: String -> Maybe JointLine

@@ -18,7 +18,6 @@ import Schema.Premise.Strategy (decodeStrategy, encodeStrategy)
 import Core.Num (Q)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (JsonDecodeError(..))
-import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String (Pattern(..), contains)
@@ -30,20 +29,9 @@ import Schema.Premise.Gameboard (decodeGameboard)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Suite (strategyOrThrow)
+import Testkit.Json (decodeText, json)
+import Testkit.Gameboard (minimalGameboard)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
--- | Parse JSON text, crashing the test on a syntax error.
-json :: String -> Json
-json text = case jsonParser text of
-  Left e -> unsafeCrashWith ("test JSON does not parse: " <> e)
-  Right j -> j
-
--- | The smallest valid Gameboard document: no resources, markets, facilities, or Entities.
-minimalGameboard :: String -> String
-minimalGameboard roundRange =
-  """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": """ <> roundRange
-    <> """, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
 
 -- | The expectations of a one-round document.
 expectOf :: String -> Expect
@@ -60,11 +48,6 @@ rule = decodeJsonWith Premise ruleShape
 
 intent :: Json -> Either JsonDecodeError Intent
 intent = decodeJsonWith Premise intentShape
-
-decodeText :: String -> Either JsonDecodeError Strategy
-decodeText text = case jsonParser text of
-  Left e -> Left (TypeMismatch e)
-  Right j -> decodeStrategy j
 
 -- | A premise shape reports a failed form as text: the message names the sum that failed.
 isTemplateError :: String -> Boolean
@@ -135,9 +118,6 @@ roundTripCapabilities =
   , MayEnact AccessBanRule
   , MayEnact WithholdingRule
   ]
-
-strategy :: String -> Strategy
-strategy = strategyOrThrow
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

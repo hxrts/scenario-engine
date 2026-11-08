@@ -37,11 +37,8 @@ import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Testkit.Suite (strategyOrThrow)
+import Testkit.Suite (price, strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
-setup :: Aff Game
-setup = unseated
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
 play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
@@ -56,9 +53,6 @@ play g n strategies = do
 
 seats :: Array String
 seats = [ "US", "DE", "IN", "JP", "UK", "BR", "SA", "NG", "ENCO", "CHIP", "SHIP", "DEF", "LABOR", "SME", "AID" ]
-
-price :: RoundResult -> String -> Q.Q
-price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
 -- | Stand-in metric rows: the handler stores whatever `metricsOf` returns, so the test needs no definitions.
 stubMetrics :: forall r. r -> Array { metric :: String, version :: String, value :: String }
@@ -81,9 +75,6 @@ memoryStore saved =
   , readRounds: \_ -> pure []
   }
 
-strategy :: String -> Strategy
-strategy = strategyOrThrow
-
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   LlmTests.spec
@@ -91,7 +82,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   CapstoneTests.spec
   describe "Recorder (RECORD over a store backend, no database)" do
     it "hands each round to the backend with its transcripts and its metrics" do
-      g <- setup
+      g <- unseated
       records <- play g 2 Map.empty
       saved <- liftEffect (Ref.new [])
       let said = [ { seat: Id "US", text: "I will buy ten energy" } ]
@@ -106,10 +97,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Replay (Handlers.Replay over recorded rounds)" do
     it "a round with eleven proposals by one author replays into the same ids and order as recorded" do
-      g <- setup
+      g <- unseated
       let
         propose i = "{\"transform\":{\"transformation\":\"major-military-action\",\"quantity\":\"" <> show i <> "\"}}"
-        eleven = strategy ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
+        eleven = strategyOrThrow ("""{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[""" <> joinWith "," (map propose (range 1 11)) <> """]}]}""")
       records <- play g 1 (Map.singleton (Id "US") eleven)
       case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) g of
         Left e -> fail e
@@ -121,7 +112,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Round runner and Test handler" do
     it "plays five rounds with every seat Conservative and with every seat Passive" do
-      g <- setup
+      g <- unseated
       presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps "presets.json"))
       case presets of
         Left e -> fail e
@@ -131,8 +122,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           length records `shouldEqual` 5
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
-      g <- setup
-      records <- play g 3 (Map.singleton (Id "US") (strategy """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
+      g <- unseated
+      records <- play g 3 (Map.singleton (Id "US") (strategyOrThrow """{"rules":[{"when":[{"eq":[{"round":null},"1"]}],"propose":[{"transform":{"transformation":"major-military-action","quantity":"12"}}]}]}"""))
       let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.entities >>= \x -> Map.lookup (Id e) x.accounts)
       case index records 0, index records 1, index records 2 of
         Just r1, Just r2, Just r3 -> do
@@ -148,23 +139,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         _, _, _ -> fail "expected three rounds"
 
     it "Fixture E: the Round 3 disruption raises the Atlantic price" do
-      g <- setup
+      g <- unseated
       records <- play g 3 Map.empty
       case index records 1, index records 2 of
         Just r2, Just r3 -> (price r3 "energy-atlantic" > price r2 "energy-atlantic") `shouldEqual` true
         _, _ -> fail "expected three rounds"
 
     it "a seat and an NPC sign each other's Proposals in the same round" do
-      g0 <- setup
+      g0 <- unseated
       let
         g = g0
           { world = g0.world { markets = Map.update (\m -> Just m { position = Q.fromInt 60 }) (Id "energy-atlantic") g0.world.markets }
-          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (strategy """{"sign":[{"all":null}]}""") g0.inWorld.strategies }
+          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (strategyOrThrow """{"sign":[{"all":null}]}""") g0.inWorld.strategies }
           }
       records <- play g 1
         ( Map.fromFoldable
-            [ Tuple (Id "DE") (strategy """{"sign":[{"procedures":["eu-solidarity"]}]}""")
-            , Tuple (Id "SA") (strategy """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
+            [ Tuple (Id "DE") (strategyOrThrow """{"sign":[{"procedures":["eu-solidarity"]}]}""")
+            , Tuple (Id "SA") (strategyOrThrow """{"rules":[{"propose":[{"deal":{"signers":["CN"],"transfers":[{"from":"self","to":"CN","resource":"E","quantity":"10"},{"from":"CN","to":"self","resource":"M","quantity":"25"}]}}]}]}""")
             ]
         )
       let events = concatMap (_.record.events) records
