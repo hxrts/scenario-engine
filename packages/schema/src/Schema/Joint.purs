@@ -16,9 +16,9 @@ module Schema.Joint
 import Prelude
 
 import Core.Proposal (ProposalBody, proposalAt)
-import Core.Shape (Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
+import Core.Shape (recordShape, Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
-import Core.Types (ProposalCore, MarketId, EntityId, Intent, Proposal, RoundIndex, idShape, intentShape)
+import Core.Types (EntityId, MarketId, Proposal, ProposalCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map (Map)
@@ -30,10 +30,7 @@ import Data.Traversable (mapAccumL)
 type Transcript = { seat :: EntityId, text :: String }
 
 transcriptShape :: Shape Transcript
-transcriptShape = recordOf "Transcript"
-  ( field @"seat" "the seat that spoke" idShape
-      &. field @"text" "what it said" stringShape
-  )
+transcriptShape = recordShape "Transcript" { seat: idShape, text: stringShape }
 
 -- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the joint Proposal
 -- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for

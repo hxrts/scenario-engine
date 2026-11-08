@@ -21,7 +21,7 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, field, intShape, parse, prim, recordOf, requiredOf, stringShape, (&.))
+import Core.Shape (Format(..), Shape, arrayOf, field, intShape, parse, prim, recordOf, recordShape, requiredOf, stringShape)
 import Core.Types (EntityId, MarketId, RoundIndex, idShape)
 import Core.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json)
@@ -39,31 +39,19 @@ import Schema.Decode (decodeError)
 type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, entities :: Array EntityId, markets :: Array MarketId }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = recordOf "JointRequest"
-  ( field @"round" "the round" intShape
-      &. field @"transcripts" "the seats' transcripts of the round" (arrayOf transcriptShape)
-      &. field @"entities" "the Entities a Proposal may name" (arrayOf idShape)
-      &. field @"markets" "the Markets a Proposal may name" (arrayOf idShape)
-  )
+jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), entities: (arrayOf idShape), markets: (arrayOf idShape) }
 
 -- | The narrator's payload: the round and its resolved events.
 type NarrateRequest = { round :: RoundIndex, events :: Array Event }
 
 narrateRequestShape :: Shape NarrateRequest
-narrateRequestShape = recordOf "NarrateRequest"
-  ( field @"round" "the round" intShape
-      &. field @"events" "the round's resolved events" (arrayOf eventShape)
-  )
+narrateRequestShape = recordShape "NarrateRequest" { round: intShape, events: (arrayOf eventShape) }
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { actor :: EntityId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
-speakRequestShape = recordOf "SpeakRequest"
-  ( field @"actor" "the seat" idShape
-      &. field @"briefing" "the seat's role" stringShape
-      &. field @"view" "what the seat can see" viewShape
-  )
+speakRequestShape = recordShape "SpeakRequest" { actor: idShape, briefing: stringShape, view: viewShape }
 
 -- | A narrator's or seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }
@@ -74,11 +62,7 @@ textReplyShape = recordOf "TextReply"
 -- | A correction's payload: the original request, the previous reply's text, and the decode error as
 -- | the decoder reports it.
 correctionShape :: Shape { request :: Json, previous_reply :: String, error :: String }
-correctionShape = recordOf "Correction"
-  ( field @"request" "the original request" (prim "Json" identity Right)
-      &. field @"previous_reply" "the reply that did not decode" stringShape
-      &. field @"error" "why it did not decode" stringShape
-  )
+correctionShape = recordShape "Correction" { request: (prim "Json" identity Right), previous_reply: stringShape, error: stringShape }
 
 -- | The first balanced {...} object in a reply (models sometimes wrap JSON in prose or fences).
 -- | Braces inside JSON strings do not count. Text with no balanced object is returned whole.
