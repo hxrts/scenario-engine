@@ -4,7 +4,7 @@ import Prelude
 
 import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.Actor (boundShape, metricShape)
-import Core.Shape (Format(..), decodeWith, encodeWith, decodeJsonWith)
+import Core.Shape (Format(..), encodeWith, decodeJsonWith)
 import Checks.Round (Failure(..), Field(..))
 import Board.Gameboard.Instantiate (instantiate)
 import Board.Gameboard.Reconcile (reconcile)
@@ -17,7 +17,6 @@ import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..))
 import Core.World (Event(..), ShareSource(..), UnseededWorld, View)
 import Data.Argonaut.Core (Json, stringify, toString)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (any, elem, filter, fromFoldable, length)
 import Data.Either (Either(..), isLeft, isRight)
@@ -29,13 +28,12 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Partial.Unsafe (unsafeCrashWith)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Policy.Interpret (Env, propose)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyRefs)
-import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape, presetsShape)
+import Schema.Premise.Strategy (decodeStrategy, encodeStrategy, policiesShape)
 import Schema.Build.Intent as I
 import Schema.Build.Quantity (q)
 import Schema.Build.Base (holdingOf, mayEnactAccessBan, mayEnactTariff, mayEnactWithholding, mayTrade, mayTransfer, mayTransform)
@@ -47,21 +45,22 @@ import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
 import Premises.Tree (readPremise)
-import Premises.Load (LoadError(..), decodePresets, fromFiles, loadPremise)
+import Premises.Load (LoadError(..), fromFiles, loadPremise, shippedPresets)
 import Game.Premise (GameboardParts, checkPremise)
 import Data.Bifunctor (lmap)
 import Premises.Meridian (files, gameboard)
 import Premises.Fixtures (fixtures)
 import Schema.Premise.Gameboard (gameboardShape)
 import Premises.Meridian.Policies (policies)
-import Premises.Presets as Presets
 import Test.Premises.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
+import Testkit.Json (json)
 
--- | Initial holdings of the reference instance (docs/05_test_instance.md §15).
+-- | Initial holdings of the reference instance (docs/05_test_instance.md §15), restated as literals
+-- | on purpose: a cross-check against `Premises.Meridian.Holdings`, not a copy of it.
 holdings :: Array { entity :: String, m :: Int, e :: Int, mil :: Int, s :: Int }
 holdings =
   [ { entity: "US", m: 260, e: 70, mil: 95, s: 60 }
@@ -103,10 +102,6 @@ sections = map (\(Tuple name json) -> { name, json }) files
 -- | The sections with one replaced.
 withSection :: String -> Json -> Array { name :: String, json :: Json }
 withSection name json = map (\s -> if s.name == name then s { json = json } else s) sections
-
--- | The shipped seat presets, decoded.
-shippedPresets :: Either String (Object Strategy)
-shippedPresets = decodePresets (encodeWith Premise presetsShape Presets.presets)
 
 -- | China in round 2, after a major US action in round 1, with the capability to procure.
 chinaView :: View
@@ -190,29 +185,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             [ SignProcedures ids ] -> ids `shouldEqual` [ Id "EU" ]
             _ -> fail "expected one procedures sign rule"
     it "enactAccessBanI decodes to an AccessBan enactment" do
-      case decodeWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
+      case decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactAccessBan { jurisdiction: "US", target: "CN" })) of
         Left e -> fail (show e)
         Right (ChangeRule (Enact (AccessBan a))) -> do
           a.jurisdiction `shouldEqual` Id "US"
           a.target `shouldEqual` Id "CN"
         Right other -> fail ("unexpected intent " <> show other)
     it "tariffRule decodes to a Tariff" do
-      case decodeWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
+      case decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (tariffRule { jurisdiction: "US", origin: "CN", rate: q "0.25" })) of
         Left e -> fail (show e)
         Right (Tariff t) -> do
           t.jurisdiction `shouldEqual` Id "US"
           t.origin `shouldEqual` Id "CN"
         Right other -> fail ("unexpected rule " <> show other)
     it "a withholding rule and an enactment of one decode to the Withholding rule" do
-      decodeWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise ruleShape (encodeWith Premise ruleShape (withholdingRule { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      decodeWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
+      decodeJsonWith Premise intentShape (encodeWith Premise intentShape (enactWithholding { capacity: "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (Withholding { capacity: Id "semiconductors", units: Q.fromInt 3 })))
     it "every capability the DSL writes is a tag the Gameboard decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", mayEnactTariff, mayEnactAccessBan, mayEnactWithholding ] \c ->
         case toString (encodeWith Premise capabilityShape c) of
           Nothing -> fail "a capability is not a string"
-          Just _ -> isRight (decodeWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
+          Just _ -> isRight (decodeJsonWith Premise capabilityShape (encodeWith Premise capabilityShape c)) `shouldEqual` true
     it "a deal decodes, and the parties and Resource it names are reported" do
       let
         p = strategy
@@ -442,7 +437,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       responds 6 `shouldEqual` procures
       responds 24 `shouldEqual` []
     it "RandomValid's choose picks an option by its own seeded draw" do
-      case decodePresets (encodeWith Premise presetsShape Presets.presets) of
+      case shippedPresets of
         Left e -> fail e
         Right ps -> case Object.lookup "RandomValid" ps of
           Nothing -> fail "no RandomValid preset"
@@ -464,7 +459,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Map.isEmpty t.inputs `shouldEqual` true
           Map.isEmpty t.outputs `shouldEqual` true
     it "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" do
-      case decodePresets (encodeWith Premise presetsShape Presets.presets) of
+      case shippedPresets of
         Left e -> fail e
         Right ps -> case Object.lookup "Deployer" ps of
           Nothing -> fail "no Deployer preset"
@@ -508,15 +503,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Fixture documents" do
     it "a fixture requires its seed" do
-      isLeft (decodeLiteral (fixtureJson """{ "premise": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
-      case decodeLiteral (fixtureJson """{ "premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
+      isLeft (decodeLiteral (json """{ "premise": { "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""")) `shouldEqual` true
+      case decodeLiteral (json """{ "premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }, "bindings": [], "expectations": [] }""") of
         Left e -> fail (show e)
         Right d -> show d.world.seed `shouldEqual` "7"
     it "an expectation must name a round that has a binding" do
       let world = """"premise": { "seed": 7, "numeraire": "M", "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
-      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true
-      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} }, { "round": 1, "expect": {} } ] }"""))) `shouldEqual` true
-      isLeft (decodeLiteral (fixtureJson ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} } ] }"""))) `shouldEqual` false
+      isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 2, "expect": {} } ] }"""))) `shouldEqual` true
+      isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} }, { "round": 1, "expect": {} } ] }"""))) `shouldEqual` true
+      isLeft (decodeLiteral (json ("{ " <> world <> """, "bindings": [ { "proposals": [] } ], "expectations": [ { "round": 1, "expect": {} } ] }"""))) `shouldEqual` false
 
   describe "Fixture expectations" do
     it "an asserted empty list of deliveries fails when a delivery happened" do
@@ -539,8 +534,3 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     Mismatch _ (Balance _ _) _ _ -> true
     _ -> false
 
--- | Parse a fixture document, crashing the test on a syntax error.
-fixtureJson :: String -> Json
-fixtureJson text = case jsonParser text of
-  Left e -> unsafeCrashWith ("test JSON does not parse: " <> e)
-  Right j -> j

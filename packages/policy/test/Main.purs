@@ -5,8 +5,7 @@ import Prelude
 import Core.Num as Q
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), Intent, IntentF(..), RuleF(..), RuleChangeF(..), RuleKind(..), proposalId)
 import Core.World (Event(..), View)
-import Data.Argonaut.Decode (JsonDecodeError(..))
-import Data.Argonaut.Parser (jsonParser)
+import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Either (Either(..), isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -18,20 +17,14 @@ import Core.Proposal (ProposalBody)
 import Policy.Interpret (Env, propose, sign)
 import Core.Strategy (Strategy, SignRule(..))
 import Policy.Strategy (strategyParams, strategyRefs)
-import Schema.Premise.Strategy (decodeStrategy)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Testkit.Suite (strategyOrThrow)
+import Testkit.Json (decodeText)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- Fixtures ----------------------------------------------------------------------------
-
--- | Decode a Strategy from JSON text. Quantities are strings, as the decoders read them.
-decodeText :: String -> Either JsonDecodeError Strategy
-decodeText text = case jsonParser text of
-  Left e -> Left (TypeMismatch e)
-  Right j -> decodeStrategy j
 
 -- | A seat in round 3, authorized to trade in energy-atlantic and enact access bans.
 seat :: View
@@ -70,7 +63,7 @@ intentsOf = map _.intents
 
 -- | The Drafts a text Strategy proposes in an environment.
 drafts :: String -> Env -> Array ProposalBody
-drafts text e = propose (strategy text) e
+drafts text e = propose (strategyOrThrow text) e
 
 -- | What a decode produced, for a failure message.
 outcome :: Either JsonDecodeError Strategy -> String
@@ -88,21 +81,18 @@ chooseTwice =
 
 -- Tests -------------------------------------------------------------------------------
 
-strategy :: String -> Strategy
-strategy = strategyOrThrow
-
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Unknown parameters" do
     it "a clause reading a parameter the premise lacks does not fire, even under not" do
       let
-        reads = strategy """{"rules":[{"when":[{"gt":[{"param":"missing"},"0"]}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
-        negated = strategy """{"rules":[{"when":[{"not":{"gt":[{"param":"missing"},"0"]}}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
+        reads = strategyOrThrow """{"rules":[{"when":[{"gt":[{"param":"missing"},"0"]}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
+        negated = strategyOrThrow """{"rules":[{"when":[{"not":{"gt":[{"param":"missing"},"0"]}}],"propose":[{"trade":{"market":"energy-atlantic","quantity":"1"}}]}]}"""
       propose reads env `shouldEqual` []
       propose negated env `shouldEqual` []
   describe "Choose draws" do
     it "two Choose blocks in one strategy draw independently" do
-      intentsOf (propose (strategy chooseTwice) env { random = highDraws })
+      intentsOf (propose (strategyOrThrow chooseTwice) env { random = highDraws })
         `shouldEqual` [ [ trade "energy-atlantic" "1" ], [ trade "energy-atlantic" "2" ] ]
     it "a Choose in a clause whose condition fails draws nothing" do
       let
@@ -162,7 +152,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let one = """{ "rules": [ { "propose": [ { "choose": [ { "noAction": null }, { "trade": { "market": MARKET, "quantity": "3" } } ] } ] } ] }"""
       drafts (replaceAll (Pattern "MARKET") (Replacement "{ \"each\": \"E\" }") one) env { random = highDraws } `shouldEqual` drafts (replaceAll (Pattern "MARKET") (Replacement "\"energy-atlantic\"") one) env { random = highDraws }
     it "$home is no longer a Market: it is an unknown name" do
-      (strategyRefs (strategy """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""")).markets `shouldEqual` [ "$home" ]
+      (strategyRefs (strategyOrThrow """{ "rules": [ { "propose": [ { "trade": { "market": "$home", "quantity": "3" } } ] } ] }""")).markets `shouldEqual` [ "$home" ]
     it "a route drafts a routed Trade with its pair and limit" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "route": { "base": "E", "quote": "M", "quantity": "3", "limit": "2" } } ] } ] }""" env)
         `shouldEqual` [ [ Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 3, limitPrice: Just (Q.fromInt 2) } ] ]
@@ -191,7 +181,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "restrictedLastRound holds only for a restriction enacted at this round's boundary" do
       let
         text = """{ "rules": [ { "when": [ { "restrictedLastRound": { "by": "CN", "target": "EU" } } ], "propose": [ { "trade": { "market": "energy-atlantic", "quantity": "1" } } ] } ] }"""
-        fires events = intentsOf (propose (strategy text) env { view = seat { events = events } })
+        fires events = intentsOf (propose (strategyOrThrow text) env { view = seat { events = events } })
         fired = [ Enacted { round: 3, id: Id "r", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ]
         stale = [ Enacted { round: 2, id: Id "r", rule: AccessBan { jurisdiction: Id "CN", target: Id "EU" } } ]
       fires fired `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
@@ -210,7 +200,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         fires threshold = drafts text env { params = Object.fromFoldable [ Tuple "threshold" (fromMaybe Q.zero (Q.parse threshold)) ], view = seat { events = [ Transformed { round: 2, by: Id "US", transformation: Id "major-military-action", quantity: Q.fromInt 10, paid: Q.zero } ] } }
       intentsOf (fires "6") `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       intentsOf (fires "24") `shouldEqual` []
-      strategyParams (strategy text) `shouldEqual` [ "threshold" ]
+      strategyParams (strategyOrThrow text) `shouldEqual` [ "threshold" ]
     it "a Factor with no stored factor is 1" do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "mul": [ "5", { "factor": "E" } ] } } } ] } ] }""" env)
         `shouldEqual` [ [ trade "energy-atlantic" "5" ] ]
@@ -223,7 +213,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intentsOf (drafts """{ "rules": [ { "propose": [ { "trade": { "market": "energy-atlantic", "quantity": { "param": "missing" } } } ] } ] }""" env)
         `shouldEqual` []
     it "strategyParams lists every premise parameter a Strategy reads" do
-      strategyParams (strategy """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
+      strategyParams (strategyOrThrow """{ "rules": [ { "when": [ { "gt": [ { "param": "limit" }, "1" ] } ], "propose": [ { "trade": { "market": "m", "quantity": { "param": "size" } } } ] } ] }""")
         `shouldEqual` [ "limit", "size" ]
 
   describe "Signing" do
@@ -258,11 +248,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "signIf signs a Proposal only while its conditions hold" do
       let
         procP = { id: proposalId 3 (Id "A") 0, author: Id "A", intents: [], signers: [], procedure: Just (Id "eu-solidarity") }
-        signedIn r = sign (strategy """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
+        signedIn r = sign (strategyOrThrow """{ "sign": [ { "signIf": { "when": [ { "ge": [ { "round": null }, "4" ] } ], "rule": { "procedures": [ "eu-solidarity" ] } } } ] }""") env { view = seat { round = r, toSign = [ procP ] } }
       signedIn 3 `shouldEqual` []
       signedIn 4 `shouldEqual` [ procP.id ]
 
   describe "Load-time references" do
     it "a transfer to an entity the Gameboard lacks is a load-time name, and self is never one" do
-      strategyRefs (strategy """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
+      strategyRefs (strategyOrThrow """{ "rules": [ { "propose": [ { "transfer": { "from": "self", "to": "bogus", "resource": "E", "quantity": "2" } } ] } ] }""") `shouldEqual`
         { entities: [ "bogus" ], markets: [], resources: [ "E" ], transformations: [], parameters: [] }

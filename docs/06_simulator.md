@@ -288,7 +288,7 @@ The initial record is written before Round 1. After each round, the round record
 
 **Backend.** The `StoreBackend` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Adapters.SQLite` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
 
-**Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metrics are read at a stated version (`metric(run, metric, version)`), so a projection computed under one definition is never mixed with another.
+**Access.** Opening read-write creates the store or applies the missing migrations, each in its own transaction. A store whose version is newer than the build is refused. A read-only open never creates a file and never migrates: a missing store, or one at another schema version, is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
 
 **Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs. The round must exist.
 
@@ -324,7 +324,7 @@ Operation rules:
 
 Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual. Until then these are API-only.
 
-The **Store interface** (`STORE` for writes and `OBSERVE` for reads, in `Effects.Signatures`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, metric series, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
+The **Store interface** (`STORE` for writes and `OBSERVE` for reads, in `Effects.Signatures`, see [07 §4](07_architecture.md#4-key-interfaces)) supports save, retrieve, list, full round histories, resume, and explicit archive or delete. **Planned:** labels. The Dashboard reads through the read API and never touches engine internals.
 
 ---
 

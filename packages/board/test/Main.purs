@@ -10,7 +10,6 @@ import Core.Num as Q
 import Core.Types (Controller(..), Entity, EntityId, EntityKind(..), Id(..), Rule, RuleF(..), RuleId, Transferability(..), Transformation, TransformationId)
 import Core.World (UnseededWorld)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Parser (jsonParser)
 import Data.Array (concatMap, elem, filter, fromFoldable, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -18,7 +17,6 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
 import Schema.Gameboard (ActorDefinition, Fallback(..), Gameboard)
 import Schema.Premise.Gameboard (decodeConfig, decodeGameboard)
 import Test.Spec (describe, it)
@@ -26,18 +24,8 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 import Unsafe.Coerce (unsafeCoerce)
-
--- | Parse JSON text, crashing the test on a syntax error.
-json :: String -> Json
-json text = case jsonParser text of
-  Left e -> unsafeCrashWith ("test JSON does not parse: " <> e)
-  Right j -> j
-
--- | The smallest valid Gameboard document: no resources, markets, facilities, or Entities.
-minimalGameboard :: String -> String
-minimalGameboard roundRange =
-  """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": """ <> roundRange
-    <> """, "resources": {}, "markets": {}, "transformations": {}, "entities": {} }"""
+import Testkit.Json (json)
+import Testkit.Gameboard (minimalGameboard)
 
 -- | A Gameboard in which the Actor US is covered by the Aggregate EU (ImplicitCoverage). US holds
 -- | the capacity `cap` and is the payee and effect holder of a facility, the origin and target of

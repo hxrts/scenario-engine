@@ -24,25 +24,23 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 
-import Core.Proposal (ProposedDeal, jointProposals, proposedDealShape)
-import Core.Shape (Format(..), Shape, arrayOf, encodeWith, stringShape)
+import Core.Proposal (ProposedDeal, jointProposals)
+import Core.Shape (Format(..), Shape, encodeWith, stringShape)
 import Core.Types (EntityId, Id(..), MarketId)
 import Core.World (RoundResult, View, WorldState)
-import Data.Argonaut.Core (Json, fromObject, fromString, stringify)
+import Data.Argonaut.Core (Json, stringify)
 import Data.Array (fromFoldable, null)
 import Data.Either (Either(..), either)
 import Data.Int (toNumber)
 import Data.Map as Map
 import Data.String (joinWith)
 import Data.Time.Duration (Milliseconds(..))
-import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, attempt, delay)
 import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
-import Foreign.Object as Object
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, speakPrompt, speakRequestShape)
+import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, correctionShape, decodeJoint, decodeText, interpretPrompt, jointRequestShape, narratePrompt, narrateRequestShape, proposedDealsShape, speakPrompt, speakRequestShape)
 import Handlers.Recording (Exchange, encodeReply)
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
@@ -108,7 +106,7 @@ ask b effect key template requestShape payload replyShape decode =
 -- | A correction's payload: the original request, the previous reply's text, and the decode error as
 -- | the decoder reports it. The system prompt is the same as the first call's.
 correction :: Json -> String -> String -> Json
-correction request previous err = fromObject (Object.fromFoldable [ Tuple "request" request, Tuple "previous_reply" (fromString previous), Tuple "error" (fromString err) ])
+correction request previous err = encodeWith Snapshot correctionShape { request, previous_reply: previous, error: err }
 
 -- | The joint pass: one call, then up to `maxCorrections` corrections while the reply does not decode.
 -- | The first reply that decodes is the result. If the last correction does not decode either, the
@@ -118,7 +116,7 @@ joint b key request = go 0 original
   where
   original = encodeWith Snapshot jointRequestShape request
   go n payload = do
-    out <- send b "interpret" key interpretPrompt payload (arrayOf proposedDealShape) decodeJoint
+    out <- send b "interpret" key interpretPrompt payload proposedDealsShape decodeJoint
     case out.decoded of
       Right ps -> pure (Right ps)
       Left err

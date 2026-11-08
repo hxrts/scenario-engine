@@ -15,7 +15,9 @@ module Handlers.Llm.Wire
   , narrateRequestShape
   , speakRequestShape
   , jointReplyShape
+  , proposedDealsShape
   , textReplyShape
+  , correctionShape
   , decodeJoint
   , decodeText
   ) where
@@ -23,17 +25,18 @@ module Handlers.Llm.Wire
 import Prelude
 
 import Core.Proposal (ProposedDeal, Transcript, proposalBodyShape, proposedDealShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, fieldOf, intShape, object, prose, requiredOf, stringShape)
+import Core.Shape (Format(..), Shape, arrayOf, fieldOf, intShape, object, parse, prim, prose, requiredOf, stringShape)
 import Core.Types (EntityId, MarketId, RoundIndex, idShape, intentShape)
 import Core.World (Event, View, eventShape, viewShape)
-import Data.Either (Either)
+import Data.Argonaut.Core (Json)
+import Data.Either (Either(..))
 import Data.Array (drop, length, zip, (..))
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.String (Pattern(..))
 import Data.String.CodeUnits (indexOf, slice, toCharArray)
 import Data.Tuple (Tuple(..))
-import Schema.Decode.Common (readJsonWith)
+import Schema.Decode.Common (decodeError)
 
 -- | The joint pass's payload: the round, its seat transcripts, and the Entities and Markets a
 -- | Proposal may name.
@@ -69,11 +72,16 @@ speakRequestShape = object "SpeakRequest"
       <*> fieldOf "view" "what the seat can see" viewShape _.view
   )
 
+-- | The Proposals of a joint pass as the model states them: what its reply carries and what the
+-- | recording keeps.
+proposedDealsShape :: Shape (Array ProposedDeal)
+proposedDealsShape = arrayOf proposedDealShape
+
 -- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
 jointReplyShape :: Shape { proposals :: Array ProposedDeal }
 jointReplyShape = object "JointReply"
   ( (\p -> { proposals: p })
-      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf (arrayOf proposedDealShape)) _.proposals
+      <$> fieldOf "proposals" "the Proposals the transcripts describe" (requiredOf proposedDealsShape) _.proposals
   )
 
 -- | A narrator's or seat's reply: one object with a `text` string.
@@ -83,6 +91,16 @@ textReplyShape = object "TextReply"
       <$> fieldOf "text" "the text" (requiredOf stringShape) _.text
   )
 
+-- | A correction's payload: the original request, the previous reply's text, and the decode error as
+-- | the decoder reports it.
+correctionShape :: Shape { request :: Json, previous_reply :: String, error :: String }
+correctionShape = object "Correction"
+  ( (\r p e -> { request: r, previous_reply: p, error: e })
+      <$> fieldOf "request" "the original request" (prim "Json" identity Right) _.request
+      <*> fieldOf "previous_reply" "the reply that did not decode" stringShape _.previous_reply
+      <*> fieldOf "error" "why it did not decode" stringShape _.error
+  )
+
 common :: String
 common = "You are a component of a scenario-planning game engine. The user message is a JSON payload. Reply with exactly one JSON object and nothing else. Intents use the engine's JSON encoding as it appears in the payload (tagged objects with \"tag\" and \"values\"). Never invent quantities, Entities, Markets, or Resources that are not in the payload."
 
@@ -90,21 +108,21 @@ common = "You are a component of a scenario-planning game engine. The user messa
 actions :: String
 actions = "\nActions (the Intents a Proposal may contain; a Proposal has these fields): " <> prose intentShape.desc <> "\nProposal body: " <> prose proposalBodyShape.desc
 
--- | The reply schema, rendered from the shape the reply decodes through.
-replySchema :: String
-replySchema = "\nReply schema: " <> prose jointReplyShape.desc
+-- | A reply's schema, rendered from the shape the reply decodes through.
+replySchemaOf :: forall a. Shape a -> String
+replySchemaOf s = "\nReply schema: " <> prose s.desc
 
 -- | The system prompt of the joint pass.
 interpretPrompt :: String
-interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats is Transfer intents; a Trade is one seat's own action. Every Intent is an object with a \"tag\" and a \"values\" array, for example {\"tag\":\"Transfer\",\"values\":[{\"from\":\"US\",\"to\":\"DE\",\"resource\":\"M\",\"quantity\":\"10\"}]}; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchema
+interpretPrompt = common <> "\nTask: read the round's `transcripts` together and reconcile them into Proposals. Each transcript is one seat's informal, spoken account of what it intends (`seat` is its id, `text` what it said). A transcript that describes a deal is that seat's agreement to it, and a seat that described a deal wanted it. Where transcripts describe the same deal, reconcile them into one Proposal, adjusting details slightly where the transcripts are loose and preferring Intents that match. Otherwise keep each Proposal in the spirit of its transcript. A deal between seats is Transfer intents; a Trade is one seat's own action. Every Intent is an object with a \"tag\" and a \"values\" array, for example {\"tag\":\"Transfer\",\"values\":[{\"from\":\"US\",\"to\":\"DE\",\"resource\":\"M\",\"quantity\":\"10\"}]}; \"resource\" is a Resource id (for example E or M in Meridian), never an Entity id, and \"quantity\" is a decimal string. Never ask a question and never reply with a clarification; reconcile instead. `author` is a seat that spoke. `signers` are the other parties the Proposal needs. `agreed` lists the seats whose transcripts describe it. Use only ids from `entities` and `markets`. An empty list is allowed." <> actions <> replySchemaOf jointReplyShape
 
 -- | The system prompt of the narrator.
 narratePrompt :: String
-narratePrompt = common <> "\nTask: write the round's front page: a short newspaper-style summary of `events`. Report only what the events state; add no facts, motives, or numbers not present. Reply {\"text\":string}."
+narratePrompt = common <> "\nTask: write the round's front page: a short newspaper-style summary of `events`. Report only what the events state; add no facts, motives, or numbers not present. Reply with the page as `text`." <> replySchemaOf textReplyShape
 
 -- | The system prompt of an AI-agent seat.
 speakPrompt :: String
-speakPrompt = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply {\"text\":string}: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any deal you propose and the party it is with."
+speakPrompt = common <> "\nTask: you play the seat `actor` according to `briefing`. Reply with `text`: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any deal you propose and the party it is with." <> replySchemaOf textReplyShape
 
 -- | The first balanced {...} object in a reply (models sometimes wrap JSON in prose or fences).
 -- | Braces inside JSON strings do not count. Text with no balanced object is returned whole.
@@ -130,7 +148,7 @@ firstObject s = case indexOf (Pattern "{") s of
 
 -- | Decode a reply's text through a shape: its first object, read in the snapshot form.
 decodeReply :: forall a. Shape a -> String -> Either String a
-decodeReply s = readJsonWith (decodeJsonWith Snapshot s) <<< firstObject
+decodeReply s = decodeError <<< parse Snapshot s <<< firstObject
 
 -- | A joint pass's reply text: its Proposals, as the model states them. Entries are not checked
 -- | here; the handler drops what the engine cannot use.

@@ -70,7 +70,7 @@ packages/checks:     Checks.Objectives, Checks.Round, Checks.Run
 packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engine.Commit, Core.Engine.Fund, Core.Engine.Prepare, Core.Engine.Route, Core.Engine.Screen, Core.Engine.Settle, Core.Invariants, Core.Market, Core.Num, Core.Proposal, Core.Query, Core.Represent, Core.Shape, Core.Strategy, Core.Types, Core.World
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
-packages/game:       Game.Assemble, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
+packages/game:       Game.Assemble, Game.Bindings, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
 packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Handlers.Llm, Handlers.Llm.Wire, Handlers.Recording, Handlers.Replay, Handlers.Seats, Handlers.Store
 packages/policy:     Policy.Interpret, Policy.InWorld, Policy.Strategy
 packages/premises:   Premises.Capstone, Premises.Fixtures, Premises.Fixtures.Circulation, Premises.Fixtures.Common, Premises.Fixtures.ConflictingActions, Premises.Fixtures.GermanyEu, Premises.Fixtures.MarketExchange, Premises.Fixtures.NpcResponse, Premises.Fixtures.Reservation, Premises.Fixtures.SignedProposals, Premises.Fixtures.SmeRepresentation, Premises.Literal, Premises.Load, Premises.Meridian, Premises.Meridian.Entities, Premises.Meridian.Entities.Aggregates, Premises.Meridian.Entities.Capabilities, Premises.Meridian.Entities.Seats, Premises.Meridian.Holdings, Premises.Meridian.Parameters, Premises.Meridian.Policies, Premises.Names, Premises.Presets, Premises.Tree
@@ -96,7 +96,8 @@ These are the seams. Every other piece is an internal detail of a package. Signa
 assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
 -- Premise  = GameboardPremise parts | LiteralPremise { world, rounds }
 -- Bindings = Map EntityId SeatBinding
--- SeatBinding = Strategy | Script (Array ScriptRound) | Recorded | Agent | Human
+-- SeatBinding = Strategy | Script (Array ScriptRound) | Agent | Human
+-- Game.Bindings: strategyBindings; scriptBindings (from rounds' inputs, sorted by submissionOrder)
 ```
 
 **Instantiation and validation** (`board`). Pure:
@@ -146,7 +147,7 @@ runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARR
 
 `InWorld` is defined in `core` (`Core.Strategy`). The request and reply types of each operation are declared beside it. Randomness needs no effect: every draw is the pure `Core.Draw.draw` on the game seed or the player seed.
 
-**Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`. Its devices are supplied by the composition root (`apps/cli`, `Session`): the player seed, a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` bindings are answered by the live handler, and every other binding by `Handlers.Seats`:
+**Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`. Its devices are supplied by the composition root (`apps/cli`, `Session`): the player seed, a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` seats' transcripts are answered by the live handler, a layer over `Handlers.Seats.handleSeats`, which answers everything else:
 
 ```purescript
 runLive :: Live -> Game -> Aff (Either EngineError WorldState)
@@ -196,7 +197,7 @@ type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendR
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Digest.sha256` is the `digest`, which the handler applies to each call's template and payload for its evidence. `Adapters.SQLite` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `packages/premises/capstone/transcript.json`; neither is production code.
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

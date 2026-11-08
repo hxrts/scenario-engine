@@ -21,7 +21,7 @@ import Foreign.Object as Object
 import Premises.Capstone as Capstone
 import Premises.Fixtures as Fixtures
 import Premises.Meridian as Meridian
-import Premises.Load (decodePresets, fromFiles)
+import Premises.Load (fromFiles, shippedPresets)
 import Schema.Premise.Fixture (decodeLiteral)
 import Game.Premise (checkPremise)
 import Premises.Names (presetsFile)
@@ -49,7 +49,7 @@ outputs =
 validate :: Either String Unit
 validate = do
   loaded <- lmap show (fromFiles (map (\(Tuple name json) -> { name, json }) Meridian.files))
-  presets <- decodePresets (encodeWith Premise presetsShape Presets.presets)
+  presets <- shippedPresets
   _ <- lmap show (checkPremise { gameboard: loaded.gameboard, config: loaded.config, presets })
   for_ Fixtures.fixtures \(Tuple name j) -> lmap (\e -> name <> ": " <> printJsonDecodeError e) (decodeLiteral j)
 

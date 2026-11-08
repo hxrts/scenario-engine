@@ -12,6 +12,12 @@ module Effects.Signatures
   , InterpretF(..)
   , NARRATE
   , NarrateF(..)
+  , _seatInput
+  , _record
+  , _interpret
+  , _narrate
+  , _observe
+  , _store
   , OBSERVE
   , ObserveF(..)
   , STORE
@@ -24,7 +30,6 @@ module Effects.Signatures
   , RunSummary
   , StoredManifest
   , StoredRound
-  , MetricRow
   ) where
 
 import Prelude
@@ -36,6 +41,7 @@ import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Foreign.Object (Object)
+import Type.Proxy (Proxy(..))
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
 -- | Speak (the seat's words, read by the round's joint pass; Nothing when it says nothing).
@@ -124,9 +130,6 @@ type StoredRound =
   , transcripts :: Stored (Array Transcript)
   }
 
--- | One point of a versioned metric series: the round's value, as text.
-type MetricRow = { round :: Int, value :: String }
-
 -- | The Run Store's writes (docs/06_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
 -- | make. Each round's own write is `RECORD`. Each write is one transaction.
 data StoreF a
@@ -150,8 +153,27 @@ data ObserveF a
   | ListSummaries (Array RunSummary -> a)
   | ReadManifest String (Maybe StoredManifest -> a)
   | ReadRounds String (Array StoredRound -> a)
-  | ReadMetric String String String (Array MetricRow -> a)
 
 derive instance Functor ObserveF
 
 type OBSERVE r = (observe :: ObserveF | r)
+
+-- One label per row, so a handler and its smart constructors name the row the same way.
+
+_seatInput :: Proxy "seatInput"
+_seatInput = Proxy
+
+_record :: Proxy "record"
+_record = Proxy
+
+_interpret :: Proxy "interpret"
+_interpret = Proxy
+
+_narrate :: Proxy "narrate"
+_narrate = Proxy
+
+_observe :: Proxy "observe"
+_observe = Proxy
+
+_store :: Proxy "store"
+_store = Proxy

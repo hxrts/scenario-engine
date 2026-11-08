@@ -10,7 +10,7 @@ module Schema.Premise.Intent
 import Prelude
 
 import Core.Num (Q)
-import Core.Shape (Format(..), PCtor, Shape, TagForm(..), Desc(..), bare, decodeWith, encodeWith, fieldOf, kindArg, object, oneKey, premiseSum, qShape)
+import Core.Shape (Format(..), PCtor, Shape, TagForm(..), Desc(..), bare, encodeWith, fieldOf, kindArg, object, oneKey, premiseSum, qShape)
 import Core.Types (Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..), RuleF(..), RuleKind(..), idShape)
 import Data.Argonaut.Core (fromObject, fromString, isNull, jsonNull, toObject)
 import Data.Either (Either(..), note)
@@ -167,7 +167,7 @@ tradeCtor =
       Just m | isNull m -> readRoute o
       Just m -> readTradeMarket m o
   readTradeMarket m o = do
-    market <- decodeWith Premise idShape m
+    market <- (idShape.codec Premise).dec m
     quantity <- lookupQ "quantity" o
     limitPrice <- lookupOptQ "limit" o
     pure (Trade { market, quantity, limitPrice })
@@ -178,13 +178,13 @@ tradeCtor =
     limitPrice <- lookupOptQ "limit" o
     pure (Route { pair: { base, quote }, quantity, limitPrice })
   lookupQ key o = case Object.lookup key o of
-    Just j -> decodeWith Premise qShape j
+    Just j -> (qShape.codec Premise).dec j
     Nothing -> Left ("missing key " <> key)
   lookupOptQ key o = case Object.lookup key o of
-    Just j -> if isNull j then Right Nothing else map Just (decodeWith Premise qShape j)
+    Just j -> if isNull j then Right Nothing else map Just ((qShape.codec Premise).dec j)
     Nothing -> Right Nothing
   lookupId key o = case Object.lookup key o of
-    Just j -> decodeWith Premise idShape j
+    Just j -> (idShape.codec Premise).dec j
     Nothing -> Left ("missing key " <> key)
 
 unId :: forall t. Id t -> String

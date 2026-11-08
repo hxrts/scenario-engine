@@ -6,31 +6,23 @@ module Effects.Observe
   , listSummaries
   , readManifest
   , readRounds
-  , readMetric
   ) where
 
 import Prelude
 
 import Data.Maybe (Maybe)
-import Effects.Signatures (MetricRow, OBSERVE, ObserveF(..), RunInfo, RunSummary, StoredManifest, StoredRound)
+import Effects.Signatures (OBSERVE, ObserveF(..), RunInfo, RunSummary, StoredManifest, StoredRound, _observe)
 import Run (Run, lift)
-import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-observe :: Proxy "observe"
-observe = Proxy
-
 listRuns :: forall r. Run (OBSERVE + r) (Array RunInfo)
-listRuns = lift observe (ListRuns identity)
+listRuns = lift _observe (ListRuns identity)
 
 listSummaries :: forall r. Run (OBSERVE + r) (Array RunSummary)
-listSummaries = lift observe (ListSummaries identity)
+listSummaries = lift _observe (ListSummaries identity)
 
 readManifest :: forall r. String -> Run (OBSERVE + r) (Maybe StoredManifest)
-readManifest id = lift observe (ReadManifest id identity)
+readManifest id = lift _observe (ReadManifest id identity)
 
 readRounds :: forall r. String -> Run (OBSERVE + r) (Array StoredRound)
-readRounds id = lift observe (ReadRounds id identity)
-
-readMetric :: forall r. String -> String -> String -> Run (OBSERVE + r) (Array MetricRow)
-readMetric id metric version = lift observe (ReadMetric id metric version identity)
+readRounds id = lift _observe (ReadRounds id identity)

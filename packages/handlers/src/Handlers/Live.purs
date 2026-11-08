@@ -1,8 +1,9 @@
 -- | The Live handler (docs/04_instantiated_game.md §8, §11): runs `runRound` unchanged in Aff.
 -- | Human seats type one transcript per round at their prompt, within the propose window; AI-agent
 -- | seats speak through their own model call; the round's transcripts go to one joint pass (INTERPRET).
--- | Each round is recorded with those transcripts, then narrated (NARRATE). Any other seat plays its
--- | bound strategy. There is no clarification and no confirmation.
+-- | Each round is recorded with those transcripts, then narrated (NARRATE). This module answers only
+-- | what needs a person or a model; `Handlers.Seats.handleSeats` answers every other seat beneath it.
+-- | There is no clarification and no confirmation.
 module Handlers.Live (Live, runLive) where
 
 import Prelude
@@ -24,12 +25,12 @@ import Effect.Exception (error)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Signatures (InterpretF(..), NarrateF(..), RecordF(..), SeatInputF(..))
+import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Game.Types (Game, SeatBinding(..))
-import Handlers.Seats (RecordSink, proposeFor, seatEnv, signFor)
+import Handlers.Seats (RecordSink, handleSeats, seatEnv)
 import Effects.Round (runGame)
-import Run (case_, on, run)
-import Type.Proxy (Proxy(..))
+import Run (AFF, Run, case_, interpret, lift, liftAff, on, runBaseAff)
+import Type.Row (type (+))
 
 -- | The live session's devices and callbacks, supplied by the composition root: the player seed (the
 -- | machine seats draw from it), a line of input, the propose window's timer (`Nothing` for no deadline),
@@ -59,8 +60,11 @@ spokenText s = Just s
 prompt :: EntityId -> RoundIndex -> String
 prompt seat round = "[round " <> show round <> ", propose window] " <> show seat <> "> "
 
--- | Play a game live: the round program runs on the game's world and seats. Human and Agent seats are
--- | answered here; every other binding is answered by `Handlers.Seats`. Every human is prompted in
+-- | What the live layer leaves for `handleSeats`: every seat operation it does not answer.
+type Beneath = SEAT_INPUT + INTERPRET + NARRATE + AFF + ()
+
+-- | Play a game live: the round program runs on the game's world and seats. What a Human or Agent seat
+-- | says is answered here; everything else falls through to `handleSeats`. Every human is prompted in
 -- | turn under one propose window, opened at the round's first prompt. A human who has not answered
 -- | when it closes says nothing that round.
 runLive :: Live -> Game -> Aff (Either EngineError WorldState)
@@ -68,26 +72,30 @@ runLive live game = do
   -- set by the round's joint pass when its reply does not decode; read and cleared when the round is narrated
   failed <- liftEffect (Ref.new false)
   window <- liftEffect (Ref.new Nothing)
-  run (case_ # on (Proxy :: _ "seatInput") (seat window) # on (Proxy :: _ "interpret") (joint failed) # on (Proxy :: _ "record") (record window) # on (Proxy :: _ "narrate") (narrate failed)) (runGame game.inWorld game.rounds game.world)
+  runBaseAff
+    ( handleSeats (seatEnv live.seed game) game.seats
+        ( interpret
+            ( case_
+                # on _seatInput (seat window)
+                # on _interpret (\x -> liftAff (joint failed x))
+                # on _record (\x -> liftAff (record window x))
+                # on _narrate (\x -> liftAff (narrate failed x))
+            )
+            (runGame game.inWorld game.rounds game.world)
+        )
+    )
   where
-  env = seatEnv live.seed game
   binding e = Map.lookup e game.seats
 
-  seat :: Ref (Maybe Window) -> SeatInputF ~> Aff
-  seat window = case _ of
-    Speak e v k -> k <<< spokenText <$> case binding e of
-      Just Human -> human window e v.round
-      Just Agent -> live.speak e v
-      _ -> pure ""
-    Propose e v k -> k <$> case binding e of
-      Just Human -> pure []
-      Just Agent -> pure []
-      _ -> pure (proposeFor env game.seats e v)
-    -- humans give no input after their transcript, and agents' agreement is read in the joint pass
-    Sign e v k -> k <$> case binding e of
-      Just Human -> pure []
-      Just Agent -> pure []
-      _ -> pure (signFor env game.seats e v)
+  -- humans give no input after their transcript, and agents' agreement is read in the joint pass,
+  -- so Propose and Sign fall through: `handleSeats` answers them with nothing for these seats
+  seat :: Ref (Maybe Window) -> SeatInputF ~> Run Beneath
+  seat window op = case op of
+    Speak e v k -> case binding e of
+      Just Human -> liftAff (k <<< spokenText <$> human window e v.round)
+      Just Agent -> liftAff (k <<< spokenText <$> live.speak e v)
+      _ -> lift _seatInput op
+    _ -> lift _seatInput op
 
   human :: Ref (Maybe Window) -> EntityId -> RoundIndex -> Aff String
   human window e round = case live.window of

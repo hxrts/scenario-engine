@@ -12,7 +12,7 @@ import Prelude
 import Adapters.Clock (delayMs, nowIso)
 import Adapters.Console (closeInput, readLine, writeLine)
 import Adapters.Digest (sha256)
-import Adapters.Filesystem (appendLine, fileOps)
+import Adapters.Filesystem (fileOps, lineSink)
 import Adapters.Pi (pi)
 import Adapters.Random (resolveSeed)
 import Adapters.SQLite (open, processOwner, sqliteBackend)
@@ -64,11 +64,14 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
         game = withRounds (Just o.rounds) assembled
         w0 = game.world
         dir = "runs/" <> o.id
-        llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
-          { evidence = \ev -> appendLine (dir <> "/calls.jsonl") (stringify (encodeJson ev))
-          , exchange = \x -> appendLine (dir <> "/exchanges.jsonl") (stringify (encodeJson x))
-          }
         briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.gameboard.actors)
+      evidence <- liftEffect (lineSink (dir <> "/calls.jsonl"))
+      exchange <- liftEffect (lineSink (dir <> "/exchanges.jsonl"))
+      let
+        llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
+          { evidence = evidence <<< stringify <<< encodeJson
+          , exchange = exchange <<< stringify <<< encodeJson
+          }
       -- the player seed is resolved once, here, and recorded in the session's spec
       seed <- liftEffect (resolveSeed o.seed)
       db <- liftEffect (open o.db)

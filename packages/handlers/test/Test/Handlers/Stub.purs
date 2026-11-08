@@ -2,13 +2,12 @@
 -- | process. A stub answers each call with a reply text, so the handler's prompts, decoding, and
 -- | fallbacks all run; `answering` builds those texts from typed replies. `replayCall` answers from the
 -- | recorded capstone exchanges in their recorded order, checking each call's effect, round and seats
--- | (never its prompt text), and `decodeRecording` reads the recording file.
+-- | (never its prompt text).
 module Test.Handlers.Stub
   ( answering
   , backendOf
   , digest
   , dealOf
-  , decodeRecording
   , replayCall
   , replyJoint
   , replyText
@@ -17,9 +16,8 @@ module Test.Handlers.Stub
 
 import Prelude
 
-import Schema.Decode.Common (readJson)
 import Control.Monad.Error.Class (throwError)
-import Core.Shape (Format(..), arrayOf, decodeWith, encodeWith, stringShape)
+import Core.Shape (Format(..), decodeJsonWith, encodeWith, stringShape)
 import Data.Argonaut.Core (stringify, toArray, toNumber, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (uncons)
@@ -36,8 +34,8 @@ import Foreign.Object as Object
 import Core.Num as Q
 import Core.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm (Backend, Call, backend)
-import Core.Proposal (ProposedDeal, proposedDealShape)
-import Handlers.Llm.Wire (jointReplyShape, textReplyShape)
+import Core.Proposal (ProposedDeal)
+import Handlers.Llm.Wire (jointReplyShape, proposedDealsShape, textReplyShape)
 import Handlers.Recording (Exchange, Recording)
 
 -- | The stub digest: sixteen characters, as the adapter's is, with no hashing.
@@ -82,8 +80,8 @@ replyTextOf :: Exchange -> String
 replyTextOf x = case toObject x.reply >>= Object.lookup "value" of
   Nothing -> ""
   Just v
-    | x.effect == "interpret" -> either (const "") (\ps -> replyJoint ps) (decodeWith Snapshot (arrayOf proposedDealShape) v)
-    | otherwise -> either (const "") replyText (decodeWith Snapshot stringShape v)
+    | x.effect == "interpret" -> either (const "") (\ps -> replyJoint ps) (decodeJsonWith Snapshot proposedDealsShape v)
+    | otherwise -> either (const "") replyText (decodeJsonWith Snapshot stringShape v)
 
 -- | What a call is keyed on: its effect, round and seats. The payload says them: a joint pass
 -- | carries `transcripts`, a narrator `events`, and a seat `actor`.
@@ -124,7 +122,3 @@ replayCall rec = do
           | otherwise -> do
               liftEffect (Ref.write tail next)
               pure { text: replyTextOf x, raw: "" }
-
--- | The recording file's text, decoded.
-decodeRecording :: String -> Either String Recording
-decodeRecording = readJson

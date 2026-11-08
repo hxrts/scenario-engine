@@ -5,7 +5,7 @@ module Test.Adapters.Main where
 
 import Prelude
 
-import Adapters.SQLite (busyTimeout, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
+import Adapters.SQLite (busyTimeout, close, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.World (Manifest)
@@ -23,8 +23,8 @@ import Effect.Exception (try)
 import Foreign.Object as Object
 import Handlers.Replay (runReplay)
 import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
-import Effects.Observe (listRuns, listSummaries, readManifest, readMetric, readRounds)
-import Views.Metrics (metricsVersion, roundMetrics)
+import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
+import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
@@ -86,11 +86,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case runReplay (seatEnv seed g) 5 records g of
         Left e -> fail e
         Right out -> map _.world out.records `shouldEqual` snapshots
-      prices <- liftEffect (runObserve port (readMetric "run-1" "price:energy-atlantic" metricsVersion))
-      length prices `shouldEqual` 5
-      -- a metric is read only at the version it was computed under
-      stale <- liftEffect (runObserve port (readMetric "run-1" "price:energy-atlantic" "v0"))
-      stale `shouldEqual` []
       manifest <- liftEffect (runObserve port (readManifest "run-1"))
       (manifest <#> \_ -> unit) `shouldEqual` Just unit
 
@@ -106,7 +101,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: "failed", reason: Just "boom" } ]
-      liftEffect (removeFile path)
+      liftEffect (close db *> removeFile path)
 
     it "a read on a missing store fails and creates no file" do
       let path = "run-store-missing-test.db"
@@ -125,7 +120,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       reader' <- liftEffect (openReadOnly path)
       runs <- liftEffect (runObserve (sqliteBackend reader') listRuns)
       map _.id runs `shouldEqual` [ "run-1" ]
-      liftEffect (removeFile path)
+      liftEffect (close reader' *> close writer *> removeFile path)
 
     it "failRunning fails every run still running that the role left, with its reason" do
       manifest <- manifestOf
@@ -147,7 +142,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       reader' <- liftEffect (openReadOnly path)
       readTimeout <- liftEffect (busyTimeout reader')
       readTimeout `shouldEqual` configuredBusyTimeout
-      liftEffect (removeFile path)
+      liftEffect (close reader' *> close db *> removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
       g <- presetSeats [ "US", "DE" ] "Passive" (Just 2)
@@ -183,7 +178,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       reader' <- liftEffect (openReadOnly path)
       version' <- liftEffect (schemaVersion reader')
       version' `shouldEqual` 5
-      liftEffect (removeFile path)
+      liftEffect (close reader' *> close db *> removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
       g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
@@ -209,8 +204,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       removed `shouldEqual` 1
       after <- liftEffect (runObserve port (readRounds "run-1"))
       after `shouldEqual` []
-      prices <- liftEffect (runObserve port (readMetric "run-1" "price:energy-atlantic" metricsVersion))
-      prices `shouldEqual` []
       left <- liftEffect (runObserve port listSummaries)
       map (\r -> { id: r.id, source: r.source }) left `shouldEqual` [ { id: "run-2", source: Just "run-1" } ]
       again <- liftEffect (runStore port (deleteRun "run-1"))
@@ -230,7 +223,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         [ Left why, Right _ ] -> contains (Pattern "spec") why `shouldEqual` true
         _ -> fail "run-1 should be unreadable and run-2 readable"
       map (\r -> isRight r.manifest) rows `shouldEqual` [ true, true ]
-      liftEffect (removeFile path)
+      liftEffect (close db *> removeFile path)
 
     it "a stored spec can be replaced in place (a resumed run records its new round count)" do
       manifest <- manifestOf

@@ -12,7 +12,7 @@ module Schema.Premise.Strategy
 
 import Prelude
 
-import Core.Shape (Desc(..), Format(..), PCtor, Shape, arrayOf, decodeJsonWith, decodeWith, embedded, encodeWith, fieldOf, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, qShape, recursive, stringShape, unitShape)
+import Core.Shape (Desc(..), Format(..), PCtor, Shape, arrayOf, decodeJsonWith, embedded, encodeWith, fieldOf, keyedOf, literal, object, omittedWhen, oneKey, optionalOf, pairOf, premiseSum, qShape, recursive, stringShape, unitShape)
 import Core.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..), selfName)
 import Core.Types (CollectiveProcedureId, EntityId, Id(..), IntentF(..), ResourceId, RuleChangeF(..), RuleF(..), TransformationId, idShape)
 import Data.Argonaut.Core (Json, fromArray, jsonNull, toArray, toObject)
@@ -432,7 +432,7 @@ procedureIntentsShape =
   where
   readOne j
     | isNoAction j = Right Nothing
-    | otherwise = map Just (decodeWith Premise intentTemplateShape j)
+    | otherwise = map Just ((intentTemplateShape.codec Premise).dec j)
 
 -- | Whether a Deal's Intents are its transfers, then its transforms, all run by the acting Entity.
 dealShaped :: Array IntentTemplate -> Boolean

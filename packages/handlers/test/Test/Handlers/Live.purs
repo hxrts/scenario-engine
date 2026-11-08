@@ -37,9 +37,6 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Core.Num as Q
 
-setup :: Aff Game
-setup = unseated
-
 -- | The stub model for live play: the joint pass proposes a trade when a transcript names one, the
 -- | narrator writes a fixed front page, and each AI seat says one line.
 model :: String -> String -> String
@@ -115,7 +112,7 @@ spec :: Spec Unit
 spec = do
   describe "Live play" do
     it "a scripted live session equals replaying its recorded Proposals and signatures" do
-      g <- setup
+      g <- unseated
       backend <- withAnswers model
       out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Script []) scripted backend
       length out.records `shouldEqual` 3
@@ -125,7 +122,7 @@ spec = do
       replayedRecords g 3 out.records `shouldEqual` map _.record out.records
 
     it "an undecodable joint reply submits nothing, tells the speaker, and the run completes" do
-      g <- setup
+      g <- unseated
       backend <- withAnswers garbled
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
@@ -133,7 +130,7 @@ spec = do
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
 
     it "an undecodable joint reply: the front page is the plain listing, and only the joint pass calls the model (its first call and two corrections)" do
-      g <- setup
+      g <- unseated
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
@@ -144,7 +141,7 @@ spec = do
       calls `shouldEqual` 3
 
     it "an unknown market in a joint reply is a rejected Proposal; the round's other Proposals still execute" do
-      g <- setup
+      g <- unseated
       let
         bad = tradeTenEnergy { intents = [ Trade { market: Id "no-such-market", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
       backend <- withAnswers (jointAnswers [ tradeTenEnergy, bad ])
@@ -170,7 +167,7 @@ spec = do
       (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
 
     it "a one-sided deal lapses; a deal both sides describe is signed by both" do
-      g <- setup
+      g <- unseated
       let
         deal t i
           | t == interpretPrompt && contains (Pattern "I agree") i = replyJoint [ dealOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ]
@@ -195,7 +192,7 @@ spec = do
       replayedRecords g 1 both.records `shouldEqual` map _.record both.records
 
     it "two humans are both prompted in one window, and a human not reached before it closes is silent" do
-      g <- setup
+      g <- unseated
       asked <- liftEffect (Ref.new [])
       closing <- AVar.empty
       backend <- withAnswers model
@@ -227,7 +224,7 @@ spec = do
       map (\p -> contains (Pattern "DE>") p || contains (Pattern "US>") p) <$> liftEffect (Ref.read asked') >>= (_ `shouldEqual` [ true, true ])
 
     it "an all-AI-agent game completes five rounds and replays from its records" do
-      g <- setup
+      g <- unseated
       backend <- withAnswers model
       out <- liveWith g 5 (const Agent) (const (pure "")) backend
       length out.records `shouldEqual` 5

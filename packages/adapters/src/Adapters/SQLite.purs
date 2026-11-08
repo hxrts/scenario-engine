@@ -7,6 +7,7 @@
 module Adapters.SQLite
   ( open
   , openReadOnly
+  , close
   , schemaVersion
   , busyTimeout
   , configuredBusyTimeout
@@ -19,13 +20,15 @@ import Prelude
 
 import Schema.Decode.Common (readJson)
 import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode (class DecodeJson)
+import Core.Shape (Format(..), Shape, encodeWith, parse)
+import Core.World (manifestShape, roundRecordShape, worldStateShape)
+import Data.Argonaut.Decode (class DecodeJson, printJsonDecodeError)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn4, Fn8, Fn9, runFn1, runFn2, runFn3, runFn4, runFn8, runFn9)
+import Data.Function.Uncurried (Fn1, Fn2, Fn3, Fn8, Fn9, runFn1, runFn2, runFn3, runFn8, runFn9)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Effect (Effect)
-import Effects.Signatures (MetricRow, RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
+import Effects.Signatures (RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
 import Handlers.Store (Metric, StoreBackend)
 
 foreign import data Db :: Type
@@ -50,52 +53,42 @@ type ManifestRow = { spec :: String, manifest :: String }
 
 type RoundRow = { round :: Int, record :: String, snapshot :: String, assertions :: String, transcripts :: String }
 
-foreign import openImpl :: String -> Effect Db
-foreign import openReadOnlyImpl :: String -> Effect Db
-foreign import schemaVersionImpl :: Db -> Effect Int
+-- | Open the store read-write: created and migrated if needed. Other connections' locks are
+-- | waited for (busy timeout) rather than failing at once. A failed migration closes the handle.
+foreign import open :: String -> Effect Db
+
+-- | Open an existing store read-only. A missing file, or a schema other than the current one,
+-- | is an exception: a read never creates or migrates a store.
+foreign import openReadOnly :: String -> Effect Db
+
+-- | Close a connection. It must not be used again.
+foreign import close :: Db -> Effect Unit
+
+-- | The number of migrations applied to the store.
+foreign import schemaVersion :: Db -> Effect Int
+
+-- | The busy timeout a connection reports (PRAGMA busy_timeout): read back to check it is set.
+foreign import busyTimeout :: Db -> Effect Int
+
+-- | The busy timeout the store is configured with, in milliseconds.
+foreign import configuredBusyTimeout :: Int
+
+-- | The owner token of this process in a role (`server`, `session`), written on every run it creates
+-- | (docs/06_simulator.md §6.1): the role, the process id, and the process start time.
+foreign import processOwner :: String -> Effect String
+
 foreign import createRunImpl :: Fn9 Db String String String String String (Nullable String) (Nullable String) String (Effect Unit)
 foreign import setArchivedImpl :: Fn3 Db String Boolean (Effect Unit)
 foreign import setSpecImpl :: Fn3 Db String String (Effect Unit)
 foreign import deleteRunImpl :: Fn2 Db String (Effect Int)
-foreign import busyTimeoutImpl :: Db -> Effect Int
-foreign import busyTimeoutMs :: Int
 foreign import appendRoundImpl :: Fn8 Db String Int String String String String (Array Metric) (Effect Unit)
 foreign import setStatusImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunImpl :: Fn3 Db String String (Effect Unit)
 foreign import failRunningImpl :: Fn3 Db String String (Effect Int)
-foreign import processOwnerImpl :: String -> Effect String
 foreign import listRunsImpl :: Fn1 Db (Effect (Array RunInfoRow))
 foreign import summariesImpl :: Fn1 Db (Effect (Array RunSummaryRow))
 foreign import manifestImpl :: Fn2 Db String (Effect (Nullable ManifestRow))
 foreign import roundsImpl :: Fn2 Db String (Effect (Array RoundRow))
-foreign import metricImpl :: Fn4 Db String String String (Effect (Array MetricRow))
-
--- | The owner token of this process in a role (`server`, `session`), written on every run it creates
--- | (docs/06_simulator.md §6.1): the role, the process id, and the process start time.
-processOwner :: String -> Effect String
-processOwner = processOwnerImpl
-
--- | Open the store read-write: created and migrated if needed. Other connections' locks are
--- | waited for (busy timeout) rather than failing at once.
-open :: String -> Effect Db
-open = openImpl
-
--- | Open an existing store read-only. A missing file, or a schema other than the current one,
--- | is an exception: a read never creates or migrates a store.
-openReadOnly :: String -> Effect Db
-openReadOnly = openReadOnlyImpl
-
--- | The number of migrations applied to the store.
-schemaVersion :: Db -> Effect Int
-schemaVersion = schemaVersionImpl
-
--- | The busy timeout the store is configured with, in milliseconds.
-configuredBusyTimeout :: Int
-configuredBusyTimeout = busyTimeoutMs
-
--- | The busy timeout a connection reports (PRAGMA busy_timeout): read back to check it is set.
-busyTimeout :: Db -> Effect Int
-busyTimeout = busyTimeoutImpl
 
 -- JSON -------------------------------------------------------------------------------------
 
@@ -107,12 +100,20 @@ toText = stringify <<< encodeJson
 fromText :: forall a. DecodeJson a => String -> String -> Stored a
 fromText what text = lmap (\e -> what <> ": " <> e) (readJson text)
 
+-- | A described record to its stored text, in the snapshot form.
+shapeText :: forall a. Shape a -> a -> String
+shapeText s = stringify <<< encodeWith Snapshot s
+
+-- | A described record's stored text, decoded through its shape.
+fromShape :: forall a. Shape a -> String -> String -> Stored a
+fromShape s what text = lmap (\e -> what <> ": " <> printJsonDecodeError e) (parse Snapshot s text)
+
 -- | The Run Store's primitives over one connection: each is one SQLite statement or transaction,
 -- | with the values encoded on the way in and decoded on the way out.
 sqliteBackend :: Db -> StoreBackend
 sqliteBackend db =
-  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (toText r.manifest) r.created (toNullable r.source) (toNullable r.kind) r.owner
-  , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (toText r.record) (toText r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
+  { createRun: \r -> runFn9 createRunImpl db r.id r.name (toText r.spec) (shapeText manifestShape r.manifest) r.created (toNullable r.source) (toNullable r.kind) r.owner
+  , appendRound: \r -> runFn8 appendRoundImpl db r.run r.round (shapeText roundRecordShape r.record) (shapeText worldStateShape r.snapshot) (toText r.assertions) (toText r.transcripts) r.metrics
   , setStatus: \id status -> runFn3 setStatusImpl db id status
   , failRun: \id reason -> runFn3 failRunImpl db id reason
   , failRunning: \r -> runFn3 failRunningImpl db r.role r.reason
@@ -123,7 +124,6 @@ sqliteBackend db =
   , listSummaries: map (map runSummary) (runFn1 summariesImpl db)
   , readManifest: \id -> map (map manifestOf <<< toMaybe) (runFn2 manifestImpl db id)
   , readRounds: \id -> map (map roundOf) (runFn2 roundsImpl db id)
-  , readMetric: \id metric version -> runFn4 metricImpl db id metric version
   }
   where
   runInfo :: RunInfoRow -> RunInfo
@@ -137,20 +137,20 @@ sqliteBackend db =
     , created: r.created
     , reason: toMaybe r.reason
     , spec: fromText "spec" r.spec
-    , manifest: fromText "manifest" r.manifest
+    , manifest: fromShape manifestShape "manifest" r.manifest
     , archived: r.archived
     , source: toMaybe r.source
     , assertions: map (fromText "assertions") r.assertions
     }
 
   manifestOf :: ManifestRow -> StoredManifest
-  manifestOf r = { spec: fromText "spec" r.spec, manifest: fromText "manifest" r.manifest }
+  manifestOf r = { spec: fromText "spec" r.spec, manifest: fromShape manifestShape "manifest" r.manifest }
 
   roundOf :: RoundRow -> StoredRound
   roundOf r =
     { round: r.round
-    , record: fromText ("round " <> show r.round <> " record") r.record
-    , snapshot: fromText ("round " <> show r.round <> " snapshot") r.snapshot
+    , record: fromShape roundRecordShape ("round " <> show r.round <> " record") r.record
+    , snapshot: fromShape worldStateShape ("round " <> show r.round <> " snapshot") r.snapshot
     , assertions: fromText ("round " <> show r.round <> " assertions") r.assertions
     , transcripts: fromText ("round " <> show r.round <> " transcripts") r.transcripts
     }

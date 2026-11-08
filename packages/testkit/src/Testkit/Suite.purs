@@ -3,6 +3,7 @@
 module Testkit.Suite
   ( strategyOrThrow
   , fixture
+  , price
   , everySeat
   , run
   , valid
@@ -14,12 +15,15 @@ import Prelude
 import Adapters.Filesystem (fileOps)
 import Checks.Run (checkRun)
 import Core.Draw (Seed)
+import Core.Num as Q
+import Core.Query (priceOf)
+import Core.Types (Id(..))
 import Core.Strategy (Strategy)
-import Core.World (WorldState)
+import Core.World (RoundResult, WorldState)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Game.Premise (GameboardParts)
@@ -48,6 +52,10 @@ fixture :: String -> Aff Unit
 fixture name = liftEffect (map (_ >>= loadLiteral name) (readRootFile fileOps ("fixtures/" <> name <> ".json"))) >>= case _ of
   Left e -> fail (show e)
   Right f -> checkLiteral f `shouldEqual` []
+
+-- | A Market's marginal price at the end of a round; an unknown Market reads as zero.
+price :: RoundResult -> String -> Q.Q
+price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
 -- | Every configured seat plays one preset, for the configuration's rounds.
 everySeat :: GameboardParts -> String -> Aff Game
