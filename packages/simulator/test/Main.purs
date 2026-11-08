@@ -31,7 +31,6 @@ import Simulator.Simulate (SimRun, Snapshot, resumeFrom)
 import Core.Strategy (Strategy)
 import Schema.Premise.Strategy (decodeStrategy)
 import Data.Argonaut.Parser (jsonParser)
-import Effects.Round (runGame)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Premises.Load (loadLiteral)
@@ -120,7 +119,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- premise
       g <- everySeat p "RandomValid"
       a <- run (Seed 1) g
-      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) (runGame g.inWorld 5 g.world) of
+      case runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g of
         Left e -> fail (show e)
         Right out -> do
           map _.world out.records `shouldEqual` map _.world a.records

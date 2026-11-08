@@ -50,7 +50,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `premises` | `core`, `schema`, `game` | Meridian and its presets, the fixtures (`Premises.Fixtures.*`), the capstone's authored DSL, the premise file tree and loader; all as typed values | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | `Expect` against `Observed` (`observe`, `check`, `checkRound`); `checkRun`; objective evaluation (`evaluateObjectives`, `ObjectiveResult`) | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows (`SEAT_INPUT`, `INTERPRET`, `NARRATE`, `RECORD`, `OBSERVE`, `STORE`, `API`) and the programs over them (`runRound`, `runGame`, `finish`) | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | `Seats`, `Live` (`runLive`), `Llm`, `Store`, `Recording`, `Replay`, `Sim`; `Api.Route` and `Api.Client` | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
+| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | `Seats`, `Live` (`runLive`), `Llm`, `Store`, `Recording`, `Replay`; `Api.Route` and `Api.Client` | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
 | `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices: `Pi`, `SQLite`, `Clock`, `Random`, `Digest`, `Console`, `Filesystem`; every FFI (`.js`) module outside the apps | Games, runs, prompts, premises, any handler function |
 | `simulator` | `core`, `game`, `effects`, `handlers` | The fold over a `Game` (`Simulator.Simulate`) and the round records (`Simulator.Records`) | `board` or `policy` imports; premises, views, experiments |
 | `views` | `core`, `schema`, `checks` | Pure projections of a stored run to `Table`, `Chart`, `Bars`, `Statistic` | Effects; `simulator`, `game`, `experiments`, or `premises` imports; objective evaluation of their own |
@@ -71,7 +71,7 @@ packages/core:       Core.Authority, Core.Draw, Core.Engine.Circulate, Core.Engi
 packages/effects:    Effects.Api, Effects.Observe, Effects.Round, Effects.Signatures, Effects.Store
 packages/experiments: Experiments.Agency
 packages/game:       Game.Assemble, Game.Error, Game.Override, Game.Premise, Game.Recipe, Game.Types
-packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Handlers.Llm, Handlers.Llm.Wire, Handlers.Recording, Handlers.Replay, Handlers.Seats, Handlers.Sim, Handlers.Store
+packages/handlers:   Handlers.Api.Client, Handlers.Api.Route, Handlers.Live, Handlers.Llm, Handlers.Llm.Wire, Handlers.Recording, Handlers.Replay, Handlers.Seats, Handlers.Store
 packages/policy:     Policy.Interpret, Policy.InWorld, Policy.Strategy
 packages/premises:   Premises.Capstone, Premises.Fixtures, Premises.Fixtures.Circulation, Premises.Fixtures.Common, Premises.Fixtures.ConflictingActions, Premises.Fixtures.GermanyEu, Premises.Fixtures.MarketExchange, Premises.Fixtures.NpcResponse, Premises.Fixtures.Reservation, Premises.Fixtures.SignedProposals, Premises.Fixtures.SmeRepresentation, Premises.Literal, Premises.Load, Premises.Meridian, Premises.Meridian.Entities, Premises.Meridian.Entities.Aggregates, Premises.Meridian.Entities.Capabilities, Premises.Meridian.Entities.Seats, Premises.Meridian.Holdings, Premises.Meridian.Parameters, Premises.Meridian.Policies, Premises.Names, Premises.Presets, Premises.Tree
 packages/schema:     Schema.Build.Base, Schema.Build.Decision, Schema.Build.Fixture, Schema.Build.Intent, Schema.Build.Quantity, Schema.Build.World, Schema.Decode.Common, Schema.Gameboard, Schema.Premise.Actor, Schema.Premise.Fixture, Schema.Premise.Gameboard, Schema.Premise.Intent, Schema.Premise.Strategy, Schema.Premise.World, Schema.Round
@@ -156,13 +156,13 @@ runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 
 ```purescript
 simulate   :: Seed -> Game -> Either GameError SimRun
-simulateWith :: Seed -> Game -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+simulateWith :: Seed -> Game -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
 resumeFrom :: Seed -> Game -> Snapshot -> Either GameError SimRun
-resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
 -- SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 ```
 
-`simulateWith` and `resumeWith` take the per-round persister, so the server writes each round as it completes. `resumeFrom` is the pure form.
+`simulateWith` and `resumeWith` take the per-round sink, so the server writes each round as it completes. `resumeFrom` is the pure form.
 
 **Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, live play, views, and experiments:
 
@@ -196,7 +196,7 @@ type StoreBackend = { createRun :: NewRun -> Effect Unit, appendRound :: AppendR
 
 `Adapters.Pi.pi` implements `Call`: one `pi` process per call, with its raw event stream saved. `Adapters.Digest.sha256` is the `digest`, which the handler applies to each call's template and payload for its evidence. `Adapters.SQLite` implements `StoreBackend`: the SQL, and the JSON text of each stored value in both directions. The stub backend (`Test.Handlers.Stub`) answers typed replies in tests, and the recording replay answers from `packages/premises/capstone/transcript.json`; neither is production code.
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`persister`, `recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `handlers/Store`; `adapters/SQLite`). Round writes are `RECORD` (`recorder`), which also stores the round's transcripts. Lifecycle writes are `STORE` (`CreateRun`, `SetStatus`, `FailRun`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun`), and a run's last step is `finish`. Reads are `OBSERVE` (`ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds`, `ReadMetric`), so a read program cannot write. The startup policy is `Server.Launch.failInterrupted`. The schema, migrations, and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

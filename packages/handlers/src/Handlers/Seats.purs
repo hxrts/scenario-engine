@@ -10,7 +10,9 @@ module Handlers.Seats
   , signFor
   , recordedBindings
   , handleSeats
-  , collectRecords
+  , RecordSink
+  , playPure
+  , playWith
   ) where
 
 import Prelude
@@ -30,7 +32,13 @@ import Foreign.Object (Object)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.Interpret (envFor)
 import Policy.Interpret as Policy
-import Run (Run, case_, interpret, on, peel, send)
+import Core.Engine.Commit (EngineError)
+import Core.Proposal (Transcript)
+import Core.Strategy (InWorld)
+import Core.World (WorldState)
+import Effect (Effect)
+import Effects.Round (runGame)
+import Run (Run, case_, interpret, on, peel, run, send)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
@@ -91,8 +99,20 @@ handleSeats env bs = interpret (on (Proxy :: _ "seatInput") handle (on (Proxy ::
   quiet :: NarrateF ~> Run r
   quiet (Narrate _ k) = pure (k "")
 
--- | Collect RECORD purely: the in-memory record store, shared by the replay and simulator runners. The
--- | transcripts of a record are not kept: a machine-driven run has none.
+-- | Where a round goes once it is resolved: the round, with the transcripts read for it.
+type RecordSink = RoundResult -> Array Transcript -> Effect Unit
+
+-- | Play `n` rounds over machine bindings with records kept in memory. Pure. The simulator and the
+-- | replay runner are this fold over their own bindings.
+playPure :: SeatEnv -> Bindings -> InWorld -> Int -> WorldState -> { records :: Array RoundResult, value :: Either EngineError WorldState }
+playPure env bs inWorld n w = collectRecords (handleSeats env bs (runGame inWorld n w))
+
+-- | Play `n` rounds over machine bindings, each round going to `sink` as it completes.
+playWith :: SeatEnv -> Bindings -> RecordSink -> InWorld -> Int -> WorldState -> Effect (Either EngineError WorldState)
+playWith env bs sink inWorld n w =
+  run (case_ # on (Proxy :: _ "record") (\(Record result transcripts next) -> sink result transcripts $> next)) (handleSeats env bs (runGame inWorld n w))
+
+-- | Collect RECORD purely. The transcripts of a record are not kept: a machine-driven run has none.
 collectRecords :: forall a. Run (RECORD + ()) a -> { records :: Array RoundResult, value :: a }
 collectRecords = go []
   where

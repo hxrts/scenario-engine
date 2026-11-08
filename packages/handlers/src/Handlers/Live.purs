@@ -8,7 +8,6 @@ module Handlers.Live (Live, runLive) where
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Proposal (Transcript)
 import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
@@ -27,7 +26,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effects.Signatures (InterpretF(..), NarrateF(..), RecordF(..), SeatInputF(..))
 import Game.Types (Game, SeatBinding(..))
-import Handlers.Seats (proposeFor, seatEnv, signFor)
+import Handlers.Seats (RecordSink, proposeFor, seatEnv, signFor)
 import Effects.Round (runGame)
 import Run (case_, on, run)
 import Type.Proxy (Proxy(..))
@@ -45,7 +44,7 @@ type Live =
   , interpret :: InterpretF ~> Aff -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , speak :: EntityId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
-  , record :: RoundResult -> Array Transcript -> Aff Unit -- persist the round
+  , record :: RecordSink -- persist the round
   }
 
 -- | The round whose propose window is running, and whether it has closed.
@@ -120,7 +119,7 @@ runLive live game = do
     running <- liftEffect (Ref.read window)
     for_ running \w -> killFiber (error "the round is over") w.timer
     liftEffect (Ref.write Nothing window)
-    live.record r transcripts $> next
+    liftEffect (live.record r transcripts) $> next
 
   narrate :: Ref Boolean -> NarrateF ~> Aff
   narrate failed (Narrate r k) = do

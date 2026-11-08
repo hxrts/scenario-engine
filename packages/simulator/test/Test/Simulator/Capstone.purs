@@ -15,7 +15,6 @@ import Data.Array (drop, index)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
-import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Simulator.Simulate (Snapshot, resumeFrom)
@@ -54,7 +53,7 @@ spec = describe "Capstone (DSL-authored run, )" do
   it "replays byte-identically from its records" do
     cap <- load
     r <- runOf cap.playerSeed cap.game
-    case runReplay (seatEnv cap.playerSeed cap.game) cap.rounds (map _.record r.records) (runGame cap.game.inWorld cap.rounds cap.game.world) of
+    case runReplay (seatEnv cap.playerSeed cap.game) cap.rounds (map _.record r.records) cap.game of
       Left e -> fail (show e)
       Right out -> do
         map _.world out.records `shouldEqual` map _.world r.records

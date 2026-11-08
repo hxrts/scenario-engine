@@ -88,7 +88,7 @@ session o = map (_ >>= loadPremise) (readPremise fileOps (o.premise <> "/v0")) >
             liftEffect (report humans r front)
             pure front
         , speak: speak llm briefing
-        , record: \r transcripts -> liftEffect (save r transcripts)
+        , record: save
         }
         game
       liftEffect $ case out of

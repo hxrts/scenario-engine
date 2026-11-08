@@ -23,12 +23,12 @@ import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
 import Effect.Class (liftEffect)
 import Effect.Exception (error, message)
 import Effect.Ref as Ref
-import Effects.Round (runGame)
 import Effects.Signatures (InterpretF(..), NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (decodeJoint, decodeText, interpretPrompt, jointReplyShape, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
-import Test.Handlers.Run (meridian, runTest)
+import Handlers.Seats (playPure, seatEnv)
+import Testkit.Meridian (unseated)
 import Game.Types (Game)
 import Test.Handlers.Stub (answering, backendOf, dealOf, decodeRecording, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
@@ -37,7 +37,7 @@ import Core.Shape (Format(..), encodeWith, prose)
 import Foreign.Object as Object
 
 setup :: Aff Game
-setup = meridian
+setup = unseated
 
 tr :: String -> String -> Transcript
 tr seat text = { seat: Id seat, text }
@@ -69,7 +69,7 @@ stringField key text = do
 -- | One round with no seat strategies: its record is what the front page is written from.
 oneRound :: Game -> Aff RoundResult
 oneRound g = do
-  let out = runTest (Seed 1) g (runGame g.inWorld 1 g.world)
+  let out = playPure (seatEnv (Seed 1) g) (g).seats g.inWorld 1 g.world
   case out.records of
     [ r ] -> pure r
     _ -> fail "one round should be recorded" *> throwError (error "round")

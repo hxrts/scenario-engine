@@ -18,14 +18,13 @@ import Data.Set as Set
 import Data.Traversable (for, traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effects.Round (runGame)
 import Effects.Store (createRun)
 import Effects.Observe (readMetric, readRounds)
 import Foreign.Object as Object
 import Game.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Handlers.Store (persister, runStore, runObserve)
+import Handlers.Store (recorder, runStore, runObserve)
 import Premises.Capstone as C
 import Simulator.Simulate (simulate, simulateWith)
 import Testkit.Capstone (load)
@@ -46,7 +45,7 @@ spec = describe "Capstone: the Run Store" do
     let port = sqliteBackend db
     stored <- liftEffect $ simulateWith seed g \manifest -> do
       runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
-      persister port roundMetrics "capstone" manifest.initial
+      recorder port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
     rows <- liftEffect (runObserve port (readRounds "capstone"))
     length rows `shouldEqual` C.rounds
@@ -56,7 +55,7 @@ spec = describe "Capstone: the Run Store" do
     map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
     map (stringify <<< encodeJson) snapshots `shouldEqual` map (stringify <<< encodeJson <<< _.world) pure'.records
     snapshots `shouldEqual` map _.world pure'.records
-    case runReplay (seatEnv seed g) C.rounds records (runGame g.inWorld C.rounds g.world) of
+    case runReplay (seatEnv seed g) C.rounds records g of
       Left e -> fail e
       Right out -> map _.world out.records `shouldEqual` snapshots
 
@@ -67,7 +66,7 @@ spec = describe "Capstone: the Run Store" do
     let port = sqliteBackend db
     stored <- liftEffect $ simulateWith seed g \manifest -> do
       runStore port (createRun { id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: Object.singleton "preset" "capstone", manifest, source: Nothing, kind: Nothing })
-      persister port roundMetrics "capstone" manifest.initial
+      recorder port roundMetrics "capstone" manifest.initial
     _ <- orThrow stored
     rows <- liftEffect (runObserve port (readRounds "capstone"))
     snapshots <- orThrow (traverse _.snapshot rows)

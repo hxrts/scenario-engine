@@ -22,11 +22,9 @@ import Data.Foldable (traverse_)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effects.Round (runGame)
 import Game.Error (GameError(..))
 import Game.Types (Game, SeatBinding(..))
-import Handlers.Seats (collectRecords, handleSeats, seatEnv)
-import Handlers.Sim (runSim)
+import Handlers.Seats (RecordSink, playPure, playWith, seatEnv)
 
 -- | One simulated run: its manifest, the player seed it was played with, its round records, and the
 -- | final World State (or the engine error that stopped it).
@@ -48,7 +46,7 @@ machineOnly g = traverse_ check (Map.toUnfoldable g.seats :: Array (Tuple Entity
 simulate :: Seed -> Game -> Either GameError SimRun
 simulate seed g = do
   machineOnly g
-  let out = collectRecords (handleSeats (seatEnv seed g) g.seats (runGame g.inWorld g.rounds g.world))
+  let out = playPure (seatEnv seed g) g.seats g.inWorld g.rounds g.world
   pure { manifest: g.manifest, playerSeed: seed, records: out.records, final: out.value }
 
 -- | Continue a game from a saved snapshot. `rounds` is the game's total, so the snapshot's completed
@@ -61,13 +59,13 @@ fromSnapshot g snap = g { world = snap.world, rounds = g.rounds - snap.done }
 
 -- | Play a game under the Sim runner, persisting each round through `store` as it completes. `store` runs
 -- | only once the game is machine-playable, so a rejected game leaves the caller's store untouched.
-simulateWith :: Seed -> Game -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+simulateWith :: Seed -> Game -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
 simulateWith seed g store = case machineOnly g of
   Left e -> pure (Left e)
   Right _ -> do
     persist <- store g.manifest
-    Right <$> runSim (seatEnv seed g) g.seats persist (runGame g.inWorld g.rounds g.world)
+    Right <$> playWith (seatEnv seed g) g.seats persist g.inWorld g.rounds g.world
 
 -- | Continue a stored run from its snapshot under the Sim runner, persisting the new rounds through `store`.
-resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect (RoundResult -> Effect Unit)) -> Effect (Either GameError (Either EngineError WorldState))
+resumeWith :: Seed -> Game -> Snapshot -> (Manifest -> Effect RecordSink) -> Effect (Either GameError (Either EngineError WorldState))
 resumeWith seed g snap store = simulateWith seed (fromSnapshot g snap) store

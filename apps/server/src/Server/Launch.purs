@@ -30,7 +30,7 @@ import Effects.Store (createRun, failRun, failRunning, finish)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
 import Premises.Presets (presetNames)
-import Handlers.Store (StoreBackend, persister, runObserve, runStore)
+import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
 import Game.Assemble (assemblePreset)
 import Game.Override (Override)
 import Game.Premise (GameboardParts)
@@ -77,7 +77,7 @@ start p store l = do
       created <- nowIso
       attempt <- try $ simulateWith seed game \manifest -> do
         runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
-        persister store roundMetrics id manifest.initial
+        recorder store roundMetrics id manifest.initial
       case attempt of
         Left ex -> do
           runStore store (failRun id ("exception: " <> message ex))

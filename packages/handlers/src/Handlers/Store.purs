@@ -1,6 +1,6 @@
 -- | The Run Store handler (docs/06_simulator.md §8): interprets the `OBSERVE` reads (`Effects.Observe`),
 -- | the `STORE` writes (`Effects.Store`), and the `RECORD` operation, which saves each round as it
--- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder` (and `persister`),
+-- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder`,
 -- | the callback form the seat runners take. The handler does the logic: the round's assertions, and the run
 -- | identity rule (`validRunId`). The backend is the set of raw store primitives an adapter implements
 -- | (`Adapters.SQLite.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
@@ -14,13 +14,13 @@ module Handlers.Store
   , runStore
   , runObserve
   , recorder
-  , persister
   ) where
 
 import Prelude
 
 import Core.Invariants (Failure, checkAfter)
 import Core.Proposal (Transcript)
+import Handlers.Seats (RecordSink)
 import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Array (all, any, length, uncons)
 import Data.Either (Either(..))
@@ -108,16 +108,10 @@ startRun b n = do
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> b.createRun n
 
--- | A RECORD target for the Sim handler: saves each round as it completes, with no transcripts.
-persister :: StoreBackend -> (RoundResult -> Array Metric) -> String -> WorldState -> Effect (RoundResult -> Effect Unit)
-persister b metricsOf id initial = do
-  save <- recorder b metricsOf id initial
-  pure \r -> save r []
-
--- | A RECORD target that also stores the round's transcripts, in the same write as the round. The
+-- | A RECORD target: saves each round as it completes, with its transcripts, in one write. The
 -- | metric rows come from `metricsOf` (the composition root passes `Views.Metrics.roundMetrics`),
 -- | so the handler persists them without computing them.
-recorder :: StoreBackend -> (RoundResult -> Array Metric) -> String -> WorldState -> Effect (RoundResult -> Array Transcript -> Effect Unit)
+recorder :: StoreBackend -> (RoundResult -> Array Metric) -> String -> WorldState -> Effect RecordSink
 recorder b metricsOf id initial = do
   previous <- Ref.new initial
   pure \r transcripts -> do

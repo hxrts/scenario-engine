@@ -28,7 +28,7 @@ import Effects.Store (deleteRun, failRun, finish, setArchived, setSpec, setStatu
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Views.Metrics (roundMetrics)
-import Handlers.Store (StoreBackend, persister, runObserve, runStore)
+import Handlers.Store (StoreBackend, recorder, runObserve, runStore)
 import Http (Response)
 import Server.Errors (LoadError(..), describe, failWith, json, ok)
 import Server.Launch (start)
@@ -127,7 +127,7 @@ resumeRun premise store id rounds = do
                         attempt <- try $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
                           runStore store (setStatus id "running")
                           runStore store (setSpec id (Object.insert "rounds" (show rounds) p.spec))
-                          persister store roundMetrics id p.snapshot
+                          recorder store roundMetrics id p.snapshot
                         case attempt of
                           Left ex -> do
                             runStore store (failRun id ("exception: " <> message ex))

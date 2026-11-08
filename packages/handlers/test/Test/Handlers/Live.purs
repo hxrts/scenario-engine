@@ -23,7 +23,6 @@ import Effect.Aff (Aff, delay)
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Effects.Round (runGame)
 import Effects.Signatures (NarrateF(..))
 import Handlers.Llm (Backend, interpreter, listing, narrator, speak)
 import Handlers.Llm.Wire (interpretPrompt, narratePrompt)
@@ -88,19 +87,19 @@ liveWith g0 n seat input backend = do
         t <- narrator backend failed (Narrate r identity)
         liftEffect (Ref.modify_ (_ <> [ t ]) texts)
         pure t
-    , record: \r _ -> liftEffect (Ref.modify_ (_ <> [ r ]) recs)
+    , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
     }
     (g { rounds = n })
   { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
 
 -- | Replay the recorded rounds: the same worlds, with no model call.
 replayedRecords :: Game -> Int -> Array RoundResult -> Array RoundRecord
-replayedRecords g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) (runGame g.inWorld n g.world) of
+replayedRecords g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
   Left e -> unsafeCrashWith e
   Right r -> map _.record r.records
 
 replayed :: Game -> Int -> Array RoundResult -> Array WorldState
-replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) (runGame g.inWorld n g.world) of
+replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
   Left e -> unsafeCrashWith e
   Right r -> map _.world r.records
 

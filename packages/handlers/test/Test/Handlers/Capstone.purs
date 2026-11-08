@@ -9,7 +9,7 @@ import Prelude
 
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
-import Test.Handlers.Run (meridian)
+import Testkit.Meridian (unseated)
 import Game.Types (Game)
 import Control.Monad.Error.Class (throwError)
 import Core.Proposal (JointProposal)
@@ -39,7 +39,7 @@ recording :: Aff Recording
 recording = liftEffect (readRootFile fileOps "capstone/transcript.json") >>= orThrow >>= orThrow <<< decodeRecording
 
 setup :: Aff Game
-setup = meridian
+setup = unseated
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))
