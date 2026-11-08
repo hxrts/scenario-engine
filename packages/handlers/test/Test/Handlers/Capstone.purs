@@ -17,7 +17,7 @@ import Core.Types (Id(..))
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Array (length)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.String (Pattern(..), contains)
 import Effect.Aff (Aff, attempt)
@@ -28,11 +28,9 @@ import Handlers.Llm (Backend, interpreter)
 import Handlers.Recording (Recording)
 import Premises.Capstone (JointLine, jointLines)
 import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
+import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-
-orThrow :: forall a. Either String a -> Aff a
-orThrow = either (throwError <<< error) pure
 
 -- | `packages/premises/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording

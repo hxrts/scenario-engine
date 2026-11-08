@@ -5,7 +5,6 @@ import Prelude
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Core.Query (priceOf)
-import Schema.Decode.Common (readJsonWith)
 import Core.Num as Q
 import Core.Types (EntityId, Id(..))
 import Core.World (Event(..), RoundResult)
@@ -33,22 +32,17 @@ import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
-import Schema.Premise.Strategy (decodeStrategy)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
+import Testkit.Suite (strategyOrThrow)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 setup :: Aff Game
 setup = meridian
-
-strategy :: String -> Strategy
-strategy text = case readJsonWith decodeStrategy text of
-  Right p -> p
-  Left _ -> { rules: [], sign: [] }
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
 play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
@@ -88,6 +82,9 @@ memoryStore saved =
   , readRounds: \_ -> pure []
   , readMetric: \_ _ _ -> pure []
   }
+
+strategy :: String -> Strategy
+strategy = strategyOrThrow
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do

@@ -6,7 +6,6 @@ module Test.Adapters.Main where
 import Prelude
 
 import Adapters.SQLite (busyTimeout, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
-import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.World (Manifest)
@@ -20,7 +19,7 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (error, try)
+import Effect.Exception (try)
 import Foreign.Object as Object
 import Effects.Round (runGame)
 import Handlers.Replay (runReplay)
@@ -30,7 +29,7 @@ import Views.Metrics (metricsVersion, roundMetrics)
 import Handlers.Store (persister, recorder, runStore, runObserve)
 import Simulator.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
-import Testkit.Meridian (presetSeats)
+import Testkit.Meridian (orThrow, presetSeats)
 import Test.Adapters.Files (createV1Store, fileExists, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
@@ -39,11 +38,6 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
-orThrow :: forall e a. Show e => Either e a -> Aff a
-orThrow = case _ of
-  Left e -> throwError (error (show e))
-  Right a -> pure a
 
 -- | The initial manifest of the reference premise, for runs created by hand.
 manifestOf :: Aff Manifest

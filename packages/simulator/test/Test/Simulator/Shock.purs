@@ -6,10 +6,12 @@ module Test.Simulator.Shock (spec) where
 import Prelude
 
 import Core.Draw (Seed(..))
+import Core.Market (marginal)
 import Core.Num as Q
-import Core.Types (IntentF(..))
+import Core.Types (Id(..), IntentF(..))
+import Data.Map as Map
 import Data.Array (concatMap, elem, filter, index, length, nub, range)
-import Data.Foldable (any)
+import Data.Foldable (any, maximum, minimum)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -17,15 +19,16 @@ import Effect.Aff (Aff)
 import Game.Override (Override(..))
 import Game.Premise (GameboardParts)
 import Premises.Meridian (majorShock)
+import Premises.Presets (presetNames)
 import Simulator.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (shouldSatisfy)
+import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Testkit.Capstone (runOf)
 import Testkit.Meridian (presetGame, seats)
 
 -- | The Presets whose behaviour the shock is checked on (Passive proposes nothing, so it cannot flip).
-presetNames :: Array String
-presetNames = [ "Conservative", "Aggressive", "Accumulator", "Trader", "Cooperative", "Opportunistic", "Investor", "CrisisResponse", "Deployer", "RandomValid" ]
+shockPresets :: Array String
+shockPresets = filter (_ /= "Passive") presetNames
 
 -- | The kinds of Intent the seats proposed in one round: side and Market for a Trade, the
 -- | Transformation for a Transform. Aggregates' Proposals are left out, so only the preset's own
@@ -50,16 +53,45 @@ spec :: Aff GameboardParts -> Spec Unit
 spec premise = describe "Major shock (docs/05 §13.6)" do
   it "flips the behaviour of at least four presets, deterministically" do
     p <- premise
-    let overrides = map (\(Tuple name value) -> Parameter name (fromMaybe Q.zero (Q.parse value))) majorShock
+    let overrides = shockOverrides
     results <- traverse
       ( \preset -> do
           calm <- play p preset []
           shocked <- play p preset overrides
           pure (Tuple preset (flips calm shocked))
       )
-      presetNames
+      shockPresets
     let flipped = map (\(Tuple preset _) -> preset) (filter (\(Tuple _ f) -> f) results)
     flipped `shouldSatisfy` (\ns -> length ns >= 4)
+  it "pins the Conservative prices of docs/05 §13.6, and is deterministic" do
+    p <- premise
+    calm <- play p "Conservative" []
+    shocked <- play p "Conservative" shockOverrides
+    again <- play p "Conservative" shockOverrides
+    map _.world again.records `shouldEqual` map _.world shocked.records
+    prices "energy-atlantic" calm `shouldEqual` [ "2.89", "3.14", "3.32", "3.12", "2.86" ]
+    prices "energy-atlantic" shocked `shouldEqual` [ "3.07", "3.19", "3.11", "2.92", "2.77" ]
+    range' (prices' "energy-asia" calm) `shouldEqual` Just { min: q "2.16", max: q "2.8" }
+    range' (prices' "energy-asia" shocked) `shouldEqual` Just { min: q "2.48", max: q "2.88" }
+
+shockOverrides :: Array Override
+shockOverrides = map (\(Tuple name value) -> Parameter name (fromMaybe Q.zero (Q.parse value))) majorShock
+
+-- | The end-of-round price of a Market across a run.
+prices' :: String -> SimRun -> Array Q.Q
+prices' m r = map (\x -> fromMaybe Q.zero (Map.lookup (Id m) x.world.markets <#> \y -> marginal y.cost y.position)) r.records
+
+-- | The same, as the two-decimal display (docs/05 §13.6 prints them so).
+prices :: String -> SimRun -> Array String
+prices m r = map Q.displayPrice (prices' m r)
+
+range' :: Array Q.Q -> Maybe { min :: Q.Q, max :: Q.Q }
+range' xs = case minimum xs, maximum xs of
+  Just a, Just b -> Just { min: a, max: b }
+  _, _ -> Nothing
+
+q :: String -> Q.Q
+q s = fromMaybe Q.zero (Q.parse s)
 
 -- | Every seat plays `preset`, with the given overrides, under player seed 1.
 play :: GameboardParts -> String -> Array Override -> Aff SimRun

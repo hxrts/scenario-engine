@@ -23,3 +23,8 @@ package:
       - spec-node
       - quickcheck
       - spec-quickcheck
+      - either
+      - arrays
+      - sp-handlers
+      - sp-simulator
+      - sp-testkit
