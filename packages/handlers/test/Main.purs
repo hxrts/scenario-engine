@@ -22,7 +22,7 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
-import Handlers.Seats (playPure)
+import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
 import Game.Types (Game, SeatBinding(..))
 import Test.Handlers.Live as Live
@@ -30,7 +30,6 @@ import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
-import Handlers.Seats (seatEnv)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
 import Core.Strategy (Strategy)
 import Schema.Premise.Strategy (decodeStrategy)

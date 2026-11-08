@@ -37,7 +37,6 @@ main = do
           when (stale > 0) (log ("marked " <> show stale <> " interrupted run(s) failed"))
           cache <- newCache
           serve port (flagOr "--static" "apps/dashboard/dist" flags) apiPrefix (route (implement ctx store cache))
-          log ("serving on :" <> show port)
         Left e -> log e *> exit' 1
       _ -> usage ("--port must be a port number, got " <> flagOr "--port" "" flags)
   where

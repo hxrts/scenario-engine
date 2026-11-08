@@ -32,7 +32,7 @@ import Dashboard.Palette (runColour, runLabel, seriesColour)
 import Dashboard.UI as UI
 import Data.Argonaut.Core (Json, fromNumber, fromString)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError)
-import Data.Array (cons, findIndex, index, mapWithIndex)
+import Data.Array (cons, find, index, mapWithIndex, zip)
 import Data.Either (Either(..))
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -42,6 +42,7 @@ import Effect.Aff (Aff)
 import Foreign.Object as Object
 import Unsafe.Coerce (unsafeCoerce)
 import Views.Actions (ActionsChart)
+import Views.Compare (Marked)
 import Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
@@ -106,17 +107,16 @@ textInput p = element UI.input
   , onChange: handler targetValue (\v -> p.onChange (fromMaybe "" v))
   }
 
--- | A Table whose value cells are highlighted where they differ from the baseline column. The columns
--- | before the baseline are labels (not compared); the baseline column is named by the view model.
-diffTable :: DataTable -> { baseline :: String } -> Table -> JSX
-diffTable grid b t = D.div
+-- | A Table with the cells the view marked highlighted. A row is found by its cells, so the marks hold
+-- | after the table is sorted.
+diffTable :: DataTable -> Marked -> JSX
+diffTable grid m = D.div
   { className: "overflow-x-auto"
-  , children: [ grid { columns: t.columns, rows: t.rows, link: \_ _ -> Nothing, mark, onRow: Nothing, activeRow: \_ -> false } ]
+  , children: [ grid { columns: m.table.columns, rows: m.table.rows, link: \_ _ -> Nothing, mark, onRow: Nothing, activeRow: \_ -> false } ]
   }
   where
-  mark = case findIndex (_ == b.baseline) t.columns of
-    Nothing -> \_ _ -> false
-    Just bi -> \row i -> i > bi && index row i /= index row bi
+  marks = zip m.table.rows m.marked
+  mark row i = fromMaybe false (find (\(Tuple r _) -> r == row) marks >>= \(Tuple _ flags) -> index flags i)
 
 -- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
 metricChart :: Chart -> JSX

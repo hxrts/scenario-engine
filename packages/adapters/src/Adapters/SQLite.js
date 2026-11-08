@@ -23,6 +23,8 @@ const migrations = [
    alter table runs add column kind text;`,
   // transcripts: the round's seat transcripts (JSON array of { seat, text }) read by the joint pass
   `alter table rounds add column transcripts text not null default '[]';`,
+  // owner: the process that created the run (role:pid:start time); null for a run made before this migration
+  `alter table runs add column owner text;`,
 ];
 
 export const latestVersion = migrations.length;
@@ -72,9 +74,9 @@ export const schemaVersionImpl = (db) => () => db.prepare("pragma user_version")
 
 export const busyTimeoutImpl = (db) => () => Object.values(db.prepare("pragma busy_timeout").get())[0];
 
-export const createRunImpl = (db, id, name, spec, manifest, created, source, kind) => () => {
-  db.prepare("insert into runs (id, name, status, spec, manifest, created, source, kind) values (?, ?, 'running', ?, ?, ?, ?, ?)")
-    .run(id, name, spec, manifest, created, source ?? null, kind ?? null);
+export const createRunImpl = (db, id, name, spec, manifest, created, source, kind, owner) => () => {
+  db.prepare("insert into runs (id, name, status, spec, manifest, created, source, kind, owner) values (?, ?, 'running', ?, ?, ?, ?, ?, ?)")
+    .run(id, name, spec, manifest, created, source ?? null, kind ?? null, owner);
 };
 
 // A run's archive flag. Archived runs stay in the store; the default list hides them.
@@ -126,9 +128,14 @@ export const failRunImpl = (db, id, reason) => () => {
   db.prepare("update runs set status = 'failed', reason = ? where id = ?").run(reason, id);
 };
 
-// Every run still marked running becomes failed with the reason. Returns how many.
-export const failRunningImpl = (db, reason) => () =>
-  Number(db.prepare("update runs set status = 'failed', reason = ? where status = 'running'").run(reason).changes);
+// Every run still marked running that a process of the role created becomes failed with the reason.
+// A run with no recorded owner (made before migration 5) counts as left over. Returns how many.
+export const failRunningImpl = (db, role, reason) => () =>
+  Number(db.prepare("update runs set status = 'failed', reason = ? where status = 'running' and (owner is null or owner like ? || ':%')").run(reason, role).changes);
+
+// This process's owner token for the runs it creates: its role, process id and start time. The start
+// time is fixed for the process, so every run it creates carries the same token.
+export const processOwnerImpl = (role) => () => `${role}:${process.pid}:${Math.round(performance.timeOrigin)}`;
 
 export const listRunsImpl = (db) => () =>
   db.prepare("select id, name, status, created, reason from runs order by rowid").all().map((r) => ({ ...r, reason: r.reason ?? null }));

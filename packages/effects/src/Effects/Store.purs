@@ -36,9 +36,12 @@ failRun id reason = lift store (FailRun id reason identity)
 finish :: forall e a r. Show e => String -> Either e a -> Run (STORE + r) Unit
 finish id = either (failRun id <<< show) (const (setStatus id "completed"))
 
--- | Fail every run still marked running; returns how many.
-failRunning :: forall r. String -> Run (STORE + r) Int
-failRunning reason = lift store (FailRunning reason identity)
+-- | Fail every run still marked running that a process of this role created (its leftovers, since a
+-- | process of another role, such as a live session on the same store, may still be running its own),
+-- | with the reason. A run with no recorded owner predates the owner column and counts as left over.
+-- | Returns how many.
+failRunning :: forall r. { role :: String, reason :: String } -> Run (STORE + r) Int
+failRunning r = lift store (FailRunning r identity)
 
 setSpec :: forall r. String -> Spec -> Run (STORE + r) Unit
 setSpec id spec = lift store (SetSpec id spec identity)

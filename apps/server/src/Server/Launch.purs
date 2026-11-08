@@ -14,6 +14,7 @@ import Prelude
 
 import Adapters.Clock (nowIso)
 import Adapters.Random (resolveSeed)
+import Adapters.SQLite (processOwner)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
 import Data.Array (concatMap, filter, foldl, mapMaybe)
@@ -50,10 +51,15 @@ type Start =
   , derivation :: Maybe Derivation
   }
 
--- | The startup policy (docs/06_simulator.md §9.1): a run still marked running was left by a process
--- | that stopped before it finished, so it is failed with that reason. Returns how many were failed.
+-- | The role of the runs a server creates (`Adapters.SQLite.processOwner`).
+serverRole :: String
+serverRole = "server"
+
+-- | The startup policy (docs/06_simulator.md §6.1): a run a server left marked running was left by a
+-- | process that stopped before it finished, so it is failed with that reason. Runs another role owns,
+-- | such as a live CLI session on the same store, are not this server's to fail. Returns how many were failed.
 failInterrupted :: StoreBackend -> Effect Int
-failInterrupted store = runStore store (failRunning "interrupted: the server stopped before the run finished")
+failInterrupted store = runStore store (failRunning { role: serverRole, reason: "interrupted: the server stopped before the run finished" })
 
 -- | Launch a run from a preset on every seat.
 launch :: GameboardParts -> StoreBackend -> Launch -> Effect (Either String Launched)
@@ -71,12 +77,13 @@ start p store l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: l.rounds, overrides: l.overrides, derivation: l.derivation }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation }
         source = _.source <$> l.derivation
         kind = _.kind <$> l.derivation
       created <- nowIso
+      owner <- processOwner serverRole
       attempt <- try $ simulateWith seed game \manifest -> do
-        runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind })
+        runStore store (createRun { id, name: l.name, created, spec, manifest, source, kind, owner })
         recorder store roundMetrics id manifest.initial
       case attempt of
         Left ex -> do

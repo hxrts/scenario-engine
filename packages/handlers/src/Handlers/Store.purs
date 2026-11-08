@@ -54,7 +54,7 @@ type StoreBackend =
   , appendRound :: AppendRound -> Effect Unit
   , setStatus :: String -> String -> Effect Unit
   , failRun :: String -> String -> Effect Unit
-  , failRunning :: String -> Effect Int
+  , failRunning :: { role :: String, reason :: String } -> Effect Int
   , setSpec :: String -> Spec -> Effect Unit
   , setArchived :: String -> Boolean -> Effect Unit
   , deleteRun :: String -> Effect Int

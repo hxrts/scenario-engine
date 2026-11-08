@@ -19,9 +19,9 @@ import Prelude
 
 import Core.Draw (Seed)
 import Core.Num (Q)
-import Core.Proposal (ProposalBody, submissionOrder)
+import Core.Proposal (ProposalBody, submissionOrder, Transcript)
 import Core.Types (EntityId, ProposalId)
-import Core.World (RoundRecord, RoundResult, View)
+import Core.World (RoundRecord, RoundResult, View, WorldState)
 import Data.Array (concatMap, elem, filter, find, nub, sortWith)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -33,9 +33,7 @@ import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.Interpret (envFor)
 import Policy.Interpret as Policy
 import Core.Engine.Commit (EngineError)
-import Core.Proposal (Transcript)
 import Core.Strategy (InWorld)
-import Core.World (WorldState)
 import Effect (Effect)
 import Effects.Round (runGame)
 import Run (Run, case_, interpret, on, peel, run, send)
