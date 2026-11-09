@@ -314,7 +314,7 @@ Governments restrict shipping by enacting Rules:
 - **Shipment ban** (`AccessBan`). Blocks Energy Transfers that need shipping between the restricting and target jurisdictions. Enacted by the governments holding the capability (US, CN, IN, JP, UK, BR, SA, NG).
 - **Import tariff** (`Tariff`). Levies a rate of t M/E on inbound shipped Energy. The EU's matching tariff is 0.5 M/E ([§12.1](#121-eu-collective-procedures)).
 
-Germany holds no tariff authority of its own. EU-wide restrictions belong to the EU's trade procedure. **Open:** the bound t ≤ 1.0 is not in the source ([§17](#17-open-against-the-source)).
+Germany holds no tariff authority of its own. EU-wide restrictions belong to the EU's trade procedure. The bound t ≤ 1.0 is this Premise's own, since the source gives none ([§17](#17-differences-from-the-source)).
 
 ### 13.3 Military deployment
 
@@ -454,9 +454,9 @@ Each fixture is a small world filtered from Meridian, with the Actors it needs a
 
 **Planned:** variants with Energy demand exceeding a node's operational bound, and with one Actor's actions exceeding its Money (Fixture F).
 
-## 17. Open against the source
+## 17. Differences from the source
 
-These items are known differences between this document and the source. They are not resolved here.
+This document leads. Where it differs from the source, or where a value is not pinned by a test, its value stands, as recorded here.
 
 - **Solidarity pool.** The solidarity draw, min(8, pool), is pinned only at pools of 0 and 10 E (B2 and B2-pool). A partial pool (0 < pool < 8 E) has no fixture. The `solidarity-pool-v0` Strategy is empty, so the draw rule lives in the procedure.
 - **JP signing threshold.** The 2.4 M/E threshold for JP's signature, as recorded in the scope pass, has no source value. The only 2.6 M/E threshold in the source is `ENERGY_SUPPLIERS`' high-price switch ([§11.4](#114-other-aggregate-strategies)).
