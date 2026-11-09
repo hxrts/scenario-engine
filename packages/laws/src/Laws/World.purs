@@ -302,7 +302,7 @@ instance DecodeJson ShortfallEffect where
 settledEvent :: RoundIndex -> Array Flow -> Maybe Ratio -> Cause -> Event
 settledEvent round legs rate cause = Settled { round, legs, rate, cause, delivered: false }
 
--- | What a Strategy sees (INV-16).
+-- | What a Strategy sees.
 type View =
   { round :: RoundIndex
   , self :: Actor
@@ -548,7 +548,7 @@ eventShape = genericSum "Event"
   , "ProcedureOutcome": atTagged "a collective procedure's outcome" (recordShape "ProcedureOutcome" { round: intShape, candidateTransaction: idShape, support: qShape, threshold: qShape, executed: boolShape })
   }
 
--- | A View: what a Strategy or a seat sees (INV-16).
+-- | A View: what a Strategy or a seat sees.
 viewShape :: Shape View
 viewShape = recordOf "View"
   ( field @"round" "the round" intShape

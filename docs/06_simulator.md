@@ -51,7 +51,7 @@ The engine accepts only Intents ([03 §10.4](03_premise.md#104-available-actions
 
 The simulator runs two machine bindings: a preset strategy and a script of literal candidate Transactions and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's objective ([05 §9.3](05_meridian.md#93-objectives)). Presets run on the shared decision-language interpreter that non-playable Actor and Aggregate Strategies use ([03 §8.1](03_premise.md#81-shared-interpreter), [INV-29](02_kernel.md#inv-29)).
 
-Every kind sees only its Actor's authorized view ([INV-16](02_kernel.md#inv-16)) and maps it to Intents. Every accepted Intent is recorded, so every run replays from its round records. Seat Strategies never mutate the World: each Intent passes ordinary validation and settlement.
+Every kind sees only its Actor's View ([02 §4](02_kernel.md#4-strategies)) and maps it to Intents. Every accepted Intent is recorded, so every run replays from its round records. Seat Strategies never mutate the World: each Intent passes ordinary validation and settlement.
 
 ### 4.1 Bindings and coverage
 
@@ -120,9 +120,9 @@ A run is never left `running` once its work has ended. It is marked `failed`, wi
 | Command | Behaviour |
 |---|---|
 | `run <premise> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds. `n` is a whole number of at least 1, and defaults to the Premise's configured count; `checkRounds` refuses a count outside the Premise's round range. Prints a header, one line per round, and the invariant results. Does not save to the Run Store. |
-| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` answer with a typed transcript each round; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
+| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` answer with a typed transcript each round; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Prints each Actor's balance sheet path at the start. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
 | `presets` | Prints the shipped preset names, one per line. |
-| `server [--db file] [--port n] [--static dir]` (`just serve`) | Serves the read API and the dashboard. Defaults: `runs.db`, port 8787 (1 to 65535), and the dashboard build directory. |
+| `server [--db file] [--port n] [--static dir] [--env file]` (`just serve`) | Serves the API, the landing page, and the dashboard at `/admin` (§8.3). Defaults: `runs.db`, port 8787 (1 to 65535), the dashboard build directory, and `.env`. |
 
 An unknown, repeated, or valueless flag, or a bad value, is a usage error and exits 1. The Premise argument is the Premise's directory name (`meridian`), and the CLI loads its version `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, 8787 and 8799.
 
@@ -147,11 +147,8 @@ Each assertion checks one invariant from the invariant table ([02 §9](02_kernel
 | Representation consistency | [INV-09](02_kernel.md#inv-09) | Implemented for the estimator bound |
 | Consent completeness | [INV-10](02_kernel.md#inv-10) | Implemented |
 | Order independence | [INV-11](02_kernel.md#inv-11) | Implemented as `orderIndependent`, which replays the round in other orders. Run by §14 test 3, not per round in play |
-| Strategy reproducibility | [INV-12](02_kernel.md#inv-12) | Not checked per round. Covered by §14 tests 2 and 13 |
 | Deterministic replay | [INV-13](02_kernel.md#inv-13) | Tested by §14 test 2 |
 | Resolution consistency | [INV-14](02_kernel.md#inv-14) | Tested by §14 test 12 |
-| Single authoritative state | [INV-15](02_kernel.md#inv-15) | Not checked per round. Structural: the engine's one round update holds a single World |
-| Information isolation | [INV-16](02_kernel.md#inv-16) | Deferred until players see different information |
 | Obligation consumption | [INV-37](02_kernel.md#inv-37) | Implemented (no due obligation stays pending; `checkAfter` also reports more boundary settlements than obligations due) |
 
 Simulator invariants [INV-29](02_kernel.md#inv-29) and [INV-30](02_kernel.md#inv-30) are checked by the handler suite, and [INV-31](02_kernel.md#inv-31) by §14 test 13. Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05)). They hard-code no Resource, because a Resource can be produced, consumed, reserved, or issued by design, so a blanket "totals are constant" check would be wrong.
@@ -168,7 +165,7 @@ These tests transform a configuration in a controlled way. Those marked with a t
 
 ### 7.3 Resolution-consistency test
 
-This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference Premise twice, once with a government's activity implicit and once with that government explicit ([05 §10.1](05_meridian.md#101-germany-and-the-eu), [05 §14.2](05_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every liability and capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
+This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference Premise twice, once with a government's activity implicit and once with that government explicit ([05 §10.1](05_meridian.md#101-germany-and-the-eu), [05 §14.2](05_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
 
 ### 7.4 AI interpretation tests
 
@@ -201,7 +198,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 **Rejection reasons.** A `RejectReason` is stored as a structured value, so a stored event reads back equal to the event that was recorded. Its display text is derived from the value when shown and is not stored.
 
-**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 8 (`schemaVersionCurrent`), and there are no migrations: a change to the schema starts a new store. Version 2 removed `deliveries` and `scheduled` from round-end Worlds, which `pending` replaces, version 3 added `laws`, version 4 renamed the stored kernel Law changes, and version 5 renamed stored keys to the current terms. The one exception is additive: `run_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
+**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 9 (`schemaVersionCurrent`), and there are no migrations: a change to the schema starts a new store. Version 2 removed `deliveries` and `scheduled` from round-end Worlds, which `pending` replaces, version 3 added `laws`, version 4 renamed the stored kernel Law changes, version 5 renamed stored keys to the current terms, version 8 removed two unused fields from stored `pending`, and version 9 added the `Enter` Intent and the `OfAgreement` cause. The one exception is additive: `run_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
 
 | Table | Columns | Key |
 |---|---|---|
@@ -217,10 +214,15 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 ### 8.1 Read API and run operations
 
-The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. The server loads every Premise under the Premise root; an operation on a run uses the run's own Premise, and a run whose Premise is not loaded is refused with the reason.
+The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every Premise under the Premise root; an operation on a run uses the run's own Premise, and a run whose Premise is not loaded is refused with the reason.
 
 | Operation | Purpose | Replies |
 |---|---|---|
+| `GET /api/runs/:id/balancesheets` | Every Actor's name, kind, and balance sheet path, for the admin page. | 200. 404 for an unknown run |
+| `GET /api/runs/:id/balancesheet/:token` | Open. One Actor's balance sheet page ([§9.5](#95-balancesheet-pages)). | 200. 404 for an unknown run or token |
+| `GET /api/runs/:id/rounds/:round/report` | Open. What one round produced (§8.2). | 200. 404 for an unknown run or a round not played |
+| `POST /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions/:id/transcripts` | Start a hosted live session (admin); read its state and submit a seat's text (open). See §8.2. | See §8.2 |
+| `GET /api/openapi/:service` | Open. The OpenAPI document of `transcription.json` or `narrative.json` (§8.2). | 200. 404 for any other name |
 | `GET /api/premise` | The launch form's Premises: name, version, round range, default rounds, game seed, `defaultName` (the next run ID), and the seat presets in order. | 200 |
 | `GET /api/runs` | The run list, one row per run, with its id, archived, readable, and source flags. Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat: Premise, name, preset, player seed (null draws), rounds (null for the default). | 200 with the new id and seed used. 400 for a bad or refused launch, including rounds outside the range |
@@ -254,17 +256,77 @@ Operation rules:
 
 Dashboard controls exist for launch, resume, archive, delete, and the four derivations (duplicate, rerun, variant, and counterfactual). The store interface supports save, retrieve, list, full round histories, resume, and archive or delete.
 
----
-
 ### 8.2 External services
 
-Speech transcription and the newspaper are built outside this repository and reach it over open HTTPS routes. Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its paths and methods from the route table and its schemas from the Shapes of the replies, so a route cannot be documented differently from how it behaves. The routes are unauthenticated: anyone with a session id can read every Actor's report and submit any seat's text.
+Speech transcription and the newspaper are built outside this repository and reach it over open HTTPS routes. This repository does not transcribe speech and does not write a front page. Reading a round's transcripts into Intents, the joint pass, stays here ([04 §11.2](04_run.md#112-live-session)).
+
+Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its paths and methods from the route table and its schemas from the Shapes of the replies, so a route cannot be documented differently from how it behaves.
+
+**How to authenticate.** There is no authentication for these routes. They are open: anyone with the URL can read every Actor's report and submit any seat's text. Every other `/api` route needs the admin session cookie (§8.3), including `POST /api/sessions`.
+
+| Route | Access | Request | Replies |
+|---|---|---|---|
+| `POST /api/sessions` | Admin | `humans`; optional `premise`, `rounds`, `window` (seconds, 0 for none), `playerSeed` | 200 with the Run id and each Actor's balance sheet path. 400 for an unknown Premise or seat, or rounds outside the range. 401 without the admin session |
+| `GET /api/sessions/:id` | Open | | 200 with the session's state. 404 for no such session |
+| `POST /api/sessions/:id/transcripts` | Open | `seat`, `round`, `text` | 200 accepted, with the session's state. 400 for an unknown seat or a body that does not decode. 404 for no such session. 409 for the wrong round, a seat that has already spoken this round, or a session that is over |
+| `GET /api/runs/:id/rounds/:round/report` | Open | | 200 with the round report. 404 for an unknown run or a round it has not played |
+| `GET /api/openapi/transcription.json`, `GET /api/openapi/narrative.json` | Open | | 200 with the document |
+
+An unknown seat is one no person plays in this session: AI agent seats speak for themselves. A refusal's body is `{"error": "..."}`.
+
+The reply to `POST /api/sessions`, for the body `{"humans":["US"],"rounds":4,"playerSeed":1}`:
+
+```json
+{"id":"run-1","balanceSheets":[{"actor":"US","kind":"Playable Actor","path":"/balancesheet/run-1/abc123"}]}
+```
+
+The session status reply, which is also the reply to an accepted submission:
+
+```json
+{"window":0,"submitted":[],"status":"running","round":1,"awaiting":["US"]}
+```
+
+A submission's body:
+
+```json
+{"seat":"US","round":1,"text":"We sell ten Energy to Germany."}
+```
+
+**The order of calls in a round.**
+
+1. A facilitator starts the session with `POST /api/sessions`, under the admin session. The reply's `id` is the session id and the Run id.
+2. The speech component reads `GET /api/sessions/:id` for the open `round` and the seats still `awaiting`.
+3. It posts each seat's text once, with that round number. The round closes when every human seat has submitted or its deadline (`window`) passes, and a seat that has not spoken by then says nothing that round.
+4. The joint pass reads the round's transcripts and the round resolves ([04 §11](04_run.md#11-round-execution)).
+5. The newspaper reads `GET /api/runs/:id/rounds/:round/report` once the session reports a later `round`, or a `status` of `completed` for the last round. The report is a 404 until the round has been played.
+6. A `status` of `failed` ends the session, and the rounds already played stay readable.
+
+Sessions live in the server's memory. After a restart the session routes reply 404 and the Run is marked failed ([§6.1](#61-invalid-actions-and-failures)), while its saved rounds remain.
+
+**What is stable.** The routes, their methods, the field names of their requests and replies, and the status codes above are the contract. In a report, `prices`, `balances`, `shortfalls`, `enacted`, `repealed`, `rejected` and `lapsed` are summaries meant for a downstream writer, with numbers as display strings ([02 §9.1](02_kernel.md#91-numerics-and-randomness)). `events` carries the engine's events in their stored form and changes with the store's schema version. Ids and balance sheet paths are opaque text. The wording of an `error` is not part of the contract.
+
+### 8.3 Public and admin surfaces
+
+Everything that shows more than one Actor's data sits behind a password.
+
+| Surface | Access |
+|---|---|
+| `/` | Public. A static landing page with no run data and no link into `/admin`. |
+| `/balancesheet/:run/:token` | Public. One Actor's own page ([§9.5](#95-balancesheet-pages)). |
+| `/admin` | The login page, and the dashboard once logged in. Its hashed assets under `/admin/assets` are public because the balance sheet page loads them, and they hold no data. |
+| `/api` | Private by default ([§8.1](#81-read-api-and-run-operations)). |
+
+**The API is private by default.** Each row of the route table is `Admin` unless the table says `Open`, so a new route is private until someone decides it is not. The open routes are the balance sheet route, the session status and transcript routes, the round report, and the OpenAPI documents. Every other route replies 401 without the admin session, and the gate checks this before a request's body is read. A test walks the whole route table to hold this.
+
+**The password.** `ADMIN_PASSWORD` is read from a `.env` file, whose path is the server's `--env` flag (default `.env`). The file is not committed; `.env.example` names the variable with no value. A missing file or an empty password refuses every admin request. A correct login at `POST /admin/login` sets the session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when the request came over HTTPS. Its value is derived from the password, so a restart logs nobody out.
+
+---
 
 # Part IV: Dashboard
 
 ## 9. Pages
 
-The Dashboard has three pages, each with its own hash route and a top bar that links to them from every page: Runs (`#/runs`, the home page, and `#/runs/:id` with that run selected), Prepare (`#/prepare`), and Compare (`#/compare`, and `#/compare/:ids` with the ticked runs). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
+The Dashboard is served at `/admin`, behind the password (§8.3). It has four pages, each with its own hash route and a top bar that links to them from every page: Runs (`#/runs`, the home page, and `#/runs/:id` with that run selected), Prepare (`#/prepare`), Compare (`#/compare`, and `#/compare/:ids` with the ticked runs), and BalanceSheets (`#/balancesheets`, [§9.5](#95-balancesheet-pages)). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
 
 ### 9.1 Simulation Runs
 
@@ -287,6 +349,20 @@ Prepare launches a run of a Premise. Its fields are a name (default: the next ru
 ### 9.4 Compare
 
 The Compare page lists every readable run as a tick box. The ticked runs, in the order ticked, form the Run set, and the first is the baseline. The page shows prices by Exchange, net worth over time, final standings, the spread and Gini, a key-values table, and detail tabs (final state, baseline difference, configuration, compatibility, seed variation, and agency, §10.5). Unreadable runs are listed as skipped, with their reasons. Every statistic is computed in the views, not in the browser.
+
+### 9.5 BalanceSheet pages
+
+At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/sessions` and the CLI's `session` command report each Actor's path at the start, and the admin BalanceSheets page lists every path for a selected Run, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
+
+The page has three parts, each from `Views.BalanceSheet`:
+
+- **What it has done.** Every action by round: what it proposed and signed, what settled, what was rejected or lapsed and why, and the Transactions it was party to.
+- **What it has available.** Every Resource held now and by round, net worth by round, and what it owes or is owed in `pending`.
+- **What it can do.** Its Capabilities, the Exchanges and Transformations they open with their bounds and current prices, and its objective with progress where it has one.
+
+The page shows only that Actor's data and has no navigation to `/admin`. Another Actor appears only as a counterparty on a Transaction this Actor was party to.
+
+**The URL is not a security boundary.** The token (`Core.Draw.tokenFor`) is the FNV hash of the Actor id XORed with the player seed, as 16 hex digits. It is unguessable in casual use only: anyone who knows the seed and an Actor id can compute it, and the page needs no login. This is a game, and nothing on the page is secret from the facilitator.
 
 ## 10. Comparison
 
@@ -360,7 +436,7 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 4 | Direct Exchange | [Fixture A](05_meridian.md#21-fixture-a-direct-exchange) and its limit-price variant A2. Fixture values; [INV-04](02_kernel.md#inv-04), [INV-06](02_kernel.md#inv-06). |
 | 5 | Germany and EU | [Fixture B](05_meridian.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a pair: Germany signs against not signing. The procedure executes in the same round only when support exceeds the threshold ([INV-10](02_kernel.md#inv-10)); signing moves no resources ([INV-03](02_kernel.md#inv-03)). |
 | 6 | SME Representation | [Fixture C](05_meridian.md#23-fixture-c-small-business-owner-representation), C1 to C3, and C1 with shrinkage 0. The factor applies in the following round, and shrinkage 0 leaves it at 1. Seeded-noise cases are checked in the premises suite ([INV-09](02_kernel.md#inv-09), [INV-13](02_kernel.md#inv-13)). |
-| 7 | Non-playable Actor response | [Fixture D](05_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment ([INV-12](02_kernel.md#inv-12)). |
+| 7 | Non-playable Actor response | [Fixture D](05_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment. |
 | 7b | Reservation | [Fixture R](05_meridian.md#133-military-deployment) and R-alone: a deployment reserves a Resource, a sale of the same Resource is scaled, and the reservation is released at commit ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05)). |
 | 7c | Deployer | The shipped `Deployer` preset with the other seats Passive. The scaled deployment and sale occur in the rounds the reference price is above its threshold, with the exact values of [05 §13.3](05_meridian.md#133-military-deployment). |
 | 7d | Investor | Five seats play `Investor`. The capacity investment executes, and no Rejected event says the candidate Transaction "must sign". |

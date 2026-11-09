@@ -26,9 +26,9 @@ The configuration is the choice of each Run that the Premise leaves open. It is 
 
 Meridian's values are in [05 §14](05_meridian.md#14-run-configuration).
 
-The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The Premise fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)). Configuring those, or selecting Aggregates directly, is **Planned**.
+The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The Premise fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)).
 
-Overrides respect the layer boundaries. Tuning a Run's configuration changes declarative data, never engine code. Changing a value within its permitted range is an Instantiation change. Changing the definition of an Exchange or Transformation needs a Premise variant. Neither change touches the kernel.
+Overrides respect the layer boundaries. Tuning a Run's configuration changes declarative data, never engine code. Changing a Representation's weight or the round count is an Instantiation change. Changing the definition of an Exchange or Transformation needs a Premise variant. Neither change touches the kernel.
 
 An invalid configuration fails before any economic state is created ([§10](#10-initialization-pipeline)).
 
@@ -59,7 +59,7 @@ For each unselected Actor, in Actor-id order, the first of these applies:
 2. otherwise the definition's fallback;
 3. otherwise omission. Validation rejects a non-required Actor with no definition fallback ([03 §12.2](03_premise.md#122-checks-implemented)), so this step is reached only for an unvalidated Premise.
 
-The effect of each fallback is in [03 §6.5](03_premise.md#65-fallbacks). Coverage merges the Actor into an Aggregate ([§4.2](#42-partitioning)). A Strategy fallback makes the Actor a non-playable Actor driven by that Strategy, with its capabilities. Omission leaves the Actor's holdings and capabilities in the World with no controller, and it submits nothing. No check ensures that a required responsibility stays owned ([INV-25](02_kernel.md#inv-25)).
+The effect of each fallback is in [03 §6.5](03_premise.md#65-fallbacks). Coverage merges the Actor into an Aggregate ([§4.2](#42-partitioning)). A Strategy fallback makes the Actor a non-playable Actor driven by that Strategy, with its capabilities. Omission leaves the Actor's holdings and capabilities in the World with no controller, and it submits nothing. Every required responsibility has an owner, since validation requires a required Actor to be selected and every other to have a fallback ([INV-25](02_kernel.md#inv-25)).
 
 The three are not interchangeable. Coverage never hands a government's capabilities to a household or business Aggregate ([INV-03](02_kernel.md#inv-03)).
 
@@ -92,13 +92,13 @@ An explicit Actor keeps its own accounts, and the Premise's Aggregate holdings d
 
 ### 4.3 Resolution consistency
 
-Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_kernel.md#inv-14)). Validation checks this for each coverage Actor and reports a failure ([03 §12.4](03_premise.md#124-resolution-consistency)). Instantiation does not run this check, so a simulation override that changes explicitness is instantiated without it ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
+Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_kernel.md#inv-14)). Validation checks this for each coverage Actor and reports a failure ([03 §12.3](03_premise.md#123-resolution-consistency)). Instantiation does not run this check, so a simulation override that changes explicitness is instantiated without it ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
 
 ## 5. Representation Assignment
 
 This section says how a configuration activates a scheme for an Actor. Each entry in the configuration's representations activates a scheme ([03 §9](03_premise.md#9-representation-schemes)) for one Actor. The Representation in the World takes its target, domain, observed Resource, estimator, and identifier from the scheme. It takes its Actor and weight, which defaults to 1, from the entry.
 
-Instantiation checks that the scheme exists and that the Actor is eligible for it and selected ([§10](#10-initialization-pipeline)). Its planned checks are in [03 §12.3](03_premise.md#123-not-yet-checked-planned). The adjustment factor, and how it is applied in the round, are in [02 §7.3](02_kernel.md#73-representation-pipeline) and [§7.4](02_kernel.md#74-estimation-semantics).
+Instantiation checks that the scheme exists and that the Actor is eligible for it and selected ([§10](#10-initialization-pipeline)). Estimator ranges and duplicate adjustments are checked at load ([03 §12.2](03_premise.md#122-checks-implemented)). The adjustment factor, and how it is applied in the round, are in [02 §7.3](02_kernel.md#73-representation-pipeline) and [§7.4](02_kernel.md#74-estimation-semantics).
 
 ## 6. Strategy Initialization
 
@@ -108,7 +108,7 @@ This section says how each Strategy instance is bound to its Actor. A Strategy i
 - an Aggregate's Strategy is its baseline;
 - a seat's Strategy is bound by the simulator or session, not by instantiation ([06 §4](06_simulator.md#4-seat-strategies)).
 
-A Strategy instance is the catalog `StrategyRules` together with the Actor it governs. Its parameters are the Premise's named values ([03 §11](03_premise.md#11-initialization-constraints)). Strategies are fixed for the Run. A rule change alters the World's Rules, never a Strategy. The stored factors start empty. **Planned**: triggers for Strategies.
+A Strategy instance is the catalog `StrategyRules` together with the Actor it governs. Its parameters are the Premise's named values ([03 §11](03_premise.md#11-initialization-constraints)). Strategies are fixed for the Run. A rule change alters the World's Rules, never a Strategy. The stored factors start empty.
 
 ## 7. Economic Initialization
 
@@ -118,11 +118,11 @@ This section carries the Premise's economic values into the World. The values ar
 
 Holdings, reserves, cost curves, Exchange access, and Rules come from the Premise. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
 
-Each Exchange starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Premise's initial Rules. The World holds them as authored Rules, which initialize as laws: each is read as a kernel law when it applies ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Starting feasibility is a Planned check ([03 §12.3](03_premise.md#123-not-yet-checked-planned)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
+Each Exchange starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Premise's initial Rules. The World holds them as authored Rules, which initialize as laws: each is read as a kernel law when it applies ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Starting feasibility is checked at load ([03 §12.2](03_premise.md#122-checks-implemented)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
 
 ### 7.2 Recurring flows
 
-The recurring cycle ([03 §5.4](03_premise.md#54-recurring-cycle)) is carried into the World at initialization, not computed, as authored recurring rules, which initialize as time laws. Each round every rule runs as a stock law, and a created flow spawns a scheduled Flow ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Coverage merges retarget its entries ([§4.2](#42-partitioning)). Reconciliation of the cycle is Planned ([03 §12.3](03_premise.md#123-not-yet-checked-planned)).
+The recurring cycle ([03 §5.4](03_premise.md#54-recurring-cycle)) is carried into the World at initialization, not computed, as authored recurring rules, which initialize as time laws. Each round every rule runs as a stock law, and a created flow spawns a scheduled Flow ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Coverage merges retarget its entries ([§4.2](#42-partitioning)).
 
 ### 7.3 Seeds and randomness
 
@@ -134,9 +134,9 @@ Seeds make every random draw reproducible.
 
 ## 8. Time and Session
 
-This section says how many rounds a Run has and when human input is accepted. The schedule is the round count, within the round range ([03 §3](03_premise.md#3-premise)). Every round has the same length, and rates are per round ([03 §10.2](03_premise.md#102-temporal-structure)).
+This section says how many rounds a Run has and when human input is accepted. The schedule is the round count, within the round range ([03 §3](03_premise.md#3-premise)). Rates are per round ([03 §10.2](03_premise.md#102-temporal-structure)).
 
-In live play each round has one propose deadline. Humans give no input after their transcript, so there is no sign window. The live handler prompts every human in turn under one window, opened at the round's first prompt. A human who has not answered when the window closes says nothing that round. The window's length is given in seconds, and 0 means no deadline. Windows control only when submissions are accepted. They never change outcomes.
+In live play each round has one propose deadline. Humans give no input after their transcript, so there is no sign window. Every human answers under one window, opened at the round's first prompt, and a human's text reaches the round through one source, whether typed at the console or posted to the session routes ([§11.2](#112-live-session)). A human who has not answered when the window closes says nothing that round. The window's length is given in seconds, and 0 means no deadline. Windows control only when submissions are accepted. They never change outcomes.
 
 ## 9. Runtime State and Lifecycle
 
@@ -146,7 +146,7 @@ A run's state is:
 - the appended round records, one per round ([§11](#11-round-execution));
 - the manifest.
 
-The World includes the pending transactions and the templates table ([02 §3.4](02_kernel.md#34-successors)). Instantiation starts both empty. Pending transactions are consumed at the round boundary, and the kernel's spawns append to the list as a run goes.
+The World includes the pending transactions and the templates table ([02 §3.4](02_kernel.md#34-successors)). Instantiation starts `pending` empty and takes the templates from the Premise ([03 §15.3](03_premise.md#153-agreements-in-a-premise-and-in-play)). Pending transactions are consumed at the round boundary, and the kernel's spawns append to the list as a run goes.
 
 A run folds the round runner over the World for the configured number of rounds. The live, simulated, and replayed runs share one round runner and one set of effect rules, and only their handlers differ ([02 §8.4](02_kernel.md#84-effects-and-handlers)). A runner plays only what assembly builds ([§10](#10-initialization-pipeline)).
 
@@ -184,13 +184,13 @@ Assembly builds what a runner plays. It resolves the overrides, runs instantiati
 
 ## 11. Round Execution
 
-This section gives the order of one round as the runner executes it. Propose and Sign are the round runner's vocabulary: it gathers candidate Transactions and signatures, and the engine screens them and compiles them to transactions ([03 §14](03_premise.md#14-compilation-to-the-kernel)). A live session runs through the live runner. Each seat's binding answers. A Human seat types its transcript in the propose window, and an Agent seat answers through its own model call. A `StrategyRules` or Script seat answers from its binding. An in-world Actor answers through its Strategy.
+This section gives the order of one round as the runner executes it. Propose and Sign are the round runner's vocabulary: it gathers candidate Transactions and signatures, and the engine screens them and compiles them to transactions ([03 §14](03_premise.md#14-compilation-to-the-kernel)). A live session runs through the live runner. Each seat's binding answers. A Human seat gives its transcript in the propose window, and an Agent seat answers through its own model call. A `StrategyRules` or Script seat answers from its binding. An in-world Actor answers through its Strategy.
 
 The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner's own work. Steps 1, 2, and 7 to 10 are engine phases that the runner calls. The phases and their guarantees are defined in the canonical sequence ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)).
 
 1. **Prepare (phase 1, engine).** The engine consumes every pending transaction due at the boundary, in phase then tier order: scheduled Flows, Rule changes scheduled at the last boundary, and any authored successors. Each move or change is recorded as an event, and each consumption can spawn successors.
 2. **Observe (phase 2, engine).** Each Actor's View is built from the prepared state.
-3. **Speak.** Each Actor without an in-world Strategy speaks: a human's typed transcript, an AI agent's model call, or silence. `StrategyRules`, Script, and unbound seats are silent.
+3. **Speak.** Each Actor without an in-world Strategy speaks: a human's transcript, an AI agent's model call, or silence. `StrategyRules`, Script, and unbound seats are silent.
 4. **Joint pass.** If any transcript exists, one joint pass reads all of them together into candidate Transactions ([§11.2](#112-live-session)). If none exists, the round makes no model call.
 5. **Propose (phase 3a).** Every Actor, in Actor-id order, drafts candidate Transactions against the same beginning-of-round View. An in-world Strategy drafts from its View, and a seat drafts through its binding. The joint candidate Transactions are numbered after each author's own, so replay assigns the same ids. They join the drafted candidate Transactions.
 6. **Sign (phase 3b).** Every Actor is asked to sign the candidate Transactions it may sign: non-Aggregate candidate Transactions that are not its own and that name it as a signer. Human and Agent seats give no separate signature. The joint pass records their agreement.
@@ -198,7 +198,7 @@ The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner'
 8. **Estimate (phase 5, engine).** Each Representation's factor is computed from the validated candidate Transactions and stored for the next round.
 9. **Fund, settle, and circulate (phase 6, engine).** Accepted actions settle as one batch. The recurring cycle is then evaluated on the batch result, in the order of [03 §5.4](03_premise.md#54-recurring-cycle).
 10. **Commit (phase 7, engine).** The net change is applied to every Actor and Exchange, and the round index advances. A negative holding or reserve fails the round.
-11. **Record.** The runner appends the round record ([§11.1](#111-round-record)) with the transcripts its joint pass read, and narrates the round. The Run Store saves them ([06 §8](06_simulator.md#8-persistence)).
+11. **Record.** The runner appends the round record ([§11.1](#111-round-record)) with the transcripts its joint pass read. The Run Store saves them ([06 §8](06_simulator.md#8-persistence)).
 
 ### 11.1 Round record
 
@@ -211,15 +211,15 @@ Replay answers seats from the recorded candidate Transactions and signatures, so
 
 ### 11.2 Live session
 
-Live play turns typed transcripts into candidate Transactions and signatures. Players give no input after their transcript.
+Live play turns transcripts into candidate Transactions and signatures. Players give no input after their transcript. A session is run from the console (`just session`) or hosted by the server, through the session routes: `POST /api/sessions` starts one, `GET /api/sessions/:id` reports its round and who has spoken, and `POST /api/sessions/:id/transcripts` takes a seat's text. Their contract is in [06 §8.2](06_simulator.md#82-external-services). Both use the same round rules and one path into a round.
 
-- **Human players.** Each human types one transcript per round at the propose prompt, within the propose window. Nothing further is asked: no clarification and no confirmation. Inadmissible Intents are rejected by the engine with their reason ([§11.1](#111-round-record)).
+- **Human players.** Each human gives one transcript per round, within the propose window: typed at the console, or posted once per seat per round to the session route, usually by the external speech component. Nothing further is asked: no clarification and no confirmation. Inadmissible Intents are rejected by the engine with their reason ([§11.1](#111-round-record)).
 - **Joint pass.** One model call reads all the transcripts together into candidate Transactions. If the reply does not decode, the pass makes up to two corrections, so at most three calls. If the last reply still does not decode, the pass yields no candidate Transactions, each human is told that nothing was submitted, and the round proceeds.
 - AI agent seats speak in the same round pass. Their transcripts are read with the human transcripts.
 - **Signatures.** Negotiation happens out of band, and human and AI agent seats give no separate signature. Each speaker whose transcript describes a candidate Transaction counts as signing it. The joint pass reconciles the transcripts into one candidate Transaction.
 - `StrategyRules` and Script seats answer through their binding.
 
-Admissibility is enforced by the engine at screening, whichever source produced a candidate Transaction ([03 §12.5](03_premise.md#125-static-refusals)).
+Admissibility is enforced by the engine at screening, whichever source produced a candidate Transaction ([03 §12.4](03_premise.md#124-static-refusals)).
 
 ## 12. Validation
 

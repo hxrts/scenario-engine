@@ -97,12 +97,12 @@ The recurring cycle holds the forms that the engine evaluates each round, from t
 - **shares**: a share of a per-round query over settled Flows, such as net sales or payments received, paid to a named recipient.
 - **requirements**: operating needs consumed each round. A requirement's amount defaults to the Actor's purchases of the Resource that round. A penalty per unit short is charged against the Actor's incoming fixed flows, and defaults to 0.
 
-All forms compile to one recurring rule, and a Resource's decay is one of them. The cycle is data in the World, one recurring flow per rule: a source, a destination, a Resource, an amount (fixed, an amount held, a fraction held, or measured by a stored query over the round's record), a shortfall effect, and whether the recipient's accrued offset reduces it. Each evaluation produces a settled Flow whose cause is the rule. A capacity's holding changes only through Transformation effects. A holding Rule limits only what can be drawn. Rates are per round ([§10.2](#102-temporal-structure)). **Planned**: renewal and depreciation rules.
+All forms compile to one recurring rule, and a Resource's decay is one of them. The cycle is data in the World, one recurring flow per rule: a source, a destination, a Resource, an amount (fixed, an amount held, a fraction held, or measured by a stored query over the round's record), a shortfall effect, and whether the recipient's accrued offset reduces it. Each evaluation produces a settled Flow whose cause is the rule. A capacity's holding changes only through Transformation effects. A holding Rule limits only what can be drawn. Rates are per round ([§10.2](#102-temporal-structure)). Renewal and depreciation are written as laws ([§15.1](#151-laws-and-bilateral-agreements)).
 
 ### 5.5 Geography, access, and Rules
 
 - Regions are separate Exchanges. Each commodity keeps one Resource, and a regional node is an Exchange with its access. There is no node hierarchy. Movement between regions uses flow gates and flows Rules.
-- Flow gates mark a Resource whose movement is gated. A gate exempts parties that share an Exchange for that Resource. It can also require that a bundled order on the named Transformation carries the Transfer. Unless the gate exempts the parties, and unless such an order carries the Transfer, the Transfer is refused. The bundling is compared at screening, on the candidate Transaction's own quantities, so it is a static refusal rather than a law guard ([§12.5](#125-static-refusals)).
+- Flow gates mark a Resource whose movement is gated. A gate exempts parties that share an Exchange for that Resource. It can also require that a bundled order on the named Transformation carries the Transfer. Unless the gate exempts the parties, and unless such an order carries the Transfer, the Transfer is refused. The bundling is compared at screening, on the candidate Transaction's own quantities, so it is a static refusal rather than a law guard ([§12.4](#124-static-refusals)).
 - Actor groups map an Actor to the Actor it counts as for flows Rules.
 - Rule kinds are declared by the Premise. A kind is a levy or a block, governed by the destination, the origin, or either (which fixes the Rule's direction), or a reduction, governed by the Resource's holder. Each kind has display text. A Premise with no kinds has no Rules.
 - Rules are the world laws a Premise authors as institutional conditions, each of a declared kind. A flows Rule scopes a governor, a counterparty, a direction, and at least one Resource it covers. Its effect is either a levy (a rate per unit or ad valorem on an Exchange, paid in a Resource to the destination, the governor, or a sink) or a block. A holding Rule reduces what can be drawn from a holder and changes no holding or flow. Rules in force at the start are listed with the game rules. A flows Rule applies to a Transfer between the groups it names, when it covers the Resource. A Block refuses the Transfer. A Levy charges it by its basis (per unit, or ad valorem on an Exchange's price), paid by the sender in the named Resource, to the recipient, to the governor, or to a sink. Levies do not enter clearing ([02 §5.5](02_kernel.md#55-simultaneous-clearing)) and apply only to Transfers, not to Exchange fills. A holding Rule removes its reduced units from what can be drawn from a holder. A Rule enacted during play needs the matching enactment capability ([§6](#6-actor-catalog)) and takes effect at the next round boundary ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). Meridian's kinds are in [05 §13.2](05_meridian.md#132-trade-restrictions-and-the-tariff).
@@ -113,7 +113,7 @@ The schema has no separate constraints. Limits come from reserves, capacities, E
 
 ## 6. Actor Catalog
 
-The Actor catalog sets who holds what, who can act, and how each Actor is governed. Each Actor has accounts (its holdings, by Resource) and capabilities. An Actor should have exactly one of a definition, which makes it an explicit Actor, or an aggregate block, which makes it an Aggregate. An Actor with neither is an account only.
+The Actor catalog sets who holds what, who can act, and how each Actor is governed. Each Actor has accounts (its holdings, by Resource) and capabilities. An Actor has exactly one of a definition, which makes it an explicit Actor, or an aggregate block, which makes it an Aggregate ([§12.2](#122-checks-implemented)). Only a World that defines no Actors at all, such as a fixture's, may hold an Actor with neither, which is an account only.
 
 The kinds of Capability are the authority to trade in an Exchange (`MayTrade`), transfer a Resource (`MayTransfer`), run a Transformation (`MayTransform`), or enact a Rule kind (`MayEnact`). Each is a pattern over Intents, and compiles to a `Holds` condition on the party ([02 §2.4](02_kernel.md#24-capability)). One matching function decides authorization for screening, the invariants and Strategies alike. It reads each Resource's transferability and the Rules in force. Enacting or repealing a Rule needs authority over its kind, and the acting Actor must govern it: the governor a flows Rule names, or the holder of the Resource a holding Rule reduces. A repeal names an existing Rule.
 
@@ -134,9 +134,9 @@ An Actor's definition sets:
 - the non-playable Actor Strategies that may drive it. The list may be empty.
 - its fallback, which covers it when unselected ([§6.5](#65-fallbacks)). Every Actor that is not required needs one ([§12.2](#122-checks-implemented)).
 - an objective, a description with criteria ([§10.5](#105-evaluation)). Only its presence is checked.
-- a description and a dependency. Both are prose, and the dependency is not checked.
+- a description and a dependency, both prose. A dependency must be declared.
 
-[INV-19](02_kernel.md#inv-19) requires a capability, a dependency, and a measurable objective for every Actor definition. **Planned**: validation of capability lists and dependencies ([§12.3](#123-not-yet-checked-planned)).
+[INV-19](02_kernel.md#inv-19) requires a capability, a dependency, and a measurable objective for every Actor definition.
 
 ### 6.3 Aggregates
 
@@ -170,20 +170,18 @@ The order in which fallbacks resolve is in [04 §3.2](04_run.md#32-fallback-reso
 
 ## 7. Structural Relationships
 
-This section says how the schema links Actors and Resources. The schema has no relationship list. Its links are the fields above: dependency (Transformation inputs and outputs, requirements, flows, shares), competition (Exchange access), authority (Actor groups, Rules, enactment capabilities), and membership (Aggregate members and procedures). Descriptive relationships belong in the Premise report ([05](05_meridian.md)) and do not change outcomes. **Planned**: a typed relationship list.
+This section says how the schema links Actors and Resources. The schema has no relationship list. Its links are the fields above: dependency (Transformation inputs and outputs, requirements, flows, shares), competition (Exchange access), authority (Actor groups, Rules, enactment capabilities), and membership (Aggregate members and procedures). Descriptive relationships belong in the Premise report ([05](05_meridian.md)) and do not change outcomes.
 
 ## 8. Strategy Catalog
 
 The Strategy catalog is a reference for what a Strategy can express. It maps each Strategy id to its `StrategyRules`: a list of rules and a sign clause, written in the shared decision language ([§8.1](#81-shared-interpreter)). These Strategies are declarative and fixed for a Run. The names their `StrategyRules` use are checked against the Premise ([§12.1](#121-load-pipeline)).
 
 - Conditions read only the Strategy's View: prices, its own holdings, stored Representation factors, the round, the parameters, last round's events and records, and the Rules in force.
-- Rules can place exchange and Transformation orders, propose joint candidate Transactions that bundle transfers and transforms, and propose collective procedures. They can enact a declared Rule kind, repeal a Rule the Actor governs, mirror each Rule a condition finds back onto its governor, or make a seeded choice among options.
-- Sign clauses cover procedures, Transformations, or everything addressed to the Actor. Each may be guarded by conditions.
+- Rules can place exchange and Transformation orders, propose joint candidate Transactions that bundle transfers and transforms, and propose collective procedures. They can enact a declared Rule kind, repeal a Rule the Actor governs, mirror each Rule a condition finds back onto its governor, enter an agreement, or make a seeded choice among options.
+- Sign clauses cover procedures, Transformations, named agreement templates, or everything addressed to the Actor. Each may be guarded by conditions.
 - Exchange references name an Exchange by id, or select among the Exchanges the Actor can access that have a Resource as base: each one, the cheapest, or the costliest at the beginning-of-round price. Ties go to the first Exchange by id, and an Exchange with no price is not a candidate. A clause with selectors is instantiated once per Exchange picked, in id order. Several selectors range over the product of their picks. A selector that picks nothing instantiates nothing, which is not an error. A sign condition holds when any instantiation holds.
 
 Strategies are referenced by an Actor's list of non-playable Actor Strategies, by an Aggregate's baseline, and by a Strategy fallback ([§6.5](#65-fallbacks)). Seat presets are bound outside the Premise ([06 §4](06_simulator.md#4-seat-strategies)).
-
-**Planned**, not in the schema: parameter ranges and defaults, and declared behavioural domains for Aggregates.
 
 ### 8.1 Shared interpreter
 
@@ -208,37 +206,38 @@ These are the rules every Run plays by, not the institutional Rules of [§5.5](#
 
 ### 10.1 Candidate Transaction rules
 
-A candidate Transaction binds Intents to the Actors asked to sign them: an author, Intents that settle together, the signers, and for a voted candidate Transaction the procedure used. Each Intent is executed by the signer whose resources or authority it uses. Publishing implies the author's signature. A signed candidate Transaction carries its collected signatures. It is visible to its signers; wider visibility is **Planned** ([§10.3](#103-information-visibility)). A candidate Transaction's identifier derives from its round, author and submission order, so recorded signatures replay deterministically.
+A candidate Transaction binds Intents to the Actors asked to sign them: an author, Intents that settle together, the signers, and for a voted candidate Transaction the procedure used. Each Intent is executed by the signer whose resources or authority it uses. Publishing implies the author's signature. A signed candidate Transaction carries its collected signatures. It is visible to its signers. A candidate Transaction's identifier derives from its round, author and submission order, so recorded signatures replay deterministically.
 
 The signature rules are:
 
 - **Single-signer candidate Transaction:** a Trade, a gift Transfer, a Transform or a `ChangeRule`. Its author is its only signer.
-- **Joint candidate Transaction:** needs every signer. It may bundle only Transfers and Transforms. A joint candidate Transaction containing a Trade, a Route or a `ChangeRule` is rejected. Before its counterparties answer it is an offer, and a counterparty's signature is the acceptance.
+- **Joint candidate Transaction:** needs every signer. It may bundle only Transfers, Transforms and `Enter` Intents. A joint candidate Transaction containing a Trade, a Route or a `ChangeRule` is rejected. Before its counterparties answer it is an offer, and a counterparty's signature is the acceptance.
 - **Voted candidate Transaction:** executes when the signed weight exceeds the threshold ([§6.3](#63-aggregates)). It may carry any Intent its procedure authorizes, including a Trade. The restrictions on joint candidate Transactions do not apply to it.
 
 A joint candidate Transaction is all-or-nothing: if its signed Transformation orders exceed what their pool can fill, every joint candidate Transaction in that pool is rejected together. A candidate Transaction whose signature rule is not met lapses, which is a recorded decline, and the round resolves normally. A counteroffer is a new candidate Transaction, signable next round. A fully signed candidate Transaction is escrowed at screening ([02 §8.2](02_kernel.md#82-funding-and-settlement)). Its Intents settle atomically, or the whole candidate Transaction is rejected and recorded, for example when escrow, transferability or delivery fails.
 
 Escrow at screening takes each signed candidate Transaction's maximum cost: a buy its limit times quantity (or the Exchange's upper-bound price when unlimited), a sell its quantity, a Transformation order its pool ceiling, a reservation its per-unit draw times quantity. Joint candidate Transactions are the first rationing tier and are whole. Every other order is the next tier and scales, with one scale group per Actor ([02 §8.2](02_kernel.md#82-funding-and-settlement)). Validation records a valid candidate Transaction and its executed outcome separately: a valid Trade can still be partly filled or rejected at settlement.
 
-Resource transferability ([§5.1](#51-resources)) and each Actor's capabilities ([§6](#6-actor-catalog)) govern what multi-signer candidate Transactions can move. These are joint and procedure candidate Transactions ([INV-10](02_kernel.md#inv-10)). **Planned**: a switch that restricts multi-signer candidate Transactions by Resource or Actor category.
+Resource transferability ([§5.1](#51-resources)) and each Actor's capabilities ([§6](#6-actor-catalog)) govern what multi-signer candidate Transactions can move. These are joint and procedure candidate Transactions ([INV-10](02_kernel.md#inv-10)).
 
 ### 10.2 Temporal structure
 
-The Premise fixes the horizon, the round range, and each Transformation's delay ([§3](#3-premise), [§5.3](#53-transformations)). Rates are per round. **Planned**: a round-to-time mapping, a per-round duration, and scaling annual rates to round length ([INV-28](02_kernel.md#inv-28)). The Premise declares no scheduled shocks. A shock is a named parameter that Strategies read ([§11](#11-initialization-constraints)).
+The Premise fixes the horizon, the round range, and each Transformation's delay ([§3](#3-premise), [§5.3](#53-transformations)). Rates are per round, and nothing scales them to a length of time. The Premise declares no scheduled shocks. A shock is a named parameter that Strategies read ([§11](#11-initialization-constraints)).
 
 ### 10.3 Information visibility
 
-The Premise declares no public, private, or capability-gated information. Every Strategy's View currently holds the same prices, Rules, and events ([04 §6](04_run.md#6-strategy-initialization)), so [INV-16](02_kernel.md#inv-16) is not enforced. **Planned**: visibility declarations and scope definitions.
+The Premise declares no public, private, or capability-gated information. Every Strategy sees the same public state: the same prices, Rules, and events ([04 §6](04_run.md#6-strategy-initialization)). Beyond that, a View holds only what concerns its own Actor ([02 §4](02_kernel.md#4-strategies)).
 
 ### 10.4 Available actions
 
-An Actor acts through its capabilities ([§6](#6-actor-catalog)), the Exchanges it can access ([§5.2](#52-exchanges)), and the Transformations and capacities it holds. Intents are the engine's only input from a Strategy, and every executed Intent came from a signed candidate Transaction ([INV-01](02_kernel.md#inv-01)). The five Intent kinds are:
+An Actor acts through its capabilities ([§6](#6-actor-catalog)), the Exchanges it can access ([§5.2](#52-exchanges)), and the Transformations and capacities it holds. Intents are the engine's only input from a Strategy, and every executed Intent came from a signed candidate Transaction ([INV-01](02_kernel.md#inv-01)). The six Intent kinds are:
 
 - **Trade:** an order on an Exchange, with an optional limit price. Buys are positive and sells negative.
 - **Route:** a Trade with its Exchange omitted, placed for a base and quote pair. It must carry a limit price ([02 §5.3](02_kernel.md#53-routing)).
 - **Transfer:** a movement of a Resource from one Actor to another. Alone it is a gift or payment. Its sender must be a required signer.
 - **Transform:** an execution of a declared Transformation. Its executing Actor must be a required signer.
 - **`ChangeRule`:** enacts or repeals a Rule under the Actor's authority ([§6](#6-actor-catalog)). Enactment takes effect at the next round boundary.
+- **`Enter`:** enters an agreement: it names a template, its arguments, and the Actor bound to each party ([§15.3](#153-agreements-in-a-premise-and-in-play)).
 
 A Rule is either a flows Rule (its effect is a Levy or a Block, over a scope of groups and Resources) or a holding Rule (it reduces a Resource's drawable holding). The Premise declares each Rule's kind, which fixes its form and its governor ([§5.5](#55-geography-access-and-rules)).
 
@@ -246,7 +245,7 @@ A Rule is either a flows Rule (its effect is a Levy or a Block, over a scope of 
 
 Each explicit Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
 
-The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, and the volume of a Transformation. **Planned**: system-level measures.
+The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, and the volume of a Transformation. Each is a measure of named Actors; the economy as a whole is read through the whole-economy views ([06 §11](06_simulator.md#11-experiments)).
 
 ## 11. Initialization Constraints
 
@@ -257,7 +256,7 @@ This section sets what a configuration may choose. The Premise fixes every econo
 - the game seed;
 - the round count, within the round range.
 
-Named parameters are fixed for a Premise. **Planned**: initial distributions, and reserve and liquidity ranges. Partial explicitness is resolved by instantiation ([04 §4](04_run.md#4-aggregate-initialization)), subject to [§12.4](#124-resolution-consistency).
+Named parameters are fixed for a Premise. Partial explicitness is resolved by instantiation ([04 §4](04_run.md#4-aggregate-initialization)), subject to [§12.3](#123-resolution-consistency).
 
 ## 12. Validation and Compilation
 
@@ -270,7 +269,7 @@ Loading decodes a Premise's files and then checks them in this order:
 1. decode the configuration;
 2. merge the other sections (a duplicate key fails) and decode the Premise, including its parameters and Strategy catalog;
 3. decode the seat presets;
-4. validate the Premise against the configuration ([§12.2](#122-checks-implemented) to [§12.4](#124-resolution-consistency));
+4. validate the Premise against the configuration ([§12.2](#122-checks-implemented) to [§12.3](#123-resolution-consistency));
 5. check that every name a Strategy uses exists in the Premise;
 6. check that every name in a seat preset exists in the Premise.
 
@@ -280,7 +279,7 @@ Validation is always against one configuration. The Premise has no separate vali
 
 ### 12.2 Checks implemented
 
-These checks are the compile step of a Premise: loading compiles the authored Premise to a World, and a Premise that fails them never reaches play. Per-round refusals are the round's own compile step ([§12.5](#125-static-refusals)).
+These checks are the compile step of a Premise: loading compiles the authored Premise to a World, and a Premise that fails them never reaches play. Per-round refusals are the round's own compile step ([§12.4](#124-static-refusals)).
 
 Validation checks each of the following:
 
@@ -298,34 +297,24 @@ Validation checks each of the following:
 - A required Actor is selected.
 - A seat is given only to an Actor that allows seats. A non-playable Actor Strategy is given only if it is in the Actor's list of non-playable Actor Strategies.
 - A representing Actor is eligible for its scheme and is selected.
-- Resolution is consistent ([§12.4](#124-resolution-consistency)).
+- Each Actor has exactly one of a definition or an aggregate block ([§6](#6-actor-catalog)).
+- A defined Actor has at least one capability and declares a dependency ([INV-19](02_kernel.md#inv-19)).
+- A scheme's estimator is in range: its reference and noise are not negative, its shrinkage is between 0 and 1, and its deviation bound is ordered. No two schemes adjust the same target and domain from the same observation and Actor ([INV-24](02_kernel.md#inv-24)).
+- Every required responsibility has an owner: a required Actor is selected and every other has a fallback ([INV-25](02_kernel.md#inv-25)).
+- Each Exchange opens within its cost domain with no negative reserve, and no Actor opens with a negative holding ([INV-27](02_kernel.md#inv-27)).
+- A template names only what exists, spawns only templates that exist, and never spawns for its own round ([§15.3](#153-agreements-in-a-premise-and-in-play)).
+- Resolution is consistent ([§12.3](#123-resolution-consistency)).
 
-### 12.3 Not yet checked (planned)
-
-**Planned**, not validated:
-
-- Units, Resource properties beyond transferability, cost function suitability, and Transformation input and output accounting against Resource properties.
-- Reconciliation of the recurring cycle, and absence of inert accumulation ([INV-05](02_kernel.md#inv-05)). Starting reserve and capacity feasibility ([INV-27](02_kernel.md#inv-27)).
-- Liabilities and issuance semantics for financial claims.
-- That every required responsibility has an owner ([INV-25](02_kernel.md#inv-25)), beyond [§12.4](#124-resolution-consistency).
-- Estimator and Representation weight ranges, and duplicate Representation adjustments ([INV-24](02_kernel.md#inv-24)).
-- That capability lists are non-empty and dependencies are declared ([INV-19](02_kernel.md#inv-19)).
-- That each Actor has exactly one of a definition or an aggregate block ([§6](#6-actor-catalog)).
-- Objective measures that are system-level ([§10.5](#105-evaluation)).
-- That each strategic tension connects to consequential data ([§3.1](#31-strategic-tensions)).
-- Scope definitions and information visibility ([§10.3](#103-information-visibility)).
-
-### 12.4 Resolution consistency
+### 12.3 Resolution consistency
 
 For each Actor whose definition declares a coverage fallback, validation compares two configurations: the given one, and the same one with that Actor unselected. The two must agree on stocks (Actor accounts and Exchange reserves), procedure weights, and enacting authority. A difference fails validation. The check runs only when the other checks pass.
 
-**Planned**: comparing liabilities and recurring flows, and checking every pair of explicitness configurations rather than only these pairs.
-
-### 12.5 Static refusals
+### 12.4 Static refusals
 
 The checks above run when a Premise loads. A further set is decided each round at screening, before any transaction exists: the compile step's static refusals. A static refusal is recorded as a `Rejected` event and is not a kernel value. They are:
 
-- `DuplicateCandidateTransactionId`, and the references `UnknownActor`, `UnknownExchange`, `UnknownResource`, `UnknownTransformation`, `UnknownRule` and `UnknownProcedure`.
+- `DuplicateCandidateTransactionId`, and the references `UnknownActor`, `UnknownExchange`, `UnknownResource`, `UnknownTransformation`, `UnknownRule`, `UnknownProcedure` and `UnknownAgreement`.
+- `MissingArgument` and `MissingParty`, for an `Enter` Intent.
 - `RouteNeedsLimit`, and `OutOfScope` for a Rule outside its Actor's authority.
 - `OnlyGoverningRepeal`, and `OutsideProcedureAuthority`.
 - `JointBundlesOnlyTransfers`, `AboveMaximum`, and `MissingBundledOrder`.
@@ -344,12 +333,12 @@ The compiler checks each Premise ([§12.1](#121-load-pipeline)) before writing i
 
 ## 13. Provenance and Versioning
 
-- Changes to Exchanges, Transformations, the cycle, Strategies, or Actors are a new version. Version immutability ([INV-22](02_kernel.md#inv-22)) is a convention: nothing hashes or compares Premise contents. A run's manifest records the Premise's identifier and version ([04 §9](04_run.md#9-runtime-state-and-lifecycle)).
-- The schema has no provenance fields. Descriptions and dependencies are prose. **Planned**: per-parameter provenance, linked to vertical reports.
+- Changes to Exchanges, Transformations, the cycle, Strategies, or Actors are a new version. Version immutability is a convention: nothing hashes or compares Premise contents. A run's manifest records the Premise's identifier and version ([04 §9](04_run.md#9-runtime-state-and-lifecycle)).
+- The schema has no provenance fields. Descriptions and dependencies are prose.
 
 ## 14. Compilation to the Kernel
 
-The authored vocabulary lives with its compile step, in `packages/laws`. Each item compiles to kernel values ([02 §3](02_kernel.md#3-the-kernel)), and static refusals are decided first ([§12.5](#125-static-refusals)). The per-mechanism settlement sequence stays in `packages/laws`, and it calls the kernel in stated phases ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). Every settled Flow posts through `Core.Kernel.Post`.
+The authored vocabulary lives with its compile step, in `packages/laws`. Each item compiles to kernel values ([02 §3](02_kernel.md#3-the-kernel)), and static refusals are decided first ([§12.4](#124-static-refusals)). The per-mechanism settlement sequence stays in `packages/laws`, and it calls the kernel in stated phases ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). Every settled Flow posts through `Core.Kernel.Post`.
 
 | Vocabulary | Kernel value | Written by |
 |---|---|---|
@@ -368,9 +357,10 @@ The authored vocabulary lives with its compile step, in `packages/laws`. Each it
 | Other recurring flows | A time Law per rule, run in list order by the sequence; a created flow spawns a scheduled Flow. | `Laws.Engine.Circulate`, `timeLaw` |
 | `ChangeRule` | A pending transaction due at the next boundary, whose obligation changes a law. | `ruleChange` |
 | Scheduled Flow (`delivery`), delayed output or effect | A pending transaction with a `Created` or `Sink` settled Flow. A `rounds` reversal spawns the opposite settled Flow. | `delivery`, `Laws.Engine.Settle` |
+| `Enter` | The named template's first step as a pending transaction, due next round, carrying the signers' consent, with the cause `OfAgreement`. | `entered`, `Core.Kernel.Consume` |
 | Exchange, Transformation | An Exchange compiles to a standing transaction with a reserve stock and a cleared rate. A Transformation has no reserve. | `Laws.World` |
 
-Limit prices and order minimums are decided by the sequence and the clearing solver rather than as `PriceWithin` and `QuantityAtLeast` conditions on a transaction, and the shipped compile step sets no `holds` or `solver` field ([02 §3.3](02_kernel.md#33-transactions-and-conditions)). A round record stores its inputs as authored vocabulary: each submitted signed candidate Transaction ([04 §11.1](04_run.md#111-round-record)).
+Limit prices and order minimums are decided by the sequence and the clearing solver rather than as `PriceWithin` and `QuantityAtLeast` conditions on a transaction ([02 §3.3](02_kernel.md#33-transactions-and-conditions)). A round record stores its inputs as authored vocabulary: each submitted signed candidate Transaction ([04 §11.1](04_run.md#111-round-record)).
 
 ## 15. Authoring Laws and Agreements
 
@@ -396,7 +386,7 @@ Multi-round agreements are templates ([02 §3.4](02_kernel.md#34-successors)).
 
 A Premise file may have a `templates` section, by name, and a `laws` section. Load validates both: every Actor, Resource and Exchange a template names must exist, every template a successor names must exist, and no template may spawn for its own round. A filter drops a template or a law naming something it dropped.
 
-An agreement is entered by the Intent `enter`, which names a template, its arguments, and the Actor bound to each of its parties. It is carried by a candidate Transaction that every named party signs, and it may be bundled like a Transfer. On settlement the template's first step becomes pending, due next round, carrying the signers' consent. An unknown template, a missing argument or party, or a party who is not asked to sign is refused by screening; a party who is asked and does not sign lapses it. A View lists the templates that can be entered and what each needs. A StrategyRules drafts the Intent as any other and signs with the `agreements` sign rule, which names templates.
+An agreement is entered by the Intent `enter`, which names a template, its arguments, and the Actor bound to each of its parties. It is carried by a candidate Transaction that every named party signs, and it may be bundled like a Transfer. On settlement the template's first step becomes pending, due next round, carrying the signers' consent. An unknown template, a missing argument or party, or a party who is not asked to sign is refused by screening; a party who is asked and does not sign lapses it. A View lists the templates that can be entered and what each needs. A StrategyRules drafts the Intent as any other and signs with the `agreements` sign rule, which names templates. The Intent's compilation is in [§14](#14-compilation-to-the-kernel).
 
 ### 15.4 Limits
 

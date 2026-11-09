@@ -107,6 +107,7 @@ An obligation lives for one round. Consuming it can spawn new obligations, so de
 - **Spawned at commit, for a later round.** `Core.Kernel.Consume` instantiates each spawn for a later round, so a round stays finite and resolution is undisturbed. A spawn that fails this check (a due offset below one, an unknown template, a missing party, or a party outside its parent) produces no successor.
 - **Amounts freeze at consumption.** Arguments are computed from the consumed obligation (`Moved`, `Remainder`) and stored as plain values.
 - **Consent is given once.** A successor carries its parent's consent. A template may name only parties bound from its parent ([INV-03](#inv-03)). A renegotiable step adds a fresh `Consent` condition, which holds only when the party's consent was carried from the parent ([03 §15.2](03_premise.md#152-multi-round-agreements)).
+- **Entering during play.** The `Enter` Intent compiles to a pending transaction: the first step of the template it names, due next round, carrying its signers' consent, with the cause `OfAgreement` ([03 §14](03_premise.md#14-compilation-to-the-kernel), [§15.3](03_premise.md#153-agreements-in-a-premise-and-in-play)).
 
 The World holds one list of pending transactions and a table of templates. A pending transaction due in phase 0 is consumed at the round boundary, in tier order. One in a later phase claims holdings beside that round's orders and is rationed against them by its tier ([§5.4](#54-rationing)): tier 0 fills with joint orders, ahead of single orders in tier 1, and a higher tier takes what they leave. A junior tier's shortage never scales a senior one.
 
@@ -129,11 +130,11 @@ Infeasible actions are rejected or partially executed by deterministic rules. Th
 
 ## 4. Strategies
 
-This section says what a Strategy sees and returns. A Strategy produces the engine's input from the authorized View of the Actor it drives, as a function of the View, its memory and the turn. The authored form of that input, the decision language, and the declarative `StrategyRules` are in [03 §8](03_premise.md#8-strategy-catalog) and [03 §10.4](03_premise.md#104-available-actions).
+This section says what a Strategy sees and returns. A Strategy produces the engine's input from the authorized View of the Actor it drives, as a function of the View and the turn. The authored form of that input, the decision language, and the declarative `StrategyRules` are in [03 §8](03_premise.md#8-strategy-catalog) and [03 §10.4](03_premise.md#104-available-actions).
 
-**Strategy + View + Memory + Turn → input**
+**Strategy + View + Turn → input**
 
-A View is what a Strategy sees at the start of a round: its own Actor, prices, the laws in force, transferability, the events so far, stored adjustment factors, the input awaiting its consent, the pending transactions it owes or is owed ([§3.4](#34-successors)), the Exchanges it can access, and the known Actors and the authored actions and bounds that apply to them. A Strategy never sees the World.
+A View is what a Strategy sees at the start of a round: its own Actor, prices, the laws in force, transferability, the events so far, stored adjustment factors, the input awaiting its consent, the pending transactions it owes or is owed ([§3.4](#34-successors)), the Exchanges it can access, the templates that can be entered, and the known Actors and the authored actions and bounds that apply to them. A Strategy never sees the World.
 
 ### 4.1 Strategy kinds
 
@@ -141,15 +142,15 @@ A Strategy is declarative (`StrategyRules` run on the shared interpreter: non-pl
 
 ### 4.2 Strategy rules
 
-An initialized Strategy operates only on its authorized View, produces typed input, and stays deterministic. Its definition is immutable and versioned with the Premise ([INV-12](#inv-12)), though its outputs vary with the World it reacts to.
+An initialized Strategy operates only on its authorized View, produces typed input, and stays deterministic. Its definition is fixed for the Run, though its outputs vary with the World it reacts to.
 
 A seat's Strategy is bound at run time. Swapping it never changes the Actor's definition ([INV-30](#inv-30)). A Strategy never rewrites any Actor's Strategy.
 
-**Planned:** Strategy memory. No World field holds it yet. Strategies read the previous round's events and stored factors.
+A Strategy keeps no memory of its own: it reads the previous round's events and stored factors.
 
 ### 4.3 Aggregate baselines
 
-Every Aggregate has a baseline Strategy for its implicit population. It declares which behavioral domains it controls, so that Representations adjust the right outputs, and it decides when to act in the Aggregate's name. It reads the factors stored last round and scales the matching baseline by them ([§7.4](#74-estimation-semantics)). With none stored, it follows its baseline. A Premise permission to let Aggregates consent to other Actors' input is **Planned**.
+Every Aggregate has a baseline Strategy for its implicit population. It decides when to act in the Aggregate's name. It reads the factors stored last round and scales the matching baseline by them ([§7.4](#74-estimation-semantics)). With none stored, it follows its baseline.
 
 ## 5. Cost Functions, Exchanges, and Solvers
 
@@ -237,7 +238,7 @@ This is the single authoritative sequence. The other docs reference it and do no
 1. **Prepare** (engine): consumes every pending transaction due at the boundary, in phase then tier order, posting its settled Flows, applying its changes to the laws, and spawning its successors ([§3.4](#34-successors)).
 2. **Observe** (engine): produces the opening World (the World after Prepare) and each Actor's View. Every decision is made on it.
 3. **Propose and sign** (round runner): every Strategy submits its input against the opening World at the same time; then each party consents to what it endorses. The set is frozen at the end of Propose ([03 §10.1](03_premise.md#101-candidate-transaction-rules)).
-4. **Screen and interpret** (engine): checks authority and each consent condition, and decides the static refusals ([03 §12.5](03_premise.md#125-static-refusals)). What fails is recorded. Admissible observations are extracted from the validated input. Nothing is filled yet.
+4. **Screen and interpret** (engine): checks authority and each consent condition, and decides the static refusals ([03 §12.4](03_premise.md#124-static-refusals)). What fails is recorded. Admissible observations are extracted from the validated input. Nothing is filled yet.
 5. **Estimate** (engine): computes each Representation's adjustment factor from this round's validated input and stores it. It creates and modifies no input ([§7.4](#74-estimation-semantics)).
 6. **Resolve economy** (engine): funds every accepted claim from the opening World, then settles and clears them as one simultaneous batch. Exchanges clear at uniform prices. Transactions and the recurring cycle ([03 §5.4](03_premise.md#54-recurring-cycle)) are evaluated together, into one net change.
 7. **Commit and record** (engine): commits the new World atomically, appends the round's spawned transactions to `pending`, and records the round's inputs and events.
@@ -267,19 +268,19 @@ The engine has no effects. In-world randomness uses a pure keyed draw ([§9.1](#
 
 Everything else impure is a named effect: an operation a program declares it needs, interpreted by a handler over device primitives. The request and reply shapes are in [07 §4](07_architecture.md#4-key-interfaces).
 
-The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Narrate (round text from resolved events, adding no facts); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the dashboard's HTTP API, [06 §8.1](06_simulator.md#81-read-api-and-run-operations)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); and Platform (the clock, process identity, files, the terminal, and one operating-system number, drawn only for a player seed nobody gave).
+The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the HTTP API, [06 §8.1](06_simulator.md#81-read-api-and-run-operations)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); Sessions (the live sessions a server hosts); and Platform (the clock, process identity, files, the terminal, and one operating-system number, drawn only for a player seed nobody gave).
 
 Every program is typed by the effects it asks for, so its type states all it can touch. Handlers choose the context (live session, simulation, replay or test). The round runner is the same code under every context. The per-context behavior is in [04](04_run.md) and [06](06_simulator.md).
 
 ## 9. Architectural Invariants and Numerics
 
-The invariant table is the one numbered table for the whole system; other docs cite its IDs. IDs 18, 20 and 32–35 are retired. Checked means a predicate, a validation or a named test enforces the invariant today. The per-round assertion status is in [06 §7](06_simulator.md#7-run-assertions).
+The invariant table is the one numbered table for the whole system; other docs cite its IDs. IDs 12, 15, 16, 18, 20, 22 and 32–35 are retired. Checked means a predicate, a validation or a named test enforces the invariant today. The per-round assertion status is in [06 §7](06_simulator.md#7-run-assertions).
 
 | ID | Invariant | Status |
 |---|---|---|
 | <a id="inv-01"></a>INV-01 | Unified action semantics: all participants act through the same input and validation, and every settlement names by its Cause what produced it. A settlement of a candidate Transaction's input ([03 §10.1](03_premise.md#101-candidate-transaction-rules)) matches that input. | Checked |
 | <a id="inv-02"></a>INV-02 | Authority separation: a party exercises only the capabilities its `Holds` conditions name, within scope. | Checked |
-| <a id="inv-03"></a>INV-03 | No authority amplification: membership, Representation, collective decisions and fallbacks never confer or remove capabilities or holdings. A round never changes an Actor's capabilities or kind. A successor names only parties bound from its parent. | Checked |
+| <a id="inv-03"></a>INV-03 | No authority amplification: membership, Representation, collective decisions and fallbacks never confer or remove capabilities or holdings. A round never changes an Actor's capabilities or kind. A successor names only parties bound from its parent, or parties who signed an `Enter` that round. | Checked |
 | <a id="inv-04"></a>INV-04 | Resource consistency: holdings change only by a recorded settled Flow. Each Actor's holdings change by exactly what the round's settled Flows say. No holding or Exchange reserve is negative. | Checked |
 | <a id="inv-05"></a>INV-05 | Stock-flow reconciliation: every Resource stock reconciles each round ([§6](#6-economic-circulation)): its change in total equals what settled Flows created from `Source` less what they sent to `Sink`. Moves net to zero, and no account accumulates without a declared outflow. | Checked |
 | <a id="inv-06"></a>INV-06 | Exchange solvency: Exchange positions stay within their cost domain, and pool fills never exceed what the pool can draw or its escrowed ceiling. | Checked |
@@ -288,20 +289,16 @@ The invariant table is the one numbered table for the whole system; other docs c
 | <a id="inv-09"></a>INV-09 | Representation consistency: a stored estimate replaces the matching baseline exactly once, in the following round, within estimator bounds, and never duplicates direct activity. | Checked |
 | <a id="inv-10"></a>INV-10 | Consent completeness: an obligation stands only if its `Consent` or `WeightedConsent` condition holds. A transaction bound whole settles atomically or is rejected together. | Checked |
 | <a id="inv-11"></a>INV-11 | Order independence: all actions resolve as one bundled update with uniform clearing. Permuting submissions never changes settlement. | Checked |
-| <a id="inv-12"></a>INV-12 | Strategy reproducibility: a Strategy's output is determined by its versioned definition, permitted view, memory, time and declared randomness. | Planned |
 | <a id="inv-13"></a>INV-13 | Deterministic replay: the same manifest, seeds and recorded seat input reproduce identical Worlds. Every random value is a keyed draw. | Checked |
-| <a id="inv-14"></a>INV-14 | Resolution consistency: instantiating a world at different levels of explicitness reconciles accounts, liabilities and authority before any decision differs. | Checked |
-| <a id="inv-15"></a>INV-15 | Single authoritative state: all actions modify one shared World and timeline. | Planned |
-| <a id="inv-16"></a>INV-16 | Information isolation: every Strategy, in-world or seat, observes only what the Premise permits. | Planned |
+| <a id="inv-14"></a>INV-14 | Resolution consistency: instantiating a world at different levels of explicitness reconciles accounts and authority before any decision differs. | Checked |
 | <a id="inv-17"></a>INV-17 | Type-system conformity: all Premise definitions use supported types and operations. | Checked |
 | <a id="inv-19"></a>INV-19 | Role consequence: every Actor definition declares a capability, a dependency and a measurable objective. | Checked |
 | <a id="inv-21"></a>INV-21 | Instantiation feasibility: the Premise admits at least one valid initial World. | Checked |
-| <a id="inv-22"></a>INV-22 | Version stability: a Premise version's definitions are immutable. | Planned |
 | <a id="inv-23"></a>INV-23 | Unique control: every explicit Actor has exactly one valid controller. | Checked |
 | <a id="inv-24"></a>INV-24 | Valid participation: every selected Actor and Representation is permitted by the Premise and validly parameterized. | Checked |
 | <a id="inv-25"></a>INV-25 | Fallback completeness: every unselected Actor has a permitted fallback, and no required responsibility is left unowned. | Checked |
 | <a id="inv-26"></a>INV-26 | Strategy completeness: every non-playable Actor and Aggregate has an executable, initialized Strategy. | Checked |
-| <a id="inv-27"></a>INV-27 | Exchange feasibility: initial Exchange positions, reserves and holdings satisfy economic constraints. | Planned |
+| <a id="inv-27"></a>INV-27 | Exchange feasibility: initial Exchange positions, reserves and holdings satisfy economic constraints. | Checked |
 | <a id="inv-28"></a>INV-28 | Temporal consistency: round intervals and Strategy timing fit the simulated horizon. | Checked |
 | <a id="inv-29"></a>INV-29 | Engine and interpreter reuse: simulated Runs use the same engine, round sequence and decision-language interpreter as live Runs. | Checked |
 | <a id="inv-30"></a>INV-30 | Controller integrity: swapping a seat's Strategy never changes the Actor's definition or turns a seat into a non-playable Actor. | Checked |

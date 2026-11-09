@@ -5,11 +5,14 @@ module Test.Server.OpenApi (spec) where
 
 import Prelude
 
-import Core.Shape (Desc(..), TagForm(..), jsonSchema, schemaComponents)
+import Core.Shape (Format(..), Shape, decodeJsonWith, Desc(..), TagForm(..), jsonSchema, schemaComponents)
+import Data.Array (elem, filter, all, any, length, sort, zipWith)
+import Data.Either (isRight, either)
+import Handlers.Api.Route (submissionShape, endpointAccess, Access(..), route, wire)
+import Views.Keys as Keys
+
 import Data.Argonaut.Core (Json, isNull, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (all, any, length, sort, zipWith)
-import Data.Either (either)
 import Data.Int (fromNumber)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.String (Pattern(..), contains, stripPrefix)
@@ -20,7 +23,6 @@ import Effect.Aff (Aff, delay)
 import Effect.Class (liftEffect)
 import Effects.Api (ApiRequest(..), Reply)
 import Foreign.Object as Object
-import Handlers.Api.Route (endpointAccess, Access(..), route, wire)
 import Server.OpenApi (Service(..), document, published, serviceName, services)
 import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
@@ -118,6 +120,15 @@ spec = describe "JSON Schema and OpenAPI" do
     published # traverse_ \p -> case map _.access (firstNamed p.operation) of
       Just Open -> pure unit
       _ -> fail (p.operation <> " is published but is not an open route")
+  it "the integration contract's example payloads read through their Shapes" do
+    let
+      reads :: forall a. Shape a -> String -> Boolean
+      reads shape text = isRight (decodeJsonWith Snapshot shape (parsed text))
+    reads Keys.sessionState "{\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
+    reads Keys.sessionStarted "{\"id\":\"run-1\",\"balanceSheets\":[{\"actor\":\"US\",\"kind\":\"Playable Actor\",\"path\":\"/balancesheet/run-1/abc123\"}]}" `shouldEqual` true
+    isRight (decodeJsonWith Authored submissionShape (parsed "{\"seat\":\"US\",\"round\":1,\"text\":\"We sell ten Energy to Germany.\"}")) `shouldEqual` true
+    map _.name (filter (\e -> e.access == Open && e.name `elem` [ "GetSession", "SubmitTranscript", "RoundReport" ]) endpointAccess) # sort # shouldEqual [ "GetSession", "RoundReport", "SubmitTranscript" ]
+    map _.path (filter (\e -> e.name == "StartSession") endpointAccess) `shouldEqual` [ "/api/sessions" ]
   it "no reference in a document dangles" do
     services # traverse_ \s -> do
       let doc = document s

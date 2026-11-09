@@ -85,8 +85,6 @@ A hypothetical near-future economy of intensifying competition between the Unite
 
 Five simulated years, played as five one-year rounds. The Premise supports four to eight rounds.
 
-**Planned:** scaling annual flows to round length ([INV-28](02_kernel.md#inv-28)).
-
 ## 7. Economic Verticals
 
 Four provisional verticals group the Resources, Exchanges and capacities above. The engine does not record them ([03 §4](03_premise.md#4-verticals)).
@@ -100,7 +98,7 @@ Four provisional verticals group the Resources, Exchanges and capacities above. 
 
 ## 8. Economic Circulation
 
-Production, operating requirements and fixed flows recur every round. All amounts are annual and provisional.
+Production, operating requirements and fixed flows recur every round. All amounts are per round and provisional.
 
 ### 8.1 Energy production
 

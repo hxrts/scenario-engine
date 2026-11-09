@@ -121,7 +121,7 @@ spawned :: RoundIndex -> Map String (Template cap law query reason cause) -> Arr
 **Round runner** (`effects`). Every Strategy, seat or in-world, is evaluated through the same code in live play and in simulation, and then `resolveRound` is called. The round's effect row is the union of the rows it may request:
 
 ```purescript
-runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
+runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError RoundResult)
 ```
 
 Randomness needs no effect. Every draw is a pure function of the game seed or the player seed. The player seed is resolved once, before the call.
@@ -141,7 +141,7 @@ The environment is the strategy's `View` ([02 §4](02_kernel.md#4-strategies)). 
 simulate :: Seed -> PreparedRun -> Either AssemblyError SimRun
 ```
 
-**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client.
+**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client. Each row declares its `Access`, `Admin` unless the table says `Open`; `Gate.gated` in `apps/server` checks it before the operation runs, against the password in the server's `.env` ([06 §8.3](06_simulator.md#83-public-and-admin-surfaces)).
 
 ```purescript
 type API r = (apiCall :: ApiF | r)   -- every route: Call ApiRequest (Reply -> a)
@@ -245,11 +245,17 @@ Most of what a person or a program touches in this system is produced from a sma
  view columns         ── glossary ───────────► dashboard glossary
  view columns         ── compile ────────────► dashboard test column list
 
+ ONE ACTOR'S PAGE
+
+ stored Run           ── balanceSheetAt ─────► one Actor's balance sheet
+ stored Run           ── linksOf ────────────► each Actor's path
+
  ONE OPERATION TABLE
 
  ApiRequest           ── table ──────────────► endpoints
  endpoints            ── parse ──────────────► apps/server
  endpoints            ── wire ───────────────► Handlers.Api.Client
+ endpoints, Shapes    ── document ───────────► OpenAPI documents
  Handlers.Api.Client  ── fetch ──────────────► apps/dashboard
 ```
 
@@ -269,7 +275,9 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **The views describe their own columns.** The dashboard's glossary is built from the columns the views use, and the compiler writes the same list for the dashboard tests, so neither can drift from the views.
 
-**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body.
+**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. The OpenAPI documents for the external services ([06 §8.2](06_simulator.md#82-external-services)) take their paths and methods from the same table, and `Server.OpenApi.published` gives each published route its Shapes.
+
+**A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([06 §9.5](06_simulator.md#95-balancesheet-pages)).
 
 ## How the docs relate
 

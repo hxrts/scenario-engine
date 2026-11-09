@@ -12,8 +12,10 @@ The world has two parts: explicitly represented participants, and an implicit ec
 
 Two roles sit around the engine:
 
-- **AI interprets and narrates.** It turns what players say into structured proposed actions, and it writes the round's report.
-- **The engine determines outcomes.** Every result comes from the resolved economy, never from the narrator.
+- **AI interprets.** It turns what players say into structured proposed actions.
+- **The engine determines outcomes.** Every result comes from the resolved economy, never from the interpreter.
+
+Speech transcription and the newspaper are separate components, built outside this repository, that use its API ([06 §8.2](06_simulator.md#82-external-services)). One submits what a player said as text. The other reads what a round produced and writes the front page.
 
 **The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference Premise ([05](05_meridian.md)). Comparing several Runs of one Premise, which differ in a shock, an override or a seed, is the scenario planning the game is for.
 
@@ -49,7 +51,7 @@ What governs change:
 
 Agreements:
 
-- **Intent.** A typed action a party wants done: `Trade`, `Route`, `Transfer`, `Transform` or `ChangeRule`.
+- **Intent.** A typed action a party wants done: `Trade`, `Route`, `Transfer`, `Transform`, `ChangeRule` or `Enter`.
 - **Transaction.** A multilateral agreement: Obligations settled together, all-or-nothing only if their conditions say so. A candidate Transaction is what a party puts forward; once signed it may still lapse, be scaled or be rejected, and it may settle as several Transactions or none.
 - **Obligation.** One named party's duty for one Round, a settled Flow or a change to a Law, which stands only while its conditions hold.
 
@@ -65,8 +67,8 @@ This section gives the shape of a typical session.
 | Simulated period | 5 years in the reference Premise |
 | World | One shared timeline |
 | Player roles | Countries, institutions, corporations, and smaller economic participants |
-| Input | Out-of-band negotiation, oral announcements, and AI-interpreted actions |
-| Output | Economic outcomes, balance sheets, and a fictional financial-news front page |
+| Input | Out-of-band negotiation, oral announcements transcribed by a separate component, and AI-interpreted actions |
+| Output | Economic outcomes, balance sheets, and a fictional financial-news front page written by a separate component |
 
 ## 3. The Round
 
@@ -76,11 +78,9 @@ This section describes what a player experiences in one round. Each round runs t
 2. **Negotiation.** Players talk freely, persuade, bluff, and strike joint candidate Transactions. This happens entirely outside the game. The game has no negotiation protocol.
 3. **Submission.** Each human submits one transcript of what they intend to do this round. A trade may be described by one party, by both, or by neither. Once submitted, a player has no further input that round.
 4. **Resolution.** The actions of every player, non-playable Actor, and Exchange resolve together as one update. Nothing is ordered within a round, and what a round computes is visible in the next round ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)).
-5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
+5. **Reporting.** Players receive updated balance sheets. A separate component reads the round's report from the API and writes a front page describing the round.
 
 **Propose, then sign.** Negotiation works in two steps. Each party proposes actions, then signs the candidate Transactions that name it and that it accepts. A joint candidate Transaction needs every named party's signature, so the two sides cannot disagree about its terms. A joint candidate Transaction that is missing a signature lapses. A counteroffer is a new candidate Transaction for the next round ([03 §10.1](03_premise.md#101-candidate-transaction-rules)). A transcript that describes a joint candidate Transaction counts as its speaker's agreement to it. When the interpreter reads the transcripts together, it reconciles matching descriptions into one candidate Transaction, adjusting details slightly where needed. A joint candidate Transaction that only one side describes lapses.
-
-**Planned:** spoken submission, transcribed before interpretation.
 
 ## 4. Explicit and Implicit Economy
 
@@ -111,7 +111,7 @@ This section explains how small participants can shape a larger economy. Both me
 
 This section says how a Premise judges whether play went well. There is no single winner.
 
-Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. The Premise also defines system-level measures ([03 §10.5](03_premise.md#105-evaluation)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
+Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. A Premise defines no system-level measure: the whole-economy views show how the economy as a whole went ([06 §11](06_simulator.md#11-experiments)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
 
 A Premise is judged against these questions:
 
