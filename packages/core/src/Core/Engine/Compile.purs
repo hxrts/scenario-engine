@@ -4,6 +4,7 @@ module Core.Engine.Compile
   , kernelOf
   , fillCoupling
   , transformCoupling
+  , payCoupling
   , runCoupling
   ) where
 
@@ -19,7 +20,7 @@ import Core.Types (Capability, EntityId, Market, MarketId, Payment, ProposalId, 
 import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), RejectReason(..), WorldState)
 import Data.Array (elem, mapMaybe)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 
 type WorldKernel = Kernel Capability LegQuery
 
@@ -96,3 +97,15 @@ transformCoupling t =
   payment = case t.payment of
     Just p -> [ obligation "payment" who (named p.terms.to) p.terms.resource p.owed K.Cap ]
     Nothing -> []
+
+-- | One payment that caps at what is held. No payee destroys what moves.
+payCoupling :: EntityId -> Maybe EntityId -> ResourceId -> Q -> Cause -> Couple
+payCoupling from to resource owed cause =
+  { obligations: [ { id: "pay", obligor: K.Named from, effect: K.Move { from: named from, to: maybe K.Destroyed named to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext } ]
+  , holds: []
+  , solver: Nothing
+  , ration: { tier: 1, whole: false, scaleGroup: Nothing }
+  , phase: 3
+  , cause: Just cause
+  , consented: []
+  }

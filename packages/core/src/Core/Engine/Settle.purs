@@ -17,17 +17,17 @@ import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Compile (fillCoupling, runCoupling, transformCoupling)
+import Core.Engine.Compile (fillCoupling, payCoupling, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
-import Core.Kernel.Post (Account(..), Ledger, adjust)
+import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Ration (fillPool)
 import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
 import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, poolDraw, ruleIdOf)
-import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), WorldState, coupled, orderRemoved, rejection)
+import Core.World (Cause(..), Delivery, Event, Mechanism(..), RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
 import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -35,13 +35,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Tuple (Tuple(..), fst)
-
--- | A leg moving `moved` of what is owed.
-leg :: Endpoint -> Endpoint -> ResourceId -> Q -> Q -> Flow
-leg from to resource owed moved = { from, to, resource, owed, moved }
-
-move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
-move from to r q = adjust to r q <<< adjust from r (Q.neg q)
 
 -- | The round's batch result: the ledger and Market positions, plus the deliveries, Rule changes,
 -- | and events it produces.
@@ -255,10 +248,10 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     let
       owed = Q.mul (scaleOf s t.from) t.amount
     in
-      case pay w t.from t.to t.in owed a' of
-        Tuple paid after
-          | owed > Q.zero -> addEvents [ coupled w.round [ leg (Held t.from) (maybe Sink Held t.to) t.in owed paid ] Nothing (OfRule { kind: t.kind }) ] after
-          | otherwise -> after
+      case runCoupling w a'.ledger (payCoupling t.from t.to t.in owed (OfRule { kind: t.kind })) of
+        posted
+          | owed > Q.zero -> addEvents [ coupled w.round posted.flows Nothing (OfRule { kind: t.kind }) ] a' { ledger = posted.ledger }
+          | otherwise -> a' { ledger = posted.ledger }
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w (OfIntent { proposal: p.id, intent: i, mechanism: Direct }) t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a
     ChangeRule (Enact r) -> a { scheduled = Map.insert (ruleId i) (Just r) a.scheduled }
@@ -270,25 +263,12 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
 minOwedHeld :: Q -> Q -> Q
 minOwedHeld owed held = min owed (max Q.zero held)
 
--- | The one way an Entity pays out, used by every settlement payment. It pays at most what it
--- | holds after the settlement so far; the caller records a leg with what was owed and what moved.
--- | With no payee (`Nothing`) the amount is destroyed. Returns the amount actually paid.
-pay :: WorldState -> EntityId -> Maybe EntityId -> ResourceId -> Q -> Settlement -> Tuple Q Settlement
-pay w from to resource owed st = Tuple paid
-  st
-    { ledger = case to of
-        Just p -> move (Ent from) (Ent p) resource paid st.ledger
-        Nothing -> adjust (Ent from) resource (Q.neg paid) st.ledger
-    }
-  where
-  paid = minOwedHeld owed (net w from resource st)
-
--- | A transfer between Entities through `pay`, one leg with what was owed and what moved.
+-- | A transfer between Entities, one leg with what was owed and what moved.
 transfer :: WorldState -> Cause -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement
 transfer w cause from to resource quantity st
   | quantity == Q.zero = st
-  | otherwise = case pay w from (Just to) resource quantity st of
-      Tuple paid st' -> addEvents [ coupled w.round [ leg (Held from) (Held to) resource quantity paid ] Nothing cause ] st'
+  | otherwise = case runCoupling w st.ledger (payCoupling from (Just to) resource quantity cause) of
+      posted -> addEvents [ coupled w.round posted.flows Nothing cause ] st { ledger = posted.ledger }
 
 -- | What an Entity holds after the settlement so far.
 net :: WorldState -> EntityId -> ResourceId -> Settlement -> Q
