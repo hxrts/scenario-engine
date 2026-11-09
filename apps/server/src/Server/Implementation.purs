@@ -19,7 +19,7 @@ import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
 import Effects.Launch (runExperiment)
 import Server.Launch (launch, launchBatch, serverRole, premiseInfo)
-import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, runSummaries)
+import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, roundReportView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Sets (deleteRunSet, renameRunSet, saveSet, setSummary, setsView)
 import Server.Premises (Premises, chosen)
@@ -44,6 +44,7 @@ answer premises request = do
     Actors id -> actorsView id
     Actor id actor -> actorView id actor
     RunView r -> getView premises r
+    RoundReport r -> roundReportView r.id r.round
     Compare r -> compareView premises r
     Agency r -> agencyView premises r
     AgencyDetail r -> agencyDetailView premises r

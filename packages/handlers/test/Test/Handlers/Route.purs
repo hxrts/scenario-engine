@@ -44,6 +44,7 @@ nameOf = case _ of
   Actors _ -> "Actors"
   Actor _ _ -> "Actor"
   RunView _ -> "RunView"
+  RoundReport _ -> "RoundReport"
   Compare _ -> "Compare"
   Agency _ -> "Agency"
   AgencyDetail _ -> "AgencyDetail"
@@ -73,6 +74,7 @@ examples =
   , Tuple (Actor "run-1" "US") (g "/api/runs/run-1/actor/US")
   , Tuple (RunView { id: "run-1", view: NetWorth, round: Nothing }) (g "/api/runs/run-1/networth")
   , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
+  , Tuple (RoundReport { id: "run-1", round: 2 }) (g "/api/runs/run-1/rounds/2/report")
   , Tuple (Compare { runs: [ "a", "b" ], exchange: Just "m 1" }) (g "/api/compare?runs=a,b&exchange=m%201")
   , Tuple (Compare { runs: [], exchange: Nothing }) (g "/api/compare?runs=")
   , Tuple (Agency { premise: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")

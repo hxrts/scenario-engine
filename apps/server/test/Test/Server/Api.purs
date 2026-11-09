@@ -148,6 +148,10 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     launch env 2
     launch env 2
+    report <- env.api "GET" "/api/runs/run-1/rounds/1/report" ""
+    report.status `shouldEqual` 200
+    (env.api "GET" "/api/runs/run-1/rounds/99/report" "" <#> _.status) >>= (_ `shouldEqual` 404)
+    (env.api "GET" "/api/runs/run-1/rounds/x/report" "" <#> _.status) >>= (_ `shouldEqual` 404)
     saved <- env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-2\",\"runs\":[\"run-1\",\"run-2\"]}"
     saved.status `shouldEqual` 200
     rows <- liftEffect (env.db.query "select * from run_sets" [] :: Effect (Array { name :: String, baseline :: String, runs :: String }))

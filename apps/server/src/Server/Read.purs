@@ -6,6 +6,7 @@ module Server.Read
   , loadRun
   , runInfo
   , getView
+  , roundReportView
   , actorsView
   , actorView
   , compareView
@@ -47,12 +48,13 @@ import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Views.Drivers as Drivers
 import Views.Actor as Actor
+import Views.Report (roundReport)
 import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
 import Views.WholeEconomy as WholeEconomy
-import Server.Errors (Answer, badRequest, conflict, describe, ok, replyOr, viewOr)
+import Server.Errors (Answer, badRequest, conflict, describe, notFound, ok, replyOr, viewOr)
 
 -- | The run list: one summary per stored run, read without records or snapshots. Archived runs
 -- | are left out unless `withArchived`. A run that cannot be decoded is listed as unreadable, with
@@ -174,6 +176,10 @@ actorsView id = withRun id (ok Keys.actorList <<< Actor.actorList)
 
 -- | `GET /api/runs/:id/Actor/:Actor`: one Actor's balance sheet after every round (`Views.Actor`).
 -- | An Actor the run does not have is a 400 that lists the valid ones; a missing run is a 404.
+-- | `GET /api/runs/:id/rounds/:round/report`: what one round produced. A round the Run has not completed is a 404.
+roundReportView :: forall r. String -> Int -> Run (READS r) Answer
+roundReportView id round = withRun id \r -> maybe (notFound ("no round " <> show round <> " in " <> id)) (ok Keys.roundReport) (roundReport r round)
+
 actorView :: forall r. String -> String -> Run (READS r) Answer
 actorView id actor = withRun id (\r -> viewOr Keys.history (Actor.actorHistory r (Id actor)))
 

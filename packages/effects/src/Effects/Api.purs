@@ -71,6 +71,7 @@ data ApiRequest
   | Actors String
   | Actor String String
   | RunView { id :: String, view :: View, round :: Maybe Int }
+  | RoundReport { id :: String, round :: Int }
   | Compare { runs :: Array String, exchange :: Maybe String }
   | Agency AgencyQuery
   | AgencyDetail AgencyQuery

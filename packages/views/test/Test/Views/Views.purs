@@ -7,6 +7,8 @@ module Test.Views.Views (spec) where
 import Prelude
 
 import Laws.Types (Id(..), ResourceTag)
+import Laws.World (Cause(..), Endpoint(..), Event(..))
+import Schema.Build.Quantity (q)
 
 import Testkit.Edit (onActor)
 
@@ -38,6 +40,7 @@ import Views.Balances (balances, events)
 import Views.Common (Table, completed, exact, final, quantity)
 import Views.Balance (measures, measuresOf)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
+import Views.Report (roundReport)
 import Views.Actor (actorHistory)
 import Views.Standings (standings, standingsOf)
 import Views.Glossary (glossary)
@@ -228,6 +231,21 @@ spec context = describe "Views and error paths" do
         let standing = filter (\row -> index row 0 == Just "US") (standings s).rows
         map (\row -> cell row 1) standing `shouldEqual` [ finalNw ]
     isLeft (actorHistory s (Id "NoSuchActor")) `shouldEqual` true
+
+  it "the round report: what one round moved, with literal changes" do
+    ctx <- context
+    r <- play ctx (conservative 2)
+    let
+      s = toStored "run-1" r
+      before = s.manifest.initial
+      trade = Settled { round: 1, legs: [ { from: InExchange (Id "energy-atlantic"), to: Held (Id "US"), resource: Id "E", owed: q "10", moved: q "10" } ], rate: Nothing, cause: OfRule { kind: Id "tariff" }, delivered: false }
+      after = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "E") (q "80") a.accounts }) (Id "US") before.actors }
+      one = s { manifest = s.manifest { initial = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "E") (q "70") a.accounts }) (Id "US") before.actors } }, rounds = [ { record: { round: 1, inputs: [], events: [ trade ] }, world: after } ] }
+      report = roundReport one 1
+    map _.round report `shouldEqual` Just 1
+    map (filter (\b -> b.actor == "US" && b.resource == "E") <<< _.balances) report `shouldEqual` Just [ { actor: "US", resource: "E", holding: "80", change: "10" } ]
+    map (_.events) report `shouldEqual` Just [ trade ]
+    map _.round (roundReport one 2) `shouldEqual` Nothing
 
   it "the overview returns the header's facts, in order" do
     ctx <- context

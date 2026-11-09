@@ -38,6 +38,7 @@ module Views.Keys
   , glossary
   , actorList
   , history
+  , roundReport
   , compare
   ) where
 
@@ -60,6 +61,8 @@ import Views.Balance (BalanceView)
 import Views.Common (Chart, Table)
 import Views.Compare (CompareView)
 import Views.Actor (ActorList, History)
+import Views.Report (RoundReport)
+import Laws.World (Event, eventShape)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
 import Views.Premise (Premise)
@@ -73,6 +76,10 @@ type ViewKey a = { view :: View, shape :: Shape a }
 -- | one shape. Field names are the keys, in both formats.
 class ViewShape a where
   viewShape :: Shape a
+
+-- | A round report carries the round's events as they are stored.
+instance ViewShape Event where
+  viewShape = eventShape
 
 instance ViewShape String where
   viewShape = stringShape
@@ -158,6 +165,9 @@ glossary = viewShape
 
 actorList :: Shape ActorList
 actorList = viewShape
+
+roundReport :: Shape RoundReport
+roundReport = viewShape
 
 history :: Shape History
 history = viewShape

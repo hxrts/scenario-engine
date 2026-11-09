@@ -120,6 +120,13 @@ capture name get = Part
   , write: \a -> nothing { captures = [ Tuple name (get a) ] }
   }
 
+-- | A capture that is a whole number; any other text is a 404 naming it.
+intCapture :: forall a. String -> (a -> Int) -> Part a Int
+intCapture name get = Part
+  { read: \i -> let s = fromMaybe "" (Object.lookup name i.captures) in maybe (Left (failWith 404 s)) Right (Int.fromString s)
+  , write: \a -> nothing { captures = [ Tuple name (show (get a)) ] }
+  }
+
 -- | A capture that names a View; any other text is a 404 naming it.
 viewCapture :: forall a. String -> (a -> View) -> Part a View
 viewCapture name get = Part
@@ -267,6 +274,7 @@ endpoints = table
         view <- viewCapture "view" _.view
         round <- optionalIntParam "round" _.round
         in { id, view, round }
+  , "RoundReport": get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)
   , "Compare": get "/api/compare"
       ado
         runs <- commaParam "runs" _.runs
