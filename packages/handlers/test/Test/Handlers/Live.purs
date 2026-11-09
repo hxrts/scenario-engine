@@ -75,7 +75,7 @@ liveWith g0 n seat input backend = do
   let g = g0 { seats = Map.fromFoldable (map (\e -> Tuple e (seat e)) (Map.keys g0.world.actors # Array.fromFoldable)) }
   _ <- runLive
     { seed: Seed 1
-    , input
+    , input: \_ _ p -> input p
     , window: Nothing
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
@@ -191,7 +191,7 @@ spec = do
           pure "nothing"
       _ <- runLive
         { seed: Seed 1
-        , input
+        , input: \_ _ p -> input p
         , window: Just (AVar.read closing)
         , say: \_ -> pure unit
         , notify: \_ _ -> pure unit

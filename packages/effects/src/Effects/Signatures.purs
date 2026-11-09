@@ -54,6 +54,11 @@ module Effects.Signatures
   , _play
   , LIVE
   , LiveF(..)
+  , SESSIONS
+  , SessionsF(..)
+  , SessionState
+  , SubmitResult(..)
+  , _sessions
   , LiveRequest
   , _live
   ) where
@@ -318,3 +323,23 @@ type LIVE r = (live :: LiveF | r)
 
 _live :: Proxy "live"
 _live = Proxy
+
+-- | One live session as a client sees it.
+type SessionState = { round :: RoundIndex, status :: String, window :: Int, submitted :: Array ActorId, awaiting :: Array ActorId }
+
+data SubmitResult = Accepted | NoSuchSession | NotASeat | NotThisRound RoundIndex | AlreadySubmitted | SessionOver
+
+derive instance Eq SubmitResult
+
+-- | Live sessions a server hosts, started once and fed text as it arrives.
+data SessionsF a
+  = Host { request :: LiveRequest, humans :: Array ActorId } a
+  | State String (Maybe SessionState -> a)
+  | Submit { id :: String, seat :: ActorId, round :: RoundIndex, text :: String } (SubmitResult -> a)
+
+derive instance Functor SessionsF
+
+type SESSIONS r = (sessions :: SessionsF | r)
+
+_sessions :: Proxy "sessions"
+_sessions = Proxy

@@ -4,6 +4,8 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
+import Test.Server.Host (testHost)
+
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Schema.Decode (decodeError)
@@ -65,7 +67,7 @@ setup = do
   cache <- liftEffect newServerCache
   let
     store = storeOver db
-    api method path body = liftEffect (route (implement [ ctx ] store cache) { method, path, query: Object.empty, body })
+    api method path body = liftEffect (route (implement [ ctx ] store cache (testHost store)) { method, path, query: Object.empty, body })
   pure { api, store, db, cache, ctx }
 
 launch :: Env -> Int -> Aff Unit
@@ -171,7 +173,7 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     launch env 2
     _ <- env.api "POST" "/api/sets" "{\"name\":\"solo\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}"
-    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "DELETE", path: "/api/runs/run-1", query: Object.singleton "confirm" "run-1", body: "" })
+    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache (testHost env.store)) { method: "DELETE", path: "/api/runs/run-1", query: Object.singleton "confirm" "run-1", body: "" })
     r.status `shouldEqual` 409
     r.body `shouldSatisfy` contains (Pattern "solo")
 
@@ -256,7 +258,7 @@ spec = describe "API status rules, startup and cache" do
   it "the run cache keeps a finished run until a write, and never keeps a running one" do
     env <- setup
     launch env 2
-    run <- liftEffect (runServer { system: systemDevices, store: env.store, cache: env.cache } (loadRun "run-1")) >>= case _ of
+    run <- liftEffect (runServer { system: systemDevices, store: env.store, cache: env.cache, sessions: testHost env.store } (loadRun "run-1")) >>= case _ of
       Right r -> pure r
       Left _ -> liftEffect (throw "the run should load")
     c <- liftEffect newServerCache
@@ -278,7 +280,7 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
     _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Aggressive\",\"playerSeed\":2,\"rounds\":2}"
-    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
+    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache (testHost env.store)) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
     r.status `shouldEqual` 200
     r.body `shouldSatisfy` contains (Pattern "[\"seat Strategy\",\"preset\",\"Conservative\",\"Aggressive\"]")
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")

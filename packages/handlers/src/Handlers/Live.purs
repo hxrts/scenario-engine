@@ -39,7 +39,7 @@ import Type.Row (type (+))
 -- | seat's SeatBinding.
 type Live =
   { seed :: Seed
-  , input :: String -> Aff String -- a human seat's line, after the prompt text
+  , input :: ActorId -> RoundIndex -> String -> Aff String -- a human seat's text for a round; the last argument is the prompt to show
   , window :: Maybe (Aff Unit) -- the propose window: completes when the window has elapsed
   , say :: String -> Effect Unit -- a line for the facilitator
   , notify :: ActorId -> String -> Aff Unit -- a message to the seat that needs no answer
@@ -96,13 +96,13 @@ runLive live game = do
 
   human :: Ref (Maybe Window) -> ActorId -> RoundIndex -> Aff String
   human window e round = case live.window of
-    Nothing -> live.input (prompt e round)
+    Nothing -> live.input e round (prompt e round)
     Just timer -> do
       w <- opened window timer round
       over <- liftEffect (Ref.read w.closed)
       if over then liftEffect (live.say (show e <> " was not reached before the window closed")) $> ""
       else do
-        answer <- sequential (parallel (attempt (live.input (prompt e round))) <|> parallel (joinFiber w.timer $> Right ""))
+        answer <- sequential (parallel (attempt (live.input e round (prompt e round))) <|> parallel (joinFiber w.timer $> Right ""))
         either throwError pure answer
 
   -- the round's window, started at its first prompt

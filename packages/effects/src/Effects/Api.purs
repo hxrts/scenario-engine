@@ -11,6 +11,8 @@ module Effects.Api
   , Launch
   , LaunchBatch
   , DeriveRequest
+  , StartSession
+  , Submission
   , AgencyQuery
   , Reply
   , API
@@ -62,6 +64,12 @@ type Reply = { status :: Int, body :: String }
 -- | One operation per route. A query value a route part can read (the round) is typed; other query values the routes validate (the seed, the confirmation)
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
+-- | The body of a request to host a live session.
+type StartSession = { premise :: Maybe String, humans :: Array String, rounds :: Maybe Int, window :: Maybe Int, playerSeed :: Maybe Int }
+
+-- | One seat's text for one round.
+type Submission = { seat :: String, round :: Int, text :: String }
+
 data ApiRequest
   = ListRuns { archived :: Boolean }
   | Premise
@@ -84,6 +92,9 @@ data ApiRequest
   | SaveRunSet RunSet
   | RenameRunSet { name :: String, to :: String }
   | DeleteRunSet String
+  | StartSession StartSession
+  | GetSession String
+  | SubmitTranscript { id :: String, submission :: Submission }
   | Archive String
   | Unarchive String
   | Delete { id :: String, confirm :: String }

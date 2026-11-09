@@ -1,6 +1,6 @@
 -- | The server's handler stack: every row its programs ask for, closed over devices. A test passes fixed
 -- | devices (`implementOn`); `implement` passes the real ones.
-module Server.Stack (Devices, ServerCache, newServerCache, openDatabase, localStore, systemDevices, implement, implementOn, runServer) where
+module Server.Stack (Devices, ServerCache, newServerCache, openDatabase, localStore, systemDevices, implement, newHost, implementOn, runServer) where
 
 import Prelude
 
@@ -9,7 +9,11 @@ import Adapters.Process (processAlive, processIdentity)
 import Adapters.Random (drawOsSeed)
 import Adapters.SQLite (open)
 import Effect (Effect)
-import Effects.Signatures (_cache, _clock, _entropy, _observe, _play, _process, _store)
+import Effects.Signatures (_cache, _clock, _entropy, _observe, _play, _process, _sessions, _store)
+import Handlers.Sessions (SessionHost, interpretSessions, newSessionHost)
+import Handlers.Llm.Backend (backend, defaultModel)
+import Adapters.Pi (pi)
+import Adapters.Digest (sha256)
 import Handlers.Api.Route (Implementation)
 import Handlers.Cache (Cache, interpretCache, newCache)
 import Handlers.Play (interpretPlay)
@@ -27,7 +31,7 @@ import Views.Metrics (roundMetrics)
 
 type ServerCache = Cache StoredRun Answer
 
-type Devices = { system :: SystemDevices, store :: StoreBackend, cache :: ServerCache }
+type Devices = { system :: SystemDevices, store :: StoreBackend, cache :: ServerCache, sessions :: SessionHost }
 
 newServerCache :: Effect ServerCache
 newServerCache = newCache
@@ -51,10 +55,15 @@ runServer d = run
       # on _clock (interpretClock d.system)
       # on _entropy (interpretEntropy d.system)
       # on _process (interpretProcess d.system)
+      # on _sessions (interpretSessions d.sessions)
   )
 
 implementOn :: Devices -> Premises -> Implementation
 implementOn d premises = runServer d <<< answer premises
 
-implement :: Premises -> StoreBackend -> ServerCache -> Implementation
-implement premises store cache = implementOn { system: systemDevices, store, cache } premises
+implement :: Premises -> StoreBackend -> ServerCache -> SessionHost -> Implementation
+implement premises store cache sessions = implementOn { system: systemDevices, store, cache, sessions } premises
+
+-- | The session host of the real server: its seats and joint pass run through the `pi` model process.
+newHost :: StoreBackend -> Effect SessionHost
+newHost store = newSessionHost { store, metricsOf: roundMetrics, llm: backend { model: defaultModel, call: pi { model: defaultModel, rawDir: "runs/server/raw" }, digest: sha256 } }

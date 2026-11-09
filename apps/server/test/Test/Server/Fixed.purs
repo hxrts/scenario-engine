@@ -4,6 +4,8 @@ module Test.Server.Fixed (spec) where
 
 import Prelude
 
+import Test.Server.Host (testHost)
+
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
@@ -30,7 +32,7 @@ session = do
   cache <- liftEffect newServerCache
   let
     store = localStore db
-    api method path body = liftEffect (route (implementOn { system: fixedSystem, store, cache } [ ctx ]) { method, path, query: Object.empty, body })
+    api method path body = liftEffect (route (implementOn { system: fixedSystem, sessions: testHost store, store, cache } [ ctx ]) { method, path, query: Object.empty, body })
   -- no player seed given: it comes from the entropy device
   launched <- api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"RandomValid\",\"rounds\":2}"
   launched.status `shouldEqual` 200

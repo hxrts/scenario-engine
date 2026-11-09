@@ -19,6 +19,7 @@ import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
 import Effects.Launch (runExperiment)
 import Server.Launch (launch, launchBatch, serverRole, premiseInfo)
+import Server.Sessions (sessionView, startSession, submitTranscript)
 import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, roundReportView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Sets (deleteRunSet, renameRunSet, saveSet, setSummary, setsView)
@@ -57,6 +58,9 @@ answer premises request = do
     SaveRunSet set -> saveSet set
     RenameRunSet r -> renameRunSet r
     DeleteRunSet name -> deleteRunSet name
+    StartSession s -> startSession premises s
+    GetSession id -> sessionView id
+    SubmitTranscript r -> submitTranscript r.id r.submission
     Archive id -> setArchive id true
     Unarchive id -> setArchive id false
     Delete { id, confirm } -> deleteOne id confirm

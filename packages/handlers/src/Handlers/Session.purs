@@ -4,6 +4,7 @@ module Handlers.Session (SessionDevices, interpretLive) where
 
 import Prelude
 
+import Laws.Types (ActorId, RoundIndex)
 import Laws.World (RoundResult)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -24,7 +25,7 @@ import Handlers.Store (Metric, StoreBackend, recorder, settle)
 type SessionDevices =
   { store :: StoreBackend
   , metricsOf :: RoundResult -> Array Metric
-  , input :: String -> Aff String
+  , input :: ActorId -> RoundIndex -> String -> Aff String
   , say :: String -> Effect Unit
   , llm :: Backend
   }

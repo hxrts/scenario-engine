@@ -39,6 +39,8 @@ module Views.Keys
   , actorList
   , history
   , roundReport
+  , sessionStarted
+  , sessionState
   , compare
   ) where
 
@@ -165,6 +167,12 @@ glossary = viewShape
 
 actorList :: Shape ActorList
 actorList = viewShape
+
+sessionStarted :: Shape { id :: String }
+sessionStarted = viewShape
+
+sessionState :: Shape { round :: Int, status :: String, window :: Int, submitted :: Array String, awaiting :: Array String }
+sessionState = viewShape
 
 roundReport :: Shape RoundReport
 roundReport = viewShape

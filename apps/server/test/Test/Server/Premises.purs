@@ -5,6 +5,8 @@ module Test.Server.Premises (spec) where
 
 import Prelude
 
+import Test.Server.Host (testHost)
+
 import Testkit.Store (open, storeOver)
 import Core.Draw (Seed(..))
 import Laws.Types (Actor, ActorId, Id(..), Transferability(..))
@@ -98,7 +100,7 @@ spec = describe "A second Premise" do
       Right h -> do
         db <- liftEffect (open ":memory:")
         cache <- liftEffect newServerCache
-        let api method path query body = liftEffect (route (implement [ meridian, h ] (storeOver db) cache) { method, path, query: Object.fromFoldable query, body })
+        let api method path query body = liftEffect (route (implement [ meridian, h ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
         list.body `shouldSatisfy` contains (Pattern "\"harbor\"")
         launched <- api "POST" "/api/runs" [] "{\"premise\":\"harbor\",\"name\":\"h\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"

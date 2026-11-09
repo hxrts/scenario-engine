@@ -26,7 +26,7 @@ import Http (serve)
 import Node.Process (argv)
 import Run (case_, on, run)
 import Server.Launch (startup)
-import Server.Stack (implement, localStore, newServerCache, openDatabase)
+import Server.Stack (implement, newHost, localStore, newServerCache, openDatabase)
 import Premises.Load (loadAll)
 
 main :: Effect Unit
@@ -41,7 +41,8 @@ main = do
         store <- localStore <$> openDatabase flags.db
         runStore store startup >>= flip for_ log
         cache <- newServerCache
-        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets (implement premises store cache))
+        host <- newHost store
+        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets (implement premises store cache host))
       Left e -> fail e
   where
   -- a missing file is an empty one: every secret is unset, and what they guard stays locked

@@ -73,7 +73,7 @@ runSession o program = do
     ( case_
         # on _observe (liftEffect <<< interpretObserve store)
         # on _store (liftEffect <<< interpretStore store)
-        # on _live (interpretLive { store, metricsOf: roundMetrics, input: readLine, say: writeLine, llm })
+        # on _live (interpretLive { store, metricsOf: roundMetrics, input: \_ _ prompt -> readLine prompt, say: writeLine, llm })
         # on _clock (interpretClock system)
         # on _entropy (interpretEntropy system)
         # on _process (interpretProcess system)

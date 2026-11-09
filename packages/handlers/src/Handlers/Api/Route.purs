@@ -48,7 +48,7 @@ import Type.Proxy (Proxy(..))
 import Effect (Effect)
 import Effects.Signatures (RunSet)
 import Assembly.Experiment (experimentRequestShape)
-import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
+import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply, StartSession, Submission)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -300,6 +300,9 @@ endpoints = table
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
+  , "StartSession": post "/api/sessions" (bodyOf startSessionShape identity)
+  , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open }
+  , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open }
   , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
   , "Unarchive": post "/api/runs/:id/unarchive" (capture "id" identity)
   , "Delete": endpoint "DELETE" "/api/runs/:id" ((\id confirm -> { id, confirm }) <$> capture "id" _.id <*> param "confirm" _.confirm)
@@ -360,6 +363,24 @@ endpointNames = map _.name endpoints.rows
 -- | A body decoded through its shape; a body that does not decode is a 400.
 decodeBody :: forall a. Shape a -> String -> Either Reply a
 decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.parse Shape.Authored s text))
+
+-- | The body of `POST /api/sessions`.
+startSessionShape :: Shape StartSession
+startSessionShape = object "StartSession" ado
+  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
+  humans <- fieldOf "humans" "the seats a person plays" (arrayOf stringShape) _.humans
+  rounds <- fieldOf "rounds" "the round count; absent keeps the premise's" (optionalOf intShape) _.rounds
+  window <- fieldOf "window" "seconds a round stays open; absent waits for every seat" (optionalOf intShape) _.window
+  playerSeed <- fieldOf "playerSeed" "the player seed; absent draws one" (optionalOf intShape) _.playerSeed
+  in { premise, humans, rounds, window, playerSeed }
+
+-- | The body of `POST /api/sessions/:id/transcripts`.
+submissionShape :: Shape Submission
+submissionShape = object "Submission" ado
+  seat <- fieldOf "seat" "the seat speaking" stringShape _.seat
+  round <- fieldOf "round" "the round it is for" intShape _.round
+  text <- fieldOf "text" "what the seat said" stringShape _.text
+  in { seat, round, text }
 
 -- | The body of `POST /api/runs`.
 launchShape :: Shape Launch
