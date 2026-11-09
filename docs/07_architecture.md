@@ -162,6 +162,64 @@ Checks run under `just check`, and each fails the build on a violation. Each che
 
 Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
 
+## 6. One Description, Many Interfaces
+
+Most of what a person or a program touches in this system is produced from a small number of typed descriptions. A Premise is written once and reshaped by composition, derivation and filtering. A type is described once, and its codecs and prose come from that description. An operation is declared once, and the server and the client both come from that declaration. Each path below ends in something that cannot disagree with where it started, because no second copy was written.
+
+```text
+ AUTHORING                                  Schema.Build.*, Premises.Kit.*
+ generic definitions      Premise modules
+ (name no Premise)        (energy, shipping, defence)
+         └──────────┬──────────┘
+                    │ compose: a key defined twice fails
+                    ▼
+                 Premise ───────derive───────► variant Premise
+                    │         (dials, named patches:
+                    │          a missing key fails)
+                    │ filter (Assembly.Restrict):
+                    │ what is kept may not refer to what was dropped
+          ┌─────────┴──────────────┐
+          ▼                        ▼
+   cut-down Premise             fixture  = a filter of the Premise
+          │                        │     + candidate Transactions
+          │                        │     + expectations (Schema.Build.Fixture)
+          └─────────┬──────────────┘
+                    │ compile, through the Shapes (Authored format)
+                    ▼
+              Premise files ──load, checkPremise──► assemble ──► Game ──► simulate / runLive
+                                                                             │
+ ONE RECORD OF A ROUND                                                       ▼
+ RoundF f p    ├─ Authored   what a fixture writes                       round records
+ (Schema.Round)├─ Expect    the same, with ids resolved                      │
+               └─ Observed   what the round produced ◄───────────────────────┤
+                  Checks.Round compares field by field                       │
+                                                                             │
+ ONE EVENT TYPE                                                              │
+ Event ──► Slice: a value, its kind and fields checked at compile time ◄─────┘
+             ├─ runSlice        the number, or a test's exact assertion
+             └─ describeSlice   the formula shown beside that number
+
+ ONE SHAPE PER TYPE
+ Shape ──┬─ Authored codec   the Premise files and fixtures
+ (Core.  ├─ Snapshot codec   stored Runs and model replies
+  Shape) └─ description      the prose and the action lists a model is shown
+
+ ONE OPERATION TABLE
+ ApiRequest ──► endpoints (Handlers.Api.Route): one row per constructor, the only paths written
+                 ├─ parse   request to ApiRequest   ──► apps/server
+                 └─ wire    ApiRequest to request   ──► Handlers.Api.Client ──► apps/dashboard
+```
+
+**Reshaping a Premise.** Composition, derivation and filtering are read-only over the authored source, and each fails loudly rather than doing nothing: a duplicate key, a patch that names nothing, or a kept thing that refers to a dropped one ([03 §12a](03_premise.md#12a-how-premises-are-made)).
+
+**Fixtures and tests get their own authoring language.** A fixture is not a hand-built World. It is a filter of the Premise it tests, plus what each seat does and what should happen. It plays through `simulate` as a `Game` like any other, so its expectations are checked against the records the engine writes. `RoundF f p` is one record type filled in three ways, so what a fixture may assert is exactly what a round can produce. A new field fails to compile until the checker compares it.
+
+**Assertions come from the event type.** A selector such as `` event @"Rejected" `` names an `Event` constructor, and field selectors are checked against that constructor at compile time, so a test cannot assert on something an event does not carry. A `Slice` is a value, which is why one definition gives both the number and the formula text a view shows beside it.
+
+**Formats come from Shapes.** A `Shape` carries a codec for each JSON format and a description. The Premise files, the stored Runs, the prose and what a model is told it may do are therefore the same statement of the type ([§1](#1-principles)).
+
+**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body.
+
 ## How the docs relate
 
 The spec docs (01 to 06) are the source of truth, and the implementation follows them. [AGENTS.md](../AGENTS.md) is the operator's guide: commands, and where each part of the implementation lives.
