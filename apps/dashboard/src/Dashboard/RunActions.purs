@@ -1,19 +1,20 @@
--- | The manage actions on a run's page (docs/06_simulator.md §9.2): resume, archive, and delete. Each
+-- | The manage actions on a run's page (docs/06_simulator.md §9.2): derive, resume, archive, and delete. Each
 -- | action sends one request through the client. A bad form is shown without a request; a rejected request
 -- | shows the server's message; a success refreshes this run, or opens the Runs page after a delete.
--- | Nothing here decides what an action does. Derivation (duplicate, rerun, variant, counterfactual) is
--- | API-only and has no control in the dashboard.
+-- | Nothing here decides what an action does: derive sends its kind's fields, and the server decides.
 module Dashboard.RunActions (Props, mkRunActions) where
 
 import Prelude
 
 import Dashboard.Client as Client
-import Dashboard.Components (errorBlock, labelled, textInput)
+import Dashboard.Components (errorBlock, labelled, note, selectInput, textInput)
 import Dashboard.Route (Route(..), navigate)
-import Dashboard.RunForms (rounds)
+import Dashboard.RunForms (deriveKinds, deriveRequest, rounds)
 import Dashboard.UI as UI
+import Data.Array (find)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Schema.Run (DeriveKind(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
@@ -29,6 +30,13 @@ type Props = { id :: String, archived :: Boolean, resumable :: Boolean, onChange
 mkRunActions :: Component Props
 mkRunActions = component "RunActions" \p -> React.do
   resumeRounds /\ setResumeRounds <- useState' ""
+  kind /\ setKind <- useState' Duplicate
+  name /\ setName <- useState' ""
+  preset /\ setPreset <- useState' ""
+  seed /\ setSeed <- useState' ""
+  length /\ setLength <- useState' ""
+  overrides /\ setOverrides <- useState' ""
+  created /\ setCreated <- useState' (Nothing :: Maybe String)
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
   let
     -- A bad form is shown without a request. A rejected request keeps the panel and shows the
@@ -48,6 +56,12 @@ mkRunActions = component "RunActions" \p -> React.do
       setResumeRounds ""
       p.onChanged
 
+    deriveAction = submit (deriveRequest { kind, name, preset, seed, rounds: length, overrides }) (Client.deriveRun p.id) \d -> do
+      setCreated (Just ("Created " <> d.id <> " from " <> d.source <> " (" <> show d.kind <> ")" <> maybe "" (\same -> if same then "; its records match." else "; its records do not match.") d.recordsMatch))
+      p.onChanged
+
+    field label value onChange = labelled (D.text label) (textInput { value, required: false, onChange })
+
     -- one click deletes: the request names the run it deletes, which is the server's own check
     delete = submit (Right unit) (\_ -> Client.delete p.id) \_ ->
       p.onChanged *> navigate Runs
@@ -66,6 +80,18 @@ mkRunActions = component "RunActions" \p -> React.do
                     ]
                 }
               else D.span_ []
+            , element UI.region
+                { "aria-label": "Derive"
+                , className: "flex flex-col gap-2"
+                , children:
+                    [ D.div { className: "font-medium", children: [ D.text "Derive" ] }
+                    , labelled (D.text "Derive kind") (selectInput { value: show kind, options: map show deriveKinds, onChange: \v -> setKind (fromMaybe kind (v >>= \t -> find (\k -> show k == t) deriveKinds)) })
+                    , field "New run name" name setName
+                    ]
+                      <> (if kind == Variant then [ field "Preset" preset setPreset, field "Player seed" seed setSeed, field "Rounds" length setLength ] else [])
+                      <> (if kind == Counterfactual then [ field "Overrides (JSON)" overrides setOverrides ] else [])
+                      <> [ element UI.button { onClick: handler_ deriveAction, children: [ D.text "Derive run" ] }, maybe (D.span_ []) note created ]
+                }
             , D.div
                 { className: "flex flex-wrap gap-2"
                 , children:

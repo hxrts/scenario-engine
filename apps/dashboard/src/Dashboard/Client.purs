@@ -14,6 +14,7 @@ module Dashboard.Client
   , agency
   , archive
   , resume
+  , deriveRun
   , delete
   ) where
 
@@ -21,7 +22,8 @@ import Prelude
 
 import Dashboard.Api (fetch)
 import Core.Shape (Format(Snapshot), Shape, parse, prim)
-import Effects.Api (ApiRequest(..), Launch, call)
+import Effects.Api (ApiRequest(..), DeriveRequest, Launch, call)
+import Schema.Run (DeriveKind)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode (decodeError)
 import Views.Common (Table)
@@ -48,6 +50,10 @@ unread = prim "unread" (const jsonNull) (const (Right unit))
 -- | The run list: every run, archived or not, in creation order (`?archived=true`).
 runs :: Aff (Either String RunList)
 runs = typed Keys.runList (ListRuns { archived: true })
+
+-- | Derive a run (`POST /api/runs/:id/derive`); the reply names the new run and, for a rerun, whether its records match.
+deriveRun :: String -> DeriveRequest -> Aff (Either String { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean })
+deriveRun id body = typed Keys.derived (Derive { id, body })
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
 launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })

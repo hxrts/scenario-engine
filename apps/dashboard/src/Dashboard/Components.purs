@@ -14,6 +14,7 @@ module Dashboard.Components
   , placeholderFrame
   , fetched
   , status
+  , note
   , errorBlock
   , labelled
   , textInput
@@ -67,6 +68,10 @@ tableOf grid t = D.div
   }
 
 -- | A fetch in progress, or its error.
+-- | A plain line of information.
+note :: String -> JSX
+note text = D.p { className: "text-muted-foreground", children: [ D.text text ] }
+
 status :: Maybe String -> JSX
 status = case _ of
   Nothing -> D.p { className: "text-muted-foreground", children: [ D.text "Loading…" ] }

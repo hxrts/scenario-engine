@@ -259,7 +259,7 @@ Operation rules:
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
 
-Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual; these are API-only until then. The store interface supports save, retrieve, list, full round histories, resume, and archive or delete.
+Dashboard controls exist for launch, resume, archive, delete, and the four derivations (duplicate, rerun, variant, and counterfactual). The store interface supports save, retrieve, list, full round histories, resume, and archive or delete.
 
 ---
 

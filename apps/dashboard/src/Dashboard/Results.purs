@@ -10,7 +10,7 @@ import Prelude
 
 import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
-import Dashboard.Components (fetched, loaded, metricChart, stackedBars, stale, statistic, status, tableOf)
+import Dashboard.Components (fetched, loaded, metricChart, note, stackedBars, stale, statistic, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
 import Dashboard.Events (mkEvents)
@@ -141,7 +141,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
         , Layout.section
             { title: "Assertions"
             , purpose: "Each invariant check that failed: what it expected, what it observed, and the events of that round that concern it."
-            , children: [ view Keys.assertions (\t -> if null t.rows then status (Just "No assertion failed in this run.") else titled grid t) ]
+            , children: [ view Keys.assertions (\t -> if null t.rows then note "No assertion failed in this run." else titled grid t) ]
             }
         , Layout.section
             { title: "Final balance sheet"

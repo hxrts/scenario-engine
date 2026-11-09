@@ -11,7 +11,8 @@ import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
 import Views.Setting (RoundRange, Setting)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
-import Dashboard.RunForms (rounds)
+import Dashboard.RunForms (deriveRequest, rounds)
+import Schema.Run (DeriveKind(..))
 import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
 import Effects.Api as Api
 import Handlers.Api.Route (wire)
@@ -55,6 +56,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a run id with reserved characters is one segment, encoded and decoded intact" do
       parse route (print route (Run "a/b c")) `shouldEqual` Right (Run "a/b c")
       parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])
+  describe "Derive form" do
+    let blank = { kind: Duplicate, name: "", preset: "", seed: "", rounds: "", overrides: "" }
+    it "reads only the fields of its kind, and a blank field stays absent" do
+      map _.rounds (deriveRequest blank { rounds = "9" }) `shouldEqual` Right Nothing
+      map _.rounds (deriveRequest blank { kind = Variant, rounds = "6" }) `shouldEqual` Right (Just 6)
+      map _.playerSeed (deriveRequest blank { kind = Variant }) `shouldEqual` Right Nothing
+    it "refuses what it cannot send" do
+      map _.rounds (deriveRequest blank { kind = Variant, rounds = "x" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
+      map _.kind (deriveRequest blank { kind = Counterfactual, overrides = "not json" }) `shouldEqual` Left "Overrides must be a JSON array."
   describe "Compare choices" do
     it "every readable run is a choice, and an unreadable run is not" do
       readableIds (listOf [ flag "run-1" false true, flag "run-2" false false, flag "run-3" false true ]) `shouldEqual` [ "run-1", "run-3" ]

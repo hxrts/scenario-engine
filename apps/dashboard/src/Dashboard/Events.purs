@@ -6,7 +6,7 @@ import Prelude
 
 import Dashboard.Api (useLoad)
 import Dashboard.Client (runView)
-import Dashboard.Components (labelled, loaded, selectInput, stale, status, tableOf, textInput)
+import Dashboard.Components (labelled, loaded, note, selectInput, stale, tableOf, textInput)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
 import Data.Array (any, filter, range)
@@ -34,7 +34,7 @@ mkEvents grid = component "EventInspector" \p -> React.do
     { title: "Event inspector"
     , purpose: "Every event of one round, in the order the engine recorded it."
     , children:
-        if p.rounds < 1 then [ status (Just "This run has no completed rounds.") ]
+        if p.rounds < 1 then [ note "This run has no completed rounds." ]
         else
           [ D.div
               { className: "flex flex-wrap gap-stack"

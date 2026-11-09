@@ -1,5 +1,5 @@
 // Run actions on a run's page (docs/06_simulator.md §9.2): resume, archive, and delete, under the selected
-// run on the Runs page. Prepare has no derive controls (derivation is API-only). Every request these tests
+// run on the Runs page. Derive is exercised against the real server. Every request these tests
 // depend on is answered by page.route (e2e/mocks.js), so they do not depend on the e2e server's seeded data
 // or on the write endpoints being present: each mock answers the contract (apps/server), and the test asserts
 // the request the page sent.
@@ -102,4 +102,26 @@ test("a Source cell links to the run it was derived from", async ({ page }) => {
   await page.goto("/#/runs");
   await page.getByLabel("Show archived runs").check();
   await expect(page.getByRole("row", { name: /run-9/ }).getByRole("link", { name: "run-1", exact: true })).toHaveAttribute("href", "#/runs/run-1");
+});
+
+test("a rerun derived from the page reports that its records match", async ({ page, request }) => {
+  await page.goto("/#/runs/run-1");
+  const derive = page.getByRole("region", { name: "Derive" });
+  await derive.getByRole("combobox", { name: "Derive kind", exact: true }).selectOption("rerun");
+  await derive.getByRole("button", { name: "Derive run", exact: true }).click();
+  await expect(derive.getByText(/^Created run-\d+ from run-1 \(rerun\); its records match\.$/)).toBeVisible();
+  const text = await derive.getByText(/^Created run-/).textContent();
+  const id = /run-\d+/.exec(text)[0];
+  await request.delete(`/api/runs/${id}?confirm=${id}`);
+});
+
+test("a refused derive shows the server's message", async ({ page }) => {
+  await mockReads(page);
+  const message = "a live session has no preset, so a variant cannot be derived from run-1";
+  await page.route(isPath("/api/runs/run-1/derive"), (route) => route.fulfill(json({ error: message }, 400)));
+  await page.goto("/#/runs/run-1");
+  const derive = page.getByRole("region", { name: "Derive" });
+  await derive.getByRole("combobox", { name: "Derive kind", exact: true }).selectOption("variant");
+  await derive.getByRole("button", { name: "Derive run", exact: true }).click();
+  await expect(page.getByText(message)).toBeVisible();
 });
