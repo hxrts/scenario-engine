@@ -118,6 +118,16 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
             , children: [ view Keys.drivers (titled grid) ]
             }
         , Layout.section
+            { title: "Representation"
+            , purpose: "How each Aggregate follows its representative: the observation in one round, the factor it stores, and the Aggregate's adjusted purchase in the next."
+            , children: [ view Keys.representation (titled grid) ]
+            }
+        , Layout.section
+            { title: "Collective procedures"
+            , purpose: "Each procedure Proposal: who signed, the support it reached against its threshold, and the outcome."
+            , children: [ view Keys.procedures (titled grid) ]
+            }
+        , Layout.section
             { title: "Balance measures"
             , purpose: "How evenly final net worth is spread among the players: the spread and the Gini coefficient."
             , children: [ view Keys.balance (titled grid <<< _.measures) ]

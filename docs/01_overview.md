@@ -1,9 +1,5 @@
 # Game Overview
 
-**Scope:** Game design, for players and designers. The formal rules are in [02](02_type_system.md), the authored world in [03](03_gameboard.md), and the playthrough in [04](04_instantiated_game.md).
-
----
-
 ## 1. Concept
 
 This section says what the game is, who plays it, and how the world, the AI, and the engine fit together.

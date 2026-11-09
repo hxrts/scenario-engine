@@ -1,11 +1,5 @@
 # Instantiated Game Specification
 
-**Version:** 0.3
-**Scope:** Instantiated Game Layer
-**Implementation language:** PureScript
-
----
-
 ## Terms
 
 The assembly and runtime terms of this layer. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary).

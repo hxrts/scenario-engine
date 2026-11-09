@@ -99,7 +99,7 @@ test("the header names the run, its setting, status, rounds completed out of tar
 test("the removed sections and the overview fields that left the page are absent", async ({ page }) => {
   await page.goto("/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Key figures", exact: true })).toBeVisible();
-  for (const title of ["Overview", "Actions by round", "Markets", "Facilities", "World economy", "Balance sheets by round", "Representation", "Procedures", "Events"])
+  for (const title of ["Overview", "Actions by round", "Markets", "Facilities", "World economy", "Balance sheets by round", "Procedures", "Events"])
     await expect(page.getByRole("heading", { name: title, exact: true }), `no ${title} section`).toHaveCount(0);
   // Game seed and Assertions failing remain columns of the run list beside the results; the overview rows are what left the page
   for (const field of ["Engine", "Draws", "Rejected Proposals"]) // no longer served by the overview either

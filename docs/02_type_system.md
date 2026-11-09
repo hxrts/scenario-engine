@@ -1,11 +1,5 @@
 # Type System Specification
 
-**Version:** 0.3  
-**Scope:** Type System Layer  
-**Implementation language:** PureScript
-
----
-
 ## 1. Purpose
 
 This layer defines the economic types, invariants, numerics and round sequence through which explicit Actors, Aggregates and implicit populations act in one deterministic economy. It is independent of any setting, resource taxonomy or conflict. It stays small by giving existing primitives precise meaning rather than adding a primitive for each phenomenon. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).

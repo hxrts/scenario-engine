@@ -1,11 +1,5 @@
 # Gameboard Specification
 
-**Version:** 0.3
-**Scope:** Gameboard Layer
-**Implementation language:** PureScript
-
----
-
 ## Terms
 
 The authoring terms of this layer. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary), and the scenario-planning terms in [01 §1](01_overview.md#1-concept).

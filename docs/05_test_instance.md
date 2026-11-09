@@ -1,7 +1,6 @@
 # Reference Instance: Meridian
 
-**Version:** 0.2  
-**Status:** Experimental configuration. All setting choices and numerical parameters are provisional  
+**Status:** Experimental configuration.  
 **Setting ID:** `meridian`, version `v0` (Gameboard `meridian@v0`)
 
 ## 1. Purpose

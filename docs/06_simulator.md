@@ -1,10 +1,6 @@
 # Simulator and Dashboard Specification
 
-**Version:** 0.4  
-**Scope:** The simulator, the Run Store, the read API, the dashboard, analysis, experiments, and the mandatory tests  
 **Reference setting:** Meridian ([05](05_test_instance.md))
-
-Items marked **Planned** are specified but not implemented. The mandatory tests in §14 check the economic and persistence behaviour.
 
 ---
 
@@ -282,7 +278,7 @@ The page opens with a header of the run's facts. Its sections follow in order: k
 
 Standings rank 1 is the highest net worth, and equal net worths share a rank. Aggregates are residual representations, not players. An objective criterion is met, not met, or not evaluated; it is never reported as met when its series is empty.
 
-The round-by-round action counts, the Market, facility, and economy views, the representation and procedure records, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. **Planned** on this page: the representation and procedure views, and an event inspector.
+The run page shows the representation and procedure records. The round-by-round action counts, the Market, facility, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. **Planned** on this page: an event inspector.
 
 ### 9.3 Prepare
 
