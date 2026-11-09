@@ -38,6 +38,11 @@ _deps:
 _layout:
     node scripts/check/layout.js
 
+# The three layers for impure work (docs/07 §1)
+_impurity:
+    node scripts/check/impurity.js --samples
+    node scripts/check/impurity.js
+
 # Manual implementations of what should be derived (docs/07 §3)
 _derived:
     node scripts/check/derived.js --samples
@@ -49,7 +54,7 @@ _settings:
     spago run -p sp-cli --main Transcript
 
 # fmt-check, deps, layout, derived, build, test
-check: _fmt-check build _deps _layout _derived test _docs
+check: _fmt-check build _deps _layout _impurity _derived test _docs
 
 # docs/05's marked tables against the compiled setting
 _docs: _settings
