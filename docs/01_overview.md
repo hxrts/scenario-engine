@@ -47,7 +47,7 @@ This section describes what a player experiences in one round. Each round runs t
 4. **Resolution.** Every player, NPC, and market action resolves together as one update. Nothing is ordered within a round, and what a round computes is visible in the next round ([02 §8.1](02_type_system.md#81-canonical-resolution-sequence)).
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
-**Propose, then sign.** Negotiation works in two steps. Each party proposes actions, then signs the proposals that name it and that it accepts. A joint Proposal needs every named party's signature, so the two sides cannot disagree about its terms. A joint Proposal that is missing a signature lapses. A counteroffer is a new Proposal for the next round ([02 §3.3](02_type_system.md#33-proposals-and-signatures)). A transcript that describes a joint Proposal counts as its speaker's agreement to it. When the interpreter reads the transcripts together, it reconciles matching descriptions into one Proposal, adjusting details slightly where needed. A joint Proposal that only one side describes lapses.
+**Propose, then sign.** Negotiation works in two steps. Each party proposes actions, then signs the proposals that name it and that it accepts. A joint Proposal needs every named party's signature, so the two sides cannot disagree about its terms. A joint Proposal that is missing a signature lapses. A counteroffer is a new Proposal for the next round ([03 §10.1](03_gameboard.md#101-proposal-rules)). A transcript that describes a joint Proposal counts as its speaker's agreement to it. When the interpreter reads the transcripts together, it reconciles matching descriptions into one Proposal, adjusting details slightly where needed. A joint Proposal that only one side describes lapses.
 
 **Planned:** spoken submission, transcribed before interpretation.
 
@@ -67,7 +67,7 @@ Three relationships are kept separate, so overlapping groups never double-count:
 
 For example, Germany can be an EU member, have its government's accounts played as an actor, and leave German households and firms in the implicit European economy. EU-wide authority stays with the EU's own decision procedures.
 
-Markets trade existing resources at prices that rise and fall with demand. Facilities produce new goods within their capacity, and capacity can be renewed through investment ([02 §5](02_type_system.md#5-cost-functions-markets-and-transformations)). Money paid into production always goes to a named recipient, so shortages reflect choices and modelled scarcity, not missing accounting ([02 §6](02_type_system.md#6-economic-circulation)).
+Markets trade existing resources at prices that rise and fall with demand. Facilities produce new goods within their capacity, and capacity can be renewed through investment ([03 §5.3](03_gameboard.md#53-facilities)). Money paid into production always goes to a named recipient, so shortages reflect choices and modelled scarcity, not missing accounting ([02 §6](02_type_system.md#6-economic-circulation)).
 
 ## 5. Small Players Matter
 
@@ -75,7 +75,7 @@ This section explains how small participants can shape a larger economy. Both me
 
 **Representation.** A small actor's decisions count as evidence about similar actors. If a small business buys less energy than usual, the aggregate that stands for small businesses buys somewhat less in the following round. The adjustment is capped and includes some random variation. The business's own purchase still executes once, from its own budget. Players know their choices move the aggregate, so they are not unbiased samples. That influence is kept explicit and bounded ([02 §7](02_type_system.md#7-aggregates-and-representation)).
 
-**Collective procedure.** A bloc acts when members whose combined weight passes the threshold sign its proposal. The bloc then acts in that same round with its own resources and authority. Otherwise the proposal lapses ([02 §3.3](02_type_system.md#33-proposals-and-signatures)).
+**Collective procedure.** A bloc acts when members whose combined weight passes the threshold sign its proposal. The bloc then acts in that same round with its own resources and authority. Otherwise the proposal lapses ([03 §6.3](03_gameboard.md#63-aggregates)).
 
 ## 6. Evaluation
 
@@ -104,12 +104,13 @@ This section lists the rules that every setting and every rule should respect.
 - **Diplomacy is free; joint Proposals are binding.** Players may negotiate however they like, but only what every party has signed takes effect, and every joint Proposal must be paid for.
 - **Unequal but interdependent.** Power is deliberately unequal, yet every role has a capability, a dependency that others control, and an objective that others can help or obstruct. Agency matters more than equal starting resources.
 - **Small players matter.** Representation and collective procedures let a small participant shift a larger economy, with influence that is real but bounded ([§5](#5-small-players-matter)).
+- **The core is a small kernel; agreements are authored.** Core offers stocks, flows, laws and conditional obligations. Trades, signatures, procedures, schedules and depreciation are vocabulary a setting writes, so a new kind of agreement needs no change to the engine's core ([02 §10](02_type_system.md#10-design-boundaries)).
 - **Consequences, not scripts.** Outcomes emerge from decisions meeting markets. Non-player actors keep fixed motives, so players change the world others respond to, not the way they respond.
 
 ## 8. Document Map
 
-- [02 Type System](02_type_system.md): the types, rules, and invariants of the economy.
-- [03 Gameboard](03_gameboard.md): how a setting is authored.
+- [02 Type System](02_type_system.md): the kernel, the types, and the invariants of the economy.
+- [03 Gameboard](03_gameboard.md): how a setting is authored, and the vocabulary that compiles to the kernel.
 - [04 Instantiated Game](04_instantiated_game.md): how a playthrough is assembled and run.
 - [05 Test Instance](05_test_instance.md): *Meridian*, the reference setting.
 - [06 Simulator](06_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
