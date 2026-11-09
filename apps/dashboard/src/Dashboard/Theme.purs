@@ -1,6 +1,6 @@
 -- | Light/dark toggle. The preference is stored in localStorage; dark is the default, and
 -- | index.html applies it before the app renders so the page never flashes light.
-module Dashboard.Theme (themeToggle) where
+module Dashboard.Theme (pageMarker, themeToggle) where
 
 import Prelude
 
@@ -12,6 +12,9 @@ import React.Basic.DOM as D
 
 foreign import readStoredTheme :: Effect String
 foreign import storeTheme :: String -> Effect Unit
+
+-- | Which public page the server asked for, read from the page itself; empty for the app.
+foreign import pageMarker :: Effect String
 
 themeToggle :: Component Unit
 themeToggle = component "ThemeToggle" \_ -> React.do

@@ -1,11 +1,11 @@
-# Reference Premise: Meridian
+# Reference PremiseComposition: Meridian
 
 **Status:** Experimental configuration.  
-**Premise ID:** `meridian`, version `v0`
+**PremiseComposition ID:** `meridian`, version `v0`
 
 ## 1. Purpose
 
-Meridian is the provisional reference Premise. It describes one set of possible Worlds, and each game played from it is a Run. It gives concrete values to every choice that the [kernel](02_kernel.md), the [Premise format](03_premise.md) and the [Run](04_run.md) leave open. The golden fixtures and test suites run against it, so each value is also a check. The anchors are defined in [01 Terms](01_overview.md#terms), and invariants are cited by ID.
+Meridian is the provisional reference PremiseComposition, made of five Premises in order: `meridian-energy`, `meridian-shipping`, `meridian-defence`, `meridian-soft-power` and `meridian-actors`, each at version `v0` ([03 §2](03_premise.md#2-premises-and-compositions)). It describes one set of possible Worlds, and each game played from it is a Run. It gives concrete values to every choice that the [kernel](02_kernel.md), the [Premise format](03_premise.md) and the [Run](04_run.md) leave open. The golden fixtures and test suites run against it, so each value is also a check. The anchors are defined in [01 Terms](01_overview.md#terms), and invariants are cited by ID.
 
 # Part I: Economy
 
@@ -73,17 +73,17 @@ The `defence-goods` Exchange trades Military for Money, so a deployment and a sa
 
 Each Actor's distinctive capability and dependency are in [§9](#9-actor-catalog).
 
-# Part II: Premise Configuration
+# Part II: PremiseComposition Configuration
 
-## 6. Premise: Meridian
+## 6. PremiseComposition: Meridian
 
 ### 6.1 Story
 
-A hypothetical near-future economy of intensifying competition between the United States and China, divided regional energy exchanges, and unequal access to industrial and military capability. Europe must coordinate while keeping national priorities. The Premise asks whether participants can preserve cooperation under conditions that reward competition.
+A hypothetical near-future economy of intensifying competition between the United States and China, divided regional energy exchanges, and unequal access to industrial and military capability. Europe must coordinate while keeping national priorities. The PremiseComposition asks whether participants can preserve cooperation under conditions that reward competition.
 
 ### 6.2 Time horizon
 
-Five simulated years, played as five one-year rounds. The Premise supports four to eight rounds.
+Five simulated years, played as five one-year rounds. The PremiseComposition supports four to eight rounds.
 
 ## 7. Economic Verticals
 
@@ -299,7 +299,7 @@ Weight 1; reference 5 E per round; shrinkage 0.25; noise spread 0.10 (ε uniform
 
 Round r+1 uses the stored factor in place of its baseline, once ([02 §7.3](02_kernel.md#73-representation-pipeline)). The owner's own purchase executes separately in round r.
 
-## 13. Premise Rules
+## 13. Rules of Play
 
 ### 13.1 Institutional changes
 
@@ -312,7 +312,7 @@ Governments restrict shipping by enacting Rules:
 - **Shipment ban** (`AccessBan`). Blocks Energy Transfers that need shipping between the restricting and target jurisdictions. Enacted by the governments holding the capability (US, CN, IN, JP, UK, BR, SA, NG).
 - **Import tariff** (`Tariff`). Levies a rate of t M/E on inbound shipped Energy. The EU's matching tariff is 0.5 M/E ([§12.1](#121-eu-collective-procedures)).
 
-Germany holds no tariff authority of its own. EU-wide restrictions belong to the EU's trade procedure. The bound t ≤ 1.0 is this Premise's own, since the source gives none ([§17](#17-differences-from-the-source)).
+Germany holds no tariff authority of its own. EU-wide restrictions belong to the EU's trade procedure. The bound t ≤ 1.0 is this PremiseComposition's own, since the source gives none ([§17](#17-differences-from-the-source)).
 
 ### 13.3 Military deployment
 
@@ -343,7 +343,7 @@ The Run set varies one uncertainty, the Energy shock, in two named cases.
 
 ## 14. Run Configuration
 
-- **Game ID:** `meridian/meridian-test-01`, the Premise id then its label. **Premise:** `meridian`, version `v0`.
+- **Game ID:** `meridian/meridian-test-01`, the PremiseComposition id then its label. **PremiseComposition:** `meridian`, version `v0`.
 - **Seats / non-playable Actors / Aggregates:** 15 / 1 (China) / 7. **Rounds:** 5 rounds of 1 year ([§6.2](#62-time-horizon)).
 - **Game seed:** `26021` (its only use in v0 is SME sampling noise).
 

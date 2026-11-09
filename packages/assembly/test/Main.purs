@@ -8,11 +8,11 @@ import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restricti
 import Schema.Build.Quantity (q)
 import Prelude
 
-import Assembly.Premise (checkRefs, checkPremise, Premise(..))
+import Assembly.Composition (checkRefs, checkComposition, Origin(..))
 import Assembly.Error (AssemblyError(..), renderAssemblyError)
 import Laws.StrategyRules (SignRule(..), Template(..))
 import Laws.Types (IntentF(..), RefKind(..), Id(..), StrategyId, candidateTransactionId)
-import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
+import World.Composition.Validate (compositionNames, unknownNames)
 
 import Core.Kernel.Types (Account(..), Amount(..), Party(..), Short(..), noNext)
 import Core.Kernel.Types as K
@@ -46,7 +46,7 @@ import Assembly.Recipe (decodeSpec)
 import Assembly.Types (SeatBinding(..))
 import Handlers.Simulate (simulate)
 import Assembly.Patch (setAccount, setCurve)
-import Testkit.Meridian (orThrow, premise, silent)
+import Testkit.Meridian (orThrow, meridianParts, silent)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -73,33 +73,33 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Agreements in a Premise" do
     let
       step name actor resource = Tuple name (WorldTemplate { params: [], parties: [ "p" ], transaction: { obligations: [ { id: "x", obligor: Named (Id actor), effect: K.Move { from: Created, to: HeldBy (Bound "p"), resource: Id resource, owed: Exactly Q.zero }, when: [], onShort: Reject, next: noNext } ], ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing, consented: [] } })
-      withTemplate p t = p { possibleWorld = p.possibleWorld { world = p.possibleWorld.world { templates = Map.fromFoldable [ t ] } } }
+      withTemplate p t = p { composition = p.composition { world = p.composition.world { templates = Map.fromFoldable [ t ] } } }
     it "load refuses a template naming what the Premise lacks, and a filter drops one naming what it dropped" do
-      parts <- premise
+      parts <- meridianParts
       let kept = withTemplate parts (step "grant" "NG" "E")
-      either (const false) (const true) (checkPremise (withTemplate parts (step "bad" "NG" "nothing"))) `shouldEqual` false
-      case checkPremise kept of
+      either (const false) (const true) (checkComposition (withTemplate parts (step "bad" "NG" "nothing"))) `shouldEqual` false
+      case checkComposition kept of
         Left e -> fail (show e)
         Right ok -> do
-          Map.size ok.possibleWorld.world.templates `shouldEqual` 1
-          case restrict ((everything ok.possibleWorld) { actors = filter (_ /= Id "NG") (everything ok.possibleWorld).actors }) ok of
-            Right cut -> Map.size cut.possibleWorld.world.templates `shouldEqual` 0
+          Map.size ok.composition.world.templates `shouldEqual` 1
+          case restrict ((everything ok.composition) { actors = filter (_ /= Id "NG") (everything ok.composition).actors }) ok of
+            Right cut -> Map.size cut.composition.world.templates `shouldEqual` 0
             Left e -> fail (show e)
 
   describe "A Strategy that enters an agreement" do
     let
       grant = WorldTemplate { params: [ "amount" ], parties: [ "p" ], transaction: { obligations: [], ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing, consented: [] } }
       entering template args parties = { rules: [ { when: [], propose: [ IntentT (Enter { template, args: map (\name -> { name, value: lit 1 }) args, parties: map (\role -> { role, actor: Id "self" }) parties }) ] } ], sign: [] }
-      check parts = checkRefs "s" (possibleWorldNames parts.possibleWorld)
-      withGrant p = p { possibleWorld = p.possibleWorld { world = p.possibleWorld.world { templates = Map.singleton "grant" grant } } }
+      check parts = checkRefs "s" (compositionNames parts.composition)
+      withGrant p = p { composition = p.composition { world = p.composition.world { templates = Map.singleton "grant" grant } } }
     it "is refused at load for an unknown template, and for a missing argument or party" do
-      parts <- withGrant <$> premise
+      parts <- withGrant <$> meridianParts
       check parts (entering "grant" [ "amount" ] [ "p" ]) `shouldEqual` Right unit
       check parts (entering "nope" [ "amount" ] [ "p" ]) `shouldEqual` Left (Unresolved "s" RefTemplate "nope")
       check parts (entering "grant" [] [ "p" ]) `shouldEqual` Left (IncompleteAgreement "s" "grant" "amount")
       check parts (entering "grant" [ "amount" ] []) `shouldEqual` Left (IncompleteAgreement "s" "grant" "p")
     it "signing by an unknown template is refused at load" do
-      parts <- withGrant <$> premise
+      parts <- withGrant <$> meridianParts
       check parts { rules: [], sign: [ SignAgreements [ "grant" ] ] } `shouldEqual` Right unit
       check parts { rules: [], sign: [ SignAgreements [ "nope" ] ] } `shouldEqual` Left (Unresolved "s" RefTemplate "nope")
 
@@ -122,68 +122,68 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Just (Script [ r ]) -> map _.signers r.propose `shouldEqual` [ [ Id "0" ], [ Id "1" ] ]
         _ -> fail "expected one scripted round"
 
-  describe "Named patches of a premise" do
-    it "a patch sets what it names, and fails on a name the premise does not have" do
-      p <- premise
-      map (\g -> (Map.lookup (Id "SA") g.world.actors) >>= Map.lookup (Id "energy-production") <<< _.accounts) (setAccount (Id "SA") (Id "energy-production") (Q.fromInt 7) p.possibleWorld)
+  describe "Named patches of a composition" do
+    it "a patch sets what it names, and fails on a name the composition does not have" do
+      p <- meridianParts
+      map (\g -> (Map.lookup (Id "SA") g.world.actors) >>= Map.lookup (Id "energy-production") <<< _.accounts) (setAccount (Id "SA") (Id "energy-production") (Q.fromInt 7) p.composition)
         `shouldEqual` Right (Just (Q.fromInt 7))
-      isLeft (setAccount (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.possibleWorld) `shouldEqual` true
-      isLeft (setCurve (Id "no-exchange") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.possibleWorld) `shouldEqual` true
+      isLeft (setAccount (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.composition) `shouldEqual` true
+      isLeft (setCurve (Id "no-exchange") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.composition) `shouldEqual` true
   describe "Assembly (docs/06 §4.3)" do
     let
-      assembled p bindings = map (const unit) (assemble (PossibleWorldPremise p) bindings [])
+      assembled p bindings = map (const unit) (assemble (FromComposition p) bindings [])
     it "a binding for something that is not a configured seat is rejected" do
-      p <- premise
+      p <- meridianParts
       assembled p (Map.insert (Id "CN") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "CN"))
       assembled p (Map.insert (Id "NOBODY") (Script []) (silent p)) `shouldEqual` Left (NotASeat (Id "NOBODY"))
     it "a configured seat with no binding is rejected" do
-      p <- premise
+      p <- meridianParts
       assembled p (Map.delete (Id "AID") (silent p)) `shouldEqual` Left (UnboundSeat (Id "AID"))
     it "an implicit seat is neither bound nor required: the preset game of a run with it implicit assembles" do
-      p <- premise
+      p <- meridianParts
       map _.rounds (assemblePreset p "Passive" [ Implicit (Id "AID") ] (Just 1)) `shouldEqual` Right 1
     it "a bound StrategyRules's names are checked: a misspelled parameter is an error, not a zero" do
-      p <- premise
+      p <- meridianParts
       let
         typo = ({ rules: [ rule [ gt (param "no-such-parameter") (lit 0) ] [] ], sign: [] })
         bindings = Map.insert (Id "US") (StrategyRules typo) (silent p)
       assembled p bindings `shouldEqual` Left (Unresolved "seat US" RefParameter "no-such-parameter")
     it "a bound StrategyRules naming an unknown Exchange or Actor is an error" do
-      p <- premise
+      p <- meridianParts
       let
         exchange = ({ rules: [ rule [] [ orderAt (named "energy-nowhere") (lit 1) Nothing ] ], sign: [] })
         actor = ({ rules: [ rule [ restrictionInForce { by: "ATLANTIS" } ] [] ], sign: [] })
       assembled p (Map.insert (Id "US") (StrategyRules exchange) (silent p)) `shouldEqual` Left (Unresolved "seat US" RefExchange "energy-nowhere")
       assembled p (Map.insert (Id "US") (StrategyRules actor) (silent p)) `shouldEqual` Left (Unresolved "seat US" RefActor "ATLANTIS")
-    it "a literal premise takes no overrides" do
-      p <- premise
-      let world = (_.world) <$> assemble (PossibleWorldPremise p) (silent p) []
+    it "a literal composition takes no overrides" do
+      p <- meridianParts
+      let world = (_.world) <$> assemble (FromComposition p) (silent p) []
       w <- orThrow (world)
-      map (const unit) (assemble (LiteralPremise { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
+      map (const unit) (assemble (FromLiteral { world: w, rounds: 1 }) Map.empty [ GameSeed 1 ]) `shouldEqual` Left LiteralOverrides
     it "an override naming an unknown Actor is an error" do
-      p <- premise
+      p <- meridianParts
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefActor "NOBODY")
     it "an override naming an unknown capacity, or making an unknown Actor implicit, is an error" do
-      p <- premise
+      p <- meridianParts
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefResource "no-such-capacity")
       map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" RefActor "NOBODY")
     -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
     it "a recipe read back from a stored spec checks its overrides when it is played" do
-      p <- premise
+      p <- meridianParts
       case decodeOverrides =<< jsonParser """[{"type":"implicit","actor":"NOBODY"}]""" of
         Left e -> fail e
         Right overrides -> map (const unit) (assemblePreset p "Passive" overrides Nothing) `shouldEqual` Left (Unresolved "override" RefActor "NOBODY")
     it "the name check knows every kind of reference" do
-      p <- premise
+      p <- meridianParts
       let
-        scope = possibleWorldNames p.possibleWorld
-        firstStrategy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.possibleWorld.strategies) :: Array StrategyId)))
+        scope = compositionNames p.composition
+        firstStrategy = fromMaybe "" (head (map show (fromFoldable (Map.keys p.composition.strategies) :: Array StrategyId)))
       unknownNames scope [ Tuple RefStrategy "no-such-strategy", Tuple RefRuleKind "no-such-kind" ]
         `shouldEqual` [ UnknownReference RefStrategy "no-such-strategy", UnknownReference RefRuleKind "no-such-kind" ]
       unknownNames scope [ Tuple RefStrategy firstStrategy, Tuple RefRuleKind "tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
-      p <- premise
-      g <- orThrow (assemble (PossibleWorldPremise p) (Map.insert (Id "US") Agent (silent p)) [])
+      p <- meridianParts
+      g <- orThrow (assemble (FromComposition p) (Map.insert (Id "US") Agent (silent p)) [])
       case simulate (Seed 1) g of
         Left e -> e `shouldEqual` NotSimulable (Id "US")
         Right _ -> fail "expected NotSimulable"

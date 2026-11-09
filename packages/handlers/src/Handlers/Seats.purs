@@ -36,7 +36,7 @@ import Effects.Round (runGame)
 import Run (Run, case_, interpret, on, peel, run, send)
 import Type.Row (type (+))
 
--- | What a machine seat's answer depends on besides its own binding: the player seed and the possible World's
+-- | What a machine seat's answer depends on besides its own binding: the player seed and the composition's
 -- | parameters.
 type SeatEnv = { seed :: Seed, params :: Object Q }
 

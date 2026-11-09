@@ -2,7 +2,7 @@
 -- | Actors with their Aggregates and procedures, Representation schemes and assignments, and
 -- | circulation. Each shape reads the core type directly (Laws.Types, Laws.World): a key with a default
 -- | is omitted when it holds that default, and a record keyed by its id reads the id from the key.
--- | `worldFields` is every section but the Actors, so a possible World can read the Actors with their
+-- | `worldFields` is every section but the Actors, so a composition can read the Actors with their
 -- | Actor definitions and a fixture without.
 module Schema.Premise.World
   ( PremiseWorld
@@ -34,7 +34,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.String (joinWith)
 import Data.String as String
 import Data.Tuple (Tuple(..), snd)
-import Schema.PossibleWorld (Scheme)
+import Schema.Composition (Scheme)
 import Schema.Premise.Intent (capabilityShape, ruleShape)
 import Schema.Premise.Query (measureShape)
 import Schema.Recurring (Authored, Circulation, Flow, Production, Requirement, Share, compileIn)
@@ -186,7 +186,7 @@ representationShape = object "Representation"
   where
   mk i a g d o w e = { id: i, explicitActor: a, aggregate: g, domain: d, observes: maybe (Id (idText d)) identity o, weight: w, estimator: e }
 
--- | A possible World's scheme: the Representation an Actor's behaviour is estimated under.
+-- | A composition's scheme: the Representation an Actor's behaviour is estimated under.
 schemeShape :: Shape Scheme
 schemeShape = object "Scheme"
   ( mk <$> fieldOf "id" "the scheme's name" stringShape _.id
@@ -291,7 +291,7 @@ checkReservations a w = case concatMap offending (Map.toUnfoldable w.transformat
 entriesOf :: PremiseWorld -> Map ResourceId ResourceEntry
 entriesOf p = Map.mapMaybeWithKey (\k d -> Just { transferability: d.transferability, category: d.category, reservable: k `elem` p.authored.reservable, decay: _.rate <$> find ((_ == k) <<< _.resource) p.authored.decays }) p.world.resources
 
--- | The World's sections but its Actors, as a function of them: a possible World's Actor entries also
+-- | The World's sections but its Actors, as a function of them: a composition's Actor entries also
 -- | carry Actor definitions. The World's key is the starting round (default 1).
 worldFields :: RecF PremiseWorld (Map ActorId Actor -> PremiseWorld)
 worldFields = mk

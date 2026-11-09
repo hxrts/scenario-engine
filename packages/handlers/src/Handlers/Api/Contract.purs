@@ -59,7 +59,7 @@ import Views.Compare (CompareView)
 import Views.Glossary (Glossary)
 import Views.Keys (class ViewShape, viewShape)
 import Views.Overview (RunList)
-import Views.Premise (Premise)
+import Views.Composition (CompositionInfo)
 import Views.Report (RoundReport)
 
 -- | One operation's reply type and refusal labels: 200 in the `Snapshot` format.
@@ -102,10 +102,10 @@ type Deleted = { deleted :: String }
 -- | Every operation's entry, by constructor name: the one statement of its reply type and refusals.
 type Operations =
   ( "ListRuns" :: Op RunList AnyRefusal
-  , "Premise" :: Op (Array Premise) AnyRefusal
+  , "Premise" :: Op (Array CompositionInfo) AnyRefusal
   , "Glossary" :: Op Glossary AnyRefusal
   , "LaunchRun" :: Op Launched AnyRefusal
-  , "LaunchBatch" :: Op (Array { premise :: String, id :: String, playerSeed :: Int }) AnyRefusal
+  , "LaunchBatch" :: Op (Array { composition :: String, id :: String, playerSeed :: Int }) AnyRefusal
   , "Actors" :: Op ActorList AnyRefusal
   , "Actor" :: Op History AnyRefusal
   , "BalanceSheetLinks" :: Op (Array BalanceSheetLink) AnyRefusal

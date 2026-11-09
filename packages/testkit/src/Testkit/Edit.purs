@@ -12,7 +12,7 @@ import Laws.Types (Actor, ActorId, Exchange, ExchangeId, Transformation, Transfo
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Schema.PossibleWorld (ActorDefinition)
+import Schema.Composition (ActorDefinition)
 
 onActor :: forall r. ActorId -> (Actor -> Actor) -> { actors :: Map ActorId Actor | r } -> { actors :: Map ActorId Actor | r }
 onActor k f w = w { actors = Map.update (Just <<< f) k w.actors }

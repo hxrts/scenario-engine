@@ -1,5 +1,5 @@
 -- | Writes each external service's OpenAPI document to `openapi/<service>.json`, for reading without a running server.
--- | With `--premise` it writes that Premise's documents to `openapi/<premise>` instead, where a reference lists the
+-- | With `--composition` it writes that Composition's documents to `openapi/<composition>` instead, where a reference lists the
 -- | names of its World (`just openapi`).
 module OpenApi (main) where
 
@@ -22,11 +22,11 @@ import Premises.Load (loadAll)
 import Run (case_, on, run)
 import Server.OpenApi (defaultServer, document, documentsOf, serviceName, services)
 
-type Flags = { premise :: String, server :: String, out :: String }
+type Flags = { composition :: String, server :: String, out :: String }
 
 flags :: Flag Flags
-flags = { premise: _, server: _, out: _ }
-  <$> textFlag "--premise" "id" ""
+flags = { composition: _, server: _, out: _ }
+  <$> textFlag "--composition" "id" ""
   <*> textFlag "--server" "url" defaultServer
   <*> textFlag "--out" "dir" ""
 
@@ -36,10 +36,10 @@ main = do
   case parseWith flags args of
     Left e -> usageError [ "usage: openapi " <> usageOf flags, "  e.g. just openapi meridian --out build/openapi" ] e
     Right f
-      | f.premise == "" -> for_ services \s -> fileDevice.write ("openapi/" <> serviceName s <> ".json") (prettyJson (document s))
+      | f.composition == "" -> for_ services \s -> fileDevice.write ("openapi/" <> serviceName s <> ".json") (prettyJson (document s))
       | otherwise -> run (case_ # on _files (interpretFiles fileDevice)) (loadAll files) >>= case _ of
           Left e -> fail e
-          Right premises -> case documentsOf premises { premise: f.premise, server: f.server } of
+          Right compositions -> case documentsOf compositions { composition: f.composition, server: f.server } of
             Left e -> fail e
             Right documents -> for_ documents \(Tuple s doc) ->
-              fileDevice.write ((if f.out == "" then "openapi/" <> f.premise else f.out) <> "/" <> serviceName s <> ".json") (prettyJson doc)
+              fileDevice.write ((if f.out == "" then "openapi/" <> f.composition else f.out) <> "/" <> serviceName s <> ".json") (prettyJson doc)

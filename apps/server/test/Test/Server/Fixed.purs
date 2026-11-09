@@ -22,12 +22,12 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Data.String (Pattern(..), contains)
 import Testkit.Devices (fixedSystem)
-import Testkit.Meridian (anyRounds, premise)
+import Testkit.Meridian (anyRounds, meridianParts)
 
 -- | A session of requests on a fresh store, and what it leaves there.
 session :: Aff (Array String)
 session = do
-  ctx <- anyRounds <$> premise
+  ctx <- anyRounds <$> meridianParts
   db <- liftEffect (openDatabase ":memory:")
   cache <- liftEffect newServerCache
   let

@@ -18,7 +18,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, maybe)
 import Laws.Types (RefKind)
 import Laws.World (namesOfKind)
-import Server.Premises (Premises)
+import Server.Compositions (Compositions)
 
 import Core.Shape (Desc, allValues, jsonSchemaIn, schemaComponentsIn)
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromObject, fromString)
@@ -56,16 +56,16 @@ published = mapMaybe entry endpointAccess
 defaultServer :: String
 defaultServer = "https://scenario.hxrts.com"
 
--- | The OpenAPI 3.1 document of one service, naming no Premise's ids: what `/api/openapi/*.json` serves.
+-- | The OpenAPI 3.1 document of one service, naming no Composition's ids: what `/api/openapi/*.json` serves.
 document :: Service -> Json
 document = documentIn { server: defaultServer, names: const [] }
 
--- | Each service's document for one Premise and server: a reference of a kind the Premise's World names lists those
--- | names. An unknown Premise is refused with the known ones.
-documentsOf :: Premises -> { premise :: String, server :: String } -> Either String (Array (Tuple Service Json))
-documentsOf premises { premise, server } = case find (\p -> p.possibleWorld.id == premise) premises of
-  Nothing -> Left ("no premise named " <> premise <> "; known premises: " <> joinWith ", " (map _.possibleWorld.id premises))
-  Just parts -> Right (map (\s -> Tuple s (documentIn { server, names: namesIn parts.possibleWorld.world } s)) services)
+-- | Each service's document for one Composition and server: a reference of a kind the Composition's World names lists those
+-- | names. An unknown Composition is refused with the known ones.
+documentsOf :: Compositions -> { composition :: String, server :: String } -> Either String (Array (Tuple Service Json))
+documentsOf compositions { composition, server } = case find (\p -> p.composition.id == composition) compositions of
+  Nothing -> Left ("no composition named " <> composition <> "; known compositions: " <> joinWith ", " (map _.composition.id compositions))
+  Just parts -> Right (map (\s -> Tuple s (documentIn { server, names: namesIn parts.composition.world } s)) services)
   where
   namesIn world kind = maybe [] (namesOfKind world) (find (\k -> show k == kind) (allValues :: Array RefKind))
 

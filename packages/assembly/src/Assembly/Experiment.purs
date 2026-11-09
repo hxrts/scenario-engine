@@ -39,7 +39,7 @@ type Variant = { label :: String, playerSeed :: Maybe Int, overrides :: Array Ov
 
 -- | What to launch: the base recipe, the set's name, and what varies.
 type ExperimentRequest =
-  { premise :: Maybe String
+  { composition :: Maybe String
   , name :: String
   , preset :: String
   , playerSeed :: Maybe Int
@@ -89,10 +89,10 @@ seatStrategy = ado
 
 experimentRequestShape :: Shape ExperimentRequest
 experimentRequestShape = object "ExperimentRequest" ado
-  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
+  composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
   name <- fieldOf "name" "the scenario set's name" stringShape _.name
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent draws one, used by every run" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count" (optionalOf intShape) _.rounds
   experiment <- fieldOf "experiment" "what varies" experimentShape _.experiment
-  in { premise, name, preset, playerSeed, rounds, experiment }
+  in { composition, name, preset, playerSeed, rounds, experiment }

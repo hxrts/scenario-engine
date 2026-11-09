@@ -1,5 +1,5 @@
 -- | The StrategyRules queries (docs/02_kernel.md §4.4): every name a StrategyRules refers to, for the
--- | load-time check against a possible World, and the parameters it reads. Pure; they read the StrategyRules
+-- | load-time check against a composition, and the parameters it reads. Pure; they read the StrategyRules
 -- | AST (`Laws.StrategyRules`), not JSON.
 module Strategy.StrategyRules
   ( ExprAlg
@@ -147,7 +147,7 @@ foldStrategyRules alg p =
   where
   cond = foldCond alg.expr alg.cond
 
--- | Every name a StrategyRules refers to, with its kind, for the load-time check against a possible World.
+-- | Every name a StrategyRules refers to, with its kind, for the load-time check against a composition.
 -- | `self` is not listed: the interpreter resolves it at every position it can appear. An Exchange
 -- | selector names its Resource; the Exchanges it picks are the interpreter's.
 strategyRulesRefs :: StrategyRules -> Array (Tuple RefKind String)

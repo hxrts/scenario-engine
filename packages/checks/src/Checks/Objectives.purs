@@ -11,7 +11,7 @@ import Prelude
 
 import Core.Map (entries)
 
-import Schema.PossibleWorld (Bound(..), PossibleWorld, Measure(..), MetricRef, Outcome(..), Span(..))
+import Schema.Composition (Bound(..), PremiseComposition, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (holding)
@@ -27,7 +27,7 @@ type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q
 type ObjectiveResult = { explicitActor :: ActorId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
 
 -- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
-evaluateObjectives :: PossibleWorld -> Array RoundResult -> Array ObjectiveResult
+evaluateObjectives :: PremiseComposition -> Array RoundResult -> Array ObjectiveResult
 evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
   where
   one (Tuple explicitActor def) = case def.objective of

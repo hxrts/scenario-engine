@@ -9,7 +9,7 @@ module Server.Sessions
 import Prelude
 
 import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
-import Assembly.Premise (Premise(..))
+import Assembly.Composition (Origin(..))
 import Core.Draw (Seed(..))
 import Assembly.Recipe (encodeSpec)
 import Data.Either (Either(..))
@@ -25,22 +25,22 @@ import Effects.System (now, ownerOf, resolveSeed)
 import Handlers.Llm.Backend (defaultModel)
 import Laws.Types (Id(..), idText)
 import Run (Run, lift)
-import Schema.PossibleWorld (gameIdOf)
+import Schema.Composition (compositionRef, gameIdOf, premisesText)
 import Handlers.Api.Contract (AnyRefusal, SessionStarted, SessionState)
 import Server.Errors (Answer, badRequest, conflict, notFound, ok)
 import Server.Launch (serverRole)
-import Server.Premises (Premises, chosen)
+import Server.Compositions (Compositions, chosen)
 import Server.Rows (SERVER)
 import Data.Newtype (unwrap)
 import Views.BalanceSheet (linksOf)
 
 -- | `POST /api/sessions`: host a live session. Every seat not named plays as an AI agent.
-startSession :: forall r. Premises -> StartSession -> Run (SERVER r) (Answer AnyRefusal SessionStarted)
-startSession premises s = case chosen premises s.premise of
+startSession :: forall r. Compositions -> StartSession -> Run (SERVER r) (Answer AnyRefusal SessionStarted)
+startSession compositions s = case chosen compositions s.composition of
   Left why -> badRequest why
   Right parts
     | unknown <- unknownSeats humans parts.config, unknown /= [] -> badRequest ("no such seat: " <> joinWith ", " (map idText unknown))
-    | otherwise -> case traverse_ (checkRounds parts.possibleWorld) s.rounds *> assemble (PossibleWorldPremise parts) (liveBindings humans parts.config) [] of
+    | otherwise -> case traverse_ (checkRounds parts.composition) s.rounds *> assemble (FromComposition parts) (liveBindings humans parts.config) [] of
         Left e -> badRequest (show e)
         Right assembled -> do
           let game = withRounds s.rounds assembled
@@ -49,8 +49,8 @@ startSession premises s = case chosen premises s.premise of
           owner <- ownerOf serverRole
           id <- nextRunId
           let
-            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.possibleWorld), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just defaultModel, humans: Just (joinWith "," s.humans) }
-            briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.possibleWorld.explicitActors)
+            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just defaultModel, humans: Just (joinWith "," s.humans) }
+            briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
           startRun { id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
             Left why -> badRequest why
             Right _ -> do

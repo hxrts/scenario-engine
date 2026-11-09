@@ -1,9 +1,13 @@
--- | The premise's schema types (docs/03_premise.md, docs/04_run.md): the possible World,
+-- | The premise's schema types (docs/03_premise.md, docs/04_run.md): the composition,
 -- | its Actors, objectives and criteria, and the Instantiation Configuration. These are the types
--- | of the premise format; their decoders are in `Schema.Decode.possible World`, and their realization
+-- | of the premise format; their decoders are in `Schema.Decode.composition`, and their realization
 -- | (instantiate, validate, reconcile) is in `board`.
-module Schema.PossibleWorld
-  ( PossibleWorld
+module Schema.Composition
+  ( PremiseComposition
+  , PremiseRef
+  , premiseRefShape
+  , premiseRefText
+  , premisesText
   , ActorDefinition
   , Fallback(..)
   , Outcome(..)
@@ -17,7 +21,7 @@ module Schema.PossibleWorld
   , InstantiationConfig
   , InitialWorld
   , gameIdOf
-  , possibleWorldRef
+  , compositionRef
   , capacityCategory
   ) where
 
@@ -27,24 +31,41 @@ import Schema.Recurring (Authored)
 
 import Core.Draw (Seed)
 import Core.Num (Q)
+import Core.Shape (Shape, recordShape, stringShape)
 import Laws.StrategyRules (StrategyRules)
 import Laws.Types (BehaviorDomain, ActorId, Estimator, StrategyId, ResourceId, TransformationId)
 import Laws.World (Manifest, UnseededWorld, WorldState)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
+import Data.String (joinWith)
 import Foreign.Object (Object)
 import Data.Maybe (Maybe)
 
--- | A possible World: its world (unseeded), its Actors, Schemes, parameters, horizon, supported round
--- | counts, optional test-instance label, and its Strategy catalog (the Strategies the in-world
--- | Strategies run).
--- | A possible World's reference, `id@version`, as a manifest and the consoles print it.
-possibleWorldRef :: forall r. { id :: String, version :: String | r } -> String
-possibleWorldRef g = g.id <> "@" <> g.version
+-- | A Premise a composition is made from: its id and version (docs/03 §12a). A Run records them.
+type PremiseRef = { id :: String, version :: String }
 
-type PossibleWorld =
+premiseRefShape :: Shape PremiseRef
+premiseRefShape = recordShape "PremiseRef" { id: stringShape, version: stringShape }
+
+-- | A Premise's reference, `id@version`.
+premiseRefText :: PremiseRef -> String
+premiseRefText r = r.id <> "@" <> r.version
+
+-- | The Premises composed, each `id@version`, comma separated, as a Run's spec records them.
+premisesText :: PremiseComposition -> String
+premisesText = joinWith "," <<< map premiseRefText <<< _.premises
+
+-- | A composition's reference, `id@version`, as a manifest and the consoles print it.
+compositionRef :: forall r. { id :: String, version :: String | r } -> String
+compositionRef g = g.id <> "@" <> g.version
+
+-- | What a PremiseComposition compiles to: its world (unseeded), its Actors, Schemes, parameters, horizon,
+-- | supported round counts, optional test-instance label, its Strategy catalog, and the Premises it was
+-- | composed from, in order.
+type PremiseComposition =
   { id :: String
   , version :: String
+  , premises :: Array PremiseRef -- the Premises composed, in order (docs/03 §12a)
   , authored :: Authored -- what the premise authors that the World does not hold
   , world :: UnseededWorld -- resources, Exchanges, transformations, circulation, rules, and every Actor; seeded by instantiation
   , explicitActors :: Map ActorId ActorDefinition
@@ -56,9 +77,9 @@ type PossibleWorld =
   , strategies :: Map StrategyId StrategyRules
   }
 
--- | The game id a run records: the possible World's id and its test-instance label, `<id>/<label>`.
--- | Nothing when the possible World names no label.
-gameIdOf :: PossibleWorld -> Maybe String
+-- | The game id a run records: the composition's id and its test-instance label, `<id>/<label>`.
+-- | Nothing when the composition names no label.
+gameIdOf :: PremiseComposition -> Maybe String
 gameIdOf gb = (\l -> gb.id <> "/" <> l) <$> gb.label
 
 -- | What an Actor definition adds to its Actor (§6.2).

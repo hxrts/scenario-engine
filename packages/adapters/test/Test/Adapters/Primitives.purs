@@ -10,9 +10,9 @@ import Premises.Meridian.Names (meridianDir)
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
-import Premises.Tree (readRootFile, readPremise)
+import Premises.Layout (compositionsDir)
+import Premises.Tree (readComposition, readRootFile)
 import Adapters.Random (drawOsSeed)
-import Data.Array (length, sort)
 import Data.Either (Either(..), isLeft)
 import Data.String (Pattern(..), contains)
 import Data.String.CodeUnits as SCU
@@ -38,23 +38,23 @@ spec = describe "Primitives: seed, clock, premise reads" do
     contains (Pattern "T") t `shouldEqual` true
     contains (Pattern "Z") t `shouldEqual` true
 
-  it "a premise directory reads its files, with the shared presets" do
-    s <- liftEffect (readPremise fileOps meridianDir)
+  it "a composition directory reads its files" do
+    s <- liftEffect (readComposition fileOps meridianDir)
     case s of
       Right sc -> do
-        map _.name sc.sections `shouldEqual` sort (map _.name sc.sections)
-        (length sc.sections > 0) `shouldEqual` true
+        sc.composition.name `shouldEqual` "composition.json"
+        sc.instantiation.name `shouldEqual` "instantiation.json"
         sc.presets.name `shouldEqual` "presets.json"
       Left e -> fail e
 
-  it "a missing premise directory is a failure that names its path" do
-    s <- liftEffect (readPremise fileOps "no-such-premise")
+  it "a missing composition directory is a failure that names its path" do
+    s <- liftEffect (readComposition fileOps "no-such-premise")
     case s of
       Left e -> contains (Pattern "no-such-premise") e `shouldEqual` true
       Right _ -> fail "a missing directory must not read"
 
   it "readText reads a file under the premise root; a missing file names its path" do
-    ok <- liftEffect (readRootFile fileOps (meridianDir <> "/presets.json"))
+    ok <- liftEffect (readRootFile fileOps (compositionsDir <> "/" <> meridianDir <> "/presets.json"))
     case ok of
       Right _ -> pure unit
       Left e -> fail e

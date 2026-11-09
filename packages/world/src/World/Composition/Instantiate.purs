@@ -1,7 +1,7 @@
--- | Instantiation (docs/04_run.md §10): a possible World and its configuration become
+-- | Instantiation (docs/04_run.md §10): a composition and its configuration become
 -- | the initial World State, with controllers, fallbacks, account partitioning, procedure
 -- | weights, and Representations resolved.
-module World.PossibleWorld.Instantiate
+module World.Composition.Instantiate
   ( instantiate
   , withoutExplicitActor
   , mergeRequirements
@@ -11,7 +11,7 @@ import Prelude
 
 import Core.Map (entries, sumMaps)
 
-import Schema.PossibleWorld (Fallback(..), PossibleWorld, possibleWorldRef, InitialWorld, InstantiationConfig)
+import Schema.Composition (Fallback(..), PremiseComposition, compositionRef, premiseRefText, InitialWorld, InstantiationConfig)
 import Schema.Recurring (isRequirement, kinds, normalize)
 import World.Error (ValidationError(..))
 import Core.Num as Q
@@ -28,7 +28,7 @@ import Data.Tuple (Tuple(..))
 
 -- | Controllers and fallbacks, account partitioning and procedure weights, Representation
 -- | assignment, then the World State and manifest. Atomic: errors or a complete world.
-instantiate :: PossibleWorld -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
+instantiate :: PremiseComposition -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
 instantiate gb config =
   let
     errors = controllerErrors <> representationErrors
@@ -39,7 +39,7 @@ instantiate gb config =
     if not (null errors) then Left errors
     else Right
       { world: final
-      , manifest: manifestOf (possibleWorldRef gb) final
+      , manifest: manifestOf (compositionRef gb) (map premiseRefText gb.premises) final
       }
   where
   selected e = Map.member e config.seats || Map.member e config.nonPlayableActors
@@ -68,7 +68,7 @@ instantiate gb config =
   schemeOf id = case filter (\s -> s.id == id) gb.schemes of
     [ s ] -> Just s
     _ -> Nothing
-  -- a configured Representation of a scheme the possible World defines; an unknown scheme is an error
+  -- a configured Representation of a scheme the composition defines; an unknown scheme is an error
   -- (`representationErrors`), so the instantiation never returns it
   toRepresentation r = (\s -> { id: Id s.id, explicitActor: r.explicitActor, aggregate: s.target, domain: s.domain, observes: s.observes, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
   setController e = case Map.lookup e.id config.seats, Map.lookup e.id config.nonPlayableActors of

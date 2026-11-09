@@ -33,7 +33,7 @@ import Testkit.Meridian (run)
 import Premises.Meridian.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Handlers.Simulate (SimRun)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
@@ -51,14 +51,14 @@ import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | Every objective the run evaluates has the outcome the DSL expects, and the two lists name
 -- | the same Actors: no objective is left without an explicit outcome.
-checkObjectives :: PossibleWorldParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
+checkObjectives :: CompositionParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
 checkObjectives ctx r expected = do
   let
-    actual = sortWith _.actor (map (\o -> { actor: o.explicitActor, outcome: o.outcome }) (evaluateObjectives ctx.possibleWorld r.records))
+    actual = sortWith _.actor (map (\o -> { actor: o.explicitActor, outcome: o.outcome }) (evaluateObjectives ctx.composition r.records))
     wanted = sortWith _.actor (map (\o -> { actor: o.actor, outcome: o.outcome }) expected)
   actual `shouldEqual` wanted
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run)" do
   it "a batch summary gives the mean, the spread, and the runs that met an objective" do
     _ <- context
@@ -142,7 +142,7 @@ spec context = describe "Capstone (DSL-authored run)" do
     table "economy flows" (Exchanges.economy sr).flows
     table "representation" (Representation.representation sr)
     table "procedures" (Representation.procedures sr)
-    table "objectives" (Overview.objectives ctx.possibleWorld sr)
+    table "objectives" (Overview.objectives ctx.composition sr)
     table "final state" (Compare.finalState [ sr ]).table
     (length (Exchanges.exchanges sr) > 0) `shouldEqual` true
     (length (Exchanges.economy sr).totals.series > 0) `shouldEqual` true
@@ -171,12 +171,12 @@ spec context = describe "Capstone (DSL-authored run)" do
     same (Keys.viewKey @"Economy") (Exchanges.economy sr)
     same (Keys.viewKey @"Representation") (Representation.representation sr)
     same (Keys.viewKey @"Procedures") (Representation.procedures sr)
-    same (Keys.viewKey @"Objectives") (Overview.objectives ctx.possibleWorld sr)
+    same (Keys.viewKey @"Objectives") (Overview.objectives ctx.composition sr)
     same (Keys.viewKey @"Standings") (Standings.standings sr)
     same (Keys.viewKey @"NetWorth") (Standings.netWorthChart sr)
     same (Keys.viewKey @"Actions") (Actions.actions sr)
     same (Keys.viewKey @"Drivers") (Drivers.drivers sr)
-    same (Keys.viewKey @"Balance") (Balance.balanceView ctx.possibleWorld sr)
+    same (Keys.viewKey @"Balance") (Balance.balanceView ctx.composition sr)
     either fail (same (Keys.viewKey @"Events")) (Balances.events sr 1)
     reads (Keys.viewShape :: Shape Glossary) (glossary meridianFocus)
 
@@ -192,7 +192,7 @@ spec context = describe "Capstone (DSL-authored run)" do
       law name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern (glossary meridianFocus).round.prefix) name)
       undefined' t = Array.filter (\name -> not (Object.member name (glossary meridianFocus).definitions || law name)) t.columns
       tables =
-        [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.possibleWorld sr ]
+        [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.composition sr ]
           <>
             [ Exchanges.transformations sr
             , (Exchanges.economy sr).flows
@@ -203,14 +203,14 @@ spec context = describe "Capstone (DSL-authored run)" do
             , (Actions.actions sr).totals
             , (Actions.actions sr).byRound
             , Drivers.drivers sr
-            , (Balance.balanceView ctx.possibleWorld sr).measures
-            , (Balance.balanceView ctx.possibleWorld sr).completion
+            , (Balance.balanceView ctx.composition sr).measures
+            , (Balance.balanceView ctx.composition sr).completion
             , Balance.seedVariation runs
             , Compare.compatible runs
             , (Compare.finalState runs).table
             , Compare.baselineDiff sr [ other ]
             , (Compare.configDiff sr [ other ]).table
-            , Compare.keyValues (const (Just ctx.possibleWorld)) runs
+            , Compare.keyValues (const (Just ctx.composition)) runs
             , agencyTable []
             ]
           <> either (const []) (\t -> [ t ]) (Balances.balances sr 1)

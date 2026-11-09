@@ -1,9 +1,9 @@
--- | Every premise this repository compiles. Only the compiler reads this list: a running server
+-- | Every composition this repository compiles. Only the compiler reads this list: a running server
 -- | loads what the premise root contains.
-module Premises.Catalog (premises) where
+module Premises.Catalog (compositions) where
 
-import Premises.Compose (Premise)
+import Premises.Compose (CompositionSource)
 import Premises.Meridian (defaultDials, meridian)
 
-premises :: Array Premise
-premises = [ meridian defaultDials ]
+compositions :: Array CompositionSource
+compositions = [ meridian defaultDials ]

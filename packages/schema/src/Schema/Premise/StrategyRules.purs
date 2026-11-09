@@ -245,7 +245,7 @@ strategyRulesShape = recordOf "StrategyRules"
       &. field @"sign" "the sign rules" (omittedWhen Array.null (arrayOf signRuleShape))
   )
 
--- | The strategies file: the possible World's Strategy catalog, each Strategy's name and its StrategyRules.
+-- | The strategies file: the composition's Strategy catalog, each Strategy's name and its StrategyRules.
 strategiesShape :: Shape (Array (Tuple String StrategyRules))
 strategiesShape = object "Strategies" (identity <$> fieldOf "strategies" "the Strategy catalog" (keyedOf strategyRulesShape) identity)
 

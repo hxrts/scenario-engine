@@ -25,7 +25,7 @@ import Run (Run, case_, on, run)
 import Server.Cache (Profiles)
 import Server.Implementation (answer)
 import Server.Rows (SERVER)
-import Server.Premises (Premises)
+import Server.Compositions (Compositions)
 import Views.Common (StoredRun)
 import Views.Metrics (roundMetrics)
 
@@ -58,11 +58,11 @@ runServer d = run
       # on _sessions (interpretSessions d.sessions)
   )
 
-implementOn :: Devices -> Premises -> Implementation
-implementOn d premises = runServer d <<< answer premises
+implementOn :: Devices -> Compositions -> Implementation
+implementOn d compositions = runServer d <<< answer compositions
 
-implement :: Premises -> StoreBackend -> ServerCache -> SessionHost -> Implementation
-implement premises store cache sessions = implementOn { system: systemDevices, store, cache, sessions } premises
+implement :: Compositions -> StoreBackend -> ServerCache -> SessionHost -> Implementation
+implement compositions store cache sessions = implementOn { system: systemDevices, store, cache, sessions } compositions
 
 -- | The session host of the real server: its seats and joint pass run through the `pi` model process.
 newHost :: StoreBackend -> Effect SessionHost

@@ -35,7 +35,7 @@ import Effect.Ref as Ref
 import Effects.Observe (listRuns, readManifest, readRounds)
 import Effects.Store (validRunId, createRun, failRun, setStatus, setSpec)
 import Foreign.Object as Object
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Assembly.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore)
@@ -47,7 +47,7 @@ import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, premise)
+import Testkit.Meridian (anyRounds, meridianParts)
 
 inCache :: ServerCache -> Run (CACHE StoredRun Profiles + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
@@ -57,12 +57,12 @@ type Env =
   , store :: StoreBackend
   , db :: SqlDevice
   , cache :: ServerCache
-  , ctx :: PossibleWorldParts
+  , ctx :: CompositionParts
   }
 
 setup :: Aff Env
 setup = do
-  ctx <- anyRounds <$> premise
+  ctx <- anyRounds <$> meridianParts
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let
@@ -305,7 +305,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
-    let written = encodeSpec { gameId: "meridian/meridian-test-01", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    let written = encodeSpec { gameId: "meridian/meridian-test-01", composition: "meridian@v0", premises: "meridian-energy@v0,meridian-shipping@v0,meridian-defence@v0,meridian-soft-power@v0,meridian-actors@v0", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
     liftEffect do
       runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
       for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of

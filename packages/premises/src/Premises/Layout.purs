@@ -1,37 +1,13 @@
--- | The compiled tree's layout under the premise root: the section files of a premise directory, and
+-- | The compiled tree's layout under the premise root: the compiled compositions and Premises, and
 -- | where the fixtures and the capstone are. It names no premise.
 module Premises.Layout where
 
 import Prelude ((<>))
 
--- Files (the premise package's JSON sections and the possible World's instantiation) ----------
+-- Files of a composition's directory --------------------------------------------------------
 
-premiseFile :: String
-premiseFile = "premise.json"
-
-resourcesFile :: String
-resourcesFile = "resources.json"
-
-exchangesFile :: String
-exchangesFile = "exchanges.json"
-
-transformationsFile :: String
-transformationsFile = "transformations.json"
-
-circulationFile :: String
-circulationFile = "circulation.json"
-
-actorsFile :: String
-actorsFile = "actors.json"
-
-representationsFile :: String
-representationsFile = "representations.json"
-
-gameRulesFile :: String
-gameRulesFile = "game-rules.json"
-
-strategiesFile :: String
-strategiesFile = "strategies.json"
+compositionFile :: String
+compositionFile = "composition.json"
 
 instantiationFile :: String
 instantiationFile = "instantiation.json"
@@ -39,11 +15,21 @@ instantiationFile = "instantiation.json"
 presetsFile :: String
 presetsFile = "presets.json"
 
--- | A premise's directory under the premise root (`meridian/v0`).
-premiseDir :: String -> String -> String
-premiseDir id version = id <> "/" <> version
-
 -- Paths under the premise root ----------------------------------------------------------------
+
+compositionsDir :: String
+compositionsDir = "compositions"
+
+premisesDir :: String
+premisesDir = "premises"
+
+-- | A composition's directory under the premise root (`compositions/meridian/v0`).
+compositionDir :: String -> String -> String
+compositionDir id version = compositionsDir <> "/" <> id <> "/" <> version
+
+-- | A Premise's file under the premise root (`premises/meridian-energy/v0.json`).
+premiseFilePath :: String -> String -> String
+premiseFilePath id version = premisesDir <> "/" <> id <> "/" <> version <> ".json"
 
 fixturesDir :: String
 fixturesDir = "fixtures"

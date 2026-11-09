@@ -1,4 +1,4 @@
--- | The server's composition root (docs/06_simulator.md §8–§10): parses the flags, loads the premises, opens the
+-- | The server's composition root (docs/06_simulator.md §8–§10): parses the flags, loads the compositions, opens the
 -- | Run Store, and serves the `API` on the port through `Handlers.Api.Route`. The operations are programs in
 -- | `Server.Implementation`; `Server.Stack` closes them over the devices.
 module Server (main) where
@@ -35,14 +35,14 @@ main = do
   case parseWith serveFlags args of
     Left e -> usage e
     Right flags -> run (case_ # on _files (interpretFiles fileDevice)) (loadAll files) >>= case _ of
-      Right premises -> do
+      Right compositions -> do
         env <- run (case_ # on _files (interpretFiles fileDevice)) (readEnv flags.env)
         let secrets = secretsFrom sha256 env
         store <- localStore <$> openDatabase flags.db
         runStore store startup >>= flip for_ log
         cache <- newServerCache
         host <- newHost store
-        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets (implement premises store cache host))
+        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets (implement compositions store cache host))
       Left e -> fail e
   where
   -- a missing file is an empty one: every secret is unset, and what they guard stays locked

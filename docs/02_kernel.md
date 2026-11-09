@@ -2,19 +2,19 @@
 
 ## 1. Purpose
 
-The kernel says what any World can be made of: Stocks, Flows, Laws over them, and Transactions of conditional Obligations ([§3](#3-the-kernel)). A Premise describes a set of possible Worlds in those terms ([03](03_premise.md)), and a Run realizes one of them ([04](04_run.md)). This document specifies the kernel and the economic types every Premise shares. The kernel decides no trade, signature, procedure or schedule: those are vocabulary a Premise authors, and they compile to kernel values ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
+The kernel says what any World can be made of: Stocks, Flows, Laws over them, and Transactions of conditional Obligations ([§3](#3-the-kernel)). A PremiseComposition describes a set of possible Worlds in those terms ([03](03_premise.md)), and a Run realizes one of them ([04](04_run.md)). This document specifies the kernel and the economic types every PremiseComposition shares. The kernel decides no trade, signature, procedure or schedule: those are vocabulary a PremiseComposition authors, and they compile to kernel values ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
 
-The anchors are defined in [01 Terms](01_overview.md#terms). The reference Premise is in [05](05_meridian.md), and the simulator in [06](06_simulator.md).
+The anchors are defined in [01 Terms](01_overview.md#terms). The reference PremiseComposition is in [05](05_meridian.md), and the simulator in [06](06_simulator.md).
 
 ## 2. Core Ontology
 
-The sections below specify the anchors and the types built on them: Actor and its three projections ([§2.1](#21-actor), [§2.2](#22-three-projections-of-an-actor)); Resource and accounts ([§2.3](#23-resource)); Capability ([§2.4](#24-capability)); Stock, Flow, Law, Transaction, Obligation and successors ([§3](#3-the-kernel)); cost functions, Exchange and the solvers ([§5](#5-cost-functions-exchanges-and-solvers)); Aggregate and Representation ([§7](#7-aggregates-and-representation)); Strategy ([§4](#4-strategies)); and World ([§8](#8-world-and-round-resolution)). Which agreements, institutions and schedules a Premise has are authored, not core ([§10](#10-design-boundaries)).
+The sections below specify the anchors and the types built on them: Actor and its three projections ([§2.1](#21-actor), [§2.2](#22-three-projections-of-an-actor)); Resource and accounts ([§2.3](#23-resource)); Capability ([§2.4](#24-capability)); Stock, Flow, Law, Transaction, Obligation and successors ([§3](#3-the-kernel)); cost functions, Exchange and the solvers ([§5](#5-cost-functions-exchanges-and-solvers)); Aggregate and Representation ([§7](#7-aggregates-and-representation)); Strategy ([§4](#4-strategies)); and World ([§8](#8-world-and-round-resolution)). Which agreements, institutions and schedules a PremiseComposition has are authored, not core ([§10](#10-design-boundaries)).
 
 ### 2.1 Actor
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the Premise, and for a non-playable Actor a Strategy that is part of the Premise. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [05 §9](05_meridian.md#9-actor-catalog) and [§10](05_meridian.md#10-aggregate-catalog).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [05 §9](05_meridian.md#9-actor-catalog) and [§10](05_meridian.md#10-aggregate-catalog).
 
 ### 2.2 Three projections of an Actor
 
@@ -30,7 +30,7 @@ Membership never lets several Aggregates own the same assets.
 
 ### 2.3 Resource
 
-A Resource's transferability is Free (it moves on its holder's consent alone), Restricted (each movement needs the transfer capability, [§2.4](#24-capability)), or Non-transferable. A category is a Premise's own grouping, which the engine never reads. A Resource that nothing authored produces or consumes is conserved. Money, the numeraire, is the unit of account for views; the engine does not read it, since a settled Flow names its own Resource.
+A Resource's transferability is Free (it moves on its holder's consent alone), Restricted (each movement needs the transfer capability, [§2.4](#24-capability)), or Non-transferable. A category is a PremiseComposition's own grouping, which the engine never reads. A Resource that nothing authored produces or consumes is conserved. Money, the numeraire, is the unit of account for views; the engine does not read it, since a settled Flow names its own Resource.
 
 An account is a quantity of a Resource owned by exactly one Actor or Exchange, and a holding is the quantity an Actor or an Exchange's reserves hold.
 
@@ -248,7 +248,7 @@ This is the single authoritative sequence. The other docs reference it and do no
 - **Funding from the opening World.** Each party's claims are funded from its holdings at the start of the round. At screening, each accepted input escrows its maximum cost. Joint feasibility and pro-rata scaling are checked against these escrows ([§3.6](#36-infeasible-actions)). Unused escrow is released at commit.
 - **Credit at commit.** Proceeds and receipts are credited when the round commits and are usable only next round. Selling and buying both draw on opening holdings.
 
-Rationing is configured by tier, whole or scaled, and scale group ([§5.4](#54-rationing)). Three shortage behaviours hold for every Premise. The authored tiers that produce them are in [03 §10.1](03_premise.md#101-candidate-transaction-rules).
+Rationing is configured by tier, whole or scaled, and scale group ([§5.4](#54-rationing)). Three shortage behaviours hold for every PremiseComposition. The authored tiers that produce them are in [03 §10.1](03_premise.md#101-candidate-transaction-rules).
 
 1. **One short Resource scales everything a scale group executes.** Its funding scale is the smallest ratio of available to claimed across all Resources it claims, and that one factor scales every scaled claim in the group.
 2. **Whole claims fill first, and overflow drops them all.** They are funded before scaled claims and are never scaled. A party whose whole demand on a Resource exceeds its holding loses every whole claim on it. Scaled claims then share a pool pro rata.
@@ -293,9 +293,9 @@ The invariant table is the one numbered table for the whole system; other docs c
 | <a id="inv-14"></a>INV-14 | Resolution consistency: instantiating a world at different levels of explicitness reconciles accounts and authority before any decision differs. | Checked |
 | <a id="inv-17"></a>INV-17 | Type-system conformity: all Premise definitions use supported types and operations. | Checked |
 | <a id="inv-19"></a>INV-19 | Role consequence: every Actor definition declares a capability, a dependency and a measurable objective. | Checked |
-| <a id="inv-21"></a>INV-21 | Instantiation feasibility: the Premise admits at least one valid initial World. | Checked |
+| <a id="inv-21"></a>INV-21 | Instantiation feasibility: the PremiseComposition admits at least one valid initial World. | Checked |
 | <a id="inv-23"></a>INV-23 | Unique control: every explicit Actor has exactly one valid controller. | Checked |
-| <a id="inv-24"></a>INV-24 | Valid participation: every selected Actor and Representation is permitted by the Premise and validly parameterized. | Checked |
+| <a id="inv-24"></a>INV-24 | Valid participation: every selected Actor and Representation is permitted by the PremiseComposition and validly parameterized. | Checked |
 | <a id="inv-25"></a>INV-25 | Fallback completeness: every unselected Actor has a permitted fallback, and no required responsibility is left unowned. | Checked |
 | <a id="inv-26"></a>INV-26 | Strategy completeness: every non-playable Actor and Aggregate has an executable, initialized Strategy. | Checked |
 | <a id="inv-27"></a>INV-27 | Exchange feasibility: initial Exchange positions, reserves and holdings satisfy economic constraints. | Checked |
@@ -308,7 +308,7 @@ The invariant table is the one numbered table for the whole system; other docs c
 
 ### 9.1 Numerics and randomness
 
-This section sets the numeric and random rules for every economic value. Mechanics are deterministic by default. Randomness appears only where a Premise rule or estimator calls for it, such as estimator sampling noise.
+This section sets the numeric and random rules for every economic value. Mechanics are deterministic by default. Randomness appears only where a PremiseComposition rule or estimator calls for it, such as estimator sampling noise.
 
 **Two seed streams.** The game seed is one per Run, fixed at initialization and held in the World. It feeds every in-world draw. The player seed keys the draws of seat Strategies. It is recorded with the run and is never part of the configuration, World or the engine's input. If no player seed is given, one is drawn once and recorded.
 
@@ -329,8 +329,8 @@ Which kind each page uses is set by [06 §9](06_simulator.md#9-pages).
 
 ## 10. Design Boundaries
 
-`packages/core` holds the kernel and the numerics, curve, draw and description algebra it needs. It names no agreement, institution or schedule, and `scripts/check/layout.js` keeps it so. Everything a Premise names is authored: Intents, candidate Transactions and their consent rules, Rules, recurring flows, Transformations and the capability kinds compile to the kernel at the authoring layer ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Two kinds of thing stay closed in core: the solvers ([§5](#5-cost-functions-exchanges-and-solvers)), because they divide one limit among many, and the invariant that a stock changes only by a settled Flow ([§3.1](#31-stocks-flows-and-settled-flows)).
+`packages/core` holds the kernel and the numerics, curve, draw and description algebra it needs. It names no agreement, institution or schedule, and `scripts/check/layout.js` keeps it so. Everything a PremiseComposition names is authored: Intents, candidate Transactions and their consent rules, Rules, recurring flows, Transformations and the capability kinds compile to the kernel at the authoring layer ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Two kinds of thing stay closed in core: the solvers ([§5](#5-cost-functions-exchanges-and-solvers)), because they divide one limit among many, and the invariant that a stock changes only by a settled Flow ([§3.1](#31-stocks-flows-and-settled-flows)).
 
-Actor, World, Representation and the settlement sequence are shared by every Premise, and this document specifies them, but their code is in `packages/laws`, beside the vocabulary they read ([07 §3](07_architecture.md#3-codebase-layout)).
+Actor, World, Representation and the settlement sequence are shared by every PremiseComposition, and this document specifies them, but their code is in `packages/laws`, beside the vocabulary they read ([07 §3](07_architecture.md#3-codebase-layout)).
 
-This document does not model resource classifications, a macroeconomic model, estimator parameters, procedure thresholds or exchange realism. These are choices each Premise makes, and the design principles behind them are in [01](01_overview.md).
+This document does not model resource classifications, a macroeconomic model, estimator parameters, procedure thresholds or exchange realism. These are choices each PremiseComposition makes, and the design principles behind them are in [01](01_overview.md).

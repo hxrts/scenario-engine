@@ -22,9 +22,9 @@ import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafeCrashWith)
 import Assembly.Error (AssemblyError, renderAssemblyError)
 import Assembly.Patch (engineOnly, setCapabilities, withCirculation)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Assembly.Restrict (restrict)
-import Schema.PossibleWorld (PossibleWorld)
+import Schema.Composition (PremiseComposition)
 import Schema.Premise.Fixture (Fixture, RoundSpec, fixtureShape)
 import Schema.Recurring (Circulation)
 import Schema.Round (Authored)
@@ -32,7 +32,7 @@ import Schema.Round (Authored)
 -- | What every fixture of a premise shares: the seed and the premise it is filtered from.
 type FixtureContext =
   { seed :: Int
-  , base :: PossibleWorldParts
+  , base :: CompositionParts
   }
 
 -- | One Actor a cut keeps: the accounts it keeps (`Nothing`, all of them) and, when given, the
@@ -50,14 +50,14 @@ type Cut =
   , exchanges :: Array ExchangeId
   , transformations :: Array TransformationId
   , circulation :: Circulation
-  , patches :: Array (PossibleWorld -> Either AssemblyError PossibleWorld)
+  , patches :: Array (PremiseComposition -> Either AssemblyError PremiseComposition)
   }
 
 -- | Filter the base by the Cut, under its patches. A fixture's decisions are its candidate Transactions.
-cutOf :: PossibleWorldParts -> Cut -> PossibleWorldParts
+cutOf :: CompositionParts -> Cut -> CompositionParts
 cutOf base c = either (unsafeCrashWith <<< renderAssemblyError) identity do
-  possibleWorld <- foldM (#) (withCirculation c.circulation base.possibleWorld) (map capabilitiesOf c.actors <> c.patches)
-  restrict selection (engineOnly base { possibleWorld = possibleWorld })
+  composition <- foldM (#) (withCirculation c.circulation base.composition) (map capabilitiesOf c.actors <> c.patches)
+  restrict selection (engineOnly base { composition = composition })
   where
   capabilitiesOf e = maybe Right (setCapabilities e.key) e.capabilities
   selection =
@@ -85,7 +85,7 @@ fixture ctx name s = Tuple name (encodeWith Authored fixtureShape doc)
   rounds' :: Array RoundSpec
   rounds' = fromMaybe [ { candidateTransactions: s.candidateTransactions, expect: s.expect } ] s.rounds
 
-  cut = (cutOf ctx.base s.cut).possibleWorld
+  cut = (cutOf ctx.base s.cut).composition
 
   doc :: Fixture
   doc =

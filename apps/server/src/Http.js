@@ -67,7 +67,12 @@ const resolveStatic = (root, urlPath) => {
 const cacheControl = (root, file) =>
   file.startsWith(path.join(root, "assets") + path.sep) ? `public, max-age=${yearSeconds}, immutable` : "no-cache";
 
-const loginPage = (failed) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Admin</title></head><body><form method="post" action="/admin/login"><h1>Admin</h1>${failed ? "<p>That is not the password.</p>" : ""}<label>Password <input type="password" name="password" autofocus></label> <button>Enter</button></form></body></html>`;
+// The one app page, marked as a public page: the bundle holds no data, and the page reads none.
+const markedPage = (req, res, root, page, status, extra) =>
+  fs.readFile(path.join(root, "index.html"), "utf8", (err, html) => {
+    if (err) return send(req, res, 404, "text/plain", "not found");
+    send(req, res, status, "text/html", html.replace(/<head>/i, `<head><meta name="scenario-page" content="${page}">`), { "cache-control": "no-store", ...extra });
+  });
 
 const hasSession = (req, admin) => admin.session !== "" && (req.headers.cookie || "").split(";").some((c) => c.trim() === `admin=${admin.session}`);
 
@@ -91,7 +96,7 @@ const siteRequest = (req, res, url, root, admin) => {
     req.on("end", () => {
       const given = new URLSearchParams(Buffer.concat(chunks).toString("utf8")).get("password") || "";
       if (admin.password === "" || given !== admin.password) {
-        return send(req, res, 401, "text/html", loginPage(true), { "cache-control": "no-store" });
+        return markedPage(req, res, root, "login-failed", 401);
       }
       const secure = req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
       res.writeHead(303, { location: "/admin/", "set-cookie": `admin=${admin.session}; HttpOnly; SameSite=Lax; Path=/${secure}` });
@@ -99,11 +104,11 @@ const siteRequest = (req, res, url, root, admin) => {
     });
     return;
   }
-  if (p === "/") return serveFile(req, res, root, path.join(root, "landing.html"));
+  if (p === "/") return markedPage(req, res, root, "landing", 200);
   if (p.startsWith("/balancesheet/")) return serveFile(req, res, root, index);
   if (p.startsWith("/admin/assets/")) return serveFile(req, res, root, resolveStatic(root, p.slice("/admin".length)));
   if (p === "/admin" || p === "/admin/") {
-    if (!hasSession(req, admin)) return send(req, res, 200, "text/html", loginPage(false), { "cache-control": "no-store" });
+    if (!hasSession(req, admin)) return markedPage(req, res, root, "login", 200);
     return serveFile(req, res, root, index);
   }
   return send(req, res, 404, "text/plain", "not found");

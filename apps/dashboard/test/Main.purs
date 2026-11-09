@@ -8,7 +8,7 @@ import Core.Num as Q
 import Dashboard.Chart (chartRows, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
-import Views.Premise (RoundRange, Premise)
+import Views.Composition (RoundRange, CompositionInfo)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
 import Dashboard.RunForms (deriveRequest, rounds)
@@ -101,12 +101,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Ratio series) `shouldEqual` [ Just "12.12", Just "0.00" ]
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Launch form: defaults" do
-    it "the empty form is a valid request: the default name, Conservative, a drawn seed, the premise's rounds" do
-      validate premise emptyForm `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+    it "the empty form is a valid request: the default name, Conservative, a drawn seed, the composition's rounds" do
+      validate composition emptyForm `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "a blank or spaced name is the default name; a typed name is trimmed" do
-      validate premise (emptyForm { name = "  " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-      validate premise (emptyForm { name = " copy " }) `shouldEqual` Right { premise: Just premise.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-    it "the round count shown is the premise's default when blank, and the typed count otherwise" do
+      validate composition (emptyForm { name = "  " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate composition (emptyForm { name = " copy " }) `shouldEqual` Right { composition: Just composition.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+    it "the round count shown is the composition's default when blank, and the typed count otherwise" do
       roundValue premiseRounds "" `shouldEqual` 5
       roundValue premiseRounds " 7 " `shouldEqual` 7
       roundChoices premiseRounds `shouldEqual` [ 4, 5, 6, 7, 8 ]
@@ -114,22 +114,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       summary premiseRounds emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
       summary premiseRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
-    it "rounds, when given, must be a whole number; the premise's range is the server's" do
-      validate premise (emptyForm { rounds = " 6 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
-      validate premise (emptyForm { rounds = "4" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
-      validate premise (emptyForm { rounds = "8" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
-      validate premise (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
-    it "a preset must be one the premise offers; Trader is accepted" do
-      validate premise (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
-      validate premise (emptyForm { preset = "Trader" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
+    it "rounds, when given, must be a whole number; the composition's range is the server's" do
+      validate composition (emptyForm { rounds = " 6 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
+      validate composition (emptyForm { rounds = "4" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
+      validate composition (emptyForm { rounds = "8" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
+      validate composition (emptyForm { rounds = "3" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
+      validate composition (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
+    it "a preset must be one the composition offers; Trader is accepted" do
+      validate composition (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
+      validate composition (emptyForm { preset = "Trader" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
     it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
-      validate premise (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
-      validate premise (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
+      validate composition (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
+      validate composition (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Premise reply" do
-    it "the premise's name, round range, game seed, default name and presets are decoded from GET /api/premise" do
-      decodePremise "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
-        `shouldEqual` Right premise
+    it "the composition's name, round range, game seed, default name and presets are decoded from GET /api/premise" do
+      decodePremise "{\"name\":\"meridian\",\"premises\":[\"meridian-energy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
+        `shouldEqual` Right composition
       decodePremise "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
   describe "Round count rule" do
     it "the launch form and the resume form apply one rule: a whole number of at least one" do
@@ -178,12 +178,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   runList :: RunList
   runList = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
 
-  -- the meridian premise's round range: 4 to 8, with 5 by default
+  -- the meridian composition's round range: 4 to 8, with 5 by default
   premiseRounds :: RoundRange
   premiseRounds = { min: 4, max: 8, default: 5 }
 
-  premise :: Premise
-  premise = { name: "meridian", version: "v0", rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
+  composition :: CompositionInfo
+  composition = { name: "meridian", version: "v0", premises: [ "meridian-energy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
 
-  decodePremise :: String -> Either String Premise
-  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape Premise)
+  decodePremise :: String -> Either String CompositionInfo
+  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape CompositionInfo)

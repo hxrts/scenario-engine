@@ -1,5 +1,5 @@
 -- | Declarative overrides of a baseline premise (docs/06_simulator.md §3.1). Values change within the
--- | possible World's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
+-- | composition's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.
 module Assembly.Override (Override(..), resolve, encodeOverrides, decodeOverrides) where
@@ -7,8 +7,8 @@ module Assembly.Override (Override(..), resolve, encodeOverrides, decodeOverride
 import Prelude
 
 import World.Error (ValidationError(..))
-import World.PossibleWorld.Instantiate (withoutExplicitActor)
-import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
+import World.Composition.Instantiate (withoutExplicitActor)
+import World.Composition.Validate (compositionNames, unknownNames)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
@@ -25,7 +25,7 @@ import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
 import Assembly.Error (AssemblyError(..))
 import Assembly.Patch (setAccount)
-import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
+import Schema.Composition (PremiseComposition, InstantiationConfig)
 
 data Override
   = GameSeed Int
@@ -48,26 +48,26 @@ overrideRefs = case _ of
   Implicit e -> [ Tuple RefActor (idText e) ]
   SeatPreset e _ -> [ Tuple RefActor (idText e) ]
 
--- | Apply overrides to the baseline possible World and configuration. An override naming something the
+-- | Apply overrides to the baseline composition and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.
-resolve :: { possibleWorld :: PossibleWorld, config :: InstantiationConfig } -> Array Override -> Either AssemblyError { possibleWorld :: PossibleWorld, config :: InstantiationConfig }
+resolve :: { composition :: PremiseComposition, config :: InstantiationConfig } -> Array Override -> Either AssemblyError { composition :: PremiseComposition, config :: InstantiationConfig }
 resolve base overrides = checked *> schemes *> foldM apply base overrides
   where
-  -- a Shrinkage names a scheme, which `unknownNames` does not cover: schemes are the possible World's strings
+  -- a Shrinkage names a scheme, which `unknownNames` does not cover: schemes are the composition's strings
   schemes = for_ overrides case _ of
-    Shrinkage s _ | not (any ((_ == s) <<< _.id) base.possibleWorld.schemes) -> Left (Invalid [ UnknownScheme s ])
+    Shrinkage s _ | not (any ((_ == s) <<< _.id) base.composition.schemes) -> Left (Invalid [ UnknownScheme s ])
     _ -> Right unit
-  checked = maybe (Right unit) (Left <<< unresolved) (head (unknownNames (possibleWorldNames base.possibleWorld) (concatMap overrideRefs overrides)))
+  checked = maybe (Right unit) (Left <<< unresolved) (head (unknownNames (compositionNames base.composition) (concatMap overrideRefs overrides)))
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved "override" kind ref
     e -> Invalid [ e ]
   apply acc = case _ of
     GameSeed s -> Right acc { config { seed = Seed s } }
-    Parameter name q -> Right acc { possibleWorld { parameters = Object.insert name q acc.possibleWorld.parameters } }
-    Capacity e ref q -> setAccount e ref q acc.possibleWorld <#> \possibleWorld -> acc { possibleWorld = possibleWorld }
-    Shrinkage scheme q -> Right acc { possibleWorld { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.possibleWorld.schemes } }
+    Parameter name q -> Right acc { composition { parameters = Object.insert name q acc.composition.parameters } }
+    Capacity e ref q -> setAccount e ref q acc.composition <#> \composition -> acc { composition = composition }
+    Shrinkage scheme q -> Right acc { composition { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.composition.schemes } }
     Implicit e -> Right acc { config = withoutExplicitActor e acc.config }
-    SeatPreset _ _ -> Right acc -- binds a seat at assembly; it changes neither the possible World nor the configuration
+    SeatPreset _ _ -> Right acc -- binds a seat at assembly; it changes neither the composition nor the configuration
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.
 overrideShape :: Shape Override

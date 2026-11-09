@@ -31,7 +31,7 @@ import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Testkit.Meridian (anyRounds, premise)
+import Testkit.Meridian (anyRounds, meridianParts)
 import Testkit.Store (open, storeOver)
 
 parsed :: String -> Json
@@ -85,7 +85,7 @@ pathsOf s = sort (maybe [] Object.keys (toObject =<< at "paths" (document s)))
 
 api :: Aff (String -> String -> String -> Aff Reply)
 api = do
-  ctx <- anyRounds <$> premise
+  ctx <- anyRounds <$> meridianParts
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let
@@ -137,10 +137,10 @@ spec = describe "JSON Schema and OpenAPI" do
     codes "RoundReport" `shouldEqual` [ 404, 500 ]
     contains (Pattern "\"enum\":[\"running\",\"completed\",\"failed\"]") (stringify (document Transcription)) `shouldEqual` true
     length published `shouldEqual` length (filter (isJust <<< _.publish) endpointAccess)
-  it "an unknown Premise has no documents, and its error names the known ones" do
-    ctx <- anyRounds <$> premise
-    either identity (const "") (documentsOf [ ctx ] { premise: "nope", server: "x" }) `shouldEqual` "no premise named nope; known premises: meridian"
-    (isRight (documentsOf [ ctx ] { premise: "meridian", server: "x" })) `shouldEqual` true
+  it "an unknown Composition has no documents, and its error names the known ones" do
+    ctx <- anyRounds <$> meridianParts
+    either identity (const "") (documentsOf [ ctx ] { composition: "nope", server: "x" }) `shouldEqual` "no composition named nope; known compositions: meridian"
+    (isRight (documentsOf [ ctx ] { composition: "meridian", server: "x" })) `shouldEqual` true
   it "no reference in a document dangles" do
     services # traverse_ \s -> do
       let doc = document s

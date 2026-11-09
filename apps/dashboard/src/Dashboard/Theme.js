@@ -6,3 +6,6 @@ export const storeTheme = (theme) => () => {
   localStorage.setItem("theme", theme);
   document.documentElement.classList.toggle("dark", theme === "dark");
 };
+
+// The public page the server marked this document as ("" for the app).
+export const pageMarker = () => document.querySelector('meta[name="scenario-page"]')?.content ?? "";

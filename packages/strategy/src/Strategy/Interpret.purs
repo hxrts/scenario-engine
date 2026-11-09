@@ -39,7 +39,7 @@ import Strategy.StrategyRules (CondAlg, ExprAlg, TemplateAlg, foldCond, foldExpr
 -- | every Choose it meets.
 type Env = { view :: View, params :: Object Q, random :: Int -> Q, exchange :: ExchangeRef -> Maybe ExchangeId }
 
--- | What a strategy's draws and parameters come from: the possible World's parameters, the seed, and the
+-- | What a strategy's draws and parameters come from: the composition's parameters, the seed, and the
 -- | name of the draw stream.
 type DrawContext = { params :: Object Q, seed :: Seed, source :: String }
 

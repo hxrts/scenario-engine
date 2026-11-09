@@ -83,7 +83,7 @@ worldTemplateShape = iso WorldTemplate unwrap (templateShape worldKernelShapes)
 type FlowGate = { resource :: ResourceId, exemptSharedExchange :: Boolean, bundled :: Maybe TransformationId }
 
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
--- | is instantiated (`seeded`); a decoded possible World's world is `UnseededWorld`.
+-- | is instantiated (`seeded`); a decoded composition's world is `UnseededWorld`.
 type WorldFields r =
   ( round :: RoundIndex
   , actors :: Map ActorId Actor
@@ -470,7 +470,8 @@ type RoundResult = { world :: WorldState, record :: RoundRecord }
 
 -- | The immutable record of a game's resolved configuration and initial World State.
 type Manifest =
-  { possibleWorld :: String
+  { composition :: String
+  , premises :: Array String
   , engine :: String
   , draw :: String
   , initial :: WorldState
@@ -481,8 +482,8 @@ engineVersion :: String
 engineVersion = "sp-engine/v1"
 
 -- | The Manifest of a game whose configuration is named `gameboard` and which starts at `initial`.
-manifestOf :: String -> WorldState -> Manifest
-manifestOf possibleWorld initial = { possibleWorld, engine: engineVersion, draw: drawVersion, initial }
+manifestOf :: String -> Array String -> WorldState -> Manifest
+manifestOf composition premises initial = { composition, premises, engine: engineVersion, draw: drawVersion, initial }
 
 -- Shapes. The event and View shapes carry the closure the model and the Run Store encode.
 
@@ -699,7 +700,7 @@ worldStateShape :: Shape WorldState
 worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), actors: (mapOf idShape actorShape), resources: (mapOf idShape resourceDefinitionShape), exchanges: (mapOf idShape exchangeShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingTransactionShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
-manifestShape = recordShape "Manifest" { possibleWorld: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
+manifestShape = recordShape "Manifest" { composition: stringShape, premises: arrayOf stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
 
 -- | What to do at each kind of reference a premise's World State holds. `groupKey` is the Actor a group
 -- | entry is about, separate from the group it counts as. An Aggregate's members and a procedure's weights are

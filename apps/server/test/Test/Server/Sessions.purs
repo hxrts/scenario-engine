@@ -14,14 +14,14 @@ import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, premise)
+import Testkit.Meridian (anyRounds, meridianParts)
 import Testkit.Store (open, storeOver)
 
 type Api = String -> String -> String -> Aff Reply
 
 setup :: Aff Api
 setup = do
-  ctx <- anyRounds <$> premise
+  ctx <- anyRounds <$> meridianParts
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let

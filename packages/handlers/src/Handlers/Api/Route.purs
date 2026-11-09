@@ -344,11 +344,11 @@ endpoints = table
   where
   agencyQuery :: Part AgencyQuery AgencyQuery
   agencyQuery = ado
-    premise <- optionalParam "premise" _.premise
+    composition <- optionalParam "composition" _.composition
     playerSeed <- optionalParam "playerSeed" _.playerSeed
     preset <- optionalParam "preset" _.preset
     alternative <- optionalParam "alternative" _.alternative
-    in { premise, playerSeed, preset, alternative }
+    in { composition, playerSeed, preset, alternative }
 
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
   endpoint method path part = { method, path, part, access: Admin }
@@ -404,12 +404,12 @@ decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.par
 -- | The body of `POST /api/sessions`.
 startSessionShape :: Shape StartSession
 startSessionShape = object "StartSession" ado
-  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
+  composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
   humans <- fieldOf "humans" "the seats a person plays" (arrayOf stringShape) _.humans
-  rounds <- fieldOf "rounds" "the round count; absent keeps the premise's" (optionalOf intShape) _.rounds
+  rounds <- fieldOf "rounds" "the round count; absent keeps the composition's" (optionalOf intShape) _.rounds
   window <- fieldOf "window" "seconds a round stays open; absent waits for every seat" (optionalOf intShape) _.window
   playerSeed <- fieldOf "playerSeed" "the player seed; absent draws one" (optionalOf intShape) _.playerSeed
-  in { premise, humans, rounds, window, playerSeed }
+  in { composition, humans, rounds, window, playerSeed }
 
 -- | The body of `POST /api/sessions/:id/transcripts`.
 submissionShape :: Shape Submission
@@ -422,21 +422,21 @@ submissionShape = object "Submission" ado
 -- | The body of `POST /api/runs`.
 launchShape :: Shape Launch
 launchShape = object "Launch" ado
-  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
+  composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
   name <- fieldOf "name" "the new run's name" stringShape _.name
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
-  in { premise, name, preset, playerSeed, rounds }
+  in { composition, name, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/batch`.
 batchShape :: Shape LaunchBatch
 batchShape = object "LaunchBatch" ado
-  premises <- fieldOf "premises" "the Premises to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.premises
+  compositions <- fieldOf "compositions" "the Compositions to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.compositions
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one per run" (optionalOf intShape) _.playerSeed
-  rounds <- fieldOf "rounds" "the round count; absent keeps each Premise's" (optionalOf intShape) _.rounds
-  in { premises, preset, playerSeed, rounds }
+  rounds <- fieldOf "rounds" "the round count; absent keeps each Composition's" (optionalOf intShape) _.rounds
+  in { compositions, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }

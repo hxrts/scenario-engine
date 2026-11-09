@@ -8,7 +8,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Data.Array (concatMap, filter, length, mapMaybe, nub)
 import Data.Maybe (Maybe, fromMaybe, maybe)
-import Schema.PossibleWorld (PossibleWorld)
+import Schema.Composition (PremiseComposition)
 import Views.Balance (completionOf, measuresOf, spread)
 import Views.Common (Column, StoredRun, Table, column, final, names, price, quantity)
 import Views.Exchanges (exchangePrices)
@@ -45,7 +45,7 @@ measureRow format name xs =
 objectiveRow :: String -> Array Boolean -> Array String
 objectiveRow name met = [ name, show (length met), "", "", show (length (filter identity met)) ]
 
-batchSummary :: (StoredRun -> Maybe PossibleWorld) -> Array StoredRun -> Table
+batchSummary :: (StoredRun -> Maybe PremiseComposition) -> Array StoredRun -> Table
 batchSummary boardOf runs =
   { title: "Batch summary"
   , columns: names columns

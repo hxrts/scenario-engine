@@ -139,7 +139,7 @@ for (const rule of rules) {
 // A module beside a directory of its name is a choice: a catalog, or an app's entry point. Anything else is a
 // module that should be the directory's parts. A directory holding one module is that module with a longer name.
 const moduleDirs = {
-  "packages/premises/src/Premises/Meridian": "a catalog: it composes the Premise from the tables and PremiseModules beneath it",
+  "packages/premises/src/Premises/Meridian": "a catalog: it builds the PremiseComposition's world and its Premises from the tables beneath it",
   "packages/premises/src/Premises/Meridian/Actors": "a catalog: it lists the Actors defined beneath it",
   "packages/premises/src/Premises/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
   "apps/server/src/Server": "the app's entry point; the directory holds its parts",

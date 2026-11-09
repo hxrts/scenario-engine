@@ -28,7 +28,7 @@ import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
 import Schema.Build.Quantity (q)
 
-import Schema.PossibleWorld (Scheme)
+import Schema.Composition (Scheme)
 
 import Laws.Types (ActorId, Estimator, Id(..), ResourceId, idText)
 

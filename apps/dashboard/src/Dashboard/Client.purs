@@ -4,7 +4,7 @@
 module Dashboard.Client
   ( runs
   , launch
-  , premise
+  , composition
   , glossary
   , overview
   , actors
@@ -44,7 +44,7 @@ import Views.Glossary (Glossary)
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Views.Overview (RunList, RunOverview)
-import Views.Premise (Premise)
+import Views.Composition (CompositionInfo)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -78,9 +78,9 @@ deleteSet name = void <$> send @"DeleteRunSet" fetch name
 launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })
 launch = send @"LaunchRun" fetch
 
--- | The premises the launch form offers, each with its rounds, seed, default run name and presets.
-premise :: Aff (Either String (Array Premise))
-premise = send @"Premise" fetch unit
+-- | The compositions the launch form offers, each with its rounds, seed, default run name and presets.
+composition :: Aff (Either String (Array CompositionInfo))
+composition = send @"Premise" fetch unit
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)
@@ -116,11 +116,11 @@ compare ids = send @"Compare" fetch { runs: ids, exchange: Nothing }
 
 -- | The agency analysis beyond its table: each criterion under the baseline and the alternative.
 agencyDetail :: Aff (Either String { criteria :: Table, profile :: Table })
-agencyDetail = send @"AgencyDetail" fetch { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
+agencyDetail = send @"AgencyDetail" fetch { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
 
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
-agency = send @"Agency" fetch { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
+agency = send @"Agency" fetch { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
 
 -- | Archive a run, or unarchive it.
 archive :: String -> Boolean -> Aff (Either String Unit)

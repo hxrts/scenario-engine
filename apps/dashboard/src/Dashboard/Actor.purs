@@ -45,7 +45,7 @@ mkActor = do
       , children:
           [ selector l e setChosen
           , history { id: p.id, version: p.version, actor: e }
-          , Layout.purpose "Each line in the holdings plot is one Resource's holding after a round, in that Resource's own unit (Money in M, the others as the possible World defines them). Net worth is Money plus each held Resource valued at its Exchange's marginal price, the same definition as Standings."
+          , Layout.purpose "Each line in the holdings plot is one Resource's holding after a round, in that Resource's own unit (Money in M, the others as the composition defines them). Net worth is Money plus each held Resource valued at its Exchange's marginal price, the same definition as Standings."
           ]
       }
   selector l e setChosen = D.label

@@ -16,7 +16,7 @@ import Test.Views.Support (toStored)
 
 import Schema.Run (DeriveKind(..), RunStatus(..), emptySpec, specPairs)
 import Checks.Objectives (evaluateObjectives)
-import Schema.PossibleWorld (Outcome(..))
+import Schema.Composition (Outcome(..))
 
 import Core.Draw (Seed(..), tokenFor)
 import Core.Num as Q
@@ -32,7 +32,7 @@ import Effect.Aff (Aff)
 import Handlers.Simulate (SimRun)
 import Assembly.Assemble (assemblePreset)
 import Assembly.Override (Override(..), resolve)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Assembly.Recipe (encodeSpec)
 import Foreign.Object as Object
 import Testkit.Meridian (run, orThrow)
@@ -68,32 +68,32 @@ verdicts t = map (\row -> cell row 7) t.rows
 cell :: Array String -> Int -> String
 cell row i = fromMaybe "" (index row i)
 
-play :: PossibleWorldParts -> Setup -> Aff SimRun
+play :: CompositionParts -> Setup -> Aff SimRun
 play ctx s = do
   g <- orThrow (assemblePreset ctx s.preset s.overrides (Just s.rounds))
   run (Seed s.seed) g
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Views and error paths" do
   it "the stored specification is typed: what Assembly.Recipe writes is what the views read" do
-    let written = encodeSpec { gameId: "g", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
+    let written = encodeSpec { gameId: "g", composition: "c@v1", premises: "p@v1,q@v2", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
     written.gameId `shouldEqual` Just "g"
     written.preset `shouldEqual` Just "P"
     written.playerSeed `shouldEqual` Just 7
     written.rounds `shouldEqual` Just 3
     written.source `shouldEqual` Just "run-1"
     written.kind `shouldEqual` Just Variant
-    specPairs written `shouldEqual` [ Tuple "gameId" "g", Tuple "preset" "P", Tuple "playerSeed" "7", Tuple "overrides" "[]", Tuple "rounds" "3", Tuple "source" "run-1", Tuple "kind" "variant" ]
+    specPairs written `shouldEqual` [ Tuple "gameId" "g", Tuple "composition" "c@v1", Tuple "premises" "p@v1,q@v2", Tuple "preset" "P", Tuple "playerSeed" "7", Tuple "overrides" "[]", Tuple "rounds" "3", Tuple "source" "run-1", Tuple "kind" "variant" ]
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
     case assemblePreset ctx "NoSuchPreset" [] (Just base.rounds) of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown preset NoSuchPreset")
       Right _ -> fail "an unknown preset ran"
-    case resolve { possibleWorld: ctx.possibleWorld, config: ctx.config } [ Parameter "no-such-parameter" (Q.fromInt 1) ] of
+    case resolve { composition: ctx.composition, config: ctx.config } [ Parameter "no-such-parameter" (Q.fromInt 1) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown parameter no-such-parameter")
       Right _ -> fail "an unknown parameter was applied"
-    case resolve { possibleWorld: ctx.possibleWorld, config: ctx.config } [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] of
+    case resolve { composition: ctx.composition, config: ctx.config } [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown scheme")
       Right _ -> fail "an unknown scheme was applied"
 
@@ -105,7 +105,7 @@ spec context = describe "Views and error paths" do
       r1 = toStored "run-1" a
       r2 = toStored "run-2" b
       runs = [ r1, r2 ]
-      kv = keyValues (const (Just ctx.possibleWorld)) runs
+      kv = keyValues (const (Just ctx.composition)) runs
       rowOf label = fromMaybe [] (find (\row -> cell row 0 == label) kv.rows)
       valueIn label r = fromMaybe "" (find (\row -> cell row 0 == label) (measures r).rows >>= \row -> index row 1)
       standingOf p r = fromMaybe "" (find (\row -> cell row 0 == p) (standings r).rows >>= \row -> index row 1)
@@ -194,7 +194,7 @@ spec context = describe "Views and error paths" do
 
   it "a run with no rounds: every objective is not evaluated, never met (§10.5)" do
     ctx <- context
-    let os = evaluateObjectives ctx.possibleWorld []
+    let os = evaluateObjectives ctx.composition []
     length os `shouldEqual` 16
     all (\o -> o.outcome == NotEvaluated) os `shouldEqual` true
 
@@ -267,14 +267,14 @@ spec context = describe "Views and error paths" do
   it "the overview returns the header's facts, in order" do
     ctx <- context
     r <- play ctx (conservative 2)
-    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Premise", "Status", "Rounds completed", "Game ID" ]
+    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Composition", "Premises", "Status", "Rounds completed", "Game ID" ]
   where
   summary s =
     { id: s.id
     , name: s.name
     , status: s.status
     , reason: Nothing
-    , possibleWorld: s.manifest.possibleWorld
+    , composition: s.manifest.composition
     , gameSeed: show s.manifest.initial.seed
     , playerSeed: s.playerSeed
     , rounds: completed s

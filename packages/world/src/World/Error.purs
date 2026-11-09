@@ -1,5 +1,5 @@
--- | The errors and differences of possible World realization (docs/03_premise.md, docs/04_run.md
--- | §14.2): the failed checks of `World.possible World.Validate` and the differences between two
+-- | The errors and differences of composition realization (docs/03_premise.md, docs/04_run.md
+-- | §14.2): the failed checks of `World.Composition.Validate` and the differences between two
 -- | instantiations of one economy. Realization owns these; the premise format does not.
 module World.Error
   ( ValidationError(..)
@@ -11,12 +11,12 @@ import Prelude
 import Core.Num (Q)
 import Laws.Types (CollectiveProcedureId, ActorId, RefKind, ResourceId, TransformationId)
 
--- | Every way a possible World, its configuration, or an instantiation can be wrong. Each
+-- | Every way a composition, its configuration, or an instantiation can be wrong. Each
 -- | constructor names one check, so a caller and its tests match on the specific failure.
 data ValidationError
   = UnknownReference RefKind String
   | InvalidTemplate String -- a template spawns for its own round, or names a template that does not exist
-  | UnknownScheme String -- a Representation scheme the possible World does not define
+  | UnknownScheme String -- a Representation scheme the composition does not define
   | DuplicateHolder String -- a Resource a holder draw names has more than one holder
   | ProductionWithoutHolding ActorId String -- a producer does not hold what it produces from
   | DrawWithoutHolder String String -- a Transformation draws a Resource from its holder and nothing holds it

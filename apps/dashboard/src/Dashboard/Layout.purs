@@ -4,13 +4,29 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (page, section, grid, panel, caption, captioned, purpose) where
+module Dashboard.Layout (topBar, page, section, grid, panel, caption, captioned, purpose) where
 
 import Prelude
 
 import Dashboard.UI as UI
 import React.Basic.DOM as D
 import React.Basic.Hooks (JSX, element)
+
+-- | The bar across the top of every page: the brand, its links, and the theme button at the far end.
+topBar :: { brand :: String, home :: String, nav :: Array JSX, themeButton :: JSX } -> JSX
+topBar b = D.header
+  { className: "border-b"
+  , children:
+      [ D.div
+          { className: "mx-auto flex w-full max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-gutter py-3"
+          , children:
+              [ D.a { href: b.home, className: "font-semibold", children: [ D.text b.brand ] }
+              , D.nav { className: "flex flex-wrap items-center gap-4 text-sm", children: b.nav }
+              , D.div { className: "ml-auto", children: [ b.themeButton ] }
+              ]
+          }
+      ]
+  }
 
 -- | A page: its title, a one-sentence purpose, and its sections.
 page :: { title :: String, purpose :: String, children :: Array JSX } -> JSX

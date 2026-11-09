@@ -1,10 +1,11 @@
--- | Decodes a premise package from its file contents: every JSON section is merged into one possible World
--- | object, except `instantiation.json`, the Instantiation Configuration, and the premise's seat
--- | presets are decoded. The texts come in as values (`Premises.Tree`): this module does no IO. Validation is
--- | not here: `loadPremise` hands the decoded premise to `Assembly.Premise.checkPremise`, which checks it
--- | against itself and its Strategies, so bad data fails before any game is assembled.
+-- | Decodes a composition from its files: `composition.json` names the Premises in order, each Premise's file
+-- | holds its sections, and `compose` merges them into what the Premise format decodes. The texts come in as
+-- | values (`Premises.Tree`): this module does no IO. Validation is not here: `loadFrom` hands the decoded
+-- | composition to `Assembly.Composition.checkComposition`, which checks it against itself and its Strategies, so
+-- | bad data, including a name no Premise in the composition defines, fails before any game is assembled.
 module Premises.Load
-  ( fromFiles
+  ( parts
+  , composedOf
   , loadFrom
   , loadAll
   , loadPresets
@@ -12,28 +13,30 @@ module Premises.Load
   , loadLiteral
   ) where
 
-import Prelude
+import Prelude hiding (compose)
 
-import Core.Shape (decodeJsonWith, Format(..))
+import Core.Shape (arrayOf, decodeJsonWith, Format(..), recordShape, stringShape)
 import Laws.StrategyRules (StrategyRules)
-import Data.Argonaut.Core (Json, fromObject, toObject)
+import Data.Argonaut.Core (Json, fromObject, toObject, toString)
 import Data.Argonaut.Decode (parseJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (filter, find, foldl)
+import Data.Array (zip)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Traversable (sequence, traverse)
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Assembly.Premise (PossibleWorldParts, checkPremise)
-import Premises.Layout (instantiationFile, presetsFile)
+import Assembly.Composition (CompositionParts, checkComposition)
+import Premises.Compose (CompositionSource, Premise, compose, presetsJson, renderComposeError)
+import Premises.Layout (compositionFile, presetsFile)
 import Premises.Tree as Tree
 import Schema.Decode (decodeError, decodeErrorAt)
-import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
+import Schema.Composition (PremiseComposition, PremiseRef, premiseRefShape)
 import Schema.Premise.Fixture (Literal, decodeLiteral)
-import Schema.Premise.PossibleWorld (decodeConfig, decodePossibleWorld)
+import Schema.Premise.Composition (decodeConfig, decodeComposition)
 import Schema.Premise.StrategyRules (presetsShape)
-import Data.Maybe (Maybe(..))
 
 -- | The seat-strategy presets (docs/06_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object StrategyRules)
@@ -44,25 +47,48 @@ presetsFrom j = do
   pairs <- decodeErrorAt presetsFile (decodeJsonWith Authored presetsShape j)
   pure (Object.fromFoldable pairs)
 
--- | A premise directory decoded and checked: the possible World premise a game is assembled from.
-loadPremise :: Tree.Premise -> Either String PossibleWorldParts
-loadPremise s = do
-  files <- traverse (\f -> { name: f.name, json: _ } <$> lmap (\why -> f.path <> ": " <> why) (jsonParser f.text)) s.sections
-  decoded <- fromFiles files
-  presets <- presetsOf s.presets
-  lmap show (checkPremise { possibleWorld: decoded.possibleWorld, config: decoded.config, presets })
-  where
-  presetsOf p = lmap (\why -> p.path <> ": " <> why) (jsonParser p.text) >>= presetsFrom
+-- | An ordered list of Premises, composed and decoded. Unvalidated: `checkComposition` does that.
+composedOf :: { id :: String, version :: String, premises :: Array Premise } -> Either String PremiseComposition
+composedOf c = do
+  merged <- lmap (\e -> "composition " <> c.id <> ": " <> renderComposeError e) (compose c)
+  decodeErrorAt ("composition " <> c.id) (decodeComposition (fromObject merged))
 
--- | A premise directory read through the file operations given, decoded and checked.
-loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String PossibleWorldParts)
-loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
+-- | A composition as authored, composed, decoded and checked exactly as the loader reads it.
+parts :: CompositionSource -> Either String CompositionParts
+parts c = do
+  decoded <- composedOf { id: c.id, version: c.version, premises: c.premises }
+  presets <- presetsFrom (presetsJson c)
+  lmap show (checkComposition { composition: decoded, config: c.config, presets })
 
--- | Every premise directory under the root, loaded and checked. A root with none is a failure.
-loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array PossibleWorldParts))
-loadAll ops = Tree.premiseDirs ops >>= case _ of
+-- | A composition directory read through the file operations given, composed, decoded and checked.
+loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String CompositionParts)
+loadFrom ops dir = Tree.readComposition ops dir >>= case _ of
   Left e -> pure (Left e)
-  Right [] -> pure (Left "no premise under the premise root; run `just _premises`")
+  Right fs -> case header fs.composition of
+    Left e -> pure (Left e)
+    Right h -> do
+      read <- traverse (Tree.readPremiseFile ops) h.premises
+      pure do
+        sections <- sequence read
+        premises <- traverse premiseFrom (zip h.premises sections)
+        config <- parsed fs.instantiation >>= decodeErrorAt fs.instantiation.path <<< decodeConfig
+        presets <- parsed fs.presets >>= presetsFrom
+        decoded <- composedOf { id: h.id, version: h.version, premises }
+        lmap show (checkComposition { composition: decoded, config, presets })
+  where
+  parsed f = lmap (\why -> f.path <> ": " <> why) (jsonParser f.text)
+
+  premiseFrom (Tuple r s) = do
+    j <- parsed s
+    o <- note (s.path <> ": a Premise must be a JSON object") (toObject j)
+    if (Object.lookup "id" o >>= toString) == Just r.id && (Object.lookup "version" o >>= toString) == Just r.version then Right { id: r.id, version: r.version, sections: Object.filterKeys (\k -> k /= "id" && k /= "version") o }
+    else Left (s.path <> ": does not hold the Premise " <> r.id <> "@" <> r.version)
+
+-- | Every composition directory under the root, loaded and checked. A root with none is a failure.
+loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array CompositionParts))
+loadAll ops = Tree.compositionDirs ops >>= case _ of
+  Left e -> pure (Left e)
+  Right [] -> pure (Left "no composition under the premise root; run `just _premises`")
   Right dirs -> map sequence (traverse (loadFrom ops) dirs)
 
 -- | A literal premise's file text, decoded and named `name`.
@@ -71,28 +97,6 @@ loadLiteral name text = decodeError (parseJson text >>= decodeNamed)
   where
   decodeNamed j = map (_ { name = name }) (decodeLiteral j)
 
--- | Decode a premise's sections, each a JSON object, merged into one possible World; `instantiation.json` is
--- | the configuration. Undecoded, unvalidated: `checkPremise` does that.
-fromFiles :: Array { name :: String, json :: Json } -> Either String { possibleWorld :: PossibleWorld, config :: InstantiationConfig }
-fromFiles files = do
-  configJson <- note (instantiationFile <> ": missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
-  config <- decodeErrorAt instantiationFile (decodeConfig configJson)
-  merged <- merge (filter (\f -> f.name /= instantiationFile) files)
-  possibleWorld <- decodeErrorAt "the PossibleWorld" (decodePossibleWorld merged)
-  pure { possibleWorld, config }
-  where
-  headOf = case _ of
-    [ x ] -> Just x
-    _ -> Nothing
-
--- | Every section object merged into one. A section that is not an object, or a key that two
--- | sections both define, fails: nothing is overwritten silently.
-merge :: Array { name :: String, json :: Json } -> Either String Json
-merge files = map fromObject (foldl step (Right Object.empty) files)
-  where
-  step acc f = do
-    o <- acc
-    x <- note (f.name <> ": a section must be a JSON object") (toObject f.json)
-    case find (\k -> Object.member k o) (Object.keys x) of
-      Just k -> Left (f.name <> ": key " <> k <> " is already defined by another section")
-      Nothing -> Right (Object.union o x)
+-- | `composition.json`'s text: its identity and its Premises in order.
+header :: Tree.Section -> Either String { id :: String, version :: String, premises :: Array PremiseRef }
+header s = lmap (\why -> s.path <> ": " <> why) (jsonParser s.text) >>= decodeErrorAt compositionFile <<< decodeJsonWith Authored (recordShape "Composition" { id: stringShape, version: stringShape, premises: arrayOf premiseRefShape })

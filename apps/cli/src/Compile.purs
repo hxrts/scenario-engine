@@ -1,4 +1,4 @@
--- | The composition root of `just _premises`'s compile step (`Cli.Compile`). An invalid premise exits 1.
+-- | The composition root of `just _premises`'s compile step (`Cli.Compile`). An invalid composition exits 1.
 module Compile (main) where
 
 import Prelude

@@ -5,7 +5,7 @@ module Premises.Meridian.Actors.Aggregates (eu, euPool, cnPrivate, usWorkers, gl
 import Prelude ((<>), (==))
 import Data.Array (mapMaybe)
 import Data.Maybe (Maybe(..))
-import Schema.PossibleWorld (Fallback(..))
+import Schema.Composition (Fallback(..))
 import Premises.Meridian.Actors.Seats (seats)
 import Premises.Meridian.Rules (tariff)
 import Premises.Meridian.Names (n)

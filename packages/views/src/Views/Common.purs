@@ -59,7 +59,7 @@ import Core.Map (entries)
 import Record as Record
 import Laws.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
 import Laws.Types (idText, ActorId, CandidateTransactionId, ResourceDefinition, ResourceId)
-import Schema.PossibleWorld (capacityCategory)
+import Schema.Composition (capacityCategory)
 
 import Laws.Invariants (Failure)
 import Core.Num (Kind, Q)
@@ -117,7 +117,7 @@ columnsOf = map _.column
 col
   :: { run :: Column
      , name :: Column
-     , possibleWorld :: Column
+     , composition :: Column
      , gameSeed :: Column
      , playerSeed :: Column
      , rounds :: Column
@@ -136,13 +136,13 @@ col
 col =
   { run: column "Run" "The run's id in the Run Store. Selecting a row shows that run's results."
   , name: column "Name" "The name the run was given at launch, or by the derivation that created it." # emptied { label: "not recorded", reason: "The run was stored without a name." }
-  , possibleWorld: column "PossibleWorld" "The possible World version (the premise) the run was played on."
+  , composition: column "Composition" "The PremiseComposition version the run was played on."
   , gameSeed: column "Game seed" "The seed fixed by the premise. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
   , playerSeed: column "Player seed" "The seed for seat-strategy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
   , rounds: column "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
   , status: column "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
   , explicitActor: column "Explicit Actor" "The Actor (or Aggregate) this row describes."
-  , objective: column "Objective" "A goal from the possible World for one Actor. It is measured from the run and never changes the economy."
+  , objective: column "Objective" "A goal from the composition for one Actor. It is measured from the run and never changes the economy."
   , outcome: column "Outcome" "For objectives: met, not met or not evaluated. A criterion is not evaluated when the run has no rounds or no data, and is never reported as met. For procedures: executed if the support reached the threshold, lapsed otherwise."
   , round: column "Round" "The round this row belongs to. Round 1 is the first round after the initial state."
   , actor: column "Actor" "The Actor whose balance sheet this is: an Actor or an Aggregate."
@@ -155,7 +155,7 @@ col =
 
 -- | The shared columns, for the glossary.
 sharedColumns :: Array Column
-sharedColumns = [ col.run, col.name, col.possibleWorld, col.gameSeed, col.playerSeed, col.rounds, col.status, col.explicitActor, col.objective, col.outcome, col.round, col.actor, col.kind, col.resource, col.player, col.measure, col.spread ]
+sharedColumns = [ col.run, col.name, col.composition, col.gameSeed, col.playerSeed, col.rounds, col.status, col.explicitActor, col.objective, col.outcome, col.round, col.actor, col.kind, col.resource, col.player, col.measure, col.spread ]
 
 -- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
 -- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.

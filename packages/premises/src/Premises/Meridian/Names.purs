@@ -3,8 +3,8 @@
 -- | this record, so a name is spelled once (`n.us`, `n.energyAtlantic`).
 module Premises.Meridian.Names where
 
+import Prelude ((<>))
 import Laws.Types (CollectiveProcedureId, ActorId, Id(..), ExchangeId, StrategyId, ResourceId, TransformationId)
-import Premises.Layout (premiseDir)
 
 -- | The type of `n`.
 type Names =
@@ -143,7 +143,7 @@ meridianVersion :: String
 meridianVersion = "v0"
 
 meridianDir :: String
-meridianDir = premiseDir meridianId meridianVersion
+meridianDir = meridianId <> "/" <> meridianVersion
 
 -- Seats ---------------------------------------------------------------------------------------
 

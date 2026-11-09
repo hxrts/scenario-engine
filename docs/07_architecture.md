@@ -52,14 +52,15 @@ What runs, and what it connects to. Arrows point from the caller to what it call
                                                     │
         ┌─────────────┬───────────────┬─────────────┼─────────────┐
         ▼             ▼               ▼             ▼             ▼
-     Adapters.Pi   Adapters.SQLite  Adapters.    Adapters.    Adapters.Clock,
-        │             │             Filesystem   Console      Random, Process,
-        ▼             ▼               │             │         Digest, Exit
-     pi process    runs.db            ▼             ▼             │
-        │          (Run Store)     Premise files,  terminal       ▼
-        ▼                          evidence,       (CLI only)    operating
-     Interence                     .env,                         system
-     provider                      openapi/
+     Adapters.     Adapters.       Adapters.     Adapters.    Adapters.Clock
+     Pi            db              Filesystem    Console      Random, Process
+        │             │               │             │         Digest, Exit
+        ▼             ▼               ▼             ▼             ▼
+     pi process    runs.db         Premise files,  terminal   operating
+        │          (Run Store)     (CLI only)       system
+        ▼                          evidence,
+     Interence                     .env,
+     provider                       openapi/
 ```
 
 The two external services see only the open routes, whose contract is the OpenAPI documents (06 §8.2). Every other route needs the admin session. Model calls leave the system only through the `pi` process.
@@ -84,10 +85,10 @@ These govern every package. They are what a change is checked against.
 
 ## 2. Runtime Shape
 
-The runtime is one pure engine and one round runner that calls it. A Premise is assembled once into a `PreparedRun`, and every runner plays that same `PreparedRun`: the simulator folds it with the player seed, and live play runs it with human and agent seats.
+The runtime is one pure engine and one round runner that calls it. A PremiseComposition is assembled once into a `PreparedRun`, and every runner plays that same `PreparedRun`: the simulator folds it with the player seed, and live play runs it with human and agent seats.
 
 ```text
-   premise ──► assemble ──► PreparedRun
+   composition ──► assemble ──► PreparedRun
                               │
           ┌───────────────────┴───────────────────┐
    simulate (pure fold)                     runLive (Aff)
@@ -108,11 +109,11 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 |---|---|---|---|
 | `core` | nothing | The kernel; the description algebra; numerics, draws, the cost curve, and the id, quantity and curve types | Any authored vocabulary (Intent, candidate Transaction, Rule, Transformation and the like); Premise knowledge, authoring formats, operations, runs, a second codec for a described type |
 | `laws` | `core` | The authored vocabulary and the settlement sequence: World and Events, Intent and candidate Transaction types, the `StrategyRules` language, the compile step, `resolveRound`, authority, Representation and per-round invariants | Premise knowledge, authoring formats, operations, runs |
-| `schema` | `core`, `laws` | The Premise format, the authoring DSL (including `Schema.Build.Agreement`), the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
+| `schema` | `core`, `laws` | The Premise format and the compiled PremiseComposition type, the authoring DSL (including `Schema.Build.Agreement`), the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
 | `world` | `core`, `laws`, `schema` | World realization and validation, and their errors. It is separate from `assembly` so that the package boundary keeps what the world is apart from how seats decide | JSON, fixtures, seat bindings, strategy concepts |
 | `strategy` | `core`, `laws`, `schema` | The pure `StrategyRules` interpreter | Effect libraries, codecs, World access |
-| `assembly` | `core`, `laws`, `schema`, `world`, `strategy` | Assembling a Premise into a `PreparedRun`; seat bindings, overrides and stored run specs. The only domain package where `world` and `strategy` meet | Effects, round execution, persistence, the player seed, Premise content |
-| `premises` | `core`, `laws`, `schema`, `assembly` | Authored Premises, presets, fixtures and the Premise file tree, as typed values ([03 §12a](03_premise.md#12a-how-premises-are-made)) | IO, compiling, decoders, computed expected values |
+| `assembly` | `core`, `laws`, `schema`, `world`, `strategy` | Assembling a PremiseComposition into a `PreparedRun`; seat bindings, overrides and stored run specs. The only domain package where `world` and `strategy` meet | Effects, round execution, persistence, the player seed, Premise content |
+| `premises` | `core`, `laws`, `schema`, `assembly` | Authored Premises and PremiseCompositions, `compose` and its refusals, presets, fixtures and the file tree of compiled compositions and Premises, as typed values ([03 §12a](03_premise.md#12a-how-premises-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `laws`, `schema` | Checking expectations, runs and objectives against records | Effects, playing Runs |
 | `effects` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
 | `handlers` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly`, `effects`, `views` (`Handlers.Api.Contract` only) | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's contract, routing and client, and the pure simulation fold | Adapter imports; `experiments` or `premises` imports; the API's operation semantics; a browser-facing client importing a Node module |
@@ -121,22 +122,23 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
 | `testkit` | `core`, `laws`, `schema`, `premises`, `assembly`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
-| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays Runs and compiles Premises; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
+| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays Runs and compiles PremiseCompositions; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
-Two deliberate exceptions to the layering. `testkit` may import `adapters`, because it reads the Premise files through the filesystem device. `handlers` does not import `checks`, so a handler never reaches the checkers.
+Two deliberate exceptions to the layering. `testkit` may import `adapters`, because it reads the compiled files through the filesystem device. `handlers` does not import `checks`, so a handler never reaches the checkers.
 
 **Where a new concept goes.** A concept that fits a package's row becomes a module in that package, named `<Package>.<Concept>`. A new package is added only when the build must enforce a boundary that module rules cannot: a concept that must not see something another package sees. A new package also needs a row in this table. A new device is a new adapter, and a new program need is an operation with its handler ([§1](#1-principles)).
 
-Compiled Premise files are gitignored build output, generated by the compiler and never hand-edited.
+Compiled composition and Premise files are gitignored build output, generated by the compiler and never hand-edited.
 
 ## 4. Key Interfaces
 
 These are the seams. Every other piece is an internal detail of a package. Signatures are as the code declares them.
 
-**Premise and PreparedRun** (`assembly`). A Premise is assembled once, purely, into the `PreparedRun` every runner plays. This is the only place a Premise is instantiated and its seats are bound:
+**PremiseComposition and PreparedRun** (`assembly`). A composition is assembled once, purely, into the `PreparedRun` every runner plays. This is the only place a composition is instantiated and its seats are bound:
 
 ```purescript
-assemble :: Premise -> Bindings -> Array Override -> Either AssemblyError PreparedRun
+assemble :: Origin -> Bindings -> Array Override -> Either AssemblyError PreparedRun
+-- Origin = FromComposition CompositionParts | FromLiteral { world, rounds }
 -- Bindings = Map ActorId SeatBinding
 -- SeatBinding = StrategyRules | Script (Array ScriptRound) | Agent | Human
 ```
@@ -144,7 +146,7 @@ assemble :: Premise -> Bindings -> Array Override -> Either AssemblyError Prepar
 **Instantiation and validation** (`world`). Pure and atomic: it returns the initial World or every error.
 
 ```purescript
-instantiate :: PossibleWorld -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
+instantiate :: PremiseComposition -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
 ```
 
 **Engine** (`laws`, `Laws.Engine.Commit`). Pure, and the only operation that changes the economy. It is the settlement sequence, and there is deliberately no single kernel call for a whole round ([02 §3.5](02_kernel.md#35-resolution)):
@@ -201,43 +203,43 @@ Checks run under `just check`, and each fails the build on a violation. Each che
 - **Concept rules.** Rules that imports cannot express: foreign code (`.js`) lives only in adapters and apps; `core` names no authored vocabulary; only `Core.Kernel.Post` writes the ledger or builds a settled Flow.
 - **Impurity.** Only composition roots import adapters, and adapters use no domain words or domain imports.
 - **Derived rule.** Flags hand-written projections, codecs, event matches and repeated names where one description should generate them. Each exception is listed with its reason.
-- **Docs tables.** The marked tables in [05](05_meridian.md) match the compiled Premise.
+- **Docs tables.** The marked tables in [05](05_meridian.md) match the compiled composition.
 - **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 
 Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
 
 ## 6. One Description, Many Interfaces
 
-Most of what a person or a program touches in this system is produced from a small number of typed descriptions. A Premise is written once and reshaped by composition, derivation and filtering. A type is described once, and its codecs and prose come from that description. An operation is declared once, and the server and the client both come from that declaration. Each path below produces with a component that is correct by construction.
+Most of what a person or a program touches in this system is produced from a small number of typed descriptions. A Premise is written once, and PremiseCompositions are reshaped by composition, derivation and filtering. A type is described once, and its codecs and prose come from that description. An operation is declared once, and the server and the client both come from that declaration. Each path below produces with a component that is correct by construction.
 
 ```text
  Objects are written plainly. An arrowhead points at the object produced, and the
  word on the shaft names what produces it.
 
- RESHAPING A PREMISE
+ RESHAPING A COMPOSITION
 
                     DSL builders
                           │ write
           ┌───────────────┴───────────────┐
           ▼                               ▼
- generic definitions               Premise modules
+ generic definitions                  Premises
           │                               │
           └───────────────┬───────────────┘
-                          │ compose
+                          │ compose (ordered; conflicts refused)
                           ▼
-                       Premise ── derive (dials, patches) ──► variant Premise
+                 PremiseComposition ── derive (dials, patches) ──► variant composition
                           │ filter or keep
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
-  filtered Premise   whole Premise     fixture ◄── add ── seat answers, expectations
+ filtered composition  whole composition  fixture ◄── add ── seat answers, expectations
           │               │               │
           └───────────────┼───────────────┘
                           │ compile
                           ▼
-                    Premise files
-                          │ load, checkPremise
+              composition and Premise files
+                          │ load, compose, checkComposition
                           ▼
-                  validated Premise
+              validated PremiseComposition
                           │ assemble (seat bindings, overrides)
                           ▼
                      PreparedRun
@@ -253,7 +255,7 @@ Most of what a person or a program touches in this system is produced from a sma
 
  ONE SHAPE PER TYPE
 
- Shape                ── Authored codec ─────► Premise files, fixtures
+ Shape                ── Authored codec ─────► Premise and composition files, fixtures
  Shape                ── Snapshot codec ─────► stored Runs, model replies
  Shape                ── description ────────► prose, a model's action list, JSON Schema, OpenAPI
 
@@ -267,7 +269,7 @@ Most of what a person or a program touches in this system is produced from a sma
 
  ONE RUN RECIPE
 
- Premise, overrides   ── resolve ────────────► variant Premise
+ composition, overrides ── resolve ──────────► variant composition
  stored Run           ── deriveRecipe ───────► derived Run
  Experiment           ── variants ───────────► Run set
 
@@ -305,7 +307,7 @@ Most of what a person or a program touches in this system is produced from a sma
  Handlers.Api.Client  ── fetch ──────────────► apps/dashboard
 ```
 
-**Reshaping a Premise.** Composition, derivation and filtering are read-only over the authored source, and each fails loudly rather than doing nothing: a duplicate key, a patch that names nothing, or a kept thing that refers to a dropped one ([03 §12a](03_premise.md#12a-how-premises-are-made)).
+**Reshaping a composition.** Composition, derivation and filtering are read-only over the authored source, and each fails loudly rather than doing nothing: two Premises defining one thing differently, a name no Premise defines, a patch that names nothing, or a kept thing that refers to a dropped one ([03 §12a](03_premise.md#12a-how-premises-are-made)).
 
 Typed names make a builder accept only the right kind of id, so naming an Exchange where an Actor belongs fails to compile. A single walk over a World's references serves both validation and instantiation, so a new kind of reference is handled in one place.
 
@@ -315,9 +317,9 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **Strategies are a language with several readers.** `StrategyRules` is a value, not code. The interpreter runs it through `propose` and `sign`, a query reads every name it refers to for the load-time check, and a Shape stores it. A preset is one shared set of rules that each Premise binds to its own names and thresholds, so results stay comparable across Premises.
 
-**Runs are reshaped as Premises are.** Overrides change values within a Premise's structure, a derived Run starts from the recipe a stored Run keeps, and an Experiment expands parameter values or seeds into a Run set. Each works on recorded data, so what produced a Run can always be read back.
+**Runs are reshaped as compositions are.** Overrides change values within a composition's structure, a derived Run starts from the recipe a stored Run keeps, and an Experiment expands parameter values or seeds into a Run set. Each works on recorded data, so what produced a Run can always be read back.
 
-**Fixtures and tests get their own authoring language.** A fixture is not a hand-built World. It is a filter of the Premise it tests, plus what each seat does and what should happen. It plays through `simulate` as a `PreparedRun` like any other, so its expectations are checked against the records the engine writes. `RoundF f p` is one record type filled in three ways, so what a fixture may assert is exactly what a round can produce. A new field fails to compile until the checker compares it.
+**Fixtures and tests get their own authoring language.** A fixture is not a hand-built World. It is a filter of the PremiseComposition it tests, plus what each seat does and what should happen. It plays through `simulate` as a `PreparedRun` like any other, so its expectations are checked against the records the engine writes. `RoundF f p` is one record type filled in three ways, so what a fixture may assert is exactly what a round can produce. A new field fails to compile until the checker compares it.
 
 **Assertions come from the event type.** A selector such as `` event @"Rejected" `` names an `Event` constructor, and field selectors are checked against that constructor at compile time, so a test cannot assert on something an event does not carry. A `Slice` is a value, which is why one definition gives both the number and the formula text a view shows beside it.
 
@@ -326,7 +328,3 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 **Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. `Handlers.Api.Contract` has one entry per constructor, stating its reply Shape and refusals, read by the server's `dispatch`, the client's `send`, and the OpenAPI documents for the external services ([06 §8.2](06_simulator.md#82-external-services)), which take their paths and methods from the table and their statuses by reflecting the entry's row of refusals. An entry's reply Shape is found from its reply type (`Views.Keys.ViewShape`); `Created` states a 201 in the Authored format. `Views.Keys.ViewReplies` does the same per View: one label per `View` constructor, read by the server's `answerView` and the client's `viewKey`. Only an open route can be published (`Access`).
 
 **A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([06 §9.5](06_simulator.md#95-balancesheet-pages)).
-
-## How the docs relate
-
-The spec docs (01 to 06) are the source of truth, and the implementation follows them. [AGENTS.md](../AGENTS.md) is the operator's guide: commands, and where each part of the implementation lives.

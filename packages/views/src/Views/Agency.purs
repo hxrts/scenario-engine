@@ -7,7 +7,7 @@ import Prelude
 import Core.Num (Q)
 import Laws.Types (ActorId)
 import Data.Array (concatMap, filter, length, mapWithIndex)
-import Schema.PossibleWorld (Outcome(..))
+import Schema.Composition (Outcome(..))
 import Views.Common (Column, Table, col, column, names, price, quantity)
 
 -- | One objective criterion's result in the baseline and under the alternative.

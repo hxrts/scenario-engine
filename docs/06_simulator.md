@@ -1,12 +1,12 @@
 # Simulator and Dashboard Specification
 
-**Reference Premise:** Meridian ([05](05_meridian.md))
+**Reference PremiseComposition:** Meridian ([05](05_meridian.md))
 
 ---
 
 ## 1. Purpose
 
-The simulator plays complete Runs automatically and deterministically. Developers use it to check implementation correctness and to improve gameplay through repeated experiments. It is a development component. It adds no economic model of its own: it runs the kernel, Premise, and Run machinery. Invariants are cited by ID ([02 §9](02_kernel.md#9-architectural-invariants-and-numerics)).
+The simulator plays complete Runs automatically and deterministically. Developers use it to check implementation correctness and to improve gameplay through repeated experiments. It is a development component. It adds no economic model of its own: it runs the kernel, PremiseComposition, and Run machinery. Invariants are cited by ID ([02 §9](02_kernel.md#9-architectural-invariants-and-numerics)).
 
 A developer configures a Run, binds a seat Strategy to every seat, plays it, saves it, inspects it, compares it with other runs (including controlled counterfactuals), and varies parameters to study correctness, balance, and player agency.
 
@@ -16,7 +16,7 @@ A failed invariant is reported on the run and never compensated for ([§7](#7-ru
 
 The simulator is a development component, not a layer of economic semantics.
 
-**Premise → `assemble` → `PreparedRun` + player seed → Simulation Run → Run Store → Dashboard**
+**PremiseComposition → `assemble` → `PreparedRun` + player seed → Simulation Run → Run Store → Dashboard**
 
 | Component | Responsibility |
 |---|---|
@@ -59,7 +59,7 @@ The simulator never invents default decisions. A seat meant to stay silent is bo
 
 ### 4.2 Presets
 
-Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the premises package's preset file, compiled into each Premise. A Premise binds the presets to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Exchanges the seat can access with the lowest and highest opening price ([03 §8](03_premise.md#8-strategy-catalog)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
+Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the premises package's preset file, compiled into each PremiseComposition. A PremiseComposition binds the presets to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Exchanges the seat can access with the lowest and highest opening price ([03 §8](03_premise.md#8-strategy-catalog)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
 
 | Preset | Behaviour |
 |---|---|
@@ -73,13 +73,13 @@ Presets are named parameter sets of the shared interpreter, not separate strateg
 | `Investor` | Runs the bound investment Transformation for 1 unit while its Money holding is above 100, as a joint candidate Transaction co-signed by the capacity's owner. Signs every candidate Transaction addressed to it. |
 | `CrisisResponse` | Buys 3 of the staple at the cheapest Exchange, limit 4, while that price is above 3.5 and its staple holding is below 20. |
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 of the staple (limit 3), or sell 5 at the costliest Exchange (limit 2). |
-| `Deployer` | While the Premise's reference Exchange price is above its deployment threshold, orders the bound deployment and a sale of the bound Resource in the same round. Both are scaled to the seat's holding. |
+| `Deployer` | While the PremiseComposition's reference Exchange price is above its deployment threshold, orders the bound deployment and a sale of the bound Resource in the same round. Both are scaled to the seat's holding. |
 
-`GET /api/premise` lists these names, in the order written, for each Premise that has them. The launch form offers the same names.
+`GET /api/premise` lists these names, in the order written, for each PremiseComposition that has them. The launch form offers the same names.
 
 ## 5. Deterministic Randomness
 
-Randomness enters only as keyed draws on a seed ([02 §9.1](02_kernel.md#91-numerics-and-randomness)), where a Premise, an estimator, or a preset declares a stochastic choice ([INV-13](02_kernel.md#inv-13)).
+Randomness enters only as keyed draws on a seed ([02 §9.1](02_kernel.md#91-numerics-and-randomness)), where a PremiseComposition, an estimator, or a preset declares a stochastic choice ([INV-13](02_kernel.md#inv-13)).
 
 **The seed rule.** A run has one player seed, resolved once, before the run starts, at the program boundary. An injected seed is used as given. An absent seed is drawn from the operating system exactly once. The concrete value is what the run uses and what its spec records; a stored spec never holds an absent value. Each entry point resolves it this way: the CLI draws when `--seed` is absent and prints the seed; the server draws when `playerSeed` is null or absent and names the seed in its reply; the Dashboard draws for a blank seed.
 
@@ -119,16 +119,16 @@ A run is never left `running` once its work has ended. It is marked `failed`, wi
 
 | Command | Behaviour |
 |---|---|
-| `run <premise> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds. `n` is a whole number of at least 1, and defaults to the Premise's configured count; `checkRounds` refuses a count outside the Premise's round range. Prints a header, one line per round, and the invariant results. Does not save to the Run Store. |
+| `run <composition> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds. `n` is a whole number of at least 1, and defaults to the PremiseComposition's configured count; `checkRounds` refuses a count outside the PremiseComposition's round range. Prints a header, one line per round, and the invariant results. Does not save to the Run Store. |
 | `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` answer with a typed transcript each round; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Prints each Actor's balance sheet path at the start. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
 | `presets` | Prints the shipped preset names, one per line. |
 | `server [--db file] [--port n] [--static dir] [--env file]` (`just serve`) | Serves the API, the landing page, and the dashboard at `/admin` (§8.3). Defaults: `runs.db`, port 8787 (1 to 65535), the dashboard build directory, and `.env`. |
 
-An unknown, repeated, or valueless flag, or a bad value, is a usage error and exits 1. The Premise argument is the Premise's directory name (`meridian`), and the CLI loads its version `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, 8787 and 8799.
+An unknown, repeated, or valueless flag, or a bad value, is a usage error and exits 1. The composition argument is the PremiseComposition's directory name (`meridian`), and the CLI loads its version `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, 8787 and 8799.
 
 ## 7. Run Assertions
 
-Assertions check engine properties after every round, without reimplementing the engine. They are pure predicates over the records: the invariant checks applied to each round, the Premise's expectations ([03](03_premise.md)) checked against each round's observed record, and the objective scoring of each Actor ([§9.2](#92-run-details)). Initialization is not asserted separately.
+Assertions check engine properties after every round, without reimplementing the engine. They are pure predicates over the records: the invariant checks applied to each round, the PremiseComposition's expectations ([03](03_premise.md)) checked against each round's observed record, and the objective scoring of each Actor ([§9.2](#92-run-details)). Initialization is not asserted separately.
 
 ### 7.1 Required assertions
 
@@ -165,7 +165,7 @@ These tests transform a configuration in a controlled way. Those marked with a t
 
 ### 7.3 Resolution-consistency test
 
-This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference Premise twice, once with a government's activity implicit and once with that government explicit ([05 §10.1](05_meridian.md#101-germany-and-the-eu), [05 §14.2](05_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
+This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference PremiseComposition twice, once with a government's activity implicit and once with that government explicit ([05 §10.1](05_meridian.md#101-germany-and-the-eu), [05 §14.2](05_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
 
 ### 7.4 AI interpretation tests
 
@@ -214,7 +214,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 ### 8.1 Read API and run operations
 
-The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every Premise under the Premise root; an operation on a run uses the run's own Premise, and a run whose Premise is not loaded is refused with the reason.
+The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every PremiseComposition under the PremiseComposition root; an operation on a run uses the run's own PremiseComposition, and a run whose PremiseComposition is not loaded is refused with the reason.
 
 | Operation | Purpose | Replies |
 |---|---|---|
@@ -223,11 +223,11 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/runs/:id/rounds/:round/report` | Open. What one round produced (§8.2). | 200. 404 for an unknown run or a round not played |
 | `POST /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions/:id/transcripts` | Start a hosted live session (admin); read its state and submit a seat's text (open). See §8.2. | See §8.2 |
 | `GET /api/openapi/:service` | Open. The OpenAPI document of `transcription.json` or `narrative.json` (§8.2). | 200. 404 for any other name |
-| `GET /api/premise` | The launch form's Premises: name, version, round range, default rounds, game seed, `defaultName` (the next run ID), and the seat presets in order. | 200 |
+| `GET /api/premise` | The launch form's PremiseCompositions: name, version, its Premises with their versions, round range, default rounds, game seed, `defaultName` (the next run ID), and the seat presets in order. | 200 |
 | `GET /api/runs` | The run list, one row per run, with its id, archived, readable, and source flags. Archived runs are left out unless `archived=true`. | 200 |
-| `POST /api/runs` | Launch a run of one preset on every seat: Premise, name, preset, player seed (null draws), rounds (null for the default). | 200 with the new id and seed used. 400 for a bad or refused launch, including rounds outside the range |
-| `POST /api/batch` | One run of one preset on each named Premise (every loaded one by default), so they can be read through Compare. Each run records its own Premise. The batch gives no score of how well a Premise plays. | 200 with a list of runs. 400 for a bad body or a Premise that cannot start |
-| `GET /api/runs/:id/:view` | One of 16 views: `overview`, `objectives`, `balances`, `exchanges`, `transformations`, `economy`, `representation`, `procedures`, `assertions`, `wholeeconomy`, `events`, `standings`, `networth`, `actions`, `drivers`, `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad round. 404 for an unknown run or view. 409 when the view needs a Premise that is not loaded. 500 for an unreadable run |
+| `POST /api/runs` | Launch a run of one preset on every seat: `composition`, name, preset, player seed (null draws), rounds (null for the default). | 200 with the new id and seed used. 400 for a bad or refused launch, including rounds outside the range |
+| `POST /api/batch` | One run of one preset on each named PremiseComposition (every loaded one by default), so they can be read through Compare. Each run records its own PremiseComposition. The batch gives no score of how well a PremiseComposition plays. | 200 with a list of runs. 400 for a bad body or a PremiseComposition that cannot start |
+| `GET /api/runs/:id/:view` | One of 16 views: `overview`, `objectives`, `balances`, `exchanges`, `transformations`, `economy`, `representation`, `procedures`, `assertions`, `wholeeconomy`, `events`, `standings`, `networth`, `actions`, `drivers`, `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad round. 404 for an unknown run or view. 409 when the view needs a PremiseComposition that is not loaded. 500 for an unreadable run |
 | `GET /api/runs/:id/actors` | The run's Actors, each marked as a seat or not, and the default Actor. | 200. 404. 500 |
 | `GET /api/runs/:id/actor/:actor` | One Actor's balance sheet after every round, with a chart and its net worth. | 200. 400 for an Actor the run does not have, listing the valid names. 404. 500 |
 | `POST /api/runs/:id/derive` | Derive a run of kind `duplicate`, `rerun`, `variant`, or `counterfactual`, with optional name, preset, player seed, rounds, and overrides. | 201 with the new id, source, and kind (plus `recordsMatch` for a rerun). 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 when the source cannot be compared or replayed. 500 |
@@ -237,7 +237,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200. 400 without a matching `confirm`. 404 |
 | `GET /api/compare?runs=a,b[&exchange=m]` | Compare a Run set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `exchange` is unknown |
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
-| `GET /api/agency` | Agency analysis of a Premise (§10.4): every seat plays `preset`, then each Playable Actor in turn plays `alternative`. | 200. 400 for an unknown Premise, a bad seed, or an unknown preset |
+| `GET /api/agency` | Agency analysis of a PremiseComposition (§10.4): every seat plays `preset`, then each Playable Actor in turn plays `alternative`. | 200. 400 for an unknown PremiseComposition, a bad seed, or an unknown preset |
 | `GET /api/agency/detail` | The same analysis, beyond its table: each Playable Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
 | `POST /api/experiments` | Run a Variant Experiment (§11) and save its runs as a named set. | 200 with the set and its run IDs. 400 for a name in use, an empty experiment, a bad round count, or a game that does not start. |
 | `GET /api/sets` | The named Run sets. | 200 with the sets. |
@@ -260,13 +260,13 @@ Dashboard controls exist for launch, resume, archive, delete, and the four deriv
 
 Speech transcription and the newspaper are built outside this repository and reach it over open HTTPS routes. This repository does not transcribe speech and does not write a front page. Reading a round's transcripts into Intents, the joint pass, stays here ([04 §11.2](04_run.md#112-live-session)).
 
-Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its routes, summaries, paths, methods, parameters and request bodies from the route table, and its reply schemas, success statuses and refusals from the API's contract (`Handlers.Api.Contract`), which the routes answer through, so a route cannot be documented differently from how it behaves. A route's refusals are the labels of its entry's row; what reading its request can refuse comes from the table. `just openapi <premise>` writes the same documents for one Premise, where a reference to a kind the Premise names is an `enum` of its names.
+Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its routes, summaries, paths, methods, parameters and request bodies from the route table, and its reply schemas, success statuses and refusals from the API's contract (`Handlers.Api.Contract`), which the routes answer through, so a route cannot be documented differently from how it behaves. A route's refusals are the labels of its entry's row; what reading its request can refuse comes from the table. `just openapi <premise>` writes the same documents for one PremiseComposition, where a reference to a kind the PremiseComposition names is an `enum` of its names.
 
 **How to authenticate.** There is no authentication for these routes. They are open: anyone with the URL can read every Actor's report and submit any seat's text. Every other `/api` route needs the admin session cookie (§8.3), including `POST /api/sessions`.
 
 | Route | Access | Request | Replies |
 |---|---|---|---|
-| `POST /api/sessions` | Admin | `humans`; optional `premise`, `rounds`, `window` (seconds, 0 for none), `playerSeed` | 200 with the Run id and each Actor's balance sheet path. 400 for an unknown Premise or seat, or rounds outside the range. 401 without the admin session |
+| `POST /api/sessions` | Admin | `humans`; optional `composition`, `rounds`, `window` (seconds, 0 for none), `playerSeed` | 200 with the Run id and each Actor's balance sheet path. 400 for an unknown PremiseComposition or seat, or rounds outside the range. 401 without the admin session |
 | `GET /api/sessions/:id` | Open | | 200 with the session's state. 404 for no such session |
 | `POST /api/sessions/:id/transcripts` | Open | `seat`, `round`, `text` | 200 accepted, with the session's state. 400 for an unknown seat or a body that does not decode. 404 for no such session. 409 for the wrong round, a seat that has already spoken this round, or a session that is over |
 | `GET /api/runs/:id/rounds/:round/report` | Open | | 200 with the round report. 404 for an unknown run or a round it has not played |
@@ -311,7 +311,7 @@ Everything that shows more than one Actor's data sits behind a password.
 
 | Surface | Access |
 |---|---|
-| `/` | Public. A static landing page with no run data and no link into `/admin`. |
+| `/` | Public. The landing page, a page of the dashboard app with its nav bar and themes, with no run data and a link to `/admin`. |
 | `/balancesheet/:run/:token` | Public. One Actor's own page ([§9.5](#95-balancesheet-pages)). |
 | `/admin` | The login page, and the dashboard once logged in. Its hashed assets under `/admin/assets` are public because the balance sheet page loads them, and they hold no data. |
 | `/api` | Private by default ([§8.1](#81-read-api-and-run-operations)). |
@@ -330,7 +330,7 @@ The Dashboard is served at `/admin`, behind the password (§8.3). It has four pa
 
 ### 9.1 Simulation Runs
 
-The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, Premise, seeds, completed rounds, status, failing assertions, reason for a failure, archive flag, and source. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. A Show archived runs toggle adds archived runs. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown. Resume appears only for a completed run that has a preset, and never for a failed or interrupted run. Archive, Unarchive, and Delete (which requires the run's id to be confirmed) are under "Manage this run" on the run page.
+The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, archive flag, and source. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. A Show archived runs toggle adds archived runs. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown. Resume appears only for a completed run that has a preset, and never for a failed or interrupted run. Archive, Unarchive, and Delete (which requires the run's id to be confirmed) are under "Manage this run" on the run page.
 
 ### 9.2 Run Details
 
@@ -344,7 +344,7 @@ The run page shows the representation and procedure records. The round-by-round 
 
 ### 9.3 Prepare
 
-Prepare launches a run of a Premise. Its fields are a name (default: the next run id), a preset (default `Conservative`, the Strategy every seat plays), the Premise (shown only when the server offers more than one), the rounds (default: the Premise's default, within its range), and a player seed (blank draws one at launch, and a whole number fixes it). The game seed is shown read-only, because the server takes no game seed at launch. A summary line states what will be played. An accepted launch opens the new run; a refused one shows the server's message.
+Prepare launches a run of a PremiseComposition. Its fields are a name (default: the next run id), a preset (default `Conservative`, the Strategy every seat plays), the PremiseComposition (shown only when the server offers more than one), the rounds (default: the PremiseComposition's default, within its range), and a player seed (blank draws one at launch, and a whole number fixes it). The game seed is shown read-only, because the server takes no game seed at launch. A summary line states what will be played. An accepted launch opens the new run; a refused one shows the server's message.
 
 ### 9.4 Compare
 
@@ -370,7 +370,7 @@ Comparison supports both correctness testing and balancing. The baseline is the 
 
 ### 10.1 Selection and compatibility
 
-The Dashboard names each difference between runs that are not directly comparable (Premise or engine versions, round counts, units, Exchange definitions, seat presets). Incompatible configurations and metrics are flagged, never combined. Trajectories align by simulated time, without interpolation.
+The Dashboard names each difference between runs that are not directly comparable (PremiseComposition or engine versions, round counts, units, Exchange definitions, seat presets). Incompatible configurations and metrics are flagged, never combined. Trajectories align by simulated time, without interpolation.
 
 ### 10.2 Views
 
@@ -403,7 +403,7 @@ The comparison's runs and baseline are carried in the route. A named Run set sto
 
 ## 11. Experiments
 
-A Variant Experiment generates one specification for each declared parameter value, runs and saves every resulting Run, and opens the runs as a named Run set (`POST /api/experiments`, and `experiment <premise>` with `--parameter name --values a,b`, `--combine a=1,2;b=3,4`, `--seat id --alternatives A,B`, `--player-seeds 1,2`, or `--game-seeds 1,2` in the CLI). Every run uses one player seed, drawn once if none is given. Analysis functions also compose the simulation directly, scoring results with the checks and presenting them through the views, and `POST /api/batch` plays one run per Premise. A Variant Experiment's kinds are single-parameter (one parameter over a list of values), multi-parameter (every combination of the values given), seat-Strategy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). A set's batch summary gives the final measures across its runs: the mean, the spread, and how many runs met each explicit Actor's objective (`GET /api/sets/:name/summary`, and a control on the Compare page). The Seed variation tab separates what depends on the seed from what depends on the specification.
+A Variant Experiment generates one specification for each declared parameter value, runs and saves every resulting Run, and opens the runs as a named Run set (`POST /api/experiments`, and `experiment <premise>` with `--parameter name --values a,b`, `--combine a=1,2;b=3,4`, `--seat id --alternatives A,B`, `--player-seeds 1,2`, or `--game-seeds 1,2` in the CLI). Every run uses one player seed, drawn once if none is given. Analysis functions also compose the simulation directly, scoring results with the checks and presenting them through the views, and `POST /api/batch` plays one run per PremiseComposition. A Variant Experiment's kinds are single-parameter (one parameter over a list of values), multi-parameter (every combination of the values given), seat-Strategy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). A set's batch summary gives the final measures across its runs: the mean, the spread, and how many runs met each explicit Actor's objective (`GET /api/sets/:name/summary`, and a control on the Compare page). The Seed variation tab separates what depends on the seed from what depends on the specification.
 
 **Whole-economy measures.** The `wholeeconomy` view gives these by round and Exchange, and the run page shows them:
 
@@ -422,7 +422,7 @@ Correctness is established by the assertions (§7) and the mandatory tests (§14
 
 ## 13. Reference Coverage
 
-The suite runs the reference Premise, *Meridian* ([05](05_meridian.md)), with every seat bound to a simple, predictable preset.
+The suite runs the reference PremiseComposition, *Meridian* ([05](05_meridian.md)), with every seat bound to a simple, predictable preset.
 
 ## 14. Mandatory Tests
 
@@ -446,9 +446,9 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 10 | Signed candidate Transactions | [Fixture G](05_meridian.md#27-fixture-g-candidate-transactions-and-signatures) cases G1, G2, G3, G3-ban, G5, and G5-unsigned. Fully signed candidate Transactions settle atomically with the fixture values, unsigned ones lapse while the round resolves, and a joint candidate Transaction under an `AccessBan` is rejected as a unit ([INV-10](02_kernel.md#inv-10)). |
 | 11 (a) | Trade restriction, capstone | The DSL-authored US ban, EU tariff, and a banned shipment in the capstone run. The procedure executes, the tariff is in force, and a `Blocked` rejection is recorded. |
 | 11 (b) | Trade restriction, Fixture E2 | [Fixture E2](05_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the US enacts an `AccessBan` on China in round 2, in force from round 3, and China reciprocates, effective round 4. The fixture's values hold. |
-| 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test): the reference Premise instantiated with an implicit and an explicit government ([INV-14](02_kernel.md#inv-14)). |
+| 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test): the reference PremiseComposition instantiated with an implicit and an explicit government ([INV-14](02_kernel.md#inv-14)). |
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and round-end Worlds with the pure run, and replay from the stored records. The run is identical ([INV-31](02_kernel.md#inv-31)). |
-| 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference Premise. Under the `RandomValid` baseline, every Playable Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Playable Actors with no measurable effect are pinned as balancing findings, so a Premise change is noticed. |
+| 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference PremiseComposition. Under the `RandomValid` baseline, every Playable Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Playable Actors with no measurable effect are pinned as balancing findings, so a PremiseComposition change is noticed. |
 
 The premises suite also runs the authored agreements of [03 §15](03_premise.md#15-authoring-laws-and-agreements), which are not a mandatory test. The core suite covers only the kernel, and the rest of the former core tests are in `packages/laws/test`. Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third round-end World matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 

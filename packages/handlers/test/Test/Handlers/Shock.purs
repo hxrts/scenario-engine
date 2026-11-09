@@ -19,7 +19,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Assembly.Override (Override(..))
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Premises.Meridian.Parameters (majorShock)
 import Premises.Presets (presetNames)
 import Handlers.Simulate (SimRun)
@@ -52,7 +52,7 @@ roundKinds r i = case index r.records i of
 flips :: SimRun -> SimRun -> Boolean
 flips calm shocked = any (\i -> roundKinds calm i /= roundKinds shocked i) (range 0 (length calm.records - 1))
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec premise = describe "Major shock (docs/05 §13.6)" do
   it "flips the behaviour of at least four presets, deterministically" do
     p <- premise
@@ -94,7 +94,7 @@ range' xs = case minimum xs, maximum xs of
   _, _ -> Nothing
 
 -- | Every seat plays `preset`, with the given overrides, under player seed 1.
-play :: PossibleWorldParts -> String -> Array Override -> Aff SimRun
+play :: CompositionParts -> String -> Array Override -> Aff SimRun
 play p preset overrides = do
   g <- presetGame p preset overrides Nothing
   run (Seed 1) g

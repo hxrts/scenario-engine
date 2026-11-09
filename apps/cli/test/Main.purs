@@ -40,12 +40,12 @@ underTest program = do
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "compile, under fixed devices" do
-    it "writes the premise and the dashboard's columns, and says how many files" do
+    it "writes the composition and the dashboard's columns, and says how many files" do
       out <- underTest compileAll
       out.value `shouldEqual` Right unit
       Array.elem "apps/dashboard/e2e/generated/columns.json" out.paths `shouldEqual` true
       Array.length out.lines `shouldEqual` 1
-    it "an unknown premise writes nothing" do
+    it "an unknown composition writes nothing" do
       out <- underTest (compileOne "no-such")
       (out.value == Right unit) `shouldEqual` false
       out.paths `shouldEqual` []
@@ -77,7 +77,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "session options" do
     it "reads its flags and defaults the rest" do
       let o = parseWith (sessionFlags "meridian") [ "--humans", "US,DE", "--window", "30" ]
-      map _.premise o `shouldEqual` Right "meridian"
+      map _.composition o `shouldEqual` Right "meridian"
       map _.humans o `shouldEqual` Right "US,DE"
       map _.window o `shouldEqual` Right 30
       map _.id o `shouldEqual` Right "session-1"

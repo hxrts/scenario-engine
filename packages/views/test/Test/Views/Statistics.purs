@@ -21,7 +21,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Testkit.Meridian (presetGame, run)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
@@ -46,7 +46,7 @@ energy = Id "E"
 
 -- | A simulated run's manifest and World States, read back as the Run Store would: the base every
 -- | hand-built run below reuses.
-baseRun :: PossibleWorldParts -> Aff StoredRun
+baseRun :: CompositionParts -> Aff StoredRun
 baseRun p = do
   g <- presetGame p "Conservative" [] (Just 2)
   r <- run (Seed 1) g
@@ -79,7 +79,7 @@ rowOf t name = find (\row -> index row 0 == Just name) t.rows
 fmt :: Maybe Q -> Maybe String
 fmt = map Q.format
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Dashboard statistics on hand-built runs" do
   describe "Net worth" do
     it "a known holding at a known price: 100 M plus 10 E at 2 M/E is 120 M" do

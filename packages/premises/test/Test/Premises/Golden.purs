@@ -34,7 +34,7 @@ import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Testkit.Fixture (checkLiteral)
-import Testkit.Meridian (premise, unseated)
+import Testkit.Meridian (meridianParts, unseated)
 
 -- | A named fixture, decoded from the DSL output. An unknown name fails the test.
 fixture :: String -> Aff Literal
@@ -69,9 +69,9 @@ golden = describe "Golden fixtures" do
         let tampered = r { world = onActor (Id "US") (\e -> e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) r.world }
         map _.invariant (check f.world tampered) `shouldEqual` [ "INV-04", "INV-05" ]
   it "C4: GLOBAL_SMES drafts its high-price baseline times the stored factor" do
-    p <- premise
+    p <- meridianParts
     g <- unseated
-    strategyRules <- maybe (failWith "no GLOBAL_SMES strategy") pure (Map.lookup n.strategyGlobalSmes p.possibleWorld.strategies)
+    strategyRules <- maybe (failWith "no GLOBAL_SMES strategy") pure (Map.lookup n.strategyGlobalSmes p.composition.strategies)
     actor <- maybe (failWith "no GLOBAL_SMES") pure (Map.lookup n.globalSmes g.world.actors)
     let
       view = (observe g.world actor)

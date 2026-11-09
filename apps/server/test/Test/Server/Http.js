@@ -12,8 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 export const siteDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sp-http-"));
   fs.mkdirSync(path.join(dir, "site", "assets"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "site", "index.html"), "<html>the index</html>");
-  fs.writeFileSync(path.join(dir, "site", "landing.html"), "<html>the landing page</html>");
+  fs.writeFileSync(path.join(dir, "site", "index.html"), "<html><head></head>the index</html>");
   fs.writeFileSync(path.join(dir, "site", "assets", "app.js"), "console.log('app');");
   fs.writeFileSync(path.join(dir, "site", "assets", "font.woff2"), Buffer.from([1, 2, 3]));
   fs.writeFileSync(path.join(dir, "secret.txt"), "the secret");

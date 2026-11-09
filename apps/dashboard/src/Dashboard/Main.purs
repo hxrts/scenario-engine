@@ -1,6 +1,6 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results and actions), Prepare (launch a run of the premise), and Compare (runs side by
+-- | results and actions), Prepare (launch a run of the composition), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
 -- | glossary once, before any page renders.
 module Dashboard.Main (main) where
@@ -27,7 +27,8 @@ import Dashboard.Results (mkRunResults)
 import Dashboard.Route (Route(..), href, navigate, route)
 import Dashboard.RunActions as Actions
 import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
-import Dashboard.Theme (themeToggle)
+import Dashboard.Theme (pageMarker, themeToggle)
+import Dashboard.Public (mkLanding, mkLogin)
 import Dashboard.UI as UI
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -42,7 +43,7 @@ import Effect.Uncurried (mkEffectFn1)
 import Views.Balance (giniStat, spreadStat)
 import Views.Compare (CompareView, compatibilityPurpose)
 import Views.Overview (RunList, RunOverview)
-import Views.Premise (Premise)
+import Views.Composition (CompositionInfo)
 import Effects.Api (Launch)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
@@ -109,12 +110,12 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's view: the form, the premise it launches, the failure message, and the Run action.
+-- | The launch form's view: the form, the composition it launches, the failure message, and the Run action.
 type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
-  , premise :: Premise
-  , premises :: Array Premise
+  , composition :: CompositionInfo
+  , compositions :: Array CompositionInfo
   , defaultName :: String
   , failure :: Maybe String
   , launch :: Effect Unit
@@ -125,41 +126,41 @@ launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.premise.rounds v.form) ] }
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.composition.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose (if length v.premises > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
+      , Layout.purpose (if length v.compositions > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
       ]
   }
 
 -- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
 -- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
--- | come from the premise.
+-- | come from the composition.
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       picker <>
         [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
+        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.composition.presets (\x f -> f { preset = x })
         , selectField
-            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
-            (show (roundValue v.premise.rounds v.form.rounds))
-            (map show (roundChoices v.premise.rounds))
+            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.composition.rounds.default <> " rounds; allowed " <> show v.composition.rounds.min <> " to " <> show v.composition.rounds.max }
+            (show (roundValue v.composition.rounds v.form.rounds))
+            (map show (roundChoices v.composition.rounds))
             (\x f -> f { rounds = x })
         , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
         , D.div
             { className: "flex flex-col gap-1 text-sm"
             , children:
-                [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
-                , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
+                [ fieldHeading { label: "Game seed", required: false, note: "default: the composition's seed. Read-only, because the server takes no game seed at launch" }
+                , D.span { className: "font-mono", children: [ D.text (show v.composition.gameSeed) ] }
                 ]
             }
         ]
   }
   where
   -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.premises > 1 then [ selectField { label: "Premise", required: true, note: "required: which premise to play" } v.premise.name (map _.name v.premises) (\x f -> f { premise = x }) ] else []
+  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x }) ] else []
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -172,32 +173,32 @@ launchFields v = D.div
         ]
     }
 
--- | Prepare: launch a run of the premise. The form starts with its defaults (the premise's next run name,
--- | the preset Conservative, the premise's round count, a drawn player seed), so Run needs no edits. A
+-- | Prepare: launch a run of the composition. The form starts with its defaults (the composition's next run name,
+-- | the preset Conservative, the composition's round count, a drawn player seed), so Run needs no edits. A
 -- | launch the server accepts opens the new run.
 mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  premiseLoad <- useLoad unit Client.premise
+  compositionLoad <- useLoad unit Client.composition
   let
-    premises = case premiseLoad.value of
+    compositions = case compositionLoad.value of
       Just (Right ps) -> ps
       _ -> []
-    premise = selected form premises
-    -- the default name is known once the premise is; until then it is "run"
-    loadedName = maybe "" _.defaultName premise
+    composition = selected form compositions
+    -- the default name is known once the composition is; until then it is "run"
+    loadedName = maybe "" _.defaultName composition
     defaultName = if loadedName == "" then "run" else loadedName
 
-    chosenPremise = (_ >>= note "The server offers no premise." <<< selected form)
-    view s = { form, setForm, premise: s, premises, defaultName, failure, launch }
+    chosenComposition = (_ >>= note "The server offers no composition." <<< selected form)
+    view s = { form, setForm, composition: s, compositions, defaultName, failure, launch }
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
-    launch = case premise of
+    launch = case composition of
       Just s -> case validate s form of
         Left e -> setFailure (Just e)
         Right req -> setFailure Nothing *> launchAff_ (submit req)
-      Nothing -> setFailure (Just "The premise has not loaded, so the run cannot be launched.")
+      Nothing -> setFailure (Just "The composition has not loaded, so the run cannot be launched.")
 
     submit :: Launch -> Aff Unit
     submit req = do
@@ -211,22 +212,22 @@ mkPrepare = component "Prepare" \_ -> React.do
     pure (pure unit)
   pure $ Layout.page
     { title: "Prepare a run"
-    , purpose: "Launch a run of the premise from a preset. Every field has a default, so Run needs no edits."
+    , purpose: "Launch a run of the composition from a preset. Every field has a default, so Run needs no edits."
     , children:
         [ Layout.grid
             [ Layout.panel
                 { span: 6
                 , title: "Options"
-                , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
+                , purpose: "Each option's default is shown beside it. Only Preset and Composition are required."
                 , children:
-                    [ loaded (chosenPremise <$> premiseLoad.value) (launchFields <<< view) ]
+                    [ loaded (chosenComposition <$> compositionLoad.value) (launchFields <<< view) ]
                 }
             , Layout.panel
                 { span: 6
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ loaded (chosenPremise <$> premiseLoad.value) (launchAction <<< view) ]
+                    [ loaded (chosenComposition <$> compositionLoad.value) (launchAction <<< view) ]
                 }
             ]
         ]
@@ -380,7 +381,7 @@ plots grid fetch ids shown picked setPicked = D.div
               [ tabbed
                   [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
-                  , { key: "config", label: "Configuration", purpose: "The specification premises that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
+                  , { key: "config", label: "Configuration", purpose: "The specification fields that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
                   , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: [ fetch { key: "agency", load: map (tableOf grid) <$> Client.agency }, fetch { key: "agency-detail", load: map (\d -> D.div { className: "flex min-w-0 flex-col gap-stack", children: [ Layout.captioned d.profile.title [ tableOf grid d.profile ], Layout.captioned d.criteria.title [ tableOf grid d.criteria ] ] }) <$> Client.agencyDetail } ] } }
@@ -485,26 +486,16 @@ shell :: Route -> Array String -> JSX -> JSX -> JSX
 shell current compareSet themeButton page = D.div
   { className: "min-h-screen"
   , children:
-      [ D.header
-          { className: "border-b"
-          , children:
-              [ D.div
-                  { className: "mx-auto flex w-full max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-gutter py-3"
-                  , children:
-                      [ D.a { href: href Runs, className: "font-semibold", children: [ D.text "Scenario Engine" ] }
-                      , D.nav
-                          { className: "flex flex-wrap items-center gap-4 text-sm"
-                          , children:
-                              [ navLink "Prepare" Prepare (current == Prepare)
-                              , navLink "Runs" Runs (isRuns current)
-                              , navLink "Balance sheets" BalanceSheets (current == BalanceSheets)
-                              , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (length compareSet) <> ")") (Compare compareSet) (isCompare current)
-                              ]
-                          }
-                      , D.div { className: "ml-auto", children: [ themeButton ] }
-                      ]
-                  }
+      [ Layout.topBar
+          { brand: "Scenario Engine"
+          , home: href Runs
+          , nav:
+              [ navLink "Prepare" Prepare (current == Prepare)
+              , navLink "Runs" Runs (isRuns current)
+              , navLink "Balance sheets" BalanceSheets (current == BalanceSheets)
+              , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (length compareSet) <> ")") (Compare compareSet) (isCompare current)
               ]
+          , themeButton
           }
       , D.main { className: "min-w-0", children: [ page ] }
       ]
@@ -564,11 +555,14 @@ main = do
     Just e -> do
       r <- createRoot e
       path <- pathname =<< location =<< window
+      marked <- pageMarker
       case filter (_ /= "") (split (Pattern "/") path) of
         [ "balancesheet", run, token ] -> do
           grid <- mkDataTable
           page <- mkBalanceSheet grid
           renderRoot r (page { run, token })
+        _ | marked == "landing" -> mkLanding >>= \page -> renderRoot r (page unit)
+        _ | marked == "login" || marked == "login-failed" -> mkLogin >>= \page -> renderRoot r (page { failed: marked == "login-failed" })
         _ -> do
           app <- mkApp
           renderRoot r (app unit)

@@ -1,6 +1,6 @@
 -- | The premise format of an Actor's definition (docs/03 §6): its seat eligibility, fallback,
 -- | objective, and the criteria and measures the objective names. Each is a `Shape` value over the
--- | core type (`Schema.possible World`); a key the decoder defaults is omitted when it holds its default.
+-- | core type (`Schema.Composition`); a key the decoder defaults is omitted when it holds its default.
 -- | The premise tags are private to this module.
 module Schema.Premise.PlayableActor
   ( definitionShape
@@ -12,7 +12,7 @@ module Schema.Premise.PlayableActor
 import Core.Num (qShape)
 import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, field, genericPremiseSum, listOf, optionalOf, recordOf, stringShape, (&.))
 import Laws.Types (idShape)
-import Schema.PossibleWorld (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
+import Schema.Composition (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- Tags ----------------------------------------------------------------------------------------
 

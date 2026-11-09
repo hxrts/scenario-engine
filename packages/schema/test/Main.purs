@@ -30,12 +30,12 @@ import Partial.Unsafe (unsafeCrashWith)
 import Schema.Premise.Fixture (roundShape, toRound)
 import Schema.Joint (jointCandidateTransactions)
 import Schema.Round (Expect)
-import Schema.Premise.PossibleWorld (decodePossibleWorld)
+import Schema.Premise.Composition (decodeComposition)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Testkit.Json (decodeText, json)
-import Testkit.PossibleWorld (minimalPossibleWorld)
+import Testkit.Composition (minimalComposition)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | The expectations of a one-round document.
@@ -146,8 +146,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a transformation may not escrow a Resource the document does not mark reservable" do
       let
         doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "exchanges": {}, "transformations": { "dep": { "draws": [ { "resource": "M", "from": "Executor", "perUnit": "1" } ] } }, "actors": {} }"""
-      isLeft (decodePossibleWorld (json (doc ""))) `shouldEqual` true
-      isLeft (decodePossibleWorld (json (doc """, "reservable": true"""))) `shouldEqual` false
+      isLeft (decodeComposition (json (doc ""))) `shouldEqual` true
+      isLeft (decodeComposition (json (doc """, "reservable": true"""))) `shouldEqual` false
 
   describe "Rule forms" do
     -- Pins the premise format the schema decoders read (docs/03).
@@ -242,32 +242,32 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         e = expectOf """{ "expect": { "rejected": [ "US", { "author": "US", "index": 1 } ] } }"""
       e.rejected `shouldEqual` Just [ candidateTransactionId 1 (Id "US") 0, candidateTransactionId 1 (Id "US") 1 ]
 
-  describe "PossibleWorld documents" do
-    it "decodes a minimal valid PossibleWorld and its roundQ range" do
-      gb <- orThrow (decodePossibleWorld (json (minimalPossibleWorld "[4, 8]")))
+  describe "PremiseComposition documents" do
+    it "decodes a minimal valid PremiseComposition and its roundQ range" do
+      gb <- orThrow (decodeComposition (json (minimalComposition "[4, 8]")))
       gb.rounds `shouldEqual` { min: 4, max: 8 }
     it "rejects a roundQ range that is malformed, not ordered, or below one" do
-      isLeft (decodePossibleWorld (json (minimalPossibleWorld "[8, 4]"))) `shouldEqual` true
-      isLeft (decodePossibleWorld (json (minimalPossibleWorld "[0, 4]"))) `shouldEqual` true
-      isLeft (decodePossibleWorld (json (minimalPossibleWorld "[4]"))) `shouldEqual` true
+      isLeft (decodeComposition (json (minimalComposition "[8, 4]"))) `shouldEqual` true
+      isLeft (decodeComposition (json (minimalComposition "[0, 4]"))) `shouldEqual` true
+      isLeft (decodeComposition (json (minimalComposition "[4]"))) `shouldEqual` true
     -- Pins the premise format the schema decoders read (docs/03).
     it "has no default roundQ range" do
-      isLeft (decodePossibleWorld (json """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "resources": {}, "exchanges": {}, "transformations": {}, "actors": {} }""")) `shouldEqual` true
+      isLeft (decodeComposition (json """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "resources": {}, "exchanges": {}, "transformations": {}, "actors": {} }""")) `shouldEqual` true
 
   describe "Circulation flows" do
-    -- a minimal possible World with one flow of the given amount
+    -- a minimal composition with one flow of the given amount
     let withFlow amount = """{ "id": "test", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": {}, "exchanges": {}, "transformations": {}, "actors": {}, "circulation": { "flows": [ { "from": "a", "to": "b", "resource": "M", "amount": """ <> amount <> """ } ] } }"""
     it "a negative flow amount is a typed validation error at decode" do
-      case decodePossibleWorld (json (withFlow "\"-1\"")) of
+      case decodeComposition (json (withFlow "\"-1\"")) of
         Left _ -> pure unit
         Right _ -> fail "a negative flow decoded"
     it "a zero flow amount is valid" do
-      gb <- orThrow (decodePossibleWorld (json (withFlow "\"0\"")))
+      gb <- orThrow (decodeComposition (json (withFlow "\"0\"")))
       map _.amount gb.world.recurring `shouldEqual` [ FixedAmount Q.zero ]
-    it "a decoded PossibleWorld never carries a negative flow, so the allocate guard is not reachable from it" do
-      case decodePossibleWorld (json (withFlow "\"-0.0001\"")) of
+    it "a decoded PremiseComposition never carries a negative flow, so the allocate guard is not reachable from it" do
+      case decodeComposition (json (withFlow "\"-0.0001\"")) of
         Left _ -> pure unit
-        Right gb -> fail ("a negative flow reached a decoded PossibleWorld: " <> show (map _.amount gb.world.recurring))
+        Right gb -> fail ("a negative flow reached a decoded PremiseComposition: " <> show (map _.amount gb.world.recurring))
 
   describe "Decoding" do
     -- Pins the premise format the schema decoders read (docs/03).

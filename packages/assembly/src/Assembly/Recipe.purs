@@ -30,11 +30,13 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 -- | The run a derived run came from, and how it was derived.
 type Derivation = { source :: String, kind :: DeriveKind }
 
--- | The stored specification of a run: its possible World, the player seed it was resolved to, its recipe,
+-- | The stored specification of a run: its composition, the player seed it was resolved to, its recipe,
 -- | the run it was derived from, if any, and, for a live session, its model and human seats.
-encodeSpec :: { gameId :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, derivation :: Maybe Derivation, model :: Maybe String, humans :: Maybe String } -> Spec
+encodeSpec :: { gameId :: String, composition :: String, premises :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, derivation :: Maybe Derivation, model :: Maybe String, humans :: Maybe String } -> Spec
 encodeSpec r =
   { gameId: Just r.gameId
+  , composition: Just r.composition
+  , premises: Just r.premises
   , preset: r.preset
   , playerSeed: Just (unwrap r.playerSeed)
   , overrides: Just (stringify (encodeOverrides r.overrides))

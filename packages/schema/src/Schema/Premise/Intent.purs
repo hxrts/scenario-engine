@@ -1,5 +1,5 @@
 -- | The premise format of an Intent, a Rule, and a Capability (docs/03 §5; the fixture and the
--- | possible World's `capabilities`). Each is a `Shape` value: the premise tags live here, privately,
+-- | composition's `capabilities`). Each is a `Shape` value: the premise tags live here, privately,
 -- | and nowhere else spells them.
 module Schema.Premise.Intent
   ( intentShape

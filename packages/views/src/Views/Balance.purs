@@ -23,7 +23,7 @@ module Views.Balance
 
 import Prelude
 
-import Schema.PossibleWorld (PossibleWorld, Outcome(..))
+import Schema.Composition (PremiseComposition, Outcome(..))
 import Checks.Objectives (evaluateObjectives)
 import Core.Map as CoreMap
 import Core.Num (Kind(..), Q)
@@ -155,7 +155,7 @@ measures r = tableOf ("Balance after round " <> show (completed r)) [ cellOf col
 -- | objective's outcome.
 type Completion = { explicitActor :: ActorId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
 
-completionOf :: PossibleWorld -> StoredRun -> Array Completion
+completionOf :: PremiseComposition -> StoredRun -> Array Completion
 completionOf gb r = map row (evaluateObjectives gb r.rounds)
   where
   row o =
@@ -166,7 +166,7 @@ completionOf gb r = map row (evaluateObjectives gb r.rounds)
       { explicitActor: o.explicitActor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
 
 -- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
-completion :: PossibleWorld -> StoredRun -> Table
+completion :: PremiseComposition -> StoredRun -> Table
 completion gb r = tableOf "Objective completion by role" completionFields (completionOf gb r)
 
 completionFields :: Array (Field Completion)
@@ -183,7 +183,7 @@ completionFields =
 -- | The balance view model (`/api/runs/:id/balance`): the measures and the objective completion.
 type BalanceView = { measures :: Table, completion :: Table }
 
-balanceView :: PossibleWorld -> StoredRun -> BalanceView
+balanceView :: PremiseComposition -> StoredRun -> BalanceView
 balanceView gb r = { measures: measures r, completion: completion gb r }
 
 -- | The seed variation of runs of one specification: each run's final spread and Gini, then the

@@ -351,7 +351,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       signedIn 4 `shouldEqual` [ procP.id ]
 
   describe "Load-time references" do
-    it "a transfer to an actor the PossibleWorld lacks is a load-time name, and self is never one" do
+    it "a transfer to an actor the PremiseComposition lacks is a load-time name, and self is never one" do
       strategyRulesRefs (({ rules: [ rule [] [ asTemplate (transfer { from: "self", to: "bogus", resource: "E", quantity: lit 2 }) ] ], sign: [] })) `shouldEqual`
         [ Tuple RefResource "E", Tuple RefActor "bogus" ]
 

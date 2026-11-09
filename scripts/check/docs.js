@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// docs/05 leads the Meridian premise, but the compiled files must agree with it (docs/07 §3): the tables marked
-// `<!-- check-docs: <name> -->` are compared with the compiled premise, cell by cell. Not generated, since
+// docs/05 leads the Meridian composition, but the compiled files must agree with it (docs/07 §3): the tables marked
+// `<!-- check-docs: <name> -->` are compared with the compiled composition, cell by cell. Not generated, since
 // the document leads; not fixture expected values, which stay literal.
 const fs = require("fs");
 const path = require("path");
@@ -34,7 +34,18 @@ const docsDir = path.join(root, "docs");
 const vocabularyFailures = fs.readdirSync(docsDir).filter((f) => f.endsWith(".md")).flatMap((f) => vocabulary(f, fs.readFileSync(path.join(docsDir, f), "utf8")));
 
 const doc = fs.readFileSync(path.join(root, "docs/05_meridian.md"), "utf8").split("\n");
-const compiled = (f) => JSON.parse(fs.readFileSync(path.join(root, premiseRoot, "meridian/v0", f), "utf8"));
+// The Meridian PremiseComposition's Premises merged into one object, as the loader composes them: named sections unioned,
+// lists concatenated. docs/05 is compared against this composed result.
+const composed = (() => {
+  const read = (p) => JSON.parse(fs.readFileSync(path.join(root, premiseRoot, p), "utf8"));
+  const whole = {};
+  for (const ref of read("compositions/meridian/v0/composition.json").premises)
+    for (const [k, v] of Object.entries(read(`premises/${ref.id}/${ref.version}.json`))) {
+      if (k === "id" || k === "version") continue;
+      whole[k] = Array.isArray(v) ? (whole[k] || []).concat(v) : v && typeof v === "object" ? { ...whole[k], ...v } : v;
+    }
+  return whole;
+})();
 
 // the marked table's rows, as objects keyed by the header cells
 function table(name) {
@@ -57,7 +68,7 @@ const compare = (where, doc2, code) => {
   if (doc2 !== code) failures.push(`${where}: docs/05 says "${doc2}", the premise says "${code}"`);
 };
 
-const actors = compiled("actors.json").actors;
+const actors = composed.actors;
 for (const row of table("actors")) {
   const e = actors[row.ID];
   if (!e || !e.definition) { failures.push(`playableActors: ${row.ID} is not an PlayableActor in the premise`); continue; }
@@ -65,7 +76,7 @@ for (const row of table("actors")) {
   compare(`actors ${row.ID} Objective`, plain(row["Objective (§9.3)"] ?? row[Object.keys(row).find((k) => k.startsWith("Objective"))]), e.definition.objective.description);
 }
 
-const exchanges = compiled("exchanges.json").exchanges;
+const exchanges = composed.exchanges;
 for (const row of table("exchanges")) {
   const id = plain(row["Exchange ID"]);
   const m = exchanges[id];
@@ -94,4 +105,4 @@ if (failures.length) {
   console.error(`check-docs: ${failures.length} mismatch(es) with docs/05`);
   process.exit(1);
 }
-console.log("check-docs: docs/05's marked tables agree with the compiled premise");
+console.log("check-docs: docs/05's marked tables agree with the compiled composition");

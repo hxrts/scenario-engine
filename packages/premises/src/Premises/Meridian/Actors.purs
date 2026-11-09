@@ -12,7 +12,7 @@ import Laws.Types (Actor, ActorId)
 import Data.Map (Map)
 import Schema.Build.Base (keyed)
 import Schema.Build.World (actorsOf)
-import Schema.PossibleWorld (ActorDefinition)
+import Schema.Composition (ActorDefinition)
 import Premises.Meridian.Actors.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
 import Premises.Meridian.Actors.Seats (cn, seats)
 

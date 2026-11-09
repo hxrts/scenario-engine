@@ -1,6 +1,6 @@
 -- | The capstone run: a test-only game on the shipped Meridian, eight
 -- | rounds, with a seat strategy for each seat that exercises the features the audit found
--- | untested together. It is a possible World premise with StrategyRules bindings (`seatBindings`); the
+-- | untested together. It is a composition premise with StrategyRules bindings (`seatBindings`); the
 -- | counterfactual replaces one seat (`counterfactualBindings`). The world and the Actor Strategies are the shipped ones; only the seat
 -- | strategies and the expectations are here.
 module Premises.Meridian.Capstone
@@ -28,7 +28,7 @@ import Premises.Meridian.Rules (accessBan, withholding)
 import Assembly.Assemble (assemble, withRounds)
 import Assembly.Bindings (strategyRulesBindings)
 import Assembly.Error (AssemblyError)
-import Assembly.Premise (PossibleWorldParts, Premise(..))
+import Assembly.Composition (CompositionParts, Origin(..))
 import Assembly.Types (Bindings, PreparedRun)
 
 import Data.Map as Map
@@ -44,7 +44,7 @@ import Laws.StrategyRules (StrategyRules)
 import Laws.Types (ActorId, Id(..), Intent, idText, candidateTransactionId, ruleIdOf)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Schema.PossibleWorld (Outcome(..))
+import Schema.Composition (Outcome(..))
 import Schema.Build.Quantity (q)
 import Schema.Build.Decision (passive, orderAt, selfTransform, asTemplate, joint, eqQ, ge, gt, lit, named, priceAt, rule, roundQ, selfActor, signAll, signTransformation, signIf, signProcedures)
 import Schema.Build.Intent (repeal, trade)
@@ -231,15 +231,15 @@ counterfactualObjectives :: Array ObjectiveExpect
 counterfactualObjectives = map (\e -> objective e (if e == n.us then Met else NotMet)) allExplicitActors
 
 -- | The capstone's game: the shipped Meridian at its default configuration, with the capstone's seats.
-game :: PossibleWorldParts -> Either AssemblyError PreparedRun
+game :: CompositionParts -> Either AssemblyError PreparedRun
 game p = assembled p seatBindings
 
 -- | The counterfactual's game: the same, with the US's StrategyRules replaced.
-counterfactualGame :: PossibleWorldParts -> Either AssemblyError PreparedRun
+counterfactualGame :: CompositionParts -> Either AssemblyError PreparedRun
 counterfactualGame p = assembled p counterfactualBindings
 
-assembled :: PossibleWorldParts -> Bindings -> Either AssemblyError PreparedRun
-assembled p bindings = map (withRounds (Just rounds)) (assemble (PossibleWorldPremise p) bindings [])
+assembled :: CompositionParts -> Bindings -> Either AssemblyError PreparedRun
+assembled p bindings = map (withRounds (Just rounds)) (assemble (FromComposition p) bindings [])
 
 -- | The seats of the capstone: each named seat bound to its StrategyRules.
 seatBindings :: Bindings

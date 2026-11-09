@@ -36,7 +36,7 @@ import Run (Run)
 import Server.Rows (READS)
 import Experiments.Agency (agency)
 import Assembly.Assemble (assemblePreset, configuredSeats)
-import Server.Premises (Premises, chosen, ofRun, ofSpec)
+import Server.Compositions (Compositions, chosen, ofRun, ofSpec)
 import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Agency (AgencyProfile, agencyCriteria, agencyProfiles, agencyTable)
@@ -47,7 +47,7 @@ import Views.Balances as Balances
 import Views.Common (StoredRun, Table, completed, storedRun)
 import Views.Compare as Compare
 import Views.Keys (answerView)
-import Schema.PossibleWorld (PossibleWorld)
+import Schema.Composition (PremiseComposition)
 import Views.Drivers as Drivers
 import Views.Actor as Actor
 import Views.Report (RoundReport, roundReport)
@@ -87,7 +87,7 @@ decodeSummary ids row = do
     , name: row.name
     , status: row.status
     , reason: row.reason
-    , possibleWorld: man.possibleWorld
+    , composition: man.composition
     , gameSeed: show man.initial.seed
     , playerSeed: f.playerSeed
     , rounds: length row.assertions
@@ -146,8 +146,8 @@ runInfo id = find (\r -> r.id == id) <$> listRuns
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: forall r. Premises -> { id :: String, view :: View, round :: Maybe Int } -> Run (READS r) (Answer AnyRefusal Json)
-getView premises { id, view, round } = withRun id \r -> answerView
+getView :: forall r. Compositions -> { id :: String, view :: View, round :: Maybe Int } -> Run (READS r) (Answer AnyRefusal Json)
+getView compositions { id, view, round } = withRun id \r -> answerView
   { "Overview": ok <<< Overview.overview
   , "Balances": \s -> viewOr (Balances.balances s (fromMaybe (completed s) round))
   , "Exchanges": ok <<< Exchanges.exchanges
@@ -168,9 +168,9 @@ getView premises { id, view, round } = withRun id \r -> answerView
   r
   view
   where
-  -- the possible World of the run's own premise; a run whose premise is not loaded cannot be read against it
-  onBoard :: forall a. StoredRun -> (PossibleWorld -> Run (READS r) (Answer AnyRefusal a)) -> Run (READS r) (Answer AnyRefusal a)
-  onBoard s f = either conflict (f <<< _.possibleWorld) (ofSpec premises s.spec)
+  -- the composition of the run's own composition; a run whose composition is not loaded cannot be read against it
+  onBoard :: forall a. StoredRun -> (PremiseComposition -> Run (READS r) (Answer AnyRefusal a)) -> Run (READS r) (Answer AnyRefusal a)
+  onBoard s f = either conflict (f <<< _.composition) (ofSpec compositions s.spec)
 
 -- | `GET /api/runs/:id/Actors`: the run's Actors, each flagged as a seat or not, and the one shown by default.
 actorsView :: forall r. String -> Run (READS r) (Answer AnyRefusal ActorList)
@@ -187,10 +187,10 @@ balanceSheetLinksView :: forall r. String -> Run (READS r) (Answer AnyRefusal (A
 balanceSheetLinksView id = withRun id (ok <<< balanceSheetLinks)
 
 -- | `GET /api/runs/:id/balancesheet/:token`: the one balanceSheet a token opens.
-balanceSheetView :: forall r. Premises -> String -> String -> Run (READS r) (Answer AnyRefusal BalanceSheet)
-balanceSheetView premises id token = withRun id \r ->
+balanceSheetView :: forall r. Compositions -> String -> String -> Run (READS r) (Answer AnyRefusal BalanceSheet)
+balanceSheetView compositions id token = withRun id \r ->
   let
-    objectives = either (const { title: "Objectives", columns: [], rows: [] }) (\p -> Overview.objectives p.possibleWorld r) (ofSpec premises r.spec)
+    objectives = either (const { title: "Objectives", columns: [], rows: [] }) (\p -> Overview.objectives p.composition r) (ofSpec compositions r.spec)
   in
     maybe (notFound "no such balanceSheet") ok (balanceSheetAt r objectives token)
 
@@ -199,8 +199,8 @@ actorView id actor = withRun id (\r -> viewOr (Actor.actorHistory r (Id actor)))
 
 -- | `GET /api/compare?runs=a,b&exchange=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: forall r. Premises -> { runs :: Array String, exchange :: Maybe String } -> Run (READS r) (Answer AnyRefusal CompareView)
-compareView premises { runs: ids, exchange } = do
+compareView :: forall r. Compositions -> { runs :: Array String, exchange :: Maybe String } -> Run (READS r) (Answer AnyRefusal CompareView)
+compareView compositions { runs: ids, exchange } = do
   loaded <- traverse loadRun ids
   let
     good = catMaybes (map hush loaded)
@@ -216,7 +216,7 @@ compareView premises { runs: ids, exchange } = do
           , netWorth: Compare.netWorthCharts good
           , standings: Compare.standingsBars good
           , balance: Compare.balanceBars good
-          , keyValues: Compare.keyValues (ofRun premises) good
+          , keyValues: Compare.keyValues (ofRun compositions) good
           , final: Compare.finalState good
           , baseline: base.id
           , diff: Compare.baselineDiff base others
@@ -226,17 +226,17 @@ compareView premises { runs: ids, exchange } = do
           } :: CompareView
         )
 
--- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
+-- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the composition's
 -- | seats playing the preset against the alternative.
-agencyView :: forall r. Premises -> AgencyQuery -> Run (READS r) (Answer AnyRefusal Table)
+agencyView :: forall r. Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal Table)
 agencyView = agencyReply "table" agencyTable
 
 -- | `GET /api/agency/detail`: the same analysis, each criterion under the baseline and the alternative.
-agencyDetailView :: forall r. Premises -> AgencyQuery -> Run (READS r) (Answer AnyRefusal { criteria :: Table, profile :: Table })
+agencyDetailView :: forall r. Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal { criteria :: Table, profile :: Table })
 agencyDetailView = agencyReply "detail" \ps -> { criteria: agencyCriteria ps, profile: agencyProfiles ps }
 
-agencyReply :: forall r a. String -> (Array AgencyProfile -> a) -> Premises -> AgencyQuery -> Run (READS r) (Answer AnyRefusal a)
-agencyReply kind reply premises { premise, playerSeed, preset, alternative } = case chosen premises premise, Int.fromString (fromMaybe "1" playerSeed) of
+agencyReply :: forall r a. String -> (Array AgencyProfile -> a) -> Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal a)
+agencyReply kind reply compositions { composition, playerSeed, preset, alternative } = case chosen compositions composition, Int.fromString (fromMaybe "1" playerSeed) of
   Left e, _ -> badRequest e
   _, Nothing -> badRequest "playerSeed must be an integer"
-  Right ctx, Just s -> map reply <$> cachedAgency (joinWith "|" [ kind, ctx.possibleWorld.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) (either (badRequest <<< show) ok (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.possibleWorld ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))
+  Right ctx, Just s -> map reply <$> cachedAgency (joinWith "|" [ kind, ctx.composition.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) (either (badRequest <<< show) ok (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.composition ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))

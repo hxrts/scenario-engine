@@ -1,8 +1,8 @@
--- | A premise: the authored input a game is assembled from. A possible World premise is the
--- | possible World, its instantiation configuration, and the shared seat presets; a literal premise is a
--- | World State written out in full (fixtures). `checkPremise` is the one place a decoded
--- | possible World is validated against its configuration and against every StrategyRules it names.
-module Assembly.Premise (PossibleWorldParts, Premise(..), checkPremise, checkRefs) where
+-- | A premise: the authored input a game is assembled from. A composition premise is the
+-- | composition, its instantiation configuration, and the shared seat presets; a literal premise is a
+-- | World State written out in full (fixtures). `checkComposition` is the one place a decoded
+-- | composition is validated against its configuration and against every StrategyRules it names.
+module Assembly.Composition (CompositionParts, Origin(..), checkComposition, checkRefs) where
 
 import Prelude
 
@@ -14,7 +14,7 @@ import Strategy.StrategyRules (agreementsEntered, strategyRulesRefs)
 import Core.Map (entries)
 
 import World.Error (ValidationError(..))
-import World.PossibleWorld.Validate (Names, possibleWorldNames, unknownNames, validatePossibleWorld)
+import World.Composition.Validate (Names, compositionNames, unknownNames, validateComposition)
 import Laws.StrategyRules (StrategyRules)
 import Laws.Types (Id(..), RefKind(..))
 import Laws.World (WorldState)
@@ -24,23 +24,24 @@ import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Assembly.Error (AssemblyError(..))
-import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
+import Schema.Composition (PremiseComposition, InstantiationConfig)
 
--- | A possible World premise's parts: the possible World, its instantiation configuration, and the shared seat presets.
-type PossibleWorldParts = { possibleWorld :: PossibleWorld, config :: InstantiationConfig, presets :: Object StrategyRules }
+-- | A composition premise's parts: the composition, its instantiation configuration, and the shared seat presets.
+type CompositionParts = { composition :: PremiseComposition, config :: InstantiationConfig, presets :: Object StrategyRules }
 
-data Premise
-  = PossibleWorldPremise PossibleWorldParts
-  | LiteralPremise { world :: WorldState, rounds :: Int } -- a World State written out in full
+-- | What a game is assembled from: a composition, or a World State written out in full.
+data Origin
+  = FromComposition CompositionParts
+  | FromLiteral { world :: WorldState, rounds :: Int } -- a World State written out in full
 
--- | Validate a decoded possible World premise: the possible World against its configuration, every Strategy's names
--- | against the possible World, and every preset's names against the possible World.
-checkPremise :: PossibleWorldParts -> Either AssemblyError PossibleWorldParts
-checkPremise p = do
-  possibleWorld <- lmapInvalid (validatePossibleWorld p.possibleWorld p.config)
-  traverse_ (\(Tuple (Id name) s) -> checkRefs ("strategy " <> name) (possibleWorldNames possibleWorld) s) (entries possibleWorld.strategies)
-  traverse_ (\(Tuple name s) -> checkRefs ("preset " <> name) (possibleWorldNames possibleWorld) s) (Object.toUnfoldable p.presets :: Array _)
-  pure p { possibleWorld = possibleWorld }
+-- | Validate a decoded composition premise: the composition against its configuration, every Strategy's names
+-- | against the composition, and every preset's names against the composition.
+checkComposition :: CompositionParts -> Either AssemblyError CompositionParts
+checkComposition p = do
+  composition <- lmapInvalid (validateComposition p.composition p.config)
+  traverse_ (\(Tuple (Id name) s) -> checkRefs ("strategy " <> name) (compositionNames composition) s) (entries composition.strategies)
+  traverse_ (\(Tuple name s) -> checkRefs ("preset " <> name) (compositionNames composition) s) (Object.toUnfoldable p.presets :: Array _)
+  pure p { composition = composition }
   where
   lmapInvalid = case _ of
     Left es -> Left (Invalid es)

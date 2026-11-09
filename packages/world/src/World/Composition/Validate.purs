@@ -1,22 +1,22 @@
 -- | Validation (docs/03_premise.md §12): structural references, economic and Representation
 -- | checks, resolution consistency, and feasibility. Imports Instantiate and Reconcile, so
 -- | the instantiation and reconciliation checks run as part of validation.
-module World.PossibleWorld.Validate
-  ( validatePossibleWorld
+module World.Composition.Validate
+  ( validateComposition
   , unknownNames
   , Names
   , worldNames
-  , possibleWorldNames
+  , compositionNames
   ) where
 
 import Prelude
 
 import Core.Map (entries, values)
 
-import World.PossibleWorld.Instantiate (instantiate, withoutExplicitActor)
-import World.PossibleWorld.Reconcile (reconcile)
-import Schema.PossibleWorld (Bound(..), Fallback(..), PossibleWorld, InstantiationConfig, Measure(..), MetricRef, capacityCategory)
-import Schema.PossibleWorld as Schema
+import World.Composition.Instantiate (instantiate, withoutExplicitActor)
+import World.Composition.Reconcile (reconcile)
+import Schema.Composition (Bound(..), Fallback(..), PremiseComposition, InstantiationConfig, Measure(..), MetricRef, capacityCategory)
+import Schema.Composition as Schema
 import World.Error (ValidationError(..))
 import Core.Num as Q
 import Laws.Query (aggregateOf, isAggregate)
@@ -36,8 +36,8 @@ import Data.Tuple (Tuple(..), snd)
 import Foreign.Object as Object
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
-validatePossibleWorld :: PossibleWorld -> InstantiationConfig -> Either (Array ValidationError) PossibleWorld
-validatePossibleWorld gb config =
+validateComposition :: PremiseComposition -> InstantiationConfig -> Either (Array ValidationError) PremiseComposition
+validateComposition gb config =
   let
     structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount <> definitions <> estimators <> duplicateAdjustments <> openingState <> agreements
     feasibility = either identity (const []) (instantiate gb config)
@@ -63,11 +63,11 @@ validatePossibleWorld gb config =
         <> mapMaybe producedFrom w.recurring
     )
 
-  references = unknownNames (possibleWorldNames gb) (worldRefs w <> possibleWorldRefs gb config)
+  references = unknownNames (compositionNames gb) (worldRefs w <> compositionRefs gb config)
     <> map (UnknownReference RefResource <<< idText) (filter (\c -> not (c `elem` referenced)) held)
     <> map (UnknownReference RefActor <<< idText) (filter (\e -> not (Map.member e gb.explicitActors)) (fromFoldable (Map.keys config.fallbacks)))
   templates = entries w.templates
-  agreements = unknownNames (possibleWorldNames gb) (concatMap (templateRefs <<< snd) templates <> concatMap lawRefs w.laws)
+  agreements = unknownNames (compositionNames gb) (concatMap (templateRefs <<< snd) templates <> concatMap lawRefs w.laws)
     <> map InvalidTemplate (nub (filter (\t -> not (Map.member t w.templates)) (concatMap (spawnTargets <<< snd) templates)))
     <> either (pure <<< InvalidTemplate <<< show) (const []) (validateTemplates (map unwrap w.templates))
     <> map (UnknownReference RefTransformation) (filter (\a -> not (Map.member (Id a) w.exchanges || Map.member (Id a) w.transformations)) (mapMaybe lawAction w.laws))
@@ -146,9 +146,9 @@ worldRefs = foldWorld
   ref :: forall t b. RefKind -> Id t -> Const (Array (Tuple RefKind String)) b
   ref kind x = Const [ name kind x ]
 
--- | The names the possible World's objectives, schemes, and fallbacks refer to, and the configuration's.
-possibleWorldRefs :: PossibleWorld -> InstantiationConfig -> Array (Tuple RefKind String)
-possibleWorldRefs gb config =
+-- | The names the composition's objectives, schemes, and fallbacks refer to, and the configuration's.
+compositionRefs :: PremiseComposition -> InstantiationConfig -> Array (Tuple RefKind String)
+compositionRefs gb config =
   concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective explicitActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
     <> map (name RefActor) (concatMap coverageOf fallbacks)
     <> concatMap (\s -> [ name RefActor s.target ] <> map (name RefActor) s.eligibleActors <> [ name RefResource s.observes ]) gb.schemes
@@ -205,9 +205,9 @@ worldNames w =
   , strategies: Set.empty
   }
 
--- | The names a possible World offers a reference.
-possibleWorldNames :: PossibleWorld -> Names Exchange ResourceDefinition Transformation RuleKindDecl
-possibleWorldNames gb = (worldNames gb.world)
+-- | The names a composition offers a reference.
+compositionNames :: PremiseComposition -> Names Exchange ResourceDefinition Transformation RuleKindDecl
+compositionNames gb = (worldNames gb.world)
   { parameters = Set.fromFoldable (Object.keys gb.parameters)
   , strategies = Map.keys gb.strategies
   }

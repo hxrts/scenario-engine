@@ -5,7 +5,7 @@ module Server.Launch
   ( launch
   , serverRole
   , startup
-  , premiseInfo
+  , compositionInfo
   , launchBatch
   ) where
 
@@ -24,10 +24,11 @@ import Type.Row (type (+))
 import Effects.Api (Launch, LaunchBatch)
 import Effects.Store (failRunning)
 import Foreign.Object as Object
-import Views.Premise (Premise)
+import Views.Composition (CompositionInfo)
 import Premises.Presets (presetNames)
 import Assembly.Assemble (checkRounds)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
+import Schema.Composition (premiseRefText)
 
 -- | The role of the runs a server creates (`Effects.System.ownerOf`).
 serverRole :: String
@@ -42,30 +43,31 @@ startup = do
   pure (if stale > 0 then Just ("marked " <> show stale <> " interrupted run(s) failed") else Nothing)
 
 -- | Launch a run from a preset on every seat.
-launch :: forall r. PossibleWorldParts -> Launch -> Run (LAUNCHES r) (Either String Launched)
-launch p l = either (pure <<< Left <<< show) (const (startRun)) (traverse_ (checkRounds p.possibleWorld) l.rounds)
+launch :: forall r. CompositionParts -> Launch -> Run (LAUNCHES r) (Either String Launched)
+launch p l = either (pure <<< Left <<< show) (const (startRun)) (traverse_ (checkRounds p.composition) l.rounds)
   where
   startRun = start serverRole p { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
--- | Launch one run of each Premise, in order. The first that does not start stops the batch; the runs
+-- | Launch one run of each Composition, in order. The first that does not start stops the batch; the runs
 -- | before it stay, as any launched run does.
-launchBatch :: forall r. Array PossibleWorldParts -> LaunchBatch -> Run (LAUNCHES r) (Either String (Array { premise :: String, id :: String, playerSeed :: Int }))
+launchBatch :: forall r. Array CompositionParts -> LaunchBatch -> Run (LAUNCHES r) (Either String (Array { composition :: String, id :: String, playerSeed :: Int }))
 launchBatch ps b = foldM step (Right []) ps
   where
   step acc p = case acc of
     Left e -> pure (Left e)
-    Right done -> launch p { premise: Nothing, name: "batch " <> p.possibleWorld.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { premise: p.possibleWorld.id, id: l.id, playerSeed: l.playerSeed } ])
+    Right done -> launch p { composition: Nothing, name: "batch " <> p.composition.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { composition: p.composition.id, id: l.id, playerSeed: l.playerSeed } ])
 
--- | `GET /api/premise`: the premises the launch form offers (`Views.Premise`).
-premiseInfo :: forall r. Array PossibleWorldParts -> Run (LAUNCHES r) (Array Premise)
-premiseInfo ps = do
+-- | `GET /api/premise`: the compositions the launch form offers (`Views.Composition`).
+compositionInfo :: forall r. Array CompositionParts -> Run (LAUNCHES r) (Array CompositionInfo)
+compositionInfo ps = do
   next <- nextRunId
   pure (map (info next) ps)
   where
   info next p =
-    { name: p.possibleWorld.id
-    , version: p.possibleWorld.version
-    , rounds: { min: p.possibleWorld.rounds.min, max: p.possibleWorld.rounds.max, default: p.config.rounds }
+    { name: p.composition.id
+    , version: p.composition.version
+    , premises: map premiseRefText p.composition.premises
+    , rounds: { min: p.composition.rounds.min, max: p.composition.rounds.max, default: p.config.rounds }
     , gameSeed: unwrap p.config.seed
     , defaultName: next
     , presets: filter (\n -> Object.member n p.presets) presetNames

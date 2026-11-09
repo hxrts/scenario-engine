@@ -1,7 +1,7 @@
 -- | Filtering a premise: the one operation that takes a subset of a premise, for a
 -- | cut-down game or a fixture. What belongs to something dropped goes with it: an account, a capability, a
 -- | Exchange's access entry, a recurring flow, a Rule, an actor definition, a seat. What a kept thing needs
--- | is not supplied: a kept thing that refers to a dropped one fails `checkPremise`, the one reference
+-- | is not supplied: a kept thing that refers to a dropped one fails `checkComposition`, the one reference
 -- | check, so a subset cannot silently depend on what it left out.
 module Assembly.Restrict
   ( Selection
@@ -11,7 +11,7 @@ module Assembly.Restrict
 
 import Prelude
 
-import World.PossibleWorld.Validate (possibleWorldNames, unknownNames, worldNames)
+import World.Composition.Validate (compositionNames, unknownNames, worldNames)
 import Core.Map (values)
 import Laws.StrategyRules (StrategyRules)
 import Laws.Types (Id(..), holderDraw, Capability(..), ActorId, ExchangeId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
@@ -24,8 +24,8 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Assembly.Error (AssemblyError(..))
-import Assembly.Premise (PossibleWorldParts, checkPremise, checkRefs)
-import Schema.PossibleWorld (PossibleWorld)
+import Assembly.Composition (CompositionParts, checkComposition, checkRefs)
+import Schema.Composition (PremiseComposition)
 
 -- | What to keep. `accounts` narrows an Actor's accounts further, to those Resources; an Actor it does
 -- | not name keeps every account of a kept Resource.
@@ -37,8 +37,8 @@ type Selection =
   , accounts :: Map ActorId (Array ResourceId)
   }
 
--- | The Selection that keeps a possible World whole.
-everything :: PossibleWorld -> Selection
+-- | The Selection that keeps a composition whole.
+everything :: PremiseComposition -> Selection
 everything gb =
   { actors: fromFoldable (Map.keys gb.world.actors)
   , resources: fromFoldable (Map.keys gb.world.resources)
@@ -49,9 +49,9 @@ everything gb =
 
 -- | The premise cut down to the Selection, checked. A name the premise does not have is an error, and so
 -- | is a kept thing that refers to a dropped one.
-restrict :: Selection -> PossibleWorldParts -> Either AssemblyError PossibleWorldParts
-restrict s p = case unknownNames (possibleWorldNames p.possibleWorld) named of
-  [] -> checkPremise (filtered s p)
+restrict :: Selection -> CompositionParts -> Either AssemblyError CompositionParts
+restrict s p = case unknownNames (compositionNames p.composition) named of
+  [] -> checkComposition (filtered s p)
   es -> Left (Invalid es)
   where
   named = concat
@@ -61,9 +61,9 @@ restrict s p = case unknownNames (possibleWorldNames p.possibleWorld) named of
     , map (Tuple RefTransformation <<< idText) s.transformations
     ]
 
-filtered :: Selection -> PossibleWorldParts -> PossibleWorldParts
+filtered :: Selection -> CompositionParts -> CompositionParts
 filtered s p = p
-  { possibleWorld = gb { strategies = Map.filter resolves gb.strategies }
+  { composition = gb { strategies = Map.filter resolves gb.strategies }
   , config = p.config
       { seats = Map.filterKeys keptActor p.config.seats
       , nonPlayableActors = Map.filterKeys keptActor p.config.nonPlayableActors
@@ -75,7 +75,7 @@ filtered s p = p
   where
   keptActor e = e `elem` s.actors
   selected r = r `elem` s.resources
-  old = p.possibleWorld
+  old = p.composition
   authored = old.authored
   circulation = authored.circulation
   transformations = Map.filterKeys (_ `elem` s.transformations) old.world.transformations
@@ -141,7 +141,7 @@ filtered s p = p
 
   -- a StrategyRules naming something dropped cannot run here; a kept Actor that needs it fails the check
   resolves :: StrategyRules -> Boolean
-  resolves = isRight <<< checkRefs "" (possibleWorldNames gb)
+  resolves = isRight <<< checkRefs "" (compositionNames gb)
 
 -- | The Actors a recurring flow names.
 flowParties :: RecurringFlow -> Array ActorId

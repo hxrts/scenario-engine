@@ -15,7 +15,7 @@ import Effects.Store (createSet, deleteSet, renameSet)
 import Run (Run)
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
 import Server.Read (loadRun)
-import Server.Premises (Premises, ofRun)
+import Server.Compositions (Compositions, ofRun)
 import Views.Batch (batchSummary)
 import Server.Rows (READS, SERVER)
 import Type.Row (type (+))
@@ -26,12 +26,12 @@ setsView :: forall r. Run (READS r) (Answer AnyRefusal { sets :: Array RunSet })
 setsView = listSets >>= \sets -> ok { sets }
 
 -- | `GET /api/sets/:name/summary`: the final measures across a set's runs. A set's run that cannot be read is a 500.
-setSummary :: forall r. Premises -> String -> Run (READS r) (Answer AnyRefusal Table)
-setSummary premises name = find (\s -> s.name == name) <$> listSets >>= case _ of
+setSummary :: forall r. Compositions -> String -> Run (READS r) (Answer AnyRefusal Table)
+setSummary compositions name = find (\s -> s.name == name) <$> listSets >>= case _ of
   Nothing -> notFound ("no scenario set " <> name)
   Just set -> traverse loadRun set.runs <#> sequence >>= case _ of
     Left e -> internal ("a run of " <> name <> " cannot be read: " <> describe e)
-    Right runs -> ok (batchSummary (ofRun premises) runs)
+    Right runs -> ok (batchSummary (ofRun compositions) runs)
 
 -- | The sets that name a run.
 setsNaming :: forall r. String -> Run (OBSERVE + r) (Array RunSet)

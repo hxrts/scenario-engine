@@ -14,7 +14,7 @@ import Premises.Meridian.Names (n)
 import Premises.Meridian.Rules (withholding)
 import Schema.Build.Base (cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
-import Schema.PossibleWorld (ActorDefinition)
+import Schema.Composition (ActorDefinition)
 import Laws.Types (Capability, Actor, ActorId, ExchangeId)
 import Data.Tuple (Tuple, fst)
 

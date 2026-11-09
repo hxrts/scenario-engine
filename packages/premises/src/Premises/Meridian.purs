@@ -1,5 +1,5 @@
--- | *Meridian* (docs/05_meridian.md), authored in the premise DSL.
--- | `just _premises` compiles it to `packages/premises/meridian/v0/*.json`.
+-- | *Meridian* (docs/05_meridian.md), a PremiseComposition authored in the premise DSL.
+-- | `just _premises` compiles it to `packages/premises/compositions/meridian/v0/` and one file per Premise.
 --
 -- | non-playable Actor list decision (Packet F): the instantiation `npcs` is written by hand, and it is
 -- | the one place that names who starts as a non-playable Actor. Seat Covers do not derive it: `NpcOnly` is the
@@ -9,23 +9,23 @@ module Premises.Meridian
   ( meridian
   , Dials
   , defaultDials
-  , premiseModules
+  , compositionWith
   , gameSeed
-  , possibleWorld
+  , composition
   ) where
 
-import Prelude (identity, map, negate, not, show, (+), (<>))
+import Prelude (identity, map, negate, show, (+), (/=), (<>))
 
 import Premises.Meridian.Names (meridianId, meridianVersion, n)
 import Premises.Meridian.Actors.Seats (playableActors)
 import Premises.Meridian.Rules (ruleKinds)
 
 import Core.Num (Q)
-import Data.Array (elem, mapWithIndex)
-import Data.Either (Either(..))
+import Core.Shape (Format(..), encodeWith)
+import Data.Argonaut.Core (toObject)
+import Data.Array (filter, mapWithIndex)
 import Foreign.Object as Object
-import Partial.Unsafe (unsafeCrashWith)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 import Premises.Meridian.Actors (explicitActors, actors)
@@ -35,16 +35,14 @@ import Premises.Meridian.Strategies (strategies)
 import Schema.Build.Base (keyed)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (emptyWorld)
-import Premises.Compose (Premise)
-
-import Premises.Kit.Compose (PremiseModule, assemble, emptyParts, premiseModule)
+import Premises.Compose (CompositionSource, pick)
 
 import Premises.Kit.Presets (PresetBinding, standardThresholds)
 import Schema.Build.Decision (lit)
-import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
+import Schema.Composition (PremiseComposition, InstantiationConfig)
+import Schema.Premise.Composition (compositionShape)
 import Core.Draw (Seed(..))
-import Laws.Types (CostFunction, ActorId, Id, ExchangeId, ResourceId)
-import Data.Map (Map)
+import Laws.Types (CostFunction, ActorId, ExchangeId, Id, ResourceId, idText)
 import Schema.Recurring (Flow, Requirement, compileIn)
 import Premises.Meridian.Resources (resources, reservable, decays)
 import Premises.Meridian.Exchanges (exchanges, flowGates, groups)
@@ -77,81 +75,91 @@ type Dials =
 defaultDials :: Dials
 defaultDials = { curve: \_ c -> c, flow: identity, holding: \_ _ v -> v, requirement: identity }
 
--- | Meridian's four PremiseModules. Soft power and military cut across the seats, so the Actors stay with
--- | the Premise.
-energy :: PremiseModule
-energy = premiseModule emptyParts
-  { resources = only [ n.money, n.energy, n.energyProduction, n.semiconductors, n.transport ] resources
-  , exchanges = only [ n.energyAtlantic, n.energyAsia ] exchanges
-  , transformations = only [ n.logisticsInvestment, n.energyCapacityInvestment, n.strike ] transformations
-  , ruleKinds = ruleKinds
-  , flows = flows
-  , strategies = strategies
-  , parameters = Object.toUnfoldable (Object.filterKeys (\k -> not (elem k [ majorActionThreshold ])) parameters)
+-- | Meridian's Premises, in composition order. Each is cut from the one reference world, so the composition cannot
+-- | lose or change a value; `Test.Premises.Dials` pins that the Premises compose back to it. Defence and soft power
+-- | are separable pieces of the economy. Their Capabilities and holdings cut across the seats, so the Actors stay one Premise.
+type Cut = { id :: String, entire :: Array String, named :: Array (Tuple String (Array String)) }
+
+cuts :: Array Cut
+cuts =
+  [ { id: meridianId <> "-energy"
+    , entire: [ "round", "numeraire", "focus", "horizon", "roundRange", "label", "flowGates", "groups", "ruleKinds", "rules", "laws", "templates", "circulation", "strategies", "representations" ]
+    , named:
+        [ Tuple "resources" (names [ n.money, n.energy, n.energyProduction, n.semiconductors, n.transport ])
+        , Tuple "exchanges" (names [ n.energyAtlantic, n.energyAsia ])
+        , Tuple "transformations" (names [ n.logisticsInvestment, n.energyCapacityInvestment, n.strike ])
+        , Tuple "parameters" (filter (_ /= majorActionThreshold) (Object.keys parameters))
+        ]
+    }
+  , { id: meridianId <> "-shipping", entire: [], named: [ Tuple "transformations" (names [ n.energyShipping ]) ] }
+  , { id: meridianId <> "-defence"
+    , entire: []
+    , named:
+        [ Tuple "resources" (names [ n.mil ])
+        , Tuple "exchanges" (names [ n.defenceGoods ])
+        , Tuple "transformations" (names [ n.defenseProcurement, n.defenseProcurementCn, n.militaryDeployment, n.majorMilitaryAction ])
+        , Tuple "parameters" [ majorActionThreshold ]
+        ]
+    }
+  , { id: meridianId <> "-soft-power"
+    , entire: []
+    , named:
+        [ Tuple "resources" (names [ n.softPower, n.attention ])
+        , Tuple "transformations" (names [ n.publicAttention, n.humanitarianAid ])
+        ]
+    }
+  , { id: meridianId <> "-actors", entire: [ "actors", "schemes" ], named: [] }
+  ]
+  where
+  names :: forall t. Array (Id t) -> Array String
+  names = map idText
+
+-- | The reference composition as one compiled world, the Premises it is cut into named.
+composition :: PremiseComposition
+composition = compositionWith defaultDials
+
+-- | The world of a variant, with `Dials` applied, naming the Premises it is cut into.
+compositionWith :: Dials -> PremiseComposition
+compositionWith d =
+  let
+    circulation' = circulation { flows = map d.flow flows, requirements = map d.requirement requirements }
+  in
+    { id: meridianId
+    , version: meridianVersion
+    , premises: map (\c -> { id: c.id, version: meridianVersion }) cuts
+    , horizon: years
+    , rounds: { min: 4, max: 8 }
+    , label: Just testLabel
+    , parameters
+    , schemes
+    , strategies: keyed strategies
+    , explicitActors
+    , authored: { circulation: circulation', reservable, decays }
+    , world: emptyWorld
+        { numeraire = n.money
+        , focus = Just { resource: n.energy, label: "Energy" }
+        , resources = resources
+        , exchanges = Map.mapMaybeWithKey (\k m -> Just m { cost = d.curve k m.cost }) exchanges
+        , transformations = transformations
+        , flowGates = flowGates
+        , groups = groups
+        , ruleKinds = ruleKinds
+        , actors = map (\e -> e { accounts = Map.mapMaybeWithKey (\r v -> Just (d.holding e.id r v)) e.accounts }) actors
+        , recurring = compileIn n.money circulation' decays
+        }
+    }
+
+-- | The reference composition, or a variant of it, as authored: its Premises are cuts of its compiled world.
+meridian :: Dials -> CompositionSource
+meridian d =
+  { id: meridianId
+  , version: meridianVersion
+  , premises: map (\c -> pick { id: c.id, version: meridianVersion } whole c.entire c.named) cuts
+  , config: instantiation
+  , presets: presetBinding
   }
-
-shipping :: PremiseModule
-shipping = premiseModule emptyParts { transformations = only [ n.energyShipping ] transformations }
-
-defence :: PremiseModule
-defence = premiseModule emptyParts
-  { resources = only [ n.mil ] resources
-  , exchanges = only [ n.defenceGoods ] exchanges
-  , transformations = only [ n.defenseProcurement, n.defenseProcurementCn, n.militaryDeployment, n.majorMilitaryAction ] transformations
-  , parameters = Object.toUnfoldable (Object.filterKeys (\k -> elem k [ majorActionThreshold ]) parameters)
-  }
-
-softPower :: PremiseModule
-softPower = premiseModule emptyParts
-  { resources = only [ n.softPower, n.attention ] resources
-  , transformations = only [ n.publicAttention, n.humanitarianAid ] transformations
-  }
-
--- | The PremiseModules the Premise reads.
-premiseModules :: Array PremiseModule
-premiseModules = [ energy, shipping, defence, softPower ]
-
-only :: forall t v. Array (Id t) -> Map (Id t) v -> Map (Id t) v
-only keys = Map.filterKeys (\k -> elem k keys)
-
--- | The reference possible World as written.
-possibleWorld :: PossibleWorld
-possibleWorld = possibleWorldWith defaultDials
-
-possibleWorldWith :: Dials -> PossibleWorld
-possibleWorldWith d = case assemble (energy <> shipping <> defence <> softPower) of
-  Left e -> unsafeCrashWith e
-  Right p ->
-    let
-      circulation' = circulation { flows = map d.flow p.flows, requirements = map d.requirement requirements }
-    in
-      { id: meridianId
-      , version: meridianVersion
-      , horizon: years
-      , rounds: { min: 4, max: 8 }
-      , label: Just testLabel
-      , parameters: Object.fromFoldable p.parameters
-      , schemes
-      , strategies: keyed p.strategies
-      , explicitActors
-      , authored: { circulation: circulation', reservable, decays }
-      , world: emptyWorld
-          { numeraire = n.money
-          , focus = Just { resource: n.energy, label: "Energy" }
-          , resources = p.resources
-          , exchanges = Map.mapMaybeWithKey (\k m -> Just m { cost = d.curve k m.cost }) p.exchanges
-          , transformations = p.transformations
-          , flowGates = flowGates
-          , groups = groups
-          , ruleKinds = p.ruleKinds
-          , actors = map (\e -> e { accounts = Map.mapMaybeWithKey (\r v -> Just (d.holding e.id r v)) e.accounts }) actors
-          , recurring = compileIn n.money circulation' decays
-          }
-      }
-
--- | The reference premise as a premise.
-meridian :: Dials -> Premise
-meridian d = { id: meridianId, version: meridianVersion, possibleWorld: possibleWorldWith d, config: instantiation, presets: presetBinding }
+  where
+  whole = fromMaybe Object.empty (toObject (encodeWith Authored compositionShape (compositionWith d)))
 
 -- | What Meridian's seat presets act on.
 presetBinding :: PresetBinding

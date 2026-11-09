@@ -130,7 +130,7 @@ import Type.Proxy (Proxy(..))
 
 -- | The two JSON formats a description is interpreted into. Snapshot is the generic encoding the
 -- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Premise is the authored
--- | fixture and possible World format (one-key unions, `kind:argument` strings, omitted empty keys).
+-- | fixture and composition format (one-key unions, `kind:argument` strings, omitted empty keys).
 data Format = Authored | Snapshot
 
 derive instance Eq Format

@@ -34,13 +34,13 @@ import Data.Argonaut.Core (Json)
 import Data.Maybe (Maybe)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
--- | at launch; the reply carries the seed used either way. `premise` names one of `GET /api/premise`; absent
+-- | at launch; the reply carries the seed used either way. `composition` names one of `GET /api/premise`; absent
 -- | is the first.
-type Launch = { premise :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
+type Launch = { composition :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
--- | `POST /api/batch` body: one run of one preset on every seat of each named Premise, or of every loaded
+-- | `POST /api/batch` body: one run of one preset on every seat of each named Composition, or of every loaded
 -- | one when none is named, so their results can be compared.
-type LaunchBatch = { premises :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
+type LaunchBatch = { compositions :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
 -- | `POST /api/runs/:id/derive` body: the kind, the new run's name, and what the kind may change. A
 -- | field left absent keeps the source's value. `playerSeed` is doubly optional: absent keeps the
@@ -55,8 +55,8 @@ type DeriveRequest =
   , overrides :: Maybe Json
   }
 
--- | Which agency analysis: the premise, the player seed, and the two presets. An absent one takes its default.
-type AgencyQuery = { premise :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
+-- | Which agency analysis: the composition, the player seed, and the two presets. An absent one takes its default.
+type AgencyQuery = { composition :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
 
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
@@ -65,7 +65,7 @@ type Reply = { status :: Int, body :: String }
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
 -- | The body of a request to host a live session.
-type StartSession = { premise :: Maybe String, humans :: Array String, rounds :: Maybe Int, window :: Maybe Int, playerSeed :: Maybe Int }
+type StartSession = { composition :: Maybe String, humans :: Array String, rounds :: Maybe Int, window :: Maybe Int, playerSeed :: Maybe Int }
 
 -- | One seat's text for one round.
 type Submission = { seat :: String, round :: Int, text :: String }

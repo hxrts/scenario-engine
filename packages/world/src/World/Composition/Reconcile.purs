@@ -1,6 +1,6 @@
 -- | Resolution consistency (docs/04_run.md §4.3, INV-14): two instantiations
 -- | that differ only in explicitness, the Germany comparison, must describe the same economy.
-module World.PossibleWorld.Reconcile
+module World.Composition.Reconcile
   ( reconcile
   ) where
 
@@ -8,7 +8,7 @@ import Prelude
 
 import Core.Map (sumMaps, values)
 
-import Schema.PossibleWorld (InitialWorld)
+import Schema.Composition (InitialWorld)
 import World.Error (Inconsistency(..))
 import Core.Num (Q)
 import Core.Num as Q

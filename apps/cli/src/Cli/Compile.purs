@@ -1,5 +1,5 @@
 -- | `just _premises`: compiles the premise DSL (`Render`) and writes the JSON files under the premise root
--- | (`SETTINGS_DIR`, default `packages/premises`). An invalid premise writes nothing.
+-- | (`SETTINGS_DIR`, default `packages/compositions`). An invalid composition writes nothing.
 module Cli.Compile (compileAll, compileOne) where
 
 import Prelude
@@ -16,10 +16,10 @@ import Premises.Tree (premiseRoot)
 import Type.Row (type (+))
 import Views.Overview (runList)
 
--- | One premise's files, for a production build (`just build-prod`).
+-- | One composition's files, for a production build (`just build-prod`).
 compileOne :: forall r. String -> Run (FILES + CONSOLE + r) (Either String Unit)
 compileOne id = case compileOnly id of
-  Left e -> pure (Left ("invalid premise: " <> e))
+  Left e -> pure (Left ("invalid composition: " <> e))
   Right out -> do
     written <- writeUnderRoot out
     writeLine ("compiled " <> show written <> " files of " <> id)
@@ -27,7 +27,7 @@ compileOne id = case compileOnly id of
 
 compileAll :: forall r. Run (FILES + CONSOLE + r) (Either String Unit)
 compileAll = case compile of
-  Left e -> pure (Left ("invalid premise: " <> e))
+  Left e -> pure (Left ("invalid composition: " <> e))
   Right out -> do
     written <- writeUnderRoot out
     -- the tables the dashboard's mocks answer with: their headings come from the views

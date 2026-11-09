@@ -12,20 +12,19 @@ import Schema.Premise.Intent (intentShape, ruleShape, capabilityShape)
 import Schema.Premise.PlayableActor (boundShape, metricShape)
 import Core.Shape (Format(..), encodeWith, decodeJsonWith)
 import Checks.Round (Failure(..), Field(..))
-import World.PossibleWorld.Instantiate (instantiate)
-import World.PossibleWorld.Reconcile (reconcile)
-import Schema.PossibleWorld (Fallback(..), PossibleWorld, InstantiationConfig)
+import World.Composition.Instantiate (instantiate)
+import World.Composition.Reconcile (reconcile)
+import Schema.Composition (Fallback(..), PremiseComposition, InstantiationConfig)
 import World.Error (Inconsistency(..), ValidationError(..))
 import Assembly.Error (AssemblyError(..))
-import World.PossibleWorld.Validate (validatePossibleWorld)
+import World.Composition.Validate (validateComposition)
 import Core.Num (Q)
 import Core.Num as Q
 import Premises.Kit.Resources (capacity)
 import Laws.Types (ResourceId, DrawSource(..), idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), ActorTag, Capability(..), Actor, ActorKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Laws.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, settledEvent, seeded)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
-import Data.Argonaut.Core (Json, stringify, toString)
-import Data.Argonaut.Encode (encodeJson)
+import Data.Argonaut.Core (Json, stringify, toString, toObject)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..), isLeft, isRight)
 import Data.Map as Map
@@ -53,14 +52,14 @@ import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', named
 import Adapters.Filesystem (fileOps)
 import Schema.Premise.Fixture (decodeLiteral, fixtureShape)
 import Testkit.Fixture (checkLiteral)
-import Premises.Load (presetsFrom, fromFiles, loadFrom)
+import Premises.Load (loadFrom, parts, presetsFrom)
 import Premises.Meridian.Names (meridianDir)
-import Assembly.Premise (PossibleWorldParts, checkPremise)
+import Assembly.Composition (CompositionParts, checkComposition)
 import Data.Bifunctor (lmap)
-import Premises.Compose (files, presetsJson) as Compose
-import Premises.Meridian (defaultDials, possibleWorld, meridian)
+import Premises.Compose (CompositionSource, presetsJson) as Compose
+import Premises.Meridian (defaultDials, composition, meridian)
 import Premises.Meridian.Fixtures (fixtures)
-import Schema.Premise.PossibleWorld (possibleWorldShape)
+import Schema.Premise.Composition (compositionShape)
 import Premises.Meridian.Strategies (strategies)
 import Test.Premises.Compose (spec) as Compose
 import Test.Premises.Dials as Dials
@@ -105,25 +104,24 @@ holdings =
   , { actor: "WORLD_HOUSEHOLDS", m: 360, e: 90, mil: 0, s: 35 }
   ]
 
--- | The reference instance's possible World and configuration, as the loader reads them.
-loaded :: Aff PossibleWorldParts
+-- | The reference instance's composition and configuration, as the loader reads them.
+loaded :: Aff CompositionParts
 loaded = do
   r <- liftEffect (loadFrom fileOps meridianDir)
   case r of
     Left e -> failWith e
     Right x -> pure x
 
--- | The reference instance's Meridian files, as name-and-JSON sections.
 -- | Meridian's presets, encoded and decoded exactly as a compiled premise is read.
 shippedPresets :: Either String (Object StrategyRules)
 shippedPresets = presetsFrom (Compose.presetsJson (meridian defaultDials))
 
-sections :: Array { name :: String, json :: Json }
-sections = map (\(Tuple name json) -> { name, json }) (Compose.files (meridian defaultDials))
-
--- | The sections with one replaced.
-withSection :: String -> Json -> Array { name :: String, json :: Json }
-withSection name json = map (\s -> if s.name == name then s { json = json } else s) sections
+-- | Meridian with the Premise holding the Strategy catalog's section replaced.
+withStrategies :: Json -> Compose.CompositionSource
+withStrategies json = source { premises = map edit source.premises }
+  where
+  source = meridian defaultDials
+  edit p = if Object.member "strategies" p.sections then p { sections = Object.insert "strategies" (fromMaybe json (Object.lookup "strategies" =<< toObject json)) p.sections } else p
 
 -- | A transformation's settlement in a round.
 transformationEvent :: Int -> String -> String -> Int -> Event
@@ -146,7 +144,7 @@ envWith :: View -> Q -> Env
 envWith v u = { view: v, params: Object.empty, random: const u, exchange: nameOnly }
 
 -- | The Strategy named in the catalog, decoded.
-strategyNamed :: PossibleWorld -> String -> Aff StrategyRules
+strategyNamed :: PremiseComposition -> String -> Aff StrategyRules
 strategyNamed gb name = case Map.lookup (Id name) gb.strategies of
   Nothing -> failWith ("no strategy named " <> name)
   Just p -> pure p
@@ -155,15 +153,13 @@ strategyNamed gb name = case Map.lookup (Id name) gb.strategies of
 outcome :: forall a. Either String a -> Either String Unit
 outcome = map (const unit)
 
--- | A load outcome, checked as the game checks it: the decoded sections, then `checkPremise` (the error text).
-checked :: Array { name :: String, json :: Json } -> Either String Unit
-checked files = do
-  d <- (fromFiles files)
-  map (const unit) (lmap show (checkPremise { possibleWorld: d.possibleWorld, config: d.config, presets: Object.empty }))
+-- | A load outcome, checked as the game checks it: composed and decoded, then `checkComposition` (the error text).
+checked :: Compose.CompositionSource -> Either String Unit
+checked source = outcome (parts source)
 
 -- Edits for the validation tests --------------------------------------------------------
 
-type Edit = PossibleWorld -> InstantiationConfig -> Tuple PossibleWorld InstantiationConfig
+type Edit = PremiseComposition -> InstantiationConfig -> Tuple PremiseComposition InstantiationConfig
 
 editWorld :: (UnseededWorld -> UnseededWorld) -> Edit
 editWorld f g c = Tuple g { world = f g.world } c
@@ -181,9 +177,9 @@ withWeightOf name e = case e.kind of
 -- | A test that the edited reference instance fails validation with exactly this error.
 rejects :: String -> Edit -> ValidationError -> Spec Unit
 rejects name edit err = it name do
-  { possibleWorld, config } <- loaded
-  let Tuple gb cfg = edit possibleWorld config
-  case validatePossibleWorld gb cfg of
+  { composition, config } <- loaded
+  let Tuple gb cfg = edit composition config
+  case validateComposition gb cfg of
     Left es -> (err `elem` es) `shouldEqual` true
     Right _ -> fail ("expected " <> show err)
 
@@ -228,7 +224,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
       decodeJsonWith Authored intentShape (encodeWith Authored intentShape (withholding.enact { capacity: Id "semiconductors", units: q 3 }))
         `shouldEqual` Right (ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })))
-    it "every capability the DSL writes is a tag the PossibleWorld decoder reads" do
+    it "every capability the DSL writes is a tag the PremiseComposition decoder reads" do
       for_ [ mayTrade "energy-atlantic", mayTransfer "M", mayTransform "energy-shipping", tariff.may, accessBan.may, withholding.may ] \c ->
         case toString (encodeWith Authored capabilityShape c) of
           Nothing -> fail "a capability is not a string"
@@ -255,27 +251,27 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       for_ fixtures \(Tuple name j) -> case decodeJsonWith Authored fixtureShape j of
         Left e -> fail (name <> ": " <> show e)
         Right d -> stringify (encodeWith Authored fixtureShape d) `shouldEqual` stringify j
-    it "the Meridian PossibleWorld decodes and encodes back to the same JSON" do
-      let j = encodeWith Authored possibleWorldShape possibleWorld
-      d <- orThrow (decodeJsonWith Authored possibleWorldShape j)
-      stringify (encodeWith Authored possibleWorldShape d) `shouldEqual` stringify j
+    it "the Meridian PremiseComposition decodes and encodes back to the same JSON" do
+      let j = encodeWith Authored compositionShape composition
+      d <- orThrow (decodeJsonWith Authored compositionShape j)
+      stringify (encodeWith Authored compositionShape d) `shouldEqual` stringify j
 
   describe "Meridian" do
     let
       instantiated = do
-        { possibleWorld, config } <- loaded
-        case instantiate possibleWorld config of
+        { composition, config } <- loaded
+        case instantiate composition config of
           Left es -> failWith (show es)
-          Right x -> pure { possibleWorld, config, initial: x }
+          Right x -> pure { composition, config, initial: x }
       amount w e r = fromMaybe Q.zero (Map.lookup (Id e) w.actors >>= \x -> Map.lookup (Id r) x.accounts)
       capacity w e c = fromMaybe Q.zero (Map.lookup (Id e) w.actors >>= \x -> Map.lookup (Id c) x.accounts)
 
     it "validates, and its shipped presets resolve against it" do
-      { possibleWorld, config } <- loaded
-      map (const unit) (validatePossibleWorld possibleWorld config) `shouldEqual` Right unit
+      { composition, config } <- loaded
+      map (const unit) (validateComposition composition config) `shouldEqual` Right unit
       case shippedPresets of
         Left e -> fail e
-        Right ps -> map (const unit) (lmap show (checkPremise { possibleWorld, config, presets: ps })) `shouldEqual` Right unit
+        Right ps -> map (const unit) (lmap show (checkComposition { composition, config, presets: ps })) `shouldEqual` Right unit
 
     it "instantiates with the initial holdings of §15" do
       { initial } <- instantiated
@@ -295,7 +291,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       length w.representations `shouldEqual` 1
 
     it "the production list states exactly the energy capacity the Actors hold" do
-      { possibleWorld, initial } <- instantiated
+      { composition, initial } <- instantiated
       let
         w = initial.world
         listed = mapMaybe
@@ -303,13 +299,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               ToActor e, HeldAmount c -> Just (capacity w (unwrap e) (unwrap c))
               _, _ -> Nothing
           )
-          possibleWorld.world.recurring
+          composition.world.recurring
         held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.accounts)) (values w.actors)
       Q.sumQ listed `shouldEqual` Q.sumQ held
 
     it "reconciles Germany explicit against Germany implicit (§14.2)" do
-      { possibleWorld, config, initial } <- instantiated
-      case instantiate possibleWorld config { seats = Map.delete (Id "DE") config.seats } of
+      { composition, config, initial } <- instantiated
+      case instantiate composition config { seats = Map.delete (Id "DE") config.seats } of
         Left es -> fail (show es)
         Right implicit -> do
           let eu w = map (amount w "EU") [ "M", "E", "Mil", "S" ]
@@ -322,7 +318,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           residual "eu-solidarity" `shouldEqual` Q.parse "0.6"
           residual "eu-trade" `shouldEqual` Q.parse "0.68"
 
-  describe "PossibleWorld validation: each check reports its own error" do
+  describe "PremiseComposition validation: each check reports its own error" do
     rejects "UnknownReference: an exchange access list names no Actor"
       (editWorld \w -> onExchange (Id "energy-atlantic") (\m -> m { access = m.access <> [ Id "NOBODY" ] }) w)
       (UnknownReference RefActor "NOBODY")
@@ -465,28 +461,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld (onActor (Id "EU") (withWeightOf "NOBODY")))
       (UnknownReference RefActor "NOBODY")
     it "ResolutionInconsistent: an implicit explicit Actor whose authority its Aggregate would not keep" do
-      { possibleWorld, config } <- loaded
+      { composition, config } <- loaded
       -- DE may enact tariffs, but once the EU covers DE, DE's authority disappears
       let
-        gb = possibleWorld { world = onActor (Id "DE") (\e -> e { capabilities = e.capabilities <> [ MayEnact (Id "tariff") ] }) possibleWorld.world }
-      case validatePossibleWorld gb config of
+        gb = composition { world = onActor (Id "DE") (\e -> e { capabilities = e.capabilities <> [ MayEnact (Id "tariff") ] }) composition.world }
+      case validateComposition gb config of
         Left es -> (ResolutionInconsistent (Id "DE") [ AuthorityDiffers ] `elem` es) `shouldEqual` true
         Right _ -> fail "expected ResolutionInconsistent"
-    it "a valid PossibleWorld reports no errors" do
-      { possibleWorld, config } <- loaded
-      map (const unit) (validatePossibleWorld possibleWorld config) `shouldEqual` Right unit
+    it "a valid PremiseComposition reports no errors" do
+      { composition, config } <- loaded
+      map (const unit) (validateComposition composition config) `shouldEqual` Right unit
 
   describe "Shipped Strategies and presets" do
     it "china-strategic-v0 procures after a major US action, and only with the capability" do
-      { possibleWorld } <- loaded
-      p <- strategyNamed possibleWorld "china-strategic-v0"
+      { composition } <- loaded
+      p <- strategyNamed composition "china-strategic-v0"
       let shipped env = env { params = Object.singleton "major-action-threshold" (Q.fromInt 12) }
       map _.intents (propose p (shipped (envWith chinaView Q.zero)))
         `shouldEqual` [ [ Transform { by: Id "CN", transformation: Id "defense-procurement-cn", quantity: Q.fromInt 4 } ] ]
       map _.intents (propose p (shipped (envWith (chinaView { self = chinaView.self { capabilities = [] } }) Q.zero))) `shouldEqual` []
     it "china-strategic-v0's major-action threshold is a parameter: a sweep changes whether China responds" do
-      { possibleWorld } <- loaded
-      p <- strategyNamed possibleWorld "china-strategic-v0"
+      { composition } <- loaded
+      p <- strategyNamed composition "china-strategic-v0"
       let
         -- a major action of 10 units: below the shipped threshold of 12, above a sweep's 6
         major = chinaView { events = [ transformationEvent 1 "US" "major-military-action" 10 ] }
@@ -509,8 +505,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Reservations in the DSL" do
     it "the shipped military-deployment reserves Mil per unit and consumes and produces nothing" do
-      { possibleWorld } <- loaded
-      case Map.lookup (Id "military-deployment") possibleWorld.world.transformations of
+      { composition } <- loaded
+      case Map.lookup (Id "military-deployment") composition.world.transformations of
         Nothing -> fail "military-deployment is missing"
         Just t -> do
           t.draws `shouldEqual` [ { resource: Id "Mil", from: Executor, perUnit: Q.fromInt 1 } ]
@@ -533,42 +529,36 @@ main = runSpecAndExitProcess [ consoleReporter ] do
               ]
 
   describe "Premise loader: files and strategies fail at load time" do
-    it "a key that two section files both define is an error, not an overwrite" do
-      outcome (fromFiles (sections <> [ { name: "extra.json", json: encodeJson { resources: Object.empty :: Object Json } } ]))
-        `shouldEqual` Left "extra.json: key resources is already defined by another section"
-    it "a section that is not a JSON object is an error" do
-      outcome (fromFiles (withSection "premise.json" (encodeJson "not an object")))
-        `shouldEqual` Left "premise.json: a section must be a JSON object"
     it "a strategy that names an unknown exchange fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { exchange: named "energy-nowhere", quantity: lit 1, limit: Nothing }) ] ], sign: [] }
         catalog = strategies <> [ Tuple (Id "bad-v0") bad ]
-      checked (withSection "strategies.json" (encodeWith Authored strategiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
+      checked (withStrategies (encodeWith Authored strategiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
         `shouldEqual` Left (show (Unresolved "strategy bad-v0" RefExchange "energy-nowhere"))
     it "a strategy that reads an unknown parameter fails the load" do
       let
         bad = { rules: [ rule [] [ asTemplate (tradeAt { exchange: named "energy-atlantic", quantity: param "no-such-parameter", limit: Nothing }) ] ], sign: [] }
         catalog = strategies <> [ Tuple (Id "bad-v0") bad ]
-      checked (withSection "strategies.json" (encodeWith Authored strategiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
+      checked (withStrategies (encodeWith Authored strategiesShape (map (\(Tuple k v) -> Tuple (idText k) v) catalog)))
         `shouldEqual` Left (show (Unresolved "strategy bad-v0" RefParameter "no-such-parameter"))
     it "a procedure a StrategyRules names that no Aggregate holds fails the check: in a sign rule, and in a CandidateTransaction template" do
-      { possibleWorld, config } <- loaded
+      { composition, config } <- loaded
       let
         signing = { rules: [], sign: [ signProcedures [ "no-such-procedure" ] ] }
         proposing = { rules: [ rule [] [ procedure { id: "no-such-procedure", signers: ([] :: Array String), intents: [] } ] ], sign: [] }
-        check p = map (const unit) (lmap show (checkPremise { possibleWorld, config, presets: Object.singleton "Bad" p }))
+        check p = map (const unit) (lmap show (checkComposition { composition, config, presets: Object.singleton "Bad" p }))
       check signing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
       check proposing `shouldEqual` Left (show (Unresolved "preset Bad" RefProcedure "no-such-procedure"))
     it "a capacity a Withholding names that no Actor holds fails the check" do
-      { possibleWorld, config } <- loaded
+      { composition, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: Id "no-such-capacity", units: lit 1 }) ] ], sign: [] }
-      map (const unit) (lmap show (checkPremise { possibleWorld, config, presets: Object.singleton "Bad" bad }))
+      map (const unit) (lmap show (checkComposition { composition, config, presets: Object.singleton "Bad" bad }))
         `shouldEqual` Left (show (Unresolved "preset Bad" RefResource "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do
-      { possibleWorld, config } <- loaded
+      { composition, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-transformation", quantity: lit 1 }) ] ], sign: [] }
       p <- orThrow (decodeStrategyRules (encodeStrategyRules bad))
-      map (const unit) (lmap show (checkPremise { possibleWorld, config, presets: Object.singleton "Bad" p }))
+      map (const unit) (lmap show (checkComposition { composition, config, presets: Object.singleton "Bad" p }))
         `shouldEqual` Left (show (Unresolved "preset Bad" RefTransformation "no-such-transformation"))
 
   describe "Fixture documents" do

@@ -90,10 +90,10 @@ spec = describe "HTTP device" do
     withServer \port -> do
       zipped <- get port "/index.html" [ Just "gzip" ]
       header "content-encoding" zipped `shouldEqual` Just "gzip"
-      zipped.text `shouldEqual` "<html>the index</html>"
+      zipped.text `shouldEqual` "<html><head></head>the index</html>"
       plain <- get port "/index.html" [ Nothing ]
       header "content-encoding" plain `shouldEqual` Nothing
-      plain.text `shouldEqual` "<html>the index</html>"
+      plain.text `shouldEqual` "<html><head></head>the index</html>"
   it "a path that climbs out of the static directory reads nothing outside it" do
     withServer \port -> do
       a <- get port "/..%2fsecret.txt" []
@@ -115,23 +115,23 @@ spec = describe "HTTP device" do
       missing.status `shouldEqual` 404
       route' <- get port "/runs/run-1" []
       route'.status `shouldEqual` 200
-      route'.text `shouldEqual` "<html>the index</html>"
+      route'.text `shouldEqual` "<html><head></head>the index</html>"
   it "the public site: the landing page, a balanceSheet page, and the admin page behind its password" do
     withSite \port -> do
       landing <- get port "/" []
-      landing.text `shouldEqual` "<html>the landing page</html>"
-      (_.text <$> get port "/balancesheet/run-1/abc" []) >>= (_ `shouldEqual` "<html>the index</html>")
+      landing.text `shouldSatisfy` contains (Pattern "content=\"landing\"")
+      (_.text <$> get port "/balancesheet/run-1/abc" []) >>= (_ `shouldEqual` "<html><head></head>the index</html>")
       locked <- get port "/admin/" []
-      locked.text `shouldSatisfy` contains (Pattern "password")
-      locked.text `shouldSatisfy` (not <<< contains (Pattern "the index"))
+      locked.text `shouldSatisfy` contains (Pattern "content=\"login\"")
       (_.status <$> get port "/runs/run-1" []) >>= (_ `shouldEqual` 404)
       bad <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=wrong" ])
       bad.status `shouldEqual` 401
+      bad.text `shouldSatisfy` contains (Pattern "content=\"login-failed\"")
       good <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=pw" ])
       good.status `shouldEqual` 303
       header "set-cookie" good `shouldSatisfy` maybe false (contains (Pattern "admin=sess"))
       opened <- toAffE (turnImpl port "GET" "/admin/" (Object.singleton "cookie" "admin=sess") [])
-      opened.text `shouldEqual` "<html>the index</html>"
+      opened.text `shouldEqual` "<html><head></head>the index</html>"
   it "a site with no password set admits nobody" do
     withSiteOf { password: "", session: "" } \port -> do
       empty <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=" ])

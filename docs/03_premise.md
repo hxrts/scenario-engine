@@ -2,42 +2,48 @@
 
 ## 1. Purpose
 
-The kernel says what any World can be made of. A Premise describes a set of possible Worlds, and a Run realizes one of them ([04](04_run.md)). This document says how a Premise is authored. A Premise is declarative: it holds no player assignments, Intents, or evolving state. Its checks run before any Run starts ([§12](#12-validation-and-compilation)).
+The kernel says what any World can be made of. A Premise describes part of an economy: an energy shock, a set of Actors, a set of Transformations. A PremiseComposition is an ordered list of Premises that together describe a set of possible Worlds, and a Run realizes one of them ([04](04_run.md)). This document says how Premises are authored and how a PremiseComposition is made of them. Premises are declarative: they hold no player assignments, Intents, or evolving state. Their checks run before any Run starts ([§12](#12-validation-and-compilation)).
 
-**Premise files → validated Premise** (for one Instantiation Configuration)
+**Premise files + composition file → validated PremiseComposition** (for one Instantiation Configuration)
 
-**Validated Premise + Instantiation Configuration → initial World** ([04 §10](04_run.md#10-initialization-pipeline))
+**Validated PremiseComposition + Instantiation Configuration → initial World** ([04 §10](04_run.md#10-initialization-pipeline))
 
-## 2. Premise Structure
+## 2. Premises and Compositions
 
-This section lists what a Premise is made of. A Premise is a directory of section files. The loader merges them into one `PossibleWorld` and reads the configuration file as the Instantiation Configuration ([04 §2](04_run.md#2-instantiation-configuration)).
+A PremiseComposition is compiled to one composition directory and one file per Premise, under the premise root:
 
-| Section file | Configures |
+| File | Holds |
 |---|---|
-| Premise header (`premise.json`) | Identity, unit of account, focus, horizon, round range, and label ([§3](#3-premise)). |
-| `resources.json` | Resources ([§5.1](#51-resources)). |
-| `exchanges.json` | Exchanges, flow gates, Actor groups, and Rule kinds ([§5.2](#52-exchanges), [§5.5](#55-geography-access-and-rules)). |
-| `transformations.json` | Transformations ([§5.3](#53-transformations)). |
-| `circulation.json` | The recurring cycle ([§5.4](#54-recurring-cycle)). |
-| `actors.json` | The Actor catalog ([§6](#6-actor-catalog)). |
-| `representations.json` | Representation schemes ([§9](#9-representation-schemes)). |
-| `game-rules.json` | Named parameters and the Rules in force at the start ([§5.5](#55-geography-access-and-rules), [§11](#11-initialization-constraints)). |
-| `strategies.json` | The Strategy catalog ([§8](#8-strategy-catalog)). |
-| `instantiation.json` | The Instantiation Configuration ([04 §2](04_run.md#2-instantiation-configuration)). |
+| `compositions/<id>/<version>/composition.json` | The composition's id and version, and its Premises in order, each with its version. |
+| `compositions/<id>/<version>/instantiation.json` | The Instantiation Configuration ([04 §2](04_run.md#2-instantiation-configuration)). |
+| `compositions/<id>/<version>/presets.json` | The seat-strategy presets ([06 §4.2](06_simulator.md#42-presets)). |
+| `premises/<id>/<version>.json` | One Premise: its id, its version, and the sections it writes. Every section is optional. |
 
-Seat-strategy presets belong to the simulator ([06 §4.2](06_simulator.md#42-presets)). The test fixtures are described in [05 Part IV](05_meridian.md#part-iv-playtest-fixtures).
+The loader reads the composition, reads each Premise, composes them in order into the one document the Premise format decodes, and checks the result ([§12.1](#121-load-pipeline)).
 
-Representations are never assigned in a Premise section. Assignments come from the configuration ([04 §5](04_run.md#5-representation-assignment)).
+A Premise's sections are the keys of the document:
+
+| Section | Configures | How Premises combine |
+|---|---|---|
+| `numeraire`, `focus`, `horizon`, `roundRange`, `label`, `round` | The header ([§3](#3-premise)). | One value. Two Premises giving different values fail. |
+| `resources`, `exchanges`, `transformations`, `actors`, `strategies`, `ruleKinds`, `parameters`, `groups` | Named things ([§5](#5-economic-structure), [§6](#6-actor-catalog), [§8](#8-strategy-catalog)). | By name. A name defined differently by two Premises fails, naming both; defined identically it is one definition. |
+| `schemes`, `representations`, `templates` | Named things in a list ([§9](#9-representation-schemes), [§15](#15-authoring-laws-and-agreements)). | As named things. |
+| `flowGates`, `rules`, `laws`, `circulation`'s lists | Things with no name ([§5.4](#54-recurring-cycle), [§5.5](#55-geography-access-and-rules), [§15](#15-authoring-laws-and-agreements)). | In order: a later Premise's items follow the earlier ones. An item an earlier Premise already wrote is that one item, not a second. |
+| `extends` | What a Premise adds to something another defines, by name. | `actors.<name>.accounts` (new holdings; a holding given differently fails, naming both), `actors.<name>.capabilities`, `exchanges.<name>.access`. A name no Premise in the composition defines fails. |
+
+Nothing is overwritten: there is no last-one-wins. A Premise adds Laws by writing them in its `rules` or `laws` sections, and a Premise may name what another Premise defines: every reference is checked on the composed result, so a name no Premise in the composition defines fails at load ([§12.2](#122-checks-implemented)).
+
+Representations are never assigned in a Premise section. Assignments come from the configuration ([04 §5](04_run.md#5-representation-assignment)). The test fixtures are described in [05 Part IV](05_meridian.md#part-iv-playtest-fixtures).
 
 ## 3. Premise
 
-The Premise header names the scenario and its time scale. It says which forces are relevant, not how they resolve. Meridian's values are in [05 §6](05_meridian.md#6-premise-meridian).
+The header names the scenario and its time scale, and is written by one of a composition's Premises. It says which forces are relevant, not how they resolve. Meridian's values are in [05 §6](05_meridian.md#6-premisecomposition-meridian).
 
-- **Identity.** A stable identifier and a version ([§13](#13-provenance-and-versioning)). An optional label names one configuration of the Premise, and a Run records the Premise id and this label as its game id.
+- **Identity.** A stable identifier and a version ([§13](#13-provenance-and-versioning)) for the composition and for each Premise. An optional label names one configuration of the composition, and a Run records the composition id and this label as its game id.
 - **Unit of account.** The numeraire is the Resource in which shares are paid.
 - **Focus.** An optional Resource that the exchange views centre on.
 - **Time.** The horizon in simulated years, and the supported round counts. A round range starts at one round or more, and its minimum is no greater than its maximum.
-- **First round.** The first round is numbered 1 unless the Premise says otherwise.
+- **First round.** The first round is numbered 1 unless a Premise says otherwise.
 
 ### 3.1 Strategic tensions
 
@@ -260,26 +266,26 @@ Named parameters are fixed for a Premise. Partial explicitness is resolved by in
 
 ## 12. Validation and Compilation
 
-This section says what validation checks and how a Premise is built.
+This section says what validation checks and how a PremiseComposition is built.
 
 ### 12.1 Load pipeline
 
-Loading decodes a Premise's files and then checks them in this order:
+Loading reads a composition's files and then checks them in this order:
 
 1. decode the configuration;
-2. merge the other sections (a duplicate key fails) and decode the Premise, including its parameters and Strategy catalog;
+2. compose the Premises in order ([§2](#2-premises-and-compositions)) and decode the composed document, including its parameters and Strategy catalog;
 3. decode the seat presets;
-4. validate the Premise against the configuration ([§12.2](#122-checks-implemented) to [§12.3](#123-resolution-consistency));
-5. check that every name a Strategy uses exists in the Premise;
-6. check that every name in a seat preset exists in the Premise.
+4. validate the composition against the configuration ([§12.2](#122-checks-implemented) to [§12.3](#123-resolution-consistency));
+5. check that every name a Strategy uses exists in the composition;
+6. check that every name in a seat preset exists in the composition.
 
-Load failures name the file or the decoding error: an unreadable file, a section that is not an object, a duplicate key, or a missing, ill-typed, or unknown key or tag. A checked Premise reports three kinds of error: validation errors, unresolved names (a Strategy or preset names something the Premise lacks), and an unknown preset.
+Load failures name the file or the decoding error: an unreadable file, a Premise that is not an object, a section no composition has, two Premises defining one thing differently (naming both and the thing), or a missing, ill-typed, or unknown key or tag. A checked PremiseComposition reports three kinds of error: validation errors, unresolved names (a Strategy or preset names something the Premise lacks), and an unknown preset.
 
-Validation is always against one configuration. The Premise has no separate validated type, so [INV-21](02_kernel.md#inv-21) is checked for the configuration supplied.
+Validation is always against one configuration. The composition has no separate validated type, so [INV-21](02_kernel.md#inv-21) is checked for the configuration supplied.
 
 ### 12.2 Checks implemented
 
-These checks are the compile step of a Premise: loading compiles the authored Premise to a World, and a Premise that fails them never reaches play. Per-round refusals are the round's own compile step ([§12.4](#124-static-refusals)).
+These checks are the compile step of a PremiseComposition: loading compiles the composed Premises to a World, and a composition that fails them never reaches play. Per-round refusals are the round's own compile step ([§12.4](#124-static-refusals)).
 
 Validation checks each of the following:
 
@@ -323,17 +329,17 @@ Every other rejection is decided on a condition or by a solver in the settlement
 
 ## 12a. How Premises are made
 
-A Premise is authored with typed builders in the Premise DSL, and the compiler writes it as the Premise files. Three operations build a Premise from the authored source, and all three are read-only over that source:
+A Premise is authored with typed builders in the Premise DSL, and the compiler writes it as a Premise file. Three operations reshape the authored source, and all three are read-only over it:
 
-- Composition combines generic definitions and Premise modules (reusable pieces such as energy, shipping or defence). Definitions name no Premise. A key that two Premise modules both define fails.
-- Derivation changes the values of a base Premise, through dials and named patches, to make a variant. It is not the derivation of a Run ([06 §8.1](06_simulator.md#81-read-api-and-run-operations)). A patch fails when its key is missing.
-- Filtering keeps a subset of a Premise. It fails if what is kept refers to what was dropped.
+- Composition combines Premises in order into a PremiseComposition ([§2](#2-premises-and-compositions)). Premises not written for each other compose as long as they do not define one thing differently and every name they use is defined by some Premise in the composition. Two Premises defining one thing differently fail at load, with an error naming both Premises and the thing.
+- Derivation changes the values of a base composition, through dials and named patches, to make a variant. It is not the derivation of a Run ([06 §8.1](06_simulator.md#81-read-api-and-run-operations)). A patch fails when its key is missing.
+- Filtering keeps a subset of a composition. It fails if what is kept refers to what was dropped.
 
-The compiler checks each Premise ([§12.1](#121-load-pipeline)) before writing it. Each compiled Premise has its own directory and its own presets file. Compiled JSON is generated, so edit the authored source and never the output.
+The compiler checks each composition ([§12.1](#121-load-pipeline)) before writing it. Each composition has its own directory, and each Premise its own file; a Premise id and version compiled by two compositions must be one Premise. Compiled JSON is generated, so edit the authored source and never the output.
 
 ## 13. Provenance and Versioning
 
-- Changes to Exchanges, Transformations, the cycle, Strategies, or Actors are a new version. Version immutability is a convention: nothing hashes or compares Premise contents. A run's manifest records the Premise's identifier and version ([04 §9](04_run.md#9-runtime-state-and-lifecycle)).
+- Changes to Exchanges, Transformations, the cycle, Strategies, or Actors are a new version. Version immutability is a convention: nothing hashes or compares Premise contents. A run's spec and manifest record the composition's identifier and version and each Premise's id and version, in order ([04 §9](04_run.md#9-runtime-state-and-lifecycle)); a derived Run replays only over the Premises and versions its source recorded.
 - The schema has no provenance fields. Descriptions and dependencies are prose.
 
 ## 14. Compilation to the Kernel

@@ -16,14 +16,14 @@ import Effects.System (files, resolveSeed, writeLine)
 import Assembly.Assemble (assemblePreset, checkRounds)
 import Handlers.Simulate (simulate)
 import Run (Run)
-import Schema.PossibleWorld (possibleWorldRef)
+import Schema.Composition (compositionRef)
 import Premises.Load (loadFrom)
 import Premises.Presets (presetNames)
 import Type.Row (type (+))
 import Views.Common (price)
 import Views.Exchanges (exchangePrices, roundPressure)
 
-type Simulation = { premise :: String, preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
+type Simulation = { composition :: String, preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
 
 -- | The shipped preset names, one per line.
 presets :: forall r. Run (CONSOLE + r) Unit
@@ -31,16 +31,16 @@ presets = for_ presetNames writeLine
 
 -- | Play the game and print each round. The player seed is the one given, else drawn once and printed.
 simulation :: forall r. Simulation -> Run (FILES + ENTROPY + CONSOLE + r) (Either String Unit)
-simulation o = loadFrom files (o.premise <> "/v0") >>= case _ of
+simulation o = loadFrom files (o.composition <> "/v0") >>= case _ of
   Left e -> pure (Left e)
-  Right parts -> case traverse_ (checkRounds parts.possibleWorld) o.rounds *> assemblePreset parts o.preset [] o.rounds of
+  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assemblePreset parts o.preset [] o.rounds of
     Left e -> pure (Left (show e))
     Right game -> do
       seed <- resolveSeed o.seed
       case simulate seed game of
         Left e -> pure (Left (show e))
         Right out -> do
-          writeLine (possibleWorldRef parts.possibleWorld <> ", every seat " <> o.preset <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
+          writeLine (compositionRef parts.composition <> ", every seat " <> o.preset <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
           void $ foldM (\w r -> summarize w r $> r.world) game.world out.records
           pure case out.final of
             Left e -> Left (show e)

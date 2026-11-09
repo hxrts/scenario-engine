@@ -14,11 +14,20 @@ hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text i
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
 hand-instance packages/laws/src/Laws/Types.purs instance-Show-RefKind the text is the lower-case name error messages use
 hand-instance packages/assembly/src/Assembly/Error.purs instance-Show-AssemblyError the text is the user-facing message (renderAssemblyError)
-hand-instance packages/schema/src/Schema/PossibleWorld.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
+hand-instance packages/schema/src/Schema/Composition.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
 # JSON handled as JSON, not a payload with a type behind it.
 hand-json apps/cli/src/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
-hand-json packages/premises/src/Premises/Load.purs merge merges premise files as JSON objects before decoding
-hand-json packages/premises/src/Premises/Compose.purs files splits a compiled document into its premise files by key
+hand-json packages/premises/src/Premises/Compose.purs named merges one named thing into a Premise-by-Premise JSON merge, before the one decode
+hand-json packages/premises/src/Premises/Compose.purs circulationList merges one list of circulation in the Premise-by-Premise JSON merge
+hand-json packages/premises/src/Premises/Compose.purs extendActor writes a Premise's additions back into the Actor it extends, as JSON
+hand-json packages/premises/src/Premises/Compose.purs addToActor adds holdings and Capabilities to an Actor's JSON in the merge
+hand-json packages/premises/src/Premises/Compose.purs extendExchange writes a Premise's access additions into the Exchange it extends, as JSON
+hand-json packages/premises/src/Premises/Load.purs composedOf decodes the merged Premises through the one composition Shape
+name-literal packages/premises/src/Premises/Compose.purs compositionKeys the keys a composition owns and no Premise writes, named once here
+name-literal packages/premises/src/Premises/Layout.purs premisesDir the directory of Premise files under the premise root
+hand-instance packages/premises/src/Premises/Compose.purs instance-Show-ComposeError the text is the load error that names both Premises and the thing
+hand-json packages/premises/src/Premises/Compose.purs pick cuts a Premise from a composition's encoded sections by key
+hand-json packages/premises/src/Premises/Compose.purs files writes a composition and its Premises as the files the loader reads
 # Not renames: each fixes a type or names a DSL word.
 alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
 alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it
@@ -34,7 +43,6 @@ implicit-codec packages/handlers/test/Test/Handlers/SimCapstone.purs spec format
 implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
 implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
-implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed premise files
 intent-walk packages/laws/src/Laws/Types.purs jointIntent which Intents a joint CandidateTransaction may bundle; a per-kind rule, nothing to traverse
 # Guarded or merged constructors of a premise sum: not a one-to-one image of the type's constructors (S6).
 sum-projection packages/schema/src/Schema/Premise/Intent.purs intentShape a trade and a route share one premise form, and enact and repeal are separate tags over ChangeRule
@@ -61,3 +69,4 @@ name-literal packages/views/src/Views/BalanceSheet.purs doneTable the balance sh
 name-literal packages/views/src/Views/BalanceSheet.purs exchangeTable the balance sheet's own column headings, for a player and not a glossary name
 name-literal packages/views/src/Views/BalanceSheet.purs transformationTable the balance sheet's own column headings, for a player and not a glossary name
 hand-json apps/server/src/Server/OpenApi.purs obj an OpenAPI document is itself the output of the Shape interpreters, in a format no type here decodes
+hand-json packages/premises/src/Premises/Compose.purs compose fills the sections no Premise wrote with empty JSON before the one decode

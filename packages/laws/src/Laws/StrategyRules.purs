@@ -1,5 +1,5 @@
 -- | The StrategyRules language's types (docs/02_kernel.md §4.4): the declarative rules an
--- | in-world Strategy runs. The possible World's Strategy catalog holds these values, so they live in
+-- | in-world Strategy runs. The composition's Strategy catalog holds these values, so they live in
 -- | core with the other domain types; `Strategy.StrategyRules` decodes them and `Strategy.Interpret` runs them.
 module Laws.StrategyRules
   ( StrategyRules
@@ -55,7 +55,7 @@ type Clause = { when :: Array Cond, propose :: Array Template }
 
 data Expr
   = Lit Q
-  | Param String -- a premise parameter (checked against the possible World at load time)
+  | Param String -- a premise parameter (checked against the composition at load time)
   | Round -- the current round
   | Price ExchangeRef -- beginning-of-round marginal price of the Exchange the reference picks
   | Holding ResourceId -- the Actor's own holding
@@ -90,7 +90,7 @@ data Template
   | NoAction -- propose nothing (an option for Choose)
 
 -- | The in-world Strategies (non-playable Actor and Aggregate) and the premise parameters they read. The Strategies
--- | are the possible World's catalog; this is the Type System's record of them (docs/02 §4.4).
+-- | are the composition's catalog; this is the Type System's record of them (docs/02 §4.4).
 type InWorld = { strategyRules :: Map StrategyId StrategyRules, params :: Object Q }
 
 data SignRule

@@ -1,4 +1,4 @@
--- | Pins: the possible World premise JSON of docs/03 in each `-- Pins` case; the rest use `Schema.Build`.
+-- | Pins: the composition premise JSON of docs/03 in each `-- Pins` case; the rest use `Schema.Build`.
 module Test.World.Main where
 
 import Testkit.Meridian (orThrow)
@@ -11,8 +11,8 @@ import Testkit.Edit (onActor)
 import Core.Map (values)
 
 import World.Error (ValidationError(..))
-import World.PossibleWorld.Instantiate (instantiate, mergeRequirements)
-import World.PossibleWorld.Validate (validatePossibleWorld)
+import World.Composition.Instantiate (instantiate, mergeRequirements)
+import World.Composition.Validate (validateComposition)
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Laws.Types (ResourceId, Capability(..), Direction(..), Actor, ActorId, ActorKind(..), ActorTag, FlowEffect(..), FlowGovernance(..), Id(..), LevyBasis(..), LevyRecipient(..), RefKind(..), Rule, RuleF(..), RuleForm(..), RuleId, RuleKindDecl, RuleKindTag, Transformation, TransformationId)
@@ -25,22 +25,23 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
-import Schema.PossibleWorld (ActorDefinition, Bound(..), Fallback(..), PossibleWorld, Measure(..), Span(..))
-import Schema.Premise.PossibleWorld (decodeConfig, decodePossibleWorld)
+import Schema.Composition (ActorDefinition, Bound(..), Fallback(..), PremiseComposition, Measure(..), Span(..))
+import Schema.Premise.Composition (decodeConfig, decodeComposition)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 import Testkit.Json (json)
-import Testkit.PossibleWorld (minimalPossibleWorld)
+import Testkit.Composition (minimalComposition)
 
--- | A possible World in which the Actor US is covered by the Aggregate EU (ImplicitCoverage). US holds
+-- | A composition in which the Actor US is covered by the Aggregate EU (ImplicitCoverage). US holds
 -- | the capacity `cap` and is the payee and effect holder of a transformation, the origin and target of
 -- | Rules in force, and an eligible Actor of a Representation scheme.
-coveragePossibleWorld :: PossibleWorld
-coveragePossibleWorld =
+coverageComposition :: PremiseComposition
+coverageComposition =
   { id: "coverage-merge"
   , version: "v0"
+  , premises: [ { id: "coverage", version: "v0" } ]
   , world: world
   , authored: { circulation: { production: [], flows: [], shares: [], requirements: [] }, reservable: [], decays: [] }
   , explicitActors: Map.singleton us explicitActor
@@ -130,7 +131,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Coverage merge retargets references (docs/04 §4.2)" do
     let config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
     it "a payee, an effect holder, and Rules naming a merged PlayableActor name its Aggregate instead" do
-      case instantiate coveragePossibleWorld config of
+      case instantiate coverageComposition config of
         Left es -> fail (show es)
         Right initial -> do
           filter (\e -> not (Map.member e initial.world.actors)) (worldActorRefs initial.world) `shouldEqual` []
@@ -138,23 +139,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- the Aggregate's member list does not name the Actor it now is
           map membersOf (Map.lookup (Id "EU") initial.world.actors) `shouldEqual` Just []
     it "a Representation scheme whose target is an PlayableActor is a validation error" do
-      let gb = coveragePossibleWorld { schemes = map (_ { target = Id "US" }) coveragePossibleWorld.schemes }
-      case validatePossibleWorld gb config of
+      let gb = coverageComposition { schemes = map (_ { target = Id "US" }) coverageComposition.schemes }
+      case validateComposition gb config of
         Left es -> (SchemeTargetNotAggregate "s" (Id "US") `elem` es) `shouldEqual` true
         Right _ -> fail "expected a scheme-target error"
 
     it "an institutional fallback naming no catalog Strategy is an unknown reference" do
-      let gb = coveragePossibleWorld { explicitActors = map (_ { fallback = Just (InstitutionalStrategy (Id "nope")) }) coveragePossibleWorld.explicitActors }
-      case validatePossibleWorld gb config of
+      let gb = coverageComposition { explicitActors = map (_ { fallback = Just (InstitutionalStrategy (Id "nope")) }) coverageComposition.explicitActors }
+      case validateComposition gb config of
         Left es -> (UnknownReference RefStrategy "nope" `elem` es) `shouldEqual` true
         Right _ -> fail "expected an unknown strategy"
     it "a configured fallback override naming no catalog Strategy is an unknown reference" do
-      case validatePossibleWorld coveragePossibleWorld (config { fallbacks = Map.singleton (Id "US") (InstitutionalStrategy (Id "nope")) }) of
+      case validateComposition coverageComposition (config { fallbacks = Map.singleton (Id "US") (InstitutionalStrategy (Id "nope")) }) of
         Left es -> (UnknownReference RefStrategy "nope" `elem` es) `shouldEqual` true
         Right _ -> fail "expected an unknown strategy"
     it "a transformation with a negative delay is a validation error" do
-      let gb = coveragePossibleWorld { world = coveragePossibleWorld.world { transformations = map (_ { delay = -1 }) coveragePossibleWorld.world.transformations } }
-      case validatePossibleWorld gb config of
+      let gb = coverageComposition { world = coverageComposition.world { transformations = map (_ { delay = -1 }) coverageComposition.world.transformations } }
+      case validateComposition gb config of
         Left es ->
           ( mapMaybe
               ( \e -> case e of
@@ -168,24 +169,24 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Unknown references at load (docs/03 §12)" do
     let
       config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
-      w = coveragePossibleWorld.world
+      w = coverageComposition.world
       us = Id "US" :: ActorId
       eu = Id "EU" :: ActorId
       -- the listed unknown references are all reported
-      reports gb cfg expected = case validatePossibleWorld gb cfg of
+      reports gb cfg expected = case validateComposition gb cfg of
         Left es -> filter (\e -> not (e `elem` es)) expected `shouldEqual` []
         Right _ -> fail "expected unknown references"
-      withCapabilities cs = coveragePossibleWorld { world = w { actors = map (_ { capabilities = cs }) w.actors } }
+      withCapabilities cs = coverageComposition { world = w { actors = map (_ { capabilities = cs }) w.actors } }
       ref kind name = UnknownReference kind name
       objective measure = { description: "o", criteria: [ { metric: { actors: [ Id "ghost" ], measure, negated: false }, over: Final, atLeast: Fixed Q.zero } ] }
-      withObjective measure = coveragePossibleWorld { explicitActors = map (_ { objective = Just (objective measure) }) coveragePossibleWorld.explicitActors }
+      withObjective measure = coverageComposition { explicitActors = map (_ { objective = Just (objective measure) }) coverageComposition.explicitActors }
     it "a capability naming an unknown Exchange, Resource or Transformation" do
       reports (withCapabilities [ MayTrade (Id "m0"), MayTransfer (Id "r0"), MayTransform (Id "t0") ]) config
         [ ref RefExchange "m0", ref RefResource "r0", ref RefTransformation "t0" ]
     it "a procedure authorizing an unknown name" do
       let
         procedure = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: Q.fromInt 1, authorizes: [ MayTrade (Id "m1"), MayTransform (Id "t1") ] }
-        gb = coveragePossibleWorld { world = onActor eu (\x -> x { kind = Aggregate { strategy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) w }
+        gb = coverageComposition { world = onActor eu (\x -> x { kind = Aggregate { strategy: Id "p", members: [ us ], procedures: Map.singleton (Id "c") procedure } }) w }
       reports gb config [ ref RefExchange "m1", ref RefTransformation "t1" ]
     it "an objective's Actors and Measure" do
       reports (withObjective (HoldingOf (Id "r2"))) config [ ref RefActor "ghost", ref RefResource "r2" ]
@@ -197,19 +198,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         metric = { actors: [ us ], measure: HoldingOf (Id "M"), negated: false }
         bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }) } ] }
-      reports (coveragePossibleWorld { explicitActors = map (_ { objective = Just bounded }) coveragePossibleWorld.explicitActors }) config [ ref RefResource "r5" ]
+      reports (coverageComposition { explicitActors = map (_ { objective = Just bounded }) coverageComposition.explicitActors }) config [ ref RefResource "r5" ]
     it "an implicit coverage fallback naming no Actor" do
-      reports (coveragePossibleWorld { explicitActors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coveragePossibleWorld.explicitActors }) config [ ref RefActor "nowhere" ]
+      reports (coverageComposition { explicitActors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coverageComposition.explicitActors }) config [ ref RefActor "nowhere" ]
     it "a configured fallback for an unknown Actor, or covering by an unknown Actor" do
-      reports coveragePossibleWorld (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref RefActor "ghost" ]
-      reports coveragePossibleWorld (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref RefActor "nowhere" ]
+      reports coverageComposition (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref RefActor "ghost" ]
+      reports coverageComposition (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref RefActor "nowhere" ]
     it "a numeraire that is not a Resource" do
-      reports (coveragePossibleWorld { world = w { numeraire = Id "gold" } }) config [ ref RefResource "gold" ]
+      reports (coverageComposition { world = w { numeraire = Id "gold" } }) config [ ref RefResource "gold" ]
 
   describe "Instantiation" do
     -- Pins the instantiation configuration file format (docs/03 §5.2).
-    it "a decoded PossibleWorld's world carries no seed; instantiation sets it" do
-      raw <- orThrow (decodePossibleWorld (json (minimalPossibleWorld "[4, 8]")))
+    it "a decoded PremiseComposition's world carries no seed; instantiation sets it" do
+      raw <- orThrow (decodeComposition (json (minimalComposition "[4, 8]")))
       config <- orThrow (decodeConfig (json """{ "seed": 9, "rounds": 4 }"""))
       initial <- orThrow (instantiate raw config)
       show initial.world.seed `shouldEqual` "9"

@@ -10,7 +10,7 @@ import { section , choice } from "./helpers.js";
 const NAMES = { "run-a": "Alpha", "run-b": "Beta" };
 // A run's row in the run list: one cell per column the list shows.
 const row = (id) => {
-  const cells = { Run: id, Name: NAMES[id], PossibleWorld: "meridian@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
+  const cells = { Run: id, Name: NAMES[id], Composition: "meridian@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
   return COLUMNS.map((c) => cells[c]);
 };
 

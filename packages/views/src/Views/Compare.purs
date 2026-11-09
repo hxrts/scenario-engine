@@ -20,7 +20,7 @@ module Views.Compare
 
 import Prelude
 
-import Schema.PossibleWorld (PossibleWorld)
+import Schema.Composition (PremiseComposition)
 import Core.Num (Kind(..))
 import Laws.Query (accountsOf, holding)
 import Laws.Types (ActorId)
@@ -76,7 +76,7 @@ showsSameness column name value = { column, name, same: \a b -> value a == value
 -- | The fields a comparison checks, in the order the verdict names them.
 fields :: Array CompareField
 fields =
-  [ showsValue col.possibleWorld "PossibleWorld" _.manifest.possibleWorld
+  [ showsValue col.composition "Composition" _.manifest.composition
   , showsValue engineColumn "engine" _.manifest.engine
   , showsValue col.rounds "round count" (show <<< completed)
   , showsSameness unitsColumn "units" (\r -> map _.unit r.manifest.initial.resources)
@@ -85,7 +85,7 @@ fields =
   ]
 
 -- | Runs are directly comparable only when they agree on everything the manifest fixes: the
--- | possible World version, the engine, the round count, the units, the Exchange definitions, and the
+-- | composition version, the engine, the round count, the units, the Exchange definitions, and the
 -- | Actor selection (the preset every seat plays). Each difference is named, and the run is flagged.
 compatible :: Array StoredRun -> Table
 compatible runs = tableOf "Compatibility" tableFields runs
@@ -119,10 +119,10 @@ deltaColumn :: Column
 deltaColumn = column "Δ" "Difference in holding from the baseline run."
 
 categoryColumn :: Column
-categoryColumn = column "Category" "What kind of premise this is: a version, a seat strategy, a seed, or another premise."
+categoryColumn = column "Category" "What kind of entry this is: a version, a seat strategy, a seed, or another field."
 
 parameterColumn :: Column
-parameterColumn = column "Parameter" "A specification premise, compared across the runs."
+parameterColumn = column "Parameter" "A specification field, compared across the runs."
 
 unitColumn :: Column
 unitColumn = column "Unit" "The unit of this row's values."
@@ -166,7 +166,7 @@ baselineDiff base others =
 differsFromBaseline :: forall a. Eq a => Array StoredRun -> (StoredRun -> a) -> Array Boolean
 differsFromBaseline runs value = map (\r -> Just (value r) /= (value <$> head runs)) runs
 
--- | What kind of premise a configuration row is (docs/06_simulator.md §10.2): versions, the seat
+-- | What kind of entry a configuration row is (docs/06_simulator.md §10.2): versions, the seat
 -- | Strategy, the seeds, or a deliberate change. Listed in that order.
 data Category = Version | SeatStrategy | Seeds | Other
 
@@ -187,8 +187,7 @@ type ConfigRow = { key :: String, category :: Category, value :: StoredRun -> St
 -- | manifest fixes.
 configRows :: Array StoredRun -> Array ConfigRow
 configRows runs = map specRow (nub (concatMap (map fst <<< listed) runs)) <>
-  [ manifestRow "possibleWorld" Version _.manifest.possibleWorld
-  , manifestRow "engine" Version _.manifest.engine
+  [ manifestRow "engine" Version _.manifest.engine
   , manifestRow "game seed" Seeds (show <<< _.manifest.initial.seed)
   , manifestRow "player seed" Seeds _.playerSeed
   ]
@@ -197,7 +196,7 @@ configRows runs = map specRow (nub (concatMap (map fst <<< listed) runs)) <>
   listed r = specPairs (r.spec { playerSeed = Nothing })
   specRow k = { key: k, category: specCategory k, value: \r -> fromMaybe "—" (lookup k (listed r)) }
   specCategory k
-    | k == specKey.gameId = Version
+    | k == specKey.gameId || k == specKey.composition || k == specKey.premises = Version
     | k == specKey.preset = SeatStrategy
     | otherwise = Other
   manifestRow key category value = { key, category, value }
@@ -218,7 +217,7 @@ configDiff base others =
   -- a parameter differs when some run's value is not the baseline's
   shown = sortWith _.category (filter (\k -> any (\r -> k.value r /= k.value base) allRuns) (configRows allRuns))
 
--- | The runs of the first run's specification: the same premises, whatever their seeds. Their
+-- | The runs of the first run's specification: the same specification, whatever their seeds. Their
 -- | differences are seed-to-seed variation (§10.2); the bookkeeping keys (the seed, the derivation)
 -- | are not part of the specification.
 sameSpecification :: Array StoredRun -> Array StoredRun
@@ -246,7 +245,7 @@ numeraireUnit runs = maybe "" (\r -> unitOf r r.manifest.initial.numeraire) (hea
 -- | Key values across the runs: one row per measure or per Player, one column per run (its header is
 -- | the run's name and id). Every value is read from the view that defines it: the standings, the
 -- | balance measures, the action totals, the objective completion and the Exchange prices.
-keyValues :: (StoredRun -> Maybe PossibleWorld) -> Array StoredRun -> Table
+keyValues :: (StoredRun -> Maybe PremiseComposition) -> Array StoredRun -> Table
 keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs

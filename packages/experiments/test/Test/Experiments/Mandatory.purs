@@ -37,11 +37,11 @@ import Checks.Objectives (evaluateObjectives)
 import Premises.Load (loadLiteral)
 import Premises.Literal (literalGame)
 import Handlers.Simulate (simulate)
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "7 NonPlayableActor response: Fixture D as a pair, with and without the deployment" do
     ctx <- context
@@ -64,7 +64,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "14 Agency: every role has a measurable effect and its objectives are reported" do
     ctx <- context
     random <- everySeat ctx "RandomValid"
-    ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) random "Aggressive" playableActors)
+    ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) random "Aggressive" playableActors)
     length ps `shouldEqual` 15
     -- hard condition (docs/06 §14): a role with no measurable effect is a broken premise
     map _.explicitActor (filter (not <<< _.measurable) ps) `shouldEqual` []
@@ -79,14 +79,14 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       Nothing -> fail "no agency row for US"
     length (agencyProfiles ps).rows `shouldEqual` length ps
     g <- everySeat ctx "Conservative"
-    profiles <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playableActors)
+    profiles <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Aggressive" playableActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
     -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
     -- is asserted on the RandomValid baseline. Pinned here so a premise change is noticed.
     map _.explicitActor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
     base <- run (Seed 1) g
     -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
-    map (\o -> show o.explicitActor <> ":" <> show o.outcome) (evaluateObjectives ctx.possibleWorld base.records)
+    map (\o -> show o.explicitActor <> ":" <> show o.outcome) (evaluateObjectives ctx.composition base.records)
       `shouldEqual`
         [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 

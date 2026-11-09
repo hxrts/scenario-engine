@@ -36,7 +36,7 @@ runFlags = { preset: _, rounds: _, seed: _ }
   <*> roundsFlag
   <*> seedFlag
 
--- | The rounds flag: absent means the configuration's count; the premise's range is `checkRounds`.
+-- | The rounds flag: absent means the configuration's count; the composition's range is `checkRounds`.
 roundsFlag :: Flag (Maybe Int)
 roundsFlag = optionalIntFlag "--rounds" "n" (_ >= 1) "a whole number of at least 1"
 
@@ -46,13 +46,13 @@ seedFlag :: Flag (Maybe Seed)
 seedFlag = map Seed <$> optionalIntFlag "--seed" "n" (const true) "a whole number"
 
 -- | An experiment's flags, as typed.
-type ExperimentFlags = { premise :: String, name :: String, preset :: String, rounds :: Maybe Int, seed :: Maybe Seed, db :: String, parameter :: String, values :: String, combine :: String, seat :: String, alternatives :: String, playerSeeds :: String, gameSeeds :: String }
+type ExperimentFlags = { composition :: String, name :: String, preset :: String, rounds :: Maybe Int, seed :: Maybe Seed, db :: String, parameter :: String, values :: String, combine :: String, seat :: String, alternatives :: String, playerSeeds :: String, gameSeeds :: String }
 
 -- | What an experiment runs, and the store it saves to.
-type ExperimentOptions = { premise :: String, db :: String, request :: ExperimentRequest }
+type ExperimentOptions = { composition :: String, db :: String, request :: ExperimentRequest }
 
 experimentFlags :: String -> Flag ExperimentFlags
-experimentFlags premise = { premise, name: _, preset: _, rounds: _, seed: _, db: _, parameter: _, values: _, combine: _, seat: _, alternatives: _, playerSeeds: _, gameSeeds: _ }
+experimentFlags composition = { composition, name: _, preset: _, rounds: _, seed: _, db: _, parameter: _, values: _, combine: _, seat: _, alternatives: _, playerSeeds: _, gameSeeds: _ }
   <$> textFlag "--name" "set" "experiment"
   <*> textFlag "--preset" "name" defaultPresets.run
   <*> roundsFlag
@@ -77,9 +77,9 @@ experimentOf f = do
     false, false, false, false, true -> GameSeeds <$> traverse whole (list f.gameSeeds)
     _, _, _, _, _ -> Left "name one of --parameter, --combine, --seat, --player-seeds or --game-seeds"
   pure
-    { premise: f.premise
+    { composition: f.composition
     , db: f.db
-    , request: { premise: Nothing, name: f.name, preset: f.preset, playerSeed: map unwrap f.seed, rounds: f.rounds, experiment }
+    , request: { composition: Nothing, name: f.name, preset: f.preset, playerSeed: map unwrap f.seed, rounds: f.rounds, experiment }
     }
   where
   list = map trim <<< split (Pattern ",")
@@ -89,9 +89,9 @@ experimentOf f = do
     [ name, values ] -> (\vs -> { name: trim name, values: vs }) <$> traverse quantity (list values)
     _ -> Left ("--combine takes name=values;name=values, got " <> text)
 
--- | A session's flags, for its premise. The window may be zero.
+-- | A session's flags, for its composition. The window may be zero.
 sessionFlags :: String -> Flag Options
-sessionFlags premise = { premise, humans: _, model: _, rounds: _, window: _, id: _, db: _, seed: _ }
+sessionFlags composition = { composition, humans: _, model: _, rounds: _, window: _, id: _, db: _, seed: _ }
   <$> textFlag "--humans" "US,DE" ""
   <*> textFlag "--model" "provider/id" defaultModel
   <*> roundsFlag

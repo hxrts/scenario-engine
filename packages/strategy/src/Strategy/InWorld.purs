@@ -1,5 +1,5 @@
 -- | In-world Strategies: the Strategies that non-playable Actor and Aggregate Actors run, and the premise
--- | parameters they read. The possible World's catalog is already typed (`Schema.possible World`),
+-- | parameters they read. The composition's catalog is already typed (`Schema.Composition`),
 -- | so this is a projection. Pure.
 module Strategy.InWorld
   ( inWorldOf
@@ -14,7 +14,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Foreign.Object (Object)
 
--- | The in-world view of a possible World's typed catalog and parameters.
+-- | The in-world view of a composition's typed catalog and parameters.
 inWorldOf :: forall r. { strategies :: Map StrategyId StrategyRules, parameters :: Object Q | r } -> InWorld
 inWorldOf gb = { strategyRules: gb.strategies, params: gb.parameters }
 

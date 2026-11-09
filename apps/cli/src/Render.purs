@@ -1,4 +1,4 @@
--- | The premise compiler's rendering (docs/07 §3): the DSL premises, validated
+-- | The composition compiler's rendering (docs/07 §3): the DSL compositions, validated
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
 -- | module writes the files under the premise root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.
@@ -13,17 +13,17 @@ import Prelude
 import Data.Argonaut.Core (Json, caseJson, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull)
 import Data.Array (concatMap, find, sortWith)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Foldable (for_)
-import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
 import Premises.Meridian.Fixtures as Fixtures
-import Premises.Catalog (premises)
-import Premises.Compose (Premise, directory, files, parts, presetsJson, unsectionedKeys)
+import Premises.Catalog (compositions)
+import Premises.Compose (CompositionSource, files, sharedPremiseConflict)
+import Premises.Load (parts)
 import Schema.Premise.Fixture (decodeLiteral)
-import Premises.Layout (fixturePath, presetsFile)
+import Premises.Layout (fixturePath)
 
 -- | A compiled file: its path under the premise root, and its text.
 type Output = { path :: String, text :: String }
@@ -34,35 +34,30 @@ compile = do
   validate
   pure (map (\(Tuple path j) -> { path, text: render j }) outputs)
 
--- | A premise's keys are all in some section file, and it decodes and checks as the loader will read it.
-checked :: Premise -> Either String Unit
-checked c = case unsectionedKeys c of
-  [] -> void (parts c)
-  keys -> Left (directory c <> ": PossibleWorld keys in no section file: " <> joinWith ", " keys)
+-- | A composition decodes and checks as the loader will read it.
+checked :: CompositionSource -> Either String Unit
+checked = void <<< parts
 
--- | One premise's files alone, for a production build: no other premise, no fixtures, no capstone.
+-- | One composition's files alone, for a production build: no other composition, no fixtures, no capstone.
 compileOnly :: String -> Either String (Array Output)
-compileOnly id = case find (\c -> c.id == id) premises of
-  Nothing -> Left ("no premise named " <> id)
+compileOnly id = case find (\c -> c.id == id) compositions of
+  Nothing -> Left ("no composition named " <> id)
   Just c -> do
     checked c
-    pure (map (\(Tuple path j) -> { path, text: render j }) (premiseFiles c))
+    pure (map (\(Tuple path j) -> { path, text: render j }) (files c))
 
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  concatMap premiseFiles premises
+  concatMap files compositions
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
 
--- | One premise's files under the premise root.
-premiseFiles :: Premise -> Array (Tuple String Json)
-premiseFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
-
--- | Decode and check the compiled premise exactly as the loader will read it: the possible World, the
--- | Strategies, the presets against the possible World (`checkPremise`), and every fixture.
+-- | Decode and check the compiled composition exactly as the loader will read it: the composition, the
+-- | Strategies, the presets against the composition (`checkComposition`), and every fixture.
 validate :: Either String Unit
 validate = do
-  for_ premises checked
+  for_ compositions checked
+  maybe (Right unit) Left (sharedPremiseConflict compositions)
   for_ Fixtures.fixtures \(Tuple name j) -> decodeErrorAt name (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

@@ -35,7 +35,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Schema.Build.Quantity (class ToQty, q)
-import Schema.PossibleWorld (Fallback(..), Measure(..), Span(..))
+import Schema.Composition (Fallback(..), Measure(..), Span(..))
 
 -- | A Map from named values, keyed by id.
 keyed :: forall k t a. Named k t => Array (Tuple k a) -> Map (Id t) a

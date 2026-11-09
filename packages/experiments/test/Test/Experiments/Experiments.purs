@@ -11,7 +11,7 @@ import Core.Map (values)
 import Premises.Meridian.Actors.Seats (playableActors)
 import Testkit.Meridian (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
-import Schema.PossibleWorld (Outcome(..))
+import Schema.Composition (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
@@ -35,7 +35,7 @@ import Experiments.Agency (agency)
 import Handlers.Simulate (SimRun)
 import Assembly.Assemble (assemble, presetBindings)
 import Assembly.Override (Override(..))
-import Assembly.Premise (PossibleWorldParts, Premise(..))
+import Assembly.Composition (CompositionParts, Origin(..))
 import Assembly.Types (PreparedRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -47,18 +47,18 @@ spec' :: (String -> String) -> Array Override -> Int -> Variant
 spec' preset overrides seed = { preset, overrides, seed }
 
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
-gameOf :: PossibleWorldParts -> Variant -> Aff PreparedRun
+gameOf :: CompositionParts -> Variant -> Aff PreparedRun
 gameOf p v = do
   bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) playableActors)
-  orThrow (assemble (PossibleWorldPremise p) bindings v.overrides)
+  orThrow (assemble (FromComposition p) bindings v.overrides)
 
-play :: PossibleWorldParts -> Variant -> Aff SimRun
+play :: CompositionParts -> Variant -> Aff SimRun
 play ctx v = do
   g <- gameOf ctx v
   run (Seed v.seed) g
 
 -- | The §12 indicators of one run, as a printed row.
-indicators :: PossibleWorldParts -> SimRun -> { row :: String, failures :: Int }
+indicators :: CompositionParts -> SimRun -> { row :: String, failures :: Int }
 indicators ctx r = { row, failures }
   where
   events = concatMap _.record.events r.records
@@ -72,7 +72,7 @@ indicators ctx r = { row, failures }
   money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (values w.actors)
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in maybe "—" Q.displayRatio (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
-  met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.possibleWorld r.records))
+  met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.composition r.records))
   failures = length (checkRun r.manifest.initial r.records)
   row = joinWith " | "
     [ show activity
@@ -92,7 +92,7 @@ header = "variant | activity | executed/proposed | rejected | lapsed | P atlanti
 millis :: Aff Number
 millis = liftEffect (unwrap <<< unInstant <$> now)
 
-spec :: Aff PossibleWorldParts -> Spec Unit
+spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Experiments (§11) and performance" do
   it "variant experiments keep every invariant (report printed)" do
     ctx <- context
@@ -120,7 +120,7 @@ spec context = describe "Experiments (§11) and performance" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playableActors)
+      ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Aggressive" playableActors)
       log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.explicitActor) (filter (not <<< _.measurable) ps)))
       length ps `shouldEqual` 15
   it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do

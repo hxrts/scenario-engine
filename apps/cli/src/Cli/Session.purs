@@ -25,17 +25,17 @@ import Views.BalanceSheet (linksOf)
 import Effects.System (closeInput, files, now, ownerOf, resolveSeed, writeLine)
 import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Assembly.Recipe (encodeSpec)
-import Assembly.Premise (PossibleWorldParts, Premise(..))
+import Assembly.Composition (CompositionParts, Origin(..))
 import Assembly.Types (PreparedRun)
 import Run (Run)
-import Schema.PossibleWorld (gameIdOf, possibleWorldRef)
+import Schema.Composition (gameIdOf, compositionRef, premisesText)
 import Premises.Load (loadFrom)
 import Type.Row (type (+))
 import Views.Common (quantity)
 
-type Options = { premise :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
+type Options = { composition :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
-type Prepared = { parts :: PossibleWorldParts, game :: PreparedRun }
+type Prepared = { parts :: CompositionParts, game :: PreparedRun }
 
 type SESSION r = OBSERVE + STORE + LIVE + CLOCK + ENTROPY + PROCESS + CONSOLE + r
 
@@ -48,11 +48,11 @@ humansOf o = map Id (filter (_ /= "") (split (Pattern ",") o.humans))
 
 -- | The game to play, or why there is none. Nothing is opened or written until this succeeds.
 prepare :: forall r. Options -> Run (FILES + r) (Either String Prepared)
-prepare o = loadFrom files (o.premise <> "/v0") <#> case _ of
+prepare o = loadFrom files (o.composition <> "/v0") <#> case _ of
   Left e -> Left e
   Right parts | unknown <- unknownSeats (humansOf o) parts.config, unknown /= [] ->
-    Left ("error: --humans names no seat of this premise: " <> joinWith ", " (map show unknown))
-  Right parts -> case traverse_ (checkRounds parts.possibleWorld) o.rounds *> assemble (PossibleWorldPremise parts) (liveBindings (humansOf o) parts.config) [] of
+    Left ("error: --humans names no seat of this composition: " <> joinWith ", " (map show unknown))
+  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assemble (FromComposition parts) (liveBindings (humansOf o) parts.config) [] of
     Left e -> Left (show e)
     Right assembled -> Right { parts, game: withRounds o.rounds assembled }
 
@@ -64,11 +64,11 @@ session o { parts, game } = do
   created <- now
   owner <- ownerOf "session"
   let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.possibleWorld), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
   startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do
-      writeLine (possibleWorldRef parts.possibleWorld <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
+      writeLine (compositionRef parts.composition <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       for_ (linksOf o.id (unwrap seed) game.manifest.initial.actors) \l -> writeLine ("Balance sheet of " <> l.actor <> ": " <> l.path)
       for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
       out <- playLive { seed, game, id: o.id, window: o.window, briefing, report: report humans }
@@ -80,7 +80,7 @@ session o { parts, game } = do
         Right _ -> Right unit <$ writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> evidenceDir o <> ")")
   where
   humans = humansOf o
-  briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.possibleWorld.explicitActors)
+  briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
 
 -- | What is shown after each round: the human seats' balance sheets.
 report :: Array ActorId -> RoundResult -> Array String

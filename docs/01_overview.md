@@ -17,7 +17,7 @@ Two roles sit around the engine:
 
 Speech transcription and the newspaper are separate components, built outside this repository, that use its API ([06 §8.2](06_simulator.md#82-external-services)). One submits what a player said as text. The other reads what a round produced and writes the front page.
 
-**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference Premise ([05](05_meridian.md)). Comparing several Runs of one Premise, which differ in a shock, an override or a seed, is the scenario planning the game is for.
+**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes part of an economy, and a PremiseComposition, an ordered list of Premises, describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference PremiseComposition ([05](05_meridian.md)). Comparing several Runs of one PremiseComposition, which differ in a shock, an override or a seed, is the scenario planning the game is for.
 
 ## Terms
 
@@ -25,14 +25,14 @@ These 17 anchors are the project's vocabulary, and this is the one place they ar
 
 Launching and playing:
 
-- **Premise.** What a Run is launched from, such as *Meridian*: the authored description of a set of possible Worlds and the choices it leaves open.
-- **Run.** One realization of a Premise, played Round by Round and recorded. A derived Run starts from a stored one, and a Run set is several Runs compared together.
+- **Premise.** An authored, composable description of part of an economy, such as an energy shock or a set of Actors. A PremiseComposition is an ordered list of Premises that together describe a set of possible Worlds and is what a Run is launched from, such as *Meridian*.
+- **Run.** One realization of a PremiseComposition, played Round by Round and recorded. A derived Run starts from a stored one, and a Run set is several Runs compared together.
 - **Round.** One step of a Run, in which every decision is made on the same opening World and all of them resolve as one update.
-- **World.** The complete economic state at a Round boundary, including the pending Obligations, the Laws in force and the seed. A possible World is one a Premise allows, a realized World is one a Run produced, a round-end World is what a Round ends with, and world laws are the Laws in force.
+- **World.** The complete economic state at a Round boundary, including the pending Obligations, the Laws in force and the seed. A possible World is one a PremiseComposition allows, a realized World is one a Run produced, a round-end World is what a Round ends with, and world laws are the Laws in force.
 
 Participants:
 
-- **Actor.** The economic record of one participant: its accounts, its Capabilities and its kind. A Playable Actor is played by a human or an LLM, a non-playable Actor is run by a Strategy the Premise defines, and an Aggregate stands for an implicit population or institution.
+- **Actor.** The economic record of one participant: its accounts, its Capabilities and its kind. A Playable Actor is played by a human or an LLM, a non-playable Actor is run by a Strategy its PremiseComposition defines, and an Aggregate stands for an implicit population or institution.
 - **Aggregate.** An Actor holding the residual accounts and baseline behaviour of an implicit population or institution.
 - **Capability.** What an Actor may do, stated as a condition on a party.
 - **Strategy.** Anything that decides for an Actor from what it can see: declarative rules, an AI agent or a human.
@@ -47,7 +47,7 @@ The economy:
 
 What governs change:
 
-- **Law.** A rule over Stocks or Flows, applied each Round or on an action, that emits a settled Flow, refuses, or withholds a portion. A Premise's Rules, recurring flows and levies all compile to Laws.
+- **Law.** A rule over Stocks or Flows, applied each Round or on an action, that emits a settled Flow, refuses, or withholds a portion. The Rules, recurring flows and levies a Premise writes all compile to Laws.
 
 Agreements:
 
@@ -64,7 +64,7 @@ This section gives the shape of a typical session.
 | Players | 10–20 |
 | Session length | About 6 hours, including meals |
 | Rounds | 4–8 |
-| Simulated period | 5 years in the reference Premise |
+| Simulated period | 5 years in the reference PremiseComposition |
 | World | One shared timeline |
 | Player roles | Countries, institutions, corporations, and smaller economic participants |
 | Input | Out-of-band negotiation, oral announcements transcribed by a separate component, and AI-interpreted actions |
@@ -86,7 +86,7 @@ This section describes what a player experiences in one round. Each round runs t
 
 This section explains which parts of the economy players decide over directly and which they experience only through its effects.
 
-The explicit economy contains the actors whose decisions are played one by one. Governments, companies, and institutions in a given Run are chosen from the Premise. Which actors are played and which are left to the economy is a choice made per Run ([04](04_run.md)).
+The explicit economy contains the actors whose decisions are played one by one. Governments, companies, and institutions in a given Run are chosen from the PremiseComposition. Which actors are played and which are left to the economy is a choice made per Run ([04](04_run.md)).
 
 The implicit economy works like a backdrop: a compact representation of a much larger world. Millions of small businesses might be one aggregate that holds their combined resources and responds to conditions. It is not scenery. Its demand, supply, and investment move prices and shape the results of player decisions.
 
@@ -109,11 +109,11 @@ This section explains how small participants can shape a larger economy. Both me
 
 ## 6. Evaluation
 
-This section says how a Premise judges whether play went well. There is no single winner.
+This section says how a PremiseComposition judges whether play went well. There is no single winner.
 
-Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. A Premise defines no system-level measure: the whole-economy views show how the economy as a whole went ([06 §11](06_simulator.md#11-experiments)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
+Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. A PremiseComposition defines no system-level measure: the whole-economy views show how the economy as a whole went ([06 §11](06_simulator.md#11-experiments)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
 
-A Premise is judged against these questions:
+A PremiseComposition is judged against these questions:
 
 - Do small players matter?
 - Do governments have reasons to negotiate?
@@ -127,9 +127,9 @@ The simulator's indicators support this judgment but do not replace playtesting 
 
 ## 7. Design Principles
 
-This section lists the rules that every Premise and every rule should respect.
+This section lists the rules that every PremiseComposition and every rule should respect.
 
-- **One world, many scales.** A Premise can be played at any level of detail, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_kernel.md#inv-14)).
+- **One world, many scales.** A PremiseComposition can be played at any level of detail, from a few great powers to a crowd of small participants, without changing what the world contains ([INV-14](02_kernel.md#inv-14)).
 - **Same rules for everyone.** Every participant, human or not, acts through the same kinds of decision under the same rules, so no seat gets special mechanics ([INV-01](02_kernel.md#inv-01)).
 - **Diplomacy is free; joint candidate Transactions are binding.** Players may negotiate however they like, but only what every party has signed takes effect, and every joint candidate Transaction must be paid for.
 - **Unequal but interdependent.** Power is deliberately unequal, yet every role has a capability, a dependency that others control, and an objective that others can help or obstruct. Agency matters more than equal starting resources.
@@ -140,8 +140,8 @@ This section lists the rules that every Premise and every rule should respect.
 ## 8. Document Map
 
 - [02 Kernel](02_kernel.md): what any World can be made of, and the invariants of the economy.
-- [03 Premise](03_premise.md): how a Premise is authored, and the vocabulary that compiles to the kernel.
-- [04 Run](04_run.md): how a Premise is assembled and realized, Round by Round.
-- [05 Meridian](05_meridian.md): *Meridian*, the reference Premise.
+- [03 Premise](03_premise.md): how Premises are authored and composed, and the vocabulary that compiles to the kernel.
+- [04 Run](04_run.md): how a PremiseComposition is assembled and realized, Round by Round.
+- [05 Meridian](05_meridian.md): *Meridian*, the reference PremiseComposition.
 - [06 Simulator](06_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
 - [07 Architecture](07_architecture.md): guidelines and the structure of the implementation.

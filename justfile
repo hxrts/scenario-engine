@@ -55,16 +55,16 @@ _premises:
     spago run -p sp-cli --main Transcript
     spago run -p sp-server --main OpenApi
 
-# One Premise's OpenAPI documents: its references list the World's names (--server url, --out dir)
+# One PremiseComposition's OpenAPI documents: its references list the names the composed World has (--server url, --out dir)
 [positional-arguments]
-openapi premise="meridian" *args:
+openapi composition="meridian" *args:
     @just _premises
-    p="$1"; shift; spago run -p sp-server --main OpenApi -- --premise "$p" "$@"
+    p="$1"; shift; spago run -p sp-server --main OpenApi -- --composition "$p" "$@"
 
 # fmt-check, deps, layout, derived, build, test
 check: _fmt-check build _deps _layout _impurity _derived test _docs
 
-# docs/05's marked tables against the compiled premise
+# docs/05's marked tables against the compiled composition
 _docs: _premises
     node scripts/check/docs.js --samples
     node scripts/check/docs.js
@@ -143,13 +143,13 @@ serve *args:
     @scripts/free-port.sh "$@"
     spago run -p sp-server -- "$@"
 
-# A production build of one premise: only its compiled files, under build/premises/<id>, with no
+# A production build of one composition: only its compiled files, under build/premises/<id>, with no
 # fixtures and no capstone. Serve it with SETTINGS_DIR=build/premises/<id> (docs/06 §8.1).
 [positional-arguments]
-build-prod premise: _ui _dashboard
-    rm -rf build/premises/{{premise}}
-    mkdir -p build/premises/{{premise}}
-    SETTINGS_DIR=build/premises/{{premise}} spago run -p sp-cli --main Compile -- --only {{premise}}
+build-prod composition: _ui _dashboard
+    rm -rf build/premises/{{composition}}
+    mkdir -p build/premises/{{composition}}
+    SETTINGS_DIR=build/premises/{{composition}} spago run -p sp-cli --main Compile -- --only {{composition}}
 
 # One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.
 live-interpret:

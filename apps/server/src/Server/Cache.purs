@@ -2,7 +2,7 @@
 -- | decodes the whole run; a page of the dashboard asks for ten views at once, so the decoded run is
 -- | kept after its first read. A running run is never kept (its rounds are still arriving), and
 -- | every write operation clears the kept runs, so a reply never shows a run older than the store.
--- | The agency analysis plays several whole games on the event loop and depends only on the premise
+-- | The agency analysis plays several whole games on the event loop and depends only on the composition
 -- | and its query, so its successful result is kept for the server's lifetime.
 module Server.Cache (Profiles, cached, cachedAgency) where
 

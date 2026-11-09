@@ -1,4 +1,4 @@
--- | The capstone run as the test suites read it: the Meridian premise assembled with the capstone's seat
+-- | The capstone run as the test suites read it: the Meridian composition assembled with the capstone's seat
 -- | bindings (and its counterfactual's), its expectations and objectives, and the run it produces. The
 -- | values come from `Premises.Meridian.Capstone`. Test support only.
 module Testkit.Capstone (Capstone, load) where
@@ -10,7 +10,7 @@ import Effect.Aff (Aff)
 import Assembly.Types (PreparedRun)
 import Premises.Meridian.Capstone as C
 import Premises.Meridian.Capstone (ObjectiveExpect, RoundExpect)
-import Testkit.Meridian (orThrow, premise)
+import Testkit.Meridian (orThrow, meridianParts)
 
 type Capstone =
   { rounds :: Int
@@ -25,7 +25,7 @@ type Capstone =
 -- | The capstone's game and its counterfactual, with their expectations and objectives.
 load :: Aff Capstone
 load = do
-  p <- premise
+  p <- meridianParts
   game <- orThrow (C.game p)
   counterfactual <- orThrow (C.counterfactualGame p)
   pure

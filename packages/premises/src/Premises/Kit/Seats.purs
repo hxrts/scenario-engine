@@ -19,7 +19,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (coverage, institutional)
 import Schema.Build.World (definition, noActor, objective)
-import Schema.PossibleWorld (ActorDefinition, Criterion, Fallback)
+import Schema.Composition (ActorDefinition, Criterion, Fallback)
 import Schema.Recurring (Flow, Requirement)
 import Premises.Kit.Holdings (HoldingTable, accountsIn)
 

@@ -14,11 +14,11 @@ module Premises.Meridian.Fixtures.Common
 import Premises.Kit.Prelude (Capability, Json, Maybe(..), Tuple)
 
 import Foreign.Object as Object
-import Assembly.Premise (PossibleWorldParts)
+import Assembly.Composition (CompositionParts)
 import Laws.Types (ActorId, ResourceId)
 import Premises.Kit.Fixtures (Cut, FixtureSpec, KeptActor)
 import Premises.Kit.Fixtures as Kit
-import Premises.Meridian (defaultDials, gameSeed, meridian)
+import Premises.Meridian (compositionWith, defaultDials, gameSeed, meridian)
 import Premises.Meridian.Names (n)
 import Schema.Build.World (emptyCirculation)
 
@@ -46,8 +46,8 @@ cut =
 defaultFixture :: FixtureSpec
 defaultFixture = { cut, candidateTransactions: Nothing, expect: Nothing, rounds: Nothing }
 
-base :: PossibleWorldParts
-base = { possibleWorld: (meridian defaultDials).possibleWorld, config: (meridian defaultDials).config, presets: Object.empty }
+base :: CompositionParts
+base = { composition: compositionWith defaultDials, config: (meridian defaultDials).config, presets: Object.empty }
 
 -- | The fixture's JSON, named `name`, filtered from Meridian under its seed.
 fixture :: String -> FixtureSpec -> Tuple String Json
