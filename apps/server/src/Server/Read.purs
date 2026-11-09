@@ -36,7 +36,7 @@ import Game.Assemble (assemblePreset, configuredSeats)
 import Server.Settings (Settings, chosen, ofRun, ofSpec)
 import Settings.Presets (defaultPresets)
 import Views.Actions as Actions
-import Views.Agency (AgencyProfile, agencyCriteria)
+import Views.Agency (AgencyProfile, agencyCriteria, agencyProfiles, agencyTable)
 import Effects.Api (AgencyQuery)
 import Views.Assertions as Assertions
 import Views.Balance as Balance
@@ -207,11 +207,11 @@ compareView settings { runs: ids, market } = do
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the setting's
 -- | seats playing the preset against the alternative.
 agencyView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
-agencyView = agencyReply "table" (ok Keys.table <<< Compare.agencyTable)
+agencyView = agencyReply "table" (ok Keys.table <<< agencyTable)
 
 -- | `GET /api/agency/detail`: the same analysis, each criterion under the baseline and the alternative.
 agencyDetailView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
-agencyDetailView = agencyReply "detail" \ps -> ok Keys.agencyDetail { criteria: agencyCriteria ps }
+agencyDetailView = agencyReply "detail" \ps -> ok Keys.agencyDetail { criteria: agencyCriteria ps, profile: agencyProfiles ps }
 
 agencyReply :: forall r. String -> (Array AgencyProfile -> Run (READS r) Answer) -> Settings -> AgencyQuery -> Run (READS r) Answer
 agencyReply kind reply settings { setting, playerSeed, preset, alternative } = case chosen settings setting, Int.fromString (fromMaybe "1" playerSeed) of

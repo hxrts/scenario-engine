@@ -188,7 +188,7 @@ assertions :: ViewKey Table
 assertions = key Assertions table
 
 -- | The agency analysis beyond its table.
-agencyDetail :: Shape { criteria :: Table }
+agencyDetail :: Shape { criteria :: Table, profile :: Table }
 agencyDetail = viewShape
 
 objectives :: ViewKey Table

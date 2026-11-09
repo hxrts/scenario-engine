@@ -22,6 +22,7 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.String (Pattern(..), stripPrefix)
 import Foreign.Object as Object
 import Effect.Aff (Aff)
+import Views.Agency (agencyTable)
 import Views.Assertions (assertions)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load)
@@ -183,7 +184,7 @@ spec context = describe "Capstone (DSL-authored run)" do
             , Compare.baselineDiff sr [ other ]
             , (Compare.configDiff sr [ other ]).table
             , Compare.keyValues (const (Just ctx.gameboard)) runs
-            , Compare.agencyTable []
+            , agencyTable []
             ]
           <> either (const []) (\t -> [ t ]) (Balances.balances sr 1)
           <> either (const []) (\t -> [ t ]) (Balances.events sr 1)

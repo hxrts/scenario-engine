@@ -317,7 +317,7 @@ With both seeds and every draw key fixed, the difference is the intervention's t
 
 For each Actor, the simulator replays the game with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_test_instance.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
 
-The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). **Planned:** an agency profile per role.
+The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Actor: its measures under the alternative, and its criteria met either way.
 
 ### 10.5 Saved comparisons
 

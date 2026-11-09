@@ -28,6 +28,7 @@ import Adapters.Filesystem (fileOps)
 import Settings.Layout (fixturePath)
 import Settings.Tree (readRootFile)
 import Experiments.Agency (agency, counterfactual, playerSeedRuns)
+import Views.Agency (agencyProfiles)
 import Checks.Objectives (evaluateObjectives)
 import Settings.Load (loadLiteral)
 import Settings.Literal (literalGame)
@@ -66,6 +67,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
     for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
     (any (not <<< null <<< _.criteria) ps) `shouldEqual` true
+    length (agencyProfiles ps).rows `shouldEqual` length ps
     g <- everySeat ctx "Conservative"
     profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive

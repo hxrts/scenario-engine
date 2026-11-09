@@ -90,7 +90,7 @@ compare :: Array String -> Aff (Either String CompareView)
 compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
 
 -- | The agency analysis beyond its table: each criterion under the baseline and the alternative.
-agencyDetail :: Aff (Either String { criteria :: Table })
+agencyDetail :: Aff (Either String { criteria :: Table, profile :: Table })
 agencyDetail = typed Keys.agencyDetail (AgencyDetail { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | The agency analysis against the fixed baseline.

@@ -10,7 +10,6 @@ module Views.Compare
   , finalState
   , baselineDiff
   , configDiff
-  , agencyTable
   , sameSpecification
   , keyValues
   , netWorthCharts
@@ -33,7 +32,6 @@ import Data.Foldable (any, lookup, sum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
-import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
@@ -129,20 +127,9 @@ parameterColumn = column "Parameter" "A specification setting, compared across t
 unitColumn :: Column
 unitColumn = column "Unit" "The unit of this row's values."
 
-agencyColumns :: Array Column
-agencyColumns =
-  [ column "Alternative" "A counterfactual choice the Actor could have made instead."
-  , column "Price change" "Change in the market price the alternative would cause."
-  , column "Others' holdings" "Change in the other Actors' holdings under the alternative."
-  , column "Aggregate holdings" "Change in the Aggregate's holdings under the alternative."
-  , column "Institutional decisions" "Decisions made through the Aggregates' collective procedures under the alternative."
-  , column "Own criteria changed" "Whether the Actor's own objective criteria change under the alternative."
-  , column "Measurable" "Whether the effect can be measured from the run's records."
-  ]
-
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ engineColumn, unitsColumn, marketDefinitions, actorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ] <> agencyColumns
+columns = [ engineColumn, unitsColumn, marketDefinitions, actorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.
@@ -241,13 +228,6 @@ sameSpecification runs = case uncons runs of
   where
   specOf :: StoredRun -> Spec
   specOf r = r.spec { playerSeed = Nothing, source = Nothing, kind = Nothing }
-
-agencyTable :: Array AgencyProfile -> Table
-agencyTable ps =
-  { title: "Agency"
-  , columns: names ([ col.actor ] <> agencyColumns)
-  , rows: map (\p -> [ show p.actor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]) ps
-  }
 
 -- | A run's column header: its name and id, or the id alone when the run has no other name.
 runHeader :: StoredRun -> String
