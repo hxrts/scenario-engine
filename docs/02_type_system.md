@@ -646,10 +646,18 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 | `OBSERVE` | `ListRuns`, `ListSummaries`, `ReadManifest`, `ReadRounds` | Run Store reads. A read program names only this row, so it cannot write. Unreadable stored fields come back as `Left` |
 | `STORE` | `CreateRun`, `SetStatus`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun` | Run Store lifecycle writes only ([`Effects.Store`](07_architecture.md#4-key-interfaces)). Round writes stay `RECORD` |
 | `API` | `Call` (an `ApiRequest`, answered by a `Reply`) | Every route of the dashboard's HTTP API. Its paths and codecs are in `Handlers.Api.Route`, and the server supplies what each operation does ([07 §4](07_architecture.md#4-key-interfaces)) |
+| `CLOCK` | `Now` | The wall clock, as ISO text |
+| `ENTROPY` | `DrawSeed` | One number from the operating system, drawn only for a player seed nobody gave |
+| `PROCESS` | `Identify` | This process's id and start time |
+| `FILES` | `Env`, `List`, `ReadFile`, `WriteFile` | Environment variables and files |
+| `CONSOLE` | `ReadLine`, `WriteLine`, `CloseInput` | The terminal |
+| `CACHE` | `LookupRun`, `KeepRun`, `LookupReply`, `KeepReply`, `ForgetRuns` | What a process keeps between requests. Generic in what is kept |
+| `PLAY` | `Play` | One whole stored play: simulated, replayed, or continued. One operation because a failure anywhere in it must settle the run |
+| `LIVE` | `PlayLive` | One live session of a registered run, settled at its end |
 
 Operation payloads are plain records in `effects`. Where a payload's type is an engine or setting-format type, its description is a `Shape` in `core` or `schema`, which gives its codec for each JSON format and its prose from one declaration.
 
-Handlers interpret these operations over typed backends; the adapters supply the raw I/O primitives ([07 §4](07_architecture.md#4-key-interfaces)).
+Every program is typed by the rows it asks for, so its type states all it can touch. Handlers interpret these operations over device primitives; the adapters supply those primitives ([07 §4](07_architecture.md#4-key-interfaces)).
 
 Handlers choose the context (live session, simulation, replay, or test). The round runner is the same code under all of them. Determinism follows from purity: identical handler inputs (seeds and recorded seat input) give an identical run, and replay is running under the replay handler. The per-context behavior is in [04](04_instantiated_game.md) and [06](06_simulator.md).
 

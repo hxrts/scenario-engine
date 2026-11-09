@@ -123,7 +123,7 @@ type NewRun =
   , created :: String
   , spec :: Spec
   , manifest :: Manifest
-  , owner :: String -- the process that created the run (`Adapters.SQLite.processOwner`): role, process id, start time
+  , owner :: String -- the process that created the run (`Effects.System.ownerOf`): role, process id, start time
   }
 
 -- | A run's row for the run list: its status, and why it failed if it did.

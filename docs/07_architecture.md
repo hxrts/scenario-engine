@@ -59,14 +59,14 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `game` | `core`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides, and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
 | `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures, and the setting file tree, as typed values. `Settings.Kit.*` holds the generic definitions, `Settings.Compose` the operations on a Setting, and `Settings.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
-| `effects` | `core`, `schema`, `board`, `policy` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
+| `effects` | `core`, `schema`, `board`, `policy`, `game` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
 | `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client; and `Handlers.Simulate`, the fold over a `Game` and its round records, which imports no `board` or `policy` module | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
-| `adapters` | `core`, `schema`, `board`, `policy`, `effects`, `handlers` (backend record types only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, settings, any handler function |
+| `adapters` | `handlers` (the device types of `Handlers.Sql` only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, settings, any handler function |
 | `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `handlers`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
 | `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure `Handlers.Simulate` only) | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
 | `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
-| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
+| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
 Two deliberate exceptions to the layering: `testkit` depends on `adapters`, because it reads the setting files through the filesystem device. `handlers` does not list `checks`, so a handler never reaches the checkers.
 
@@ -149,6 +149,14 @@ type RECORD r     = (record :: RecordF | r)         -- the round and the transcr
 type OBSERVE r    = (observe :: ObserveF | r)       -- Run Store reads: a read program has only this row
 type STORE r      = (store :: StoreF | r)           -- Run Store lifecycle writes
 type API r        = (apiCall :: ApiF | r)           -- every HTTP route: Call ApiRequest (Reply -> a)
+type CLOCK r      = (clock :: ClockF | r)           -- now
+type ENTROPY r    = (entropy :: EntropyF | r)       -- one OS draw, for a player seed nobody gave
+type PROCESS r    = (process :: ProcessF | r)       -- this process's id and start time
+type FILES r      = (files :: FilesF | r)           -- environment variables and files
+type CONSOLE r    = (console :: ConsoleF | r)       -- the terminal
+type CACHE v w r  = (cache :: CacheF v w | r)       -- what a process keeps between requests
+type PLAY r       = (play :: PlayF | r)             -- one whole stored play, its lifecycle included
+type LIVE r       = (live :: LiveF | r)             -- one live session, settled at its end
 
 runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
@@ -157,13 +165,13 @@ runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + REC
 
 **Replay** (`handlers`, `Handlers.Replay`). `runReplay` answers seats from a run's recorded Proposals and signatures (`docs/04 §11.1`). The test suites use it, and the server reaches it through `Handlers.Simulate.replayGame` to duplicate or rerun a live session.
 
-**Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`. Its devices are supplied by the composition root (`apps/cli`, `Session`): the player seed, a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` seats' transcripts are answered by the live handler, a layer over `Handlers.Seats.handleSeats`, which answers everything else:
+**Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`, and `Handlers.Session` answers `LIVE` with it. Its devices come from the composition root (`Cli.Stack`): a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` seats' transcripts are answered by the live handler, a layer over `Handlers.Seats.handleSeats`, which answers everything else:
 
 ```purescript
 runLive :: Live -> Game -> Aff (Either EngineError WorldState)
 ```
 
-**Simulation** (`handlers`, `Handlers.Simulate`). The fold over a `Game`. It reads no entropy: the player seed is resolved before the call (`Adapters.Random`).
+**Simulation** (`handlers`, `Handlers.Simulate`). The fold over a `Game`. It reads no entropy: the player seed is resolved before the call (`Effects.System.resolveSeed`, over `ENTROPY`).
 
 ```purescript
 simulate   :: Seed -> Game -> Either GameError SimRun
@@ -194,17 +202,19 @@ runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
 
 `Implementation` is supplied by `apps/server` (`Server.Implementation.implement`). Its reads come from `OBSERVE` and `views`, and its launch, derive, and resume from `game` and `Handlers.Simulate`. The dashboard's `Dashboard.Client` runs its operations through `Handlers.Api.Client` over its `fetch` device. The browser closure of `Handlers.Api.Client` imports no Node module.
 
-**Handlers and backends.** A handler interprets operations over a typed backend, a record of raw functions that its adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle) is in the handler, so a backend carries only primitives. Prompt text lives only in the model handler; adapters never hold prompts. Handlers never import adapters. The composition root (`apps/cli`, `apps/server`) builds each backend once from the adapter's primitives and passes it to the interpreter.
+**Handlers and devices.** A handler interprets operations over device primitives, records of raw functions an adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle, the SQL schema and statements) is in the handler, so an adapter knows nothing of games, runs, prompts or settings. Handlers never import adapters.
 
-Each adapter implements one backend's primitives: a model call, a digest, the store's SQL and JSON text. Test stubs and the capstone's recording replay answer the same interfaces, and neither is production code.
+**Programs and roots.** Application logic is a `Run` program over rows: the server's operations under `Server/` (the handler of `API`, in `apps/server` because it reads `views` and `experiments`) and the CLI's under `Cli/`. A composition root parses its arguments, builds devices from adapters, closes one program over its handlers, and exits: `Server`, `Server.Stack`, `Main`, `Compile`, `Transcript`, `Cli.Stack`, and the test suites. Only a root imports an adapter. `scripts/check/impurity.js` enforces this, and that an adapter imports no domain module and uses no domain word.
+
+Each adapter implements one device: a model call, a digest, one SQL statement, query or transaction. Test stubs and the capstone's recording replay answer the same interfaces, and neither is production code.
 
 **Primitive flows** (`core`). Every settlement is one event of legs with a structural cause, so the record states what moved and what produced it. The types are in the [Type System](02_type_system.md).
 
 **Setting-neutral Core.** A setting declares its own kinds of Rule, its conditions on flows, and its recurring flows in the DSL. Core names none of them, and does nothing when a setting declares none. The `banned-word` rule of `scripts/check/derived.js` keeps scenario language out of `core`.
 
-**Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only at the adapter boundary. Server startup fails `running` rows it can tell were interrupted.
+**Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only in `Handlers.SqlStore`. Server startup fails `running` rows it can tell were interrupted.
 
-The Run Store (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
+The Run Store (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `Handlers.Store`, `Handlers.SqlStore` over the SQL device of `Handlers.Sql`, and `Adapters.SQLite`). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

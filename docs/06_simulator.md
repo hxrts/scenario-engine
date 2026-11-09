@@ -141,7 +141,7 @@ Every seat has exactly one bound seat Policy. A binding for an NPC, an Aggregate
 
 Randomness enters only as a keyed `draw` on a seed ([02 §9.1](02_type_system.md#91-numerics-and-randomness)), where a Gameboard, an estimator, or a preset strategy declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
-**The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Adapters.Random.resolveSeed`. The stored spec records the resolved seed, never an absent value. The simulator functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
+**The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Effects.System.resolveSeed` over the `ENTROPY` row. The stored spec records the resolved seed, never an absent value. The simulator functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
 
 `simulate` takes a concrete seed and reads no entropy. Its signature is in [07 §4](07_architecture.md#4-key-interfaces).
 
@@ -178,7 +178,7 @@ Each round follows the canonical sequence (Type System [§8.1](02_type_system.md
 
 The engine performs phases 1–2 and 4–7. The simulator never evaluates NPC or Aggregate Policies itself, computes Representation estimates or procedure support, or repeats Aggregate actions. It delegates to the round runner, which is the same code used in live play.
 
-The simulator exposes **run to completion** (`simulate`, or `simulateWith` with a per-round sink) and **extend** (`resumeWith`, which continues from a stored snapshot). **Planned:** a single-round step operation.
+The simulator exposes **run to completion** (`simulate`, or the `PLAY` row, which persists each round) and **extend** (`PLAY`'s `Continued`, which continues from a stored snapshot). **Planned:** a single-round step operation.
 
 ### 6.1 Invalid actions and failures
 
@@ -297,7 +297,7 @@ Live sessions also keep evidence of each language-model call: the effect, model 
 
 The initial record is written before Round 1. After each round, the round record, snapshot, assertions, and metrics are saved in one transaction. If Round 4 fails, Rounds 1–3 remain available.
 
-**Schema.** The store is SQLite, accessed through the primitives of `Adapters.SQLite` and interpreted by `Handlers.Store`. Its schema version is `PRAGMA user_version`, and there is one schema, version 1:
+**Schema.** The store is SQLite, accessed through the SQL device of `Adapters.SQLite` and interpreted by `Handlers.SqlStore`, which holds the schema and every statement. Its schema version is `PRAGMA user_version`, and there is one schema, version 1:
 
 - `runs` (`id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `archived` default 0, `source`, `owner`).
 - `rounds` (`run`, `round`, `record`, `snapshot`, `assertions`, `transcripts` as a JSON array. Key `run`, `round`).
@@ -305,9 +305,9 @@ The initial record is written before Round 1. After each round, the round record
 
 There are no migrations. A change to the schema starts a new store.
 
-**Backend.** The `StoreBackend` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Adapters.SQLite` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
+**Backend.** The `StoreBackend` carries typed values only: a run's `Spec` (its string fields), its `Manifest`, and each round's record, snapshot, assertions, and transcripts. `Handlers.SqlStore` does the JSON, encoding on write and decoding on read, and the SQL. A stored text that does not decode is a `Left` in its field, naming the field, so one unreadable value does not hide the other runs.
 
-**Access.** Opening read-write creates the store if the file is new. A store at any other schema version is refused, read-write or read-only, with a message saying to move the file aside and start a new store. A read-only open never creates a file: a missing store is an error. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
+**Access.** Opening read-write creates the store if the file is new. A store at any other schema version is refused, with a message saying to move the file aside and start a new store. Writers wait up to five seconds for a lock held by another connection before reporting it busy. Metric rows carry the version of the definition they were computed under, so a projection computed under one definition is never mixed with another. The Dashboard reads whole rounds, not metric series.
 
 **Replay.** Replaying a run from its records requires a record for every round 1 to n. A missing round is an error naming the rounds, never a silent replay with no seat inputs. A record may have empty inputs. The round must exist.
 
@@ -315,7 +315,7 @@ There are no migrations. A change to the schema starts a new store.
 
 ### 8.1 Read API and run operations
 
-The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Other paths serve the dashboard's files. Replies are 200 unless stated. The server loads every setting directory under the setting root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `SETTINGS_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the kept runs. A successful agency reply is kept for the server's lifetime, since no write changes it. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
+The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does, as a program over the Run Store and system rows. Every other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Other paths serve the dashboard's files. Replies are 200 unless stated. The server loads every setting directory under the setting root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `SETTINGS_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the kept runs. A successful agency reply is kept for the server's lifetime, since no write changes it. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
 
 | Method and path | Purpose | Replies |
 |---|---|---|
