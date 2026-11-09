@@ -2,8 +2,8 @@
 -- | the `STORE` writes (`Effects.Store`), and the `RECORD` operation, which saves each round as it
 -- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder`,
 -- | the callback form the seat runners take. The handler does the logic: the round's assertions, and the run
--- | identity rule (`validRunId`). The backend is the set of raw store primitives an adapter implements
--- | (`Adapters.SQLite.sqliteBackend`); it carries typed values, and the adapter does the JSON. Runs are
+-- | identity rule (`validRunId`). The backend is the set of store operations over typed values
+-- | (`Handlers.SqlStore.sqlStore`, over a SQL device); it carries typed values. Runs are
 -- | append-only, and the metric version is recorded with each value.
 module Handlers.Store
   ( StoreBackend
@@ -14,6 +14,8 @@ module Handlers.Store
   , openRun
   , runStore
   , runObserve
+  , interpretStore
+  , interpretObserve
   , recorder
   , settle
   ) where
@@ -26,7 +28,7 @@ import Schema.Joint (Transcript)
 import Schema.Run (RunStatus, Spec)
 import Handlers.Seats (RecordSink)
 import Core.World (RoundResult, RoundRecord, WorldState)
-import Data.Array (all, any, length, uncons)
+import Data.Array (all, length, uncons)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (toCharArray)
@@ -34,6 +36,7 @@ import Effect (Effect)
 import Effect.Exception (Error, message)
 import Effect.Ref as Ref
 import Effects.Store (failRun, finish)
+import Effects.Store as Store
 import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
 import Type.Row (type (+))
@@ -104,10 +107,7 @@ validRunId s = case uncons cs of
 
 -- | Register a new run, or say why it cannot be: its id is already in the store.
 startRun :: StoreBackend -> NewRun -> Effect (Either String Unit)
-startRun b n = do
-  existing <- b.listRuns
-  if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
-  else Right <$> b.createRun n
+startRun b n = run (case_ # on _observe (interpretObserve b) # on _store (interpretStore b)) (Store.startRun n)
 
 -- | Open a run for play: registered under its id (a duplicate is a `Left`, as for `startRun`), with its `RECORD`
 -- | target from the initial World State.

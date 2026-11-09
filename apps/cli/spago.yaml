@@ -3,8 +3,6 @@ package:
   dependencies:
     - prelude
     - effect
-    - console
-    - node-fs
     - node-process
     - arrays
     - either
@@ -16,10 +14,13 @@ package:
     - newtype
     - foldable-traversable
     - sp-core
+    - run
+    - typelevel-prelude
     - sp-schema
     - sp-game
     - sp-settings
     - sp-handlers
+    - sp-effects
     - sp-adapters
     - sp-views
     - sp-flags
@@ -33,3 +34,6 @@ package:
       - spec
       - spec-node
       - sp-core
+      - sp-testkit
+      - aff
+      - refs

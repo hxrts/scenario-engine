@@ -1,7 +1,7 @@
-// The terminal: one readline interface for the session's prompts, and the lines written to it.
+// The terminal: one readline interface, and the lines written to it.
 import { createInterface } from "node:readline/promises";
 
-// If input ends (EOF, or the interface is closed) while a prompt is pending, that prompt fails with
+// If input ends (EOF, or the interface is closed) while a question is pending, it fails with
 // an error instead of never resolving, so the caller can record why it stopped.
 let rl = null;
 let closed = false;
@@ -14,7 +14,7 @@ const ensure = () => {
     closed = true;
     const reject = rejectPending;
     rejectPending = null;
-    if (reject) reject(new Error("input closed before the prompt was answered"));
+    if (reject) reject(new Error("input closed before the line was read"));
   });
   return rl;
 };
@@ -22,7 +22,7 @@ const ensure = () => {
 // One line of input after `question`, trimmed.
 export const readLineImpl = (question) => (onError, onSuccess) => {
   if (closed) {
-    onError(new Error("input closed before the prompt was answered"));
+    onError(new Error("input closed before the line was read"));
     return (_, __, done) => done();
   }
   let settled = false;

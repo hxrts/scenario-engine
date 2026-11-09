@@ -2,7 +2,7 @@
 -- | process per call, given a system prompt and an input text, returning the reply text and the path
 -- | of its raw event stream. This adapter knows nothing of prompts, JSON, or evidence: those are the
 -- | handler's (`Handlers.Llm.*`). The model ID is the only configuration.
-module Adapters.Pi (defaultModel, pi) where
+module Adapters.Pi (pi) where
 
 import Prelude
 
@@ -10,9 +10,6 @@ import Control.Monad.Error.Class (catchError, throwError)
 import Effect.Aff (Aff)
 import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Exception (Error, error, message)
-
-defaultModel :: String
-defaultModel = "openrouter/deepseek/deepseek-v4-flash-latest"
 
 foreign import piImpl :: String -> String -> String -> String -> EffectFnAff { text :: String, raw :: String }
 

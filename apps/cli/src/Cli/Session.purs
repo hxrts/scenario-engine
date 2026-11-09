@@ -1,28 +1,15 @@
--- | `session`: the facilitator console for a live game (docs/05_test_instance.md §19). Human
--- | seats type one transcript per round; every other seat is an AI agent. Each round reads all
--- | transcripts in one joint pass, then shows the front page and the balance sheets. The session's run
--- | is saved to the Run Store; a failure (a language-model backend, input ending early, a store
--- | fault) marks the run failed with its cause, and the session exits with status 1. This module
--- | composes the devices (the terminal, the clock, the evidence files, the model, the store) and the
--- | live handler, which runs each round.
-module Session (Options, session) where
+-- | `session`: the facilitator console for a live game (docs/05_test_instance.md §19). Human seats type one
+-- | transcript per round; every other seat is an AI agent. Each round reads all transcripts in one joint pass,
+-- | then shows the front page and the balance sheets. The session's run is saved to the Run Store; a failure
+-- | (a language-model backend, input ending early, a store fault) marks the run failed with its cause.
+module Cli.Session (Options, Prepared, prepare, session, evidenceDir, SESSION) where
 
 import Prelude
 
-import Adapters.Clock (nowIso)
-import Adapters.Console (closeInput, readLine, writeLine)
-import Adapters.Digest (sha256)
-import Adapters.Filesystem (fileOps, lineSink)
-import Adapters.Pi (pi)
-import Adapters.Random (resolveSeed)
-import Adapters.SQLite (open, processOwner, sqliteBackend)
-import Core.Draw (Seed)
 import Core.Map as CoreMap
+import Core.Draw (Seed)
 import Core.Types (EntityId, Id(..))
 import Core.World (RoundResult)
-import Data.Argonaut.Core (stringify)
-import Core.Shape (Format(Snapshot), encodeWith)
-import Handlers.Recording (exchangeShape)
 import Data.Array (elem, filter)
 import Data.Either (Either(..))
 import Data.Foldable (for_, traverse_)
@@ -31,98 +18,70 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), joinWith, split)
 import Data.Tuple (Tuple(..))
-import Effect (Effect)
-import Data.Int (toNumber)
-import Data.Time.Duration (Milliseconds(..))
-import Effect.Aff (attempt, delay, launchAff_)
-import Effect.Class (liftEffect)
-import Control.Monad.Error.Class (throwError)
-import Effect.Exception (error, message)
-
-import Handlers.Live (runLive)
-import Handlers.Llm.Backend (backend, evidenceShape)
-import Handlers.Llm.Joint (interpreter)
-import Handlers.Llm.Narrate (narrator)
-import Handlers.Llm.Speak (speak)
-import Views.Common (quantity)
-import Views.Metrics (roundMetrics)
-import Handlers.Store (openRun, settle)
-import Adapters.Exit (fail)
+import Effects.Play (playLive)
+import Effects.Signatures (CLOCK, CONSOLE, ENTROPY, FILES, LIVE, OBSERVE, PROCESS, STORE)
+import Effects.Store (startRun)
+import Effects.System (closeInput, files, now, ownerOf, resolveSeed, writeLine)
 import Game.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
-import Game.Setting (Setting(..))
 import Game.Recipe (encodeSpec)
+import Game.Setting (GameboardParts, Setting(..))
+import Game.Types (Game)
+import Run (Run)
 import Schema.Gameboard (gameIdOf, gameboardRef)
 import Settings.Load (loadFrom)
+import Type.Row (type (+))
+import Views.Common (quantity)
 
 type Options = { setting :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
-session :: Options -> Effect Unit
-session o = loadFrom fileOps (o.setting <> "/v0") >>= case _ of
-  Left e -> fail e
-  Right parts | unknown <- unknownSeats humans parts.config, unknown /= [] ->
-    fail ("error: --humans names no seat of this setting: " <> joinWith ", " (map show unknown))
-  Right parts -> case traverse_ (checkRounds parts.gameboard) o.rounds *> assemble (GameboardSetting parts) (liveBindings humans parts.config) [] of
-    Left e -> fail (show e)
-    Right assembled -> launchAff_ do
-      let
-        game = withRounds o.rounds assembled
-        w0 = game.world
-        dir = "runs/" <> o.id
-        briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.gameboard.actors)
-      evidence <- liftEffect (lineSink (dir <> "/calls.jsonl"))
-      exchange <- liftEffect (lineSink (dir <> "/exchanges.jsonl"))
-      let
-        llm = (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
-          { evidence = evidence <<< stringify <<< encodeWith Snapshot evidenceShape
-          , exchange = exchange <<< stringify <<< encodeWith Snapshot exchangeShape
-          }
-      -- the player seed is resolved once, here, and recorded in the session's spec
-      seed <- liftEffect (resolveSeed o.seed)
-      db <- liftEffect (open o.db)
-      let store = sqliteBackend db
-      created <- liftEffect nowIso
-      owner <- liftEffect (processOwner "session")
-      let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
-      opened <- liftEffect $ openRun store roundMetrics { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } w0
-      save <- case opened of
-        Left why -> liftEffect (fail ("error: " <> why)) *> throwError (error why)
-        Right sink -> pure sink
-      liftEffect $ writeLine (gameboardRef parts.gameboard <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
-      liftEffect $ for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
-      out <- attempt $ runLive
-        { seed
-        , input: readLine
-        , window: if o.window > 0 then Just (delay (Milliseconds (toNumber (o.window * 1000)))) else Nothing
-        , say: writeLine
-        , notify: \_ text -> liftEffect (writeLine ("  " <> text))
-        , interpret: interpreter llm w0
-        , narrate: \failed r -> do
-            front <- narrator llm failed r
-            liftEffect (report humans r front)
-            pure front
-        , speak: speak llm briefing
-        , record: save
-        }
-        game
-      liftEffect do
-        settle store o.id "" out
-        closeInput
-        let
-          failed why = do
-            writeLine ("Session failed: " <> why)
-            fail ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> dir <> ")")
-        case out of
-          -- an exception (a backend that could not be started, input ended, a store fault) fails the run
-          Left ex -> failed (message ex)
-          Right (Left e) -> failed (show e)
-          Right (Right _) -> writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> dir <> ")")
+type Prepared = { parts :: GameboardParts, game :: Game }
 
+type SESSION r = OBSERVE + STORE + LIVE + CLOCK + ENTROPY + PROCESS + CONSOLE + r
+
+-- | Where a session's evidence is written.
+evidenceDir :: Options -> String
+evidenceDir o = "runs/" <> o.id
+
+humansOf :: Options -> Array EntityId
+humansOf o = map Id (filter (_ /= "") (split (Pattern ",") o.humans))
+
+-- | The game to play, or why there is none. Nothing is opened or written until this succeeds.
+prepare :: forall r. Options -> Run (FILES + r) (Either String Prepared)
+prepare o = loadFrom files (o.setting <> "/v0") <#> case _ of
+  Left e -> Left e
+  Right parts | unknown <- unknownSeats (humansOf o) parts.config, unknown /= [] ->
+    Left ("error: --humans names no seat of this setting: " <> joinWith ", " (map show unknown))
+  Right parts -> case traverse_ (checkRounds parts.gameboard) o.rounds *> assemble (GameboardSetting parts) (liveBindings (humansOf o) parts.config) [] of
+    Left e -> Left (show e)
+    Right assembled -> Right { parts, game: withRounds o.rounds assembled }
+
+-- | Register the run, brief the humans, play it, and say how it ended. A `Left` is the line to fail with.
+session :: forall r. Options -> Prepared -> Run (SESSION r) (Either String Unit)
+session o { parts, game } = do
+  -- the player seed is resolved once, here, and recorded in the session's spec
+  seed <- resolveSeed o.seed
+  created <- now
+  owner <- ownerOf "session"
+  let
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.gameboard), playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
+  startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
+    Left why -> pure (Left ("error: " <> why))
+    Right _ -> do
+      writeLine (gameboardRef parts.gameboard <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
+      for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
+      out <- playLive { seed, game, id: o.id, window: o.window, briefing, report: report humans }
+      closeInput
+      case out of
+        Left why -> do
+          writeLine ("Session failed: " <> why)
+          pure (Left ("Saved as " <> o.id <> " with status failed (" <> o.db <> "; evidence in " <> evidenceDir o <> ")"))
+        Right _ -> Right unit <$ writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> evidenceDir o <> ")")
   where
-  humans = map Id (filter (_ /= "") (split (Pattern ",") o.humans)) :: Array EntityId
+  humans = humansOf o
+  briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.gameboard.actors)
 
-report :: Array EntityId -> RoundResult -> String -> Effect Unit
-report humans r front = do
-  writeLine ("\n=== Front page, round " <> show r.record.round <> " ===\n" <> front)
-  for_ (CoreMap.values r.world.entities) \e ->
-    when (e.id `elem` humans) $ writeLine ("Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> quantity v) (Map.toUnfoldable e.accounts)))
+-- | What is shown after each round: the front page, and the human seats' balance sheets.
+report :: Array EntityId -> RoundResult -> String -> Array String
+report humans r front =
+  [ "\n=== Front page, round " <> show r.record.round <> " ===\n" <> front ]
+    <> map (\e -> "Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> quantity v) (Map.toUnfoldable e.accounts))) (filter (\e -> e.id `elem` humans) (CoreMap.values r.world.entities))

@@ -10,14 +10,17 @@ module Effects.Store
   , setSpec
   , setArchived
   , deleteRun
+  , startRun
   ) where
 
 import Prelude
 
 import Schema.Run (RunStatus(..), Spec)
-import Data.Either (Either, either)
+import Data.Array (any)
+import Data.Either (Either(..), either)
+import Effects.Observe (listRuns)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (NewRun, STORE, StoreF(..), _store)
+import Effects.Signatures (NewRun, OBSERVE, STORE, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
 
@@ -52,3 +55,10 @@ setArchived id archived = lift _store (SetArchived id archived identity)
 -- | Remove a run with its rounds and metrics; returns how many runs were removed (0 or 1).
 deleteRun :: forall r. String -> Run (STORE + r) Int
 deleteRun id = lift _store (DeleteRun id identity)
+
+-- | Register a new run, or say why it cannot be: its id is already in the store.
+startRun :: forall r. NewRun -> Run (OBSERVE + STORE + r) (Either String Unit)
+startRun n = do
+  existing <- listRuns
+  if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
+  else Right <$> createRun n

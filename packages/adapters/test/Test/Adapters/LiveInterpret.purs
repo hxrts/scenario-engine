@@ -9,7 +9,7 @@ module Test.Adapters.LiveInterpret (main) where
 import Prelude
 
 import Adapters.Digest (sha256)
-import Adapters.Pi (defaultModel, pi)
+import Adapters.Pi (pi)
 import Control.Monad.Error.Class (throwError)
 import Schema.Joint (Transcript)
 import Core.Types (Id(..))
@@ -25,7 +25,7 @@ import Effect.Console (log)
 import Effect.Exception (error, message)
 
 import Handlers.Llm.Joint (interpreter)
-import Handlers.Llm.Backend (backend)
+import Handlers.Llm.Backend (backend, defaultModel)
 import Node.Process (exit', lookupEnv)
 import Testkit.Meridian (presetSeats)
 

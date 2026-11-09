@@ -10,7 +10,15 @@ import Schema.Decode (decodeError)
 import Core.Shape as Shape
 
 import Schema.Run (emptySpec, RunStatus(..))
-import Adapters.SQLite (Db, open, sqliteBackend)
+import Handlers.Sql (SqlDevice)
+import Testkit.Store (open, storeOver)
+import Effects.Cache (forgetRuns)
+import Effects.Signatures (CACHE, _cache)
+import Handlers.Cache (interpretCache)
+import Run (EFFECT, Run, interpret, on, runBaseEffect, send)
+import Server.Errors (Answer)
+import Views.Common (StoredRun)
+import Type.Row (type (+))
 import Core.Draw (Seed(..))
 import Data.Either (Either(..), either)
 import Data.Array (length)
@@ -18,6 +26,7 @@ import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Effect.Aff (Aff)
+import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
@@ -29,20 +38,23 @@ import Game.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore, validRunId)
 import Effects.Api (Reply)
-import Server.Cache (Cache, cached, cachedAgency, clear, newCache)
-import Server.Implementation (implement)
-import Server.Launch (failInterrupted)
+import Server.Cache (cached, cachedAgency)
+import Server.Stack (ServerCache, implement, newServerCache, runServer, systemDevices)
+import Server.Launch (startup)
 import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (anyRounds, setting)
 
+inCache :: ServerCache -> Run (CACHE StoredRun Answer + EFFECT + ()) ~> Effect
+inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
+
 type Env =
   { api :: String -> String -> String -> Aff Reply
   , store :: StoreBackend
-  , db :: Db
-  , cache :: Cache
+  , db :: SqlDevice
+  , cache :: ServerCache
   , ctx :: GameboardParts
   }
 
@@ -50,9 +62,9 @@ setup :: Aff Env
 setup = do
   ctx <- anyRounds <$> setting
   db <- liftEffect (open ":memory:")
-  cache <- liftEffect newCache
+  cache <- liftEffect newServerCache
   let
-    store = sqliteBackend db
+    store = storeOver db
     api method path body = liftEffect (route (implement [ ctx ] store cache) { method, path, query: Object.empty, body })
   pure { api, store, db, cache, ctx }
 
@@ -174,22 +186,22 @@ spec = describe "API status rules, startup and cache" do
       runStore env.store (new "left" "server:1:0")
       runStore env.store (new "session-1" "session:1:0")
       runStore env.store (new "crashed" "session:99999999:0")
-    n <- liftEffect (failInterrupted env.store)
-    n `shouldEqual` 2
+    n <- liftEffect (runStore env.store startup)
+    n `shouldEqual` Just "marked 2 interrupted run(s) failed"
     runs <- liftEffect (runObserve env.store listRuns)
     map (\r -> { id: r.id, status: r.status }) runs `shouldEqual`
       [ { id: "run-1", status: Completed }, { id: "left", status: Failed }, { id: "session-1", status: Running }, { id: "crashed", status: Failed } ]
   it "the run cache keeps a finished run until a write, and never keeps a running one" do
     env <- setup
     launch env 2
-    run <- liftEffect (loadRun env.cache env.store "run-1") >>= case _ of
+    run <- liftEffect (runServer { system: systemDevices, store: env.store, cache: env.cache } (loadRun "run-1")) >>= case _ of
       Right r -> pure r
       Left _ -> liftEffect (throw "the run should load")
-    c <- liftEffect newCache
+    c <- liftEffect newServerCache
     loads <- liftEffect (Ref.new 0)
     let
-      load r = Ref.modify_ (_ + 1) loads *> pure (Right r)
-      read r = void (liftEffect (cached c "x" (load r)))
+      load r = liftEffect (Ref.modify_ (_ + 1) loads) *> pure (Right r)
+      read r = void (liftEffect (inCache c (cached "x" (load r))))
       count = liftEffect (Ref.read loads)
     read run { status = Running }
     read run { status = Running }
@@ -197,7 +209,7 @@ spec = describe "API status rules, startup and cache" do
     read run
     read run
     count >>= (_ `shouldEqual` 3)
-    liftEffect (clear c)
+    liftEffect (inCache c forgetRuns)
     read run
     count >>= (_ `shouldEqual` 4)
   it "the comparison categorises configuration rows, marks cells server-side, and lists a skipped run" do
@@ -216,7 +228,7 @@ spec = describe "API status rules, startup and cache" do
     done <- env.api "GET" "/api/runs/run-1/overview" ""
     done.body `shouldSatisfy` contains (Pattern "\"resumable\":true")
     liftEffect (runStore env.store (failRun "run-1" "boom"))
-    liftEffect (clear env.cache)
+    liftEffect (inCache env.cache forgetRuns)
     failed <- env.api "GET" "/api/runs/run-1/overview" ""
     failed.body `shouldSatisfy` contains (Pattern "\"resumable\":false")
   it "a session has no preset: duplicate and rerun replay it, variant and counterfactual and resume are refused" do
@@ -246,11 +258,11 @@ spec = describe "API status rules, startup and cache" do
     counterfactual.status `shouldEqual` 400
     (env.api "POST" "/api/runs/session-1/resume" "{\"rounds\":3}" <#> _.status) >>= (_ `shouldEqual` 400)
   it "the agency cache keeps a success and not a failure" do
-    c <- liftEffect newCache
+    c <- liftEffect newServerCache
     loads <- liftEffect (Ref.new 0)
     let
-      answer status = Ref.modify_ (_ + 1) loads *> pure { status, body: "" }
-      read key status = void (liftEffect (cachedAgency c key (map Right (answer status))))
+      answer status = liftEffect (Ref.modify_ (_ + 1) loads) *> pure { status, body: "" }
+      read key status = void (liftEffect (inCache c (cachedAgency key (map Right (answer status)))))
       count = liftEffect (Ref.read loads)
     read "bad" 400
     read "bad" 400

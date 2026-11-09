@@ -29,6 +29,35 @@ module Effects.Signatures
   , RunSummary
   , StoredManifest
   , StoredRound
+  , CLOCK
+  , ClockF(..)
+  , _clock
+  , ENTROPY
+  , EntropyF(..)
+  , _entropy
+  , PROCESS
+  , ProcessF(..)
+  , ProcessIdentity
+  , _process
+  , FILES
+  , FilesF(..)
+  , FileError
+  , _files
+  , CONSOLE
+  , ConsoleF(..)
+  , _console
+  , CACHE
+  , CacheF(..)
+  , _cache
+  , PLAY
+  , PlayF(..)
+  , PlayRequest(..)
+  , PlayOutcome
+  , _play
+  , LIVE
+  , LiveF(..)
+  , LiveRequest
+  , _live
   ) where
 
 import Prelude
@@ -37,9 +66,12 @@ import Core.Invariants (Failure)
 import Core.Proposal (ProposalBody)
 import Schema.Joint (JointProposal, Transcript)
 import Schema.Run (RunStatus, Spec)
+import Core.Draw (Seed)
+import Core.Engine.Commit (EngineError)
 import Core.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
+import Game.Types (Game)
 import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Type.Proxy (Proxy(..))
 
@@ -170,3 +202,125 @@ _observe = Proxy
 
 _store :: Proxy "store"
 _store = Proxy
+
+-- | The wall clock: now, as ISO text.
+data ClockF a = Now (String -> a)
+
+derive instance Functor ClockF
+
+type CLOCK r = (clock :: ClockF | r)
+
+_clock :: Proxy "clock"
+_clock = Proxy
+
+-- | The OS's entropy: one fresh number, drawn only for a player seed nobody gave. In-world randomness is
+-- | the pure keyed `Core.Draw.draw` and is not an operation.
+data EntropyF a = DrawSeed (Int -> a)
+
+derive instance Functor EntropyF
+
+type ENTROPY r = (entropy :: EntropyF | r)
+
+_entropy :: Proxy "entropy"
+_entropy = Proxy
+
+-- | Who this process is: its id and its start time, as text.
+type ProcessIdentity = { pid :: String, started :: String }
+
+data ProcessF a = Identify (ProcessIdentity -> a)
+
+derive instance Functor ProcessF
+
+type PROCESS r = (process :: ProcessF | r)
+
+_process :: Proxy "process"
+_process = Proxy
+
+-- | Why a path could not be read.
+type FileError = { path :: String, reason :: String }
+
+-- | Files and the environment: a variable, a directory's names, a file's text, and writing a file, its
+-- | directory made first.
+data FilesF a
+  = Env String (Maybe String -> a)
+  | List String (Either FileError (Array String) -> a)
+  | ReadFile String (Either FileError String -> a)
+  | WriteFile String String a
+
+derive instance Functor FilesF
+
+type FILES r = (files :: FilesF | r)
+
+_files :: Proxy "files"
+_files = Proxy
+
+-- | The terminal: a line read after its question, a line written, and the end of input.
+data ConsoleF a
+  = ReadLine String (String -> a)
+  | WriteLine String a
+  | CloseInput a
+
+derive instance Functor ConsoleF
+
+type CONSOLE r = (console :: ConsoleF | r)
+
+_console :: Proxy "console"
+_console = Proxy
+
+-- | What a process keeps between requests, by key: decoded runs, which a write forgets, and replies,
+-- | which last. The row is generic in both because the types belong to the program that asks.
+data CacheF run reply a
+  = LookupRun String (Maybe run -> a)
+  | KeepRun String run a
+  | LookupReply String (Maybe reply -> a)
+  | KeepReply String reply a
+  | ForgetRuns a
+
+derive instance Functor (CacheF run reply)
+
+type CACHE run reply r = (cache :: CacheF run reply | r)
+
+_cache :: Proxy "cache"
+_cache = Proxy
+
+-- | One whole stored play: a simulated game from its start, a game whose results are already known (a
+-- | replay), or a stored run continued from its last snapshot.
+data PlayRequest
+  = Simulated { seed :: Seed, game :: Game, run :: NewRun }
+  | Replayed { game :: Game, run :: NewRun, records :: Array RoundResult, value :: Either EngineError WorldState }
+  | Continued { id :: String, seed :: Seed, game :: Game, world :: WorldState, done :: Int, spec :: Spec }
+
+-- | A game that did not start, with nothing stored; or the played result, the engine's error rendered.
+type PlayOutcome = Either String (Either String Unit)
+
+-- | Playing is one operation because its lifecycle wraps the game: a failure anywhere in it is caught,
+-- | the run is settled, and the error goes on. A program cannot express that around separate operations.
+data PlayF a = Play PlayRequest (PlayOutcome -> a)
+
+derive instance Functor PlayF
+
+type PLAY r = (play :: PlayF | r)
+
+_play :: Proxy "play"
+_play = Proxy
+
+-- | A live session of a run already registered: its game and id, what the seats are briefed with, how
+-- | long a propose window lasts in seconds (0 for none), and the lines shown after each front page.
+type LiveRequest =
+  { seed :: Seed
+  , game :: Game
+  , id :: String
+  , window :: Int
+  , briefing :: EntityId -> String
+  , report :: RoundResult -> String -> Array String
+  }
+
+-- | Play a live session and settle its run. The reply is why it failed, rendered, or `Right`.
+data LiveF a = PlayLive LiveRequest (Either String Unit -> a)
+
+derive instance Functor LiveF
+
+type LIVE r = (live :: LiveF | r)
+
+_live :: Proxy "live"
+_live = Proxy

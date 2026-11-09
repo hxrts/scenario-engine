@@ -21,7 +21,6 @@ import Prelude
 
 import Core.Shape (Shape)
 import Data.Either (Either(..), either)
-import Effect (Effect)
 import Effects.Api (Reply)
 import Effects.Signatures (RunError(..))
 import Handlers.Api.Route as Route
@@ -59,28 +58,28 @@ type Answer = Either ApiError Reply
 apiReply :: Answer -> Reply
 apiReply = either (\e -> Route.failWith (status e) (message e)) identity
 
-badRequest :: String -> Effect Answer
+badRequest :: forall m. Applicative m => String -> m Answer
 badRequest = pure <<< Left <<< BadRequest
 
-notFound :: String -> Effect Answer
+notFound :: forall m. Applicative m => String -> m Answer
 notFound = pure <<< Left <<< NotFound
 
-conflict :: String -> Effect Answer
+conflict :: forall m. Applicative m => String -> m Answer
 conflict = pure <<< Left <<< Conflict
 
-internal :: String -> Effect Answer
+internal :: forall m. Applicative m => String -> m Answer
 internal = pure <<< Left <<< Internal
 
 -- | A 200 reply through the reply's shape.
-ok :: forall a. Shape a -> a -> Effect Answer
+ok :: forall m a. Applicative m => Shape a -> a -> m Answer
 ok s = pure <<< Right <<< Route.reply s 200
 
 -- | A view, or a 400 with the reason it cannot be given (for example an out-of-range round).
-viewOr :: forall a. Shape a -> Either String a -> Effect Answer
+viewOr :: forall m a. Applicative m => Shape a -> Either String a -> m Answer
 viewOr s = either badRequest (ok s)
 
 -- | A run's reply, or a 404 for a run that is missing and a 500 for one that cannot be read.
-replyOr :: forall a. String -> (a -> Effect Answer) -> Either RunError a -> Effect Answer
+replyOr :: forall m a. Applicative m => String -> (a -> m Answer) -> Either RunError a -> m Answer
 replyOr id f = case _ of
   Right a -> f a
   Left Missing -> notFound ("no run " <> id)

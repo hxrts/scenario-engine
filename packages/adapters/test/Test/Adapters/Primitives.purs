@@ -11,11 +11,9 @@ import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
 import Settings.Tree (readRootFile, readSetting)
-import Adapters.Random (resolveSeed)
-import Core.Draw (Seed(..))
+import Adapters.Random (drawOsSeed)
 import Data.Array (length, sort)
 import Data.Either (Either(..), isLeft)
-import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Data.String.CodeUnits as SCU
 import Effect.Aff (attempt)
@@ -30,12 +28,8 @@ spec = describe "Primitives: seed, clock, setting reads" do
     out <- attempt (readLine "> ")
     isLeft out `shouldEqual` true
 
-  it "an injected seed is used as given" do
-    s <- liftEffect (resolveSeed (Just (Seed 7)))
-    s `shouldEqual` Seed 7
-
-  it "an absent seed is drawn from the OS, within the seed range" do
-    Seed n <- liftEffect (resolveSeed Nothing)
+  it "the OS draw is within the seed range" do
+    n <- liftEffect drawOsSeed
     (n >= 0 && n < 2147483647) `shouldEqual` true
 
   it "the clock reads ISO 8601 in UTC" do

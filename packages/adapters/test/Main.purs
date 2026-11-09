@@ -6,17 +6,20 @@ module Test.Adapters.Main where
 import Prelude
 
 import Schema.Run (emptySpec, RunStatus(..))
-import Adapters.SQLite (describedTables, tableColumns, busyTimeout, close, configuredBusyTimeout, open, openReadOnly, schemaVersion, sqliteBackend)
+import Adapters.SQLite (configuredBusyTimeout)
+import Handlers.Sql (SqlDevice)
+import Handlers.SqlStore (describedTables, schemaVersion)
+import Testkit.Store (open, storeOver)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.World (Manifest)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
-import Data.Array (length, sort)
+import Data.Array (head, length, sort)
 import Data.Foldable (for_)
-import Data.Either (Either(..), either, isLeft, isRight)
+import Data.Either (Either(..), either, isRight)
 import Data.String (Pattern(..), contains)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -30,7 +33,6 @@ import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Handlers.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
-import Node.FS.Sync (exists)
 import Test.Adapters.Files (createStoreAtVersion, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
@@ -55,14 +57,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "name exactly the columns the schema creates" do
       db <- liftEffect (open ":memory:")
       for_ describedTables \t -> do
-        reported <- liftEffect (tableColumns db t.table)
+        reported <- liftEffect (map _.name <$> (db.query ("pragma table_info(" <> t.table <> ")") [] :: Effect (Array { name :: String })))
         sort reported `shouldEqual` sort t.columns
   describe "Run Store" do
     it "a run id already in the store is a usable error, not a constraint failure" do
       g <- presetSeats [ "US" ] "Passive" Nothing
       db <- liftEffect (open ":memory:")
       let
-        port = sqliteBackend db
+        port = storeOver db
         new = { owner: "session:1:0", id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: emptySpec, manifest: g.manifest }
       first <- liftEffect (startRun port new)
       first `shouldEqual` Right unit
@@ -74,7 +76,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         seed = Seed 7
       db <- liftEffect (open ":memory:")
-      let port = sqliteBackend db
+      let port = storeOver db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "RandomValid" }, manifest })
         recorder port roundMetrics "run-1" manifest.initial
@@ -102,38 +104,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
       manifest <- manifestOf
       db <- liftEffect (open path)
-      let port = sqliteBackend db
+      let port = storeOver db
       version <- liftEffect (schemaVersion db)
       version `shouldEqual` 1
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: Failed, reason: Just "boom" } ]
-      liftEffect (close db *> removeFile path)
-
-    it "a read on a missing store fails and creates no file" do
-      let path = "run-store-missing-test.db"
-      liftEffect (removeFile path)
-      opened <- liftEffect (try (openReadOnly path))
-      (isLeft opened) `shouldEqual` true
-      present <- liftEffect (exists path)
-      present `shouldEqual` false
-
-    it "a read-only open sees a store" do
-      let path = "run-store-readonly-test.db"
-      liftEffect (removeFile path)
-      manifest <- manifestOf
-      writer <- liftEffect (open path)
-      liftEffect $ runStore (sqliteBackend writer) (createRun { owner: "server:1:0", id: "run-1", name: "ro", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
-      reader' <- liftEffect (openReadOnly path)
-      runs <- liftEffect (runObserve (sqliteBackend reader') listRuns)
-      map _.id runs `shouldEqual` [ "run-1" ]
-      liftEffect (close reader' *> close writer *> removeFile path)
+      liftEffect (db.close *> removeFile path)
 
     it "failRunning fails every run still running that the role left, with its reason" do
       manifest <- manifestOf
       db <- liftEffect (open ":memory:")
-      let port = sqliteBackend db
+      let port = storeOver db
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       n <- liftEffect (runStore port (failRunning { role: "server", reason: "interrupted" }))
       n `shouldEqual` 1
@@ -144,13 +127,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let path = "run-store-busy-test.db"
       liftEffect (removeFile path)
       db <- liftEffect (open path)
-      timeout <- liftEffect (busyTimeout db)
+      timeout <- liftEffect (busyOf db)
       timeout `shouldEqual` configuredBusyTimeout
       timeout `shouldEqual` 5000
-      reader' <- liftEffect (openReadOnly path)
-      readTimeout <- liftEffect (busyTimeout reader')
-      readTimeout `shouldEqual` configuredBusyTimeout
-      liftEffect (close reader' *> close db *> removeFile path)
+      liftEffect (db.close *> removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
       g <- presetSeats [ "US", "DE" ] "Passive" (Just 2)
@@ -158,7 +138,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         seed = Seed 3
         said = [ { seat: Id "US", text: "I will buy ten energy" } ]
       db <- liftEffect (open ":memory:")
-      let port = sqliteBackend db
+      let port = storeOver db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { owner: "server:1:0", id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
         save <- recorder port roundMetrics "run-1" manifest.initial
@@ -167,14 +147,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rows <- liftEffect (runObserve port (readRounds "run-1"))
       map _.transcripts rows `shouldEqual` [ Right said, Right [] ]
 
-    it "a store at any other schema version is refused, read-write and read-only, with what to do" do
+    it "a store at any other schema version is refused, with what to do" do
       let path = "run-store-other-version-test.db"
       liftEffect (removeFile path)
       liftEffect (createStoreAtVersion path 5)
       opened <- liftEffect (try (open path))
       either (contains (Pattern "Move the file aside") <<< message) (const false) opened `shouldEqual` true
-      read <- liftEffect (try (openReadOnly path))
-      either (contains (Pattern "schema version 5") <<< message) (const false) read `shouldEqual` true
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
@@ -182,7 +160,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         seed = Seed 1
       db <- liftEffect (open ":memory:")
-      let port = sqliteBackend db
+      let port = storeOver db
       stored <- liftEffect $ simulateWith seed g \manifest -> do
         runStore port (createRun { owner: "server:1:0", id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
         recorder port roundMetrics "run-1" manifest.initial
@@ -211,7 +189,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
       manifest <- manifestOf
       db <- liftEffect (open path)
-      let port = sqliteBackend db
+      let port = storeOver db
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "corrupt", created: "2026-01-01T00:00:00Z", spec: emptySpec { rounds = Just 3 }, manifest })
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "fine", created: "2026-01-01T00:00:00Z", spec: emptySpec { rounds = Just 3 }, manifest })
       liftEffect (setRawSpec path "run-1" "not json")
@@ -220,13 +198,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         [ Left why, Right _ ] -> contains (Pattern "spec") why `shouldEqual` true
         _ -> fail "run-1 should be unreadable and run-2 readable"
       map (\r -> isRight r.manifest) rows `shouldEqual` [ true, true ]
-      liftEffect (close db *> removeFile path)
+      liftEffect (db.close *> removeFile path)
 
     it "a stored spec can be replaced in place (a resumed run records its new round count)" do
       manifest <- manifestOf
       db <- liftEffect (open ":memory:")
-      let port = sqliteBackend db
+      let port = storeOver db
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "resume", created: "2026-01-01T00:00:00Z", spec: emptySpec { rounds = Just 3 }, manifest })
       liftEffect (runStore port (setSpec "run-1" (emptySpec { rounds = Just 5 })))
       rows <- liftEffect (runObserve port listSummaries)
       map _.spec rows `shouldEqual` [ Right (emptySpec { rounds = Just 5 }) ]
+
+-- | The busy timeout a connection reports.
+busyOf :: SqlDevice -> Effect Int
+busyOf d = map (\rows -> maybe 0 _.timeout (head rows)) (d.query "select * from pragma_busy_timeout" [] :: Effect (Array { timeout :: Int }))

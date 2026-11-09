@@ -3,7 +3,7 @@ module Test.Server.Main where
 
 import Prelude
 
-import Adapters.SQLite (open, sqliteBackend)
+import Testkit.Store (open, storeOver)
 import Effects.Observe (readManifest, readRounds)
 import Handlers.Store (runObserve)
 import Data.Argonaut.Decode (fromJsonString)
@@ -24,12 +24,12 @@ import Data.Map as Map
 import Core.World (Event(..), RoundRecord)
 import Server.Launch (Launched)
 import Handlers.Api.Route (route)
-import Server.Cache (newCache)
-import Server.Implementation (implement)
+import Server.Stack (implement, newServerCache)
 import Test.Server.Api as Api
 import Test.Server.Http as HttpDevice
 import Schema.Run (DeriveKind(Counterfactual))
 import Test.Server.Settings as Settings
+import Test.Server.Fixed as Fixed
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -43,6 +43,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   HttpDevice.spec
   Api.spec
   Settings.spec
+  Fixed.spec
   describe "Round-record equality" do
     it "equal record sequences are equal; one differing field, or a different length, is not" do
       let
@@ -59,8 +60,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map Right setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.empty, body })
+          cache <- liftEffect newServerCache
+          let api method path body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.empty, body })
           short <- api "POST" "/api/runs" "{\"name\":\"s\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"
           short.status `shouldEqual` 400
           short.body `shouldSatisfy` contains (Pattern "from 4 to 8")
@@ -83,8 +84,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           let
             ctx = ctx0 { gameboard = ctx0.gameboard { world = ctx0.gameboard.world { markets = Map.delete (Id "energy-atlantic") ctx0.gameboard.world.markets } } }
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"a\",\"preset\":\"Passive\",\"playerSeed\":1,\"rounds\":4}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"b\",\"preset\":\"Passive\",\"playerSeed\":2,\"rounds\":4}"
           plain <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" } ] ""
@@ -100,9 +101,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
+          cache <- liftEffect newServerCache
           let
-            api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+            api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
             launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, rounds: Just 3 }))
           a <- launch "a" (Just 1)
           a.body `shouldEqual` "{\"playerSeed\":1,\"id\":\"run-1\"}"
@@ -166,9 +167,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
+          cache <- liftEffect newServerCache
           let
-            api method path body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.empty, body })
+            api method path body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.empty, body })
             launch name seed = api "POST" "/api/runs" (stringify (encodeJson { name, preset: "Conservative", playerSeed: seed, rounds: Just 3 }))
           -- an absent seed is drawn once at launch; the reply names the seed used
           drawn <- api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"Conservative\",\"rounds\":3}"
@@ -180,7 +181,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- the same seed injected explicitly
           explicit <- launch "e" (Just seed)
           explicit.body `shouldSatisfy` contains (Pattern ("\"playerSeed\":" <> show seed))
-          let store = sqliteBackend db
+          let store = storeOver db
           -- the stored spec records the concrete seed, and the two runs store identical specs and manifests
           drawnRun <- liftEffect (runObserve store (readManifest "run-1"))
           explicitRun <- liftEffect (runObserve store (readManifest "run-2"))
@@ -201,10 +202,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"g\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
-          stored <- liftEffect (runObserve (sqliteBackend db) (readManifest "run-1"))
+          stored <- liftEffect (runObserve (storeOver db) (readManifest "run-1"))
           case stored of
             Just m -> case m.spec of
               Right s -> s.gameId `shouldEqual` Just "meridian/meridian-test-01"
@@ -217,8 +218,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map Right setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/setting" [] ""
           scen.status `shouldEqual` 200
           scen.body `shouldSatisfy` contains (Pattern "\"default\":5")
@@ -233,8 +234,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/setting" [] ""
           scen.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-1\"")
           scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Passive\",\"Conservative\"")
@@ -258,8 +259,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           list <- api "GET" "/api/runs" [] ""
           list.body `shouldSatisfy` contains (Pattern "\"Reason\",\"Archived\",\"Source\"")
@@ -268,8 +269,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           dup <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"duplicate\",\"name\":\"copy\"}"
           dup.status `shouldEqual` 201
@@ -282,7 +283,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           rerunReply <- decodeOr rerun.body
           rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
           dup.body `shouldSatisfy` (not <<< contains (Pattern "recordsMatch"))
-          let store = sqliteBackend db
+          let store = storeOver db
           sourceRows <- liftEffect (runObserve store (readRounds "run-1"))
           rerunRows <- liftEffect (runObserve store (readRounds rerunReply.id))
           map _.record rerunRows `shouldEqual` map _.record sourceRows
@@ -339,15 +340,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"three\",\"preset\":\"Conservative\",\"playerSeed\":3,\"rounds\":3}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"five\",\"preset\":\"Conservative\",\"playerSeed\":3,\"rounds\":5}"
           resumed <- api "POST" "/api/runs/run-1/resume" [] "{\"rounds\":5}"
           resumed.status `shouldEqual` 200
           resumed.body `shouldSatisfy` contains (Pattern "\"rounds\":5")
           resumed.body `shouldSatisfy` contains (Pattern "\"id\":\"run-1\"")
-          let store = sqliteBackend db
+          let store = storeOver db
           extended <- liftEffect (runObserve store (readRounds "run-1"))
           fresh <- liftEffect (runObserve store (readRounds "run-2"))
           map _.record extended `shouldEqual` map _.record fresh
@@ -363,8 +364,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"other\",\"preset\":\"Conservative\",\"playerSeed\":2,\"rounds\":2}"
           a1 <- api "POST" "/api/runs/run-1/archive" [] ""
@@ -400,8 +401,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"RandomValid\",\"playerSeed\":5,\"rounds\":3}"
           rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
           rerun.status `shouldEqual` 201
@@ -420,8 +421,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (Right <<< anyRounds) setting >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
-          cache <- liftEffect newCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          cache <- liftEffect newServerCache
+          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"next\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
           _ <- api "POST" "/api/runs/run-2/derive" [] "{\"kind\":\"duplicate\"}"

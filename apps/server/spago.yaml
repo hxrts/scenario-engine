@@ -12,11 +12,11 @@ package:
     - functions
     - integers
     - maybe
-    - ordered-collections
-    - refs
     - strings
     - tuples
     - sp-core
+    - run
+    - typelevel-prelude
     - sp-schema
     - sp-game
     - sp-settings
@@ -26,7 +26,6 @@ package:
     - sp-views
     - sp-flags
     - sp-experiments
-    - exceptions
     - newtype
   run:
     main: Server

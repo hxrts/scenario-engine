@@ -2,16 +2,11 @@ package:
   name: sp-adapters
   dependencies:
     - prelude
-    - sp-core
-    - sp-schema
-    - sp-effects
-    - sp-handlers
     - console
-    - argonaut-codecs
-    - argonaut-core
+    - foreign
+    - sp-handlers
     - effect
     - either
-    - foldable-traversable
     - functions
     - maybe
     - nullable

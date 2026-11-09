@@ -54,4 +54,3 @@ export const exchangeImpl = (port) => (method) => (target) => (headers) => (chun
   });
 
 // Run raw SQL against a store (a test of what an older build or a corrupt row leaves behind).
-export const rawExec = (db) => (sql) => () => db.exec(sql);

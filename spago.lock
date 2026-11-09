@@ -6,14 +6,12 @@
         "core": {
           "dependencies": [
             "aff",
-            "argonaut-codecs",
-            "argonaut-core",
             "bifunctors",
             "console",
             "effect",
             "either",
             "exceptions",
-            "foldable-traversable",
+            "foreign",
             "functions",
             "maybe",
             "node-buffer",
@@ -22,10 +20,7 @@
             "node-process",
             "nullable",
             "prelude",
-            "sp-core",
-            "sp-effects",
-            "sp-handlers",
-            "sp-schema"
+            "sp-handlers"
           ]
         },
         "test": {
@@ -99,7 +94,6 @@
           "dependencies": [
             "aff",
             "arrays",
-            "console",
             "effect",
             "either",
             "exceptions",
@@ -107,13 +101,14 @@
             "foreign-object",
             "maybe",
             "newtype",
-            "node-fs",
             "node-process",
             "ordered-collections",
             "prelude",
             "refs",
+            "run",
             "sp-adapters",
             "sp-core",
+            "sp-effects",
             "sp-flags",
             "sp-game",
             "sp-handlers",
@@ -121,13 +116,17 @@
             "sp-settings",
             "sp-views",
             "strings",
-            "tuples"
+            "tuples",
+            "typelevel-prelude"
           ]
         },
         "test": {
           "dependencies": [
+            "aff",
             "effect",
+            "refs",
             "sp-core",
+            "sp-testkit",
             "spec",
             "spec-node"
           ]
@@ -225,6 +224,7 @@
             "prelude",
             "run",
             "sp-core",
+            "sp-game",
             "sp-policy",
             "tuples",
             "typelevel-prelude"
@@ -334,13 +334,18 @@
         "core": {
           "dependencies": [
             "aff",
+            "argonaut-codecs",
             "argonaut-core",
             "arrays",
             "effect",
             "either",
+            "exceptions",
+            "foldable-traversable",
             "foreign-object",
+            "integers",
             "js-uri",
             "maybe",
+            "nullable",
             "ordered-collections",
             "parallel",
             "prelude",
@@ -439,7 +444,6 @@
             "console",
             "effect",
             "either",
-            "exceptions",
             "foldable-traversable",
             "foreign-object",
             "functions",
@@ -447,9 +451,8 @@
             "maybe",
             "newtype",
             "node-process",
-            "ordered-collections",
             "prelude",
-            "refs",
+            "run",
             "sp-adapters",
             "sp-core",
             "sp-effects",
@@ -461,7 +464,8 @@
             "sp-settings",
             "sp-views",
             "strings",
-            "tuples"
+            "tuples",
+            "typelevel-prelude"
           ]
         },
         "test": {
@@ -526,6 +530,7 @@
             "ordered-collections",
             "partial",
             "prelude",
+            "refs",
             "sp-adapters",
             "sp-checks",
             "sp-core",

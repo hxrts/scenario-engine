@@ -4,47 +4,36 @@
 -- | every write operation clears the kept runs, so a reply never shows a run older than the store.
 -- | The agency analysis plays several whole games on the event loop and depends only on the setting
 -- | and its query, so its successful reply is kept for the server's lifetime.
-module Server.Cache (Cache, newCache, cached, cachedAgency, clear) where
+module Server.Cache (cached, cachedAgency) where
 
 import Prelude
 
 import Data.Either (Either(..), either)
-import Data.Map (Map)
-import Data.Map as Map
-import Schema.Run (RunStatus(..))
 import Data.Maybe (Maybe(..))
-import Effect (Effect)
-import Effect.Ref (Ref)
-import Effect.Ref as Ref
+import Effects.Cache (keepReply, keepRun, lookupReply, lookupRun)
+import Effects.Signatures (CACHE, RunError)
+import Run (Run)
+import Schema.Run (RunStatus(..))
 import Server.Errors (Answer)
-import Effects.Signatures (RunError)
+import Type.Row (type (+))
 import Views.Common (StoredRun)
 
-type Cache = { runs :: Ref (Map String StoredRun), agency :: Ref (Map String Answer) }
-
-newCache :: Effect Cache
-newCache = { runs: _, agency: _ } <$> Ref.new Map.empty <*> Ref.new Map.empty
-
 -- | The run from the cache, or loaded and then kept when it is finished.
-cached :: Cache -> String -> Effect (Either RunError StoredRun) -> Effect (Either RunError StoredRun)
-cached c id load = Map.lookup id <$> Ref.read c.runs >>= case _ of
+cached :: forall r. String -> Run (CACHE StoredRun Answer + r) (Either RunError StoredRun) -> Run (CACHE StoredRun Answer + r) (Either RunError StoredRun)
+cached id load = lookupRun id >>= case _ of
   Just r -> pure (Right r)
   Nothing -> do
     r <- load
     case r of
-      Right run | run.status /= Running -> Ref.modify_ (Map.insert id run) c.runs
+      Right run | run.status /= Running -> keepRun id run
       _ -> pure unit
     pure r
 
 -- | The agency reply for a query, computed once. A reply that is an error is not kept.
-cachedAgency :: Cache -> String -> Effect Answer -> Effect Answer
-cachedAgency c key load = Map.lookup key <$> Ref.read c.agency >>= case _ of
+cachedAgency :: forall r. String -> Run (CACHE StoredRun Answer + r) Answer -> Run (CACHE StoredRun Answer + r) Answer
+cachedAgency key load = lookupReply key >>= case _ of
   Just reply -> pure reply
   Nothing -> do
     reply <- load
-    when (either (const false) (\r -> r.status == 200) reply) (Ref.modify_ (Map.insert key reply) c.agency)
+    when (either (const false) (\r -> r.status == 200) reply) (keepReply key reply)
     pure reply
-
--- | Forget every run: called before each write operation. The agency replies stay: no write changes them.
-clear :: Cache -> Effect Unit
-clear c = Ref.write Map.empty c.runs

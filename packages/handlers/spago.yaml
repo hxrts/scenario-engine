@@ -17,6 +17,11 @@ package:
     - ordered-collections
     - tuples
     - typelevel-prelude
+    - nullable
+    - argonaut-codecs
+    - foldable-traversable
+    - exceptions
+    - integers
     - aff
     - arrays
     - refs

@@ -18,9 +18,9 @@ const allowed = {
   // the one domain package where board and policy meet: assembly
   game: ["core", "schema", "board", "policy"],
   settings: ["core", "schema", "game"],
-  effects: ["core", "schema", "board", "policy"],
+  effects: ["core", "schema", "board", "policy", "game"],
   handlers: ["core", "schema", "board", "policy", "game", "effects"],
-  adapters: ["core", "schema", "board", "policy", "effects", "handlers"],
+  adapters: ["handlers"],
   // the pure views over a stored run: projections and checks, no run and no game
   views: ["core", "schema", "checks"],
   // the counterfactuals and agency over pure `simulate`; presented through views
@@ -39,7 +39,7 @@ const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node
 // A pure module imports no effect, runner, node, adapter, handler or effect-declaration module.
 const IMPURE_MODULE = /^(Effect(\.|$)|Run(\.|$)|Node\.|Adapters\.|Handlers\.|Effects\.)/;
 // Adapters import only these named backend record types from handlers (docs/07 §4).
-const ADAPTER_HANDLER_IMPORTS = { "Handlers.Store": ["Metric", "StoreBackend"] };
+const ADAPTER_HANDLER_IMPORTS = { "Handlers.Sql": ["SqlDevice", "SqlValue"] };
 // From effects, adapters import types only: the rows and operations are a handler's to interpret (docs/07 §4).
 const isTypeImport = (n) => /^[A-Z]/.test(n) && !n.includes("..");
 

@@ -40,7 +40,7 @@ intent-walk packages/core/src/Core/Types.purs jointIntent which Intents a joint 
 sum-projection packages/schema/src/Schema/Setting/Intent.purs intentShape a trade and a route share one setting form, and enact and repeal are separate tags over ChangeRule
 sum-projection packages/schema/src/Schema/Setting/Strategy.purs templateShape a joint Proposal and a Procedure share one Template constructor, split by their procedure and shape
 test-literal packages/policy/test/Main.purs main format-pinning test: a nested Procedure in Strategy JSON must not decode
-name-literal packages/adapters/src/Adapters/SQLite.purs roundsTable a table name of the store, not the specification key that spells the same word
+name-literal packages/handlers/src/Handlers/SqlStore.purs roundsTable a table name of the store, not the specification key that spells the same word
 # Each line names why this one hit is correct to keep; the rule's fix text applies everywhere else.
 hand-instance packages/core/src/Core/World.purs instance-Show-RejectReason the text is the rejection's display text (renderReason), the one place it is written
 hand-json apps/dashboard/src/Dashboard/Chart.purs chartRows a chart row's keys are the series names, known only at run time; no shape can name them

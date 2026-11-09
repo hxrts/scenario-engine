@@ -5,6 +5,7 @@ package:
     - run
     - sp-core
     - sp-policy
+    - sp-game
     - arrays
     - foldable-traversable
     - maybe

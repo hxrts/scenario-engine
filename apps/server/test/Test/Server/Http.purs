@@ -4,7 +4,7 @@ module Test.Server.Http (spec, rawExec) where
 
 import Prelude
 
-import Adapters.SQLite (Db)
+import Handlers.Sql (SqlDevice)
 import Control.Promise (Promise, toAffE)
 import Data.Array (replicate)
 import Data.Maybe (Maybe(..))
@@ -28,7 +28,8 @@ foreign import stopServerImpl :: Running -> Effect (Promise Unit)
 foreign import exchangeImpl :: Int -> String -> String -> Object String -> Array String -> Effect (Promise Answer)
 
 -- | Run raw SQL against a store.
-foreign import rawExec :: Db -> String -> Effect Unit
+rawExec :: SqlDevice -> String -> Effect Unit
+rawExec d = d.script
 
 type Answer = { status :: Int, headers :: Object String, text :: String }
 

@@ -18,6 +18,7 @@ package:
     - sp-checks
     - sp-settings
     - sp-adapters
+    - refs
     - spec
     - partial
   test:

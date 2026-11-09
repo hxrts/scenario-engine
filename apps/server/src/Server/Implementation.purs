@@ -1,51 +1,51 @@
--- | The server's implementation of the `API` row (docs/06_simulator.md §8–§10): what each
--- | operation does. The paths, methods, and body decoding are `Handlers.Api.Route`'s; this module supplies
--- | only each operation's semantics, from `Server.Read`, `Server.Launch`, and `Server.Derive`. Reads
--- | of a run go through the cache of decoded runs; every write clears it first.
-module Server.Implementation (implement) where
+-- | The server's handler of the `API` row (docs/06_simulator.md §8–§10): what each operation does, as a program
+-- | over the Run Store and the system rows. The paths, methods, and body decoding are `Handlers.Api.Route`'s;
+-- | this module supplies only each operation's semantics, from `Server.Read`, `Server.Launch`, and
+-- | `Server.Derive`. Reads of a run go through the cache of decoded runs; every write clears it first.
+module Server.Implementation (answer) where
 
 import Prelude
 
 import Data.Array (mapMaybe)
 import Data.Either (Either(..), either)
-import Effects.Api (ApiRequest(..))
-import Effect (Effect)
-import Handlers.Api.Route (Implementation, wire)
-import Handlers.Store (StoreBackend)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Traversable (traverse)
+import Core.Shape (listOf)
+import Effects.Api (ApiRequest(..), Reply)
+import Effects.Cache (forgetRuns)
+import Handlers.Api.Route (wire)
+import Run (Run)
+import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive)
+import Server.Errors (Answer, apiReply, badRequest, ok)
+import Server.Launch (launch, launchBatch, settingInfo)
+import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
+import Server.Rows (SERVER)
+import Server.Settings (Settings, chosen)
 import Views.Glossary (glossary)
 import Views.Keys as Keys
 import Views.Overview as Overview
-import Server.Cache (Cache, clear)
-import Server.Derive (deriveRun, deleteOne, resumeRun, setArchive)
-import Server.Errors (Answer, apiReply, badRequest, ok)
-import Core.Shape (listOf)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Traversable (traverse)
-import Server.Launch (launch, launchBatch, settingInfo)
-import Server.Settings (Settings, chosen)
-import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 
--- | The implementation of every operation over the loaded settings, one store, and the store's run cache.
-implement :: Settings -> StoreBackend -> Cache -> Implementation
-implement settings store cache request = do
+-- | The reply to one request over the loaded settings.
+answer :: forall r. Settings -> ApiRequest -> Run (SERVER r) Reply
+answer settings request = do
   -- a write may change any run (a delete changes which sources exist), so the whole cache goes
-  when ((wire request).method /= "GET") (clear cache)
-  apiReply <$> answer request
+  when ((wire request).method /= "GET") forgetRuns
+  apiReply <$> operation request
   where
-  answer :: ApiRequest -> Effect Answer
-  answer = case _ of
-    ListRuns { archived } -> runSummaries archived store >>= ok Keys.runList <<< Overview.runList
-    Setting -> settingInfo settings store >>= ok Keys.settings
+  operation :: ApiRequest -> Run (SERVER r) Answer
+  operation = case _ of
+    ListRuns { archived } -> runSummaries archived >>= ok Keys.runList <<< Overview.runList
+    Setting -> settingInfo settings >>= ok Keys.settings
     Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus settings))
-    LaunchRun l -> either (pure <<< Left) (\p -> launch p store l) (chosen settings l.setting) >>= either (badRequest) (ok Keys.launched)
-    LaunchBatch b -> either (pure <<< Left) (\ps -> launchBatch ps store b) (maybe (Right settings) (traverse (chosen settings <<< Just)) b.settings) >>= either (badRequest) (ok (listOf Keys.batched))
-    Entities id -> entitiesView cache store id
-    Entity id entity -> entityView cache store id entity
-    RunView r -> getView cache settings store r
-    Compare r -> compareView cache settings store r
-    Agency r -> agencyView cache settings r
-    Derive { id, body } -> deriveRun cache settings store id body
-    Resume { id, rounds } -> resumeRun settings store id rounds
-    Archive id -> setArchive store id true
-    Unarchive id -> setArchive store id false
-    Delete { id, confirm } -> deleteOne store id confirm
+    LaunchRun l -> either (pure <<< Left) (\p -> launch p l) (chosen settings l.setting) >>= either badRequest (ok Keys.launched)
+    LaunchBatch b -> either (pure <<< Left) (\ps -> launchBatch ps b) (maybe (Right settings) (traverse (chosen settings <<< Just)) b.settings) >>= either badRequest (ok (listOf Keys.batched))
+    Entities id -> entitiesView id
+    Entity id entity -> entityView id entity
+    RunView r -> getView settings r
+    Compare r -> compareView settings r
+    Agency r -> agencyView settings r
+    Derive { id, body } -> deriveRun settings id body
+    Resume { id, rounds } -> resumeRun settings id rounds
+    Archive id -> setArchive id true
+    Unarchive id -> setArchive id false
+    Delete { id, confirm } -> deleteOne id confirm

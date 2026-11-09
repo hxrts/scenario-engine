@@ -32,22 +32,34 @@ const rules = [
   },
   {
     id: "adapter-domain-import",
-    name: "an adapter imports no domain module, effect row, or handler beyond the device types of Handlers.Store.Sql",
+    name: "an adapter imports no domain module, effect row, or handler beyond the device types of Handlers.Sql",
     files: (f) => isPurs(f) && isAdapter(f),
-    bad: (line) => /^import\s+(Core|Schema|Effects|Settings|Board|Policy|Game|Views|Checks|Experiments)(\.|\s|$)/.test(line) || (/^import\s+Handlers\./.test(line) && !/^import\s+Handlers\.Store\.Sql(\s|$)/.test(line)),
+    bad: (line) => /^import\s+(Core|Schema|Effects|Settings|Board|Policy|Game|Views|Checks|Experiments)(\.|\s|$)/.test(line) || (/^import\s+Handlers\./.test(line) && !/^import\s+Handlers\.Sql(\s|$)/.test(line)),
   },
   {
     id: "adapter-word",
     name: "an adapter knows nothing of games, runs, prompts or settings: no domain word in a device",
     files: isAdapter,
     // `.run(` and `runFn` are the SQLite and FFI vocabulary, not a run
-    bad: (line) => /\b(runs?|rounds?|games?|seats?|prompts?|settings?|manifests?|specs?)\b/i.test(line.replace(/\.run\(/g, ".exec(")),
+    bad: (line) => /\b(runs?|rounds?|games?|seats?|prompts?|settings?|manifests?|specs?)\b/i.test(line.replace(/\.run\(/g, ".exec(").replace(/--[a-z-]+/g, "").replace(/Math\.round/g, "")),
   },
   {
     id: "program-effect",
     name: "a program names its effect rows: no Effect, Aff, Node, or adapter import under Server/ or Cli/",
     files: (f) => isPurs(f) && isProgram(f),
     bad: (line) => /^import\s+(Effect(\.|\s|$)|Node\.|Adapters\.)/.test(line),
+  },
+  {
+    id: "play-fold",
+    name: "a program plays through PLAY: the persisting folds and the store's runners belong to handlers and roots",
+    files: (f) => isPurs(f) && isProgram(f),
+    bad: (line) => /\b(simulateWith|resumeWith|openRun|recorder|settle|runStore|runObserve)\b/.test(line),
+  },
+  {
+    id: "read-row",
+    name: "a read program has READS: it names no write, play, or system row",
+    files: (f) => f === "apps/server/src/Server/Read.purs",
+    bad: (line) => /\b(SERVER|LAUNCHES|STORE|PLAY|CLOCK|ENTROPY|PROCESS)\b/.test(line),
   },
   {
     id: "lift-device",

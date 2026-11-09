@@ -1,7 +1,7 @@
 -- | The filesystem device: reads a text file, lists a directory, opens a file to append lines to, and
 -- | looks up an environment variable. It knows no file layout; the paths are the caller's. A failure names
 -- | the path it failed on.
-module Adapters.Filesystem (fileOps, lineSink) where
+module Adapters.Filesystem (fileOps, fileDevice, lineSink) where
 
 import Prelude
 
@@ -12,7 +12,7 @@ import Effect (Effect)
 import Effect.Exception (Error, message, try)
 import Node.Encoding (Encoding(..))
 import Node.FS.Perms (all, mkPerms)
-import Node.FS.Sync (appendTextFile, mkdir', readTextFile, readdir)
+import Node.FS.Sync (appendTextFile, mkdir', readTextFile, readdir, writeTextFile)
 import Node.Path (dirname)
 import Node.Process (lookupEnv)
 
@@ -23,6 +23,21 @@ fileOps
      , read :: String -> Effect (Either { path :: String, reason :: String } String)
      }
 fileOps = { env: lookupEnv, list: \path -> map (failed path) (try (readdir path)), read: \path -> map (failed path) (try (readTextFile UTF8 path)) }
+
+-- | The device with writing added.
+fileDevice
+  :: { env :: String -> Effect (Maybe String)
+     , list :: String -> Effect (Either { path :: String, reason :: String } (Array String))
+     , read :: String -> Effect (Either { path :: String, reason :: String } String)
+     , write :: String -> String -> Effect Unit
+     }
+fileDevice = { env: fileOps.env, list: fileOps.list, read: fileOps.read, write: writeText }
+
+-- | Write a file, its directory made first.
+writeText :: String -> String -> Effect Unit
+writeText path text = do
+  mkdir' (dirname path) { recursive: true, mode: mkPerms all all all }
+  writeTextFile UTF8 path text
 
 -- | A sink that appends lines to a file. The file's directory is created here, once, not per line.
 lineSink :: String -> Effect (String -> Effect Unit)

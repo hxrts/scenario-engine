@@ -2,10 +2,11 @@
 module Handlers.Llm.Backend
   ( Call
   , Evidence
-  , evidenceShape
   , Backend
   , backend
+  , logging
   , defaultTimeoutMs
+  , defaultModel
   , maxCorrections
   , send
   , within
@@ -28,7 +29,7 @@ import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Handlers.Llm.Call (Key, ModelCall, decodeWith)
 import Handlers.Llm.Wire (correctionShape)
-import Handlers.Recording (Exchange, encodeReply)
+import Handlers.Recording (Exchange, encodeReply, exchangeShape)
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
 -- | its raw event stream out. A failed call is an Aff error.
@@ -49,6 +50,14 @@ type Backend = { model :: String, call :: Call, digest :: String -> String, time
 -- | A backend with the default timeout and sinks that keep nothing; a composition root overrides what it keeps.
 backend :: { model :: String, call :: Call, digest :: String -> String } -> Backend
 backend b = { model: b.model, call: b.call, digest: b.digest, timeoutMs: defaultTimeoutMs, evidence: const (pure unit), exchange: const (pure unit) }
+
+-- | A backend that appends each call's evidence and exchange, encoded, to two line sinks.
+logging :: (String -> Effect Unit) -> (String -> Effect Unit) -> Backend -> Backend
+logging evidence exchange b = b { evidence = evidence <<< stringify <<< encodeWith Snapshot evidenceShape, exchange = exchange <<< stringify <<< encodeWith Snapshot exchangeShape }
+
+-- | The model a session uses when none is named.
+defaultModel :: String
+defaultModel = "openrouter/deepseek/deepseek-v4-flash-latest"
 
 -- | How long one model call may take before the run fails.
 defaultTimeoutMs :: Int

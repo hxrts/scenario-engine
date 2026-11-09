@@ -6,7 +6,7 @@ module Test.Adapters.Capstone (spec) where
 import Schema.Run (emptySpec)
 import Prelude
 
-import Adapters.SQLite (open, sqliteBackend)
+import Testkit.Store (open, storeOver)
 import Views.Metrics (roundMetrics)
 import Core.Draw (Seed(..))
 import Data.Argonaut.Core (stringify)
@@ -42,7 +42,7 @@ spec = describe "Capstone: the Run Store" do
     let
       seed = Seed C.playerSeed
     db <- liftEffect (open ":memory:")
-    let port = sqliteBackend db
+    let port = storeOver db
     stored <- liftEffect $ simulateWith seed g \manifest -> do
       runStore port (createRun { owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "capstone" }, manifest })
       recorder port roundMetrics "capstone" manifest.initial

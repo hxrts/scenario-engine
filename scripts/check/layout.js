@@ -56,8 +56,8 @@ const rules = [
     bad: (line) => viewNames.some((v) => line.includes(`"${v}"`)),
   },
   {
-    name: "a run's status is Schema.Run.RunStatus: its text is spelled in Schema.Run and at the store boundary (Adapters.SQLite) only",
-    files: (f) => f !== "packages/schema/src/Schema/Run.purs" && f !== "packages/adapters/src/Adapters/SQLite.purs",
+    name: "a run's status is Schema.Run.RunStatus: its text is spelled in Schema.Run only",
+    files: (f) => f !== "packages/schema/src/Schema/Run.purs",
     bad: (line) => /"(running|completed|failed)"/.test(line),
   },
   {

@@ -5,7 +5,7 @@ module Test.Server.Settings (spec) where
 
 import Prelude
 
-import Adapters.SQLite (open, sqliteBackend)
+import Testkit.Store (open, storeOver)
 import Core.Draw (Seed(..))
 import Core.Types (Entity, EntityId, Id(..), Transferability(..))
 import Core.World (Focus)
@@ -28,8 +28,7 @@ import Schema.Gameboard (ActorDefinition)
 import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (atLeast, byKey, emptyCirculation, emptyWorld, entitiesOf, finishes, noResource, resourcesOf)
-import Server.Cache (newCache)
-import Server.Implementation (implement)
+import Server.Stack (implement, newServerCache)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (setting)
@@ -98,8 +97,8 @@ spec = describe "A second Setting" do
       Left e -> fail e
       Right h -> do
         db <- liftEffect (open ":memory:")
-        cache <- liftEffect newCache
-        let api method path query body = liftEffect (route (implement [ meridian, h ] (sqliteBackend db) cache) { method, path, query: Object.fromFoldable query, body })
+        cache <- liftEffect newServerCache
+        let api method path query body = liftEffect (route (implement [ meridian, h ] (storeOver db) cache) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/setting" [] ""
         list.body `shouldSatisfy` contains (Pattern "\"harbor\"")
         launched <- api "POST" "/api/runs" [] "{\"setting\":\"harbor\",\"name\":\"h\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":3}"

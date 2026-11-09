@@ -10,8 +10,6 @@ module Server.Derive
 
 import Prelude
 
-import Effect.Exception (error, throwException)
-
 import Core.Draw (Seed(..))
 import Core.World (WorldState)
 import Data.Array (last, length, null, filter)
@@ -20,20 +18,18 @@ import Data.Foldable (traverse_)
 import Core.Types (Id(..))
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.String (Pattern(..), split)
-import Effect (Effect)
+import Effects.Play (playRun)
+import Effects.System (now, ownerOf)
+import Run (Run)
+import Server.Rows (SERVER)
 import Effects.Api (DeriveRequest)
-import Effects.Signatures (RunError(..), Stored, StoredRound)
+import Effects.Signatures (PlayRequest(..), RunError(..), Stored, StoredRound)
 import Effects.Observe (readManifest, readRounds)
-import Effects.Store (deleteRun, setArchived, setSpec, setStatus)
+import Effects.Store (deleteRun, setArchived)
 import Views.Keys as Keys
-import Views.Metrics (roundMetrics)
-import Handlers.Store (StoreBackend, openRun, recorder, runObserve, runStore)
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
-import Server.Launch (freshRunId, play, serverRole, start)
-import Game.Setting (Setting(..))
-import Adapters.Clock (nowIso)
-import Adapters.SQLite (processOwner)
-import Server.Cache (Cache)
+import Server.Launch (freshRunId, serverRole, start)
+import Game.Setting (GameboardParts, Setting(..))
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
 import Server.Settings (Settings, ofSpec)
@@ -42,7 +38,7 @@ import Core.Shape (Format(Authored))
 import Handlers.Api.Route as Route
 import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Views.Common (records)
-import Handlers.Simulate (replayGame, resumeWith)
+import Handlers.Simulate (replayGame)
 
 -- | `POST /api/runs/:id/derive`. The body's kind decides what may change:
 --   duplicate, rerun: the source's spec unchanged, under a new name (rerun is the claim that the
@@ -53,20 +49,20 @@ import Handlers.Simulate (replayGame, resumeWith)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: Cache -> Settings -> StoreBackend -> String -> DeriveRequest -> Effect Answer
-deriveRun cache settings store sourceId body = do
-  runInfo store sourceId >>= case _ of
+deriveRun :: forall o. Settings -> String -> DeriveRequest -> Run (SERVER o) Answer
+deriveRun settings sourceId body = do
+  runInfo sourceId >>= case _ of
     Nothing -> notFound ("no run " <> sourceId)
-    Just info -> runObserve store (readManifest sourceId) >>= case _ of
-      Just { spec: Right spec } | isNothing spec.preset -> deriveSession cache settings store sourceId body info spec
-      _ -> deriveFromRecipe cache settings store sourceId body info
+    Just info -> (readManifest sourceId) >>= case _ of
+      Just { spec: Right spec } | isNothing spec.preset -> deriveSession settings sourceId body info spec
+      _ -> deriveFromRecipe settings sourceId body info
 
-deriveFromRecipe :: forall r. Cache -> Settings -> StoreBackend -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Effect Answer
-deriveFromRecipe cache settings store sourceId body info = do
+deriveFromRecipe :: forall o r. Settings -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Run (SERVER o) Answer
+deriveFromRecipe settings sourceId body info = do
   let kind = body.kind
   do
     -- a rerun is judged against the source's stored records, so they are read before it starts
-    source <- if kind == Rerun then Just <$> loadRun cache store sourceId else pure Nothing
+    source <- if kind == Rerun then Just <$> loadRun sourceId else pure Nothing
     case source of
       Just (Left Missing) -> notFound ("no run " <> sourceId)
       Just (Left (Unreadable why)) -> conflict ("cannot compare the rerun with " <> sourceId <> ": " <> why)
@@ -74,7 +70,7 @@ deriveFromRecipe cache settings store sourceId body info = do
         | info.status /= Completed -> conflict ("cannot compare the rerun with " <> sourceId <> ": it is " <> show info.status <> ", not completed")
         | null (records src) -> conflict ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
       _ -> do
-        stored <- runObserve store (readManifest sourceId)
+        stored <- (readManifest sourceId)
         case stored <#> \m -> m.spec >>= \spec -> { base: _, setting: _ } <$> decodeSpec spec <*> ofSpec settings spec of
           Nothing -> internal ("run " <> sourceId <> " has no stored spec")
           Just (Left e) -> internal ("run " <> sourceId <> " is unreadable: " <> e)
@@ -83,7 +79,7 @@ deriveFromRecipe cache settings store sourceId body info = do
             Right _ | kind == Variant, Just bad <- outOfRange setting -> badRequest bad
             Right recipe -> do
               let name = fromMaybe (info.name <> " (" <> show kind <> ")") body.name
-              started <- start setting store
+              started <- start setting
                 { name
                 , preset: recipe.preset
                 , playerSeed: recipe.playerSeed
@@ -95,7 +91,7 @@ deriveFromRecipe cache settings store sourceId body info = do
                 Left e, _ -> badRequest e
                 Right l, Just (Right src) -> do
                   -- the new run's records are read back from the store, as the source's are
-                  new <- loadRun cache store l.id
+                  new <- loadRun l.id
                   case new of
                     Right n -> replied l.id (Just (records src == records n))
                     Left e -> internal ("the rerun " <> l.id <> " is unreadable: " <> describe e)
@@ -109,15 +105,15 @@ deriveFromRecipe cache settings store sourceId body info = do
 
 -- | A derive from a live session. It has no preset, so a variant or counterfactual cannot be played
 -- | from it; a duplicate or rerun replays its recorded Proposals and signatures (docs/06 §9.1).
-deriveSession :: forall r. Cache -> Settings -> StoreBackend -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Effect Answer
-deriveSession cache settings store sourceId body info spec
+deriveSession :: forall o r. Settings -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) Answer
+deriveSession settings sourceId body info spec
   | body.kind == Variant || body.kind == Counterfactual = badRequest ("a live session has no preset, so a " <> show body.kind <> " cannot be derived from " <> sourceId)
   | info.status /= Completed = conflict ("cannot replay " <> sourceId <> ": it is " <> show info.status <> ", not completed")
   | otherwise =
       case deriveRecipe body.kind body { preset: "", playerSeed: spec.playerSeed, rounds: spec.rounds, overrides: [] }, ofSpec settings spec of
         Left e, _ -> badRequest e
         _, Left e -> internal ("run " <> sourceId <> " is unreadable: " <> e)
-        Right _, Right setting -> loadRun cache store sourceId >>= case _ of
+        Right _, Right setting -> loadRun sourceId >>= case _ of
           Left e -> conflict ("cannot replay " <> sourceId <> ": " <> describe e)
           Right src -> replay setting src
       where
@@ -128,20 +124,17 @@ deriveSession cache settings store sourceId body info spec
         Left e -> badRequest (show e)
         Right g -> case replayGame seed g (records src) of
           Left e -> conflict ("cannot replay " <> sourceId <> ": " <> e)
-          Right out -> freshRunId store >>= case _ of
+          Right out -> freshRunId >>= case _ of
             Left e -> badRequest e
             Right id -> do
-              created <- nowIso
-              owner <- processOwner serverRole
-              attempt <- play store id do
-                save <- openRun store roundMetrics { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, owner } g.world >>= either (throwException <<< error) pure
-                traverse_ (\r -> save r []) out.records
-                pure (Right out.value :: Either String _)
+              created <- now
+              owner <- ownerOf serverRole
+              attempt <- playRun (Replayed { game: g, run: { id, name: fromMaybe (info.name <> " (" <> show body.kind <> ")") body.name, created, spec: stored, manifest: g.manifest, owner }, records: out.records, value: out.value })
               case attempt of
                 Left e -> badRequest e
                 Right (Left e) -> internal ("run " <> id <> " failed: " <> e)
                 Right (Right _) | body.kind == Rerun -> do
-                  new <- loadRun cache store id
+                  new <- loadRun id
                   case new of
                     Right n -> replied id (Just (records src == records n))
                     Left e -> internal ("the rerun " <> id <> " is unreadable: " <> describe e)
@@ -150,15 +143,15 @@ deriveSession cache settings store sourceId body info spec
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: Settings -> StoreBackend -> String -> Int -> Effect Answer
-resumeRun settings store id rounds =
-  runInfo store id >>= case _ of
+resumeRun :: forall o. Settings -> String -> Int -> Run (SERVER o) Answer
+resumeRun settings id rounds =
+  runInfo id >>= case _ of
     Nothing -> notFound ("no run " <> id)
     Just info
       | info.status /= Completed -> badRequest ("only a completed run can be resumed; " <> id <> " is " <> show info.status)
       | otherwise -> do
-          stored <- runObserve store (readManifest id)
-          rows <- runObserve store (readRounds id)
+          stored <- (readManifest id)
+          rows <- (readRounds id)
           case stored, last rows of
             Just m, _ | Right spec <- m.spec, isNothing spec.preset -> badRequest ("a live session has no preset, so it cannot be resumed; " <> id)
             Just m, Just latest -> case prepare m.spec latest (length rows) of
@@ -169,17 +162,14 @@ resumeRun settings store id rounds =
                     case assemblePreset p.setting p.base.preset p.base.overrides (Just rounds) of
                       Left e -> badRequest (show e)
                       Right game -> do
-                        attempt <- play store id $ resumeWith p.seed game { world: p.snapshot, done: p.done } \_ -> do
-                          runStore store (setStatus id Running Nothing)
-                          runStore store (setSpec id p.spec { rounds = Just rounds })
-                          recorder store roundMetrics id p.snapshot
+                        attempt <- playRun (Continued { id, seed: p.seed, game, world: p.snapshot, done: p.done, spec: p.spec { rounds = Just rounds } })
                         case attempt of
                           Left e -> badRequest e
                           Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok Keys.resumed { id, rounds })) r
             _, _ -> internal ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
-  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, setting :: _, seed :: Seed, snapshot :: WorldState, done :: Int }
+  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, setting :: GameboardParts, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
     spec <- text
     base <- decodeSpec spec
@@ -189,22 +179,22 @@ resumeRun settings store id rounds =
     pure { spec, base, setting, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
-setArchive :: StoreBackend -> String -> Boolean -> Effect Answer
-setArchive store id archived = do
-  present <- hasRun store id
+setArchive :: forall o. String -> Boolean -> Run (SERVER o) Answer
+setArchive id archived = do
+  present <- hasRun id
   if not present then notFound ("no run " <> id)
   else do
-    runStore store (setArchived id archived)
+    (setArchived id archived)
     ok Keys.archived { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
-deleteOne :: StoreBackend -> String -> String -> Effect Answer
-deleteOne store id confirm
+deleteOne :: forall o. String -> String -> Run (SERVER o) Answer
+deleteOne id confirm
   | confirm /= id = badRequest ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = do
-      n <- runStore store (deleteRun id)
+      n <- (deleteRun id)
       if n == 0 then notFound ("no run " <> id) else ok Keys.deleted { deleted: id }
 
-hasRun :: StoreBackend -> String -> Effect Boolean
-hasRun store id = isJust <$> runInfo store id
+hasRun :: forall o. String -> Run (SERVER o) Boolean
+hasRun id = isJust <$> runInfo id

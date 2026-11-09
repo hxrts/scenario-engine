@@ -7,43 +7,39 @@ module Server.Launch
   , start
   , freshRunId
   , serverRole
-  , play
-  , failInterrupted
+  , startup
   , settingInfo
   , launchBatch
   ) where
 
 import Prelude
 
-import Adapters.Clock (nowIso)
-import Adapters.Random (resolveSeed)
-import Adapters.SQLite (processOwner)
 import Schema.Gameboard (gameIdOf)
 import Core.Draw (Seed(..))
-import Core.Engine.Commit (EngineError)
 import Data.Array (concatMap, filter, foldl, mapMaybe)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM, traverse_)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
-import Effect (Effect)
-import Effect.Exception (error, throwException, try)
+import Effects.Play (playRun)
+import Effects.Signatures (PlayRequest(..), STORE)
+import Effects.System (now, ownerOf, resolveSeed)
+import Run (Run)
+import Server.Rows (LAUNCHES)
+import Type.Row (type (+))
 import Effects.Api (Launch, LaunchBatch)
 import Effects.Observe (listSummaries)
 import Effects.Store (failRunning)
 import Foreign.Object as Object
-import Views.Metrics (roundMetrics)
 import Views.Setting (Setting)
 import Settings.Presets (presetNames)
-import Handlers.Store (StoreBackend, openRun, runObserve, runStore, settle, validRunId)
+import Handlers.Store (validRunId)
 import Game.Assemble (assemblePreset, checkRounds)
 import Game.Override (Override)
 import Game.Setting (GameboardParts)
 import Game.Recipe (Derivation, encodeSpec)
-import Handlers.Simulate (simulateWith)
 
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
@@ -58,34 +54,36 @@ type Start =
   , derivation :: Maybe Derivation
   }
 
--- | The role of the runs a server creates (`Adapters.SQLite.processOwner`).
+-- | The role of the runs a server creates (`Effects.System.ownerOf`).
 serverRole :: String
 serverRole = "server"
 
 -- | The startup policy (docs/06_simulator.md §6.1): a run a server left marked running was left by a
 -- | process that stopped before it finished, so it is failed with that reason. Runs another role owns,
--- | such as a live CLI session on the same store, are not this server's to fail. Returns how many were failed.
-failInterrupted :: StoreBackend -> Effect Int
-failInterrupted store = runStore store (failRunning { role: serverRole, reason: "interrupted: the server stopped before the run finished" })
+-- | such as a live CLI session on the same store, are not this server's to fail. Returns the line to report, if any.
+startup :: forall r. Run (STORE + r) (Maybe String)
+startup = do
+  stale <- failRunning { role: serverRole, reason: "interrupted: the server stopped before the run finished" }
+  pure (if stale > 0 then Just ("marked " <> show stale <> " interrupted run(s) failed") else Nothing)
 
 -- | Launch a run from a preset on every seat.
-launch :: GameboardParts -> StoreBackend -> Launch -> Effect (Either String Launched)
-launch p store l = either (pure <<< Left <<< show) (const (startRun)) (traverse_ (checkRounds p.gameboard) l.rounds)
+launch :: forall r. GameboardParts -> Launch -> Run (LAUNCHES r) (Either String Launched)
+launch p l = either (pure <<< Left <<< show) (const (startRun)) (traverse_ (checkRounds p.gameboard) l.rounds)
   where
-  startRun = start p store { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
+  startRun = start p { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], derivation: Nothing }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
 -- | seed it used. The seed is resolved here, before the run starts, and the stored spec records that
 -- | value. Nothing is stored unless the game assembles. A run that throws (a store or simulation
 -- | fault) is marked failed with the cause, and the error goes on.
-start :: GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
-start p store l = freshRunId store >>= case _ of
+start :: forall r. GameboardParts -> Start -> Run (LAUNCHES r) (Either String Launched)
+start p l = freshRunId >>= case _ of
   Left e -> pure (Left e)
-  Right id -> startAs id p store l
+  Right id -> startAs id p l
 
 -- | A freshly minted run id, or why it may not name a run.
-freshRunId :: StoreBackend -> Effect (Either String String)
-freshRunId store = checkRunId <$> nextRunId store
+freshRunId :: forall r. Run (LAUNCHES r) (Either String String)
+freshRunId = checkRunId <$> nextRunId
 
 -- | A minted id, or why it may not name a run. The rule is `Handlers.Store.validRunId`, the one the CLI's
 -- | `--id` obeys: an id names a directory under runs/ as well as a row.
@@ -94,36 +92,24 @@ checkRunId id
   | validRunId id = Right id
   | otherwise = Left ("not a valid run id: " <> id)
 
-startAs :: String -> GameboardParts -> StoreBackend -> Start -> Effect (Either String Launched)
-startAs id p store l = do
+startAs :: forall r. String -> GameboardParts -> Start -> Run (LAUNCHES r) (Either String Launched)
+startAs id p l = do
   seed <- resolveSeed (Seed <$> l.playerSeed)
   case assemblePreset p l.preset l.overrides l.rounds of
     Left e -> pure (Left (show e))
     Right game -> do
       let
         spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.gameboard), playerSeed: seed, preset: Just l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
-      created <- nowIso
-      owner <- processOwner serverRole
-      attempt <- play store id $ simulateWith seed game \manifest -> do
-        openRun store roundMetrics { id, name: l.name, created, spec, manifest, owner } manifest.initial >>= either (throwException <<< error) pure
+      created <- now
+      owner <- ownerOf serverRole
+      attempt <- playRun (Simulated { seed, game, run: { id, name: l.name, created, spec, manifest: game.manifest, owner } })
       pure (attempt $> { id, playerSeed: unwrap seed })
-
--- | Play a stored run to its end and settle it (`Handlers.Store.settle`). A thrown error fails the run,
--- | with its cause, and goes on. A game that does not start is a `Left`, with nothing stored; a game
--- | that played is the engine's result. Each error is rendered here, once.
-play :: forall e a. Show e => StoreBackend -> String -> Effect (Either e (Either EngineError a)) -> Effect (Either String (Either String a))
-play store id game = try game >>= case _ of
-  Left ex -> settle store id exceptionPrefix (Left ex) *> throwException ex
-  Right (Left e) -> pure (Left (show e))
-  Right (Right r) -> settle store id exceptionPrefix (Right r) $> Right (lmap show r)
-  where
-  exceptionPrefix = "exception: "
 
 -- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
 -- | link cannot come to resolve to a different run.
-nextRunId :: StoreBackend -> Effect String
-nextRunId store = do
-  rows <- runObserve store listSummaries
+nextRunId :: forall r. Run (LAUNCHES r) String
+nextRunId = do
+  rows <- listSummaries
   let
     cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
@@ -131,17 +117,17 @@ nextRunId store = do
 
 -- | Launch one run of each Setting, in order. The first that does not start stops the batch; the runs
 -- | before it stay, as any launched run does.
-launchBatch :: Array GameboardParts -> StoreBackend -> LaunchBatch -> Effect (Either String (Array { setting :: String, id :: String, playerSeed :: Int }))
-launchBatch ps store b = foldM step (Right []) ps
+launchBatch :: forall r. Array GameboardParts -> LaunchBatch -> Run (LAUNCHES r) (Either String (Array { setting :: String, id :: String, playerSeed :: Int }))
+launchBatch ps b = foldM step (Right []) ps
   where
   step acc p = case acc of
     Left e -> pure (Left e)
-    Right done -> launch p store { setting: Nothing, name: "batch " <> p.gameboard.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { setting: p.gameboard.id, id: l.id, playerSeed: l.playerSeed } ])
+    Right done -> launch p { setting: Nothing, name: "batch " <> p.gameboard.id, preset: b.preset, playerSeed: b.playerSeed, rounds: b.rounds } <#> map (\l -> done <> [ { setting: p.gameboard.id, id: l.id, playerSeed: l.playerSeed } ])
 
 -- | `GET /api/setting`: the settings the launch form offers (`Views.Setting`).
-settingInfo :: Array GameboardParts -> StoreBackend -> Effect (Array Setting)
-settingInfo ps store = do
-  next <- nextRunId store
+settingInfo :: forall r. Array GameboardParts -> Run (LAUNCHES r) (Array Setting)
+settingInfo ps = do
+  next <- nextRunId
   pure (map (info next) ps)
   where
   info next p =

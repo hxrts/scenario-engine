@@ -8,14 +8,14 @@ module Options
 
 import Prelude
 
-import Adapters.Pi (defaultModel)
+import Handlers.Llm.Backend (defaultModel)
 import Core.Draw (Seed(..))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe)
 import Flags (Flag, checkedFlag, intFlagOf, optionalIntFlag, textFlag)
 import Handlers.Store (validRunId)
 import Settings.Presets (defaultPresets)
-import Session (Options)
+import Cli.Session (Options)
 
 -- | The options of `run`.
 type RunOptions = { preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
