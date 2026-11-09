@@ -38,7 +38,7 @@ import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
 import Test.Core.Build (heldDraw, ownDraw, withAccount, actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
 import Test.Spec (describe, it)
-import Test.Spec.Assertions (shouldContain, shouldEqual, shouldNotEqual)
+import Test.Spec.Assertions (shouldContain, shouldNotContain, shouldEqual, shouldNotEqual)
 import Test.Spec.QuickCheck (quickCheck)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
@@ -830,6 +830,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         dependent inputs = Right (if inputs == two.record.inputs then r.world else favoured) :: Either String _
       map _.invariant (orderIndependentBy dependent two) `shouldContain` "INV-11"
       orderIndependent w (empty w) `shouldEqual` []
+    it "INV-07: a Market's curve that creates a Resource" do
+      let
+        w = (baseWorld [ actor "US" [] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]) }
+        created = coupled 1 [ { from: Source, to: Held (Id "US"), resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { proposal: Id "none", intent: 0, mechanism: Curve (Id "EM") })
+      invariantsOf w (withEvent created (empty w)) `shouldContain` "INV-07"
+      invariantsOf w (withEvent (tradeE (Id "EM") (Id "US") Q.zero Q.zero) (empty w)) `shouldNotContain` "INV-07"
     it "INV-04: holdings that move between Entities with no event, though the totals balance" do
       let
         w = baseWorld [ actor "A" [], actor "B" [] ]

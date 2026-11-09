@@ -40,7 +40,7 @@ import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | A checked invariant (docs/02 §9), named by its number.
-data Invariant = INV01 | INV02 | INV03 | INV04 | INV05 | INV06 | INV08 | INV09 | INV10
+data Invariant = INV01 | INV02 | INV03 | INV04 | INV05 | INV06 | INV07 | INV08 | INV09 | INV10
 
 derive instance Eq Invariant
 
@@ -55,7 +55,7 @@ type Failure = { invariant :: String, detail :: String }
 
 type CheckFn = WorldState -> RoundResult -> Array Failure
 
-type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "INV04" :: CheckFn, "INV05" :: CheckFn, "INV06" :: CheckFn, "INV08" :: CheckFn, "INV09" :: CheckFn, "INV10" :: CheckFn)
+type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "INV04" :: CheckFn, "INV05" :: CheckFn, "INV06" :: CheckFn, "INV07" :: CheckFn, "INV08" :: CheckFn, "INV09" :: CheckFn, "INV10" :: CheckFn)
 
 -- | How a failed check is stored.
 failureShape :: Shape Failure
@@ -64,7 +64,7 @@ failureShape = recordShape "Failure" { invariant: stringShape, detail: stringSha
 check :: forall rep. Generic Invariant rep => EnumFields rep CheckRow CheckFn => WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) checks)
   where
-  checks = { "INV01": inv01, "INV02": inv02, "INV03": inv03, "INV04": inv04, "INV05": inv05, "INV06": inv06, "INV08": inv08, "INV09": inv09, "INV10": inv10 }
+  checks = { "INV01": inv01, "INV02": inv02, "INV03": inv03, "INV04": inv04, "INV05": inv05, "INV06": inv06, "INV07": inv07, "INV08": inv08, "INV09": inv09, "INV10": inv10 }
 
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
@@ -230,6 +230,18 @@ inv05 before r = concatMap one resources
     }
     Map.empty
     r.record.events
+
+-- | INV-07 Price is not production: a Market's curve only moves what is already held, so no leg it settles
+-- | comes from the source or goes to the sink. Only a Transformation or a declared flow creates or removes.
+inv07 :: WorldState -> RoundResult -> Array Failure
+inv07 _ r = concatMap one (select (event @"Coupled") r.record.events)
+  where
+  one c = case c.cause of
+    OfIntent { mechanism: Curve m } -> concatMap (bad m) c.legs
+    _ -> []
+  bad m l
+    | l.from == Source || l.to == Sink = [ failure INV07 (show m <> " settled " <> show l.moved <> " " <> show l.resource <> " to or from outside the economy") ]
+    | otherwise = []
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain, and Transformation fills
 -- | stay within what their pool can draw and their ceiling.
