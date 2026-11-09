@@ -5,6 +5,7 @@ module Core.Engine.Compile
   , fillCoupling
   , transformCoupling
   , payCoupling
+  , fractionLaw
   , runCoupling
   ) where
 
@@ -12,7 +13,8 @@ import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), Party(..), Short(..), noNext) as K
+import Core.Kernel.Law (holderParam)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), Law, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, holding, reserveOf)
@@ -109,3 +111,22 @@ payCoupling from to resource owed cause =
   , cause: Just cause
   , consented: []
   }
+
+-- | A time law taking a fraction of what each holder of a Resource holds, out of the economy.
+fractionLaw :: ResourceId -> Q -> Cause -> K.Law Capability LegQuery RejectReason Cause
+fractionLaw resource fraction cause =
+  { subject: K.OfStock { holders: Nothing, resource }
+  , trigger: K.EachRound
+  , operation: K.Emit
+      { from: holder
+      , to: K.Destroyed
+      , resource
+      , owed: K.Least { left: K.Times { ratio: fraction, amount: stock }, right: stock }
+      }
+  , guard: []
+  , phase: 5
+  , cause
+  }
+  where
+  holder = K.HeldBy (K.Bound holderParam)
+  stock = K.Stock { at: holder, resource }

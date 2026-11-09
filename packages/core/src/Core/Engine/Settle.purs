@@ -10,7 +10,6 @@ module Core.Engine.Settle
   , settle
   , net
   , transfer
-  , minOwedHeld
   ) where
 
 import Prelude
@@ -258,10 +257,6 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     ChangeRule (Repeal id) -> a { scheduled = Map.insert id Nothing a.scheduled }
     _ -> a
   ruleId = ruleIdOf p.id
-
--- | What an Entity can pay or consume: what is owed, capped at what it holds.
-minOwedHeld :: Q -> Q -> Q
-minOwedHeld owed held = min owed (max Q.zero held)
 
 -- | A transfer between Entities, one leg with what was owed and what moved.
 transfer :: WorldState -> Cause -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement

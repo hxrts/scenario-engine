@@ -9,16 +9,18 @@ module Core.Engine.Circulate
 
 import Prelude
 
-import Core.Engine.Settle (Settlement, minOwedHeld, net, transfer)
-import Core.Kernel.Post (Account(..), adjust)
+import Core.Engine.Compile (fractionLaw, payCoupling, runCoupling)
+import Core.Engine.Settle (Settlement, net, transfer)
+import Core.Kernel.Law (forHolder)
+import Core.Kernel.Post (Account(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (entitiesOf, holding, lookupQ)
 import Core.Slice (runLegQuery)
 import Core.Types (EntityId)
-import Core.World (addEvents, Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
-import Data.Array (filter, findIndex, foldl, fromFoldable, index, length)
+import Core.World (addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
+import Data.Array (filter, findIndex, foldl, fromFoldable, index, length, any, head)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -48,14 +50,12 @@ step w acc r =
   consume from =
     let
       needed = amountOf w acc.st r
-      moved = minOwedHeld needed (net w from r.resource acc.st)
+      posted = runCoupling w acc.st.ledger (payCoupling from Nothing r.resource needed (causeOf r))
+      moved = fromMaybe Q.zero (_.moved <$> head posted.flows)
       short = Q.sub needed moved
-      legs = [ { from: Held from, to: Sink, resource: r.resource, owed: needed, moved } ]
-      events = if needed > Q.zero then [ coupled w.round legs Nothing (causeOf r) ] else []
+      events = if needed > Q.zero then [ coupled w.round posted.flows Nothing (causeOf r) ] else []
     in
-      { st: addEvents events acc.st
-          { ledger = adjust (Ent from) r.resource (Q.neg moved) acc.st.ledger
-          }
+      { st: addEvents events acc.st { ledger = posted.ledger }
       , offsets: case r.onShortfall of
           OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
           _ -> acc.offsets
@@ -96,15 +96,11 @@ eachHolder w st0 = foldl lose st0 holdings
   holdings = (entitiesOf w) >>= \e -> map (Tuple e.id) (fromFoldable (Set.union (Map.keys e.accounts) (acquired e.id)))
   acquired e = Set.mapMaybe (\(Tuple a r) -> if a == Ent e then Just r else Nothing) (Map.keys st0.ledger)
   lose acc (Tuple e r) = foldl (loseBy e) acc (filter (\x -> isEachHolder x && x.resource == r) w.recurring)
-  loseBy e acc rule =
-    let
-      held = max Q.zero (net w e rule.resource acc)
-      lost = minOwedHeld (fractionOf rule held) held
-    in
-      if lost == Q.zero then acc
-      else addEvents [ coupled w.round [ { from: Held e, to: Sink, resource: rule.resource, owed: lost, moved: lost } ] Nothing (causeOf rule) ] acc
-        { ledger = adjust (Ent e) rule.resource (Q.neg lost) acc.ledger
-        }
-  fractionOf rule held = case rule.amount of
-    FractionHeld f -> Q.mul f held
+  -- a holder that would lose nothing is untouched: nothing is written for it
+  loseBy e acc rule = case forHolder e (fractionLaw rule.resource (fractionOf rule) (causeOf rule)) of
+    Just c | posted <- runCoupling w acc.ledger c, any (\f -> f.moved /= Q.zero) posted.flows ->
+      addEvents [ coupled w.round posted.flows Nothing (causeOf rule) ] acc { ledger = posted.ledger }
+    _ -> acc
+  fractionOf rule = case rule.amount of
+    FractionHeld f -> f
     _ -> Q.zero
