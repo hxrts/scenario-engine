@@ -278,6 +278,7 @@ endpoints = table
         alternative <- optionalParam "alternative" _.alternative
         in { setting, playerSeed, preset, alternative }
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
+  , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
   , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
   , "Unarchive": post "/api/runs/:id/unarchive" (capture "id" identity)

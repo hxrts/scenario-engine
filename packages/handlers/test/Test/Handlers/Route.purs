@@ -47,6 +47,7 @@ nameOf = case _ of
   Agency _ -> "Agency"
   Derive _ -> "Derive"
   Resume _ -> "Resume"
+  Step _ -> "Step"
   Archive _ -> "Archive"
   Unarchive _ -> "Unarchive"
   Delete _ -> "Delete"
@@ -72,6 +73,7 @@ examples =
   , Tuple (Derive { id: "run-1", body: { kind: Duplicate, name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing, overrides: Just (fromString "o") } })
       (p "/api/runs/run-1/derive" "{\"kind\":\"duplicate\",\"overrides\":\"o\"}")
   , Tuple (Resume { id: "run-1", rounds: 9 }) (p "/api/runs/run-1/resume" "{\"rounds\":9}")
+  , Tuple (Step "run-1") (p "/api/runs/run-1/step" "{}")
   , Tuple (Archive "run-1") (p "/api/runs/run-1/archive" "{}")
   , Tuple (Unarchive "run-1") (p "/api/runs/run-1/unarchive" "{}")
   , Tuple (Delete { id: "run-1", confirm: "run-1" }) { method: "DELETE", url: "/api/runs/run-1?confirm=run-1", body: "" }

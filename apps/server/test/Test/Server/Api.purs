@@ -31,7 +31,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
 import Effects.Observe (listRuns, readManifest, readRounds)
-import Effects.Store (createRun, failRun, setStatus)
+import Effects.Store (createRun, failRun, setStatus, setSpec)
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)
 import Game.Recipe (encodeSpec)
@@ -144,6 +144,25 @@ spec = describe "API status rules, startup and cache" do
     noKind.status `shouldEqual` 400
     badSeed <- env.api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"playerSeed\":\"one\"}"
     badSeed.status `shouldEqual` 400
+  it "a step plays one round of a run short of its target, the same round extend plays; a run at its target is refused" do
+    env <- setup
+    launch env 3
+    launch env 3
+    stored <- liftEffect (runObserve env.store (readManifest "run-1"))
+    case stored of
+      Just { spec: Right written } -> liftEffect (runStore env.store (setSpec "run-1" written { rounds = Just 5 }))
+      _ -> liftEffect (throw "no stored spec")
+    stepped <- env.api "POST" "/api/runs/run-1/step" ""
+    stepped.status `shouldEqual` 200
+    stepped.body `shouldSatisfy` contains (Pattern "\"rounds\":4")
+    (env.api "POST" "/api/runs/run-2/resume" "{\"rounds\":4}" <#> _.status) >>= (_ `shouldEqual` 200)
+    one <- liftEffect (runObserve env.store (readRounds "run-1"))
+    other <- liftEffect (runObserve env.store (readRounds "run-2"))
+    map _.record one `shouldEqual` map _.record other
+    map _.snapshot one `shouldEqual` map _.snapshot other
+    refused <- env.api "POST" "/api/runs/run-2/step" ""
+    refused.status `shouldEqual` 400
+    refused.body `shouldSatisfy` contains (Pattern "has played all 4")
   it "resume of a run that is not completed is a 400, and a rerun of one is a 409" do
     env <- setup
     launch env 2

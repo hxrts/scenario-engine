@@ -69,6 +69,7 @@ data ApiRequest
   | Agency { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
   | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
+  | Step String
   | Archive String
   | Unarchive String
   | Delete { id :: String, confirm :: String }

@@ -249,7 +249,7 @@ mkRunPage grid = do
           ]
       }
   where
-  manage actions p o = loaded o \(v :: RunOverview) -> actions { id: p.id, archived: p.archived, resumable: v.resumable, onChanged: p.onChanged }
+  manage actions p o = loaded o \(v :: RunOverview) -> actions { id: p.id, archived: p.archived, resumable: v.resumable, steppable: v.resumable && v.rounds < v.target, onChanged: p.onChanged }
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
 -- | selection, the latest readable run. The selected run's results come first; its manage

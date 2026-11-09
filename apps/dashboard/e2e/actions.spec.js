@@ -125,3 +125,19 @@ test("a refused derive shows the server's message", async ({ page }) => {
   await derive.getByRole("button", { name: "Derive run", exact: true }).click();
   await expect(page.getByText(message)).toBeVisible();
 });
+
+test("Step is offered only to a run short of its target, and sends the request", async ({ page }) => {
+  await mockReads(page, { target: 5 });
+  let posted = 0;
+  await page.route(isPath("/api/runs/run-1/step"), (route) => { posted += 1; return route.fulfill(json({ id: "run-1", rounds: 4 })); });
+  await page.goto("/#/runs/run-1");
+  await page.getByRole("button", { name: "Step one round", exact: true }).click();
+  await expect.poll(() => posted).toBe(1);
+});
+
+test("a run that has played its target offers no Step", async ({ page }) => {
+  await mockReads(page, { target: 3 });
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Step one round", exact: true })).toHaveCount(0);
+});

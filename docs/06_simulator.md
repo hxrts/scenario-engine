@@ -115,7 +115,7 @@ A run's status is `running`, `completed`, or `failed`. A run is `running` from i
 
 Each round follows the canonical sequence ([02 §8.1](02_type_system.md#81-canonical-resolution-sequence)). The simulator drives the same round runner and engine as live play, with seat Policies bound. Its own work is supplying the seat inputs and saving each round's record, snapshot, assertion results, and metrics once the round is complete. It does not evaluate NPC or Aggregate Policies, compute Representation estimates or procedure support, or repeat Aggregate actions.
 
-Two operations drive a run: **run to completion**, and **extend**, which continues from a stored snapshot. **Planned:** a single-round step.
+Two operations drive a run: **run to completion**, and **extend**, which continues from a stored snapshot. A **single-round step** plays one round of a completed run short of its target, through extend's snapshot path.
 
 ### 6.1 Invalid actions and failures
 
@@ -245,6 +245,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round, with a chart and its net worth. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
 | `POST /api/runs/:id/derive` | Derive a run of kind `duplicate`, `rerun`, `variant`, or `counterfactual`, with optional name, preset, player seed, rounds, and overrides. | 201 with the new id, source, and kind (plus `recordsMatch` for a rerun). 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 when the source cannot be compared or replayed. 500 |
 | `POST /api/runs/:id/resume` | Extend a completed run to a total round count. | 200 with id and rounds. 400 when the run is not completed, is a live session, or the count is not above its completed rounds. 404. 500 |
+| `POST /api/runs/:id/step` | Play one round of a completed run short of its target. | 200 with id and rounds. 400 when the run is not completed, is a live session, or has played all its rounds. 404 for an unknown id. |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 with id and archived. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200. 400 without a matching `confirm`. 404 |
 | `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `market` is unknown |

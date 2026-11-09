@@ -25,7 +25,7 @@ import React.Basic.Hooks as React
 
 -- | The run's id, whether it is archived, whether it can be resumed (the overview says: only a completed
 -- | run), and a callback that refreshes the page after an archive or a resume.
-type Props = { id :: String, archived :: Boolean, resumable :: Boolean, onChanged :: Effect Unit }
+type Props = { id :: String, archived :: Boolean, resumable :: Boolean, steppable :: Boolean, onChanged :: Effect Unit }
 
 mkRunActions :: Component Props
 mkRunActions = component "RunActions" \p -> React.do
@@ -62,6 +62,8 @@ mkRunActions = component "RunActions" \p -> React.do
 
     field label value onChange = labelled (D.text label) (textInput { value, required: false, onChange })
 
+    stepOne = submit (Right unit) (\_ -> Client.step p.id) \_ -> p.onChanged
+
     -- one click deletes: the request names the run it deletes, which is the server's own check
     delete = submit (Right unit) (\_ -> Client.delete p.id) \_ ->
       p.onChanged *> navigate Runs
@@ -95,7 +97,8 @@ mkRunActions = component "RunActions" \p -> React.do
             , D.div
                 { className: "flex flex-wrap gap-2"
                 , children:
-                    [ element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
+                    [ if p.steppable then element UI.button { onClick: handler_ stepOne, children: [ D.text "Step one round" ] } else D.span_ []
+                    , element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
                     , element UI.button { onClick: handler_ delete, children: [ D.text "Delete run" ] }
                     ]
                 }

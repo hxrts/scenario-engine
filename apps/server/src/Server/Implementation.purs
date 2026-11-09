@@ -15,7 +15,7 @@ import Effects.Api (ApiRequest(..), Reply)
 import Effects.Cache (forgetRuns)
 import Handlers.Api.Route (wire)
 import Run (Run)
-import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive)
+import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
 import Server.Launch (launch, launchBatch, settingInfo)
 import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
@@ -46,6 +46,7 @@ answer settings request = do
     Agency r -> agencyView settings r
     Derive { id, body } -> deriveRun settings id body
     Resume { id, rounds } -> resumeRun settings id rounds
+    Step id -> stepRun settings id
     Archive id -> setArchive id true
     Unarchive id -> setArchive id false
     Delete { id, confirm } -> deleteOne id confirm

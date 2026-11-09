@@ -15,6 +15,7 @@ module Dashboard.Client
   , archive
   , resume
   , deriveRun
+  , step
   , delete
   ) where
 
@@ -98,6 +99,10 @@ archive id archived = typed unread (if archived then Unarchive id else Archive i
 -- | Resume a run to a round count.
 resume :: String -> Int -> Aff (Either String Unit)
 resume id rounds = typed unread (Resume { id, rounds })
+
+-- | Play one more round of a run short of its target.
+step :: String -> Aff (Either String Unit)
+step id = typed unread (Step id)
 
 -- | Delete a run; the request names the run it deletes.
 delete :: String -> Aff (Either String Unit)

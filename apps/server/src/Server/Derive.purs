@@ -4,6 +4,7 @@
 module Server.Derive
   ( deriveRun
   , resumeRun
+  , stepRun
   , setArchive
   , deleteOne
   ) where
@@ -144,28 +145,40 @@ deriveSession settings sourceId body info spec
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
 resumeRun :: forall o. Settings -> String -> Int -> Run (SERVER o) Answer
-resumeRun settings id rounds =
+resumeRun settings id rounds = continueRun settings id "resumed" \p ->
+  if rounds <= p.done then Left ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
+  else Right { rounds, spec: p.spec { rounds = Just rounds } }
+
+-- | `POST /api/runs/:id/step`: one round of a completed run that is short of its target, through the same
+-- | snapshot path as resume. The target does not change.
+stepRun :: forall o. Settings -> String -> Run (SERVER o) Answer
+stepRun settings id = continueRun settings id "stepped" \p -> case p.spec.rounds of
+  Just target | p.done < target -> Right { rounds: p.done + 1, spec: p.spec }
+  _ -> Left (id <> " has played all " <> show p.done <> " of its rounds")
+
+-- | Continue a completed run from its last snapshot, to the round count and with the spec `decide` gives.
+continueRun :: forall o. Settings -> String -> String -> ({ done :: Int, spec :: Spec } -> Either String { rounds :: Int, spec :: Spec }) -> Run (SERVER o) Answer
+continueRun settings id verb decide =
   runInfo id >>= case _ of
     Nothing -> notFound ("no run " <> id)
     Just info
-      | info.status /= Completed -> badRequest ("only a completed run can be resumed; " <> id <> " is " <> show info.status)
+      | info.status /= Completed -> badRequest ("only a completed run can be " <> verb <> "; " <> id <> " is " <> show info.status)
       | otherwise -> do
           stored <- (readManifest id)
           rows <- (readRounds id)
           case stored, last rows of
-            Just m, _ | Right spec <- m.spec, isNothing spec.preset -> badRequest ("a live session has no preset, so it cannot be resumed; " <> id)
+            Just m, _ | Right spec <- m.spec, isNothing spec.preset -> badRequest ("a live session has no preset, so it cannot be " <> verb <> "; " <> id)
             Just m, Just latest -> case prepare m.spec latest (length rows) of
               Left e -> internal ("run " <> id <> " is unreadable: " <> e)
-              Right p
-                | rounds <= p.done -> badRequest ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
-                | otherwise -> do
-                    case assemblePreset p.setting p.base.preset p.base.overrides (Just rounds) of
-                      Left e -> badRequest (show e)
-                      Right game -> do
-                        attempt <- playRun (Continued { id, seed: p.seed, game, world: p.snapshot, done: p.done, spec: p.spec { rounds = Just rounds } })
-                        case attempt of
-                          Left e -> badRequest e
-                          Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok Keys.resumed { id, rounds })) r
+              Right p -> case decide { done: p.done, spec: p.spec } of
+                Left e -> badRequest e
+                Right next -> case assemblePreset p.setting p.base.preset p.base.overrides (Just next.rounds) of
+                  Left e -> badRequest (show e)
+                  Right game -> do
+                    attempt <- playRun (Continued { id, seed: p.seed, game, world: p.snapshot, done: p.done, spec: next.spec })
+                    case attempt of
+                      Left e -> badRequest e
+                      Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok Keys.resumed { id, rounds: next.rounds })) r
             _, _ -> internal ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
