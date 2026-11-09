@@ -33,7 +33,7 @@ ruleKinds :: Map RuleKindId RuleKindDecl
 ruleKinds = keyed
   [ Tuple tariffKind { form: LevyFlows GovernedByDestination, text: "tariff on {counterparty} goods into {governor}, rate {amount}" }
   , Tuple accessBanKind { form: BlockFlows GovernedByEither, text: "access ban: {governor} bars {counterparty}" }
-  , Tuple withholdingKind { form: ReduceCapacity, text: "withholding of {amount} from {capacity}" }
+  , Tuple withholdingKind { form: ReduceHolding, text: "withholding of {amount} from {resource}" }
   ]
 
 tariff :: LevyKit

@@ -10,7 +10,7 @@ module Settings.Kit.RuleKinds
 
 import Core.Num (Q)
 import Core.Strategy (Expr, IntentTemplate, selfName)
-import Core.Types (Capability, CapacityRef, Direction(..), EntityId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
+import Core.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
 import Schema.Build.Base (mayEnact)
 import Schema.Build.Decision (selfEnact)
 
@@ -56,8 +56,8 @@ blockRule d =
 -- | Strategy's an expression.
 type ReduceKit =
   { may :: Capability
-  , rule :: { capacity :: CapacityRef, units :: Q } -> RuleF Q
-  , enact :: forall m v. { capacity :: CapacityRef, units :: v } -> IntentF m v
+  , rule :: { capacity :: ResourceId, units :: Q } -> RuleF Q
+  , enact :: forall m v. { capacity :: ResourceId, units :: v } -> IntentF m v
   }
 
 reduceRule :: { kind :: String } -> ReduceKit
@@ -67,5 +67,5 @@ reduceRule d =
   , enact: \r -> ChangeRule (Enact (reduceOf r.capacity r.units))
   }
   where
-  reduceOf :: forall v. CapacityRef -> v -> RuleF v
-  reduceOf capacity units = CapacityRule { kind: Id d.kind, capacity: capacity, reduce: units }
+  reduceOf :: forall v. ResourceId -> v -> RuleF v
+  reduceOf capacity units = HoldingRule { kind: Id d.kind, resource: capacity, reduce: units }

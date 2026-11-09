@@ -1,11 +1,10 @@
 -- | Read-only queries over a World State, shared by the engine, invariants, analysis views,
--- | and tests. Absent entries read as zero. Also here: the capacity and Transformation-pool helpers
+-- | and tests. Absent entries read as zero. Also here: the draw and Transformation-pool helpers
 -- | that Fund prices and Settle allocates against, and the Intent selectors.
 module Core.Query
   ( lookupQ
   , holding
   , accountsOf
-  , capacityHeld
   , capabilitiesOf
   , entitiesOf
   , marketsOf
@@ -16,8 +15,8 @@ module Core.Query
   , reserveOf
   , aggregateOf
   , isAggregate
-  , owner
-  , capacityOf
+  , holderOf
+  , drawable
   , conversionPrice
   , poolOf
   , poolCeiling
@@ -40,10 +39,10 @@ import Core.Map (values)
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (drawsOnCapacity, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, CapacityRef, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Core.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
-import Core.World (Event, WorldState)
-import Data.Array (concatMap, filter, find, mapMaybe)
+import Core.World (Event, RecurringAmount(..), WorldState)
+import Data.Array (any, concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as Map
@@ -82,10 +81,6 @@ transformationsOf = values <<< _.transformations
 capabilitiesOf :: WorldState -> EntityId -> Array Capability
 capabilitiesOf w e = maybe [] _.capabilities (Map.lookup e w.entities)
 
--- | The amount of a capacity an Entity holds.
-capacityHeld :: WorldState -> EntityId -> CapacityRef -> Q
-capacityHeld w e ref = fromMaybe Q.zero (Map.lookup e w.entities <#> \x -> lookupQ ref x.capacities)
-
 -- | A Market's current marginal price, by id.
 priceOf :: WorldState -> MarketId -> Maybe Price
 priceOf w m = marketPrice <$> Map.lookup m w.markets
@@ -107,23 +102,35 @@ aggregateOf e = case e.kind of
 isAggregate :: Entity -> Boolean
 isAggregate = isJust <<< aggregateOf
 
--- | The capacity's owner: the Entity with a positive holding of it, else the first with an account
--- | for it (an owner run down to zero still owns it). INV-08 keeps a positive holder unique.
--- | Capacity Rules and capacity lookups both use this.
-owner :: WorldState -> CapacityRef -> Maybe EntityId
-owner w ref = _.id <$> (find (\e -> lookupQ ref e.capacities > Q.zero) entities <|> find (\e -> Map.member ref e.capacities) entities)
-  where
-  entities = entitiesOf w
+-- | The holder of a Resource: the Entity with a positive holding of it, else the first with an account
+-- | for it (a holder run down to zero is still its holder). Only a Resource that has one holder that
+-- | matters has one: one a holder draw names, an effect changes, or a recurring flow reads as an amount
+-- | held. INV-08 keeps a positive holder unique for the drawn ones. Holding Rules and draws both use this.
+holderOf :: WorldState -> ResourceId -> Maybe EntityId
+holderOf w r
+  | not (governable w r) = Nothing
+  | otherwise = _.id <$> (find (\e -> lookupQ r e.accounts > Q.zero) entities <|> find (\e -> Map.member r e.accounts) entities)
+      where
+      entities = entitiesOf w
 
--- | Effective capacity: the owner's capacity less what Rules reduce it by.
-capacityOf :: WorldState -> CapacityRef -> Q
-capacityOf w ref =
+-- | Whether a Resource is one whose holder governs it: a holder draw, an effect, or a recurring read names it.
+governable :: WorldState -> ResourceId -> Boolean
+governable w r = any names (transformationsOf w) || any reads w.recurring
+  where
+  names tr = (_.resource <$> holderDraw tr) == Just r || any (\e -> e.resource == r) tr.effects
+  reads flow = case flow.amount of
+    HeldAmount x -> x == r
+    _ -> false
+
+-- | What can be drawn from a Resource: its holder's holding, less what Rules reduce it by.
+drawable :: WorldState -> ResourceId -> Q
+drawable w r =
   let
-    held = maybe Q.zero (\o -> capacityHeld w o ref) (owner w ref)
+    held = maybe Q.zero (\o -> holding w o r) (holderOf w r)
     reduced = Q.sumQ
       ( map
           ( case _ of
-              CapacityRule r | r.capacity == ref -> r.reduce
+              HoldingRule x | x.resource == r -> x.reduce
               _ -> Q.zero
           )
           (rulesOf w)
@@ -136,29 +143,27 @@ capacityOf w ref =
 conversionPrice :: Transformation -> Q -> Q
 conversionPrice tr q = maybe Q.zero (\p -> averagePrice p.curve Q.zero q) tr.payment
 
--- | The pool a Transformation's fills draw on: the shared capacity if it is capped, else the Transformation
--- | alone. Allocation in one pool are allocated together and priced at one uniform price.
-poolOf :: TransformationId -> Transformation -> Either TransformationId CapacityRef
-poolOf tid tr = maybe (Left tid) Right (drawsOnCapacity tr)
+-- | The pool a Transformation's fills draw on: the Resource it draws from a holder if it has one, else the
+-- | Transformation alone. Allocations in one pool are allocated together and priced at one uniform price.
+poolOf :: TransformationId -> Transformation -> Either TransformationId ResourceId
+poolOf tid tr = maybe (Left tid) (Right <<< _.resource) (poolDraw tr)
 
 -- | The most units a Transformation's pool can fill in total, its ceiling, which escrow prices at in full
--- | and settlement never exceeds (§5.3). The pool is every Transformation drawing on the same capped
--- | capacity, so its fills together draw on that capacity: a total of q units uses at least
--- | q × (smallest `capacityUse` in the pool). The ceiling is therefore the capacity divided by that
+-- | and settlement never exceeds (§5.3). The pool is every Transformation that draws the same Resource
+-- | from its holder, so its fills together draw on it: a total of q units uses at least
+-- | q × (smallest `perUnit` in the pool). The ceiling is therefore what can be drawn divided by that
 -- | smallest use, rounded down, and every member of the pool escrows at it, whatever its own use.
--- | An uncapped Transformation's ceiling is the domain top of its cost function. Nothing means no
+-- | A Transformation with no such draw has a ceiling at is the domain top of its cost function. Nothing means no
 -- | ceiling, which only a Transformation with no cost function has, and that one is priced at zero.
 poolCeiling :: WorldState -> Transformation -> Maybe Q
-poolCeiling w tr = case drawsOnCapacity tr of
-  Just ref -> Q.divFloor (capacityOf w ref) (smallestUse w ref tr.capacityUse)
+poolCeiling w tr = case poolDraw tr of
+  Just d -> Q.divFloor (drawable w d.resource) (smallestUse w d.resource d.perUnit)
   _ -> _.curve.domain.hi <$> tr.payment
 
--- | The smallest `capacityUse` among the capped Transformations on `ref`, starting from `use` (the
--- | Transformation's own, so the result is never above it).
-smallestUse :: WorldState -> CapacityRef -> Q -> Q
-smallestUse w ref use = foldl min use (map _.capacityUse (filter drawsOn (transformationsOf w)))
-  where
-  drawsOn x = drawsOnCapacity x == Just ref
+-- | The smallest `perUnit` among the pool's draws on `r`, starting from `use` (the Transformation's own, so
+-- | the result is never above it).
+smallestUse :: WorldState -> ResourceId -> Q -> Q
+smallestUse w r use = foldl min use (map _.perUnit (filter ((_ == r) <<< _.resource) (mapMaybe poolDraw (transformationsOf w))))
 
 -- | The collective procedure a Proposal is put to, through its author Aggregate.
 procedureOf :: WorldState -> EntityId -> CollectiveProcedureId -> Maybe CollectiveProcedure

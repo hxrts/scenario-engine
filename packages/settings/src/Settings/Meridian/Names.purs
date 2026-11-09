@@ -3,7 +3,7 @@
 -- | this record, so a name is spelled once (`n.us`, `n.energyAtlantic`).
 module Settings.Meridian.Names where
 
-import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, Id(..), MarketId, PolicyId, ResourceId, TransformationId)
+import Core.Types (CollectiveProcedureId, EntityId, Id(..), MarketId, PolicyId, ResourceId, TransformationId)
 import Settings.Layout (settingDir)
 
 -- | The type of `n`.
@@ -48,10 +48,10 @@ type Names =
   , logisticsInvestment :: TransformationId
   , energyCapacityInvestment :: TransformationId
   , strike :: TransformationId
-  , energyProduction :: CapacityRef
-  , semiconductors :: CapacityRef
-  , transport :: CapacityRef
-  , attention :: CapacityRef
+  , energyProduction :: ResourceId
+  , semiconductors :: ResourceId
+  , transport :: ResourceId
+  , attention :: ResourceId
   , policyChinaStrategic :: PolicyId
   , policyEuCoordination :: PolicyId
   , policyGlobalSmes :: PolicyId

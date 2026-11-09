@@ -37,7 +37,7 @@ import Views.Agency (AgencyProfile)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
-import Views.Common (Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf, cellOf, tableOf)
+import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf, cellOf, tableOf)
 import Views.Markets (marketPrices, marketUnit)
 import Views.Standings (netWorths, standingsOf)
 
@@ -163,7 +163,7 @@ finalState runs =
   where
   cell (Tuple e res) r = quantity (holding (final r) e res)
   keys = case index runs 0 of
-    Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\e -> map (Tuple e) (fromFoldable (Map.keys (accountsOf (final r) e)))) (fromFoldable (Map.keys (final r).entities)))
+    Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\e -> map (Tuple e) (filter (listedHolding (final r)) (fromFoldable (Map.keys (accountsOf (final r) e))))) (fromFoldable (Map.keys (final r).entities)))
     Nothing -> []
 
 -- | Each run's final holdings minus the baseline's, where they differ: the symmetric difference of the

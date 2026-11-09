@@ -14,7 +14,7 @@ import Core.Map (entries)
 import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityHeld, holding)
+import Core.Query (holding)
 import Core.Slice (conversionPaymentsTo, conversions, count, read, runSlice, shortfalls, total, whereEq)
 import Core.Types (EntityId)
 import Core.World (RoundResult)
@@ -69,7 +69,6 @@ evaluateObjectives gb records = concatMap one (entries gb.actors)
   sign m q = if m.negated then Q.neg q else q
   isFlow = case _ of
     HoldingOf _ -> false
-    CapacityAmount _ -> false
     ShortfallOf _ -> true
     ShortfallRounds _ -> true
     PayeeReceipts -> true
@@ -79,7 +78,6 @@ evaluateObjectives gb records = concatMap one (entries gb.actors)
 measureValue :: Measure -> EntityId -> RoundResult -> Q
 measureValue msr e r = case msr of
   HoldingOf res -> holding r.world e res
-  CapacityAmount c -> capacityHeld r.world e c
   ShortfallOf res -> runSlice (total (read @"quantity" (shortfall res))) r.record.events
   ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
   PayeeReceipts -> runSlice (total (read @"moved" (conversionPaymentsTo e))) r.record.events

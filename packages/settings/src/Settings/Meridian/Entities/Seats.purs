@@ -1,5 +1,5 @@
 -- | Meridian's seat Actors (docs/05_test_instance.md §9 Actor Catalog): each seat's
--- | accounts, capabilities, capacities, objective and fallback. `Entities` lists them.
+-- | accounts, capabilities, objective and fallback. `Entities` lists them.
 -- | A seat is built by `seat`, from a `SeatSpec`; the seat's default Policy is named once,
 -- | and both its NPC Policy and its fallback derive from that name.
 module Settings.Meridian.Entities.Seats (seats, seatActors, cn) where
@@ -12,7 +12,7 @@ import Settings.Meridian.Entities.Capabilities (allied, dealer, government, ship
 import Settings.Meridian.Holdings (holdings)
 import Settings.Meridian.Names (n)
 import Settings.Meridian.Rules (withholding)
-import Schema.Build.Base (capacityOf, cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
+import Schema.Build.Base (cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
 import Schema.Gameboard (ActorDefinition)
 import Core.Types (Capability, Entity, EntityId, MarketId)
@@ -78,7 +78,7 @@ india = seat n.india
   , cover: Governed n.policyGovernmentDefault
   , goal: "Industrial autonomy"
   , criteria:
-      [ finishes n.india (capacityOf n.energyProduction) (atLeast 7)
+      [ finishes n.india (holdingOf n.energyProduction) (atLeast 7)
       , neverShort n.india n.energy
       ]
   , description: "Energy production (5); tariffs"
@@ -145,7 +145,7 @@ ng = seat n.ng
   , cover: Governed n.policyGovernmentDefault
   , goal: "National capacity"
   , criteria:
-      [ finishes n.ng (capacityOf n.energyProduction) (atLeast 14)
+      [ finishes n.ng (holdingOf n.energyProduction) (atLeast 14)
       , finishes n.ng (holdingOf n.money) (atLeast 90)
       ]
   , description: "Energy production (12); capacity investment"
@@ -160,7 +160,7 @@ enco = seat n.enco
   , goal: "Profit and supply growth"
   , criteria:
       [ finishes n.enco (holdingOf n.money) (atLeast 220)
-      , finishes n.enco (capacityOf n.energyProduction) (atLeast 27)
+      , finishes n.enco (holdingOf n.energyProduction) (atLeast 27)
       ]
   , description: "Energy production (25); capacity investment"
   , dependency: "Semiconductor units; strikes"

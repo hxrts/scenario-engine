@@ -17,7 +17,7 @@ import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (conversionPrice, holding, lookupQ, poolCeiling)
-import Core.Types (EntityId, IntentF(..), ResourceId, Transformation)
+import Core.Types (EntityId, IntentF(..), ResourceId, Transformation, executorDraws)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
 import Data.Map (Map)
@@ -86,7 +86,7 @@ claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.
       Just tr ->
         maybe [] (\pay -> [ { entity: t.by, resource: pay.resource, amount: Q.mul (fullPrice w tr) t.quantity } ]) tr.payment
           <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
-          <> map (\(Tuple r q) -> { entity: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.escrowPerUnit)
+          <> map (\d -> { entity: t.by, resource: d.resource, amount: Q.mul d.perUnit t.quantity }) (executorDraws tr)
     ChangeRule _ -> []
 
 -- | A Transformation's uniform price at its full ceiling, used for escrow.

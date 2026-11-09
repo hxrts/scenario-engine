@@ -13,11 +13,11 @@ import Core.Num (Q)
 import Core.Query (accountsOf, holding)
 import Core.Types (EntityId, ResourceId)
 import Core.World (Event, WorldState)
-import Data.Array (concatMap, fromFoldable, index, nub)
+import Data.Array (concatMap, filter, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Views.Common (Column, Field, StoredRun, Table, at, cellOf, col, column, columnsOf, kindOf, outOfRange, quantity, records, tableOf)
+import Views.Common (listedHolding, Column, Field, StoredRun, Table, at, cellOf, col, column, columnsOf, kindOf, outOfRange, quantity, records, tableOf)
 
 initialColumn :: Column
 initialColumn = column "Initial" "The holding before round 1."
@@ -46,7 +46,7 @@ balances r n = case at r n of
   sheet w e = map (\res -> { entity: e, kind: kindOf w e, resource: res, initial: holding w0 e res, current: holding w e res }) (resources w e)
 
   resources :: WorldState -> EntityId -> Array ResourceId
-  resources w e = nub (concatMap (\world -> fromFoldable (Map.keys (accountsOf world e))) [ w0, w ])
+  resources w e = filter (listedHolding w0) (nub (concatMap (\world -> fromFoldable (Map.keys (accountsOf world e))) [ w0, w ]))
 
 -- | One row of a balance sheet.
 type SheetRow = { entity :: EntityId, kind :: String, resource :: ResourceId, initial :: Q, current :: Q }

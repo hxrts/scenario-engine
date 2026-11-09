@@ -59,7 +59,6 @@ negativeFixed r = case r.source, r.destination, r.amount of
 prepared :: RoundIndex -> Event -> Boolean
 prepared round = case _ of
   Coupled d -> d.delivered && d.round == round
-  CapacityChanged d -> d.round == round
   Enacted e -> e.round == round
   Repealed e -> e.round == round
   _ -> false

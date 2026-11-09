@@ -24,8 +24,8 @@ import Core.Map (entries, sumInto)
 import Core.Authority (authorized, executor, worldFacts)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Core.Query (accountsOf, capabilitiesOf, capacityOf, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
-import Core.Types (drawsOnCapacity, IntentF(..), SignedProposal)
+import Core.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
+import Core.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
 import Core.Slice (conversions, event, foldEvents, ignore, select)
 import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
 import Data.Array (all, any, concatMap, elem, filter, find, fromFoldable, index, length, nub)
@@ -91,7 +91,7 @@ inv02 w r = concatMap one (executed r)
   procedureAuthority pid author = maybe [] _.authorizes (procedureOf w author pid)
 
 -- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
--- | membership (its kind). Only holdings, capacities, and Rules move.
+-- | membership (its kind). Only holdings and Rules move.
 inv03 :: WorldState -> RoundResult -> Array Failure
 inv03 before r = concatMap one (entitiesOf (r.world))
   where
@@ -108,7 +108,6 @@ inv01 before r = foldEvents
   , "Rejected": ignore
   , "OrderRemoved": ignore
   , "Coupled": \c acc -> if c.delivered then acc else acc <> behind c.cause c.legs
-  , "CapacityChanged": ignore
   , "Enacted": ignore
   , "Repealed": ignore
   , "Estimated": ignore
@@ -165,7 +164,6 @@ inv04 before r =
     , "Rejected": ignore
     , "OrderRemoved": ignore
     , "Coupled": \c acc -> if c.delivered then acc else foldl addLeg acc c.legs
-    , "CapacityChanged": ignore
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
@@ -202,7 +200,6 @@ inv05 before r = concatMap one resources
     , "Rejected": ignore
     , "OrderRemoved": ignore
     , "Coupled": \c acc -> if c.delivered then acc else foldl legFlow acc c.legs
-    , "CapacityChanged": ignore
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
@@ -212,9 +209,9 @@ inv05 before r = concatMap one resources
     r.record.events
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain, and Transformation fills
--- | stay within their pool's capacity and their ceiling.
+-- | stay within what their pool can draw and their ceiling.
 inv06 :: WorldState -> RoundResult -> Array Failure
-inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (entries used) <> concatMap overCeiling (entries filled)
+inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overDrawn (entries used) <> concatMap overCeiling (entries filled)
   where
   one m =
     if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
@@ -223,19 +220,19 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overCapacity (
   filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of
-    Just tr | Just ref <- drawsOnCapacity tr -> sumInto ref (Q.mul tr.capacityUse t.quantity) m
+    Just tr | Just d <- poolDraw tr -> sumInto d.resource (Q.mul d.perUnit t.quantity) m
     _ -> m
-  overCapacity (Tuple ref q) = if q > capacityOf before ref then [ failure INV06 (show ref <> " drew " <> show q <> ", above its capacity") ] else []
+  overDrawn (Tuple ref q) = if q > drawable before ref then [ failure INV06 (show ref <> " drew " <> show q <> ", above what can be drawn") ] else []
   overCeiling (Tuple tid q) = case Map.lookup tid before.transformations >>= poolCeiling before of
     Just c | q > c -> [ failure INV06 (show tid <> " filled " <> show q <> ", above its ceiling") ]
     _ -> []
 
--- | INV-08 Account partition: a capacity a Transformation draws on has at most one positive holder.
+-- | INV-08 Account partition: a Resource a Transformation draws from its holder has at most one positive holder.
 inv08 :: WorldState -> RoundResult -> Array Failure
-inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< _.capacity) (transformationsOf (r.world))))
+inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< map _.resource <<< holderDraw) (transformationsOf (r.world))))
   where
   entities = entitiesOf (r.world)
-  one ref = if length (filter (\e -> lookupQ ref e.capacities > Q.zero) entities) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
+  one ref = if length (filter (\e -> lookupQ ref e.accounts > Q.zero) entities) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
 
 -- | INV-09 Representation consistency: a stored factor stays within its estimators' bounds.
 inv09 :: WorldState -> RoundResult -> Array Failure

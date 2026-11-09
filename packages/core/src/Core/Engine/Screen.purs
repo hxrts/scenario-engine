@@ -1,7 +1,7 @@
 -- | Engine phase 4 (docs/02_type_system.md §8.1): screen and interpret. Each submitted Proposal is
 -- | checked for duplicate ids, signature completeness, shape, authority, and transfer conditions. A
 -- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. The
--- | authority predicates live in Core.Authority, the capacity owner and the Intent selectors in
+-- | authority predicates live in Core.Authority, the Resource holder and the Intent selectors in
 -- | Core.Query.
 module Core.Engine.Screen
   ( Item
@@ -17,8 +17,8 @@ import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (procedureSupport, capabilitiesOf, aggregateOf, lookupQ, owner, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, jointIntent)
+import Core.Query (procedureSupport, capabilitiesOf, aggregateOf, holderOf, lookupQ, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, holderDraw, jointIntent)
 import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
@@ -105,7 +105,7 @@ validate :: WorldState -> Proposal -> Array EntityId -> Standing -> Either Rejec
 validate w p signers standing = traverse (checkIntent w p signers standing) p.intents *> conditioned w p
 
 -- | One Intent: its executor must exist and sign, it must be valid (`validIntent` over the World State), and
--- | an owner-signed Transformation's owner must sign. `signers` are the Entities whose signatures count.
+-- | the holder of what an owner-signed Transformation draws must sign. `signers` are the Entities whose signatures count.
 checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent -> Either RejectReason Unit
 checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left (UnknownEntity who)
@@ -118,7 +118,7 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
     OwnAuthority -> capabilitiesOf w who
     ProcedureAuthority cs -> cs
   ownerSigned = case i of
-    Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns -> case tr.capacity >>= owner w of
+    Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns -> case holderDraw tr >>= (holderOf w <<< _.resource) of
       Just o | o `elem` signers -> Right unit
       _ -> Left (OwnerMustSign t.transformation)
     _ -> Right unit
@@ -175,7 +175,7 @@ conditioned w p = concat <$> traverse check gated
   flowRules = mapMaybe flowOf (rulesOf w)
   flowOf = case _ of
     FlowRule r -> Just r
-    CapacityRule _ -> Nothing
+    HoldingRule _ -> Nothing
   isBlock r = r.effect == Block
   -- rules of one kind that are paid the same way are one levy
   levyKey r = case r.effect of

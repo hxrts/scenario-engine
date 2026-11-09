@@ -21,7 +21,7 @@ import Core.World (focusShape, FlowGate, UnseededWorld)
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericSettingSum, intShape, iso, listOf, nameShape, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
-import Core.Types (Aggregate, CapacityEffect, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, idMap, idMapWith, idShape, idText)
+import Core.Types (Aggregate, DelayedFlow, Draw, DrawSource, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, executorDraws, idMap, idMapWith, idShape, idText)
 import Core.Types as Types
 import Data.Array as Array
 import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
@@ -47,13 +47,14 @@ transferabilityShape = genericSettingSum "Transferability"
   }
 
 -- | A Resource as a setting writes it: what the World holds, and what only the document holds.
-type ResourceEntry = { transferability :: Transferability, reservable :: Boolean, decay :: Maybe Q }
+type ResourceEntry = { transferability :: Transferability, reservable :: Boolean, decay :: Maybe Q, category :: Maybe String }
 
 resourceEntry :: Shape ResourceEntry
 resourceEntry = recordOf "Resource"
   ( field @"transferability" "how it may move" transferabilityShape
       &. field @"reservable" "may be escrowed by a facility (default false)" (defaultsTo false boolShape)
       &. field @"decay" "the share lost per round" (optionalOf qShape)
+      &. field @"category" "the setting's own grouping of it, which the views read" (optionalOf stringShape)
   )
 
 -- | A curve, its domain written as its `lo` and `hi`.
@@ -79,10 +80,19 @@ marketShape k = object "Market"
   where
   mk b q' c r a p = { id: k, base: b, quote: q', cost: c, position: p, reserves: r, access: a }
 
-effectShape :: Shape CapacityEffect
+drawSourceShape :: Shape DrawSource
+drawSourceShape = genericSettingSum "DrawSource"
+  { "Executor": atBare { tag: "Executor", desc: "the Entity running the order" }
+  , "HolderOf": atBare { tag: "HolderOf", desc: "the unique positive holder of the Resource" }
+  }
+
+drawShape :: Shape Draw
+drawShape = recordShape "Draw" { resource: idShape, from: drawSourceShape, perUnit: qShape }
+
+effectShape :: Shape DelayedFlow
 effectShape = recordOf "Effect"
-  ( field @"capacity" "the capacity changed" idShape
-      &. field @"holder" "the Entity whose capacity it is (default the ordering Entity)" (optionalOf idShape)
+  ( field @"resource" "the Resource created or sunk" idShape
+      &. field @"holder" "the Entity it is for (default the ordering Entity)" (optionalOf idShape)
       &. field @"perUnit" "the change per unit ordered" qShape
       &. field @"rounds" "how many rounds it lasts" (optionalOf intShape)
   )
@@ -95,18 +105,16 @@ facilityShape :: TransformationId -> Shape Transformation
 facilityShape k = object "Facility"
   ( mk <$> fieldOf "inputs" "consumed per unit" (emptyByDefault (idMap qShape)) _.inputs
       <*> fieldOf "outputs" "produced per unit" (emptyByDefault (idMap qShape)) _.outputs
-      <*> fieldOf "escrowPerUnit" "reserved per unit, released within the round" (emptyByDefault (idMap qShape)) _.escrowPerUnit
+      <*> fieldOf "draws" "held per unit for the round, never consumed" (arrayOf drawShape) _.draws
       <*> fieldOf "payment" "what each order pays: its curve, its Resource, and who is paid" (optionalOf paymentShape) _.payment
-      <*> fieldOf "capacity" "the capacity it draws on" (optionalOf idShape) _.capacity
       <*> fieldOf "delay" "rounds before its effects apply" (defaultsTo 0 intShape) _.delay
       <*> fieldOf "minimum" "the smallest order accepted" (defaultsTo Q.zero qShape) _.minimum
       <*> fieldOf "maximum" "the largest total accepted per Entity per round" (optionalOf qShape) _.maximum
-      <*> fieldOf "capacityUse" "capacity drawn per unit ordered (default 1)" (defaultsTo Q.one qShape) _.capacityUse
-      <*> fieldOf "ownerSigns" "the capacity's owner must sign each order (default false)" (defaultsTo false boolShape) _.ownerSigns
-      <*> fieldOf "effects" "changes to capacities" (arrayOf effectShape) _.effects
+      <*> fieldOf "ownerSigns" "the holder of the Resource drawn must sign each order (default false)" (defaultsTo false boolShape) _.ownerSigns
+      <*> fieldOf "effects" "what is created or sunk for a holder after the delay" (arrayOf effectShape) _.effects
   )
   where
-  mk i o r pay cap d mn mx cu os ef = { id: k, inputs: i, outputs: o, escrowPerUnit: r, payment: pay, capacity: cap, delay: d, minimum: mn, maximum: mx, capacityUse: cu, ownerSigns: os, effects: ef }
+  mk i o r pay d mn mx os ef = { id: k, inputs: i, outputs: o, draws: r, payment: pay, delay: d, minimum: mn, maximum: mx, ownerSigns: os, effects: ef }
 
 -- Entities ------------------------------------------------------------------------------------
 
@@ -125,15 +133,14 @@ procedureShape = recordOf "Procedure"
       &. field @"authorizes" "the capabilities it grants" (listOf capabilityShape)
   )
 
--- | An Entity: its accounts, capabilities and capacities, and its Aggregate when it is one. An Entity
+-- | An Entity: its accounts and capabilities, and its Aggregate when it is one. An Entity
 -- | with no Aggregate is an Actor at the seat of its own id.
 entityRec :: EntityId -> RecF Entity Entity
 entityRec k = mk <$> fieldOf "accounts" "the holdings" (idMap qShape) _.accounts
   <*> fieldOf "capabilities" "the capabilities it holds" (listOf capabilityShape) _.capabilities
-  <*> fieldOf "capacities" "the capacities it holds" (emptyByDefault (idMap qShape)) _.capacities
   <*> fieldOf "aggregate" "its Aggregate" (optionalOf aggregateShape) (aggregateOf <<< _.kind)
   where
-  mk a c cap ag = { id: k, accounts: a, capacities: cap, capabilities: c, kind: maybe (Actor (Seat (Id (idText k)))) Aggregate ag }
+  mk a c ag = { id: k, accounts: a, capabilities: c, kind: maybe (Actor (Seat (Id (idText k)))) Aggregate ag }
   aggregateOf = case _ of
     Aggregate a -> Just a
     Actor _ -> Nothing
@@ -201,7 +208,7 @@ assignmentShape = recordOf "Assignment"
 
 circulationShape :: Shape Circulation
 circulationShape = defaulted emptyCirculation none $ recordOf "Circulation"
-  ( field @"production" "capacity that produces a Resource" (arrayOf productionShape)
+  ( field @"production" "what a holding of a capacity produces" (arrayOf productionShape)
       &. field @"flows" "fixed payments per round" (arrayOf flowShape)
       &. field @"shares" "variable payments, as shares" (arrayOf shareShape)
       &. field @"requirements" "what an Entity must consume" (arrayOf requirementShape)
@@ -256,7 +263,7 @@ ruleForm :: Shape RuleForm
 ruleForm = genericSettingSum "RuleForm"
   { "LevyFlows": atKindArg { tag: "levy", desc: "a levy on flows" } governance
   , "BlockFlows": atKindArg { tag: "block", desc: "a block on flows" } governance
-  , "ReduceCapacity": atBare { tag: "reduce", desc: "a reduction of a capacity, governed by its owner" }
+  , "ReduceHolding": atBare { tag: "reduce", desc: "a reduction of what can be drawn, governed by the holder" }
   }
   where
   governance = nameShape "FlowGovernance" "who governs: destination, origin or either" governed [ GovernedByDestination, GovernedBySource, GovernedByEither ]
@@ -269,17 +276,17 @@ ruleForm = genericSettingSum "RuleForm"
 type SettingWorld = { world :: UnseededWorld, authored :: Authored }
 
 -- | The setting document's reservation check: a facility may escrow only a Resource the document marks
--- | `reservable`. An unknown Resource is reported by validation's reference check.
+-- | `reservable`: every draw `from: Executor` names one. An unknown Resource is reported by validation's reference check.
 checkReservations :: Authored -> UnseededWorld -> Either String Unit
 checkReservations a w = case concatMap offending (Map.toUnfoldable w.transformations) of
   [] -> Right unit
   bad -> Left (joinWith "; " bad)
   where
   notReservable k = Map.member k w.resources && not (k `elem` a.reservable)
-  offending (Tuple t f) = map (\r -> "facility " <> show t <> " reserves " <> show r <> ", which is not reservable") (filter notReservable (Array.fromFoldable (Map.keys f.escrowPerUnit)))
+  offending (Tuple t f) = map (\r -> "facility " <> show t <> " reserves " <> show r <> ", which is not reservable") (filter notReservable (map _.resource (executorDraws f)))
 
 entriesOf :: SettingWorld -> Map ResourceId ResourceEntry
-entriesOf p = Map.mapMaybeWithKey (\k d -> Just { transferability: d.transferability, reservable: k `elem` p.authored.reservable, decay: _.rate <$> find ((_ == k) <<< _.resource) p.authored.decays }) p.world.resources
+entriesOf p = Map.mapMaybeWithKey (\k d -> Just { transferability: d.transferability, category: d.category, reservable: k `elem` p.authored.reservable, decay: _.rate <$> find ((_ == k) <<< _.resource) p.authored.decays }) p.world.resources
 
 -- | The World's sections but its Entities, as a function of them: a Gameboard's Entity entries also
 -- | carry Actor definitions. The World's key is the starting round (default 1).
@@ -303,7 +310,7 @@ worldFields = mk
     let
       decays = mapMaybe (\(Tuple k e) -> (\rate -> { resource: k, rate }) <$> e.decay) (Map.toUnfoldable entries)
       reservable = map (\(Tuple k _) -> k) (filter (\(Tuple _ e) -> e.reservable) (Map.toUnfoldable entries))
-      resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability } :: ResourceDefinition)) entries
+      resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability, category: e.category } :: ResourceDefinition)) entries
     in
       { authored: { circulation, reservable, decays }
       , world: { round, numeraire, focus, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, scheduled: Map.empty, deliveries: [], factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }

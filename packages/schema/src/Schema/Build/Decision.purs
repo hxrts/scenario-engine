@@ -154,7 +154,7 @@ orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
 selfTransform :: forall t. Named t TransformationTag => { transformation :: t, quantity :: Expr } -> IntentTemplate
 selfTransform r = Transform { by: Id S.selfName, transformation: N.named r.transformation, quantity: r.quantity }
 
--- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or owner (a capacity).
+-- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or holder (a holding Rule).
 selfEnact :: RuleF Expr -> IntentTemplate
 selfEnact r = ChangeRule (Enact r)
 

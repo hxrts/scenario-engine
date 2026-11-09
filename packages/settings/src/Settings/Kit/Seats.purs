@@ -21,7 +21,7 @@ import Schema.Build.Base (coverage, institutional)
 import Schema.Build.World (definition, noEntity, objective)
 import Schema.Gameboard (ActorDefinition, Criterion, Fallback)
 import Schema.Recurring (Flow, Requirement)
-import Settings.Kit.Holdings (HoldingTable, accountsIn, capacitiesIn)
+import Settings.Kit.Holdings (HoldingTable, accountsIn)
 
 -- | How a seat is driven when it has no player, and what covers it.
 data Cover
@@ -30,7 +30,7 @@ data Cover
   | Governed PolicyId -- an in-world Policy, which is also the seat's fallback
   | Covered EntityId -- the Aggregate that covers the seat's accounts when it has no player
 
--- | One seat: its accounts, capabilities and capacities, its objective, its description and
+-- | One seat: its accounts and capabilities, its objective, its description and
 -- | dependency, and how it is covered.
 type SeatSpec =
   { capabilities :: Array Capability
@@ -43,14 +43,13 @@ type SeatSpec =
   }
 
 -- | A seat Actor under its name, which is also its key in the holding table: an Entity whose definition is a
--- | seat, with its accounts and capacities from the table.
+-- | seat, with its accounts from the table.
 seat :: HoldingTable -> EntityId -> SeatSpec -> Tuple EntityId (Tuple Entity ActorDefinition)
 seat table key s = Tuple key
   ( Tuple
       ( noEntity
           { accounts = accountsIn table key
           , capabilities = s.capabilities
-          , capacities = capacitiesIn table key
           }
       )
       (definitionOf s)
@@ -58,7 +57,7 @@ seat table key s = Tuple key
 
 -- | An Aggregate named by its key in the holding table.
 aggregateEntity :: HoldingTable -> EntityId -> { capabilities :: Array Capability, kind :: EntityKind } -> Entity
-aggregateEntity table key a = (noEntity { accounts = accountsIn table key, capabilities = a.capabilities, capacities = capacitiesIn table key }) { kind = a.kind }
+aggregateEntity table key a = (noEntity { accounts = accountsIn table key, capabilities = a.capabilities }) { kind = a.kind }
 
 -- | Recurring flows of one Resource: `money [ a ~> b := 15 ]`.
 flowsOf :: ResourceId -> Array (Tuple (Tuple EntityId EntityId) Q) -> Array Flow

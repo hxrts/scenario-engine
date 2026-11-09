@@ -19,7 +19,7 @@ import Core.Num (Q)
 import Core.Query (holding, reserveOf)
 import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
 import Core.Slice (event, orKind, read, select)
-import Core.World (RoundResult, Target(..))
+import Core.World (RoundResult)
 import Data.Array (concat, concatMap, sort, sortWith)
 import Data.Identity (Identity(..))
 import Data.Map as Map
@@ -92,9 +92,7 @@ observe r =
 
   filled :: (ResourceId -> Q) -> Map.Map ResourceId (Identity Q)
   filled f = Map.mapMaybeWithKey (\res _ -> Just (Identity (f res))) w.resources
-  deliveryOf d = case d.target of
-    Holding res | d.round > r.record.round -> [ { entity: d.entity, resource: res, quantity: d.quantity } ]
-    _ -> []
+  deliveryOf d = if d.round > r.record.round then [ { entity: d.entity, resource: d.resource, quantity: d.quantity } ] else []
 
 -- | Every check the Expect makes of the Observed, for round `round`. Deliveries are compared as sets
 -- | (sorted), rejections and lapses by sorted Proposal id, and procedure outcomes in the order written.

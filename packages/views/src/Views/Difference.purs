@@ -12,6 +12,7 @@ import Core.Num as Q
 import Core.Query (accountsOf, lookupQ, priceOf)
 import Core.Types (EntityId, MarketId, ResourceId)
 import Core.World (WorldState)
+import Views.Common (listedHolding)
 import Data.Array (concatMap, filter, fromFoldable, nub, sort)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -40,4 +41,4 @@ differenceOfWorlds a b =
       hy = accountsOf y e
     in
       map (\r -> { entity: e, resource: r, delta: Q.sub (lookupQ r hy) (lookupQ r hx) })
-        (sort (nub (fromFoldable (Map.keys hx) <> fromFoldable (Map.keys hy))))
+        (filter (listedHolding y) (sort (nub (fromFoldable (Map.keys hx) <> fromFoldable (Map.keys hy)))))

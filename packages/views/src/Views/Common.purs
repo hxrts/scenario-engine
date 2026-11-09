@@ -36,6 +36,7 @@ module Views.Common
   , price
   , ratio
   , unitOf
+  , listedHolding
   , ofCount
   , supportThreshold
   , exact
@@ -57,7 +58,8 @@ import Core.Map (entries)
 
 import Record as Record
 import Core.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
-import Core.Types (idText, EntityId, ProposalId, ResourceId)
+import Core.Types (idText, EntityId, ProposalId, ResourceDefinition, ResourceId)
+import Schema.Gameboard (capacityCategory)
 
 import Core.Invariants (Failure)
 import Core.Num (Kind, Q)
@@ -228,6 +230,10 @@ price = Q.displayQuantity
 -- | A ratio or share (Gini, influence, shrinkage, factors, support) as a cell.
 ratio :: Q -> String
 ratio = Q.displayRatio
+
+-- | Whether a Resource shows in a listing of holdings: a capacity is not listed among them (the setting's category).
+listedHolding :: forall r. { resources :: Map.Map ResourceId ResourceDefinition | r } -> ResourceId -> Boolean
+listedHolding w res = (Map.lookup res w.resources >>= _.category) /= Just capacityCategory
 
 -- | A Resource's unit, from the run's manifest; empty for a Resource the manifest does not name.
 unitOf :: StoredRun -> ResourceId -> String

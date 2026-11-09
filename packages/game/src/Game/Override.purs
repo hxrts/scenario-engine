@@ -13,7 +13,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, atFields, genericTypedSum)
-import Core.Types (CapacityRef, EntityId, RefKind(..), idShape, idText)
+import Core.Types (EntityId, RefKind(..), ResourceId, idShape, idText)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
 import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)
@@ -24,13 +24,13 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
 import Game.Error (GameError(..))
-import Game.Patch (setCapacity)
+import Game.Patch (setAccount)
 import Schema.Gameboard (Gameboard, InstantiationConfig)
 
 data Override
   = GameSeed Int
   | Parameter String Q
-  | Capacity EntityId CapacityRef Q
+  | Capacity EntityId ResourceId Q
   | Shrinkage String Q
   | Implicit EntityId -- the Actor is not explicit; its fallback applies
 
@@ -42,7 +42,7 @@ overrideRefs :: Override -> Array (Tuple RefKind String)
 overrideRefs = case _ of
   GameSeed _ -> []
   Parameter name _ -> [ Tuple RefParameter name ]
-  Capacity e ref _ -> [ Tuple RefEntity (idText e), Tuple RefCapacity (idText ref) ]
+  Capacity e ref _ -> [ Tuple RefEntity (idText e), Tuple RefResource (idText ref) ]
   Shrinkage _ _ -> []
   Implicit e -> [ Tuple RefEntity (idText e) ]
 
@@ -62,7 +62,7 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
   apply acc = case _ of
     GameSeed s -> Right acc { config { seed = Seed s } }
     Parameter name q -> Right acc { gameboard { parameters = Object.insert name q acc.gameboard.parameters } }
-    Capacity e ref q -> setCapacity e ref q acc.gameboard <#> \gameboard -> acc { gameboard = gameboard }
+    Capacity e ref q -> setAccount e ref q acc.gameboard <#> \gameboard -> acc { gameboard = gameboard }
     Shrinkage scheme q -> Right acc { gameboard { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
     Implicit e -> Right acc { config = withoutActor e acc.config }
 

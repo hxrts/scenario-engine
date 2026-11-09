@@ -6,6 +6,8 @@ module Schema.Build.World
   , noResource
   , noEntity
   , noMarket
+  , fromHolder
+  , fromExecutor
   , emptyWorld
   , emptyCirculation
   , byKey
@@ -32,7 +34,7 @@ import Prelude (map, (<<<))
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), EntityTag, Id(..), Market, PolicyTag, ResourceDefinition, ResourceId, ResourceTag, Transferability(..), Transformation, idText)
+import Core.Types (Draw, DrawSource(..), Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), EntityTag, Id(..), Market, PolicyTag, ResourceDefinition, ResourceId, ResourceTag, Transferability(..), Transformation, idText)
 import Schema.Build.Named (class Named, named)
 import Core.World (UnseededWorld)
 import Schema.Recurring (Circulation)
@@ -62,7 +64,7 @@ entitiesOf = Map.fromFoldable <<< map (\(Tuple k v) -> let i = named k in Tuple 
 
 -- | A Resource: tradable; id and unit come from its key. Override `transferability` (required).
 noResource :: ResourceDefinition
-noResource = { id: Id "", unit: "", transferability: Free }
+noResource = { id: Id "", unit: "", transferability: Free, category: Nothing }
 
 -- | A facility with no inputs, outputs, cost or payee; its id comes from its key.
 noFacility :: Transformation
@@ -70,16 +72,22 @@ noFacility =
   { id: Id ""
   , inputs: Map.empty
   , outputs: Map.empty
-  , escrowPerUnit: Map.empty
+  , draws: []
   , payment: Nothing
-  , capacity: Nothing
   , delay: 0
   , minimum: Q.zero
   , maximum: Nothing
-  , capacityUse: Q.one
   , ownerSigns: false
   , effects: []
   }
+
+-- | A draw of `perUnit` from the holder of a Resource.
+fromHolder :: ResourceId -> Q -> Draw
+fromHolder resource perUnit = { resource, from: HolderOf, perUnit }
+
+-- | A draw of `perUnit` from the Entity running the order.
+fromExecutor :: ResourceId -> Q -> Draw
+fromExecutor resource perUnit = { resource, from: Executor, perUnit }
 
 -- | A Market with no terms; its id comes from its key.
 noMarket :: Market
@@ -87,7 +95,7 @@ noMarket = { id: Id "", base: Id "", quote: Id "", cost: { intercept: Q.zero, sl
 
 -- | An Actor with no holdings or capabilities; its id and seat come from its key.
 noEntity :: Entity
-noEntity = { id: Id "", accounts: Map.empty, capacities: Map.empty, capabilities: [], kind: Actor (Seat (Id "")) }
+noEntity = { id: Id "", accounts: Map.empty, capabilities: [], kind: Actor (Seat (Id "")) }
 
 emptyCirculation :: Circulation
 emptyCirculation = { production: [], flows: [], shares: [], requirements: [] }

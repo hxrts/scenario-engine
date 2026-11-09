@@ -4,7 +4,7 @@ module Test.Policy.Main where
 import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfEntity, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)
 import Schema.Build.Intent (repeal, route, transfer)
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
+import Schema.Build.World (byKey, fromHolder, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
 import Core.World (seeded, Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
 import Prelude
 
@@ -13,7 +13,7 @@ import Core.Draw (Seed(..))
 import Core.Map (values)
 import Core.Engine.Prepare (observe, prepareRound)
 import Core.Engine.Screen (screen)
-import Core.Types (Capability(..), CapacityTag, Direction(..), EntityId, EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), proposalId, samePositions, traverseIntent)
+import Core.Types (ResourceId, Capability(..), Direction(..), EntityId, EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), proposalId, samePositions, traverseIntent)
 import Core.Slice (event, pickOf)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
@@ -111,11 +111,11 @@ seat = observe w (fromMaybe' (\_ -> unsafeCrashWith "no EU") (Map.lookup (Id "EU
     , entities = entitiesOf
         [ Tuple "CN" noEntity
         , Tuple "DE" noEntity
-        , Tuple "EU" noEntity { capacities = Map.singleton (Id "semiconductors") (Q.fromInt 1), capabilities = [ MayTrade (Id "energy-atlantic"), MayEnact (Id "accessBan") ] }
+        , Tuple "EU" noEntity { accounts = Map.singleton (Id "semiconductors") (Q.fromInt 1), capabilities = [ MayTrade (Id "energy-atlantic"), MayEnact (Id "accessBan") ] }
         ]
     , resources = resourcesOf [ Tuple "E" noResource, Tuple "M" noResource ]
     , markets = byKey [ Tuple "energy-atlantic" noMarket { base = Id "E", quote = Id "M", cost = { intercept: Q.fromInt 2, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, access = [ Id "EU" ] } ]
-    , transformations = byKey [ Tuple "t" noFacility ]
+    , transformations = byKey [ Tuple "t" noFacility { draws = [ fromHolder (Id "semiconductors") Q.one ] } ]
     }
 
 -- | The seat with access to two Energy Markets, Atlantic at 2 and Asia at 3, and a defence Market at 5.
@@ -351,12 +351,12 @@ tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, cou
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
+holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }
 
 testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
 testKinds = Map.fromFoldable
   [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
   , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
-  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
+  , Tuple (Id "withholding") { form: ReduceHolding, text: "" }
   ]

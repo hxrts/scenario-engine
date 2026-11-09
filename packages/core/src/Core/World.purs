@@ -9,7 +9,7 @@ import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Core.Types (BehaviorDomain, Capability(..), CapacityEffect, CapacityRef, CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Core.Types (BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -82,7 +82,7 @@ data RecurringDestination = ToEntity EntityId | ToSink
 -- | How much a recurring flow moves.
 data RecurringAmount
   = FixedAmount Quantity
-  | CapacityHeld CapacityRef -- the destination's holding of this capacity
+  | HeldAmount ResourceId -- the destination's holding of this Resource
   | FractionHeld Ratio -- a fraction of what the source holds
   | Measured { ratio :: Ratio, query :: LegQuery } -- this fraction of what a query of the record reads
 
@@ -115,10 +115,10 @@ data ShortfallEffect
   = NoEffect
   | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Entity receives
 
--- | A scheduled change to a holding or a capacity, applied at Prepare. `cause` is what the settlement
+-- | A scheduled change to a holding, applied at Prepare. `cause` is what the settlement
 -- | that scheduled it was caused by.
 type Delivery =
-  { round :: RoundIndex, entity :: EntityId, target :: Target, quantity :: Quantity, cause :: Cause }
+  { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity, cause :: Cause }
 
 -- | Where a leg of a settlement starts or ends: an Entity, a Market, nowhere, or nothing.
 data Endpoint = Held EntityId | InMarket MarketId | Source | Sink
@@ -133,8 +133,7 @@ instance Show Endpoint where
 -- | A shortfall is `moved < owed`.
 type Flow = { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Quantity, moved :: Quantity }
 
--- | How an Intent's quantities were settled: along a Market's curve, as a conversion under a capacity,
--- | or moved directly.
+-- | How an Intent's quantities were settled: along a Market's curve, as a conversion, or moved directly.
 data Mechanism
   = Curve MarketId
   | Conversion { by :: EntityId, transformation :: TransformationId, units :: Quantity }
@@ -267,8 +266,6 @@ instance DecodeJson ShortfallEffect where
 coupled :: RoundIndex -> Array Flow -> Maybe Ratio -> Cause -> Event
 coupled round legs rate cause = Coupled { round, legs, rate, cause, delivered: false }
 
-data Target = Holding ResourceId | CapacityOf CapacityRef
-
 -- | What a Policy sees (INV-16).
 type View =
   { round :: RoundIndex
@@ -282,7 +279,7 @@ type View =
   , markets :: Array Venue -- the Markets the Entity has access to, in id order
   , entities :: Array EntityId -- the known Entities, in id order
   , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
-  , ownedCapacities :: Array CapacityRef -- the capacities the Entity owns
+  , soleHoldings :: Array ResourceId -- the Resources whose holder the Entity is (`holderOf`)
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
   }
 
@@ -304,7 +301,7 @@ boundsOf t = { minimum: t.minimum, maximum: t.maximum }
 -- | matches on the specific failure. The record stores the value through `rejectReasonShape`;
 -- | `renderReason` is the one place its display text is written.
 data RejectReason
-  = CapacityExceeded
+  = PoolExceeded
   | LimitPriceNotMet
   | QuoteReservesShort
   | InputsNotHeld TransformationId
@@ -341,7 +338,7 @@ instance Show RejectReason where
 -- | The text of a rejection reason.
 renderReason :: RejectReason -> String
 renderReason = case _ of
-  CapacityExceeded -> "capacity exceeded"
+  PoolExceeded -> "the pool cannot fill it"
   LimitPriceNotMet -> "limit price not met"
   QuoteReservesShort -> "the market cannot pay its sellers"
   InputsNotHeld t -> show t <> ": inputs are not held"
@@ -365,7 +362,7 @@ renderReason = case _ of
   OnlyGoverningRepeal -> "only the governing authority may repeal a Rule"
   BelowMinimum t -> show t <> " order below its minimum"
   AboveMaximum t -> show t <> " order above its maximum"
-  OwnerMustSign t -> "the owner of " <> show t <> "'s capacity must sign"
+  OwnerMustSign t -> "the holder of what " <> show t <> " draws must sign"
   MissingBundledOrder -> "this Transfer needs a matching bundled order by the sender"
   Blocked k -> "blocked by a Rule of kind " <> show k
 
@@ -406,16 +403,10 @@ data Event
   -- one settlement: its legs settle together, at its rate when it has one. `delivered` marks a delivery of
   -- something settled in an earlier round, applied at Prepare
   | Coupled { round :: RoundIndex, legs :: Array Flow, rate :: Maybe Ratio, cause :: Cause, delivered :: Boolean }
-  | CapacityChanged { round :: RoundIndex, entity :: EntityId, capacity :: CapacityRef, quantity :: Quantity }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
   | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
   | ProcedureOutcome { round :: RoundIndex, proposal :: ProposalId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
-
-derive instance Generic Target _
-derive instance Eq Target
-instance Show Target where
-  show = genericShow
 
 derive instance Generic Event _
 derive instance Eq Event
@@ -446,11 +437,11 @@ engineVersion = "sp-engine/v1"
 manifestOf :: String -> WorldState -> Manifest
 manifestOf gameboard initial = { gameboard, engine: engineVersion, draw: drawVersion, initial }
 
--- Shapes. The event, target and View shapes carry the closure the model and the Run Store encode.
+-- Shapes. The event and View shapes carry the closure the model and the Run Store encode.
 
 rejectReasonShape :: Shape RejectReason
 rejectReasonShape = genericSum "RejectReason"
-  { "CapacityExceeded": atTagged "a capacity was exceeded" unitShape
+  { "PoolExceeded": atTagged "a pool could not fill the Proposal" unitShape
   , "LimitPriceNotMet": atTagged "the limit price was not met" unitShape
   , "QuoteReservesShort": atTagged "the Market cannot pay its sellers" unitShape
   , "InputsNotHeld": atTagged "the Transformation's inputs are not held" idShape
@@ -474,15 +465,9 @@ rejectReasonShape = genericSum "RejectReason"
   , "OnlyGoverningRepeal": atTagged "only the governing authority may repeal" unitShape
   , "BelowMinimum": atTagged "the order is below the Transformation's minimum" idShape
   , "AboveMaximum": atTagged "the order is above the Transformation's maximum" idShape
-  , "OwnerMustSign": atTagged "the capacity's owner has not signed" idShape
+  , "OwnerMustSign": atTagged "the holder of what is drawn has not signed" idShape
   , "MissingBundledOrder": atTagged "the Transfer has no matching bundled order" unitShape
   , "Blocked": atTagged "blocked by a Rule of this kind" idShape
-  }
-
-targetShape :: Shape Target
-targetShape = genericSum "Target"
-  { "Holding": atTagged "a Resource held" idShape
-  , "CapacityOf": atTagged "a capacity of a Transformation" idShape
   }
 
 endpointShape :: Shape Endpoint
@@ -499,7 +484,7 @@ flowShape = recordShape "Flow" { from: endpointShape, to: endpointShape, resourc
 mechanismShape :: Shape Mechanism
 mechanismShape = genericSum "Mechanism"
   { "Curve": atTagged "along a Market's curve" idShape
-  , "Conversion": atTagged "a conversion under a capacity" (recordShape "Conversion" { by: idShape, transformation: idShape, units: qShape })
+  , "Conversion": atTagged "a run of a Transformation" (recordShape "Conversion" { by: idShape, transformation: idShape, units: qShape })
   , "Direct": atTagged "moved directly" unitShape
   }
 
@@ -517,7 +502,6 @@ eventShape = genericSum "Event"
   , "Rejected": atTagged "a Proposal the engine turned down" (recordShape "Rejected" { round: intShape, proposal: idShape, reason: rejectReasonShape })
   , "OrderRemoved": atTagged "one order of a Proposal removed at settlement" (recordShape "OrderRemoved" { round: intShape, proposal: idShape, reason: rejectReasonShape })
   , "Coupled": atTagged "one settlement: its legs, its rate, and what caused it" (recordShape "Coupled" { round: intShape, legs: arrayOf flowShape, rate: optionalOf qShape, cause: causeShape, delivered: boolShape })
-  , "CapacityChanged": atTagged "a capacity changed" (recordShape "CapacityChanged" { round: intShape, entity: idShape, capacity: idShape, quantity: qShape })
   , "Enacted": atTagged "a Rule enacted" (recordShape "Enacted" { round: intShape, id: idShape, rule: ruleShape })
   , "Repealed": atTagged "a Rule repealed" (recordShape "Repealed" { round: intShape, id: idShape })
   , "Estimated": atTagged "a representation's factor estimated" (recordShape "Estimated" { round: intShape, aggregate: idShape, domain: idShape, factor: qShape })
@@ -538,7 +522,7 @@ viewShape = recordOf "View"
       &. field @"markets" "the Markets the Entity has access to" (arrayOf venueShape)
       &. field @"entities" "the known Entities" (arrayOf idShape)
       &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
-      &. field @"ownedCapacities" "the capacities the Entity owns" (arrayOf idShape)
+      &. field @"soleHoldings" "the Resources whose holder the Entity is" (arrayOf idShape)
       &. field @"ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape)
   )
 
@@ -563,12 +547,6 @@ roundRecordShape = recordOf "RoundRecord"
       &. field @"events" "the round's events" (arrayOf eventShape)
   )
 
-instance EncodeJson Target where
-  encodeJson = encodeWith Snapshot targetShape
-
-instance DecodeJson Target where
-  decodeJson = decodeJsonWith Snapshot targetShape
-
 instance EncodeJson Event where
   encodeJson = encodeWith Snapshot eventShape
 
@@ -592,17 +570,20 @@ holdingsShape = mapOf idShape qShape
 marketShape :: Shape Market
 marketShape = recordShape "Market" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape) }
 
-capacityEffectShape :: Shape CapacityEffect
-capacityEffectShape = recordShape "CapacityEffect" { capacity: idShape, holder: (optionalOf idShape), perUnit: qShape, rounds: (optionalOf intShape) }
+drawShape :: Shape Draw
+drawShape = recordShape "Draw" { resource: idShape, from: drawSourceShape, perUnit: qShape }
+
+delayedFlowShape :: Shape DelayedFlow
+delayedFlowShape = recordShape "DelayedFlow" { resource: idShape, holder: (optionalOf idShape), perUnit: qShape, rounds: (optionalOf intShape) }
 
 paymentShape :: Shape Payment
 paymentShape = recordShape "Payment" { curve: costFunctionShape, resource: idShape, to: idShape }
 
 transformationShape :: Shape Transformation
-transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, escrowPerUnit: holdingsShape, payment: (optionalOf paymentShape), capacity: (optionalOf idShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), capacityUse: qShape, ownerSigns: boolShape, effects: (arrayOf capacityEffectShape) }
+transformationShape = recordShape "Transformation" { id: idShape, inputs: holdingsShape, outputs: holdingsShape, draws: (arrayOf drawShape), payment: (optionalOf paymentShape), delay: intShape, minimum: qShape, maximum: (optionalOf qShape), ownerSigns: boolShape, effects: (arrayOf delayedFlowShape) }
 
 resourceDefinitionShape :: Shape ResourceDefinition
-resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape }
+resourceDefinitionShape = recordShape "ResourceDefinition" { id: idShape, unit: stringShape, transferability: transferabilityShape, category: optionalOf stringShape }
 
 estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
@@ -611,7 +592,7 @@ representationShape :: Shape Representation
 representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
 
 deliveryShape :: Shape Delivery
-deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, target: targetShape, quantity: qShape, cause: causeShape }
+deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, resource: idShape, quantity: qShape, cause: causeShape }
 
 recurringFlowShape :: Shape RecurringFlow
 recurringFlowShape = recordShape "RecurringFlow"
@@ -642,7 +623,7 @@ recurringDestinationShape = genericSum "RecurringDestination"
 recurringAmountShape :: Shape RecurringAmount
 recurringAmountShape = genericSum "RecurringAmount"
   { "FixedAmount": atTagged "a fixed quantity" qShape
-  , "CapacityHeld": atTagged "what the destination holds of this capacity" idShape
+  , "HeldAmount": atTagged "what the destination holds of this Resource" idShape
   , "FractionHeld": atTagged "a fraction of what the source holds" qShape
   , "Measured": atTagged "a fraction of what a query of the record reads" (recordShape "Measured" { ratio: qShape, query: legQueryShape })
   }
@@ -690,7 +671,6 @@ type WorldPositions f =
   , resource :: ResourceId -> f ResourceId
   , market :: MarketId -> f MarketId
   , transformation :: TransformationId -> f TransformationId
-  , capacity :: CapacityRef -> f CapacityRef
   , ruleKind :: RuleKindId -> f RuleKindId
   , members :: EntityId -> Array EntityId -> f (Array EntityId) -- the Aggregate, then its members
   , weights :: Map EntityId Ratio -> f (Map EntityId Ratio)
@@ -698,12 +678,12 @@ type WorldPositions f =
 
 -- | Every position kept as it is. A walk overrides the positions it changes.
 sameWorld :: forall f. Applicative f => WorldPositions f
-sameWorld = { entity: pure, groupKey: pure, resource: pure, market: pure, transformation: pure, capacity: pure, ruleKind: pure, members: \_ -> pure, weights: pure }
+sameWorld = { entity: pure, groupKey: pure, resource: pure, market: pure, transformation: pure, ruleKind: pure, members: \_ -> pure, weights: pure }
 
 -- | Every position read as nothing. A fold overrides the positions it reads.
 ignoreWorld :: forall r. Monoid r => WorldPositions (Const r)
 ignoreWorld =
-  { entity: none, groupKey: none, resource: none, market: none, transformation: none, capacity: none, ruleKind: none, members: \_ -> none, weights: none }
+  { entity: none, groupKey: none, resource: none, market: none, transformation: none, ruleKind: none, members: \_ -> none, weights: none }
   where
   none :: forall a b. a -> Const r b
   none _ = Const mempty
@@ -761,12 +741,11 @@ traverseWorld t w =
     MayTransform x -> MayTransform <$> t.transformation x
     MayEnact k -> MayEnact <$> t.ruleKind k
 
-  transformationAt x = (\inputs outputs escrowPerUnit capacity effects payment -> x { inputs = inputs, outputs = outputs, escrowPerUnit = escrowPerUnit, capacity = capacity, effects = effects, payment = payment })
+  transformationAt x = (\inputs outputs draws effects payment -> x { inputs = inputs, outputs = outputs, draws = draws, effects = effects, payment = payment })
     <$> holdings x.inputs
     <*> holdings x.outputs
-    <*> holdings x.escrowPerUnit
-    <*> traverse t.capacity x.capacity
-    <*> traverse (\ef -> (\capacity holder -> ef { capacity = capacity, holder = holder }) <$> t.capacity ef.capacity <*> traverse t.entity ef.holder) x.effects
+    <*> traverse (\d -> d { resource = _ } <$> t.resource d.resource) x.draws
+    <*> traverse (\ef -> (\resource holder -> ef { resource = resource, holder = holder }) <$> t.resource ef.resource <*> traverse t.entity ef.holder) x.effects
     <*> traverse (\p -> (\to resource -> p { to = to, resource = resource }) <$> t.entity p.to <*> t.resource p.resource) x.payment
 
   recurringAt r = (\resource source destination amount -> r { resource = resource, source = source, destination = destination, amount = amount })
@@ -781,7 +760,7 @@ traverseWorld t w =
     ToEntity e -> ToEntity <$> t.entity e
     ToSink -> pure ToSink
   amountAt = case _ of
-    CapacityHeld c -> CapacityHeld <$> t.capacity c
+    HeldAmount c -> HeldAmount <$> t.resource c
     Measured m -> (\party resource cause -> Measured m { query = m.query { party = party, resource = resource, cause = cause } })
       <$> t.entity m.query.party
       <*> traverse t.resource m.query.resource
@@ -798,7 +777,7 @@ traverseWorld t w =
       <*> t.entity x.scope.counterparty
       <*> traverse t.resource x.scope.over
       <*> flowEffectAt x.effect
-    CapacityRule x -> (\kind capacity -> CapacityRule x { kind = kind, capacity = capacity }) <$> t.ruleKind x.kind <*> t.capacity x.capacity
+    HoldingRule x -> (\kind resource -> HoldingRule x { kind = kind, resource = resource }) <$> t.ruleKind x.kind <*> t.resource x.resource
   flowEffectAt = case _ of
     Levy l -> (\in' basis -> Levy l { in = in', basis = basis }) <$> t.resource l.in <*> levyBasisAt l.basis
     Block -> pure Block

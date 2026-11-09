@@ -50,7 +50,6 @@ data RefKind
   | RefMarket
   | RefTransformation
   | RefEntity
-  | RefCapacity
   | RefPolicy
   | RefParameter
   | RefProcedure
@@ -81,9 +80,6 @@ instance RefKindOf MarketTag where
 instance RefKindOf TransformationTag where
   refKindOf _ = RefTransformation
 
-instance RefKindOf CapacityTag where
-  refKindOf _ = RefCapacity
-
 instance RefKindOf PolicyTag where
   refKindOf _ = RefPolicy
 
@@ -97,7 +93,6 @@ data EntityTag
 data ResourceTag
 data MarketTag
 data TransformationTag
-data CapacityTag
 data ProcedureTag
 data RuleTag
 data RuleKindTag
@@ -113,7 +108,6 @@ type EntityId = Id EntityTag
 type ResourceId = Id ResourceTag
 type MarketId = Id MarketTag
 type TransformationId = Id TransformationTag
-type CapacityRef = Id CapacityTag
 type CollectiveProcedureId = Id ProcedureTag
 type RuleId = Id RuleTag
 type ProposalId = Id ProposalTag
@@ -132,14 +126,12 @@ type RoundOffset = Int
 type Interval = { lo :: Q, hi :: Q }
 
 type Holdings = Map ResourceId Quantity
-type Capacities = Map CapacityRef Quantity
 
 -- Entities (§2.1, §2.2) ------------------------------------------------------
 
 type Entity =
   { id :: EntityId
   , accounts :: Holdings
-  , capacities :: Capacities
   , capabilities :: Array Capability
   , kind :: EntityKind
   }
@@ -172,6 +164,7 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: String
   , transferability :: Transferability
+  , category :: Maybe String -- a setting's own grouping of the Resource; only the views read it
   }
 
 data Transferability = Free | Restricted | NonTransferable
@@ -218,21 +211,21 @@ type LevyF v = { rate :: v, basis :: LevyBasis, in :: ResourceId, to :: LevyReci
 -- | What a flows Rule does: a levy on the flow, or a block on it.
 data FlowEffect v = Levy (LevyF v) | Block
 
--- | A Rule, with its amounts in the filling `v`: one on flows, or one reducing a capacity. Its `kind` names a
--- | declared kind; the mechanism reads the rest, never the kind. A combination that would do nothing, such
--- | as a levy on a capacity, has no form.
+-- | A Rule, with its amounts in the filling `v`: one on flows, or one reducing what the holder of a Resource can
+-- | have drawn. Its `kind` names a declared kind; the mechanism reads the rest, never the kind. A combination
+-- | that would do nothing, such as a levy on what is drawn, has no form.
 data RuleF v
   = FlowRule { kind :: RuleKindId, scope :: FlowScope, effect :: FlowEffect v }
-  | CapacityRule { kind :: RuleKindId, capacity :: CapacityRef, reduce :: v }
+  | HoldingRule { kind :: RuleKindId, resource :: ResourceId, reduce :: v }
 
 -- | Who governs a flows Rule, which fixes its direction: a flows Rule's direction is relative to its governor.
 data FlowGovernance = GovernedByDestination | GovernedBySource | GovernedByEither
 
--- | The form a kind of Rule takes, and so who governs it. A capacity Rule is governed by the capacity's owner.
-data RuleForm = LevyFlows FlowGovernance | BlockFlows FlowGovernance | ReduceCapacity
+-- | The form a kind of Rule takes, and so who governs it. A holding Rule is governed by the Resource's holder.
+data RuleForm = LevyFlows FlowGovernance | BlockFlows FlowGovernance | ReduceHolding
 
 -- | A declared kind of Rule: its form, and its display text, with `{governor}`, `{counterparty}`,
--- | `{capacity}`, and `{amount}` as placeholders.
+-- | `{resource}`, and `{amount}` as placeholders.
 type RuleKindDecl = { form :: RuleForm, text :: String }
 
 -- | The direction a governance fixes.
@@ -246,24 +239,24 @@ governedDirection = case _ of
 ruleKind :: forall v. RuleF v -> RuleKindId
 ruleKind = case _ of
   FlowRule r -> r.kind
-  CapacityRule r -> r.kind
+  HoldingRule r -> r.kind
 
 -- | Whether a Rule has the form its kind declares.
 conforms :: forall v. RuleKindDecl -> RuleF v -> Boolean
 conforms d = case d.form, _ of
   LevyFlows g, FlowRule { scope, effect: Levy _ } -> covers g scope
   BlockFlows g, FlowRule { scope, effect: Block } -> covers g scope
-  ReduceCapacity, CapacityRule _ -> true
+  ReduceHolding, HoldingRule _ -> true
   _, _ -> false
   where
   -- a flows Rule covering no Resource would do nothing
   covers g scope = scope.direction == governedDirection g && not (Array.null scope.over)
 
--- | The Entity that governs a flows Rule; a capacity Rule has none.
+-- | The Entity that governs a flows Rule; a holding Rule has none.
 governorOf :: forall v. RuleF v -> Maybe EntityId
 governorOf = case _ of
   FlowRule r -> Just r.scope.governor
-  CapacityRule _ -> Nothing
+  HoldingRule _ -> Nothing
 
 -- | Enact a Rule, or repeal one by the id the engine assigned it.
 data RuleChangeF v
@@ -285,13 +278,12 @@ type IntentPositions f m n v w =
   , value :: v -> f w
   , resource :: ResourceId -> f ResourceId
   , transformation :: TransformationId -> f TransformationId
-  , capacity :: CapacityRef -> f CapacityRef
   , rule :: RuleId -> f RuleId
   }
 
 -- | Every position kept as it is. A walk overrides the positions it changes.
 samePositions :: forall f m v. Applicative f => IntentPositions f m m v v
-samePositions = { market: pure, entity: pure, value: pure, resource: pure, transformation: pure, capacity: pure, rule: pure }
+samePositions = { market: pure, entity: pure, value: pure, resource: pure, transformation: pure, rule: pure }
 
 -- | Every position read as nothing. A fold overrides the positions it reads.
 ignorePositions :: forall r m n v w. Monoid r => IntentPositions (Const r) m n v w
@@ -301,7 +293,6 @@ ignorePositions =
   , value: \_ -> Const mempty
   , resource: \_ -> Const mempty
   , transformation: \_ -> Const mempty
-  , capacity: \_ -> Const mempty
   , rule: \_ -> Const mempty
   }
 
@@ -325,7 +316,7 @@ traverseIntent t = case _ of
   Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
   Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.entity x.by <*> t.transformation x.transformation <*> t.value x.quantity
   ChangeRule (Enact (FlowRule r)) -> (\governor counterparty over effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction, over }, effect }))) <$> t.entity r.scope.governor <*> t.entity r.scope.counterparty <*> traverse t.resource r.scope.over <*> effectAt r.effect
-  ChangeRule (Enact (CapacityRule r)) -> (\capacity reduce -> ChangeRule (Enact (CapacityRule { kind: r.kind, capacity, reduce }))) <$> t.capacity r.capacity <*> t.value r.reduce
+  ChangeRule (Enact (HoldingRule r)) -> (\resource reduce -> ChangeRule (Enact (HoldingRule { kind: r.kind, resource, reduce }))) <$> t.resource r.resource <*> t.value r.reduce
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
   where
   effectAt = case _ of
@@ -388,23 +379,42 @@ type Payment = { curve :: CostFunction, resource :: ResourceId, to :: EntityId }
 
 type Transformation =
   { id :: TransformationId
-  , inputs :: Holdings
+  , inputs :: Holdings -- consumed per unit ordered
   , outputs :: Holdings
-  , escrowPerUnit :: Holdings -- reserved per unit ordered: escrowed and released within the round, never consumed
+  , draws :: Array Draw -- held for the round per unit ordered and released at commit, never consumed
   , payment :: Maybe Payment -- what an order pays, if anything
-  , capacity :: Maybe CapacityRef -- Nothing: uncapped
   , delay :: RoundOffset
   , minimum :: Quantity -- smallest order accepted
   , maximum :: Maybe Quantity -- largest total accepted per Entity per round, across its Proposals
-  , capacityUse :: Quantity -- capacity drawn per unit ordered
-  , ownerSigns :: Boolean -- the capacity's owner must sign every order
-  , effects :: Array CapacityEffect -- capacity changes after the delay
+  , ownerSigns :: Boolean -- the holder of the Resource drawn must sign every order
+  , effects :: Array DelayedFlow -- what settles after the delay
   }
 
--- | A per-unit change to a capacity, applied after the Transformation's delay. `holder` defaults
--- | to the ordering Entity; `rounds` limits how long the change lasts.
-type CapacityEffect =
-  { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
+-- | Whose holding a draw is taken from: the Entity running the order, or the unique positive holder of the
+-- | Resource.
+data DrawSource = Executor | HolderOf
+
+-- | A quantity of a Resource held for the round per unit ordered, and released at commit.
+type Draw = { resource :: ResourceId, from :: DrawSource, perUnit :: Quantity }
+
+-- | A per-unit quantity of a Resource created for a holder or sunk from it, settling after the Transformation's
+-- | delay. `holder` defaults to the ordering Entity; `rounds` limits how long it lasts.
+type DelayedFlow =
+  { resource :: ResourceId, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
+
+-- | The draw a Transformation takes from a Resource's holder, if it has one.
+holderDraw :: Transformation -> Maybe Draw
+holderDraw = Array.find (\d -> d.from == HolderOf) <<< _.draws
+
+-- | The holder draw that forms a pool: one of a positive quantity.
+poolDraw :: Transformation -> Maybe Draw
+poolDraw tr = case holderDraw tr of
+  Just d | d.perUnit > Q.zero -> Just d
+  _ -> Nothing
+
+-- | The draws an order takes from its own executor.
+executorDraws :: Transformation -> Array Draw
+executorDraws = Array.filter (\d -> d.from == Executor) <<< _.draws
 
 -- Representation (§7) --------------------------------------------------------
 
@@ -430,6 +440,7 @@ type Estimator =
 derive instance Generic EntityKind _
 derive instance Generic Controller _
 derive instance Generic Transferability _
+derive instance Generic DrawSource _
 derive instance Generic Capability _
 derive instance Generic Direction _
 derive instance Generic (FlowEffect v) _
@@ -457,6 +468,7 @@ derive instance Traversable RuleChangeF
 derive instance Eq EntityKind
 derive instance Eq Controller
 derive instance Eq Transferability
+derive instance Eq DrawSource
 derive instance Eq Capability
 derive instance Eq Direction
 derive instance Eq FlowGovernance
@@ -475,6 +487,9 @@ instance Show Controller where
   show = genericShow
 
 instance Show Transferability where
+  show = genericShow
+
+instance Show DrawSource where
   show = genericShow
 
 instance Show Capability where
@@ -555,7 +570,7 @@ levyShape v = recordShape "Levy" { rate: v, basis: levyBasisShape, in: idShape, 
 ruleShape :: Shape (RuleF Q)
 ruleShape = genericSum "Rule"
   { "FlowRule": atTagged "a Rule on Transfers between two groups" (recordShape "FlowRule" { kind: idShape, scope: flowScopeShape, effect: flowEffectShape qShape })
-  , "CapacityRule": atTagged "a Rule reducing one capacity" (recordShape "CapacityRule" { kind: idShape, capacity: idShape, reduce: qShape })
+  , "HoldingRule": atTagged "a Rule reducing what the holder of a Resource can have drawn" (recordShape "HoldingRule" { kind: idShape, resource: idShape, reduce: qShape })
   }
 
 ruleKindDeclShape :: Shape RuleKindDecl
@@ -568,7 +583,7 @@ ruleFormShape :: Shape RuleForm
 ruleFormShape = genericSum "RuleForm"
   { "LevyFlows": atTagged "a levy on flows" flowGovernanceShape
   , "BlockFlows": atTagged "a block on flows" flowGovernanceShape
-  , "ReduceCapacity": atTagged "a reduction of a capacity" unitShape
+  , "ReduceHolding": atTagged "a reduction of what can be drawn" unitShape
   }
 
 -- The bodies the snapshot, setting and template forms of an Intent share, over its filling `v`. The
@@ -627,6 +642,9 @@ intentShape = genericSum "Intent"
 transferabilityShape :: Shape Transferability
 transferabilityShape = genericEnum "Transferability"
 
+drawSourceShape :: Shape DrawSource
+drawSourceShape = genericEnum "DrawSource"
+
 capabilityShape :: Shape Capability
 capabilityShape = genericSum "Capability"
   { "MayTrade": atTagged "a Market the Entity may trade in" idShape
@@ -666,7 +684,6 @@ entityShape :: Shape Entity
 entityShape = recordOf "Entity"
   ( field @"id" "the Entity's id" idShape
       &. field @"accounts" "its holdings of each Resource" (mapOf idShape qShape)
-      &. field @"capacities" "its capacities" (mapOf idShape qShape)
       &. field @"capabilities" "what it may do" (arrayOf capabilityShape)
       &. field @"kind" "an Actor or an Aggregate" entityKindShape
   )
@@ -685,6 +702,12 @@ signedProposalShape = recordOf "SignedProposal"
   ( field @"proposal" "the Proposal" proposalShape
       &. field @"signatures" "the Entities that signed it" (arrayOf idShape)
   )
+
+instance EncodeJson DrawSource where
+  encodeJson = encodeWith Snapshot drawSourceShape
+
+instance DecodeJson DrawSource where
+  decodeJson = decodeJsonWith Snapshot drawSourceShape
 
 instance EncodeJson Transferability where
   encodeJson = encodeWith Snapshot transferabilityShape
@@ -730,10 +753,6 @@ instance DecodeJson (IntentF MarketId Q) where
 
 proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
 proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
-
--- | The capacity a Transformation's orders draw on, if they draw on one.
-drawsOnCapacity :: Transformation -> Maybe CapacityRef
-drawsOnCapacity tr = if tr.capacityUse > Q.zero then tr.capacity else Nothing
 
 -- | A Transform's body, and one whose `by` is implicit, and a repeal's: the forms every Intent format writes.
 transformBody :: forall v. Shape v -> Shape { by :: EntityId, transformation :: TransformationId, quantity :: v }

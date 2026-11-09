@@ -15,8 +15,8 @@ module Core.Authority
 
 import Prelude
 
-import Core.Query (owner, marketsOf)
-import Core.Types (CapacityRef, Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
+import Core.Query (holderOf, marketsOf)
+import Core.Types (Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
 import Core.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
 import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
@@ -32,7 +32,7 @@ executor p = case _ of
 
 -- | What the validity of an Intent depends on besides the capabilities: the known Entities, Resources
 -- | (with their transferability), Markets (`venues`, and who has `access`), Transformations (with their
--- | bounds), each Rule in force, and each capacity's owner. The engine reads them from the World State, a
+-- | bounds), each Rule in force, and each Resource's holder. The engine reads them from the World State, a
 -- | Strategy from its View, so for the Entity whose View it is the two answer every question identically.
 -- | A View knows only the Markets its Entity has access to, so an inaccessible Market is an unknown one
 -- | there: the Intent is invalid either way, and only the reason differs.
@@ -43,7 +43,7 @@ type Facts =
   , venues :: Array Venue
   , access :: EntityId -> MarketId -> Boolean
   , transformation :: TransformationId -> Maybe Bounds
-  , capacityOwner :: CapacityRef -> Maybe EntityId
+  , holder :: ResourceId -> Maybe EntityId
   , ruleKind :: RuleKindId -> Maybe RuleKindDecl
   }
 
@@ -55,7 +55,7 @@ worldFacts w =
   , venues: map venueOf (marketsOf w)
   , access: \who m -> maybe false (elem who <<< _.access) (Map.lookup m w.markets)
   , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
-  , capacityOwner: owner w
+  , holder: holderOf w
   , ruleKind: \k -> Map.lookup k w.ruleKinds
   }
 
@@ -68,7 +68,7 @@ viewFacts v =
   , access: \who m -> who == v.self.id && any ((_ == m) <<< _.id) v.markets
   , transformation: \t -> Map.lookup t v.transformations
   , ruleKind: \k -> Map.lookup k v.ruleKinds
-  , capacityOwner: \c -> if c `elem` v.ownedCapacities then Just v.self.id else Nothing
+  , holder: \r -> if r `elem` v.soleHoldings then Just v.self.id else Nothing
   }
 
 -- | Whether `caps` authorize `who` to execute the Intent (§2.4). The one authority predicate: screening,
@@ -88,12 +88,12 @@ authorized facts caps who = case _ of
   isTrade (MayTrade _) = true
   isTrade _ = false
 
--- | Whether an Entity governs a Rule: the governor of its flows, or the owner of its capacity. Enacting
+-- | Whether an Entity governs a Rule: the governor of its flows, or the holder of the Resource it reduces. Enacting
 -- | and repealing both require it.
 governs :: Facts -> EntityId -> Rule -> Boolean
 governs facts who = case _ of
   FlowRule r -> r.scope.governor == who
-  CapacityRule r -> facts.capacityOwner r.capacity == Just who
+  HoldingRule r -> facts.holder r.resource == Just who
 
 -- | The Markets a routed order for `pair` may use: those whose base and quote match, to which `who` has
 -- | access, and for which `caps` hold the trade capability. In MarketId order.
@@ -106,7 +106,7 @@ routeMarkets facts who caps pair = map _.id (filter usable facts.venues)
 -- | routed order's limit, is authorized, respects Market access, transferability, Rule scope, and the Transformation's
 -- | bounds. The one validity rule: screening checks an Intent with it, over the World State, and the Strategy
 -- | interpreter filters what it drafts with it, over the View. What a View cannot answer (signatures,
--- | funding, capacity, the bundled order of a conditioned Transfer) stays in the engine.
+-- | funding, what a pool can fill, the bundled order of a conditioned Transfer) stays in the engine.
 validIntent :: Facts -> Array Capability -> EntityId -> Intent -> Either RejectReason Unit
 validIntent facts caps who i = known *> limited *> authority *> access *> transferable *> scope *> withinBounds
   where

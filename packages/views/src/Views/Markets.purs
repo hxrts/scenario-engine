@@ -16,7 +16,7 @@ module Views.Markets
 import Prelude
 import Core.World (Focus, RoundRecord, WorldState)
 import Core.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
-import Views.Common (Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
+import Views.Common (listedHolding, Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
 
 import Core.Map (entries, sumInto)
 
@@ -83,7 +83,7 @@ resourceTotals r =
   { title: "Resource totals across all accounts"
   , unit: ""
   , kind: Quantity
-  , series: series r (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (fromFoldable (Map.keys w.resources)))
+  , series: series r (\w -> map (\res -> Tuple (show res) (totalHolding w res)) (filter (listedHolding w) (fromFoldable (Map.keys w.resources))))
   }
 
 -- | The numeraire moved between categories of Entity (Actor or Aggregate) over the run.

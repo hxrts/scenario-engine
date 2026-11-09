@@ -13,13 +13,22 @@ import Data.Map as Map
 
 import Schema.Build.Quantity (q)
 import Schema.Build.World (noResource, resourcesOf)
+import Settings.Kit.Resources (capacity)
 
 import Core.Types (ResourceDefinition, ResourceId, Transferability(..))
 import Data.Map (Map)
 import Schema.Recurring (Decay)
 
 resources :: Map ResourceId ResourceDefinition
-resources = Map.union (coreResources) (resourcesOf [ Tuple n.softPower (noResource { transferability = NonTransferable }) ])
+resources = Map.union (coreResources)
+  ( resourcesOf
+      [ Tuple n.softPower (noResource { transferability = NonTransferable })
+      , Tuple n.energyProduction capacity
+      , Tuple n.semiconductors capacity
+      , Tuple n.transport capacity
+      , Tuple n.attention capacity
+      ]
+  )
 
 -- | What a facility may reserve, and each Resource's decay: the setting document holds them.
 reservable :: Array ResourceId

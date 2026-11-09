@@ -28,9 +28,6 @@ omissionTag = "omission"
 holdingTag :: String
 holdingTag = "holding"
 
-capacityTag :: String
-capacityTag = "capacity"
-
 shortfallTag :: String
 shortfallTag = "shortfall"
 
@@ -99,11 +96,10 @@ fallbackShape = genericSettingSum "Fallback"
   , "PermittedOmission": atBare { tag: omissionTag, desc: "the Actor's accounts are permitted to lapse" }
   }
 
--- | A measure: a holding, a capacity, a shortfall, a count of shortfall rounds, payee receipts, or a volume.
+-- | A measure: a holding, a shortfall, a count of shortfall rounds, payee receipts, or a volume.
 measureShape :: Shape Measure
 measureShape = genericSettingSum "Measure"
   { "HoldingOf": atKindArg { tag: holdingTag, desc: "an Entity's holding of a Resource" } idShape
-  , "CapacityAmount": atKindArg { tag: capacityTag, desc: "an Entity's amount of a capacity" } idShape
   , "ShortfallOf": atKindArg { tag: shortfallTag, desc: "the shortfall of a Resource in a round" } idShape
   , "ShortfallRounds": atKindArg { tag: shortfallRoundsTag, desc: "the rounds the Entity was short of a Resource" } idShape
   , "PayeeReceipts": atBare { tag: payeeReceiptsTag, desc: "Money received as a facility payee" }

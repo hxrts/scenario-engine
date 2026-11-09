@@ -8,7 +8,7 @@ import Prelude
 import Data.Map as Map
 
 import Core.World (RecurringAmount(..))
-import Core.Types (LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
+import Core.Types (ResourceId, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), EntityTag, proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
 import Core.Num as Q
 import Core.Strategy (Strategy)
@@ -75,7 +75,7 @@ roundTripStrategies =
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
             , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: lit "0.5", basis: PerUnit, in: Id "M", to: LevyToDestination } }))
             , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block }))
-            , asTemplate (enactRule (CapacityRule { kind: Id "withholding", capacity: Id "c", reduce: lit 2 }))
+            , asTemplate (enactRule (HoldingRule { kind: Id "withholding", resource: Id "c", reduce: lit 2 }))
             , asTemplate (repeal { rule: "r2/US/0/rule-0" })
             ]
         , D.rule [ not' (eqQ (lit 1) (lit 2)), transformedLastRound { by: "US", transformation: "t", atLeast: lit 1 }, restrictedLastRound { by: "US", target: "CN" }, restrictionInForce { by: "EU" } ]
@@ -145,7 +145,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     -- Pins the setting format the schema decoders read (docs/03).
     it "a facility may not escrow a Resource the document does not mark reservable" do
       let
-        doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "markets": {}, "transformations": { "dep": { "escrowPerUnit": { "M": "1" } } }, "entities": {} }"""
+        doc reservable = """{ "id": "t", "version": "v0", "numeraire": "M", "horizon": 5, "roundRange": [4, 8], "resources": { "M": { "transferability": "Free" """ <> reservable <> """ } }, "markets": {}, "transformations": { "dep": { "draws": [ { "resource": "M", "from": "Executor", "perUnit": "1" } ] } }, "entities": {} }"""
       isLeft (decodeGameboard (json (doc ""))) `shouldEqual` true
       isLeft (decodeGameboard (json (doc """, "reservable": true"""))) `shouldEqual` false
 
@@ -153,7 +153,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     -- Pins the setting format the schema decoders read (docs/03).
     it "a combination that would do nothing has no form" do
       isLeft (decodeJsonWith Authored ruleShape (json """{ "flows": { "kind": "x", "scope": { "governor": "A", "counterparty": "B", "direction": "inbound", "over": ["E"] }, "effect": { "reduce": "1" } } }""")) `shouldEqual` true
-      isLeft (decodeJsonWith Authored ruleShape (json """{ "capacity": { "kind": "x", "capacity": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
+      isLeft (decodeJsonWith Authored ruleShape (json """{ "holding": { "kind": "x", "resource": "c", "levy": { "rate": "1", "basis": "perUnit", "in": "M", "to": "destination" } } }""")) `shouldEqual` true
 
   describe "Capability tags" do
     it "decodes each capability kind" do
@@ -172,7 +172,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Rules" do
     -- Pins the setting format the schema decoders read (docs/03).
     it "decodes each rule key, including withholding" do
-      rule (json """{ "capacity": { "kind": "withholding", "capacity": "semiconductors", "reduce": "3" } }""")
+      rule (json """{ "holding": { "kind": "withholding", "resource": "semiconductors", "reduce": "3" } }""")
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
       rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } }""")
         `shouldEqual` Right (banR { jurisdiction: Id "US", target: Id "CN" })
@@ -302,6 +302,6 @@ tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, cou
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
+holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }
 

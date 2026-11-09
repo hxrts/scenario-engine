@@ -36,7 +36,7 @@ import Data.String (Pattern(..), contains)
 import Game.Recipe (decodeSpec)
 import Game.Types (SeatBinding(..))
 import Handlers.Simulate (simulate)
-import Game.Patch (setCapacity, setCurve)
+import Game.Patch (setAccount, setCurve)
 import Testkit.Meridian (orThrow, setting, silent)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -74,9 +74,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Named patches of a setting" do
     it "a patch sets what it names, and fails on a name the setting does not have" do
       p <- setting
-      map (\g -> map _.capacities (Map.lookup (Id "SA") g.world.entities)) (setCapacity (Id "SA") (Id "energy-production") (Q.fromInt 7) p.gameboard)
-        `shouldEqual` Right (Just (Map.singleton (Id "energy-production") (Q.fromInt 7)))
-      isLeft (setCapacity (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.gameboard) `shouldEqual` true
+      map (\g -> (Map.lookup (Id "SA") g.world.entities) >>= Map.lookup (Id "energy-production") <<< _.accounts) (setAccount (Id "SA") (Id "energy-production") (Q.fromInt 7) p.gameboard)
+        `shouldEqual` Right (Just (Q.fromInt 7))
+      isLeft (setAccount (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.gameboard) `shouldEqual` true
       isLeft (setCurve (Id "no-market") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.gameboard) `shouldEqual` true
   describe "Assembly (docs/06 §4.3)" do
     let
@@ -114,7 +114,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "NOBODY") (Id "energy") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefEntity "NOBODY")
     it "an override naming an unknown capacity, or making an unknown Entity implicit, is an error" do
       p <- setting
-      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefCapacity "no-such-capacity")
+      map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefResource "no-such-capacity")
       map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" RefEntity "NOBODY")
     -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
     it "a recipe read back from a stored spec checks its overrides when it is played" do

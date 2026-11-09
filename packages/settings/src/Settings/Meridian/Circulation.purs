@@ -9,7 +9,7 @@ module Settings.Meridian.Circulation
 
 import Prelude (map)
 import Settings.Meridian.Names (n)
-import Settings.Meridian.Holdings (capacityHolders)
+import Settings.Meridian.Holdings (holdersOf)
 import Schema.Build.Base (payee, sales, (:=))
 import Schema.Build.Quantity (q)
 import Settings.Kit.Seats (flowsOf, requirementsOf, (~>))
@@ -19,7 +19,7 @@ import Schema.Recurring (Circulation, Flow, Production, Requirement, Share)
 -- | The Entities that produce Energy: every Entity that holds an energy-production capacity
 -- | (Meridian.Holdings), in catalog order.
 productionCapacity :: Array Production
-productionCapacity = map (\entity -> { entity: entity, resource: n.energy, capacity: n.energyProduction }) (capacityHolders n.energyProduction)
+productionCapacity = map (\entity -> { entity: entity, resource: n.energy, capacity: n.energyProduction }) (holdersOf n.energyProduction)
 
 flows :: Array Flow
 flows = flowsOf n.money

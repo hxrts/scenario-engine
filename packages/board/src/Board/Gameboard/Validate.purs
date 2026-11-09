@@ -15,29 +15,28 @@ import Core.Map (entries, values)
 
 import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
-import Schema.Gameboard (Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
+import Schema.Gameboard (Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef, capacityCategory)
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
-import Core.Types (Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
+import Core.Types (DrawSource(..), Entity, EntityId, Id(..), Market, MarketId, PolicyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld)
 import Data.Const (Const(..))
-import Data.Array (all, any, concatMap, elem, filter, fromFoldable, group, mapMaybe, nub, null, sort)
-import Data.Array.NonEmpty as NEA
+import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, mapMaybe, nub, null)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Maybe (Maybe(..), isNothing, maybe)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), snd)
 import Foreign.Object as Object
 
 -- | Structural, economic, Representation, resolution-consistency, and feasibility checks.
 validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
 validateGameboard gb config =
   let
-    structural = references <> delays <> capacities <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.actors)) else []
     errors = structural <> feasibility <> consistency
@@ -50,31 +49,38 @@ validateGameboard gb config =
   aggregates = mapMaybe (\e -> map { entity: e, aggregate: _ } (aggregateOf e)) entities
   -- whether the Entity with this id is an Aggregate (an unknown id is not)
   isAggregateId e = maybe false isAggregate (Map.lookup e w.entities)
-  -- capacities an Entity holds, by name
-  held = nub (concatMap (\e -> map show (fromFoldable (Map.keys e.capacities))) entities)
-  -- capacities a facility, an effect, or the production list refers to
+  -- what is held of a Resource the setting calls a capacity, by name
+  held = filter isCapacity (nub (concatMap (\e -> fromFoldable (Map.keys e.accounts)) entities))
+  isCapacity r = (Map.lookup r w.resources >>= _.category) == Just capacityCategory
+  holderDraws = concatMap (\t -> map (Tuple t.id) (filter ((_ == HolderOf) <<< _.from) t.draws)) facilities
+  -- what a holder draw, an effect, or the production list refers to
   referenced = nub
-    ( map show (mapMaybe _.capacity facilities)
-        <> concatMap (\t -> map (show <<< _.capacity) t.effects) facilities
-        <> map show (mapMaybe producedFrom w.recurring)
+    ( map (_.resource <<< snd) holderDraws
+        <> concatMap (map _.resource <<< _.effects) facilities
+        <> mapMaybe producedFrom w.recurring
     )
 
   references = unknownNames (gameboardNames gb) (worldRefs w <> gameboardRefs gb config)
-    <> map (UnknownReference RefCapacity) (filter (\c -> not (c `elem` referenced)) held)
+    <> map (UnknownReference RefResource <<< idText) (filter (\c -> not (c `elem` referenced)) held)
     <> map (UnknownReference RefEntity <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
-  capacities = concatMap productionHeld w.recurring
+  holderChecks = concatMap productionHeld w.recurring
     <> concatMap coverageAggregate (entries gb.actors)
     <> concatMap schemeTarget gb.schemes
-    <> (map (\g -> DuplicateCapacityOwner (show (NEA.head g))) (filter (\g -> NEA.length g > 1) (group (sort (concatMap (\e -> fromFoldable (Map.keys e.capacities)) entities # filter (\c -> not (sharedProduction c)))))))
-  -- production capacity is held by each producer under one name; every other capacity has one owner
+    <> map (DuplicateHolder <<< show) (filter holdersDuplicated drawnSolely)
+    <> map (\(Tuple t d) -> DrawWithoutHolder (show t) (show d.resource)) (filter noHolder holderDraws)
+    <> map (TooManyHolderDraws <<< show <<< _.id) (filter (\t -> length (filter ((_ == HolderOf) <<< _.from) t.draws) > 1) facilities)
+  -- a Resource read as an amount held is held by each producer under one name; one drawn from its holder has one holder
   sharedProduction c = any (\p -> producedFrom p == Just c) w.recurring
+  drawnSolely = filter (not <<< sharedProduction) (nub (map (_.resource <<< snd) holderDraws))
+  holdersDuplicated r = length (filter (Map.member r <<< _.accounts) entities) > 1
+  noHolder (Tuple _ d) = not (any (Map.member d.resource <<< _.accounts) entities)
   productionHeld p = case p.destination, p.amount of
-    ToEntity e, CapacityHeld c | Just x <- Map.lookup e w.entities, not (Map.member c x.capacities) -> [ ProductionWithoutCapacity e (show c) ]
+    ToEntity e, HeldAmount c | Just x <- Map.lookup e w.entities, not (Map.member c x.accounts) -> [ ProductionWithoutHolding e (show c) ]
     _, _ -> []
-  -- the capacity a rule produces from
+  -- the holding a rule produces from
   producedFrom r = case r.amount of
-    CapacityHeld c -> Just c
+    HeldAmount c -> Just c
     _ -> Nothing
 
   coverageAggregate (Tuple e d) = case d.fallback of
@@ -105,7 +111,6 @@ worldRefs = foldWorld
     , resource = ref RefResource
     , market = ref RefMarket
     , transformation = ref RefTransformation
-    , capacity = ref RefCapacity
     , ruleKind = ref RefRuleKind
     , members = \_ -> Const <<< map (name RefEntity)
     , weights = Const <<< map (name RefEntity) <<< fromFoldable <<< Map.keys
@@ -139,7 +144,6 @@ gameboardRefs gb config =
   metricRefs :: MetricRef -> Array (Tuple RefKind String)
   metricRefs m = map (name RefEntity) m.entities <> case m.measure of
     HoldingOf r -> [ name RefResource r ]
-    CapacityAmount c -> [ name RefCapacity c ]
     ShortfallOf r -> [ name RefResource r ]
     ShortfallRounds r -> [ name RefResource r ]
     Schema.PayeeReceipts -> []
@@ -192,7 +196,6 @@ unknownNames w = map (\(Tuple kind name) -> UnknownReference kind name) <<< filt
     RefResource -> Map.member (Id name) w.resources
     RefTransformation -> Map.member (Id name) w.transformations
     RefParameter -> Set.member name w.parameters
-    RefCapacity -> any (Map.member (Id name) <<< _.capacities) (values w.entities)
     RefProcedure -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.entities)
     RefPolicy -> Set.member (Id name) w.policies
     RefRuleKind -> Map.member (Id name) w.ruleKinds

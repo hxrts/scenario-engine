@@ -13,10 +13,10 @@ import Core.Engine.Settle (Account(..), Settlement, adjust, minOwedHeld, net, tr
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityHeld, entitiesOf, lookupQ)
+import Core.Query (entitiesOf, holding, lookupQ)
 import Core.Slice (runLegQuery)
 import Core.Types (EntityId)
-import Core.World (addEvents, Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Target(..), WorldState, coupled)
+import Core.World (addEvents, Cause(..), Endpoint(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
 import Data.Array (filter, findIndex, foldl, fromFoldable, index, length)
 import Data.Map (Map)
 import Data.Map as Map
@@ -38,7 +38,7 @@ isEachHolder r = r.source == FromEachHolder
 step :: WorldState -> Penalised -> RecurringFlow -> Penalised
 step w acc r =
   case r.source, r.destination of
-    Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, target: Holding r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
+    Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, resource: r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
     FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
     FromEntity from, ToSink -> consume from
     _, _ -> acc
@@ -67,8 +67,8 @@ causeOf r = OfRecurring { rule: r.id, kind: r.kind }
 amountOf :: WorldState -> Settlement -> RecurringFlow -> Q
 amountOf w st r = case r.amount of
   FixedAmount q -> q
-  CapacityHeld c -> case r.destination of
-    ToEntity to -> capacityHeld w to c
+  HeldAmount c -> case r.destination of
+    ToEntity to -> holding w to c
     ToSink -> Q.zero
   FractionHeld f -> case r.source of
     FromEntity from -> Q.mul f (max Q.zero (net w from r.resource st))

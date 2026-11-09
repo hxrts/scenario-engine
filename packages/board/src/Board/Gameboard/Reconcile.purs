@@ -25,12 +25,11 @@ import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | Two instantiations differing only in explicitness must describe the same initial
--- | economy: stocks, capacities, institutional authority, and procedure weights.
+-- | economy: stocks, institutional authority, and procedure weights.
 reconcile :: InitialWorld -> InitialWorld -> Either (Array Inconsistency) Unit
 reconcile a b =
   let
     diffs = compare' StockDiffers (stocks a.world) (stocks b.world)
-      <> compare' CapacityDiffers (capacities a.world) (capacities b.world)
       <> compare' WeightDiffers (weights a.world) (weights b.world)
       <> (if authority a.world == authority b.world then [] else [ AuthorityDiffers ])
   in
@@ -47,7 +46,6 @@ reconcile a b =
     in
       if l == r then [] else [ mk k l r ]
   stocks w = sumAll (map _.accounts (values w.entities) <> map _.reserves (values w.markets))
-  capacities w = sumAll (map _.capacities (values w.entities))
 
   -- Data.Map here has no unionsWith
   sumAll :: forall k. Ord k => Array (Map k Q) -> Map k Q

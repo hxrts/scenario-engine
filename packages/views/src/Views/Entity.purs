@@ -26,7 +26,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, col, completed, names, quantity, series, unitOf, worlds)
+import Views.Common (Chart, StoredRun, Table, col, completed, listedHolding, names, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Entity's history (`GET /api/runs/:id/entity/:entity`): its balance sheet table, and its holdings
@@ -88,7 +88,7 @@ entityHistory r e
 
       -- the Resources the Entity holds at some round (a non-zero holding), in Resource order
       held :: Array ResourceId
-      held = sort (nub (filter (\res -> any (\w -> holding w e res /= Q.zero) states) (concatMap (\w -> fromFoldable (Map.keys (accountsOf w e))) states)))
+      held = sort (nub (filter (\res -> listedHolding r.manifest.initial res && any (\w -> holding w e res /= Q.zero) states) (concatMap (\w -> fromFoldable (Map.keys (accountsOf w e))) states)))
 
       -- the Resources held or quoted by a Market at some round: the table's rows
       resources :: Array ResourceId

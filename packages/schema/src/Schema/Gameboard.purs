@@ -18,6 +18,7 @@ module Schema.Gameboard
   , InitialWorld
   , gameIdOf
   , gameboardRef
+  , capacityCategory
   ) where
 
 import Prelude
@@ -27,7 +28,7 @@ import Schema.Recurring (Authored)
 import Core.Draw (Seed)
 import Core.Num (Q)
 import Core.Strategy (Strategy)
-import Core.Types (BehaviorDomain, CapacityRef, EntityId, Estimator, PolicyId, ResourceId, TransformationId)
+import Core.Types (BehaviorDomain, EntityId, Estimator, PolicyId, ResourceId, TransformationId)
 import Core.World (Manifest, UnseededWorld, WorldState)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
@@ -87,9 +88,12 @@ type Criterion = { metric :: MetricRef, over :: Span, atLeast :: Bound }
 -- | A measurement summed over the listed Entities; `negated` expresses "at most".
 type MetricRef = { entities :: Array EntityId, measure :: Measure, negated :: Boolean }
 
+-- | The category a setting declares for a Resource used as capacity (docs/03): views leave it out of holdings.
+capacityCategory :: String
+capacityCategory = "capacity"
+
 data Measure
   = HoldingOf ResourceId
-  | CapacityAmount CapacityRef
   | ShortfallOf ResourceId
   | ShortfallRounds ResourceId
   | PayeeReceipts

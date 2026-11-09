@@ -81,7 +81,7 @@ defaultDials = { curve: \_ c -> c, flow: identity, holding: \_ _ v -> v, require
 -- | the Setting.
 energy :: Premise
 energy = premise emptyParts
-  { resources = only [ n.money, n.energy ] resources
+  { resources = only [ n.money, n.energy, n.energyProduction, n.semiconductors, n.transport ] resources
   , markets = only [ n.energyAtlantic, n.energyAsia ] markets
   , transformations = only [ n.logisticsInvestment, n.energyCapacityInvestment, n.strike ] transformations
   , ruleKinds = ruleKinds
@@ -103,7 +103,7 @@ defence = premise emptyParts
 
 softPower :: Premise
 softPower = premise emptyParts
-  { resources = only [ n.softPower ] resources
+  { resources = only [ n.softPower, n.attention ] resources
   , transformations = only [ n.publicAttention, n.humanitarianAid ] transformations
   }
 

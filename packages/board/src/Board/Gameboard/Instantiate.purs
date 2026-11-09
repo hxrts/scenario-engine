@@ -87,7 +87,7 @@ applyFallback w (Tuple e fb) = case fb of
   PermittedOmission -> w
   ImplicitCoverage agg -> mergeInto agg e w
 
--- | Implicit coverage: the Actor's accounts, capacities, procedure weight, market access,
+-- | Implicit coverage: the Actor's accounts, procedure weight, market access,
 -- | circulation, and jurisdiction pass to the Aggregate that covers it.
 mergeInto :: EntityId -> EntityId -> UnseededWorld -> UnseededWorld
 mergeInto agg e w = case Map.lookup e w.entities of
@@ -111,12 +111,11 @@ mergeInto agg e w = case Map.lookup e w.entities of
   notSelfFlow r = case r.source, r.destination of
     FromEntity a, ToEntity b -> a /= b
     _, _ -> true
-  -- production that became identical once retargeted stays one rule, as a merged Entity holds one capacity
+  -- production that became identical once retargeted stays one rule, as a merged Entity holds one amount of it
   dedupProduction = nubByEq sameProduction
   sameProduction a b = a.kind == kinds.production && b.kind == kinds.production && a.source == b.source && a.destination == b.destination && a.resource == b.resource && a.amount == b.amount
   absorb gone a = a
     { accounts = sumMaps a.accounts gone.accounts
-    , capacities = sumMaps a.capacities gone.capacities
     , kind = foldWeights a
     }
   -- a member's procedure weight folds into the Aggregate's residual weight

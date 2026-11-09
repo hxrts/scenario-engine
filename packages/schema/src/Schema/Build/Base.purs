@@ -13,7 +13,6 @@ module Schema.Build.Base
   , coverage
   , institutional
   , holdingOf
-  , capacityOf
   , shortfallOf
   , shortfallRounds
   , payeeReceipts
@@ -28,7 +27,7 @@ module Schema.Build.Base
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (Capability(..), CapacityTag, EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
+import Core.Types (Capability(..), EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
 import Schema.Build.Named (class Named, named)
 import Schema.Setting.Query (ShareMeasure)
 import Schema.Recurring as Recurring
@@ -77,9 +76,6 @@ institutional p = InstitutionalPolicy (named p)
 
 holdingOf :: forall a. Named a ResourceTag => a -> Measure
 holdingOf r = HoldingOf (named r)
-
-capacityOf :: forall a. Named a CapacityTag => a -> Measure
-capacityOf c = CapacityAmount (named c)
 
 shortfallOf :: forall a. Named a ResourceTag => a -> Measure
 shortfallOf r = ShortfallOf (named r)

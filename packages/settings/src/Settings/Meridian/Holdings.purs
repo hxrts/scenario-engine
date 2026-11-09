@@ -1,49 +1,48 @@
--- | Meridian's Entity holdings (docs/05_test_instance.md §9 and §10): each Entity's accounts and
--- | capacities, written once. The seat and aggregate Entities (`Entities.Seats`,
--- | `Entities.Aggregates`) take their accounts and capacities from here, and the fixtures take
+-- | Meridian's Entity holdings (docs/05_test_instance.md §9 and §10): each Entity's accounts, written once. The seat and aggregate Entities (`Entities.Seats`,
+-- | `Entities.Aggregates`) take their accounts from here, and the fixtures take
 -- | the accounts they need from here, so no Entity's holdings are copied. Expected values in the
 -- | fixtures stay literal; only the inputs are shared.
-module Settings.Meridian.Holdings (holdings, accountsOf, capacityHolders) where
+module Settings.Meridian.Holdings (holdings, accountsOf, holdersOf) where
 
-import Settings.Kit.Holdings (HoldingTable, accountsIn, capacityHoldersIn)
+import Settings.Kit.Holdings (HoldingTable, accountsIn, holdersIn)
 import Settings.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
-import Core.Types (CapacityRef, EntityId, Holdings)
+import Core.Types (EntityId, Holdings, ResourceId)
 
 -- | Every Entity's holding, in catalog order (`Settings.Meridian.Entities`).
 holdings :: HoldingTable
 holdings =
-  [ Tuple n.us { accounts: [ n.money := 260, n.energy := 70, n.mil := 95, n.softPower := 60 ], capacities: [] }
-  , Tuple n.de { accounts: [ n.money := 125, n.energy := 38, n.mil := 24, n.softPower := 45 ], capacities: [] }
-  , Tuple n.india { accounts: [ n.money := 180, n.energy := 65, n.mil := 65, n.softPower := 35 ], capacities: [ n.energyProduction := 5 ] }
-  , Tuple n.jp { accounts: [ n.money := 150, n.energy := 40, n.mil := 36, n.softPower := 48 ], capacities: [] }
-  , Tuple n.uk { accounts: [ n.money := 130, n.energy := 30, n.mil := 38, n.softPower := 47 ], capacities: [] }
-  , Tuple n.br { accounts: [ n.money := 105, n.energy := 85, n.mil := 25, n.softPower := 32 ], capacities: [ n.energyProduction := 13 ] }
-  , Tuple n.sa { accounts: [ n.money := 155, n.energy := 110, n.mil := 32, n.softPower := 28 ], capacities: [ n.energyProduction := 25 ] }
-  , Tuple n.ng { accounts: [ n.money := 85, n.energy := 60, n.mil := 18, n.softPower := 24 ], capacities: [ n.energyProduction := 12 ] }
-  , Tuple n.enco { accounts: [ n.money := 140, n.energy := 140, n.softPower := 20 ], capacities: [ n.energyProduction := 25 ] }
-  , Tuple n.chip { accounts: [ n.money := 135, n.energy := 55, n.softPower := 30 ], capacities: [ n.semiconductors := 15 ] }
-  , Tuple n.ship { accounts: [ n.money := 110, n.energy := 65, n.softPower := 25 ], capacities: [ n.transport := 60 ] }
-  , Tuple n.def { accounts: [ n.money := 110, n.energy := 30, n.mil := 5, n.softPower := 18 ], capacities: [] }
-  , Tuple n.labor { accounts: [ n.money := 30, n.energy := 4, n.softPower := 42 ], capacities: [] }
-  , Tuple n.sme { accounts: [ n.money := 15, n.energy := 5, n.softPower := 12 ], capacities: [] }
-  , Tuple n.aid { accounts: [ n.money := 45, n.energy := 12, n.softPower := 55 ], capacities: [] }
-  , Tuple n.cn { accounts: [ n.money := 255, n.energy := 95, n.mil := 88, n.softPower := 57 ], capacities: [] }
-  , Tuple n.eu { accounts: [ n.money := 320, n.energy := 125, n.mil := 50, n.softPower := 75 ], capacities: [] }
-  , Tuple n.euPool { accounts: [ n.energy := 0 ], capacities: [] }
-  , Tuple n.cnPrivate { accounts: [ n.money := 210, n.energy := 85, n.softPower := 25 ], capacities: [] }
-  , Tuple n.usWorkers { accounts: [ n.money := 260, n.energy := 60, n.softPower := 45 ], capacities: [] }
-  , Tuple n.globalSmes { accounts: [ n.money := 300, n.energy := 80, n.softPower := 25 ], capacities: [] }
-  , Tuple n.energySuppliers { accounts: [ n.money := 200, n.energy := 240, n.softPower := 22 ], capacities: [ n.energyProduction := 60 ] }
-  , Tuple n.worldHouseholds { accounts: [ n.money := 360, n.energy := 90, n.softPower := 35 ], capacities: [ n.attention := 50 ] }
+  [ Tuple n.us [ n.money := 260, n.energy := 70, n.mil := 95, n.softPower := 60 ]
+  , Tuple n.de [ n.money := 125, n.energy := 38, n.mil := 24, n.softPower := 45 ]
+  , Tuple n.india [ n.money := 180, n.energy := 65, n.mil := 65, n.softPower := 35, n.energyProduction := 5 ]
+  , Tuple n.jp [ n.money := 150, n.energy := 40, n.mil := 36, n.softPower := 48 ]
+  , Tuple n.uk [ n.money := 130, n.energy := 30, n.mil := 38, n.softPower := 47 ]
+  , Tuple n.br [ n.money := 105, n.energy := 85, n.mil := 25, n.softPower := 32, n.energyProduction := 13 ]
+  , Tuple n.sa [ n.money := 155, n.energy := 110, n.mil := 32, n.softPower := 28, n.energyProduction := 25 ]
+  , Tuple n.ng [ n.money := 85, n.energy := 60, n.mil := 18, n.softPower := 24, n.energyProduction := 12 ]
+  , Tuple n.enco [ n.money := 140, n.energy := 140, n.softPower := 20, n.energyProduction := 25 ]
+  , Tuple n.chip [ n.money := 135, n.energy := 55, n.softPower := 30, n.semiconductors := 15 ]
+  , Tuple n.ship [ n.money := 110, n.energy := 65, n.softPower := 25, n.transport := 60 ]
+  , Tuple n.def [ n.money := 110, n.energy := 30, n.mil := 5, n.softPower := 18 ]
+  , Tuple n.labor [ n.money := 30, n.energy := 4, n.softPower := 42 ]
+  , Tuple n.sme [ n.money := 15, n.energy := 5, n.softPower := 12 ]
+  , Tuple n.aid [ n.money := 45, n.energy := 12, n.softPower := 55 ]
+  , Tuple n.cn [ n.money := 255, n.energy := 95, n.mil := 88, n.softPower := 57 ]
+  , Tuple n.eu [ n.money := 320, n.energy := 125, n.mil := 50, n.softPower := 75 ]
+  , Tuple n.euPool [ n.energy := 0 ]
+  , Tuple n.cnPrivate [ n.money := 210, n.energy := 85, n.softPower := 25 ]
+  , Tuple n.usWorkers [ n.money := 260, n.energy := 60, n.softPower := 45 ]
+  , Tuple n.globalSmes [ n.money := 300, n.energy := 80, n.softPower := 25 ]
+  , Tuple n.energySuppliers [ n.money := 200, n.energy := 240, n.softPower := 22, n.energyProduction := 60 ]
+  , Tuple n.worldHouseholds [ n.money := 360, n.energy := 90, n.softPower := 35, n.attention := 50 ]
   ]
 
 -- | An Entity's accounts, as the Entity declares them.
 accountsOf :: EntityId -> Holdings
 accountsOf = accountsIn holdings
 
--- | The Entities that hold a capacity, in catalog order.
-capacityHolders :: CapacityRef -> Array EntityId
-capacityHolders = capacityHoldersIn holdings
+-- | The Entities with an account for a Resource, in catalog order.
+holdersOf :: ResourceId -> Array EntityId
+holdersOf = holdersIn holdings

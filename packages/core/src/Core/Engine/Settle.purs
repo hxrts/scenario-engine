@@ -25,9 +25,9 @@ import Core.Engine.Route as Route
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capacityOf, conversionPrice, holding, lookupQ, poolCeiling, poolOf)
-import Core.Types (CapacityRef, EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, ruleIdOf)
-import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), Target(..), WorldState, coupled, orderRemoved, rejection)
+import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
+import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, poolDraw, ruleIdOf)
+import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), WorldState, coupled, orderRemoved, rejection)
 import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -117,8 +117,8 @@ type ConversionOrder =
   { key :: Tuple ProposalId Int
   , joint :: Boolean
   , quantity :: Q
-  , use :: Q -- capacity drawn per unit ordered: `capacityUse`, or one unit per unit of a pool of its own
-  , group :: Either TransformationId CapacityRef
+  , use :: Q -- what is drawn per unit ordered: the holder draw's `perUnit`, or one unit per unit of a pool of its own
+  , group :: Either TransformationId ResourceId
   , tid :: TransformationId
   , minimum :: Q
   }
@@ -131,28 +131,26 @@ conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.propo
     Transform t | Just tr <- Map.lookup t.transformation w.transformations ->
       let
         group = poolOf t.transformation tr
-        use = case group of
-          Right _ -> tr.capacityUse
-          Left _ -> Q.fromInt 1
+        use = maybe (Q.fromInt 1) _.perUnit (poolDraw tr)
       in
         [ { key: Tuple s.item.proposal.id i, joint: s.item.joint, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation, minimum: tr.minimum } ]
     _ -> []
 
--- | One pool: joint Proposals fill in full or are rejected as a unit; single orders share the remaining
--- | capacity pro rata, in whole units of capacity. Each order's quantity is its share divided by
+-- | One pool: joint Proposals fill in full or are rejected as a unit; single orders share what remains
+-- | pro rata, in whole units of the Resource. Each order's quantity is its share divided by
 -- | its `use`, floored to the 0.0001 grid, so an order never draws more than its share. The
--- | sub-grid remainder stays unfilled. A capped pool's capacity is its cap; an uncapped Transformation's
--- | cap is its ceiling, so its fills never exceed the quantity escrow priced.
-allocateGroup :: WorldState -> Allocation -> Tuple (Either TransformationId CapacityRef) (Array ConversionOrder) -> Allocation
+-- | sub-grid remainder stays unfilled. A pool's cap is what can be drawn from its Resource; a Transformation
+-- | with no holder draw has its ceiling as its cap, so its fills never exceed the quantity escrow priced.
+allocateGroup :: WorldState -> Allocation -> Tuple (Either TransformationId ResourceId) (Array ConversionOrder) -> Allocation
 allocateGroup w acc (Tuple group os) =
   { fills: Map.union acc.fills (Map.fromFoldable fills)
   , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else joints <> singles) fills)
   , rejected: acc.rejected <> rejectedJoints
-  , events: acc.events <> map (\pid -> rejection w.round pid CapacityExceeded) rejectedJoints
+  , events: acc.events <> map (\pid -> rejection w.round pid PoolExceeded) rejectedJoints
   }
   where
   cap = case group of
-    Right ref -> capacityOf w ref
+    Right r -> drawable w r
     Left tid -> fromMaybe (Q.sumQ (map _.quantity os)) (Map.lookup tid w.transformations >>= poolCeiling w)
   { yes: joints, no: singles } = partition _.joint os
   used o = Q.mul o.use o.quantity
@@ -241,7 +239,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
             filled { positions = Map.insert id (Q.add m.position r.net) filled.positions }
 
 -- | Settle one Proposal's filled Transforms: pay what the Transformation charges, consume inputs, produce
--- | outputs, and schedule capacity effects.
+-- | outputs, and schedule delayed flows.
 settleConversions :: WorldState -> Allocation -> Settlement -> Scaled -> Settlement
 settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.proposal.intents)
   where
@@ -254,14 +252,14 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
             (entries allocation.totals)
         )
     )
-  -- Capacity effects land on the same boundary as outputs: an output with delay d is visible from
+  -- Effects land on the same boundary as outputs: an output with delay d is visible from
   -- round + max 1 d, and so is an effect, since a delay of zero is treated as one round.
   effects cause t tr q = concatMap
     ( \e ->
         let
           holder = fromMaybe t.by e.holder
           start = w.round + max 1 tr.delay
-          change = { round: start, entity: holder, target: CapacityOf e.capacity, quantity: Q.mul e.perUnit q, cause }
+          change = { round: start, entity: holder, resource: e.resource, quantity: Q.mul e.perUnit q, cause }
         in
           [ change ] <> maybe [] (\n -> [ change { round = start + n, quantity = Q.neg change.quantity } ]) e.rounds
     )
@@ -275,22 +273,11 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
           inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (entries tr.inputs)
           consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (entries tr.inputs)
           cause = OfIntent { proposal: pid, intent: i, mechanism: Conversion { by: t.by, transformation: t.transformation, units: q } }
-          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, target: Holding r, quantity: Q.mul u q, cause }) (entries tr.outputs)
+          outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, resource: r, quantity: Q.mul u q, cause }) (entries tr.outputs)
           inputLegs = map (\(Tuple r u) -> whole (Held t.by) Sink r (Q.mul u q)) (entries tr.inputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
-          produce l = foldl
-            ( \l' d -> case d.target of
-                Holding r -> adjust (Ent d.entity) r d.quantity l'
-                CapacityOf _ -> l'
-            )
-            l
-            now
-          outputLegs = concatMap
-            ( \d -> case d.target of
-                Holding r -> [ whole Source (Held t.by) r d.quantity ]
-                CapacityOf _ -> []
-            )
-            now
+          produce l = foldl (\l' d -> adjust (Ent d.entity) d.resource d.quantity l') l now
+          outputLegs = map (\d -> whole Source (Held t.by) d.resource d.quantity) now
         in
           if not inputsHeld then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
           else

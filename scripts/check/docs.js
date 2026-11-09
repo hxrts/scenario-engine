@@ -55,7 +55,7 @@ for (const row of table("defence-market")) {
 }
 
 const production = {};
-for (const e of Object.entries(entities)) if (e[1].capacities && e[1].capacities["energy-production"]) production[e[0]] = e[1].capacities["energy-production"];
+for (const e of Object.entries(entities)) if (e[1].accounts && e[1].accounts["energy-production"]) production[e[0]] = e[1].accounts["energy-production"];
 for (const row of table("producers")) {
   const producer = plain(row.Producer).replace(/\*\*/g, "");
   if (producer === "Total") continue;

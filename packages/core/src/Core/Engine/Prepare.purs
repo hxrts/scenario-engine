@@ -12,9 +12,9 @@ import Prelude
 import Core.Map (entries)
 
 import Core.Num as Q
-import Core.Query (lookupQ, marketsOf, owner, priceOf)
+import Core.Query (holderOf, lookupQ, marketsOf, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
-import Core.World (venueOf, boundsOf, addEvents, Delivery, Endpoint(..), Event(..), Target(..), View, WorldState)
+import Core.World (venueOf, boundsOf, addEvents, Delivery, Endpoint(..), Event(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
@@ -41,7 +41,7 @@ prepareRound w =
 
 type Applied = { entities :: Map EntityId Entity, events :: Array Event }
 
--- | Apply one due delivery, clamped so that no holding or capacity goes negative. Its
+-- | Apply one due delivery, clamped so that no holding goes negative. A delivery of a negative quantity is sunk. Its
 -- | event records the change actually applied, so reversing a delivery later restores exactly
 -- | what was removed. A delivery to an Entity that does not exist applies nothing and records
 -- | nothing.
@@ -50,14 +50,10 @@ applyDelivery round acc d = case Map.lookup d.entity acc.entities of
   Nothing -> acc
   Just e ->
     let
-      before = case d.target of
-        Holding r -> lookupQ r e.accounts
-        CapacityOf c -> lookupQ c e.capacities
+      before = lookupQ d.resource e.accounts
       after = max Q.zero (Q.add before d.quantity)
       change = Q.sub after before
-      updated = case d.target of
-        Holding r -> e { accounts = Map.insert r after e.accounts }
-        CapacityOf c -> e { capacities = Map.insert c after e.capacities }
+      updated = e { accounts = Map.insert d.resource after e.accounts }
     in
       if change == Q.zero then acc
       else
@@ -65,9 +61,10 @@ applyDelivery round acc d = case Map.lookup d.entity acc.entities of
         , events: acc.events <> [ deliveredEvent change ]
         }
   where
-  deliveredEvent change = case d.target of
-    Holding r -> Coupled { round, legs: [ { from: Source, to: Held d.entity, resource: r, owed: d.quantity, moved: change } ], rate: Nothing, cause: d.cause, delivered: true }
-    CapacityOf c -> CapacityChanged { round, entity: d.entity, capacity: c, quantity: change }
+  deliveredEvent change = Coupled { round, legs: [ deliveredLeg change ], rate: Nothing, cause: d.cause, delivered: true }
+  deliveredLeg change
+    | change < Q.zero = { from: Held d.entity, to: Sink, resource: d.resource, owed: Q.neg d.quantity, moved: Q.neg change }
+    | otherwise = { from: Source, to: Held d.entity, resource: d.resource, owed: d.quantity, moved: change }
 
 -- | The beginning-of-round View of one Entity. `toSign` is filled by the round runner.
 observe :: WorldState -> Entity -> View
@@ -83,6 +80,6 @@ observe w self =
   , markets: map venueOf (filter (\m -> self.id `elem` m.access) (marketsOf w))
   , entities: fromFoldable (Map.keys w.entities)
   , transformations: map boundsOf w.transformations
-  , ownedCapacities: filter (\c -> owner w c == Just self.id) (fromFoldable (Map.keys self.capacities))
+  , soleHoldings: filter (\r -> holderOf w r == Just self.id) (fromFoldable (Map.keys self.accounts))
   , ruleKinds: w.ruleKinds
   }

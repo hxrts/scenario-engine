@@ -39,8 +39,8 @@ focus = { resource: Id "C", label: "Corn" }
 
 table :: HoldingTable
 table =
-  [ Tuple (Id "A") { accounts: [ Id "G" := 100, Id "C" := 10 ], capacities: [] }
-  , Tuple (Id "B") { accounts: [ Id "G" := 80, Id "C" := 20 ], capacities: [] }
+  [ Tuple (Id "A") [ Id "G" := 100, Id "C" := 10 ]
+  , Tuple (Id "B") [ Id "G" := 80, Id "C" := 20 ]
   ]
 
 seats :: Array (Tuple EntityId (Tuple Entity ActorDefinition))

@@ -16,10 +16,10 @@ import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, recordShape)
 import Core.Shape as Shape
-import Core.Query (capacityHeld, capacityOf, holding, owner)
+import Core.Query (drawable, holderOf, holding)
 import Core.Represent as Represent
 import Core.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Target(..), Window(..), costFunctionShape, coupled, renderReason)
+import Core.World (Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, coupled, renderReason)
 import Core.Types (Capability(..), Controller(..), Direction(..), EntityId, EntityKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketTag, Proposal, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
@@ -36,7 +36,7 @@ import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
-import Test.Core.Build (actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
+import Test.Core.Build (heldDraw, ownDraw, withAccount, actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldContain, shouldEqual, shouldNotEqual)
 import Test.Spec.QuickCheck (quickCheck)
@@ -448,11 +448,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         order e = submit e 0 [ Transform { by: Id e, transformation: Id "F", quantity: Q.fromInt 8 } ]
         filled = concatMap transformedQ (eventsOf (resolveRound w [ order "US", order "UK" ]))
       Q.sumQ filled `shouldEqual` Q.fromInt 10
-    it "escrows a pooled facility at the pool ceiling, so a member with a larger capacityUse is still bounded" do
+    it "escrows a pooled facility at the pool ceiling, so a member with a larger draw per unit is still bounded" do
       let
         cost = { intercept: Q.fromInt 1, slope: Q.fromInt 1, domain: { lo: Q.zero, hi: Q.fromInt 10 } }
-        fac name use = { id: Id name, inputs: Map.empty, outputs: Map.empty, escrowPerUnit: Map.empty, payment: Just { curve: cost, resource: Id "M", to: Id "PAYEE" }, capacity: Just (Id "plant"), delay: 0, minimum: Q.zero, maximum: Nothing, capacityUse: Q.fromInt use, ownerSigns: false, effects: [] }
-        us = (actor "US" [ MayTransform (Id "FA") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        fac name use = (transformation name) { draws = [ heldDraw (Id "plant") (Q.fromInt use) ], payment = Just { curve: cost, resource: Id "M", to: Id "PAYEE" } }
+        us = withAccount (Id "plant") (Q.fromInt 10) (actor "US" [ MayTransform (Id "FA") ])
         -- UK holds exactly the escrow of its order at the old per-facility ceiling (capacity / 2 = 5, price 1 + 5/2 = 3.5)
         uk = (actor "UK" [ MayTransform (Id "FB") ]) { accounts = Map.singleton (Id "M") (Q.div (Q.fromInt 7) (Q.fromInt 2)) }
         w = (baseWorld [ us, uk ]) { transformations = Map.fromFoldable [ Tuple (Id "FA") (fac "FA" 1), Tuple (Id "FB") (fac "FB" 2) ] }
@@ -463,16 +463,16 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         (eventsOf r) `shouldEqual` []
     it "clamps a delivery at zero and records only the change applied" do
       let
-        us = (actor "US" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 5) }
-        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", target: CapacityOf (Id "plant"), quantity: Q.fromInt (-10), cause: testCause } ] }
+        us = withAccount (Id "plant") (Q.fromInt 5) (actor "US" [])
+        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", resource: Id "plant", quantity: Q.fromInt (-10), cause: testCause } ] }
         prepared = prepareRound w
-      capacityHeld prepared (Id "US") (Id "plant") `shouldEqual` Q.zero
-      prepared.events `shouldEqual` [ CapacityChanged { round: 1, entity: Id "US", capacity: Id "plant", quantity: Q.fromInt (-5) } ]
+      holding prepared (Id "US") (Id "plant") `shouldEqual` Q.zero
+      prepared.events `shouldEqual` [ Coupled { round: 1, legs: [ { from: Held (Id "US"), to: Sink, resource: Id "plant", owed: Q.fromInt 10, moved: Q.fromInt 5 } ], rate: Nothing, cause: testCause, delivered: true } ]
     it "a delivery to an unknown Entity applies nothing and records nothing" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", target: Holding (Id "M"), quantity: Q.fromInt 5, cause: testCause } ] }
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", resource: Id "M", quantity: Q.fromInt 5, cause: testCause } ] }
       (prepareRound w).events `shouldEqual` []
     it "prepareRound is idempotent, and resolveRound applies due deliveries itself" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", target: Holding (Id "M"), quantity: Q.fromInt 7, cause: testCause } ] }
+      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 7, cause: testCause } ] }
       (prepareRound (prepareRound w)).events `shouldEqual` (prepareRound w).events
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound w []) `shouldEqual` Right (Q.fromInt 107)
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)
@@ -551,7 +551,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
       let
         mil = resource "Mil"
-        dep = (transformation "dep") { escrowPerUnit = Map.singleton (Id "Mil") (Q.fromInt 3) }
+        dep = (transformation "dep") { draws = [ ownDraw (Id "Mil") (Q.fromInt 3) ] }
         us = (actor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, actor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
         -- 2 units reserve 6 Mil and the Transfer asks 10: 16 escrowed against 10 held, so both scale by 5/8
@@ -572,7 +572,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
             Right next -> holding next.world (Id "US") (Id "Mil") `shouldEqual` Q.zero
     it "a reservation alongside inputs leaves the reserved Resource unchanged and still consumes the inputs" do
       let
-        dep = (transformation "dep") { inputs = Map.singleton (Id "E") (Q.fromInt 1), escrowPerUnit = Map.singleton (Id "Mil") (Q.fromInt 3) }
+        dep = (transformation "dep") { inputs = Map.singleton (Id "E") (Q.fromInt 1), draws = [ ownDraw (Id "Mil") (Q.fromInt 3) ] }
         us = (actor "US" [ MayTransform (Id "dep") ]) { accounts = Map.fromFoldable [ Tuple (Id "Mil") (Q.fromInt 10), Tuple (Id "E") (Q.fromInt 4) ] }
         mil = resource "Mil"
         w = (baseWorld [ us ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
@@ -583,7 +583,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.fromInt 10
           holding res.world (Id "US") (Id "E") `shouldEqual` Q.fromInt 2
 
-  describe "Penalties, capacity effects, rules, and ownership" do
+  describe "Penalties, delayed effects, rules, and ownership" do
     let
       -- a flow of 5 M from US to UK, and UK requiring 10 E at a penalty of 0.25 per unit unmet, holding `held` E
       penalised held = (baseWorld [ actor "US" [], (actor "UK" []) { accounts = Map.fromFoldable [ Tuple (Id "M") (Q.fromInt 100), Tuple (Id "E") (Q.fromInt held) ] } ])
@@ -607,21 +607,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       submissionIndex (proposalId 3 (Id "US") 1) `shouldEqual` Just 1
     it "an enacted withholding reduces the owner's capacity from its scheduled round, and a repeal ends it a round later" do
       let
-        uk = (actor "UK" [ MayEnact (Id "withholding") ]) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        uk = withAccount (Id "plant") (Q.fromInt 10) (actor "UK" [ MayEnact (Id "withholding") ])
         ruleId = ruleIdOf (proposalId 1 (Id "UK") 0) 0
-        round1 = advance (baseWorld [ uk ]) [ submit "UK" 0 [ ChangeRule (Enact (holdR { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
+        drawing = (baseWorld [ uk ]) { transformations = Map.singleton (Id "F") ((transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }) }
+        round1 = advance drawing [ submit "UK" 0 [ ChangeRule (Enact (holdR { capacity: Id "plant", units: Q.fromInt 4 })) ] ]
         round2 = advance round1 [ submit "UK" 0 [ ChangeRule (Repeal ruleId) ] ]
       -- scheduled in round 1 and in force from round 2, so the round-1 world reads its scheduled Rule as not yet applied
-      capacityOf round1 (Id "plant") `shouldEqual` Q.fromInt 10
-      capacityOf (prepareRound round1) (Id "plant") `shouldEqual` Q.fromInt 6
+      drawable round1 (Id "plant") `shouldEqual` Q.fromInt 10
+      drawable (prepareRound round1) (Id "plant") `shouldEqual` Q.fromInt 6
       -- repealed in round 2: still in force in round 2, and gone from round 3
-      capacityOf (prepareRound round2) (Id "plant") `shouldEqual` Q.fromInt 10
-    it "a capacity effect changes only its named holder's capacity, for its rounds" do
+      drawable (prepareRound round2) (Id "plant") `shouldEqual` Q.fromInt 10
+    it "a holding Rule limits only what can be drawn: fills stop at the reduced amount, holdings and flows are unchanged" do
+      let
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }
+        holder = withAccount (Id "plant") (Q.fromInt 10) (actor "UK" [ MayTransform (Id "F") ])
+        w = (baseWorld [ holder ]) { transformations = Map.singleton (Id "F") fac, rules = Map.singleton (Id "r") (holdR { capacity: Id "plant", units: Q.fromInt 4 }) }
+        r = either (\e -> unsafeCrashWith (show e)) identity (resolveRound w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 9 } ] ])
+      select conversions r.record.events `shouldEqual` [ { round: 1, by: Id "UK", transformation: Id "F", quantity: Q.fromInt 6, paid: Q.zero, proposal: proposalId 1 (Id "UK") 0 } ]
+      holding r.world (Id "UK") (Id "plant") `shouldEqual` Q.fromInt 10
+    it "an effect changes only its named holder's capacity, for its rounds" do
       let
         -- each unit ordered adds one unit of plant to JP in the round after the order, for two rounds
-        fac = (transformation "F") { effects = [ { capacity: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
+        fac = (transformation "F") { effects = [ { resource: Id "plant", holder: Just (Id "JP"), perUnit: Q.fromInt 1, rounds: Just 2 } ] }
         w = (baseWorld [ actor "UK" [ MayTransform (Id "F") ], actor "JP" [], actor "US" [] ]) { transformations = Map.singleton (Id "F") fac }
-        held e world = capacityHeld (prepareRound world) (Id e) (Id "plant")
+        held e world = holding (prepareRound world) (Id e) (Id "plant")
         round2 = advance w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 3 } ] ]
         round3 = advance round2 []
         round4 = advance round3 []
@@ -632,14 +641,14 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       held "US" round2 `shouldEqual` Q.zero
     it "a facility whose owner does not sign is rejected, and accepted once the owner signs" do
       let
-        fac = (transformation "F") { capacity = Just (Id "plant"), ownerSigns = true }
-        w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ], ownerSigns = true }
+        w = (baseWorld [ actor "US" [ MayTransform (Id "F") ], withAccount (Id "plant") (Q.fromInt 10) (actor "UK" []) ]) { transformations = Map.singleton (Id "F") fac }
         order = Transform { by: Id "US", transformation: Id "F", quantity: Q.fromInt 1 }
         p signers =
           { proposal: { id: proposalId 1 (Id "US") 0, author: Id "US", intents: [ order ], signers: map Id signers, procedure: Nothing }
           , signatures: map Id signers
           }
-      rejections (resolveRound w [ p [] ]) `shouldEqual` [ "the owner of F's capacity must sign" ]
+      rejections (resolveRound w [ p [] ]) `shouldEqual` [ "the holder of what F draws must sign" ]
       rejections (resolveRound w [ p [ "UK" ] ]) `shouldEqual` []
       concatMap transformedQ (eventsOf (resolveRound w [ p [ "UK" ] ])) `shouldEqual` [ Q.fromInt 1 ]
     it "INV-03 reports a round that changes an Entity's capabilities" do
@@ -727,7 +736,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         declared = Map.singleton (Id "exportBan") { form: BlockFlows GovernedBySource, text: "" }
         inbound = FlowRule { kind: Id "exportBan", scope: { governor: Id "A", counterparty: Id "B", direction: Inbound, over: [ Id "E" ] }, effect: Block }
-      conforms (fromMaybe { form: ReduceCapacity, text: "" } (Map.lookup (Id "exportBan") declared)) inbound `shouldEqual` false
+      conforms (fromMaybe { form: ReduceHolding, text: "" } (Map.lookup (Id "exportBan") declared)) inbound `shouldEqual` false
     it "a Rule enacted in one round is in the next round's record" do
       let
         us = actor "US" [ MayEnact (Id "tariff") ]
@@ -765,11 +774,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a negative fixed flow is an engine error, not a crash" do
       let w = (baseWorld [ actor "A" [], actor "B" [] ]) { recurring = [ testRule "flow" (FromEntity (Id "A")) (ToEntity (Id "B")) (Id "M") (FixedAmount (Q.fromInt (-1))) ] }
       rejections (resolveRound w []) `shouldEqual` [ "negative fixed flow: A to B" ]
-    it "a capacity's owner is its positive holder, whatever the Map order" do
+    it "the holder of a drawn Resource is its positive holder, whatever the Map order; an undrawn one has none" do
       let
-        uk = (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
-        jp = (actor "JP" []) { capacities = Map.singleton (Id "plant") Q.zero }
-      owner (baseWorld [ uk, jp ]) (Id "plant") `shouldEqual` Just (Id "UK")
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }
+        uk = withAccount (Id "plant") (Q.fromInt 10) (actor "UK" [])
+        jp = withAccount (Id "plant") Q.zero (actor "JP" [])
+      holderOf ((baseWorld [ uk, jp ]) { transformations = Map.singleton (Id "F") fac }) (Id "plant") `shouldEqual` Just (Id "UK")
+      holderOf (baseWorld [ uk, jp ]) (Id "plant") `shouldEqual` Nothing
     it "a Free Resource moves without a capability, a Restricted one needs it" do
       let
         a = (actor "A" []) { accounts = Map.singleton (Id "M") (Q.fromInt 10) }
@@ -822,17 +833,43 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r = empty w
         grown = r { world = onEntity (Id "A") (\e -> e { accounts = Map.singleton (Id "M") (Q.fromInt 101) }) r.world }
       invariantsOf w grown `shouldContain` "INV-05"
+    it "INV-04 and INV-05: a drawn Resource changing with no leg behind it" do
+      let
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }
+        holder = withAccount (Id "plant") (Q.fromInt 10) (actor "UK" [ MayTransform (Id "F") ])
+        w = (baseWorld [ holder ]) { transformations = Map.singleton (Id "F") fac, resources = Map.insert (Id "plant") (resource "plant") (baseWorld [ holder ]).resources }
+        r = either (\e -> unsafeCrashWith (show e)) identity (resolveRound w [ submit "UK" 0 [ Transform { by: Id "UK", transformation: Id "F", quantity: Q.fromInt 3 } ] ])
+        drained = r { world = onEntity (Id "UK") (\e -> e { accounts = Map.insert (Id "plant") (Q.fromInt 7) e.accounts }) r.world }
+      invariantsOf w r `shouldEqual` []
+      invariantsOf w drained `shouldContain` "INV-04"
+      invariantsOf w drained `shouldContain` "INV-05"
+    it "INV-06: draws on one Resource are read per pool, whichever Transformation made them" do
+      let
+        fa = (transformation "FA") { draws = [ heldDraw (Id "plant") Q.one ] }
+        fb = (transformation "FB") { draws = [ heldDraw (Id "plant") (Q.fromInt 2) ] }
+        w = (baseWorld [ withAccount (Id "plant") (Q.fromInt 10) (actor "UK" []) ]) { transformations = Map.fromFoldable [ Tuple (Id "FA") fa, Tuple (Id "FB") fb ] }
+        -- each alone is within the 10 of plant: 6 of FA draws 6, and 3 of FB draws 6
+        tampered = withEvent (convE (Id "UK") (Id "FB") (Q.fromInt 3)) (withEvent (convE (Id "UK") (Id "FA") (Q.fromInt 6)) (empty w))
+      invariantsOf w tampered `shouldContain` "INV-06"
     it "INV-06: a fill above the pool's capacity" do
       let
-        fac = (transformation "F") { capacity = Just (Id "plant") }
-        w = (baseWorld [ (actor "UK" []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) } ]) { transformations = Map.singleton (Id "F") fac }
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }
+        w = (baseWorld [ withAccount (Id "plant") (Q.fromInt 10) (actor "UK" []) ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (withEvent (convE (Id "UK") (Id "F") (Q.fromInt 11)) (empty w)) `shouldContain` "INV-06"
     it "INV-08: two positive holders of a facility's capacity" do
       let
-        fac = (transformation "F") { capacity = Just (Id "plant") }
-        holds n = (actor n []) { capacities = Map.singleton (Id "plant") (Q.fromInt 10) }
+        fac = (transformation "F") { draws = [ heldDraw (Id "plant") Q.one ] }
+        holds n = withAccount (Id "plant") (Q.fromInt 10) (actor n [])
         w = (baseWorld [ holds "UK", holds "JP" ]) { transformations = Map.singleton (Id "F") fac }
       invariantsOf w (empty w) `shouldContain` "INV-08"
+    it "INV-08: a Resource drawn from its executor, or read as an amount held, may have many positive holders" do
+      let
+        own = (transformation "F") { draws = [ ownDraw (Id "plant") Q.one ] }
+        holds n = withAccount (Id "plant") (Q.fromInt 10) (actor n [])
+        w = (baseWorld [ holds "UK", holds "JP" ]) { transformations = Map.singleton (Id "F") own }
+        reading = (baseWorld [ holds "UK", holds "JP" ]) { recurring = [ testRule "flow" Created (ToEntity (Id "UK")) (Id "M") (HeldAmount (Id "plant")) ] }
+      invariantsOf w (empty w) `shouldEqual` []
+      invariantsOf reading (empty reading) `shouldEqual` []
     it "INV-09: a factor outside its estimators' bounds" do
       let
         rep = representation { actor: "A", aggregate: "G", domain: "energy-demand", observes: "E", estimator: { reference: Q.fromInt 1, shrinkage: q "0.5", deviationBound: Just { lo: q "-0.2", hi: q "0.2" }, noiseSpread: Q.zero } }
@@ -955,7 +992,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         r2 = OutOfScope (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.25" })
       (r1 /= r2) `shouldEqual` true
       renderReason r1 `shouldEqual` renderReason r2
-      for_ [ r1, CapacityExceeded, NoRouteAccess (Id "A") (Id "E") (Id "M"), Blocked (Id "tariff") ] \r ->
+      for_ [ r1, PoolExceeded, NoRouteAccess (Id "A") (Id "E") (Id "M"), Blocked (Id "tariff") ] \r ->
         decodeJson (encodeJson r) `shouldEqual` Right r
     it "the snapshot form of an Intent is the stored record's form" do
       stringify (encodeJson (Trade { market: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))

@@ -196,7 +196,6 @@ refsTemplate =
         , entity = Const <<< named
         , resource = Const <<< named
         , transformation = Const <<< named
-        , capacity = Const <<< named
         , value = Const
         }
     )

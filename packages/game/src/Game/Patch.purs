@@ -1,8 +1,7 @@
 -- | Named patches of a base setting (docs/03): the only way a setting is changed from outside after it
 -- | is authored. Each fails on a name the setting does not have, so a patch never silently does nothing.
 module Game.Patch
-  ( setCapacity
-  , setCurve
+  ( setCurve
   , setAccount
   , setCapabilities
   , setPosition
@@ -16,7 +15,7 @@ import Prelude
 
 import Board.Error (ValidationError(..))
 import Core.Num (Q)
-import Core.Types (Capability, CapacityRef, CostFunction, EntityId, MarketId, RefKind(..), Representation, ResourceId, RuleF, idText)
+import Core.Types (Capability, CostFunction, EntityId, MarketId, RefKind(..), Representation, ResourceId, RuleF, idText)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Foreign.Object as Object
@@ -25,12 +24,6 @@ import Game.Setting (GameboardParts)
 import Schema.Gameboard (Gameboard)
 import Schema.Setting.World (rulesFromList)
 import Schema.Recurring (Circulation, compileIn)
-
--- | Set what an Entity holds of a capacity.
-setCapacity :: EntityId -> CapacityRef -> Q -> Gameboard -> Either GameError Gameboard
-setCapacity e ref q gb
-  | Map.member e gb.world.entities = Right gb { world { entities = Map.update (\x -> pure x { capacities = Map.insert ref q x.capacities }) e gb.world.entities } }
-  | otherwise = Left (Invalid [ UnknownReference RefEntity (idText e) ])
 
 -- | Set a Market's curve.
 setCurve :: MarketId -> CostFunction -> Gameboard -> Either GameError Gameboard

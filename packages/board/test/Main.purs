@@ -15,7 +15,7 @@ import Board.Gameboard.Instantiate (instantiate, mergeRequirements)
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Types (Capability(..), CapacityTag, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), LevyBasis(..), LevyRecipient(..), RefKind(..), Rule, RuleF(..), RuleForm(..), RuleId, RuleKindDecl, RuleKindTag, Transformation, TransformationId)
+import Core.Types (ResourceId, Capability(..), Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), LevyBasis(..), LevyRecipient(..), RefKind(..), Rule, RuleF(..), RuleForm(..), RuleId, RuleKindDecl, RuleKindTag, Transformation, TransformationId)
 import Core.World (RecurringAmount(..), UnseededWorld)
 import Schema.Recurring (requirementRule)
 import Data.Array (concatMap, elem, filter, mapMaybe)
@@ -62,8 +62,8 @@ coverageGameboard =
   actor = { required: false, seat: true, npc: [], fallback: Just (ImplicitCoverage eu), objective: Nothing, description: "", dependency: "" }
 
   entity :: EntityId -> Entity
-  entity i = { id: i, accounts: Map.empty, capacities: Map.empty, capabilities: [], kind: Actor (NPC (Id "p")) }
-  usEntity = (entity us) { accounts = Map.singleton money (Q.fromInt 5), capacities = Map.singleton cap (Q.fromInt 1) }
+  entity i = { id: i, accounts: Map.empty, capabilities: [], kind: Actor (NPC (Id "p")) }
+  usEntity = (entity us) { accounts = Map.fromFoldable [ Tuple money (Q.fromInt 5), Tuple cap (Q.fromInt 1) ] }
   euEntity = (entity eu) { kind = Aggregate { policy: Id "p", members: [ us ], procedures: Map.empty } }
 
   facility :: Transformation
@@ -71,15 +71,13 @@ coverageGameboard =
     { id: Id "fac"
     , inputs: Map.empty
     , outputs: Map.empty
-    , escrowPerUnit: Map.empty
+    , draws: []
     , payment: Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 10 } }, resource: money, to: us }
-    , capacity: Nothing
     , delay: 0
     , minimum: Q.zero
     , maximum: Nothing
-    , capacityUse: Q.zero
     , ownerSigns: false
-    , effects: [ { capacity: cap, holder: Just us, perUnit: Q.fromInt 1, rounds: Nothing } ]
+    , effects: [ { resource: cap, holder: Just us, perUnit: Q.fromInt 1, rounds: Nothing } ]
     }
 
   world :: UnseededWorld
@@ -192,7 +190,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       reports gb config [ ref RefMarket "m1", ref RefTransformation "t1" ]
     it "an objective's Entities and Measure" do
       reports (withObjective (HoldingOf (Id "r2"))) config [ ref RefEntity "ghost", ref RefResource "r2" ]
-      reports (withObjective (CapacityAmount (Id "c2"))) config [ ref RefCapacity "c2" ]
+      reports (withObjective (HoldingOf (Id "c2"))) config [ ref RefResource "c2" ]
       reports (withObjective (ShortfallOf (Id "r3"))) config [ ref RefResource "r3" ]
       reports (withObjective (ShortfallRounds (Id "r4"))) config [ ref RefResource "r4" ]
       reports (withObjective (VolumeOf (Id "t2"))) config [ ref RefTransformation "t2" ]
@@ -224,12 +222,12 @@ tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, cou
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
+holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }
 
 testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
 testKinds = Map.fromFoldable
   [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
   , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
-  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
+  , Tuple (Id "withholding") { form: ReduceHolding, text: "" }
   ]

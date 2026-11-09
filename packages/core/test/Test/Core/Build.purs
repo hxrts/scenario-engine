@@ -6,7 +6,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.World (WorldState)
-import Core.Types (Capability, CapacityTag, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Market, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedProposal, Transferability(..), Transformation, proposalId)
+import Core.Types (ResourceId, ResourceTag, Draw, DrawSource(..), Capability, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Market, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedProposal, Transferability(..), Transformation, proposalId)
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -21,10 +21,21 @@ actor :: String -> Array Capability -> Entity
 actor name caps =
   { id: Id name
   , accounts: Map.singleton (Id "M") (Q.fromInt 100)
-  , capacities: Map.empty
   , capabilities: caps
   , kind: Actor (Seat (Id name))
   }
+
+-- | An Entity with this holding added to its accounts.
+withAccount :: Id ResourceTag -> Q -> Entity -> Entity
+withAccount r x e = e { accounts = Map.insert r x e.accounts }
+
+-- | A draw of `perUnit` from the holder of a Resource.
+heldDraw :: Id ResourceTag -> Q -> Draw
+heldDraw r perUnit = { resource: r, from: HolderOf, perUnit }
+
+-- | A draw of `perUnit` from the executor.
+ownDraw :: Id ResourceTag -> Q -> Draw
+ownDraw r perUnit = { resource: r, from: Executor, perUnit }
 
 -- | A World State over the given Entities, with resources M (numeraire) and E, no markets, and
 -- | no rules, in round 1.
@@ -33,7 +44,7 @@ baseWorld es =
   { round: 1
   , seed: Seed 1
   , entities: Map.fromFoldable (map (\e -> Tuple e.id e) es)
-  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free }) [ "M", "E" ])
+  , resources: Map.fromFoldable (map (\r -> Tuple (Id r) { id: Id r, unit: r, transferability: Free, category: Nothing }) [ "M", "E" ])
   , markets: Map.empty
   , transformations: Map.empty
   , representations: []
@@ -88,14 +99,14 @@ tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, cou
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
+holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }
 
 testKinds :: Map.Map (Id RuleKindTag) RuleKindDecl
 testKinds = Map.fromFoldable
   [ Tuple (Id "tariff") { form: LevyFlows GovernedByDestination, text: "" }
   , Tuple (Id "accessBan") { form: BlockFlows GovernedByEither, text: "" }
-  , Tuple (Id "withholding") { form: ReduceCapacity, text: "" }
+  , Tuple (Id "withholding") { form: ReduceHolding, text: "" }
   ]
 
 -- | Change one Entity of a World.
@@ -104,7 +115,7 @@ onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
 
 -- | A Resource, freely transferable, whose unit is its id.
 resource :: String -> ResourceDefinition
-resource r = { id: Id r, unit: r, transferability: Free }
+resource r = { id: Id r, unit: r, transferability: Free, category: Nothing }
 
 -- | A Transformation that does nothing and accepts any order: a test updates what it is about.
 transformation :: String -> Transformation
@@ -112,13 +123,11 @@ transformation name =
   { id: Id name
   , inputs: Map.empty
   , outputs: Map.empty
-  , escrowPerUnit: Map.empty
+  , draws: []
   , payment: Nothing
-  , capacity: Nothing
   , delay: 0
   , minimum: Q.zero
   , maximum: Nothing
-  , capacityUse: Q.fromInt 1
   , ownerSigns: false
   , effects: []
   }

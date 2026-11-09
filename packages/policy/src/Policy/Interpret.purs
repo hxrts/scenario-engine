@@ -232,10 +232,10 @@ intentsOf env = case _ of
   ProposalT _ -> []
   where
   keep i = if zeroQuantity i then [] else [ i ]
-  -- the restriction, turned back on the Entity that enacted it; a capacity Rule has no mirror
+  -- the restriction, turned back on the Entity that enacted it; a holding Rule has no mirror
   mirror = case _ of
     FlowRule r -> Just (FlowRule r { scope = r.scope { governor = env.view.self.id, counterparty = r.scope.governor } })
-    CapacityRule _ -> Nothing
+    HoldingRule _ -> Nothing
 
 -- | A Proposal template, evaluated. A Procedure's Intents drop zero quantities, as its single Intents
 -- | do; a joint Proposal's do not (docs/02 §3).

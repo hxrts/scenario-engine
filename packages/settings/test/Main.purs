@@ -20,7 +20,8 @@ import Game.Error (GameError(..))
 import Board.Gameboard.Validate (validateGameboard)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), CapacityTag, EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
+import Settings.Kit.Resources (capacity)
+import Core.Types (ResourceId, DrawSource(..), idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), EntityTag, Capability(..), Controller(..), Entity, EntityKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Core.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, coupled, seeded)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString)
@@ -63,6 +64,7 @@ import Schema.Setting.Gameboard (gameboardShape)
 import Settings.Meridian.Policies (policies)
 import Test.Settings.Compose (spec) as Compose
 import Test.Settings.Dials as Dials
+import Test.Settings.Lease as Lease
 import Test.Settings.Flows as Flows
 import Test.Settings.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
@@ -189,6 +191,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   golden
   Flows.spec
   Dials.spec
+  Lease.spec
   Compose.spec
 
   describe "Setting DSL builders" do
@@ -263,7 +266,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           Left es -> failWith (show es)
           Right x -> pure { gameboard, config, initial: x }
       amount w e r = fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id r) x.accounts)
-      capacity w e c = fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id c) x.capacities)
+      capacity w e c = fromMaybe Q.zero (Map.lookup (Id e) w.entities >>= \x -> Map.lookup (Id c) x.accounts)
 
     it "validates, and its shipped presets resolve against it" do
       { gameboard, config } <- loaded
@@ -295,11 +298,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         w = initial.world
         listed = mapMaybe
           ( \p -> case p.destination, p.amount of
-              ToEntity e, CapacityHeld c -> Just (capacity w (unwrap e) (unwrap c))
+              ToEntity e, HeldAmount c -> Just (capacity w (unwrap e) (unwrap c))
               _, _ -> Nothing
           )
           gameboard.world.recurring
-        held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.capacities)) (values w.entities)
+        held = map (\e -> fromMaybe Q.zero (Map.lookup (Id "energy-production") e.accounts)) (values w.entities)
       Q.sumQ listed `shouldEqual` Q.sumQ held
 
     it "reconciles Germany explicit against Germany implicit (§14.2)" do
@@ -344,22 +347,28 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (UnknownReference RefPolicy "no-such-policy")
     rejects "UnknownReference: a Withholding rule names a capacity no Entity holds"
       (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
-      (UnknownReference RefCapacity "nowhere")
+      (UnknownReference RefResource "nowhere")
     rejects "MissingFallback: a non-required Actor with no fallback"
       (\g c -> Tuple (onActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
       (MissingFallback (Id "DE"))
     rejects "MissingObjective: an Actor with no objective"
       (\g c -> Tuple (onActor (Id "DE") (\d -> d { objective = Nothing }) g) c)
       (MissingObjective (Id "DE"))
-    rejects "DuplicateCapacityOwner: two Entities hold the same capacity"
-      (editWorld (onEntity (Id "SA") \e -> e { capacities = Map.insert (Id "semiconductors") (Q.fromInt 1) e.capacities }))
-      (DuplicateCapacityOwner "semiconductors")
+    rejects "DuplicateHolder: two Entities hold what a holder draw names"
+      (editWorld (onEntity (Id "SA") \e -> e { accounts = Map.insert (Id "semiconductors") (Q.fromInt 1) e.accounts }))
+      (DuplicateHolder "semiconductors")
     rejects "ProcedureExceedsAuthority: a procedure authorizes what its Aggregate may not do"
       (editWorld (onEntity (Id "EU") \e -> e { capabilities = filter (_ /= MayEnact (Id "tariff")) e.capabilities }))
       (ProcedureExceedsAuthority (Id "EU"))
-    rejects "ProductionWithoutCapacity: a producer that does not hold the capacity it produces from"
+    rejects "DrawWithoutHolder: a holder draw on a Resource nothing holds"
+      (editWorld (onEntity (Id "SHIP") \e -> e { accounts = Map.delete (Id "transport") e.accounts }))
+      (DrawWithoutHolder "energy-shipping" "transport")
+    rejects "TooManyHolderDraws: a Transformation with more than one holder draw"
+      (editWorld \w -> onTransformation (Id "energy-shipping") (\t -> t { draws = t.draws <> [ { resource: Id "semiconductors", from: HolderOf, perUnit: Q.one } ] }) w)
+      (TooManyHolderDraws "energy-shipping")
+    rejects "ProductionWithoutHolding: a producer that does not hold what it produces from"
       (editWorld \w -> w { recurring = w.recurring <> [ productionRule { entity: Id "US", resource: Id "E", capacity: Id "energy-production" } ] })
-      (ProductionWithoutCapacity (Id "US") "energy-production")
+      (ProductionWithoutHolding (Id "US") "energy-production")
     rejects "CoverageNotAggregate: a coverage fallback that names an Entity which is not an Aggregate"
       (\g c -> Tuple (onActor (Id "DE") (\d -> d { fallback = Just (ImplicitCoverage (Id "US")) }) g) c)
       (CoverageNotAggregate (Id "DE") (Id "US"))
@@ -391,8 +400,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> onTransformation (Id "defense-procurement") (\t -> t { outputs = Map.insert (Id "X") (Q.fromInt 1) t.outputs }) w)
       (UnknownReference RefResource "X")
     rejects "UnknownReference: a facility effect names a capacity no Entity holds"
-      (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { capacity = Id "nowhere" }) t.effects }) w)
-      (UnknownReference RefCapacity "nowhere")
+      (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { resource = Id "nowhere" }) t.effects }) w)
+      (UnknownReference RefResource "nowhere")
     rejects "UnknownReference: a facility effect's holder is not an Entity"
       (editWorld \w -> onTransformation (Id "strike") (\t -> t { effects = map (\x -> x { holder = Just (Id "NOBODY") }) t.effects }) w)
       (UnknownReference RefEntity "NOBODY")
@@ -400,8 +409,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld (onEntity (Id "US") \e -> e { accounts = Map.insert (Id "X") (Q.fromInt 1) e.accounts }))
       (UnknownReference RefResource "X")
     rejects "UnknownReference: an Entity capacity no facility or production uses"
-      (editWorld (onEntity (Id "US") \e -> e { capacities = Map.insert (Id "unused") (Q.fromInt 1) e.capacities }))
-      (UnknownReference RefCapacity "unused")
+      (editWorld (\w -> w { resources = Map.insert (Id "unused") (capacity { id = Id "unused", unit = "unused" }) w.resources, entities = Map.update (Just <<< \e -> e { accounts = Map.insert (Id "unused") (Q.fromInt 1) e.accounts }) (Id "US") w.entities }))
+      (UnknownReference RefResource "unused")
     rejects "UnknownReference: a production entry's Resource that does not exist"
       (editWorld \w -> w { recurring = map (\p -> if p.kind == kinds.production then p { resource = Id "X" } else p) w.recurring })
       (UnknownReference RefResource "X")
@@ -478,7 +487,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case Map.lookup (Id "military-deployment") gameboard.world.transformations of
         Nothing -> fail "military-deployment is missing"
         Just t -> do
-          Map.toUnfoldable t.escrowPerUnit `shouldEqual` [ Tuple (Id "Mil") (Q.fromInt 1) ]
+          t.draws `shouldEqual` [ { resource: Id "Mil", from: Executor, perUnit: Q.fromInt 1 } ]
           Map.isEmpty t.inputs `shouldEqual` true
           Map.isEmpty t.outputs `shouldEqual` true
     it "the Deployer preset proposes a reserving deployment and a Mil sale only while the Atlantic price is above 3" do
@@ -528,7 +537,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (withholding.enact { capacity: Id "no-such-capacity", units: lit 1 }) ] ], sign: [] }
       map (const unit) (lmap show (checkSetting { gameboard, config, presets: Object.singleton "Bad" bad }))
-        `shouldEqual` Left (show (Unresolved "preset Bad" RefCapacity "no-such-capacity"))
+        `shouldEqual` Left (show (Unresolved "preset Bad" RefResource "no-such-capacity"))
     it "a preset that names an unknown transformation fails the check" do
       { gameboard, config } <- loaded
       let bad = { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such-facility", quantity: lit 1 }) ] ], sign: [] }
@@ -577,6 +586,6 @@ tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, cou
 banR :: forall v. { jurisdiction :: Id EntityTag, target :: Id EntityTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
-holdR :: forall v. { capacity :: Id CapacityTag, units :: v } -> RuleF v
-holdR r = CapacityRule { kind: Id "withholding", capacity: r.capacity, reduce: r.units }
+holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
+holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }
 

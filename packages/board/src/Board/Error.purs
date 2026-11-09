@@ -9,15 +9,17 @@ module Board.Error
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (CapacityRef, CollectiveProcedureId, EntityId, RefKind, ResourceId, TransformationId)
+import Core.Types (CollectiveProcedureId, EntityId, RefKind, ResourceId, TransformationId)
 
 -- | Every way a Gameboard, its configuration, or an instantiation can be wrong. Each
 -- | constructor names one check, so a caller and its tests match on the specific failure.
 data ValidationError
   = UnknownReference RefKind String
   | UnknownScheme String -- a Representation scheme the Gameboard does not define
-  | DuplicateCapacityOwner String
-  | ProductionWithoutCapacity EntityId String -- a producer does not hold the capacity it produces from
+  | DuplicateHolder String -- a Resource a holder draw names has more than one holder
+  | ProductionWithoutHolding EntityId String -- a producer does not hold what it produces from
+  | DrawWithoutHolder String String -- a Transformation draws a Resource from its holder and nothing holds it
+  | TooManyHolderDraws String -- a Transformation with more than one holder draw
   | MissingFallback EntityId
   | MissingObjective EntityId
   | RequiredNotSelected EntityId
@@ -36,8 +38,10 @@ instance Show ValidationError where
   show = case _ of
     UnknownReference k r -> "unknown " <> show k <> " reference: " <> r
     UnknownScheme s -> "unknown scheme reference: " <> s
-    DuplicateCapacityOwner c -> "capacity has more than one owner: " <> c
-    ProductionWithoutCapacity e c -> show e <> " produces from " <> c <> " but does not hold it"
+    DuplicateHolder r -> "Resource drawn from its holder has more than one holder: " <> r
+    ProductionWithoutHolding e r -> show e <> " produces from " <> r <> " but does not hold it"
+    DrawWithoutHolder t r -> "facility " <> t <> " draws " <> r <> " from its holder, but nothing holds it"
+    TooManyHolderDraws t -> "facility " <> t <> " has more than one draw from a holder"
     MissingFallback e -> "Actor has no fallback: " <> show e
     MissingObjective e -> "Actor has no objective: " <> show e
     RequiredNotSelected e -> "required Actor not selected: " <> show e
@@ -53,7 +57,6 @@ instance Show ValidationError where
 -- | A difference between two instantiations of the same economy (§14.2).
 data Inconsistency
   = StockDiffers ResourceId Q Q
-  | CapacityDiffers CapacityRef Q Q
   | WeightDiffers CollectiveProcedureId Q Q
   | AuthorityDiffers
 
@@ -62,6 +65,5 @@ derive instance Eq Inconsistency
 instance Show Inconsistency where
   show = case _ of
     StockDiffers k l r -> "stock " <> show k <> ": " <> show l <> " vs " <> show r
-    CapacityDiffers k l r -> "capacity " <> show k <> ": " <> show l <> " vs " <> show r
     WeightDiffers k l r -> "procedure weight " <> show k <> ": " <> show l <> " vs " <> show r
     AuthorityDiffers -> "institutional authority differs"

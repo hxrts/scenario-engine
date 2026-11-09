@@ -27,7 +27,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId, CapacityRef)
+import Core.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId)
 import Core.World (CausePattern(..), LegAggregate(..), LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Side(..), Window(..))
 import Schema.Setting.Query (ShareMeasure, atParty)
 import Data.Array (mapWithIndex, sortWith)
@@ -55,7 +55,7 @@ payeeReceipts = { window: ThisRoundSoFar, side: Incoming, resource: Nothing, cau
 purchases :: EntityId -> ResourceId -> LegQuery
 purchases party r = { party, window: ThisRoundSoFar, side: Incoming, resource: Just r, cause: CurveBase, aggregate: SumMoved }
 
-type Production = { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef }
+type Production = { entity :: EntityId, resource :: ResourceId, capacity :: ResourceId }
 
 type Flow = { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q }
 
@@ -92,9 +92,9 @@ rule kind source destination resource amount =
   , delay: 0
   }
 
--- | Production: capacity delivered next round.
-productionRule :: { entity :: EntityId, resource :: ResourceId, capacity :: CapacityRef } -> RecurringFlow
-productionRule p = (rule kinds.production Created (ToEntity p.entity) p.resource (CapacityHeld p.capacity)) { delay = 1 }
+-- | Production: the holding of a capacity, delivered as the Resource next round.
+productionRule :: Production -> RecurringFlow
+productionRule p = (rule kinds.production Created (ToEntity p.entity) p.resource (HeldAmount p.capacity)) { delay = 1 }
 
 -- | A fixed flow, reduced by the recipient's accrued offset.
 flowRule :: { from :: EntityId, to :: EntityId, resource :: ResourceId, amount :: Q } -> RecurringFlow

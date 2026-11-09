@@ -14,11 +14,10 @@ import Prelude
 import Board.Gameboard.Validate (gameboardNames, unknownNames)
 import Core.Map (values)
 import Core.Strategy (Strategy)
-import Core.Types (CapacityRef, Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
+import Core.Types (holderDraw, Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
 import Core.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..))
-import Data.Array (all, concat, elem, filter, fromFoldable, mapMaybe, nub)
+import Data.Array (all, concat, concatMap, elem, filter, fromFoldable, mapMaybe, nub)
 import Data.Either (Either(..), isRight)
-import Data.Foldable (foldMap)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -75,18 +74,20 @@ filtered s p = p
   }
   where
   keptEntity e = e `elem` s.entities
-  keptResource r = r `elem` s.resources
+  selected r = r `elem` s.resources
   old = p.gameboard
   authored = old.authored
   circulation = authored.circulation
   transformations = Map.filterKeys (_ `elem` s.transformations) old.world.transformations
   recurring = filter keptFlow old.world.recurring
-  keptFlow r = keptResource r.resource && all keptEntity (flowParties r) && all keptResource (flowResources r)
-  -- a capacity is kept while a kept Transformation or production still draws on it
+  keptFlow r = selected r.resource && all keptEntity (flowParties r) && all selected (flowResources r)
+  -- what a kept Transformation or a production still draws on or changes is kept, whatever the Selection says
+  keptResource r = selected r || r `elem` drawn
   -- a gate goes with its Resource, and with the Transformation that carries it
   keptGate g = keptResource g.resource && maybe true (_ `elem` s.transformations) g.bundled
-  drawn = nub (mapMaybe _.capacity (values transformations) <> foldMap (map _.capacity <<< _.effects) (values transformations) <> mapMaybe producedFrom recurring)
-  keptAccount e r = keptResource r && maybe true (elem r) (Map.lookup e s.accounts)
+  drawn = nub (concatMap (\t -> map _.resource (holderDrawOf t) <> map _.resource t.effects) (values transformations) <> mapMaybe producedFrom recurring)
+  holderDrawOf = fromFoldable <<< holderDraw
+  keptAccount e r = r `elem` drawn || selected r && maybe true (elem r) (Map.lookup e s.accounts)
   keptCapability = case _ of
     MayTrade m -> m `elem` s.markets
     MayTransfer r -> keptResource r
@@ -94,12 +95,11 @@ filtered s p = p
     MayEnact _ -> true
   entityOf e = e
     { accounts = Map.filterKeys (keptAccount e.id) e.accounts
-    , capacities = Map.filterKeys (_ `elem` drawn) e.capacities
     , capabilities = filter keptCapability e.capabilities
     }
   keptRule = case _ of
     FlowRule x -> keptEntity x.scope.governor && keptEntity x.scope.counterparty && all keptResource x.scope.over
-    CapacityRule x -> x.capacity `elem` drawn
+    HoldingRule x -> x.resource `elem` drawn
   schemes = filter (\x -> keptEntity x.target && keptResource x.observes) old.schemes
   gb = old
     { world = old.world
@@ -151,8 +151,8 @@ flowResources r = case r.amount of
   Measured { query } -> fromFoldable query.resource
   _ -> []
 
--- | The capacity a recurring flow produces from.
-producedFrom :: RecurringFlow -> Maybe CapacityRef
+-- | The holding a recurring flow produces from.
+producedFrom :: RecurringFlow -> Maybe ResourceId
 producedFrom r = case r.amount of
-  CapacityHeld c -> Just c
+  HeldAmount c -> Just c
   _ -> Nothing

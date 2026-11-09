@@ -59,10 +59,10 @@ ruleText w r = case Map.lookup (ruleKind r) w.ruleKinds of
   amount = case r of
     FlowRule { effect: Levy l } -> ratio l.rate
     FlowRule { effect: Block } -> ""
-    CapacityRule x -> quantity x.reduce
+    HoldingRule x -> quantity x.reduce
   scopeFill t = case r of
     FlowRule x -> fill "governor" (show x.scope.governor) (fill "counterparty" (show x.scope.counterparty) t)
-    CapacityRule x -> fill "capacity" (show x.capacity) t
+    HoldingRule x -> fill "resource" (show x.resource) t
 
 -- | A procedure's row in the drivers table: its outcome and the support against the threshold.
 procedureRow :: Procedure -> Array String
@@ -101,7 +101,6 @@ drivers r =
     , "Rejected": ignore
     , "OrderRemoved": ignore
     , "Coupled": ignore
-    , "CapacityChanged": ignore
     , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText r.manifest.initial e.rule ] ]
     , "Repealed": \e acc -> acc <> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
     , "Estimated": ignore

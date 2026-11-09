@@ -70,7 +70,7 @@ ruleBody :: forall v. Shape EntityId -> Shape v -> Shape (RuleF v)
 ruleBody governor v = genericSettingSum "Rule"
   { "FlowRule": atOneKey "flows" "a Rule on Transfers between two groups"
       (recordShape "FlowRule" { kind: idShape, scope: recordShape "FlowScope" { governor, counterparty: idShape, direction: directionShape, over: refined "a flows Rule covers at least one Resource" (not <<< null) (listOf idShape) }, effect: effectShapeOf v })
-  , "CapacityRule": atOneKey "capacity" "a Rule reducing one capacity" (recordShape "CapacityRule" { kind: idShape, capacity: idShape, reduce: v })
+  , "HoldingRule": atOneKey "holding" "a Rule reducing what the holder of a Resource can have drawn" (recordShape "HoldingRule" { kind: idShape, resource: idShape, reduce: v })
   }
 
 ruleShape :: Shape (RuleF Q)
