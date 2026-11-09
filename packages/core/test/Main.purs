@@ -37,6 +37,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
 import Test.Core.Build (heldDraw, ownDraw, withAccount, actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
+import Test.Core.Pins (pins)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldContain, shouldNotContain, shouldEqual, shouldNotEqual)
 import Test.Spec.QuickCheck (quickCheck)
@@ -186,6 +187,7 @@ marketObject = object "Market"
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  pins
   describe "Core.Num" do
     it "round-trips through strings" $ quickCheck do
       x <- genQ
