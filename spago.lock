@@ -30,7 +30,9 @@
             "console",
             "effect",
             "exceptions",
+            "sp-core",
             "sp-handlers",
+            "sp-rules",
             "sp-settings",
             "sp-testkit",
             "sp-views",
@@ -50,6 +52,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
+            "sp-rules",
             "sp-schema",
             "tuples"
           ]
@@ -75,6 +78,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
+            "sp-rules",
             "sp-schema",
             "tuples"
           ]
@@ -112,6 +116,7 @@
             "sp-flags",
             "sp-game",
             "sp-handlers",
+            "sp-rules",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -139,7 +144,6 @@
             "argonaut-codecs",
             "argonaut-core",
             "arrays",
-            "const",
             "either",
             "foldable-traversable",
             "integers",
@@ -158,10 +162,8 @@
         "test": {
           "dependencies": [
             "effect",
-            "quickcheck",
             "spec",
-            "spec-node",
-            "spec-quickcheck"
+            "spec-node"
           ]
         }
       },
@@ -226,6 +228,7 @@
             "sp-core",
             "sp-game",
             "sp-policy",
+            "sp-rules",
             "tuples",
             "typelevel-prelude"
           ]
@@ -256,6 +259,7 @@
             "sp-core",
             "sp-game",
             "sp-handlers",
+            "sp-rules",
             "sp-schema",
             "sp-views"
           ]
@@ -314,6 +318,7 @@
             "sp-board",
             "sp-core",
             "sp-policy",
+            "sp-rules",
             "sp-schema",
             "strings",
             "tuples"
@@ -355,6 +360,7 @@
             "sp-effects",
             "sp-game",
             "sp-policy",
+            "sp-rules",
             "sp-schema",
             "strings",
             "tuples",
@@ -390,7 +396,8 @@
             "maybe",
             "ordered-collections",
             "prelude",
-            "sp-core"
+            "sp-core",
+            "sp-rules"
           ]
         },
         "test": {
@@ -401,6 +408,38 @@
             "partial",
             "quickcheck",
             "sp-testkit",
+            "spec",
+            "spec-node",
+            "spec-quickcheck"
+          ]
+        }
+      },
+      "sp-rules": {
+        "path": "packages/rules",
+        "core": {
+          "dependencies": [
+            "argonaut-codecs",
+            "arrays",
+            "const",
+            "either",
+            "foldable-traversable",
+            "integers",
+            "maybe",
+            "newtype",
+            "ordered-collections",
+            "prelude",
+            "record",
+            "sp-core",
+            "strings",
+            "tuples"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "argonaut-core",
+            "effect",
+            "js-bigints",
+            "quickcheck",
             "spec",
             "spec-node",
             "spec-quickcheck"
@@ -423,6 +462,7 @@
             "partial",
             "prelude",
             "sp-core",
+            "sp-rules",
             "tuples"
           ]
         },
@@ -460,6 +500,7 @@
             "sp-flags",
             "sp-game",
             "sp-handlers",
+            "sp-rules",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -493,6 +534,7 @@
             "prelude",
             "sp-core",
             "sp-game",
+            "sp-rules",
             "sp-schema",
             "strings",
             "tuples"
@@ -537,6 +579,7 @@
             "sp-effects",
             "sp-game",
             "sp-handlers",
+            "sp-rules",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -564,6 +607,7 @@
             "prelude",
             "sp-checks",
             "sp-core",
+            "sp-rules",
             "sp-schema",
             "strings",
             "tuples"

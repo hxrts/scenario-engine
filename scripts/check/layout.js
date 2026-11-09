@@ -23,6 +23,16 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
+    name: "core names no authored vocabulary: agreements, institutions and schedules are written in packages/rules and above (work 11, docs/02)",
+    files: (f) => f.startsWith("packages/core/src/"),
+    bad: (line) => /\b(trade|transform|transformation|joint|procedure|levy|depreciation|intent|proposal)s?\b/i.test(line),
+  },
+  {
+    name: "only Core.Kernel.Post writes the ledger or builds a settlement leg",
+    files: (f) => /^packages\/(core|rules)\/src\//.test(f) && f !== "packages/core/src/Core/Kernel/Post.purs",
+    bad: (line) => /\badjust\b/.test(line) || /\bmoved: (?!qShape|l\.)/.test(line),
+  },
+  {
     name: "a fixture's world is a restrict of its setting plus named patches: no fixture module builds an Entity, Market, Transformation, or World",
     files: (f) => f.startsWith("packages/settings/src/Settings/Meridian/Fixtures"),
     bad: (line) => /\b(noEntity|noMarket|noFacility|emptyWorld|byKey|entitiesOf|pickAccounts|Map\.(union|fromFoldable))\b/.test(line),
