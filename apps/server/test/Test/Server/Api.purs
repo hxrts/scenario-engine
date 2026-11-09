@@ -1,4 +1,4 @@
--- | The API's remaining status rules and read paths, the startup policy, and the run cache.
+-- | The API's remaining status rules and read paths, the startup strategy, and the run cache.
 -- | Pins: the status rules and reply JSON of docs/06 §8.1.
 module Test.Server.Api (spec) where
 
@@ -33,8 +33,8 @@ import Effect.Ref as Ref
 import Effects.Observe (listRuns, readManifest, readRounds)
 import Effects.Store (validRunId, createRun, failRun, setStatus, setSpec)
 import Foreign.Object as Object
-import Game.Setting (GameboardParts)
-import Game.Recipe (encodeSpec)
+import Assembly.Premise (PossibleWorldParts)
+import Assembly.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
@@ -45,7 +45,7 @@ import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, setting)
+import Testkit.Meridian (anyRounds, premise)
 
 inCache :: ServerCache -> Run (CACHE StoredRun Answer + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
@@ -55,12 +55,12 @@ type Env =
   , store :: StoreBackend
   , db :: SqlDevice
   , cache :: ServerCache
-  , ctx :: GameboardParts
+  , ctx :: PossibleWorldParts
   }
 
 setup :: Aff Env
 setup = do
-  ctx <- anyRounds <$> setting
+  ctx <- anyRounds <$> premise
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let
@@ -82,7 +82,7 @@ spec = describe "API status rules, startup and cache" do
   it "every view of a run answers 200" do
     env <- setup
     launch env 3
-    for_ [ "overview", "balances", "markets", "facilities", "economy", "representation", "procedures", "objectives", "standings", "networth", "actions", "drivers", "balance", "events" ] \view -> do
+    for_ [ "overview", "balances", "exchanges", "transformations", "economy", "representation", "procedures", "objectives", "standings", "networth", "actions", "drivers", "balance", "events" ] \view -> do
       r <- env.api "GET" ("/api/runs/run-1/" <> view) ""
       r.status `shouldEqual` 200
   it "the views with no dashboard caller, and the reply parts no page reads, decode through their key" do
@@ -94,8 +94,8 @@ spec = describe "API status rules, startup and cache" do
         r <- env.api "GET" ("/api/runs/run-1/" <> view) ""
         r.status `shouldEqual` 200
         either (\e -> liftEffect (throw (view <> ": " <> e))) pure (decodeError (Shape.parse Shape.Snapshot k.shape r.body))
-    facilities <- decoded "facilities" Keys.facilities
-    length facilities.columns `shouldSatisfy` (_ > 0)
+    transformations <- decoded "transformations" Keys.transformations
+    length transformations.columns `shouldSatisfy` (_ > 0)
     economy <- decoded "economy" Keys.economy
     length economy.totals.series `shouldSatisfy` (_ > 0)
     representation <- decoded "representation" Keys.representation
@@ -108,11 +108,11 @@ spec = describe "API status rules, startup and cache" do
     length actions.byRound.rows `shouldSatisfy` (_ > 0)
     balance <- decoded "balance" Keys.balance
     length balance.completion.columns `shouldSatisfy` (_ > 0)
-    markets <- decoded "markets" Keys.markets
-    length markets `shouldSatisfy` (_ > 1)
-    entity <- env.api "GET" "/api/runs/run-1/entity/US" ""
-    entity.status `shouldEqual` 200
-    history <- either (\e -> liftEffect (throw ("entity: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot Keys.history entity.body))
+    exchanges <- decoded "exchanges" Keys.exchanges
+    length exchanges `shouldSatisfy` (_ > 1)
+    actor <- env.api "GET" "/api/runs/run-1/actor/US" ""
+    actor.status `shouldEqual` 200
+    history <- either (\e -> liftEffect (throw ("actor: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot Keys.history actor.body))
     length history.table.rows `shouldSatisfy` (_ > 0)
   it "the agency analysis answers 200, and the same reply is kept for the same query" do
     env <- setup
@@ -150,7 +150,7 @@ spec = describe "API status rules, startup and cache" do
     launch env 2
     saved <- env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-2\",\"runs\":[\"run-1\",\"run-2\"]}"
     saved.status `shouldEqual` 200
-    rows <- liftEffect (env.db.query "select * from scenario_sets" [] :: Effect (Array { name :: String, baseline :: String, runs :: String }))
+    rows <- liftEffect (env.db.query "select * from run_sets" [] :: Effect (Array { name :: String, baseline :: String, runs :: String }))
     rows `shouldEqual` [ { name: "pair", baseline: "run-2", runs: "[\"run-1\",\"run-2\"]" } ]
     (env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 409)
     (env.api "POST" "/api/sets" "{\"name\":\"x\",\"baseline\":\"run-9\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 400)
@@ -276,7 +276,7 @@ spec = describe "API status rules, startup and cache" do
     _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Aggressive\",\"playerSeed\":2,\"rounds\":2}"
     r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
     r.status `shouldEqual` 200
-    r.body `shouldSatisfy` contains (Pattern "[\"seat Policy\",\"preset\",\"Conservative\",\"Aggressive\"]")
+    r.body `shouldSatisfy` contains (Pattern "[\"seat Strategy\",\"preset\",\"Conservative\",\"Aggressive\"]")
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")
     r.body `shouldSatisfy` contains (Pattern "\"marked\":[[false,false,false,true]")
     r.body `shouldSatisfy` contains (Pattern "\"skipped\":[\"run-9: not found\"]")

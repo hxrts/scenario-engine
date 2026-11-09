@@ -1,4 +1,4 @@
--- | The server's composition root (docs/06_simulator.md §8–§10): parses the flags, loads the settings, opens the
+-- | The server's composition root (docs/06_simulator.md §8–§10): parses the flags, loads the premises, opens the
 -- | Run Store, and serves the `API` on the port through `Handlers.Api.Route`. The operations are programs in
 -- | `Server.Implementation`; `Server.Stack` closes them over the devices.
 module Server (main) where
@@ -23,7 +23,7 @@ import Node.Process (argv)
 import Run (case_, on, run)
 import Server.Launch (startup)
 import Server.Stack (implement, localStore, newServerCache, openDatabase)
-import Settings.Load (loadAll)
+import Premises.Load (loadAll)
 
 main :: Effect Unit
 main = do
@@ -31,11 +31,11 @@ main = do
   case parseWith serveFlags args of
     Left e -> usage e
     Right flags -> run (case_ # on _files (interpretFiles fileDevice)) (loadAll files) >>= case _ of
-      Right settings -> do
+      Right premises -> do
         store <- localStore <$> openDatabase flags.db
         runStore store startup >>= flip for_ log
         cache <- newServerCache
-        serve flags.port flags.static apiPrefix (route (implement settings store cache))
+        serve flags.port flags.static apiPrefix (route (implement premises store cache))
       Left e -> fail e
   where
   usage = usageError [ "usage: server " <> usageOf serveFlags, "  e.g. just serve --port 9000" ]

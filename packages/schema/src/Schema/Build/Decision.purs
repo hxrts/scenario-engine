@@ -1,6 +1,6 @@
--- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions, Proposal
--- | templates, sign rules, clauses and Strategies a Policy runs. The builders return the
--- | `Laws.Strategy` values directly; `Schema.Setting.Strategy` writes them in the setting format.
+-- | The decision language (docs/02_kernel.md §4.4): the expressions, conditions, candidate Transaction
+-- | templates, sign rules, clauses and Strategies a Strategy runs. The builders return the
+-- | `Laws.StrategyRules` values directly; `Schema.Premise.StrategyRules` writes them in the premise format.
 module Schema.Build.Decision
   ( lit
   , param
@@ -26,12 +26,12 @@ module Schema.Build.Decision
   , choose
   , noAction
   , signProcedures
-  , signFacility
+  , signTransformation
   , signAll
   , signIf
   , rule
   , passive
-  , selfEntity
+  , selfActor
   , named
   , each
   , cheapest
@@ -46,39 +46,39 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 
-import Laws.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
-import Laws.Strategy as S
+import Laws.StrategyRules (Clause, Cond(..), Expr(..), IntentTemplate, ExchangeRef(..), SignRule(..), StrategyRules, Template(..))
+import Laws.StrategyRules as S
 import Laws.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
-import Laws.Types (EntityId, EntityTag, Id(..), IntentF(..), MarketTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
+import Laws.Types (ActorId, ActorTag, Id(..), IntentF(..), ExchangeTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
 import Schema.Build.Named (class Named)
 import Schema.Build.Named (named) as N
 import Schema.Build.Quantity (class ToQty, q)
 
--- | The Entity an Intent names by `self`: the Entity that runs the Strategy.
-selfEntity :: EntityId
-selfEntity = Id S.selfName
+-- | The Actor an Intent names by `self`: the Actor that runs the StrategyRules.
+selfActor :: ActorId
+selfActor = Id S.selfName
 
--- Market references ----------------------------------------------------------------------
+-- Exchange references ----------------------------------------------------------------------
 
--- | One Market, by id.
-named :: forall a. Named a MarketTag => a -> MarketRef
+-- | One Exchange, by id.
+named :: forall a. Named a ExchangeTag => a -> ExchangeRef
 named = Named <<< N.named
 
--- | Every accessible Market for the Resource: the clause runs once per Market.
-each :: forall a. Named a ResourceTag => a -> MarketRef
+-- | Every accessible Exchange for the Resource: the clause runs once per Exchange.
+each :: forall a. Named a ResourceTag => a -> ExchangeRef
 each = Each <<< N.named
 
--- | The accessible Market with the lowest beginning-of-round price for the Resource.
-cheapest :: forall a. Named a ResourceTag => a -> MarketRef
+-- | The accessible Exchange with the lowest beginning-of-round price for the Resource.
+cheapest :: forall a. Named a ResourceTag => a -> ExchangeRef
 cheapest = Cheapest <<< N.named
 
--- | The accessible Market with the highest beginning-of-round price for the Resource.
-costliest :: forall a. Named a ResourceTag => a -> MarketRef
+-- | The accessible Exchange with the highest beginning-of-round price for the Resource.
+costliest :: forall a. Named a ResourceTag => a -> ExchangeRef
 costliest = Costliest <<< N.named
 
--- | An order on the Market a reference picks; `limit` is the optional limit price.
-tradeAt :: { market :: MarketRef, quantity :: Expr, limit :: Maybe Expr } -> IntentTemplate
-tradeAt r = Trade { market: r.market, quantity: r.quantity, limitPrice: r.limit }
+-- | An order on the Exchange a reference picks; `limit` is the optional limit price.
+tradeAt :: { exchange :: ExchangeRef, quantity :: Expr, limit :: Maybe Expr } -> IntentTemplate
+tradeAt r = Trade { exchange: r.exchange, quantity: r.quantity, limitPrice: r.limit }
 
 -- Expressions ----------------------------------------------------------------------------
 
@@ -92,8 +92,8 @@ param = Param
 roundQ :: Expr
 roundQ = Round
 
--- | The beginning-of-round price of the Market a reference picks.
-priceAt :: MarketRef -> Expr
+-- | The beginning-of-round price of the Exchange a reference picks.
+priceAt :: ExchangeRef -> Expr
 priceAt = Price
 
 holding :: forall a. Named a ResourceTag => a -> Expr
@@ -129,13 +129,13 @@ not' :: Cond -> Cond
 not' = Not
 
 -- | `atLeast` is an expression: a literal, or `param` for a threshold a parameter sweep can change.
-transformedLastRound :: forall b t. Named b EntityTag => Named t TransformationTag => { by :: b, transformation :: t, atLeast :: Expr } -> Cond
-transformedLastRound r = Recorded { query: S.OfLegs { party: N.named r.by, window: LastRound, side: Outgoing, resource: Nothing, cause: ConversionOf (N.named r.transformation), aggregate: LargestUnits }, atLeast: r.atLeast }
+transformedLastRound :: forall b t. Named b ActorTag => Named t TransformationTag => { by :: b, transformation :: t, atLeast :: Expr } -> Cond
+transformedLastRound r = Recorded { query: S.OfLegs { party: N.named r.by, window: LastRound, side: Outgoing, resource: Nothing, cause: TransformationOf (N.named r.transformation), aggregate: LargestUnits }, atLeast: r.atLeast }
 
-restrictedLastRound :: forall b t. Named b EntityTag => Named t EntityTag => { by :: b, target :: t } -> Cond
+restrictedLastRound :: forall b t. Named b ActorTag => Named t ActorTag => { by :: b, target :: t } -> Cond
 restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: N.named r.by, counterparty: N.named r.target }, atLeast: lit 1 }
 
-restrictionInForce :: forall b. Named b EntityTag => { by :: b } -> Cond
+restrictionInForce :: forall b. Named b ActorTag => { by :: b } -> Cond
 restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by }, atLeast: lit 1 }
 
 -- Templates ------------------------------------------------------------------------------
@@ -144,42 +144,42 @@ restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by
 asTemplate :: IntentTemplate -> Template
 asTemplate = IntentT
 
--- | An order on the Market a reference picks, as a template; `limit` is the optional limit price.
-orderAt :: MarketRef -> Expr -> Maybe Expr -> Template
-orderAt market quantity limit = IntentT (tradeAt { market, quantity, limit })
+-- | An order on the Exchange a reference picks, as a template; `limit` is the optional limit price.
+orderAt :: ExchangeRef -> Expr -> Maybe Expr -> Template
+orderAt exchange quantity limit = IntentT (tradeAt { exchange, quantity, limit })
 
--- | Run a Transformation as the acting Entity. A Strategy can only name `self` here: the setting
+-- | Run a Transformation as the acting Actor. A StrategyRules can only name `self` here: the premise
 -- | format writes no `by` for a template, so these three builders take none. (`Schema.Build.Intent`'s
 -- | `transform`, `enactTariff` and `enactAccessBan` are the fixture forms, with `Q` quantities.)
 selfTransform :: forall t. Named t TransformationTag => { transformation :: t, quantity :: Expr } -> IntentTemplate
 selfTransform r = Transform { by: Id S.selfName, transformation: N.named r.transformation, quantity: r.quantity }
 
--- | Enact a Rule of a declared kind, with the acting Entity as governor (a flows scope) or holder (a holding Rule).
+-- | Enact a Rule of a declared kind, with the acting Actor as governor (a flows scope) or holder (a holding Rule).
 selfEnact :: RuleF Expr -> IntentTemplate
 selfEnact r = ChangeRule (Enact r)
 
--- | A Procedure's Proposal: its id, the signers it asks, and its Intents (a Procedure names
--- | the collective procedure the Proposal runs under).
-procedure :: forall s i. Named i ProcedureTag => Named s EntityTag => { id :: i, signers :: Array s, intents :: Array IntentTemplate } -> Template
-procedure r = ProposalT { signers: map N.named r.signers, intents: r.intents, procedure: Just (N.named r.id) }
+-- | A Procedure's candidate Transaction: its id, the signers it asks, and its Intents (a Procedure names
+-- | the collective procedure the candidate Transaction runs under).
+procedure :: forall s i. Named i ProcedureTag => Named s ActorTag => { id :: i, signers :: Array s, intents :: Array IntentTemplate } -> Template
+procedure r = CandidateTransactionT { signers: map N.named r.signers, intents: r.intents, procedure: Just (N.named r.id) }
 
--- | A joint Proposal: a Proposal with no procedure, bundling only transfers and transforms (`jointIntent`). Its
--- | transfers come first, then its transforms, each run by the acting Entity. A joint Proposal of any other
+-- | A joint candidate Transaction: a candidate Transaction with no procedure, bundling only transfers and transforms (`jointIntent`). Its
+-- | transfers come first, then its transforms, each run by the acting Actor. A joint candidate Transaction of any other
 -- | Intent has no form here, so it does not typecheck.
 joint
-  :: { signers :: Array EntityId
-     , transfers :: Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Expr }
+  :: { signers :: Array ActorId
+     , transfers :: Array { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: Expr }
      , transforms :: Array { transformation :: TransformationId, quantity :: Expr }
      }
   -> Template
-joint r = ProposalT
+joint r = CandidateTransactionT
   { signers: r.signers
   , intents: map (\x -> Transfer { from: x.from, to: x.to, resource: x.resource, quantity: x.quantity }) r.transfers <> map selfTransform r.transforms
   , procedure: Nothing
   }
 
--- | Enact the restriction `target` enacted against this Entity last round.
-reciprocate :: forall t. Named t EntityTag => { target :: t } -> Template
+-- | Enact the restriction `target` enacted against this Actor last round.
+reciprocate :: forall t. Named t ActorTag => { target :: t } -> Template
 reciprocate r = Mirror { governor: N.named r.target, counterparty: Id S.selfName }
 
 choose :: Array Template -> Template
@@ -194,8 +194,8 @@ noAction = NoAction
 signProcedures :: forall a. Named a ProcedureTag => Array a -> SignRule
 signProcedures xs = SignProcedures (map N.named xs)
 
-signFacility :: forall a. Named a TransformationTag => a -> SignRule
-signFacility = SignConversion <<< N.named
+signTransformation :: forall a. Named a TransformationTag => a -> SignRule
+signTransformation = SignTransformation <<< N.named
 
 signAll :: SignRule
 signAll = SignAll
@@ -210,6 +210,6 @@ signIf when inner = SignIf { when, rule: inner }
 rule :: Array Cond -> Array Template -> Clause
 rule when propose = { when, propose }
 
--- | A Strategy that proposes nothing and signs nothing.
-passive :: Strategy
+-- | A StrategyRules that proposes nothing and signs nothing.
+passive :: StrategyRules
 passive = { rules: [], sign: [] }

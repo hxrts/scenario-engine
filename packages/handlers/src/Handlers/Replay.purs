@@ -1,4 +1,4 @@
--- | The Replay handler: seats answered from recorded Proposals and signatures.
+-- | The Replay handler: seats answered from recorded candidate Transactions and signatures.
 module Handlers.Replay
   ( runReplay
   ) where
@@ -10,8 +10,8 @@ import Data.Array (any, filter, range)
 import Data.Either (Either(..))
 import Data.Foldable (intercalate)
 import Laws.Engine.Commit (EngineError)
-import Game.Types (Game)
-import Game.Bindings (scriptBindings)
+import Assembly.Types (Game)
+import Assembly.Bindings (scriptBindings)
 import Handlers.Seats (SeatEnv, playPure)
 
 -- | The rounds 1..n that have no record. A record may have empty inputs; the round must exist.

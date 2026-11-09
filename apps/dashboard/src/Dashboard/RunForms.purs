@@ -20,7 +20,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.String (trim)
 
 -- | The form's round-count rule: a whole number of at least one, read after trimming the text. The
--- | setting's range is the server's (`Game.Assemble.checkRounds`). The text is never blank here; a
+-- | premise's range is the server's (`Assembly.Assemble.checkRounds`). The text is never blank here; a
 -- | blank field is the caller's choice (the default, or a required field's error).
 rounds :: String -> Either String Int
 rounds s = case Int.fromString (trim s) of
@@ -35,7 +35,7 @@ deriveKinds :: Array DeriveKind
 deriveKinds = [ Duplicate, Rerun, Variant, Counterfactual ]
 
 -- | The request the form asks for. Only the fields of the chosen kind are read, and a blank one keeps the source's
--- | value. What the kind may change, and the setting's ranges, are the server's to refuse.
+-- | value. What the kind may change, and the premise's ranges, are the server's to refuse.
 deriveRequest :: DeriveFields -> Either String DeriveRequest
 deriveRequest f = do
   variantRounds <- when' isVariant f.rounds rounds

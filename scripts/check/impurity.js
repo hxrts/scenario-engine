@@ -34,14 +34,14 @@ const rules = [
     id: "adapter-domain-import",
     name: "an adapter imports no domain module, effect row, or handler beyond the device types of Handlers.Sql",
     files: (f) => isPurs(f) && isAdapter(f),
-    bad: (line) => /^import\s+(Core|Schema|Effects|Settings|Board|Policy|Game|Views|Checks|Experiments)(\.|\s|$)/.test(line) || (/^import\s+Handlers\./.test(line) && !/^import\s+Handlers\.Sql(\s|$)/.test(line)),
+    bad: (line) => /^import\s+(Core|Schema|Effects|Premises|World|Strategy|Assembly|Views|Checks|Experiments)(\.|\s|$)/.test(line) || (/^import\s+Handlers\./.test(line) && !/^import\s+Handlers\.Sql(\s|$)/.test(line)),
   },
   {
     id: "adapter-word",
-    name: "an adapter knows nothing of games, runs, prompts or settings: no domain word in a device",
+    name: "an adapter knows nothing of games, runs, prompts or premises: no domain word in a device",
     files: isAdapter,
     // `.run(` and `runFn` are the SQLite and FFI vocabulary, not a run
-    bad: (line) => /\b(runs?|rounds?|games?|seats?|prompts?|settings?|manifests?|specs?)\b/i.test(line.replace(/\.run\(/g, ".exec(").replace(/--[a-z-]+/g, "").replace(/Math\.round/g, "")),
+    bad: (line) => /\b(runs?|rounds?|games?|seats?|prompts?|premises?|manifests?|specs?)\b/i.test(line.replace(/\.run\(/g, ".exec(").replace(/--[a-z-]+/g, "").replace(/Math\.round/g, "")),
   },
   {
     id: "program-effect",

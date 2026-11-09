@@ -1,0 +1,98 @@
+-- | Decodes a premise package from its file contents: every JSON section is merged into one possible World
+-- | object, except `instantiation.json`, the Instantiation Configuration, and the premise's seat
+-- | presets are decoded. The texts come in as values (`Premises.Tree`): this module does no IO. Validation is
+-- | not here: `loadPremise` hands the decoded premise to `Assembly.Premise.checkPremise`, which checks it
+-- | against itself and its Strategies, so bad data fails before any game is assembled.
+module Premises.Load
+  ( fromFiles
+  , loadFrom
+  , loadAll
+  , loadPresets
+  , presetsFrom
+  , loadLiteral
+  ) where
+
+import Prelude
+
+import Core.Shape (decodeJsonWith, Format(..))
+import Laws.StrategyRules (StrategyRules)
+import Data.Argonaut.Core (Json, fromObject, toObject)
+import Data.Argonaut.Decode (parseJson)
+import Data.Argonaut.Parser (jsonParser)
+import Data.Array (filter, find, foldl)
+import Data.Bifunctor (lmap)
+import Data.Either (Either(..), note)
+import Data.Traversable (sequence, traverse)
+import Foreign.Object (Object)
+import Foreign.Object as Object
+import Assembly.Premise (PossibleWorldParts, checkPremise)
+import Premises.Layout (instantiationFile, presetsFile)
+import Premises.Tree as Tree
+import Schema.Decode (decodeError, decodeErrorAt)
+import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
+import Schema.Premise.Fixture (Literal, decodeLiteral)
+import Schema.Premise.PossibleWorld (decodeConfig, decodePossibleWorld)
+import Schema.Premise.StrategyRules (presetsShape)
+import Data.Maybe (Maybe(..))
+
+-- | The seat-strategy presets (docs/06_simulator.md §4.2) from the presets file's text.
+loadPresets :: String -> Either String (Object StrategyRules)
+loadPresets t = jsonParser t >>= presetsFrom
+
+presetsFrom :: Json -> Either String (Object StrategyRules)
+presetsFrom j = do
+  pairs <- decodeErrorAt presetsFile (decodeJsonWith Authored presetsShape j)
+  pure (Object.fromFoldable pairs)
+
+-- | A premise directory decoded and checked: the possible World premise a game is assembled from.
+loadPremise :: Tree.Premise -> Either String PossibleWorldParts
+loadPremise s = do
+  files <- traverse (\f -> { name: f.name, json: _ } <$> lmap (\why -> f.path <> ": " <> why) (jsonParser f.text)) s.sections
+  decoded <- fromFiles files
+  presets <- presetsOf s.presets
+  lmap show (checkPremise { possibleWorld: decoded.possibleWorld, config: decoded.config, presets })
+  where
+  presetsOf p = lmap (\why -> p.path <> ": " <> why) (jsonParser p.text) >>= presetsFrom
+
+-- | A premise directory read through the file operations given, decoded and checked.
+loadFrom :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String PossibleWorldParts)
+loadFrom ops dir = map (_ >>= loadPremise) (Tree.readPremise ops dir)
+
+-- | Every premise directory under the root, loaded and checked. A root with none is a failure.
+loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array PossibleWorldParts))
+loadAll ops = Tree.premiseDirs ops >>= case _ of
+  Left e -> pure (Left e)
+  Right [] -> pure (Left "no premise under the premise root; run `just _premises`")
+  Right dirs -> map sequence (traverse (loadFrom ops) dirs)
+
+-- | A literal premise's file text, decoded and named `name`.
+loadLiteral :: String -> String -> Either String Literal
+loadLiteral name text = decodeError (parseJson text >>= decodeNamed)
+  where
+  decodeNamed j = map (_ { name = name }) (decodeLiteral j)
+
+-- | Decode a premise's sections, each a JSON object, merged into one possible World; `instantiation.json` is
+-- | the configuration. Undecoded, unvalidated: `checkPremise` does that.
+fromFiles :: Array { name :: String, json :: Json } -> Either String { possibleWorld :: PossibleWorld, config :: InstantiationConfig }
+fromFiles files = do
+  configJson <- note (instantiationFile <> ": missing") (map _.json (headOf (filter (\f -> f.name == instantiationFile) files)))
+  config <- decodeErrorAt instantiationFile (decodeConfig configJson)
+  merged <- merge (filter (\f -> f.name /= instantiationFile) files)
+  possibleWorld <- decodeErrorAt "the PossibleWorld" (decodePossibleWorld merged)
+  pure { possibleWorld, config }
+  where
+  headOf = case _ of
+    [ x ] -> Just x
+    _ -> Nothing
+
+-- | Every section object merged into one. A section that is not an object, or a key that two
+-- | sections both define, fails: nothing is overwritten silently.
+merge :: Array { name :: String, json :: Json } -> Either String Json
+merge files = map fromObject (foldl step (Right Object.empty) files)
+  where
+  step acc f = do
+    o <- acc
+    x <- note (f.name <> ": a section must be a JSON object") (toObject f.json)
+    case find (\k -> Object.member k o) (Object.keys x) of
+      Just k -> Left (f.name <> ": key " <> k <> " is already defined by another section")
+      Nothing -> Right (Object.union o x)

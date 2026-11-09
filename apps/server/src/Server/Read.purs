@@ -6,8 +6,8 @@ module Server.Read
   , loadRun
   , runInfo
   , getView
-  , entitiesView
-  , entityView
+  , actorsView
+  , actorView
   , compareView
   , agencyView
   , agencyDetailView
@@ -32,9 +32,9 @@ import Data.Tuple (Tuple(..))
 import Run (Run)
 import Server.Rows (READS)
 import Experiments.Agency (agency)
-import Game.Assemble (assemblePreset, configuredSeats)
-import Server.Settings (Settings, chosen, ofRun, ofSpec)
-import Settings.Presets (defaultPresets)
+import Assembly.Assemble (assemblePreset, configuredSeats)
+import Server.Premises (Premises, chosen, ofRun, ofSpec)
+import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Agency (AgencyProfile, agencyCriteria, agencyProfiles, agencyTable)
 import Effects.Api (AgencyQuery)
@@ -46,8 +46,8 @@ import Views.Compare as Compare
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Views.Drivers as Drivers
-import Views.Entity as Entity
-import Views.Markets as Markets
+import Views.Actor as Actor
+import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
@@ -78,7 +78,7 @@ decodeSummary ids row = do
     , name: row.name
     , status: row.status
     , reason: row.reason
-    , gameboard: man.gameboard
+    , possibleWorld: man.possibleWorld
     , gameSeed: show man.initial.seed
     , playerSeed: f.playerSeed
     , rounds: length row.assertions
@@ -137,8 +137,8 @@ runInfo id = find (\r -> r.id == id) <$> listRuns
 
 -- | `GET /api/runs/:id/:view`: one view of a stored run. The view takes its `round` parameter from
 -- | the query; a run that is missing or unreadable is a 404 or 500.
-getView :: forall r. Settings -> { id :: String, view :: View, round :: Maybe Int } -> Run (READS r) Answer
-getView settings { id, view, round } = withRun id runView
+getView :: forall r. Premises -> { id :: String, view :: View, round :: Maybe Int } -> Run (READS r) Answer
+getView premises { id, view, round } = withRun id runView
   where
   -- each view's reply goes through its key's shape, the one the dashboard decodes with
   answer :: forall m a. Applicative m => ViewKey a -> a -> m Answer
@@ -147,15 +147,15 @@ getView settings { id, view, round } = withRun id runView
   answerOr :: forall m a. Applicative m => ViewKey a -> Either String a -> m Answer
   answerOr k = viewOr k.shape
 
-  -- the Gameboard of the run's own setting; a run whose setting is not loaded cannot be read against it
-  onBoard r f = either (conflict) (f <<< _.gameboard) (ofSpec settings r.spec)
+  -- the possible World of the run's own premise; a run whose premise is not loaded cannot be read against it
+  onBoard r f = either (conflict) (f <<< _.possibleWorld) (ofSpec premises r.spec)
 
   runView r = case view of
     Overview -> answer Keys.overview (Overview.overview r)
     Balances -> answerOr Keys.balances (Balances.balances r (fromMaybe (completed r) round))
-    Markets -> answer Keys.markets (Markets.markets r)
-    Facilities -> answer Keys.facilities (Markets.facilities r)
-    Economy -> answer Keys.economy (Markets.economy r)
+    Exchanges -> answer Keys.exchanges (Exchanges.exchanges r)
+    Transformations -> answer Keys.transformations (Exchanges.transformations r)
+    Economy -> answer Keys.economy (Exchanges.economy r)
     Representation -> answer Keys.representation (Representation.representation r)
     Procedures -> answer Keys.procedures (Representation.procedures r)
     Assertions -> answer Keys.assertions (Assertions.assertions r)
@@ -168,35 +168,35 @@ getView settings { id, view, round } = withRun id runView
     Balance -> onBoard r \gb -> answer Keys.balance (Balance.balanceView gb r)
     Events -> answerOr Keys.events (Balances.events r (fromMaybe 1 round))
 
--- | `GET /api/runs/:id/entities`: the run's Entities, each flagged as a seat or not, and the one shown by default.
-entitiesView :: forall r. String -> Run (READS r) Answer
-entitiesView id = withRun id (ok Keys.entityList <<< Entity.entityList)
+-- | `GET /api/runs/:id/Actors`: the run's Actors, each flagged as a seat or not, and the one shown by default.
+actorsView :: forall r. String -> Run (READS r) Answer
+actorsView id = withRun id (ok Keys.actorList <<< Actor.actorList)
 
--- | `GET /api/runs/:id/entity/:entity`: one Entity's balance sheet after every round (`Views.Entity`).
--- | An Entity the run does not have is a 400 that lists the valid ones; a missing run is a 404.
-entityView :: forall r. String -> String -> Run (READS r) Answer
-entityView id entity = withRun id (\r -> viewOr Keys.history (Entity.entityHistory r (Id entity)))
+-- | `GET /api/runs/:id/Actor/:Actor`: one Actor's balance sheet after every round (`Views.Actor`).
+-- | An Actor the run does not have is a 400 that lists the valid ones; a missing run is a 404.
+actorView :: forall r. String -> String -> Run (READS r) Answer
+actorView id actor = withRun id (\r -> viewOr Keys.history (Actor.actorHistory r (Id actor)))
 
--- | `GET /api/compare?runs=a,b&market=m`: the runs that load, compared; the ones that do not are
+-- | `GET /api/compare?runs=a,b&exchange=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
-compareView :: forall r. Settings -> { runs :: Array String, market :: Maybe String } -> Run (READS r) Answer
-compareView settings { runs: ids, market } = do
+compareView :: forall r. Premises -> { runs :: Array String, exchange :: Maybe String } -> Run (READS r) Answer
+compareView premises { runs: ids, exchange } = do
   loaded <- traverse loadRun ids
   let
     good = catMaybes (map hush loaded)
     skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
   case uncons good of
     Nothing -> badRequest (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
-    Just { head: base, tail: others } -> case traverse (Markets.trajectories good) market of
+    Just { head: base, tail: others } -> case traverse (Exchanges.trajectories good) exchange of
       Left e -> badRequest e
       Right trajectory -> ok Keys.compare
         ( { compatibility: Compare.compatible good
           , trajectory
-          , markets: Markets.marketCharts good
+          , exchanges: Exchanges.exchangeCharts good
           , netWorth: Compare.netWorthCharts good
           , standings: Compare.standingsBars good
           , balance: Compare.balanceBars good
-          , keyValues: Compare.keyValues (ofRun settings) good
+          , keyValues: Compare.keyValues (ofRun premises) good
           , final: Compare.finalState good
           , baseline: base.id
           , diff: Compare.baselineDiff base others
@@ -206,17 +206,17 @@ compareView settings { runs: ids, market } = do
           } :: Compare.CompareView
         )
 
--- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the setting's
+-- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the premise's
 -- | seats playing the preset against the alternative.
-agencyView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
+agencyView :: forall r. Premises -> AgencyQuery -> Run (READS r) Answer
 agencyView = agencyReply "table" (ok Keys.table <<< agencyTable)
 
 -- | `GET /api/agency/detail`: the same analysis, each criterion under the baseline and the alternative.
-agencyDetailView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
+agencyDetailView :: forall r. Premises -> AgencyQuery -> Run (READS r) Answer
 agencyDetailView = agencyReply "detail" \ps -> ok Keys.agencyDetail { criteria: agencyCriteria ps, profile: agencyProfiles ps }
 
-agencyReply :: forall r. String -> (Array AgencyProfile -> Run (READS r) Answer) -> Settings -> AgencyQuery -> Run (READS r) Answer
-agencyReply kind reply settings { setting, playerSeed, preset, alternative } = case chosen settings setting, Int.fromString (fromMaybe "1" playerSeed) of
+agencyReply :: forall r. String -> (Array AgencyProfile -> Run (READS r) Answer) -> Premises -> AgencyQuery -> Run (READS r) Answer
+agencyReply kind reply premises { premise, playerSeed, preset, alternative } = case chosen premises premise, Int.fromString (fromMaybe "1" playerSeed) of
   Left e, _ -> badRequest e
   _, Nothing -> badRequest "playerSeed must be an integer"
-  Right ctx, Just s -> cachedAgency (joinWith "|" [ kind, ctx.gameboard.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ either (badRequest <<< show) reply (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config))
+  Right ctx, Just s -> cachedAgency (joinWith "|" [ kind, ctx.possibleWorld.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ either (badRequest <<< show) reply (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.possibleWorld ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config))

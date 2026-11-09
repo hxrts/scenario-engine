@@ -43,7 +43,7 @@ identify = lift _process (Identify identity)
 ownerOf :: forall r. String -> Run (PROCESS + r) String
 ownerOf role = identify <#> \p -> role <> ":" <> p.pid <> ":" <> p.started
 
--- | The reads a setting tree is loaded through: `Settings.Tree.FileOps` at `Run (FILES + r)`.
+-- | The reads a premise tree is loaded through: `Premises.Tree.FileOps` at `Run (FILES + r)`.
 files
   :: forall r
    . { env :: String -> Run (FILES + r) (Maybe String)

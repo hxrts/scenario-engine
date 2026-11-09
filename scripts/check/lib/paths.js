@@ -4,8 +4,8 @@ const path = require("path");
 const { walk } = require("./walk");
 
 const root = path.join(__dirname, "..", "..", "..");
-// The compiled setting root, relative to the repo root.
-const settingRoot = "packages/settings";
+// The compiled premise root, relative to the repo root.
+const premiseRoot = "packages/premises";
 const viewFile = "packages/schema/src/Schema/View.purs";
 
 // The constructors of Schema.View's View in lower case (a view's path segment), read from the file under `at` (default: this tree).
@@ -24,4 +24,4 @@ function sourceFiles(keep, at = root) {
   return packageDirs(at).flatMap((d) => ["src", "test"].flatMap((t) => walk(path.join(d, t), keep)));
 }
 
-module.exports = { root, settingRoot, viewFile, viewNames, packageDirs, sourceFiles };
+module.exports = { root, premiseRoot, viewFile, viewNames, packageDirs, sourceFiles };

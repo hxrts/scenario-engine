@@ -56,7 +56,7 @@ deriveKindShape :: Shape DeriveKind
 deriveKindShape = closedName "kind"
 
 -- | A run's stored specification: what it was played from and where it came from. `overrides` is the
--- | JSON text of the overrides (`Game.Override`). A run stored without a field reads as Nothing.
+-- | JSON text of the overrides (`Assembly.Override`). A run stored without a field reads as Nothing.
 type Spec =
   { gameId :: Maybe String
   , preset :: Maybe String
@@ -85,11 +85,11 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
 specKey :: { gameId :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, source :: String, kind :: String, model :: String, humans :: String }
 specKey = { gameId: "gameId", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", source: "source", kind: "kind", model: "model", humans: "humans" }
 
--- | The stored specification. Every value is stored as text, in the setting
+-- | The stored specification. Every value is stored as text, in the premise
 -- | format, so an absent field is not written.
 specShape :: Shape Spec
 specShape = object "Spec" ado
-  gameId <- fieldOf specKey.gameId "the Gameboard's game id" (optionalOf stringShape) _.gameId
+  gameId <- fieldOf specKey.gameId "the PossibleWorld's game id" (optionalOf stringShape) _.gameId
   preset <- fieldOf specKey.preset "the preset every seat plays" (optionalOf stringShape) _.preset
   playerSeed <- fieldOf specKey.playerSeed "the player seed the run was resolved to" (storedInt "player seed") _.playerSeed
   overrides <- fieldOf specKey.overrides "the overrides, as JSON text" (optionalOf stringShape) _.overrides

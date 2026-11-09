@@ -9,7 +9,7 @@ module Views.Metrics
 
 import Prelude
 
-import Core.Market (marketPrice)
+import Core.Exchange (exchangePrice)
 import Laws.World (RoundResult)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
@@ -19,7 +19,7 @@ import Views.Common (exact)
 metricsVersion :: String
 metricsVersion = "v1"
 
--- | The metrics of one round, each tagged with `metricsVersion`: each Market's price after the round.
+-- | The metrics of one round, each tagged with `metricsVersion`: each Exchange's price after the round.
 roundMetrics :: RoundResult -> Array { metric :: String, version :: String, value :: String }
-roundMetrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: exact (marketPrice m) })
-  (Map.toUnfoldable r.world.markets)
+roundMetrics r = map (\(Tuple id m) -> { metric: "price:" <> show id, version: metricsVersion, value: exact (exchangePrice m) })
+  (Map.toUnfoldable r.world.exchanges)

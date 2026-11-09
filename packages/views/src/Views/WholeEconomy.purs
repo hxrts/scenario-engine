@@ -1,4 +1,4 @@
--- | The whole-economy measures (docs/06_simulator.md §11), by round and Market: demand and unfilled demand, the
+-- | The whole-economy measures (docs/06_simulator.md §11), by round and Exchange: demand and unfilled demand, the
 -- | concentration of net worth, and the distribution of Money. Pure.
 module Views.WholeEconomy (wholeEconomy, herfindahl, unfilled, columns) where
 
@@ -7,7 +7,7 @@ import Prelude
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (holding, tradesOf)
-import Laws.Slice (exchanges, read, runSlice, total, whereEq, whereGt)
+import Laws.Slice (exchangeFills, read, runSlice, total, whereEq, whereGt)
 import Laws.World (WorldState)
 import Data.Array (concatMap, filter, fromFoldable, zip)
 import Data.Map as Map
@@ -18,10 +18,10 @@ import Views.Common (Column, StoredRun, Table, col, column, names, players, quan
 import Views.Standings (netWorth)
 
 demandColumn :: Column
-demandColumn = column "Demand" "Demand(r, m): the sum of every positive Trade quantity submitted on Market m in round r."
+demandColumn = column "Demand" "Demand(r, m): the sum of every positive Trade quantity submitted on Exchange m in round r."
 
 unfilledColumn :: Column
-unfilledColumn = column "Unfilled demand" "Unfilled(r, m) = max(0, Demand(r, m) − bought(r, m)): what was asked for on Market m in round r and not bought."
+unfilledColumn = column "Unfilled demand" "Unfilled(r, m) = max(0, Demand(r, m) − bought(r, m)): what was asked for on Exchange m in round r and not bought."
 
 concentrationColumn :: Column
 concentrationColumn = column "Concentration" "HHI(r) = sum(share²) of the players' positive net worth after round r: 1/n when equal, 1 when one player holds all."
@@ -46,16 +46,16 @@ unfilled demand bought = max Q.zero (Q.sub demand bought)
 wholeEconomy :: StoredRun -> Table
 wholeEconomy r =
   { title: "Whole-economy measures"
-  , columns: names ([ col.round, marketColumn ] <> columns)
+  , columns: names ([ col.round, exchangeColumn ] <> columns)
   , rows: concatMap rowsOf (zip (records r) (snapshots r))
   }
   where
-  marketColumn = column "Market" "The Market the row's demand is on."
-  rowsOf (Tuple rec w) = map (rowOf rec w) (fromFoldable (Map.keys w.markets))
+  exchangeColumn = column "Exchange" "The Exchange the row's demand is on."
+  rowsOf (Tuple rec w) = map (rowOf rec w) (fromFoldable (Map.keys w.exchanges))
   rowOf rec w m =
     let
       asked = demandOn m rec
-      bought = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"market" m exchanges)))) rec.events
+      bought = runSlice (total (read @"quantity" (whereGt @"quantity" Q.zero (whereEq @"exchange" m exchangeFills)))) rec.events
     in
       [ show rec.round
       , show m
@@ -64,7 +64,7 @@ wholeEconomy r =
       , ratio (herfindahl (netWorths w))
       , maybe "n/a" ratio (gini (moneyOf w))
       ]
-  demandOn m rec = Q.sumQ (concatMap (\s -> map _.quantity (filter (\o -> o.market == m && o.quantity > Q.zero) (tradesOf s.proposal.intents))) rec.inputs)
+  demandOn m rec = Q.sumQ (concatMap (\s -> map _.quantity (filter (\o -> o.exchange == m && o.quantity > Q.zero) (tradesOf s.candidateTransaction.intents))) rec.inputs)
   netWorths w = map (netWorth w) (players w)
 
   moneyOf :: WorldState -> Array Q

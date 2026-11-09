@@ -8,17 +8,17 @@ import Prelude
 
 import Core.Map (values)
 
-import Settings.Meridian.Entities.Seats (seatActors)
+import Premises.Meridian.Actors.Seats (playablePlayableActors)
 import Testkit.Meridian (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
-import Schema.Gameboard (Outcome(..))
+import Schema.PossibleWorld (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Laws.Query (priceOf)
 import Core.Num as Q
 import Laws.Types (Id(..))
-import Laws.Slice (event, matches, exchanges, conversions)
+import Laws.Slice (event, matches, exchangeFills, transformationFills)
 import Data.Array (concatMap, elem, filter, last, length, range)
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
@@ -33,10 +33,10 @@ import Data.DateTime.Instant (unInstant)
 import Data.Newtype (unwrap)
 import Experiments.Agency (agency)
 import Handlers.Simulate (SimRun)
-import Game.Assemble (assemble, presetBindings)
-import Game.Override (Override(..))
-import Game.Setting (GameboardParts, Setting(..))
-import Game.Types (Game)
+import Assembly.Assemble (assemble, presetBindings)
+import Assembly.Override (Override(..))
+import Assembly.Premise (PossibleWorldParts, Premise(..))
+import Assembly.Types (Game)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
@@ -47,36 +47,36 @@ spec' :: (String -> String) -> Array Override -> Int -> Variant
 spec' preset overrides seed = { preset, overrides, seed }
 
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
-gameOf :: GameboardParts -> Variant -> Aff Game
+gameOf :: PossibleWorldParts -> Variant -> Aff Game
 gameOf p v = do
-  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) seatActors)
-  orThrow (assemble (GameboardSetting p) bindings v.overrides)
+  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) playablePlayableActors)
+  orThrow (assemble (PossibleWorldPremise p) bindings v.overrides)
 
-play :: GameboardParts -> Variant -> Aff SimRun
+play :: PossibleWorldParts -> Variant -> Aff SimRun
 play ctx v = do
   g <- gameOf ctx v
   run (Seed v.seed) g
 
 -- | The §12 indicators of one run, as a printed row.
-indicators :: GameboardParts -> SimRun -> { row :: String, failures :: Int }
+indicators :: PossibleWorldParts -> SimRun -> { row :: String, failures :: Int }
 indicators ctx r = { row, failures }
   where
   events = concatMap _.record.events r.records
   count f = length (filter f events)
-  activity = count \e -> matches (exchanges) (const true) e || matches (conversions) (const true) e
+  activity = count \e -> matches (exchangeFills) (const true) e || matches (transformationFills) (const true) e
   rejected = count (matches (event @"Rejected") (const true))
   lapsed = count (matches (event @"Lapsed") (const true))
-  proposals = length (concatMap _.record.inputs r.records)
+  candidateTransactions = length (concatMap _.record.inputs r.records)
   final = fromMaybe r.manifest.initial (map _.world (last r.records))
   price w m = maybe "—" Q.displayQuantity (priceOf w (Id m))
-  money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (values w.entities)
+  money w = map (\e -> fromMaybe Q.zero (Map.lookup (Id "M") e.accounts)) (values w.actors)
   -- circulation health: the largest holder's share of Money, at the start and the end
   share w = let ms = money w in maybe "—" Q.displayRatio (Q.divMaybe (fromMaybe Q.zero (maximum ms)) (Q.sumQ ms))
-  met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.gameboard r.records))
+  met = length (filter (\o -> o.outcome == Met) (evaluateObjectives ctx.possibleWorld r.records))
   failures = length (checkRun r.manifest.initial r.records)
   row = joinWith " | "
     [ show activity
-    , show (proposals - rejected - lapsed) <> "/" <> show proposals
+    , show (candidateTransactions - rejected - lapsed) <> "/" <> show candidateTransactions
     , show rejected
     , show lapsed
     , price final "energy-atlantic"
@@ -92,7 +92,7 @@ header = "variant | activity | executed/proposed | rejected | lapsed | P atlanti
 millis :: Aff Number
 millis = liftEffect (unwrap <<< unInstant <$> now)
 
-spec :: Aff GameboardParts -> Spec Unit
+spec :: Aff PossibleWorldParts -> Spec Unit
 spec context = describe "Experiments (§11) and performance" do
   it "variant experiments keep every invariant (report printed)" do
     ctx <- context
@@ -120,8 +120,8 @@ spec context = describe "Experiments (§11) and performance" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
-      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.actor) (filter (not <<< _.measurable) ps)))
+      ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playablePlayableActors)
+      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.playableActor) (filter (not <<< _.measurable) ps)))
       length ps `shouldEqual` 15
   it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do
     ctx <- context

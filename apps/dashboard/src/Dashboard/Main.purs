@@ -1,6 +1,6 @@
 -- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
--- | results and actions), Prepare (launch a run of the setting), and Compare (runs side by
+-- | results and actions), Prepare (launch a run of the premise), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
 -- | glossary once, before any page renders.
 module Dashboard.Main (main) where
@@ -37,7 +37,7 @@ import Effect.Uncurried (mkEffectFn1)
 import Views.Balance (giniStat, spreadStat)
 import Views.Compare (CompareView, compatibilityPurpose)
 import Views.Overview (RunList, RunOverview)
-import Views.Setting (Setting)
+import Views.Premise (Premise)
 import Effects.Api (Launch)
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
@@ -105,12 +105,12 @@ runTable grid t s = D.div
       ]
   }
 
--- | The launch form's view: the form, the setting it launches, the failure message, and the Run action.
+-- | The launch form's view: the form, the premise it launches, the failure message, and the Run action.
 type LaunchView =
   { form :: LaunchForm
   , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
-  , setting :: Setting
-  , settings :: Array Setting
+  , premise :: Premise
+  , premises :: Array Premise
   , defaultName :: String
   , failure :: Maybe String
   , launch :: Effect Unit
@@ -121,41 +121,41 @@ launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.setting.rounds v.form) ] }
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.premise.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose (if length v.settings > 1 then "Required: Preset and Setting. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
+      , Layout.purpose (if length v.premises > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
       ]
   }
 
 -- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
 -- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
--- | come from the setting.
+-- | come from the premise.
 launchFields :: LaunchView -> JSX
 launchFields v = D.div
   { className: "flex flex-col gap-stack"
   , children:
       picker <>
         [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.setting.presets (\x f -> f { preset = x })
+        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.premise.presets (\x f -> f { preset = x })
         , selectField
-            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.setting.rounds.default <> " rounds; allowed " <> show v.setting.rounds.min <> " to " <> show v.setting.rounds.max }
-            (show (roundValue v.setting.rounds v.form.rounds))
-            (map show (roundChoices v.setting.rounds))
+            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.premise.rounds.default <> " rounds; allowed " <> show v.premise.rounds.min <> " to " <> show v.premise.rounds.max }
+            (show (roundValue v.premise.rounds v.form.rounds))
+            (map show (roundChoices v.premise.rounds))
             (\x f -> f { rounds = x })
         , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
         , D.div
             { className: "flex flex-col gap-1 text-sm"
             , children:
-                [ fieldHeading { label: "Game seed", required: false, note: "default: the setting's seed. Read-only, because the server takes no game seed at launch" }
-                , D.span { className: "font-mono", children: [ D.text (show v.setting.gameSeed) ] }
+                [ fieldHeading { label: "Game seed", required: false, note: "default: the premise's seed. Read-only, because the server takes no game seed at launch" }
+                , D.span { className: "font-mono", children: [ D.text (show v.premise.gameSeed) ] }
                 ]
             }
         ]
   }
   where
   -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.settings > 1 then [ selectField { label: "Setting", required: true, note: "required: which setting to play" } v.setting.name (map _.name v.settings) (\x f -> f { setting = x }) ] else []
+  picker = if length v.premises > 1 then [ selectField { label: "Premise", required: true, note: "required: which premise to play" } v.premise.name (map _.name v.premises) (\x f -> f { premise = x }) ] else []
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -168,32 +168,32 @@ launchFields v = D.div
         ]
     }
 
--- | Prepare: launch a run of the setting. The form starts with its defaults (the setting's next run name,
--- | the preset Conservative, the setting's round count, a drawn player seed), so Run needs no edits. A
+-- | Prepare: launch a run of the premise. The form starts with its defaults (the premise's next run name,
+-- | the preset Conservative, the premise's round count, a drawn player seed), so Run needs no edits. A
 -- | launch the server accepts opens the new run.
 mkPrepare :: Component Unit
 mkPrepare = component "Prepare" \_ -> React.do
   form /\ setForm <- useState emptyForm
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  settingLoad <- useLoad unit Client.setting
+  premiseLoad <- useLoad unit Client.premise
   let
-    settings = case settingLoad.value of
+    premises = case premiseLoad.value of
       Just (Right ps) -> ps
       _ -> []
-    setting = selected form settings
-    -- the default name is known once the setting is; until then it is "run"
-    loadedName = maybe "" _.defaultName setting
+    premise = selected form premises
+    -- the default name is known once the premise is; until then it is "run"
+    loadedName = maybe "" _.defaultName premise
     defaultName = if loadedName == "" then "run" else loadedName
 
-    chosenSetting = (_ >>= note "The server offers no setting." <<< selected form)
-    view s = { form, setForm, setting: s, settings, defaultName, failure, launch }
+    chosenPremise = (_ >>= note "The server offers no premise." <<< selected form)
+    view s = { form, setForm, premise: s, premises, defaultName, failure, launch }
 
     -- a bad form is reported without a request; a launch that the server accepts opens the new run
-    launch = case setting of
+    launch = case premise of
       Just s -> case validate s form of
         Left e -> setFailure (Just e)
         Right req -> setFailure Nothing *> launchAff_ (submit req)
-      Nothing -> setFailure (Just "The setting has not loaded, so the run cannot be launched.")
+      Nothing -> setFailure (Just "The premise has not loaded, so the run cannot be launched.")
 
     submit :: Launch -> Aff Unit
     submit req = do
@@ -207,22 +207,22 @@ mkPrepare = component "Prepare" \_ -> React.do
     pure (pure unit)
   pure $ Layout.page
     { title: "Prepare a run"
-    , purpose: "Launch a run of the setting from a preset. Every field has a default, so Run needs no edits."
+    , purpose: "Launch a run of the premise from a preset. Every field has a default, so Run needs no edits."
     , children:
         [ Layout.grid
             [ Layout.panel
                 { span: 6
                 , title: "Options"
-                , purpose: "Each option's default is shown beside it. Only Preset and Setting are required."
+                , purpose: "Each option's default is shown beside it. Only Preset and Premise are required."
                 , children:
-                    [ loaded (chosenSetting <$> settingLoad.value) (launchFields <<< view) ]
+                    [ loaded (chosenPremise <$> premiseLoad.value) (launchFields <<< view) ]
                 }
             , Layout.panel
                 { span: 6
                 , title: "Launch"
                 , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
                 , children:
-                    [ loaded (chosenSetting <$> settingLoad.value) (launchAction <<< view) ]
+                    [ loaded (chosenPremise <$> premiseLoad.value) (launchAction <<< view) ]
                 }
             ]
         ]
@@ -310,8 +310,8 @@ mkCompare grid = do
     everyRun <- useRunList 0
     let chooser baseline = loaded everyRun.value \t -> choices t ids baseline
     pure $ Layout.page
-      { title: "Compare a scenario set"
-      , purpose: "Runs of one scenario set side by side: prices, net worth and standings on shared axes, then the key values in one table."
+      { title: "Compare a Run set"
+      , purpose: "Runs of one Run set side by side: prices, net worth and standings on shared axes, then the key values in one table."
       , children:
           [ if null ids then React.fragment [ chooser Nothing, plots grid fetch [] Nothing Nothing (\_ -> pure unit) ]
             else comparison { ids, chooser }
@@ -332,7 +332,7 @@ mkComparison grid fetch = component "Comparison" \{ ids, chooser } -> React.do
     _ -> Nothing
 
 -- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
--- | order: how each Market's price moves, how each player's net worth moves, who ends ahead, how even
+-- | order: how each Exchange's price moves, how each player's net worth moves, who ends ahead, how even
 -- | the outcome is, and what the key values are. Until a comparison is loaded, each plot's frame is
 -- | shown in the same place and size, so nothing moves when the data arrives. The tables in the tabs
 -- | hold the rest.
@@ -341,10 +341,10 @@ plots grid fetch ids shown picked setPicked = D.div
   { className: "flex min-w-0 flex-col gap-section"
   , children: skippedRuns <>
       [ Layout.section
-          { title: "Prices by market"
-          , purpose: "How each Market's marginal price moves after every round: one line per run, on the same axes."
-          , children: loadedWith (Layout.grid [ item "Prices by market" waiting ]) \c ->
-              [ Layout.grid (c.markets <#> \m -> item m.title (overlayChart ids c.baseline m)) ]
+          { title: "Prices by exchange"
+          , purpose: "How each Exchange's marginal price moves after every round: one line per run, on the same axes."
+          , children: loadedWith (Layout.grid [ item "Prices by exchange" waiting ]) \c ->
+              [ Layout.grid (c.exchanges <#> \m -> item m.title (overlayChart ids c.baseline m)) ]
           }
       , Layout.section
           { title: "Net worth over time"
@@ -376,7 +376,7 @@ plots grid fetch ids shown picked setPicked = D.div
               [ tabbed
                   [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
-                  , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
+                  , { key: "config", label: "Configuration", purpose: "The specification premises that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
                   , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: [ fetch { key: "agency", load: map (tableOf grid) <$> Client.agency }, fetch { key: "agency-detail", load: map (\d -> D.div { className: "flex min-w-0 flex-col gap-stack", children: [ Layout.captioned d.profile.title [ tableOf grid d.profile ], Layout.captioned d.criteria.title [ tableOf grid d.criteria ] ] }) <$> Client.agencyDetail } ] } }
@@ -397,7 +397,7 @@ plots grid fetch ids shown picked setPicked = D.div
       ]
     _ -> []
 
-  message = if null ids then "Tick runs in the list above to compare them as a scenario set." else "Loading the comparison…"
+  message = if null ids then "Tick runs in the list above to compare them as a Run set." else "Loading the comparison…"
   waiting = placeholderFrame message
 
   -- the loaded comparison's content; until one is loaded, the waiting content of the same size shows
@@ -450,7 +450,7 @@ plots grid fetch ids shown picked setPicked = D.div
 choices :: RunList -> Array String -> Maybe String -> JSX
 choices t ids baseline = Layout.section
   { title: "Choose runs"
-  , purpose: "Every readable run. Tick the runs of a scenario set to compare them; untick one to remove it. The first run ticked is the baseline."
+  , purpose: "Every readable run. Tick the runs of a Run set to compare them; untick one to remove it. The first run ticked is the baseline."
   , children:
       [ D.div
           { className: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"

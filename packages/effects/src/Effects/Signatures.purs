@@ -1,4 +1,4 @@
--- | The impure vocabulary (docs/02_type_system.md §8.4): the effect rows, their functor types, and the
+-- | The impure vocabulary (docs/02_kernel.md §8.4): the effect rows, their functor types, and the
 -- | typed records that travel with them. Signatures only; nothing here implements an effect. Handlers
 -- | in `handlers` interpret them over a typed backend, and adapters supply the raw primitives. The
 -- | STORE records stay here, not in `handlers/Store`, because every STORE constructor and reply names
@@ -29,7 +29,7 @@ module Effects.Signatures
   , RunSummary
   , StoredManifest
   , StoredRound
-  , ScenarioSet
+  , RunSet
   , CLOCK
   , ClockF(..)
   , _clock
@@ -64,24 +64,24 @@ module Effects.Signatures
 import Prelude
 
 import Laws.Invariants (Failure)
-import Laws.Proposal (ProposalBody)
-import Schema.Joint (JointProposal, Transcript)
+import Laws.CandidateTransaction (CandidateTransactionBody)
+import Schema.Joint (JointCandidateTransaction, Transcript)
 import Schema.Run (RunStatus, Spec)
 import Core.Draw (Seed)
 import Laws.Engine.Commit (EngineError)
-import Laws.Types (EntityId, ProposalId, RoundIndex)
+import Laws.Types (ActorId, CandidateTransactionId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
-import Game.Types (Game)
+import Assembly.Types (Game)
 import Laws.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Type.Proxy (Proxy(..))
 
--- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in
+-- | A seat's candidate Transactions in Propose, its signatures in Sign, and its transcript for the round in
 -- | Speak (the seat's words, read by the round's joint pass; Nothing when it says nothing).
 data SeatInputF a
-  = Propose EntityId View (Array ProposalBody -> a)
-  | Sign EntityId View (Array ProposalId -> a)
-  | Speak EntityId View (Maybe String -> a)
+  = Propose ActorId View (Array CandidateTransactionBody -> a)
+  | Sign ActorId View (Array CandidateTransactionId -> a)
+  | Speak ActorId View (Maybe String -> a)
 
 derive instance Functor SeatInputF
 
@@ -95,9 +95,9 @@ derive instance Functor RecordF
 
 type RECORD r = (record :: RecordF | r)
 
--- | One joint pass over a round's transcripts (live play): the Proposals they reconcile into. A
+-- | One joint pass over a round's transcripts (live play): the candidate Transactions they reconcile into. A
 -- | reply that does not decode is a `Left`, with the reason.
-data InterpretF a = Interpret RoundIndex (Array Transcript) (Either String (Array JointProposal) -> a)
+data InterpretF a = Interpret RoundIndex (Array Transcript) (Either String (Array JointCandidateTransaction) -> a)
 
 derive instance Functor InterpretF
 
@@ -158,10 +158,10 @@ type StoredRound =
   }
 
 -- | A named set of runs to compare: their ids and which is the baseline. It never holds run data.
-type ScenarioSet = { name :: String, baseline :: String, runs :: Array String }
+type RunSet = { name :: String, baseline :: String, runs :: Array String }
 
 -- | The Run Store's writes (docs/06_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
--- | make. Each round's own write is `RECORD`. Each write is one transaction.
+-- | make. Each round's own write is `RECORD`. Each write is one dbDbTransaction.
 data StoreF a
   = CreateRun NewRun (Unit -> a)
   | SetStatus String RunStatus (Maybe String) (Unit -> a) -- the run, its new status, and why it failed if it did
@@ -169,7 +169,7 @@ data StoreF a
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)
-  | CreateSet ScenarioSet (Unit -> a)
+  | CreateSet RunSet (Unit -> a)
   | RenameSet String String (Int -> a) -- the set, its new name; how many sets were renamed
   | DeleteSet String (Int -> a)
 
@@ -185,7 +185,7 @@ data ObserveF a
   | ListSummaries (Array RunSummary -> a)
   | ReadManifest String (Maybe StoredManifest -> a)
   | ReadRounds String (Array StoredRound -> a)
-  | ListSets (Array ScenarioSet -> a)
+  | ListSets (Array RunSet -> a)
 
 derive instance Functor ObserveF
 
@@ -319,7 +319,7 @@ type LiveRequest =
   , game :: Game
   , id :: String
   , window :: Int
-  , briefing :: EntityId -> String
+  , briefing :: ActorId -> String
   , report :: RoundResult -> String -> Array String
   }
 

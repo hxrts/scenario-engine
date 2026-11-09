@@ -1,0 +1,19 @@
+package:
+  name: sp-world
+  dependencies:
+    - sp-laws
+    - prelude
+    - sp-core
+    - sp-schema
+    - arrays
+    - either
+    - maybe
+    - ordered-collections
+    - tuples
+  test:
+    main: Test.World.Main
+    dependencies:
+      - sp-testkit
+      - effect
+      - spec
+      - spec-node

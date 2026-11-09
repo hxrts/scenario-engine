@@ -44,7 +44,7 @@ spec = describe "pi process boundary (no model)" do
     withFakePi
       (\dir -> "cat '" <> dir <> "/reply.jsonl'\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > '" <> dir <> "/args.txt'")
       \dir -> do
-        liftEffect (writeFileText (dir <> "/reply.jsonl") (streamOf "{\"proposals\":[]}" <> "\n"))
+        liftEffect (writeFileText (dir <> "/reply.jsonl") (streamOf "{\"candidateTransactions\":[]}" <> "\n"))
         _ <- pi { model: "fake/model", rawDir: dir <> "/raw" } "the system task" "{\"round\":1}"
         args <- liftEffect (readFileText (dir <> "/args.txt"))
         contains (Pattern "--system-prompt\nthe system task\n") args `shouldEqual` true

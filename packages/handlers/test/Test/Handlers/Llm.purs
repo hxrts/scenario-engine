@@ -1,6 +1,6 @@
 -- | The model handler (docs/06_simulator.md §14): the prompts each request sends, how a reply decodes,
 -- | the joint pass's reconciliation and fallbacks, the evidence each call leaves, and the recording of
--- | exchanges that replays. The model is a stub backend (`Test.Handlers.Stub`); no `pi` process runs.
+-- | turns that replays. The model is a stub backend (`Test.Handlers.Stub`); no `pi` process runs.
 -- | Pins: the model wire and reply JSON of docs/06 §14 (the prompt text is read through the prompt names).
 module Test.Handlers.Llm (spec) where
 
@@ -8,7 +8,7 @@ import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
+import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
 import Laws.Engine.Prepare (observe)
 import Core.Num as Q
 import Laws.Types (Id(..), Intent, IntentF(..), intentShape)
@@ -41,7 +41,7 @@ import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
-import Game.Types (Game)
+import Assembly.Types (Game)
 import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -58,14 +58,14 @@ answerWith text = do
   pure (answering counter (\_ _ -> text))
 
 -- | One joint pass over the transcripts.
-jointWith :: Game -> Backend -> Array Transcript -> Aff (Either String (Array JointProposal))
+jointWith :: Game -> Backend -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
 jointWith g backend ts = interpreter backend g.world 1 ts
 
--- | The one Proposal a joint pass must return.
-single :: Either String (Array JointProposal) -> Aff JointProposal
+-- | The one candidate Transaction a joint pass must return.
+single :: Either String (Array JointCandidateTransaction) -> Aff JointCandidateTransaction
 single = case _ of
   Right [ j ] -> pure j
-  Right js -> fail ("expected one Proposal, got " <> show (length js)) *> throwError (error "single")
+  Right js -> fail ("expected one CandidateTransaction, got " <> show (length js)) *> throwError (error "single")
   Left why -> fail ("the reply should decode: " <> why) *> throwError (error "single")
 
 -- | A string field of a JSON object payload, read back from its text.
@@ -103,7 +103,7 @@ spec = do
         \c -> for_ (names c.prompt) \n -> elem n c.keys `shouldEqual` true
   describe "Prompts" do
     it "each request has its own task: the joint pass reconciles, the narrator writes the front page, a seat speaks" do
-      contains (Pattern "reconcile them into Proposals") interpretPrompt `shouldEqual` true
+      contains (Pattern "reconcile them into CandidateTransactions") interpretPrompt `shouldEqual` true
       contains (Pattern "front page") narratePrompt `shouldEqual` true
       contains (Pattern "one to three sentences") speakPrompt `shouldEqual` true
       contains (Pattern "Never invent quantities") narratePrompt `shouldEqual` true
@@ -116,39 +116,39 @@ spec = do
       contains (Pattern (prose jointReplyShape.desc)) interpretPrompt `shouldEqual` true
       contains (Pattern "agreed") interpretPrompt `shouldEqual` true
 
-    it "the joint pass's prompt states the joint Proposal rule screening applies" do
+    it "the joint pass's prompt states the joint CandidateTransaction rule screening applies" do
       contains (Pattern "bundles only Transfer and Transform Intents") interpretPrompt `shouldEqual` true
 
   describe "Reply decoding" do
-    it "a joint reply decodes into its Proposals, as the model states them" do
-      case decodeJoint ("{\"proposals\":[" <> stringify (encodeWith Snapshot proposedJointShape sample) <> "]}") of
+    it "a joint reply decodes into its CandidateTransactions, as the model states them" do
+      case decodeJoint ("{\"candidateTransactions\":[" <> stringify (encodeWith Snapshot proposedJointShape sample) <> "]}") of
         Right [ d ] -> do
           d.author `shouldEqual` Id "US"
           d.signers `shouldEqual` [ Id "DE" ]
           d.agreed `shouldEqual` [ Id "US" ]
-        _ -> fail "one Proposal should decode"
+        _ -> fail "one CandidateTransaction should decode"
 
     it "a reply wrapped in prose or a code fence still decodes" do
-      decodeJoint "Here is the joint pass:\n```json\n{\"proposals\":[]}\n```" `shouldEqual` Right []
+      decodeJoint "Here is the joint pass:\n```json\n{\"candidateTransactions\":[]}\n```" `shouldEqual` Right []
 
     it "a reply with trailing prose containing a brace decodes its first object" do
-      decodeJoint "```json\n{\"proposals\":[]}\n```\nNote: `{}` means none" `shouldEqual` Right []
+      decodeJoint "```json\n{\"candidateTransactions\":[]}\n```\nNote: `{}` means none" `shouldEqual` Right []
 
     it "a brace inside a JSON string does not close the object" do
       decodeText "{\"text\":\"a } and a \\\" quote\"} trailing }" `shouldEqual` Right "a } and a \" quote"
 
-    it "a clarification is not a Proposal list, so it does not decode" do
+    it "a clarification is not a CandidateTransaction list, so it does not decode" do
       isLeft (decodeJoint "{\"kind\":\"clarify\",\"message\":\"How much energy?\"}") `shouldEqual` true
 
     it "text that is not JSON does not decode" do
       isLeft (decodeJoint "not json") `shouldEqual` true
 
     it "a narrator or seat reply decodes its text; a reply without text does not" do
-      decodeText "{\"text\":\"Markets moved.\"}" `shouldEqual` Right "Markets moved."
-      isLeft (decodeText "{\"proposals\":[]}") `shouldEqual` true
+      decodeText "{\"text\":\"Exchanges moved.\"}" `shouldEqual` Right "Exchanges moved."
+      isLeft (decodeText "{\"candidateTransactions\":[]}") `shouldEqual` true
 
   describe "Joint pass (§7.4)" do
-    it "two transcripts describing one joint Proposal reconcile into one Proposal with both as signers" do
+    it "two transcripts describing one joint CandidateTransaction reconcile into one CandidateTransaction with both as signers" do
       g <- unseated
       backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ])
       j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
@@ -163,7 +163,7 @@ spec = do
 
     it "a reply that does not decode is a Left, which the caller turns into an empty submission" do
       g <- unseated
-      backend <- answerWith "not a Proposal list"
+      backend <- answerWith "not a CandidateTransaction list"
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
 
@@ -209,7 +209,7 @@ spec = do
       out <- jointWith g backend [ tr "US" "I sell DE ten energy" ]
       out `shouldEqual` Right []
 
-    it "an empty Intent list, and a signer that is not an Entity, are dropped from the Proposal" do
+    it "an empty Intent list, and a signer that is not an Actor, are dropped from the CandidateTransaction" do
       g <- unseated
       let bare = (jointOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ]) { intents = [] }
       empty <- answerWith (replyJoint [ bare ])
@@ -249,13 +249,13 @@ spec = do
       evs <- liftEffect (Ref.read evidence)
       map (\e -> contains (Pattern "error: ") e.decoded) evs `shouldEqual` [ true, true, true ]
 
-    it "a recorded exchange replays: the recording file reads back, and the replayed Proposal equals the live one" do
+    it "a recorded turn replays: the recording file reads back, and the replayed CandidateTransaction equals the live one" do
       g <- unseated
-      exchanges <- liftEffect (Ref.new [])
+      turns <- liftEffect (Ref.new [])
       let
-        live = (backendOf \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
+        live = (backendOf \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }) { turn = \x -> Ref.modify_ (_ <> [ x ]) turns }
       j1 <- single =<< jointWith g live [ tr "US" "buy ten energy" ]
-      rec <- liftEffect (Ref.read exchanges)
+      rec <- liftEffect (Ref.read turns)
       length rec `shouldEqual` 1
       back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (decodeRecording (encodeRecording rec))
       replay <- liftEffect (replayCall back)
@@ -280,11 +280,11 @@ spec = do
 
     it "a failed call is not recorded" do
       g <- unseated
-      exchanges <- liftEffect (Ref.new [])
+      turns <- liftEffect (Ref.new [])
       let
-        failing = (backendOf \_ _ -> throwError (error "down")) { exchange = \x -> Ref.modify_ (_ <> [ x ]) exchanges }
+        failing = (backendOf \_ _ -> throwError (error "down")) { turn = \x -> Ref.modify_ (_ <> [ x ]) turns }
       _ <- attempt (jointWith g failing [ tr "US" "buy ten energy" ])
-      rec <- liftEffect (Ref.read exchanges)
+      rec <- liftEffect (Ref.read turns)
       length rec `shouldEqual` 0
 
   describe "Front page and AI-agent seats" do
@@ -292,7 +292,7 @@ spec = do
       g <- unseated
       r <- oneRound g
       counter <- liftEffect (Ref.new 0)
-      text <- narrator (answering counter (\_ _ -> replyText "Markets moved.")) true r
+      text <- narrator (answering counter (\_ _ -> replyText "Exchanges moved.")) true r
       text `shouldEqual` listing r
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 0
@@ -300,18 +300,18 @@ spec = do
     it "the model's front page is its text; a reply that does not decode is the plain listing" do
       g <- unseated
       r <- oneRound g
-      good <- answerWith (replyText "Markets moved.")
+      good <- answerWith (replyText "Exchanges moved.")
       narrated <- narrator good false r
-      narrated `shouldEqual` "Markets moved."
+      narrated `shouldEqual` "Exchanges moved."
       bad <- answerWith "not json"
       fallback <- narrator bad false r
       fallback `shouldEqual` listing r
 
     it "a seat speaks its reply text; a reply that does not decode is an empty transcript" do
       g <- unseated
-      view <- case Map.lookup (Id "DE") g.world.entities of
+      view <- case Map.lookup (Id "DE") g.world.actors of
         Just de -> pure (observe g.world de)
-        Nothing -> fail "Germany should be an Entity" *> throwError (error "entity")
+        Nothing -> fail "Germany should be an Actor" *> throwError (error "actor")
       spoken <- answerWith (replyText "I will buy ten energy")
       said <- speak spoken (const "Secure energy.") (Id "DE") view
       said `shouldEqual` "I will buy ten energy"

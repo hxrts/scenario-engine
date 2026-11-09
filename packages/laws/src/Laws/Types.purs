@@ -1,8 +1,8 @@
--- | The authored vocabulary: Entities, Capabilities, Intents, Proposals, Rules and Transformations
--- | (docs/03_gameboard.md). Core knows none of it.
+-- | The authored vocabulary: Actors, Capabilities, Intents, candidate Transactions, Rules and Transformations
+-- | (docs/03_premise.md). Core knows none of it.
 module Laws.Types (module Laws.Types, module Core.Types) where
 
-import Core.Types (Id(..), idText, idShape, EntityTag, ResourceTag, MarketTag, EntityId, ResourceId, MarketId, Quantity, Price, Ratio, RoundIndex, RoundOffset, Interval, Holdings, CostFunction, Market)
+import Core.Types (Id(..), idText, idShape, ActorTag, ResourceTag, ExchangeTag, ActorId, ResourceId, ExchangeId, Quantity, Price, Ratio, RoundIndex, RoundOffset, Interval, Holdings, CostFunction, Exchange)
 import Prelude
 import Core.Num (Q, qShape)
 import Core.Num as Q
@@ -29,10 +29,10 @@ import Type.Proxy (Proxy)
 -- | The kind of thing a reference names, for a load-time check: the runtime twin of the tags below.
 data RefKind
   = RefResource
-  | RefMarket
+  | RefExchange
   | RefTransformation
-  | RefEntity
-  | RefPolicy
+  | RefActor
+  | RefStrategy
   | RefParameter
   | RefProcedure
   | RefRuleKind
@@ -50,20 +50,20 @@ class RefKindOf :: Type -> Constraint
 class RefKindOf tag where
   refKindOf :: Proxy tag -> RefKind
 
-instance RefKindOf EntityTag where
-  refKindOf _ = RefEntity
+instance RefKindOf ActorTag where
+  refKindOf _ = RefActor
 
 instance RefKindOf ResourceTag where
   refKindOf _ = RefResource
 
-instance RefKindOf MarketTag where
-  refKindOf _ = RefMarket
+instance RefKindOf ExchangeTag where
+  refKindOf _ = RefExchange
 
 instance RefKindOf TransformationTag where
   refKindOf _ = RefTransformation
 
-instance RefKindOf PolicyTag where
-  refKindOf _ = RefPolicy
+instance RefKindOf StrategyTag where
+  refKindOf _ = RefStrategy
 
 instance RefKindOf ProcedureTag where
   refKindOf _ = RefProcedure
@@ -75,8 +75,8 @@ data TransformationTag
 data ProcedureTag
 data RuleTag
 data RuleKindTag
-data ProposalTag
-data PolicyTag
+data CandidateTransactionTag
+data StrategyTag
 data SeatTag
 data RepresentationTag
 data DomainTag
@@ -86,40 +86,37 @@ data RecurringKindTag
 type TransformationId = Id TransformationTag
 type CollectiveProcedureId = Id ProcedureTag
 type RuleId = Id RuleTag
-type ProposalId = Id ProposalTag
-type PolicyId = Id PolicyTag
+type CandidateTransactionId = Id CandidateTransactionTag
+type StrategyId = Id StrategyTag
 type SeatId = Id SeatTag
 type RepresentationId = Id RepresentationTag
 type BehaviorDomain = Id DomainTag
 type RecurringFlowId = Id RecurringFlowTag
 type RecurringKindId = Id RecurringKindTag
 
--- Entities (§2.1, §2.2) ------------------------------------------------------
+-- Actors (§2.1, §2.2) ------------------------------------------------------
 
-type Entity =
-  { id :: EntityId
+type Actor =
+  { id :: ActorId
   , accounts :: Holdings
   , capabilities :: Array Capability
-  , kind :: EntityKind
+  , kind :: ActorKind
   }
 
-data EntityKind
-  = Actor Controller
+data ActorKind
+  = PlayableActor SeatId
+  | NonPlayableActor StrategyId
   | Aggregate Aggregate
 
--- | An Aggregate's policy, members, and collective procedures (§2.2).
+-- | An Aggregate's strategy, members, and collective procedures (§2.2).
 type Aggregate =
-  { policy :: PolicyId
-  , members :: Array EntityId
+  { strategy :: StrategyId
+  , members :: Array ActorId
   , procedures :: Map CollectiveProcedureId CollectiveProcedure
   }
 
-data Controller
-  = Seat SeatId
-  | NPC PolicyId
-
 type CollectiveProcedure =
-  { weights :: Map EntityId Ratio
+  { weights :: Map ActorId Ratio
   , residualWeight :: Ratio
   , threshold :: Ratio
   , authorizes :: Array Capability
@@ -131,43 +128,43 @@ type ResourceDefinition =
   { id :: ResourceId
   , unit :: String
   , transferability :: Transferability
-  , category :: Maybe String -- a setting's own grouping of the Resource; only the views read it
+  , category :: Maybe String -- a premise's own grouping of the Resource; only the views read it
   }
 
 data Transferability = Free | Restricted | NonTransferable
 
 data Capability
-  = MayTrade MarketId
+  = MayTrade ExchangeId
   | MayTransfer ResourceId
   | MayTransform TransformationId
   | MayEnact RuleKindId
 
 derive instance Ord Capability
 
--- Intents and Proposals (§3) -------------------------------------------------
+-- Intents and candidate Transactions (§3) -------------------------------------------------
 
--- | A base and quote Resource pair, which a routed order names in place of a Market.
+-- | A base and quote Resource pair, which a routed order names in place of an Exchange.
 type Pair = { base :: ResourceId, quote :: ResourceId }
 
--- | An Intent with its Market position in `m` and its quantities and limits in the filling `v`:
--- | `MarketId` and `Q` for an Intent the engine settles (`Intent`), `MarketRef` and `Expr` for a
--- | Strategy's template (`Laws.Strategy`). Every kind of Core Intent is one constructor here, so the
+-- | An Intent with its Exchange position in `m` and its quantities and limits in the filling `v`:
+-- | `ExchangeId` and `Q` for an Intent the engine settles (`Intent`), `ExchangeRef` and `Expr` for a
+-- | StrategyRules's template (`Laws.StrategyRules`). Every kind of Core Intent is one constructor here, so the
 -- | two fillings are the only things the two languages differ in.
 data IntentF m v
-  = Trade { market :: m, quantity :: v, limitPrice :: Maybe v }
+  = Trade { exchange :: m, quantity :: v, limitPrice :: Maybe v }
   | Route { pair :: Pair, quantity :: v, limitPrice :: Maybe v }
-  | Transfer { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
-  | Transform { by :: EntityId, transformation :: TransformationId, quantity :: v }
+  | Transfer { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
+  | Transform { by :: ActorId, transformation :: TransformationId, quantity :: v }
   | ChangeRule (RuleChangeF v)
 
 -- | Which way a flows Rule applies, relative to its governor: flows into it, out of it, or either way.
 data Direction = Inbound | Outbound | EitherWay
 
 -- | What a flows Rule covers: Transfers between two groups.
-type FlowScope = { governor :: EntityId, counterparty :: EntityId, direction :: Direction, over :: Array ResourceId }
+type FlowScope = { governor :: ActorId, counterparty :: ActorId, direction :: Direction, over :: Array ResourceId }
 
--- | What a levy is charged on: the units moved, or their value at a Market's beginning-of-round price.
-data LevyBasis = PerUnit | AdValorem MarketId
+-- | What a levy is charged on: the units moved, or their value at an Exchange's beginning-of-round price.
+data LevyBasis = PerUnit | AdValorem ExchangeId
 
 -- | Who receives a levy: the group the flow is going to, the Rule's governor, or nobody.
 data LevyRecipient = LevyToDestination | LevyToGovernor | LevyToSink
@@ -219,8 +216,8 @@ conforms d = case d.form, _ of
   -- a flows Rule covering no Resource would do nothing
   covers g scope = scope.direction == governedDirection g && not (Array.null scope.over)
 
--- | The Entity that governs a flows Rule; a holding Rule has none.
-governorOf :: forall v. RuleF v -> Maybe EntityId
+-- | The Actor that governs a flows Rule; a holding Rule has none.
+governorOf :: forall v. RuleF v -> Maybe ActorId
 governorOf = case _ of
   FlowRule r -> Just r.scope.governor
   HoldingRule _ -> Nothing
@@ -230,18 +227,18 @@ data RuleChangeF v
   = Enact (RuleF v)
   | Repeal RuleId
 
-type Intent = IntentF MarketId Q
+type Intent = IntentF ExchangeId Q
 
--- | An Intent with its Market position resolved: `Nothing` when the position does not resolve. Only a
--- | Trade names a Market; every other kind passes through unchanged.
-withMarket :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
-withMarket f = traverseIntent (samePositions { market = f })
+-- | An Intent with its Exchange position resolved: `Nothing` when the position does not resolve. Only a
+-- | Trade names an Exchange; every other kind passes through unchanged.
+withExchange :: forall m n v. (m -> Maybe n) -> IntentF m v -> Maybe (IntentF n v)
+withExchange f = traverseIntent (samePositions { exchange = f })
 
--- | What to do at each kind of position an Intent holds. The Market position and the fillings may change
+-- | What to do at each kind of position an Intent holds. The Exchange position and the fillings may change
 -- | type; a reference stays the reference it is.
 type IntentPositions f m n v w =
-  { market :: m -> f n
-  , entity :: EntityId -> f EntityId
+  { exchange :: m -> f n
+  , actor :: ActorId -> f ActorId
   , value :: v -> f w
   , resource :: ResourceId -> f ResourceId
   , transformation :: TransformationId -> f TransformationId
@@ -250,13 +247,13 @@ type IntentPositions f m n v w =
 
 -- | Every position kept as it is. A walk overrides the positions it changes.
 samePositions :: forall f m v. Applicative f => IntentPositions f m m v v
-samePositions = { market: pure, entity: pure, value: pure, resource: pure, transformation: pure, rule: pure }
+samePositions = { exchange: pure, actor: pure, value: pure, resource: pure, transformation: pure, rule: pure }
 
 -- | Every position read as nothing. A fold overrides the positions it reads.
 ignorePositions :: forall r m n v w. Monoid r => IntentPositions (Const r) m n v w
 ignorePositions =
-  { market: \_ -> Const mempty
-  , entity: \_ -> Const mempty
+  { exchange: \_ -> Const mempty
+  , actor: \_ -> Const mempty
   , value: \_ -> Const mempty
   , resource: \_ -> Const mempty
   , transformation: \_ -> Const mempty
@@ -267,9 +264,9 @@ ignorePositions =
 foldIntent :: forall r m v. Monoid r => IntentPositions (Const r) m Unit v Unit -> IntentF m v -> r
 foldIntent p = un Const <<< traverseIntent p
 
--- | Rebuild an Intent position by position, in one fixed order: the Market or the pair's Resources, then a
--- | Transfer's Resource and parties or a Transform's Entity and Transformation, then the Rule's positions,
--- | then the quantity and the limit. Selector products and Proposal ids depend on this order, which is why
+-- | Rebuild an Intent position by position, in one fixed order: the Exchange or the pair's Resources, then a
+-- | Transfer's Resource and parties or a Transform's Actor and Transformation, then the Rule's positions,
+-- | then the quantity and the limit. Selector products and candidate Transaction ids depend on this order, which is why
 -- | walks go through here and not through the derived `Foldable` (it visits the limit before the quantity).
 traverseIntent
   :: forall f m n v w
@@ -278,11 +275,11 @@ traverseIntent
   -> IntentF m v
   -> f (IntentF n w)
 traverseIntent t = case _ of
-  Trade x -> (\market quantity limitPrice -> Trade { market, quantity, limitPrice }) <$> t.market x.market <*> t.value x.quantity <*> traverse t.value x.limitPrice
+  Trade x -> (\exchange quantity limitPrice -> Trade { exchange, quantity, limitPrice }) <$> t.exchange x.exchange <*> t.value x.quantity <*> traverse t.value x.limitPrice
   Route x -> (\base quote quantity limitPrice -> Route { pair: { base, quote }, quantity, limitPrice }) <$> t.resource x.pair.base <*> t.resource x.pair.quote <*> t.value x.quantity <*> traverse t.value x.limitPrice
-  Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.entity x.from <*> t.entity x.to <*> t.value x.quantity
-  Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.entity x.by <*> t.transformation x.transformation <*> t.value x.quantity
-  ChangeRule (Enact (FlowRule r)) -> (\governor counterparty over effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction, over }, effect }))) <$> t.entity r.scope.governor <*> t.entity r.scope.counterparty <*> traverse t.resource r.scope.over <*> effectAt r.effect
+  Transfer x -> (\resource from to quantity -> Transfer { from, to, resource, quantity }) <$> t.resource x.resource <*> t.actor x.from <*> t.actor x.to <*> t.value x.quantity
+  Transform x -> (\by transformation quantity -> Transform { by, transformation, quantity }) <$> t.actor x.by <*> t.transformation x.transformation <*> t.value x.quantity
+  ChangeRule (Enact (FlowRule r)) -> (\governor counterparty over effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction, over }, effect }))) <$> t.actor r.scope.governor <*> t.actor r.scope.counterparty <*> traverse t.resource r.scope.over <*> effectAt r.effect
   ChangeRule (Enact (HoldingRule r)) -> (\resource reduce -> ChangeRule (Enact (HoldingRule { kind: r.kind, resource, reduce }))) <$> t.resource r.resource <*> t.value r.reduce
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
   where
@@ -294,9 +291,9 @@ type Rule = RuleF Q
 type RuleKindId = Id RuleKindTag
 type RuleChange = RuleChangeF Q
 
--- | Whether a joint Proposal may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
+-- | Whether a joint candidate Transaction may bundle this Intent: a Transfer or a Transform. A Trade, a routed order, and a
 -- | change of Rule are one party's own action (docs/02 §3.3). The one statement of the rule: screening,
--- | the setting shape of a joint Proposal, and the prompt's wording all follow it.
+-- | the premise shape of a joint candidate Transaction, and the prompt's wording all follow it.
 jointIntent :: forall m v. IntentF m v -> Boolean
 jointIntent = case _ of
   Transfer _ -> true
@@ -305,28 +302,28 @@ jointIntent = case _ of
   Route _ -> false
   ChangeRule _ -> false
 
--- | What a Proposal says before its id and author are assigned: its Intents, the signers it asks
--- | for, and the collective procedure it runs under (if any). Procedure is a Proposal concern, not an
--- | Intent kind (docs/02 §3). A Strategy's Joint and Procedure templates are `ProposalF MarketRef Expr`.
-type ProposalF m v = Record (ProposalRow m v ())
+-- | What a candidate Transaction says before its id and author are assigned: its Intents, the signers it asks
+-- | for, and the collective procedure it runs under (if any). Procedure is a candidate Transaction concern, not an
+-- | Intent kind (docs/02 §3). A StrategyRules's Joint and Procedure templates are `ProposalF ExchangeRef Expr`.
+type CandidateTransactionF m v = Record (CandidateTransactionRow m v ())
 
--- | The Intents a Proposal holds and whom it asks to sign: what every form of a Proposal shares.
-type ProposalCore m v r =
+-- | The Intents a candidate Transaction holds and whom it asks to sign: what every form of a candidate Transaction shares.
+type CandidateTransactionCore m v r =
   ( intents :: Array (IntentF m v)
-  , signers :: Array EntityId
+  , signers :: Array ActorId
   | r
   )
 
-type ProposalRow m v r = ProposalCore m v (procedure :: Maybe CollectiveProcedureId | r)
+type CandidateTransactionRow m v r = CandidateTransactionCore m v (procedure :: Maybe CollectiveProcedureId | r)
 
-type Proposal = Record (ProposalRow MarketId Q (id :: ProposalId, author :: EntityId))
+type CandidateTransaction = Record (CandidateTransactionRow ExchangeId Q (id :: CandidateTransactionId, author :: ActorId))
 
-type SignedProposal = { proposal :: Proposal, signatures :: Array EntityId }
+type SignedCandidateTransaction = { candidateTransaction :: CandidateTransaction, signatures :: Array ActorId }
 
--- Markets and Transformations (§5) ------------------------------------------------
+-- Exchanges and Transformations (§5) ------------------------------------------------
 
--- | What a Transformation's orders pay: priced on the curve, in the Resource, to the Entity.
-type Payment = { curve :: CostFunction, resource :: ResourceId, to :: EntityId }
+-- | What a Transformation's orders pay: priced on the curve, in the Resource, to the Actor.
+type Payment = { curve :: CostFunction, resource :: ResourceId, to :: ActorId }
 
 type Transformation =
   { id :: TransformationId
@@ -336,12 +333,12 @@ type Transformation =
   , payment :: Maybe Payment -- what an order pays, if anything
   , delay :: RoundOffset
   , minimum :: Quantity -- smallest order accepted
-  , maximum :: Maybe Quantity -- largest total accepted per Entity per round, across its Proposals
+  , maximum :: Maybe Quantity -- largest total accepted per Actor per round, across its candidate Transactions
   , ownerSigns :: Boolean -- the holder of the Resource drawn must sign every order
   , effects :: Array DelayedFlow -- what settles after the delay
   }
 
--- | Whose holding a draw is taken from: the Entity running the order, or the unique positive holder of the
+-- | Whose holding a draw is taken from: the Actor running the order, or the unique positive holder of the
 -- | Resource.
 data DrawSource = Executor | HolderOf
 
@@ -349,9 +346,9 @@ data DrawSource = Executor | HolderOf
 type Draw = { resource :: ResourceId, from :: DrawSource, perUnit :: Quantity }
 
 -- | A per-unit quantity of a Resource created for a holder or sunk from it, settling after the Transformation's
--- | delay. `holder` defaults to the ordering Entity; `rounds` limits how long it lasts.
+-- | delay. `holder` defaults to the ordering Actor; `rounds` limits how long it lasts.
 type DelayedFlow =
-  { resource :: ResourceId, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
+  { resource :: ResourceId, holder :: Maybe ActorId, perUnit :: Quantity, rounds :: Maybe Int }
 
 -- | The draw a Transformation takes from a Resource's holder, if it has one.
 holderDraw :: Transformation -> Maybe Draw
@@ -371,8 +368,8 @@ executorDraws = Array.filter (\d -> d.from == Executor) <<< _.draws
 
 type Representation =
   { id :: RepresentationId
-  , actor :: EntityId
-  , aggregate :: EntityId
+  , playableActor :: ActorId
+  , aggregate :: ActorId
   , domain :: BehaviorDomain
   , observes :: ResourceId -- the Resource whose purchases are observed
   , weight :: Ratio
@@ -388,8 +385,7 @@ type Estimator =
 
 -- Instances ------------------------------------------------------------------
 
-derive instance Generic EntityKind _
-derive instance Generic Controller _
+derive instance Generic ActorKind _
 derive instance Generic Transferability _
 derive instance Generic DrawSource _
 derive instance Generic Capability _
@@ -416,8 +412,7 @@ derive instance Functor RuleChangeF
 derive instance Foldable RuleChangeF
 derive instance Traversable RuleChangeF
 
-derive instance Eq EntityKind
-derive instance Eq Controller
+derive instance Eq ActorKind
 derive instance Eq Transferability
 derive instance Eq DrawSource
 derive instance Eq Capability
@@ -431,10 +426,7 @@ derive instance Eq v => Eq (FlowEffect v)
 derive instance Eq v => Eq (RuleF v)
 derive instance Eq v => Eq (RuleChangeF v)
 
-instance Show EntityKind where
-  show = genericShow
-
-instance Show Controller where
+instance Show ActorKind where
   show = genericShow
 
 instance Show Transferability where
@@ -475,7 +467,7 @@ instance Show v => Show (RuleChangeF v) where
 
 -- Described shapes. The engine's Intents, Rules and rule changes are described once
 -- here. Their JSON codecs are the snapshot codec of the shape, so no second codec exists for them.
--- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the setting-format tags of
+-- Each sum is written in the snapshot form (`{"tag":..,"values":[..]}`); the premise-format tags of
 -- these types are in the `schema` package.
 
 -- | An object keyed by id, read into a Map.
@@ -491,7 +483,7 @@ directionShape = genericEnum "Direction"
 
 flowScopeShape :: Shape FlowScope
 flowScopeShape = recordOf "FlowScope"
-  ( field @"governor" "the Entity that governs the Rule" idShape
+  ( field @"governor" "the Actor that governs the Rule" idShape
       &. field @"counterparty" "the other party" idShape
       &. field @"direction" "inbound to the governor, outbound from it, or either way" directionShape
       &. field @"over" "the Resources the Rule covers" (arrayOf idShape)
@@ -506,7 +498,7 @@ flowEffectShape v = genericSum "FlowEffect"
 levyBasisShape :: Shape LevyBasis
 levyBasisShape = genericSum "LevyBasis"
   { "PerUnit": atTagged "per unit moved" unitShape
-  , "AdValorem": atTagged "on the value moved, at this Market's price" idShape
+  , "AdValorem": atTagged "on the value moved, at this Exchange's price" idShape
   }
 
 levyRecipientShape :: Shape LevyRecipient
@@ -534,14 +526,14 @@ ruleFormShape = genericSum "RuleForm"
   , "ReduceHolding": atTagged "a reduction of what can be drawn" unitShape
   }
 
--- The bodies the snapshot, setting and template forms of an Intent share, over its filling `v`. The
+-- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
 -- tag forms differ by format; these do not.
 
 -- | A Transfer.
-transferBody :: forall v. Shape v -> Shape { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
+transferBody :: forall v. Shape v -> Shape { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
 transferBody v = recordOf "Transfer"
-  ( field @"from" "the giving Entity" idShape
-      &. field @"to" "the receiving Entity" idShape
+  ( field @"from" "the giving Actor" idShape
+      &. field @"to" "the receiving Actor" idShape
       &. field @"resource" "the Resource" idShape
       &. field @"quantity" "the quantity" v
   )
@@ -554,16 +546,16 @@ ruleChangeShape = genericSum "RuleChange"
 
 intentShape :: Shape Intent
 intentShape = genericSum "Intent"
-  { "Trade": atTagged "an order in a Market" tradeShape
+  { "Trade": atTagged "an order in an Exchange" tradeShape
   , "Route": atTagged "a best-execution order on a pair of Resources" routeShape
-  , "Transfer": atTagged "a Resource given from one Entity to another" transferShape
+  , "Transfer": atTagged "a Resource given from one Actor to another" transferShape
   , "Transform": atTagged "a run of a transformation" transformShape
   , "ChangeRule": atTagged "enact or repeal a Rule" ruleChangeShape
   }
   where
   tradeShape = recordOf "Trade"
-    ( field @"market" "the Market" idShape
-        &. field @"quantity" "+ buys, - sells the Market's base Resource" qShape
+    ( field @"exchange" "the Exchange" idShape
+        &. field @"quantity" "+ buys, - sells the Exchange's base Resource" qShape
         &. field @"limitPrice" "the limit price, if any" (optionalOf qShape)
     )
   routeShape = object "Route"
@@ -579,12 +571,12 @@ intentShape = genericSum "Intent"
     )
   transferShape = transferBody qShape
   transformShape = recordOf "Transform"
-    ( field @"by" "the Entity that runs it" idShape
+    ( field @"by" "the Actor that runs it" idShape
         &. field @"transformation" "the transformation" idShape
         &. field @"quantity" "the quantity run" qShape
     )
 
--- The entity, capability, and proposal shapes. The closure of a View is described
+-- The Actor, capability, and proposal shapes. The closure of a View is described
 -- here, so the model's requests and the Run Store's records encode through these shapes.
 
 transferabilityShape :: Shape Transferability
@@ -595,16 +587,10 @@ drawSourceShape = genericEnum "DrawSource"
 
 capabilityShape :: Shape Capability
 capabilityShape = genericSum "Capability"
-  { "MayTrade": atTagged "a Market the Entity may trade in" idShape
-  , "MayTransfer": atTagged "a Resource the Entity may transfer" idShape
-  , "MayTransform": atTagged "a Transformation the Entity may run" idShape
-  , "MayEnact": atTagged "a kind of Rule the Entity may enact" idShape
-  }
-
-controllerShape :: Shape Controller
-controllerShape = genericSum "Controller"
-  { "Seat": atTagged "a seat of the game" idShape
-  , "NPC": atTagged "a Policy" idShape
+  { "MayTrade": atTagged "an Exchange the Actor may trade in" idShape
+  , "MayTransfer": atTagged "a Resource the Actor may transfer" idShape
+  , "MayTransform": atTagged "a Transformation the Actor may run" idShape
+  , "MayEnact": atTagged "a kind of Rule the Actor may enact" idShape
   }
 
 collectiveProcedureShape :: Shape CollectiveProcedure
@@ -617,38 +603,39 @@ collectiveProcedureShape = recordOf "CollectiveProcedure"
 
 aggregateShape :: Shape Aggregate
 aggregateShape = recordOf "Aggregate"
-  ( field @"policy" "the Policy that decides for it" idShape
-      &. field @"members" "the Entities it is made of" (arrayOf idShape)
+  ( field @"strategy" "the Strategy that decides for it" idShape
+      &. field @"members" "the Actors it is made of" (arrayOf idShape)
       &. field @"procedures" "its collective procedures" (mapOf idShape collectiveProcedureShape)
   )
 
-entityKindShape :: Shape EntityKind
-entityKindShape = genericSum "EntityKind"
-  { "Actor": atTagged "an Entity a Controller acts for" controllerShape
-  , "Aggregate": atTagged "an Entity made of members" aggregateShape
+actorKindShape :: Shape ActorKind
+actorKindShape = genericSum "ActorKind"
+  { "PlayableActor": atTagged "an Actor played from outside the Premise, by a human or an LLM" idShape
+  , "NonPlayableActor": atTagged "an Actor run by a Strategy the Premise defines" idShape
+  , "Aggregate": atTagged "an Actor made of members" aggregateShape
   }
 
-entityShape :: Shape Entity
-entityShape = recordOf "Entity"
-  ( field @"id" "the Entity's id" idShape
+actorShape :: Shape Actor
+actorShape = recordOf "Actor"
+  ( field @"id" "the Actor's id" idShape
       &. field @"accounts" "its holdings of each Resource" (mapOf idShape qShape)
       &. field @"capabilities" "what it may do" (arrayOf capabilityShape)
-      &. field @"kind" "an Actor or an Aggregate" entityKindShape
+      &. field @"kind" "an PlayableActor or an Aggregate" actorKindShape
   )
 
-proposalShape :: Shape Proposal
-proposalShape = recordOf "Proposal"
-  ( field @"id" "the Proposal's id" idShape
-      &. field @"author" "the Entity that submitted it" idShape
+candidateTransactionShape :: Shape CandidateTransaction
+candidateTransactionShape = recordOf "CandidateTransaction"
+  ( field @"id" "the CandidateTransaction's id" idShape
+      &. field @"author" "the Actor that submitted it" idShape
       &. field @"intents" "the Intents" (arrayOf intentShape)
-      &. field @"signers" "the Entities asked to sign" (arrayOf idShape)
+      &. field @"signers" "the Actors asked to sign" (arrayOf idShape)
       &. field @"procedure" "the collective procedure, if any" (optionalOf idShape)
   )
 
-signedProposalShape :: Shape SignedProposal
-signedProposalShape = recordOf "SignedProposal"
-  ( field @"proposal" "the Proposal" proposalShape
-      &. field @"signatures" "the Entities that signed it" (arrayOf idShape)
+signedCandidateTransactionShape :: Shape SignedCandidateTransaction
+signedCandidateTransactionShape = recordOf "SignedCandidateTransaction"
+  ( field @"candidateTransaction" "the CandidateTransaction" candidateTransactionShape
+      &. field @"signatures" "the Actors that signed it" (arrayOf idShape)
   )
 
 instance EncodeJson DrawSource where
@@ -669,17 +656,11 @@ instance EncodeJson Capability where
 instance DecodeJson Capability where
   decodeJson = decodeJsonWith Snapshot capabilityShape
 
-instance EncodeJson Controller where
-  encodeJson = encodeWith Snapshot controllerShape
+instance EncodeJson ActorKind where
+  encodeJson = encodeWith Snapshot actorKindShape
 
-instance DecodeJson Controller where
-  decodeJson = decodeJsonWith Snapshot controllerShape
-
-instance EncodeJson EntityKind where
-  encodeJson = encodeWith Snapshot entityKindShape
-
-instance DecodeJson EntityKind where
-  decodeJson = decodeJsonWith Snapshot entityKindShape
+instance DecodeJson ActorKind where
+  decodeJson = decodeJsonWith Snapshot actorKindShape
 
 instance EncodeJson Direction where
   encodeJson = encodeWith Snapshot directionShape
@@ -693,19 +674,19 @@ instance EncodeJson (RuleChangeF Q) where
 instance DecodeJson (RuleChangeF Q) where
   decodeJson = decodeJsonWith Snapshot ruleChangeShape
 
-instance EncodeJson (IntentF MarketId Q) where
+instance EncodeJson (IntentF ExchangeId Q) where
   encodeJson = encodeWith Snapshot intentShape
 
-instance DecodeJson (IntentF MarketId Q) where
+instance DecodeJson (IntentF ExchangeId Q) where
   decodeJson = decodeJsonWith Snapshot intentShape
 
-proposalId :: RoundIndex -> EntityId -> Int -> ProposalId
-proposalId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
+candidateTransactionId :: RoundIndex -> ActorId -> Int -> CandidateTransactionId
+candidateTransactionId r (Id author) i = Id ("r" <> show r <> "/" <> author <> "/" <> show i)
 
 -- | A Transform's body, and one whose `by` is implicit, and a repeal's: the forms every Intent format writes.
-transformBody :: forall v. Shape v -> Shape { by :: EntityId, transformation :: TransformationId, quantity :: v }
+transformBody :: forall v. Shape v -> Shape { by :: ActorId, transformation :: TransformationId, quantity :: v }
 transformBody v = recordOf "Transform"
-  ( field @"by" "the Entity that runs it" idShape
+  ( field @"by" "the Actor that runs it" idShape
       &. field @"transformation" "the transformation" idShape
       &. field @"quantity" "the quantity run" v
   )
@@ -719,12 +700,12 @@ ownTransformBody v = recordOf "Transform"
 repealBody :: Shape { rule :: RuleId }
 repealBody = recordOf "Repeal" (field @"rule" "the Rule, by the id the engine gave it" idShape)
 
-ruleIdOf :: ProposalId -> Int -> RuleId
+ruleIdOf :: CandidateTransactionId -> Int -> RuleId
 ruleIdOf p i = Id (show p <> "/rule-" <> show i)
 
--- | The index a Proposal id was built with: the segment after its last "/". Nothing for an id
+-- | The index a candidate Transaction id was built with: the segment after its last "/". Nothing for an id
 -- | that `proposalId` could not have made.
-submissionIndex :: ProposalId -> Maybe Int
+submissionIndex :: CandidateTransactionId -> Maybe Int
 submissionIndex (Id s) = Int.fromString =<< last (split (Pattern "/") s)
 
 instance EncodeJson (RuleF Q) where

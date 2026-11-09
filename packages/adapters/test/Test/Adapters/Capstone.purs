@@ -20,11 +20,11 @@ import Data.Traversable (traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Observe (readRounds)
-import Game.Types (Game)
+import Assembly.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Handlers.Store (runObserve)
-import Settings.Meridian.Capstone as C
+import Premises.Meridian.Capstone as C
 import Handlers.Simulate (simulate)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow)

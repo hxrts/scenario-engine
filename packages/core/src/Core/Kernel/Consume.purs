@@ -1,4 +1,4 @@
--- | Consumption (docs/02_type_system.md): every obligation due in a round ends performed, short or
+-- | Consumption (docs/02_kernel.md): every obligation due in a round ends performed, short or
 -- | lapsed, and its branch of `next` is instantiated at commit. Arguments freeze here, as plain
 -- | values, and a successor can name only the parties its parent bound.
 module Core.Kernel.Consume
@@ -13,11 +13,11 @@ module Core.Kernel.Consume
 import Prelude
 
 import Core.Kernel.Resolve (Consumed, Fate(..))
-import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), Next, Obligation, Party(..), Pending, Spawn, Template)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Transaction, Effect(..), Next, Obligation, Party(..), Pending, Spawn, Template)
 
 import Core.Map (entries)
 import Core.Num as Q
-import Core.Types (EntityId, RoundIndex)
+import Core.Types (ActorId, RoundIndex)
 import Data.Array (concat, concatMap, elem, index, nub, partition)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
@@ -31,7 +31,7 @@ import Data.Tuple (Tuple(..))
 data ConsumeError
   = DueTooSoon String Int
   | UnknownTemplate String
-  | OutsideParent String EntityId
+  | OutsideParent String ActorId
   | MissingParty String String
 
 derive instance Eq ConsumeError
@@ -46,13 +46,13 @@ validSpawn s
   | otherwise = Right unit
 
 -- | Refuse a template, at validation, that spawns for its own round.
-validateTemplates :: forall cap dynamic query reason cause. Map String (Template cap dynamic query reason cause) -> Either ConsumeError Unit
-validateTemplates = traverse_ (traverse_ checkNext <<< _.coupling.obligations)
+validateTemplates :: forall cap law query reason cause. Map String (Template cap law query reason cause) -> Either ConsumeError Unit
+validateTemplates = traverse_ (traverse_ checkNext <<< _.transaction.obligations)
   where
   checkNext o = traverse_ validSpawn (o.next.performed <> o.next.short <> o.next.lapsed)
 
--- | Everyone a coupling binds: its obligors, the holders its legs name, and its signers.
-partiesOf :: forall cap dynamic query reason cause. Coupling cap dynamic query reason cause -> Array EntityId
+-- | Everyone a transaction binds: its obligors, the holders its settled Flows name, and its signers.
+partiesOf :: forall cap law query reason cause. Transaction cap law query reason cause -> Array ActorId
 partiesOf c = nub (c.consented <> concatMap ofObligation c.obligations)
   where
   ofObligation o = named o.obligor <> ofEffect o.effect
@@ -67,27 +67,27 @@ partiesOf c = nub (c.consented <> concatMap ofObligation c.obligations)
     Bound _ -> []
 
 -- | The pending obligations due by `round`, and the rest.
-due :: forall cap dynamic query reason cause. RoundIndex -> Array (Pending cap dynamic query reason cause) -> { now :: Array (Pending cap dynamic query reason cause), later :: Array (Pending cap dynamic query reason cause) }
+due :: forall cap law query reason cause. RoundIndex -> Array (Pending cap law query reason cause) -> { now :: Array (Pending cap law query reason cause), later :: Array (Pending cap law query reason cause) }
 due round pending = case partition (\p -> p.due <= round) pending of
   { yes, no } -> { now: yes, later: no }
 
 -- | What every consumed obligation spawns, due relative to `round`.
 spawned
-  :: forall cap dynamic query reason cause
+  :: forall cap law query reason cause
    . RoundIndex
-  -> Map String (Template cap dynamic query reason cause)
-  -> Array (Coupling cap dynamic query reason cause)
-  -> Array (Consumed dynamic reason)
-  -> Either ConsumeError (Array (Pending cap dynamic query reason cause))
-spawned round templates couplings consumed = concat <$> traverse one consumed
+  -> Map String (Template cap law query reason cause)
+  -> Array (Transaction cap law query reason cause)
+  -> Array (Consumed law reason)
+  -> Either ConsumeError (Array (Pending cap law query reason cause))
+spawned round templates transactions consumed = concat <$> traverse one consumed
   where
-  one c = case index couplings c.coupling of
+  one c = case index transactions c.transaction of
     Nothing -> Right []
     Just parent -> case index parent.obligations c.obligation of
       Nothing -> Right []
       Just o -> traverse (instantiate round templates parent c) (branch c.fate o)
 
-branch :: forall cap dynamic query reason. Fate -> Obligation cap dynamic query reason -> Array (Spawn query)
+branch :: forall cap law query reason. Fate -> Obligation cap law query reason -> Array (Spawn query)
 branch fate o = pick o.next
   where
   pick :: Next query -> Array (Spawn query)
@@ -97,13 +97,13 @@ branch fate o = pick o.next
     Expired -> n.lapsed
 
 instantiate
-  :: forall cap dynamic query reason cause
+  :: forall cap law query reason cause
    . RoundIndex
-  -> Map String (Template cap dynamic query reason cause)
-  -> Coupling cap dynamic query reason cause
-  -> Consumed dynamic reason
+  -> Map String (Template cap law query reason cause)
+  -> Transaction cap law query reason cause
+  -> Consumed law reason
   -> Spawn query
-  -> Either ConsumeError (Pending cap dynamic query reason cause)
+  -> Either ConsumeError (Pending cap law query reason cause)
 instantiate round templates parent c s = do
   validSpawn s
   template <- maybe (Left (UnknownTemplate s.template)) Right (Map.lookup s.template templates)
@@ -114,7 +114,7 @@ instantiate round templates parent c s = do
   traverse_ (\p -> if Map.member p parties then Right unit else Left (MissingParty s.template p)) template.parties
   pure
     { due: round + s.due
-    , coupling: substitute args parties parent template
+    , transaction: substitute args parties parent template
     }
   where
   allowed = partiesOf parent
@@ -124,7 +124,7 @@ instantiate round templates parent c s = do
     Bound p -> Left (MissingParty t p)
 
 -- | An argument's value when its obligation is consumed.
-freeze :: forall dynamic query reason. Consumed dynamic reason -> Amount query -> Amount query
+freeze :: forall law query reason. Consumed law reason -> Amount query -> Amount query
 freeze c = go
   where
   moved = maybe Q.zero _.moved c.flow
@@ -140,14 +140,14 @@ freeze c = go
     Least p -> Least { left: go p.left, right: go p.right }
     other -> other
 
--- | A template's coupling with its arguments and parties filled in, carrying its parent's consent.
+-- | A template's transaction with its arguments and parties filled in, carrying its parent's consent.
 substitute
-  :: forall cap dynamic query reason cause
+  :: forall cap law query reason cause
    . Map String (Amount query)
-  -> Map String EntityId
-  -> Coupling cap dynamic query reason cause
-  -> Template cap dynamic query reason cause
-  -> Coupling cap dynamic query reason cause
+  -> Map String ActorId
+  -> Transaction cap law query reason cause
+  -> Template cap law query reason cause
+  -> Transaction cap law query reason cause
 substitute args parties parent template = c
   { obligations = map obligation c.obligations
   , holds = map (\h -> h { party = party h.party, amount = amount h.amount }) c.holds
@@ -157,7 +157,7 @@ substitute args parties parent template = c
   , consented = nub (parent.consented <> c.consented)
   }
   where
-  c = template.coupling
+  c = template.transaction
   party = case _ of
     Bound p | Just e <- Map.lookup p parties -> Named e
     other -> other

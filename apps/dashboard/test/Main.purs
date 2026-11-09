@@ -8,7 +8,7 @@ import Core.Num as Q
 import Dashboard.Chart (chartRows, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
 import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
-import Views.Setting (RoundRange, Setting)
+import Views.Premise (RoundRange, Premise)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
 import Dashboard.RunForms (deriveRequest, rounds)
@@ -101,36 +101,36 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Ratio series) `shouldEqual` [ Just "12.12", Just "0.00" ]
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Launch form: defaults" do
-    it "the empty form is a valid request: the default name, Conservative, a drawn seed, the setting's rounds" do
-      validate setting emptyForm `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+    it "the empty form is a valid request: the default name, Conservative, a drawn seed, the premise's rounds" do
+      validate premise emptyForm `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
     it "a blank or spaced name is the default name; a typed name is trimmed" do
-      validate setting (emptyForm { name = "  " }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-      validate setting (emptyForm { name = " copy " }) `shouldEqual` Right { setting: Just setting.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-    it "the round count shown is the setting's default when blank, and the typed count otherwise" do
-      roundValue settingRounds "" `shouldEqual` 5
-      roundValue settingRounds " 7 " `shouldEqual` 7
-      roundChoices settingRounds `shouldEqual` [ 4, 5, 6, 7, 8 ]
+      validate premise (emptyForm { name = "  " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+      validate premise (emptyForm { name = " copy " }) `shouldEqual` Right { premise: Just premise.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
+    it "the round count shown is the premise's default when blank, and the typed count otherwise" do
+      roundValue premiseRounds "" `shouldEqual` 5
+      roundValue premiseRounds " 7 " `shouldEqual` 7
+      roundChoices premiseRounds `shouldEqual` [ 4, 5, 6, 7, 8 ]
     it "the summary line says what the run will play, with the defaults filled in" do
-      summary settingRounds emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
-      summary settingRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
+      summary premiseRounds emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
+      summary premiseRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
-    it "rounds, when given, must be a whole number; the setting's range is the server's" do
-      validate setting (emptyForm { rounds = " 6 " }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
-      validate setting (emptyForm { rounds = "4" }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
-      validate setting (emptyForm { rounds = "8" }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate setting (emptyForm { rounds = "3" }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
-      validate setting (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
-    it "a preset must be one the setting offers; Trader is accepted" do
-      validate setting (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
-      validate setting (emptyForm { preset = "Trader" }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
+    it "rounds, when given, must be a whole number; the premise's range is the server's" do
+      validate premise (emptyForm { rounds = " 6 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
+      validate premise (emptyForm { rounds = "4" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
+      validate premise (emptyForm { rounds = "8" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
+      validate premise (emptyForm { rounds = "3" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
+      validate premise (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
+    it "a preset must be one the premise offers; Trader is accepted" do
+      validate premise (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
+      validate premise (emptyForm { preset = "Trader" }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
     it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
-      validate setting (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { setting: Just setting.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
-      validate setting (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
-  describe "Setting reply" do
-    it "the setting's name, round range, game seed, default name and presets are decoded from GET /api/setting" do
-      decodeSetting "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
-        `shouldEqual` Right setting
-      decodeSetting "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
+      validate premise (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { premise: Just premise.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
+      validate premise (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
+  describe "Premise reply" do
+    it "the premise's name, round range, game seed, default name and presets are decoded from GET /api/premise" do
+      decodePremise "{\"name\":\"meridian\",\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
+        `shouldEqual` Right premise
+      decodePremise "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
   describe "Round count rule" do
     it "the launch form and the resume form apply one rule: a whole number of at least one" do
       rounds " 6 " `shouldEqual` Right 6
@@ -178,12 +178,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   runList :: RunList
   runList = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
 
-  -- the meridian setting's round range: 4 to 8, with 5 by default
-  settingRounds :: RoundRange
-  settingRounds = { min: 4, max: 8, default: 5 }
+  -- the meridian premise's round range: 4 to 8, with 5 by default
+  premiseRounds :: RoundRange
+  premiseRounds = { min: 4, max: 8, default: 5 }
 
-  setting :: Setting
-  setting = { name: "meridian", version: "v0", rounds: settingRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
+  premise :: Premise
+  premise = { name: "meridian", version: "v0", rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
 
-  decodeSetting :: String -> Either String Setting
-  decodeSetting = lmap printJsonDecodeError <<< Shape.parse Snapshot Keys.setting
+  decodePremise :: String -> Either String Premise
+  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot Keys.premise

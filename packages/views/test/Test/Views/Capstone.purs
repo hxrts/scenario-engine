@@ -1,4 +1,4 @@
--- | The analysis checks of the capstone (`Settings.Meridian.Capstone`): an
+-- | The analysis checks of the capstone (`Premises.Meridian.Capstone`): an
 -- | eight-round run authored in the DSL, checked against the
 -- | objective outcomes the same file carries, its counterfactual, and the dashboard view models.
 -- | The simulator's own checks on the run are in the simulator suite (Test.Handlers.SimCapstone).
@@ -30,19 +30,19 @@ import Views.Common (quantity)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load)
 import Testkit.Meridian (run)
-import Settings.Meridian.Capstone (ObjectiveExpect)
+import Premises.Meridian.Capstone (ObjectiveExpect)
 import Checks.Objectives (evaluateObjectives)
 import Handlers.Simulate (SimRun)
-import Game.Setting (GameboardParts)
+import Assembly.Premise (PossibleWorldParts)
 import Views.Actions as Actions
 import Views.Balance as Balance
 import Views.Balances as Balances
 import Views.Drivers as Drivers
 import Views.Compare as Compare
-import Views.Entity as Entity
+import Views.Actor as Actor
 import Views.Glossary (allColumns, glossary)
 import Views.Keys as Keys
-import Views.Markets as Markets
+import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
@@ -50,15 +50,15 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | Every objective the run evaluates has the outcome the DSL expects, and the two lists name
--- | the same Entities: no objective is left without an explicit outcome.
-checkObjectives :: GameboardParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
+-- | the same Actors: no objective is left without an explicit outcome.
+checkObjectives :: PossibleWorldParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
 checkObjectives ctx r expected = do
   let
-    actual = sortWith _.entity (map (\o -> { entity: o.actor, outcome: o.outcome }) (evaluateObjectives ctx.gameboard r.records))
-    wanted = sortWith _.entity (map (\o -> { entity: o.entity, outcome: o.outcome }) expected)
+    actual = sortWith _.actor (map (\o -> { actor: o.playableActor, outcome: o.outcome }) (evaluateObjectives ctx.possibleWorld r.records))
+    wanted = sortWith _.actor (map (\o -> { actor: o.actor, outcome: o.outcome }) expected)
   actual `shouldEqual` wanted
 
-spec :: Aff GameboardParts -> Spec Unit
+spec :: Aff PossibleWorldParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run)" do
   it "a batch summary gives the mean, the spread, and the runs that met an objective" do
     _ <- context
@@ -113,7 +113,7 @@ spec context = describe "Capstone (DSL-authored run)" do
     base <- run cap.playerSeed cap.game
     cf <- run cap.playerSeed cap.counterfactual
     let d = differenceOf base cf
-    any (\x -> x.entity == Id "US" && x.resource == Id "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
+    any (\x -> x.actor == Id "US" && x.resource == Id "Mil" && x.delta /= Q.zero) d.holdings `shouldEqual` true
 
   it "a Rule enacted in the run reaches the Drivers view through its round record" do
     _ <- context
@@ -137,15 +137,15 @@ spec context = describe "Capstone (DSL-authored run)" do
         Right t -> table name t
     fromEither "balances" (Balances.balances sr 1)
     fromEither "events" (Balances.events sr 4)
-    table "facilities" (Markets.facilities sr)
-    table "pressure" (Markets.economy sr).pressure
-    table "economy flows" (Markets.economy sr).flows
+    table "transformations" (Exchanges.transformations sr)
+    table "pressure" (Exchanges.economy sr).pressure
+    table "economy flows" (Exchanges.economy sr).flows
     table "representation" (Representation.representation sr)
     table "procedures" (Representation.procedures sr)
-    table "objectives" (Overview.objectives ctx.gameboard sr)
+    table "objectives" (Overview.objectives ctx.possibleWorld sr)
     table "final state" (Compare.finalState [ sr ]).table
-    (length (Markets.markets sr) > 0) `shouldEqual` true
-    (length (Markets.economy sr).totals.series > 0) `shouldEqual` true
+    (length (Exchanges.exchanges sr) > 0) `shouldEqual` true
+    (length (Exchanges.economy sr).totals.series > 0) `shouldEqual` true
 
   it "every view reply reads back through its key's shape, unchanged" do
     ctx <- context
@@ -166,17 +166,17 @@ spec context = describe "Capstone (DSL-authored run)" do
       encoded s = prettyJson <<< encodeWith Snapshot s
     same Keys.overview (Overview.overview sr)
     either fail (same Keys.balances) (Balances.balances sr 1)
-    same Keys.markets (Markets.markets sr)
-    same Keys.facilities (Markets.facilities sr)
-    same Keys.economy (Markets.economy sr)
+    same Keys.exchanges (Exchanges.exchanges sr)
+    same Keys.transformations (Exchanges.transformations sr)
+    same Keys.economy (Exchanges.economy sr)
     same Keys.representation (Representation.representation sr)
     same Keys.procedures (Representation.procedures sr)
-    same Keys.objectives (Overview.objectives ctx.gameboard sr)
+    same Keys.objectives (Overview.objectives ctx.possibleWorld sr)
     same Keys.standings (Standings.standings sr)
     same Keys.netWorth (Standings.netWorthChart sr)
     same Keys.actions (Actions.actions sr)
     same Keys.drivers (Drivers.drivers sr)
-    same Keys.balance (Balance.balanceView ctx.gameboard sr)
+    same Keys.balance (Balance.balanceView ctx.possibleWorld sr)
     either fail (same Keys.events) (Balances.events sr 1)
     reads Keys.glossary (glossary meridianFocus)
 
@@ -189,33 +189,33 @@ spec context = describe "Capstone (DSL-authored run)" do
       sr = toStored "capstone" r
       other = sr { id = "other", name = "other" }
       runs = [ sr, other ]
-      dynamic name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern (glossary meridianFocus).round.prefix) name)
-      undefined' t = Array.filter (\name -> not (Object.member name (glossary meridianFocus).definitions || dynamic name)) t.columns
+      law name = name `Array.elem` [ sr.id, other.id, "capstone" ] || isJust (stripPrefix (Pattern (glossary meridianFocus).round.prefix) name)
+      undefined' t = Array.filter (\name -> not (Object.member name (glossary meridianFocus).definitions || law name)) t.columns
       tables =
-        [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.gameboard sr ]
+        [ (\t -> { title: t.title, columns: t.columns, rows: t.rows }) (Overview.runList []), Overview.objectives ctx.possibleWorld sr ]
           <>
-            [ Markets.facilities sr
-            , (Markets.economy sr).flows
-            , (Markets.economy sr).pressure
+            [ Exchanges.transformations sr
+            , (Exchanges.economy sr).flows
+            , (Exchanges.economy sr).pressure
             , Representation.representation sr
             , Representation.procedures sr
             , Standings.standings sr
             , (Actions.actions sr).totals
             , (Actions.actions sr).byRound
             , Drivers.drivers sr
-            , (Balance.balanceView ctx.gameboard sr).measures
-            , (Balance.balanceView ctx.gameboard sr).completion
+            , (Balance.balanceView ctx.possibleWorld sr).measures
+            , (Balance.balanceView ctx.possibleWorld sr).completion
             , Balance.seedVariation runs
             , Compare.compatible runs
             , (Compare.finalState runs).table
             , Compare.baselineDiff sr [ other ]
             , (Compare.configDiff sr [ other ]).table
-            , Compare.keyValues (const (Just ctx.gameboard)) runs
+            , Compare.keyValues (const (Just ctx.possibleWorld)) runs
             , agencyTable []
             ]
           <> either (const []) (\t -> [ t ]) (Balances.balances sr 1)
           <> either (const []) (\t -> [ t ]) (Balances.events sr 1)
-          <> either (const []) (\h -> [ h.table ]) (Entity.entityHistory sr (Id "US"))
+          <> either (const []) (\h -> [ h.table ]) (Actor.actorHistory sr (Id "US"))
     Array.concatMap undefined' tables `shouldEqual` []
 
 -- | The holdings and prices that differ between two finished runs (none when one did not finish).

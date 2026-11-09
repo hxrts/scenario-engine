@@ -8,18 +8,18 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-import Settings.Meridian.Entities.Seats (seatActors)
-import Testkit.Meridian (setting, unseated)
+import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Testkit.Meridian (premise, unseated)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  describe "the Meridian test setting" do
+  describe "the Meridian test premise" do
     it "names the fifteen seats every suite plays" do
-      length seatActors `shouldEqual` 15
+      length playablePlayableActors `shouldEqual` 15
     it "loads with its presets" do
-      p <- setting
-      p.gameboard.id `shouldEqual` "meridian"
+      p <- premise
+      p.possibleWorld.id `shouldEqual` "meridian"
     it "assembles a game with rounds to play and seats named" do
       g <- unseated
       (g.rounds > 0) `shouldEqual` true
-      null seatActors `shouldEqual` false
+      null playablePlayableActors `shouldEqual` false

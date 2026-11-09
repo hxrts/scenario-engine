@@ -21,7 +21,7 @@ import Run (Run, case_, on, run)
 import Server.Errors (Answer)
 import Server.Implementation (answer)
 import Server.Rows (SERVER)
-import Server.Settings (Settings)
+import Server.Premises (Premises)
 import Views.Common (StoredRun)
 import Views.Metrics (roundMetrics)
 
@@ -53,8 +53,8 @@ runServer d = run
       # on _process (interpretProcess d.system)
   )
 
-implementOn :: Devices -> Settings -> Implementation
-implementOn d settings = runServer d <<< answer settings
+implementOn :: Devices -> Premises -> Implementation
+implementOn d premises = runServer d <<< answer premises
 
-implement :: Settings -> StoreBackend -> ServerCache -> Implementation
-implement settings store cache = implementOn { system: systemDevices, store, cache } settings
+implement :: Premises -> StoreBackend -> ServerCache -> Implementation
+implement premises store cache = implementOn { system: systemDevices, store, cache } premises

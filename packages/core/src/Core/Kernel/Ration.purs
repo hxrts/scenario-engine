@@ -1,4 +1,4 @@
--- | Rationing (docs/02_type_system.md): dividing one limit among many, selected by data. Claims fill
+-- | Rationing (docs/02_kernel.md): dividing one limit among many, selected by data. Claims fill
 -- | tier by tier. A whole claimant that overflows loses every whole claim on that Resource. The rest of
 -- | a tier scales, and everything in one scale group scales by the group's tightest ratio.
 module Core.Kernel.Ration
@@ -15,24 +15,24 @@ import Prelude
 import Core.Map (entries, sumInto, lookupQ)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, ResourceId)
+import Core.Types (ActorId, ResourceId)
 import Data.Array (any, elem, filter, foldl, fromFoldable, nub, partition, sort, zipWith)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..), fst)
 
--- | One thing a coupling asks to set aside. `key` names the coupling.
-type Claim key = { key :: key, tier :: Int, whole :: Boolean, party :: EntityId, resource :: ResourceId, amount :: Q }
+-- | One thing a transaction asks to set aside. `key` names the transaction.
+type Claim key = { key :: key, tier :: Int, whole :: Boolean, party :: ActorId, resource :: ResourceId, amount :: Q }
 
--- | The couplings dropped whole, and the factor each party's claims execute at in each tier. A junior
+-- | The transactions dropped whole, and the factor each party's claims execute at in each tier. A junior
 -- | tier's shortage never scales a senior one.
-type Rationed key = { dropped :: Array key, scales :: Map (Tuple Int EntityId) Q }
+type Rationed key = { dropped :: Array key, scales :: Map (Tuple Int ActorId) Q }
 
-type Stage key = { room :: Map (Tuple EntityId ResourceId) Q, result :: Rationed key }
+type Stage key = { room :: Map (Tuple ActorId ResourceId) Q, result :: Rationed key }
 
 -- | Ration every claim against what each party holds.
-ration :: forall key. Ord key => (EntityId -> ResourceId -> Q) -> Array (Claim key) -> Rationed key
+ration :: forall key. Ord key => (ActorId -> ResourceId -> Q) -> Array (Claim key) -> Rationed key
 ration held claims = (foldl tier { room: Map.empty, result: { dropped: [], scales: Map.empty } } (sort (nub (map _.tier claims)))).result
   where
   available st k@(Tuple e r) = Q.sub (held e r) (lookupQ k st.room)

@@ -1,6 +1,6 @@
--- | The setting compiler's rendering (docs/07 §3): the DSL settings, validated
+-- | The premise compiler's rendering (docs/07 §3): the DSL premises, validated
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
--- | module writes the files under the setting root. The output is gitignored: it is a pure function of
+-- | module writes the files under the premise root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.
 module Render
   ( compile
@@ -19,13 +19,13 @@ import Data.String (joinWith)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
-import Settings.Meridian.Fixtures as Fixtures
-import Settings.Catalog (settings)
-import Settings.Compose (Setting, directory, files, parts, presetsJson, unsectionedKeys)
-import Schema.Setting.Fixture (decodeLiteral)
-import Settings.Layout (fixturePath, presetsFile)
+import Premises.Meridian.Fixtures as Fixtures
+import Premises.Catalog (premises)
+import Premises.Compose (Premise, directory, files, parts, presetsJson, unsectionedKeys)
+import Schema.Premise.Fixture (decodeLiteral)
+import Premises.Layout (fixturePath, presetsFile)
 
--- | A compiled file: its path under the setting root, and its text.
+-- | A compiled file: its path under the premise root, and its text.
 type Output = { path :: String, text :: String }
 
 -- | Every compiled file, or the first validation failure.
@@ -34,35 +34,35 @@ compile = do
   validate
   pure (map (\(Tuple path j) -> { path, text: render j }) outputs)
 
--- | A setting's keys are all in some section file, and it decodes and checks as the loader will read it.
-checked :: Setting -> Either String Unit
+-- | A premise's keys are all in some section file, and it decodes and checks as the loader will read it.
+checked :: Premise -> Either String Unit
 checked c = case unsectionedKeys c of
   [] -> void (parts c)
-  keys -> Left (directory c <> ": Gameboard keys in no section file: " <> joinWith ", " keys)
+  keys -> Left (directory c <> ": PossibleWorld keys in no section file: " <> joinWith ", " keys)
 
--- | One setting's files alone, for a production build: no other setting, no fixtures, no capstone.
+-- | One premise's files alone, for a production build: no other premise, no fixtures, no capstone.
 compileOnly :: String -> Either String (Array Output)
-compileOnly id = case find (\c -> c.id == id) settings of
-  Nothing -> Left ("no setting named " <> id)
+compileOnly id = case find (\c -> c.id == id) premises of
+  Nothing -> Left ("no premise named " <> id)
   Just c -> do
     checked c
-    pure (map (\(Tuple path j) -> { path, text: render j }) (settingFiles c))
+    pure (map (\(Tuple path j) -> { path, text: render j }) (premiseFiles c))
 
--- | Every compiled file's path under the setting root and its JSON.
+-- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  concatMap settingFiles settings
+  concatMap premiseFiles premises
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
 
--- | One setting's files under the setting root.
-settingFiles :: Setting -> Array (Tuple String Json)
-settingFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
+-- | One premise's files under the premise root.
+premiseFiles :: Premise -> Array (Tuple String Json)
+premiseFiles c = map (\(Tuple name j) -> Tuple (directory c <> "/" <> name) j) (files c <> [ Tuple presetsFile (presetsJson c) ])
 
--- | Decode and check the compiled setting exactly as the loader will read it: the Gameboard, the
--- | Policies, the presets against the Gameboard (`checkSetting`), and every fixture.
+-- | Decode and check the compiled premise exactly as the loader will read it: the possible World, the
+-- | Strategies, the presets against the possible World (`checkPremise`), and every fixture.
 validate :: Either String Unit
 validate = do
-  for_ settings checked
+  for_ premises checked
   for_ Fixtures.fixtures \(Tuple name j) -> decodeErrorAt name (decodeLiteral j)
 
 -- | Indented JSON with object keys sorted, so output is stable and diffs stay small.

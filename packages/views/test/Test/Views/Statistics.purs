@@ -6,22 +6,22 @@ module Test.Views.Statistics (spec) where
 
 import Prelude
 
-import Testkit.Edit (onEntity)
+import Testkit.Edit (onActor)
 
 import Test.Views.Support (toStoredWith)
 
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Laws.Types (EntityId, Id(..), IntentF(..), ResourceId)
-import Laws.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, coupled, rejection)
+import Laws.Types (ActorId, Id(..), IntentF(..), ResourceId)
+import Laws.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, settledEvent, rejection)
 import Data.Array (find, index, length, take)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Game.Setting (GameboardParts)
+import Assembly.Premise (PossibleWorldParts)
 import Testkit.Meridian (presetGame, run)
 import Views.Actions (actions)
 import Views.Balance (gini, seedVariation, spread)
@@ -32,10 +32,10 @@ import Views.Standings (netWorth, standings)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
-us :: EntityId
+us :: ActorId
 us = Id "US"
 
-de :: EntityId
+de :: ActorId
 de = Id "DE"
 
 money :: ResourceId
@@ -46,20 +46,20 @@ energy = Id "E"
 
 -- | A simulated run's manifest and World States, read back as the Run Store would: the base every
 -- | hand-built run below reuses.
-baseRun :: GameboardParts -> Aff StoredRun
+baseRun :: PossibleWorldParts -> Aff StoredRun
 baseRun p = do
   g <- presetGame p "Conservative" [] (Just 2)
   r <- run (Seed 1) g
   pure (toStoredWith (emptySpec { preset = Just "Conservative", playerSeed = Just 1 }) "base" r)
 
--- | A holding set to an amount in one Entity's account.
-setHolding :: WorldState -> EntityId -> ResourceId -> Q -> WorldState
-setHolding w e res amount = onEntity e (\x -> (x { accounts = Map.insert res amount x.accounts })) w
+-- | A holding set to an amount in one Actor's account.
+setHolding :: WorldState -> ActorId -> ResourceId -> Q -> WorldState
+setHolding w e res amount = onActor e (\x -> (x { accounts = Map.insert res amount x.accounts })) w
 
--- | A World State where every Actor holds nothing of Money, Energy or Military, and every Market's
+-- | A World State where every Actor holds nothing of Money, Energy or Military, and every Exchange's
 -- | position is zero, so each Energy and Military price is its base price.
 blank :: WorldState -> WorldState
-blank w0 = w { markets = map (\m -> m { position = Q.zero }) w.markets }
+blank w0 = w { exchanges = map (\m -> m { position = Q.zero }) w.exchanges }
   where
   w = foldl zeroPlayer w0 (players w0)
   zeroPlayer acc e = setHolding (setHolding (setHolding acc e (Id "Mil") Q.zero) e energy Q.zero) e money Q.zero
@@ -79,7 +79,7 @@ rowOf t name = find (\row -> index row 0 == Just name) t.rows
 fmt :: Maybe Q -> Maybe String
 fmt = map Q.format
 
-spec :: Aff GameboardParts -> Spec Unit
+spec :: Aff PossibleWorldParts -> Spec Unit
 spec context = describe "Dashboard statistics on hand-built runs" do
   describe "Net worth" do
     it "a known holding at a known price: 100 M plus 10 E at 2 M/E is 120 M" do
@@ -87,11 +87,11 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       base <- baseRun ctx
       let w = setHolding (setHolding (blank base.manifest.initial) us money (Q.fromInt 100)) us energy (Q.fromInt 10)
       Q.format (netWorth w us) `shouldEqual` "120.0000"
-    it "a Resource traded in two regional Markets is valued once, not once per Market" do
+    it "a Resource traded in two regional Exchanges is valued once, not once per Exchange" do
       ctx <- context
       base <- baseRun ctx
       let w = setHolding (blank base.manifest.initial) us energy (Q.fromInt 10)
-      -- both energy Markets are at base price 2 with zero position, so the mean is 2 and 10 E is 20 M
+      -- both energy Exchanges are at base price 2 with zero position, so the mean is 2 and 10 E is 20 M
       Q.format (netWorth w us) `shouldEqual` "20.0000"
   describe "Gini and spread" do
     it "equal wealth has a Gini of 0" do
@@ -118,7 +118,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       let tied = setHolding final de money (Q.fromInt 120)
       rowOf (standings (runWith base start tied)) "DE" `shouldEqual` Just [ "DE", "120", "120", "1" ]
   describe "Actions" do
-    it "counts trades, transforms, transfers paid, joint Proposals signed and rejections per player" do
+    it "counts trades, transforms, transfers paid, joint candidate Transactions signed and rejections per player" do
       ctx <- context
       base <- baseRun ctx
       let
@@ -127,22 +127,22 @@ spec context = describe "Dashboard statistics on hand-built runs" do
         joint = { id: d1, author: us, intents: [ Transfer { from: us, to: de, resource: money, quantity: Q.fromInt 5 } ], signers: [ us, de ], procedure: Nothing }
         own = { id: p1, author: us, intents: [], signers: [], procedure: Nothing }
 
-        tradeE = coupled 1
-          [ { from: InMarket (Id "energy-atlantic"), to: Held us, resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 }
-          , { from: Held us, to: InMarket (Id "energy-atlantic"), resource: money, owed: Q.fromInt 2, moved: Q.fromInt 2 }
+        tradeE = settledEvent 1
+          [ { from: InExchange (Id "energy-atlantic"), to: Held us, resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 }
+          , { from: Held us, to: InExchange (Id "energy-atlantic"), resource: money, owed: Q.fromInt 2, moved: Q.fromInt 2 }
           ]
           (Just (Q.fromInt 2))
-          (OfIntent { proposal: p1, intent: 0, mechanism: Curve (Id "energy-atlantic") })
+          (OfIntent { candidateTransaction: p1, intent: 0, mechanism: Curve (Id "energy-atlantic") })
 
         round :: RoundRecord
         round =
           { round: 1
-          , inputs: [ { proposal: own, signatures: [] }, { proposal: joint, signatures: [ us, de ] } ]
+          , inputs: [ { candidateTransaction: own, signatures: [] }, { candidateTransaction: joint, signatures: [ us, de ] } ]
           , events:
               [ tradeE
               , tradeE
-              , coupled 1 [ { from: Held us, to: Sink, resource: money, owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { proposal: p1, intent: 0, mechanism: Conversion { by: us, transformation: Id "defense-procurement", units: Q.fromInt 1 } })
-              , coupled 1 [ { from: Held us, to: Held de, resource: money, owed: Q.fromInt 5, moved: Q.fromInt 5 } ] Nothing (OfIntent { proposal: d1, intent: 0, mechanism: Direct })
+              , settledEvent 1 [ { from: Held us, to: Sink, resource: money, owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { candidateTransaction: p1, intent: 0, mechanism: Transformation { by: us, transformation: Id "defense-procurement", units: Q.fromInt 1 } })
+              , settledEvent 1 [ { from: Held us, to: Held de, resource: money, owed: Q.fromInt 5, moved: Q.fromInt 5 } ] Nothing (OfIntent { candidateTransaction: d1, intent: 0, mechanism: Direct })
               , rejection 1 p1 PartyCannotFund
               ]
           }
@@ -152,7 +152,7 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       rowOf totals "US" `shouldEqual` Just [ "US", "2", "1", "1", "1", "1", "6" ]
       rowOf totals "DE" `shouldEqual` Just [ "DE", "0", "0", "0", "1", "0", "1" ]
       map _.label view.chart.kinds `shouldEqual`
-        [ "Market trades (buys and sells)", "Production and procurement", "Payments to other players", "Joint Proposals signed", "Proposals rejected" ]
+        [ "Exchange trades (buys and sells)", "Production and procurement", "Payments to other players", "joint candidate Transactions signed", "candidate Transactions rejected" ]
       -- one bar per player, highest total first; the players with no actions follow in seat order
       length view.chart.bars `shouldEqual` length view.totals.rows
       map (\b -> Tuple b.player b.total) (take 2 view.chart.bars) `shouldEqual` [ Tuple "US" 6, Tuple "DE" 1 ]

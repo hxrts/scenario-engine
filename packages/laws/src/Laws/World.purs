@@ -1,16 +1,16 @@
 -- | World State, Views, events, and round records
--- | (docs/02_type_system.md §4, §8; docs/04_instantiated_game.md §9).
+-- | (docs/02_kernel.md §4, §8; docs/04_run.md §9).
 module Laws.World (module Laws.World, module Core.Kernel.Types) where
 
 import Prelude
 
 import Core.Draw (Seed(..), drawVersion)
-import Core.Kernel.Types (Dynamic, Endpoint(..), Flow, KernelShapes, Pending, dynamicShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
+import Core.Kernel.Types (Law, Endpoint(..), Flow, KernelShapes, Pending, dynamicShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Laws.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Laws.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Actor, ActorId, ActorKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Exchange, ExchangeId, Payment, Price, CandidateTransaction, CandidateTransactionId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedCandidateTransaction, Transferability, Transformation, TransformationId, drawSourceShape, actorShape, idShape, candidateTransactionShape, ruleKind, ruleKindDeclShape, ruleShape, signedCandidateTransactionShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -23,10 +23,10 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.Show.Generic (genericShow)
 
--- | A spawned coupling and a template, over what this World carries.
-newtype PendingCoupling = PendingCoupling (Pending Capability Rule LegQuery RejectReason Cause)
+-- | A spawned transaction and a template, over what this World carries.
+newtype PendingTransaction = PendingTransaction (Pending Capability Rule LegQuery RejectReason Cause)
 
-newtype AuthoredLaw = AuthoredLaw (Dynamic Capability LegQuery RejectReason Cause)
+newtype AuthoredLaw = AuthoredLaw (Law Capability LegQuery RejectReason Cause)
 
 derive instance Newtype AuthoredLaw _
 derive instance Eq AuthoredLaw
@@ -43,20 +43,20 @@ authoredLawShape = iso AuthoredLaw unwrap (dynamicShape worldKernelShapes)
 
 newtype WorldTemplate = WorldTemplate (Template Capability Rule LegQuery RejectReason Cause)
 
-derive instance Newtype PendingCoupling _
+derive instance Newtype PendingTransaction _
 derive instance Newtype WorldTemplate _
-derive instance Eq PendingCoupling
+derive instance Eq PendingTransaction
 derive instance Eq WorldTemplate
 
-derive newtype instance Show PendingCoupling
+derive newtype instance Show PendingTransaction
 
 derive newtype instance Show WorldTemplate
 
-instance EncodeJson PendingCoupling where
-  encodeJson = encodeWith Snapshot pendingCouplingShape
+instance EncodeJson PendingTransaction where
+  encodeJson = encodeWith Snapshot pendingTransactionShape
 
-instance DecodeJson PendingCoupling where
-  decodeJson = decodeJsonWith Snapshot pendingCouplingShape
+instance DecodeJson PendingTransaction where
+  decodeJson = decodeJsonWith Snapshot pendingTransactionShape
 
 instance EncodeJson WorldTemplate where
   encodeJson = encodeWith Snapshot worldTemplateShape
@@ -65,38 +65,38 @@ instance DecodeJson WorldTemplate where
   decodeJson = decodeJsonWith Snapshot worldTemplateShape
 
 worldKernelShapes :: KernelShapes Capability Rule LegQuery RejectReason Cause
-worldKernelShapes = { cap: capabilityShape, dynamic: ruleShape, query: legQueryShape, reason: rejectReasonShape, cause: causeShape }
+worldKernelShapes = { cap: capabilityShape, law: ruleShape, query: legQueryShape, reason: rejectReasonShape, cause: causeShape }
 
-pendingCouplingShape :: Shape PendingCoupling
-pendingCouplingShape = iso PendingCoupling unwrap (pendingShape worldKernelShapes)
+pendingTransactionShape :: Shape PendingTransaction
+pendingTransactionShape = iso PendingTransaction unwrap (pendingShape worldKernelShapes)
 
 worldTemplateShape :: Shape WorldTemplate
 worldTemplateShape = iso WorldTemplate unwrap (templateShape worldKernelShapes)
 
--- | The condition on a Transfer of one Resource: whether parties who share a Market for it are exempt,
+-- | The condition on a Transfer of one Resource: whether parties who share an Exchange for it are exempt,
 -- | and the Transformation a sender's orders of which must carry it. A Transfer that is exempt is also
 -- | outside every flows Rule.
-type FlowGate = { resource :: ResourceId, exemptSharedMarket :: Boolean, bundled :: Maybe TransformationId }
+type FlowGate = { resource :: ResourceId, exemptSharedExchange :: Boolean, bundled :: Maybe TransformationId }
 
 -- | The World State's fields, with the seed as the row `r`. A World State has a seed only once it
--- | is instantiated (`seeded`); a decoded Gameboard's world is `UnseededWorld`.
+-- | is instantiated (`seeded`); a decoded possible World's world is `UnseededWorld`.
 type WorldFields r =
   ( round :: RoundIndex
-  , entities :: Map EntityId Entity
+  , actors :: Map ActorId Actor
   , resources :: Map ResourceId ResourceDefinition
-  , markets :: Map MarketId Market
+  , exchanges :: Map ExchangeId Exchange
   , transformations :: Map TransformationId Transformation
   , representations :: Array Representation
-  , numeraire :: ResourceId -- the setting's unit of account; only the views read it
-  , focus :: Maybe Focus -- the Resource the setting's market views centre on; only the views read it
+  , numeraire :: ResourceId -- the premise's unit of account; only the views read it
+  , focus :: Maybe Focus -- the Resource the premise's exchange views centre on; only the views read it
   , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
-  , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
-  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the setting declares
+  , groups :: Map ActorId ActorId -- the group an Actor counts as, when not itself
+  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
   , rules :: Map RuleId Rule -- Rules in force
-  , pending :: Array PendingCoupling -- spawned couplings, each due in a later round
-  , laws :: Array AuthoredLaw -- laws the setting writes directly, run when their action settles
+  , pending :: Array PendingTransaction -- spawned transactions, each due in a later round
+  , laws :: Array AuthoredLaw -- laws the premise writes directly, run when their action settles
   , templates :: Map TemplateId WorldTemplate -- what a spawn may instantiate
-  , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
+  , factors :: Map ActorId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
   , recurring :: Array RecurringFlow -- the recurring cycle, in the order the engine evaluates it
   , events :: Array Event -- public history
   | r
@@ -111,8 +111,8 @@ type UnseededWorld = Record (WorldFields ())
 seeded :: Seed -> UnseededWorld -> WorldState
 seeded seed w = Record.insert (Proxy :: Proxy "seed") seed w
 
--- | One step of the recurring cycle (docs/02_type_system.md §6): a Resource moving from a source to a
--- | destination each round. The DSL compiles a setting's recurring forms into these; `kind` is the
+-- | One step of the recurring cycle (docs/02_kernel.md §6): a Resource moving from a source to a
+-- | destination each round. The DSL compiles a premise's recurring forms into these; `kind` is the
 -- | name it declares for the form, and Core reads none of them.
 type RecurringFlow =
   { id :: RecurringFlowId
@@ -126,10 +126,10 @@ type RecurringFlow =
   , delay :: Int -- rounds until a created Resource is delivered; 0 delivers in this round
   }
 
--- | Where a recurring flow comes from: one Entity, each Entity that holds the Resource, or nowhere.
-data RecurringSource = FromEntity EntityId | FromEachHolder | Created
+-- | Where a recurring flow comes from: one Actor, each Actor that holds the Resource, or nowhere.
+data RecurringSource = FromActor ActorId | FromEachHolder | Created
 
-data RecurringDestination = ToEntity EntityId | ToSink
+data RecurringDestination = ToActor ActorId | ToSink
 
 -- | How much a recurring flow moves.
 data RecurringAmount
@@ -141,21 +141,21 @@ data RecurringAmount
 -- | Which round a query reads: this round's settlement so far, or the round before.
 data Window = ThisRoundSoFar | LastRound
 
--- | Which of the party's legs a query reads: those into it, those out of it, or out minus in, at least zero.
+-- | Which of the party's settled Flows a query reads: those into it, those out of it, or out minus in, at least zero.
 data Side = Incoming | Outgoing | NetOutgoing
 
--- | Which settlements a query reads: a Market fill's base leg, a conversion's payment leg, or conversions of a
+-- | Which settlements a query reads: an Exchange fill's base settled Flow, a transformation's payment settled Flow, or transformationFills of a
 -- | Transformation.
-data CausePattern = CurveBase | ConversionPayment | ConversionOf TransformationId
+data CausePattern = CurveBase | TransformationPayment | TransformationOf TransformationId
 
--- | What a query computes: the sum moved, the sum of rate times moved, or the largest single conversion's units.
+-- | What a query computes: the sum moved, the sum of rate times moved, or the largest single transformation's units.
 data LegAggregate = SumMoved | SumValue | LargestUnits
 
 -- | A question about the record (docs/02 §6): a window, a party, a side, an optional Resource, a cause
--- | pattern, and an aggregate. Stored in a setting as data.
+-- | pattern, and an aggregate. Stored in a premise as data.
 type LegQuery =
   { window :: Window
-  , party :: EntityId
+  , party :: ActorId
   , side :: Side
   , resource :: Maybe ResourceId
   , cause :: CausePattern
@@ -165,15 +165,15 @@ type LegQuery =
 -- | What the engine does when a recurring flow cannot move all it owes.
 data ShortfallEffect
   = NoEffect
-  | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Entity receives
+  | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Actor receives
 
--- | Where a leg of a settlement starts or ends: an Entity, a Market, nowhere, or nothing.
--- | One leg: a quantity of a Resource owed from one endpoint to another, and how much of it moved.
+-- | Where a settled Flow of a settlement starts or ends: an Actor, an Exchange, nowhere, or nothing.
+-- | One settled Flow: a quantity of a Resource owed from one endpoint to another, and how much of it moved.
 -- | A shortfall is `moved < owed`.
--- | How an Intent's quantities were settled: along a Market's curve, as a conversion, or moved directly.
+-- | How an Intent's quantities were settled: along an Exchange's curve, as a transformation, or moved directly.
 data Mechanism
-  = Curve MarketId
-  | Conversion { by :: EntityId, transformation :: TransformationId, units :: Quantity }
+  = Curve ExchangeId
+  | Transformation { by :: ActorId, transformation :: TransformationId, units :: Quantity }
   | Direct
 
 derive instance Eq Mechanism
@@ -181,10 +181,10 @@ derive instance Generic Mechanism _
 instance Show Mechanism where
   show = genericShow
 
--- | What produced a settlement: an Intent of a Proposal, a declared Rule kind, or a recurring-flow rule.
--- | It points at the thing; a setting's name for it is on the thing.
+-- | What produced a settlement: an Intent of a candidate Transaction, a declared Rule kind, or a recurring-flow rule.
+-- | It points at the thing; a premise's name for it is on the thing.
 data Cause
-  = OfIntent { proposal :: ProposalId, intent :: Int, mechanism :: Mechanism }
+  = OfIntent { candidateTransaction :: CandidateTransactionId, intent :: Int, mechanism :: Mechanism }
   | OfRule { kind :: RuleKindId }
   | OfRecurring { rule :: RecurringFlowId, kind :: RecurringKindId }
 
@@ -293,43 +293,43 @@ instance EncodeJson ShortfallEffect where
 instance DecodeJson ShortfallEffect where
   decodeJson = decodeJsonWith Snapshot shortfallEffectShape
 
--- | A settlement of the given legs.
-coupled :: RoundIndex -> Array Flow -> Maybe Ratio -> Cause -> Event
-coupled round legs rate cause = Coupled { round, legs, rate, cause, delivered: false }
+-- | A settlement of the given settled Flows.
+settledEvent :: RoundIndex -> Array Flow -> Maybe Ratio -> Cause -> Event
+settledEvent round legs rate cause = Settled { round, legs, rate, cause, delivered: false }
 
--- | What a Policy sees (INV-16).
+-- | What a Strategy sees (INV-16).
 type View =
   { round :: RoundIndex
-  , self :: Entity
-  , prices :: Map MarketId Price
+  , self :: Actor
+  , prices :: Map ExchangeId Price
   , rules :: Map RuleId Rule -- the Rules in force, by the id a repeal names
   , transferability :: Map ResourceId Transferability
   , events :: Array Event
   , factors :: Map BehaviorDomain Ratio
-  , toSign :: Array Proposal
-  , pending :: Array PendingCoupling -- the spawned couplings this Entity owes or is owed
-  , markets :: Array Venue -- the Markets the Entity has access to, in id order
-  , entities :: Array EntityId -- the known Entities, in id order
+  , toSign :: Array CandidateTransaction
+  , pending :: Array PendingTransaction -- the spawned transactions this Actor owes or is owed
+  , exchanges :: Array Venue -- the Exchanges the Actor has access to, in id order
+  , actors :: Array ActorId -- the known Actors, in id order
   , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
-  , soleHoldings :: Array ResourceId -- the Resources whose holder the Entity is (`holderOf`)
+  , soleHoldings :: Array ResourceId -- the Resources whose holder the Actor is (`holderOf`)
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
   }
 
 -- | A Transformation's order bounds, as a View shows them.
 type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
 
--- | A Market as a Policy sees it: where a Resource (the base) is traded for the quote.
-type Venue = { id :: MarketId, base :: ResourceId, quote :: ResourceId }
+-- | An Exchange as a Strategy sees it: where a Resource (the base) is traded for the quote.
+type Venue = { id :: ExchangeId, base :: ResourceId, quote :: ResourceId }
 
--- | What a Venue shows of a Market.
-venueOf :: Market -> Venue
+-- | What a Venue shows of an Exchange.
+venueOf :: Exchange -> Venue
 venueOf m = { id: m.id, base: m.base, quote: m.quote }
 
 -- | What a View shows of a Transformation.
 boundsOf :: Transformation -> Bounds
 boundsOf t = { minimum: t.minimum, maximum: t.maximum }
 
--- | Why the engine rejected a Proposal. Each constructor names one check, so a test or a view
+-- | Why the engine rejected a candidate Transaction. Each constructor names one check, so a test or a view
 -- | matches on the specific failure. The record stores the value through `rejectReasonShape`;
 -- | `renderReason` is the one place its display text is written.
 data RejectReason
@@ -339,19 +339,19 @@ data RejectReason
   | InputsNotHeld TransformationId
   | PartyCannotFund
   | JointBundlesOnlyTransfers
-  | DuplicateProposalId
+  | DuplicateCandidateTransactionId
   | OutsideProcedureAuthority
   | UnknownProcedure
-  | UnknownEntity EntityId
-  | MustSign EntityId
-  | NotAuthorized EntityId
-  | UnknownMarket MarketId
+  | UnknownActor ActorId
+  | MustSign ActorId
+  | NotAuthorized ActorId
+  | UnknownExchange ExchangeId
   | UnknownResource ResourceId
   | UnknownTransformation TransformationId
   | UnknownRule RuleId
   | RouteNeedsLimit
-  | NoMarketAccess EntityId MarketId
-  | NoRouteAccess EntityId ResourceId ResourceId
+  | NoExchangeAccess ActorId ExchangeId
+  | NoRouteAccess ActorId ResourceId ResourceId
   | NotTransferable ResourceId
   | OutOfScope Rule
   | OnlyGoverningRepeal
@@ -372,25 +372,25 @@ renderReason :: RejectReason -> String
 renderReason = case _ of
   PoolExceeded -> "the pool cannot fill it"
   LimitPriceNotMet -> "limit price not met"
-  QuoteReservesShort -> "the market cannot pay its sellers"
+  QuoteReservesShort -> "the exchange cannot pay its sellers"
   InputsNotHeld t -> show t <> ": inputs are not held"
-  PartyCannotFund -> "a party cannot fund the joint Proposal"
-  JointBundlesOnlyTransfers -> "joint Proposals bundle only Transfers and Transforms"
-  DuplicateProposalId -> "duplicate proposal id"
+  PartyCannotFund -> "a party cannot fund the joint CandidateTransaction"
+  JointBundlesOnlyTransfers -> "joint CandidateTransactions bundle only Transfers and Transforms"
+  DuplicateCandidateTransactionId -> "duplicate candidateTransaction id"
   OutsideProcedureAuthority -> "outside the procedure's authority"
   UnknownProcedure -> "unknown procedure"
-  UnknownEntity e -> "unknown entity " <> show e
+  UnknownActor e -> "unknown actor " <> show e
   MustSign e -> show e <> " must sign"
   NotAuthorized e -> show e <> " is not authorized"
-  UnknownMarket m -> "unknown market " <> show m
+  UnknownExchange m -> "unknown exchange " <> show m
   UnknownResource r -> "unknown resource " <> show r
   UnknownTransformation t -> "unknown transformation " <> show t
   UnknownRule r -> "unknown rule " <> show r
   RouteNeedsLimit -> "a routed order needs a limit price"
-  NoMarketAccess e m -> show e <> " has no access to " <> show m
-  NoRouteAccess e base quote -> show e <> " has no accessible market for " <> show base <> "/" <> show quote
+  NoExchangeAccess e m -> show e <> " has no access to " <> show m
+  NoRouteAccess e base quote -> show e <> " has no accessible exchange for " <> show base <> "/" <> show quote
   NotTransferable r -> show r <> " is not transferable"
-  OutOfScope r -> "a Rule of kind " <> show (ruleKind r) <> " applies only to its governing Entity or owner, and only in its declared form"
+  OutOfScope r -> "a Rule of kind " <> show (ruleKind r) <> " applies only to its governing Actor or owner, and only in its declared form"
   OnlyGoverningRepeal -> "only the governing authority may repeal a Rule"
   BelowMinimum t -> show t <> " order below its minimum"
   AboveMaximum t -> show t <> " order above its maximum"
@@ -408,19 +408,19 @@ instance DecodeJson RejectReason where
 addEvents :: forall r. Array Event -> { events :: Array Event | r } -> { events :: Array Event | r }
 addEvents es x = x { events = x.events <> es }
 
--- | A Rejected event for a Proposal the engine turned down in `round`.
-rejection :: RoundIndex -> ProposalId -> RejectReason -> Event
-rejection round proposal reason = Rejected { round, proposal, reason }
+-- | A Rejected event for a candidate Transaction the engine turned down in `round`.
+rejection :: RoundIndex -> CandidateTransactionId -> RejectReason -> Event
+rejection round candidateTransaction reason = Rejected { round, candidateTransaction, reason }
 
--- | A Lapsed event for a Proposal whose signature rule was not met in `round`.
-lapse :: RoundIndex -> ProposalId -> Event
-lapse round proposal = Lapsed { round, proposal }
+-- | A Lapsed event for a candidate Transaction whose signature rule was not met in `round`.
+lapse :: RoundIndex -> CandidateTransactionId -> Event
+lapse round candidateTransaction = Lapsed { round, candidateTransaction }
 
--- | An OrderRemoved event for one order of a Proposal dropped at settlement in `round`.
-orderRemoved :: RoundIndex -> ProposalId -> RejectReason -> Event
-orderRemoved round proposal reason = OrderRemoved { round, proposal, reason }
+-- | An OrderRemoved event for one order of a candidate Transaction dropped at settlement in `round`.
+orderRemoved :: RoundIndex -> CandidateTransactionId -> RejectReason -> Event
+orderRemoved round candidateTransaction reason = OrderRemoved { round, candidateTransaction, reason }
 
--- | The Resource a setting's market views centre on, and what they call it.
+-- | The Resource a premise's exchange views centre on, and what they call it.
 type Focus = { resource :: ResourceId, label :: String }
 
 focusShape :: Shape Focus
@@ -428,17 +428,17 @@ focusShape = recordShape "Focus" { resource: idShape, label: stringShape }
 
 -- | Everything the engine records. The round record is the list of a round's events.
 data Event
-  = Lapsed { round :: RoundIndex, proposal :: ProposalId }
-  | Rejected { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
-  -- one order of a Proposal removed at settlement; the Proposal's other Intents still settle
-  | OrderRemoved { round :: RoundIndex, proposal :: ProposalId, reason :: RejectReason }
-  -- one settlement: its legs settle together, at its rate when it has one. `delivered` marks a delivery of
+  = Lapsed { round :: RoundIndex, candidateTransaction :: CandidateTransactionId }
+  | Rejected { round :: RoundIndex, candidateTransaction :: CandidateTransactionId, reason :: RejectReason }
+  -- one order of a candidate Transaction removed at settlement; the candidate Transaction's other Intents still settle
+  | OrderRemoved { round :: RoundIndex, candidateTransaction :: CandidateTransactionId, reason :: RejectReason }
+  -- one settlement: its settled Flows settle together, at its rate when it has one. `delivered` marks a delivery of
   -- something settled in an earlier round, applied at Prepare
-  | Coupled { round :: RoundIndex, legs :: Array Flow, rate :: Maybe Ratio, cause :: Cause, delivered :: Boolean }
+  | Settled { round :: RoundIndex, legs :: Array Flow, rate :: Maybe Ratio, cause :: Cause, delivered :: Boolean }
   | Enacted { round :: RoundIndex, id :: RuleId, rule :: Rule }
   | Repealed { round :: RoundIndex, id :: RuleId }
-  | Estimated { round :: RoundIndex, aggregate :: EntityId, domain :: BehaviorDomain, factor :: Ratio }
-  | ProcedureOutcome { round :: RoundIndex, proposal :: ProposalId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
+  | Estimated { round :: RoundIndex, aggregate :: ActorId, domain :: BehaviorDomain, factor :: Ratio }
+  | ProcedureOutcome { round :: RoundIndex, candidateTransaction :: CandidateTransactionId, support :: Ratio, threshold :: Ratio, executed :: Boolean }
 
 derive instance Generic Event _
 derive instance Eq Event
@@ -447,7 +447,7 @@ instance Show Event where
 
 type RoundRecord =
   { round :: RoundIndex
-  , inputs :: Array SignedProposal
+  , inputs :: Array SignedCandidateTransaction
   , events :: Array Event
   }
 
@@ -455,7 +455,7 @@ type RoundResult = { world :: WorldState, record :: RoundRecord }
 
 -- | The immutable record of a game's resolved configuration and initial World State.
 type Manifest =
-  { gameboard :: String
+  { possibleWorld :: String
   , engine :: String
   , draw :: String
   , initial :: WorldState
@@ -467,31 +467,31 @@ engineVersion = "sp-engine/v1"
 
 -- | The Manifest of a game whose configuration is named `gameboard` and which starts at `initial`.
 manifestOf :: String -> WorldState -> Manifest
-manifestOf gameboard initial = { gameboard, engine: engineVersion, draw: drawVersion, initial }
+manifestOf possibleWorld initial = { possibleWorld, engine: engineVersion, draw: drawVersion, initial }
 
 -- Shapes. The event and View shapes carry the closure the model and the Run Store encode.
 
 rejectReasonShape :: Shape RejectReason
 rejectReasonShape = genericSum "RejectReason"
-  { "PoolExceeded": atTagged "a pool could not fill the Proposal" unitShape
+  { "PoolExceeded": atTagged "a pool could not fill the CandidateTransaction" unitShape
   , "LimitPriceNotMet": atTagged "the limit price was not met" unitShape
-  , "QuoteReservesShort": atTagged "the Market cannot pay its sellers" unitShape
+  , "QuoteReservesShort": atTagged "the Exchange cannot pay its sellers" unitShape
   , "InputsNotHeld": atTagged "the Transformation's inputs are not held" idShape
-  , "PartyCannotFund": atTagged "a party cannot fund the joint Proposal" unitShape
-  , "JointBundlesOnlyTransfers": atTagged "a joint Proposal bundles something else" unitShape
-  , "DuplicateProposalId": atTagged "the Proposal's id is already used" unitShape
+  , "PartyCannotFund": atTagged "a party cannot fund the joint CandidateTransaction" unitShape
+  , "JointBundlesOnlyTransfers": atTagged "a joint CandidateTransaction bundles something else" unitShape
+  , "DuplicateCandidateTransactionId": atTagged "the CandidateTransaction's id is already used" unitShape
   , "OutsideProcedureAuthority": atTagged "outside the procedure's authority" unitShape
   , "UnknownProcedure": atTagged "no such procedure" unitShape
-  , "UnknownEntity": atTagged "no such Entity" idShape
-  , "MustSign": atTagged "the Entity's signature is missing" idShape
-  , "NotAuthorized": atTagged "the Entity is not authorized" idShape
-  , "UnknownMarket": atTagged "no such Market" idShape
+  , "UnknownActor": atTagged "no such Actor" idShape
+  , "MustSign": atTagged "the Actor's signature is missing" idShape
+  , "NotAuthorized": atTagged "the Actor is not authorized" idShape
+  , "UnknownExchange": atTagged "no such Exchange" idShape
   , "UnknownResource": atTagged "no such Resource" idShape
   , "UnknownTransformation": atTagged "no such Transformation" idShape
   , "UnknownRule": atTagged "no such Rule" idShape
   , "RouteNeedsLimit": atTagged "a routed order has no limit price" unitShape
-  , "NoMarketAccess": atTagged "the Entity has no access to the Market" (pairOf idShape idShape)
-  , "NoRouteAccess": atTagged "the Entity has no accessible Market for the pair" (pairOf idShape (pairOf idShape idShape))
+  , "NoExchangeAccess": atTagged "the Actor has no access to the Exchange" (pairOf idShape idShape)
+  , "NoRouteAccess": atTagged "the Actor has no accessible Exchange for the pair" (pairOf idShape (pairOf idShape idShape))
   , "NotTransferable": atTagged "the Resource is not transferable" idShape
   , "OutOfScope": atTagged "the Rule is outside its governor's scope or declared form" ruleShape
   , "OnlyGoverningRepeal": atTagged "only the governing authority may repeal" unitShape
@@ -504,14 +504,14 @@ rejectReasonShape = genericSum "RejectReason"
 
 mechanismShape :: Shape Mechanism
 mechanismShape = genericSum "Mechanism"
-  { "Curve": atTagged "along a Market's curve" idShape
-  , "Conversion": atTagged "a run of a Transformation" (recordShape "Conversion" { by: idShape, transformation: idShape, units: qShape })
+  { "Curve": atTagged "along an Exchange's curve" idShape
+  , "Transformation": atTagged "a run of a Transformation" (recordShape "Transformation" { by: idShape, transformation: idShape, units: qShape })
   , "Direct": atTagged "moved directly" unitShape
   }
 
 causeShape :: Shape Cause
 causeShape = genericSum "Cause"
-  { "OfIntent": atTagged "an Intent of a Proposal" (recordShape "OfIntent" { proposal: idShape, intent: intShape, mechanism: mechanismShape })
+  { "OfIntent": atTagged "an Intent of a CandidateTransaction" (recordShape "OfIntent" { candidateTransaction: idShape, intent: intShape, mechanism: mechanismShape })
   , "OfRule": atTagged "a declared Rule kind" (recordShape "OfRule" { kind: idShape })
   , "OfRecurring": atTagged "a recurring-flow rule" (recordShape "OfRecurring" { rule: idShape, kind: idShape })
   }
@@ -519,32 +519,32 @@ causeShape = genericSum "Cause"
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
 eventShape :: Shape Event
 eventShape = genericSum "Event"
-  { "Lapsed": atTagged "a Proposal that lapsed" (recordShape "Lapsed" { round: intShape, proposal: idShape })
-  , "Rejected": atTagged "a Proposal the engine turned down" (recordShape "Rejected" { round: intShape, proposal: idShape, reason: rejectReasonShape })
-  , "OrderRemoved": atTagged "one order of a Proposal removed at settlement" (recordShape "OrderRemoved" { round: intShape, proposal: idShape, reason: rejectReasonShape })
-  , "Coupled": atTagged "one settlement: its legs, its rate, and what caused it" (recordShape "Coupled" { round: intShape, legs: arrayOf flowShape, rate: optionalOf qShape, cause: causeShape, delivered: boolShape })
+  { "Lapsed": atTagged "a CandidateTransaction that lapsed" (recordShape "Lapsed" { round: intShape, candidateTransaction: idShape })
+  , "Rejected": atTagged "a CandidateTransaction the engine turned down" (recordShape "Rejected" { round: intShape, candidateTransaction: idShape, reason: rejectReasonShape })
+  , "OrderRemoved": atTagged "one order of a CandidateTransaction removed at settlement" (recordShape "OrderRemoved" { round: intShape, candidateTransaction: idShape, reason: rejectReasonShape })
+  , "Settled": atTagged "one settlement: its legs, its rate, and what caused it" (recordShape "Settled" { round: intShape, legs: arrayOf flowShape, rate: optionalOf qShape, cause: causeShape, delivered: boolShape })
   , "Enacted": atTagged "a Rule enacted" (recordShape "Enacted" { round: intShape, id: idShape, rule: ruleShape })
   , "Repealed": atTagged "a Rule repealed" (recordShape "Repealed" { round: intShape, id: idShape })
   , "Estimated": atTagged "a representation's factor estimated" (recordShape "Estimated" { round: intShape, aggregate: idShape, domain: idShape, factor: qShape })
-  , "ProcedureOutcome": atTagged "a collective procedure's outcome" (recordShape "ProcedureOutcome" { round: intShape, proposal: idShape, support: qShape, threshold: qShape, executed: boolShape })
+  , "ProcedureOutcome": atTagged "a collective procedure's outcome" (recordShape "ProcedureOutcome" { round: intShape, candidateTransaction: idShape, support: qShape, threshold: qShape, executed: boolShape })
   }
 
--- | A View: what a Policy or a seat sees (INV-16).
+-- | A View: what a Strategy or a seat sees (INV-16).
 viewShape :: Shape View
 viewShape = recordOf "View"
   ( field @"round" "the round" intShape
-      &. field @"self" "the Entity seeing it" entityShape
-      &. field @"prices" "the price of each Market" (mapOf idShape qShape)
+      &. field @"self" "the Actor seeing it" actorShape
+      &. field @"prices" "the price of each Exchange" (mapOf idShape qShape)
       &. field @"rules" "the Rules in force, by id" (mapOf idShape ruleShape)
       &. field @"transferability" "how each Resource may move" (mapOf idShape transferabilityShape)
       &. field @"events" "the public history" (arrayOf eventShape)
       &. field @"factors" "the factors of each behaviour domain" (mapOf idShape qShape)
-      &. field @"toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape)
-      &. field @"pending" "the spawned couplings the Entity owes or is owed" (arrayOf pendingCouplingShape)
-      &. field @"markets" "the Markets the Entity has access to" (arrayOf venueShape)
-      &. field @"entities" "the known Entities" (arrayOf idShape)
+      &. field @"toSign" "the CandidateTransactions the Actor is asked to sign" (arrayOf candidateTransactionShape)
+      &. field @"pending" "the spawned transactions the Actor owes or is owed" (arrayOf pendingTransactionShape)
+      &. field @"exchanges" "the Exchanges the Actor has access to" (arrayOf venueShape)
+      &. field @"actors" "the known Actors" (arrayOf idShape)
       &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
-      &. field @"soleHoldings" "the Resources whose holder the Entity is" (arrayOf idShape)
+      &. field @"soleHoldings" "the Resources whose holder the Actor is" (arrayOf idShape)
       &. field @"ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape)
   )
 
@@ -556,7 +556,7 @@ boundsShape = recordOf "Bounds"
 
 venueShape :: Shape Venue
 venueShape = recordOf "Venue"
-  ( field @"id" "the Market" idShape
+  ( field @"id" "the Exchange" idShape
       &. field @"base" "the Resource traded" idShape
       &. field @"quote" "the Resource it is priced in" idShape
   )
@@ -565,7 +565,7 @@ venueShape = recordOf "Venue"
 roundRecordShape :: Shape RoundRecord
 roundRecordShape = recordOf "RoundRecord"
   ( field @"round" "the round" intShape
-      &. field @"inputs" "every Proposal submitted in the round, with its signatures" (arrayOf signedProposalShape)
+      &. field @"inputs" "every CandidateTransaction submitted in the round, with its signatures" (arrayOf signedCandidateTransactionShape)
       &. field @"events" "the round's events" (arrayOf eventShape)
   )
 
@@ -589,8 +589,8 @@ costFunctionShape = recordShape "CostFunction" { intercept: qShape, slope: qShap
 holdingsShape :: forall t. Shape (Map (Id t) Q)
 holdingsShape = mapOf idShape qShape
 
-marketShape :: Shape Market
-marketShape = recordShape "Market" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape) }
+exchangeShape :: Shape Exchange
+exchangeShape = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape) }
 
 drawShape :: Shape Draw
 drawShape = recordShape "Draw" { resource: idShape, from: drawSourceShape, perUnit: qShape }
@@ -611,7 +611,7 @@ estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
 
 representationShape :: Shape Representation
-representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
+representationShape = recordShape "Representation" { id: idShape, playableActor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
 
 recurringFlowShape :: Shape RecurringFlow
 recurringFlowShape = recordShape "RecurringFlow"
@@ -628,14 +628,14 @@ recurringFlowShape = recordShape "RecurringFlow"
 
 recurringSourceShape :: Shape RecurringSource
 recurringSourceShape = genericSum "RecurringSource"
-  { "FromEntity": atTagged "one Entity" idShape
-  , "FromEachHolder": atTagged "each Entity that holds the Resource" unitShape
+  { "FromActor": atTagged "one Actor" idShape
+  , "FromEachHolder": atTagged "each Actor that holds the Resource" unitShape
   , "Created": atTagged "created in the destination" unitShape
   }
 
 recurringDestinationShape :: Shape RecurringDestination
 recurringDestinationShape = genericSum "RecurringDestination"
-  { "ToEntity": atTagged "one Entity" idShape
+  { "ToActor": atTagged "one Actor" idShape
   , "ToSink": atTagged "nothing receives it" unitShape
   }
 
@@ -655,9 +655,9 @@ sideShape = genericEnum "Side"
 
 causePatternShape :: Shape CausePattern
 causePatternShape = genericSum "CausePattern"
-  { "CurveBase": atTagged "the base leg of a Market fill" unitShape
-  , "ConversionPayment": atTagged "a conversion's payment leg" unitShape
-  , "ConversionOf": atTagged "conversions of this Transformation" idShape
+  { "CurveBase": atTagged "the base leg of an Exchange fill" unitShape
+  , "TransformationPayment": atTagged "a transformation's payment leg" unitShape
+  , "TransformationOf": atTagged "transformationFills of this Transformation" idShape
   }
 
 legAggregateShape :: Shape LegAggregate
@@ -669,40 +669,40 @@ legQueryShape = recordShape "LegQuery" { window: windowShape, party: idShape, si
 shortfallEffectShape :: Shape ShortfallEffect
 shortfallEffectShape = genericSum "ShortfallEffect"
   { "NoEffect": atTagged "nothing" unitShape
-  , "OffsetIncoming": atTagged "accrue against the flows the Entity receives, per unit short" qShape
+  , "OffsetIncoming": atTagged "accrue against the flows the Actor receives, per unit short" qShape
   }
 
 flowGateShape :: Shape FlowGate
-flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
+flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedExchange: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingCouplingShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), actors: (mapOf idShape actorShape), resources: (mapOf idShape resourceDefinitionShape), exchanges: (mapOf idShape exchangeShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingTransactionShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
-manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
+manifestShape = recordShape "Manifest" { possibleWorld: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
 
--- | What to do at each kind of reference a setting's World State holds. `groupKey` is the Entity a group
+-- | What to do at each kind of reference a premise's World State holds. `groupKey` is the Actor a group
 -- | entry is about, separate from the group it counts as. An Aggregate's members and a procedure's weights are
 -- | whole positions, since what becomes of them depends on the list they are in.
 type WorldPositions f =
-  { entity :: EntityId -> f EntityId
-  , groupKey :: EntityId -> f EntityId
+  { actor :: ActorId -> f ActorId
+  , groupKey :: ActorId -> f ActorId
   , resource :: ResourceId -> f ResourceId
-  , market :: MarketId -> f MarketId
+  , exchange :: ExchangeId -> f ExchangeId
   , transformation :: TransformationId -> f TransformationId
   , ruleKind :: RuleKindId -> f RuleKindId
-  , members :: EntityId -> Array EntityId -> f (Array EntityId) -- the Aggregate, then its members
-  , weights :: Map EntityId Ratio -> f (Map EntityId Ratio)
+  , members :: ActorId -> Array ActorId -> f (Array ActorId) -- the Aggregate, then its members
+  , weights :: Map ActorId Ratio -> f (Map ActorId Ratio)
   }
 
 -- | Every position kept as it is. A walk overrides the positions it changes.
 sameWorld :: forall f. Applicative f => WorldPositions f
-sameWorld = { entity: pure, groupKey: pure, resource: pure, market: pure, transformation: pure, ruleKind: pure, members: \_ -> pure, weights: pure }
+sameWorld = { actor: pure, groupKey: pure, resource: pure, exchange: pure, transformation: pure, ruleKind: pure, members: \_ -> pure, weights: pure }
 
 -- | Every position read as nothing. A fold overrides the positions it reads.
 ignoreWorld :: forall r. Monoid r => WorldPositions (Const r)
 ignoreWorld =
-  { entity: none, groupKey: none, resource: none, market: none, transformation: none, ruleKind: none, members: \_ -> none, weights: none }
+  { actor: none, groupKey: none, resource: none, exchange: none, transformation: none, ruleKind: none, members: \_ -> none, weights: none }
   where
   none :: forall a b. a -> Const r b
   none _ = Const mempty
@@ -711,19 +711,19 @@ ignoreWorld =
 foldWorld :: forall m r. Monoid m => WorldPositions (Const m) -> Record (WorldFields r) -> m
 foldWorld p = un Const <<< traverseWorld p
 
--- | Rebuild the references of a setting's World State, position by position. The walk covers what a setting
--- | authors. What only a run produces (pending couplings, factors, events, the Representations instantiation adds) is
+-- | Rebuild the references of a premise's World State, position by position. The walk covers what a premise
+-- | authors. What only a run produces (pending transactions, factors, events, the Representations instantiation adds) is
 -- | not walked.
 traverseWorld :: forall f r. Applicative f => WorldPositions f -> Record (WorldFields r) -> f (Record (WorldFields r))
 traverseWorld t w =
-  ( \markets entities transformations recurring groups rules numeraire focus flowGates ->
-      w { markets = markets, entities = entities, transformations = transformations, recurring = recurring, groups = groups, rules = rules, numeraire = numeraire, focus = focus, flowGates = flowGates }
+  ( \exchanges actors transformations recurring groups rules numeraire focus flowGates ->
+      w { exchanges = exchanges, actors = actors, transformations = transformations, recurring = recurring, groups = groups, rules = rules, numeraire = numeraire, focus = focus, flowGates = flowGates }
   )
-    <$> traverse marketAt w.markets
-    <*> traverse entityAt w.entities
+    <$> traverse exchangeAt w.exchanges
+    <*> traverse actorAt w.actors
     <*> traverse transformationAt w.transformations
     <*> traverse recurringAt w.recurring
-    <*> keyedBy t.groupKey t.entity w.groups
+    <*> keyedBy t.groupKey t.actor w.groups
     <*> traverse ruleAt w.rules
     <*> t.resource w.numeraire
     <*> traverse (\f -> f { resource = _ } <$> t.resource f.resource) w.focus
@@ -735,17 +735,17 @@ traverseWorld t w =
   holdings :: Holdings -> f Holdings
   holdings = keyedBy t.resource pure
 
-  marketAt m = (\access base quote reserves -> m { access = access, base = base, quote = quote, reserves = reserves })
-    <$> traverse t.entity m.access
+  exchangeAt m = (\access base quote reserves -> m { access = access, base = base, quote = quote, reserves = reserves })
+    <$> traverse t.actor m.access
     <*> t.resource m.base
     <*> t.resource m.quote
     <*> holdings m.reserves
 
-  entityAt e = (\accounts capabilities kind -> e { accounts = accounts, capabilities = capabilities, kind = kind })
+  actorAt e = (\accounts capabilities kind -> e { accounts = accounts, capabilities = capabilities, kind = kind })
     <$> holdings e.accounts
     <*> traverse capabilityAt e.capabilities
-    <*> entityKindAt e.id e.kind
-  entityKindAt self = case _ of
+    <*> actorKindAt e.id e.kind
+  actorKindAt self = case _ of
     Aggregate a -> (\members procedures -> Aggregate a { members = members, procedures = procedures })
       <$> t.members self a.members
       <*> traverse procedureAt a.procedures
@@ -754,7 +754,7 @@ traverseWorld t w =
     <$> t.weights p.weights
     <*> traverse capabilityAt p.authorizes
   capabilityAt = case _ of
-    MayTrade m -> MayTrade <$> t.market m
+    MayTrade m -> MayTrade <$> t.exchange m
     MayTransfer r -> MayTransfer <$> t.resource r
     MayTransform x -> MayTransform <$> t.transformation x
     MayEnact k -> MayEnact <$> t.ruleKind k
@@ -763,8 +763,8 @@ traverseWorld t w =
     <$> holdings x.inputs
     <*> holdings x.outputs
     <*> traverse (\d -> d { resource = _ } <$> t.resource d.resource) x.draws
-    <*> traverse (\ef -> (\resource holder -> ef { resource = resource, holder = holder }) <$> t.resource ef.resource <*> traverse t.entity ef.holder) x.effects
-    <*> traverse (\p -> (\to resource -> p { to = to, resource = resource }) <$> t.entity p.to <*> t.resource p.resource) x.payment
+    <*> traverse (\ef -> (\resource holder -> ef { resource = resource, holder = holder }) <$> t.resource ef.resource <*> traverse t.actor ef.holder) x.effects
+    <*> traverse (\p -> (\to resource -> p { to = to, resource = resource }) <$> t.actor p.to <*> t.resource p.resource) x.payment
 
   recurringAt r = (\resource source destination amount -> r { resource = resource, source = source, destination = destination, amount = amount })
     <$> t.resource r.resource
@@ -772,27 +772,27 @@ traverseWorld t w =
     <*> destinationAt r.destination
     <*> amountAt r.amount
   sourceAt = case _ of
-    FromEntity e -> FromEntity <$> t.entity e
+    FromActor e -> FromActor <$> t.actor e
     other -> pure other
   destinationAt = case _ of
-    ToEntity e -> ToEntity <$> t.entity e
+    ToActor e -> ToActor <$> t.actor e
     ToSink -> pure ToSink
   amountAt = case _ of
     HeldAmount c -> HeldAmount <$> t.resource c
     Measured m -> (\party resource cause -> Measured m { query = m.query { party = party, resource = resource, cause = cause } })
-      <$> t.entity m.query.party
+      <$> t.actor m.query.party
       <*> traverse t.resource m.query.resource
       <*> causePatternAt m.query.cause
     other -> pure other
   causePatternAt = case _ of
-    ConversionOf x -> ConversionOf <$> t.transformation x
+    TransformationOf x -> TransformationOf <$> t.transformation x
     other -> pure other
 
   ruleAt = case _ of
     FlowRule x -> (\kind governor counterparty over effect -> FlowRule x { kind = kind, scope = x.scope { governor = governor, counterparty = counterparty, over = over }, effect = effect })
       <$> t.ruleKind x.kind
-      <*> t.entity x.scope.governor
-      <*> t.entity x.scope.counterparty
+      <*> t.actor x.scope.governor
+      <*> t.actor x.scope.counterparty
       <*> traverse t.resource x.scope.over
       <*> flowEffectAt x.effect
     HoldingRule x -> (\kind resource -> HoldingRule x { kind = kind, resource = resource }) <$> t.ruleKind x.kind <*> t.resource x.resource
@@ -801,6 +801,6 @@ traverseWorld t w =
     Block -> pure Block
   levyBasisAt = case _ of
     PerUnit -> pure PerUnit
-    AdValorem m -> AdValorem <$> t.market m
+    AdValorem m -> AdValorem <$> t.exchange m
 
   flowGateAt g = (\resource bundled -> g { resource = resource, bundled = bundled }) <$> t.resource g.resource <*> traverse t.transformation g.bundled

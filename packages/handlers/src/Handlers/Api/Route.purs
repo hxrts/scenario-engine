@@ -43,8 +43,8 @@ import Prim.Row as Row
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
-import Effects.Signatures (ScenarioSet)
-import Game.Experiment (experimentRequestShape)
+import Effects.Signatures (RunSet)
+import Assembly.Experiment (experimentRequestShape)
 import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -64,11 +64,11 @@ type Implementation = ApiRequest -> Effect Reply
 -- | A request as the client sends it: method, URL (with its query), and body text.
 type Wire = { method :: String, url :: String, body :: String }
 
--- | A reply: the status, and the body through its shape, in the Snapshot form the replies are written in.
+-- | A reply: the status, and the body through its shape, in the round-end World form the replies are written in.
 reply :: forall a. Shape a -> Int -> a -> Reply
 reply = replyIn Shape.Snapshot
 
--- | A reply in a given format. The setting format leaves an absent optional field out.
+-- | A reply in a given format. The premise format leaves an absent optional field out.
 replyIn :: forall a. Shape.Format -> Shape a -> Int -> a -> Reply
 replyIn format s status a = { status, body: stringify (encodeWith format s a) }
 
@@ -251,16 +251,16 @@ table :: forall rep row. Generic ApiRequest rep => EndpointRow rep row => Endpoi
 table r = { rows: rowsOf (Proxy :: Proxy rep) r to, write: sentOf r <<< from }
 
 -- | The endpoint table: one row per operation of `ApiRequest`, and the only place a path is written.
--- | Rows are tried in the order of the type, so `/entities` and `/entity/:entity` come before `/:view`.
+-- | Rows are tried in the order of the type, so `/Actors` and `/Actor/:Actor` come before `/:view`.
 endpoints :: Table
 endpoints = table
   { "ListRuns": get "/api/runs" ((\archived -> { archived }) <$> flag "archived" _.archived)
-  , "Setting": get "/api/setting" (pure unit)
+  , "Premise": get "/api/premise" (pure unit)
   , "Glossary": get "/api/glossary" (pure unit)
   , "LaunchRun": post "/api/runs" (bodyOf launchShape identity)
   , "LaunchBatch": post "/api/batch" (bodyOf batchShape identity)
-  , "Entities": get "/api/runs/:id/entities" (capture "id" identity)
-  , "Entity": get "/api/runs/:id/entity/:entity" (Tuple <$> capture "id" fst <*> capture "entity" snd)
+  , "Actors": get "/api/runs/:id/actors" (capture "id" identity)
+  , "Actor": get "/api/runs/:id/actor/:actor" (Tuple <$> capture "id" fst <*> capture "actor" snd)
   , "RunView": get "/api/runs/:id/:view"
       ado
         id <- capture "id" _.id
@@ -270,16 +270,16 @@ endpoints = table
   , "Compare": get "/api/compare"
       ado
         runs <- commaParam "runs" _.runs
-        market <- optionalParam "market" _.market
-        in { runs, market }
+        exchange <- optionalParam "exchange" _.exchange
+        in { runs, exchange }
   , "Agency": get "/api/agency" agencyQuery
   , "AgencyDetail": get "/api/agency/detail" agencyQuery
   , "RunExperiment": post "/api/experiments" (bodyOf experimentRequestShape identity)
-  , "ListScenarioSets": get "/api/sets" (pure unit)
+  , "ListRunSets": get "/api/sets" (pure unit)
   , "SetSummary": get "/api/sets/:name/summary" (capture "name" identity)
-  , "SaveScenarioSet": post "/api/sets" (bodyOf scenarioSetShape identity)
-  , "RenameScenarioSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))
-  , "DeleteScenarioSet": endpoint "DELETE" "/api/sets/:name" (capture "name" identity)
+  , "SaveRunSet": post "/api/sets" (bodyOf runSetShape identity)
+  , "RenameRunSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))
+  , "DeleteRunSet": endpoint "DELETE" "/api/sets/:name" (capture "name" identity)
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
@@ -290,11 +290,11 @@ endpoints = table
   where
   agencyQuery :: Part AgencyQuery AgencyQuery
   agencyQuery = ado
-    setting <- optionalParam "setting" _.setting
+    premise <- optionalParam "premise" _.premise
     playerSeed <- optionalParam "playerSeed" _.playerSeed
     preset <- optionalParam "preset" _.preset
     alternative <- optionalParam "alternative" _.alternative
-    in { setting, playerSeed, preset, alternative }
+    in { premise, playerSeed, preset, alternative }
 
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
   endpoint method path part = { method, path, part }
@@ -332,21 +332,21 @@ decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.par
 -- | The body of `POST /api/runs`.
 launchShape :: Shape Launch
 launchShape = object "Launch" ado
-  setting <- fieldOf "setting" "which setting to play; absent is the first" (optionalOf stringShape) _.setting
+  premise <- fieldOf "premise" "which premise to play; absent is the first" (optionalOf stringShape) _.premise
   name <- fieldOf "name" "the new run's name" stringShape _.name
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
   rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
-  in { setting, name, preset, playerSeed, rounds }
+  in { premise, name, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/batch`.
 batchShape :: Shape LaunchBatch
 batchShape = object "LaunchBatch" ado
-  settings <- fieldOf "settings" "the Settings to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.settings
+  premises <- fieldOf "premises" "the Premises to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.premises
   preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
   playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one per run" (optionalOf intShape) _.playerSeed
-  rounds <- fieldOf "rounds" "the round count; absent keeps each Setting's" (optionalOf intShape) _.rounds
-  in { settings, preset, playerSeed, rounds }
+  rounds <- fieldOf "rounds" "the round count; absent keeps each Premise's" (optionalOf intShape) _.rounds
+  in { premises, preset, playerSeed, rounds }
 
 -- | The body of `POST /api/runs/:id/resume`.
 resumeShape :: Shape { rounds :: Int }
@@ -363,9 +363,9 @@ seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Ju
     | isNull j = Right (Just Nothing)
     | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJsonWith Snapshot intShape j) <#> (Just <<< Just)
 
--- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Game.Recipe`).
-scenarioSetShape :: Shape ScenarioSet
-scenarioSetShape = object "ScenarioSet" ado
+-- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Assembly.Recipe`).
+runSetShape :: Shape RunSet
+runSetShape = object "RunSet" ado
   name <- fieldOf "name" "the set's name" stringShape _.name
   baseline <- fieldOf "baseline" "the id of the run the others are compared with" stringShape _.baseline
   runs <- fieldOf "runs" "the ids of the set's runs" (arrayOf stringShape) _.runs

@@ -29,7 +29,7 @@ import Effect.Exception (Error, error, message)
 import Effect.Class (liftEffect)
 import Handlers.Llm.Call (Key, ModelCall, decodeWith)
 import Handlers.Llm.Wire (correctionShape)
-import Handlers.Recording (Exchange, encodeReply, exchangeShape)
+import Handlers.Recording (Turn, encodeReply, turnShape)
 
 -- | One raw model call: the system prompt and the JSON payload in, the reply text and the path of
 -- | its raw event stream out. A failed call is an Aff error.
@@ -44,16 +44,16 @@ evidenceShape = recordShape "Evidence" { effect: stringShape, model: stringShape
 
 -- | The model backend a handler interprets over: the raw call, the model name for evidence, the
 -- | digest device that hashes a template or payload for evidence, and the sinks for each call's
--- | evidence and its typed exchange (the recording, when one is kept).
-type Backend = { model :: String, call :: Call, digest :: String -> String, timeoutMs :: Int, evidence :: Evidence -> Effect Unit, exchange :: Exchange -> Effect Unit }
+-- | evidence and its typed turn (the recording, when one is kept).
+type Backend = { model :: String, call :: Call, digest :: String -> String, timeoutMs :: Int, evidence :: Evidence -> Effect Unit, turn :: Turn -> Effect Unit }
 
 -- | A backend with the default timeout and sinks that keep nothing; a composition root overrides what it keeps.
 backend :: { model :: String, call :: Call, digest :: String -> String } -> Backend
-backend b = { model: b.model, call: b.call, digest: b.digest, timeoutMs: defaultTimeoutMs, evidence: const (pure unit), exchange: const (pure unit) }
+backend b = { model: b.model, call: b.call, digest: b.digest, timeoutMs: defaultTimeoutMs, evidence: const (pure unit), turn: const (pure unit) }
 
--- | A backend that appends each call's evidence and exchange, encoded, to two line sinks.
+-- | A backend that appends each call's evidence and turn, encoded, to two line sinks.
 logging :: (String -> Effect Unit) -> (String -> Effect Unit) -> Backend -> Backend
-logging evidence exchange b = b { evidence = evidence <<< stringify <<< encodeWith Snapshot evidenceShape, exchange = exchange <<< stringify <<< encodeWith Snapshot exchangeShape }
+logging evidence turn b = b { evidence = evidence <<< stringify <<< encodeWith Snapshot evidenceShape, turn = turn <<< stringify <<< encodeWith Snapshot turnShape }
 
 -- | The model a session uses when none is named.
 defaultModel :: String
@@ -68,8 +68,8 @@ maxCorrections :: Int
 maxCorrections = 2
 
 -- | One call with its payload already encoded: the payload goes to the backend, the reply decodes,
--- | and the call's evidence and typed exchange are kept. A failed call or one that times out leaves
--- | evidence naming why, keeps no exchange, and rethrows.
+-- | and the call's evidence and typed turn are kept. A failed call or one that times out leaves
+-- | evidence naming why, keeps no turn, and rethrows.
 send :: forall p w r. Backend -> ModelCall p w r -> Key -> Json -> Aff { text :: String, decoded :: Either String r }
 send b c key request = do
   let input = stringify request
@@ -84,7 +84,7 @@ send b c key request = do
   let decoded = decodeWith c out.text
   liftEffect do
     evidenceOf out.raw (either ("error: " <> _) (const "ok") decoded)
-    b.exchange { effect, round: key.round, seats: key.seats, request, reply: encodeReply c.recorded decoded }
+    b.turn { effect, round: key.round, seats: key.seats, request, reply: encodeReply c.recorded decoded }
   pure { text: out.text, decoded }
 
 -- | Run a call under the backend's timeout: the first of its result and the timer. The loser is cancelled.

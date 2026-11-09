@@ -1,7 +1,7 @@
--- | The vocabulary of the setting DSL's world and fixtures: keyed lists (`"M" := 260`), and the
--- | typed values a setting names — capabilities, Measures, spans, fallbacks, share sources. Each is
--- | a core value, so a setting is written with the same types the engine reads; nothing here builds
--- | JSON (the shapes in `Schema.Setting.*` do).
+-- | The vocabulary of the premise DSL's world and fixtures: keyed lists (`"M" := 260`), and the
+-- | typed values a premise names — capabilities, Measures, spans, fallbacks, share sources. Each is
+-- | a core value, so a premise is written with the same types the engine reads; nothing here builds
+-- | JSON (the shapes in `Schema.Premise.*` do).
 module Schema.Build.Base
   ( keyed
   , (:=)
@@ -27,15 +27,15 @@ module Schema.Build.Base
 import Prelude
 
 import Core.Num (Q)
-import Laws.Types (Capability(..), EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
+import Laws.Types (Capability(..), ActorTag, Id, ExchangeTag, StrategyTag, ResourceTag, RuleKindTag, TransformationTag)
 import Schema.Build.Named (class Named, named)
-import Schema.Setting.Query (ShareMeasure)
+import Schema.Premise.Query (ShareMeasure)
 import Schema.Recurring as Recurring
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Schema.Build.Quantity (class ToQty, q)
-import Schema.Gameboard (Fallback(..), Measure(..), Span(..))
+import Schema.PossibleWorld (Fallback(..), Measure(..), Span(..))
 
 -- | A Map from named values, keyed by id.
 keyed :: forall k t a. Named k t => Array (Tuple k a) -> Map (Id t) a
@@ -49,7 +49,7 @@ infix 6 entry as :=
 
 -- Capabilities -----------------------------------------------------------------------------
 
-mayTrade :: forall a. Named a MarketTag => a -> Capability
+mayTrade :: forall a. Named a ExchangeTag => a -> Capability
 mayTrade m = MayTrade (named m)
 
 mayTransfer :: forall a. Named a ResourceTag => a -> Capability
@@ -65,12 +65,12 @@ mayEnact = MayEnact <<< named
 -- Fallbacks --------------------------------------------------------------------------------
 
 -- | The Actor's accounts and activity stay in an Aggregate.
-coverage :: forall a. Named a EntityTag => a -> Fallback
+coverage :: forall a. Named a ActorTag => a -> Fallback
 coverage a = ImplicitCoverage (named a)
 
--- | The same accounts, driven by an in-world Policy.
-institutional :: forall a. Named a PolicyTag => a -> Fallback
-institutional p = InstitutionalPolicy (named p)
+-- | The same accounts, driven by an in-world Strategy.
+institutional :: forall a. Named a StrategyTag => a -> Fallback
+institutional p = InstitutionalStrategy (named p)
 
 -- Measures and spans -----------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 -- | Player actions (docs/06_simulator.md §9.2): per Actor and round, the trades, transforms,
--- | transfers paid, joint Proposals signed and Proposals rejected, counted from the recorded events. This is
+-- | transfers paid, joint candidate Transactions signed and candidate Transactions rejected, counted from the recorded events. This is
 -- | the one definition of those counts; the run chart, the totals and the Overview's rejection count
 -- | read it. Pure.
 module Views.Actions
@@ -17,9 +17,9 @@ module Views.Actions
 
 import Prelude
 
-import Laws.Query (droppedProposals)
-import Laws.Slice (Select, Slice, conversions, count, describeSlice, event, exchanges, orKind, runSlice, transfers, whereEq, whereNamed)
-import Laws.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
+import Laws.Query (droppedCandidateTransactions)
+import Laws.Slice (Select, Slice, transformationFills, count, describeSlice, event, exchangeFills, orKind, runSlice, transfers, whereEq, whereNamed)
+import Laws.Types (ActorId, Id(..), IntentF(..), CandidateTransaction, CandidateTransactionId)
 import Laws.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
@@ -29,29 +29,29 @@ actionsStat :: Statistic
 actionsStat =
   { name: "Actions"
   , question: "What do players do over the run?"
-  , definition: "Per player, over the whole run: market trades (buys and sells), production and procurement, payments to other players, joint Proposals signed, and proposals rejected."
-  , formula: "trades = " <> describeSlice (tradesBy actor) <> "; transforms = " <> describeSlice (transformsBy actor) <> "; transfers = " <> describeSlice (transfersBy actor) <> "; joint Proposals = multi-signer Proposals with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
+  , definition: "Per player, over the whole run: exchange trades (buys and sells), production and procurement, payments to other players, joint candidate Transactions signed, and proposals rejected."
+  , formula: "trades = " <> describeSlice (tradesBy playableActor) <> "; transforms = " <> describeSlice (transformsBy playableActor) <> "; transfers = " <> describeSlice (transfersBy playableActor) <> "; joint candidate Transactions = multi-signer candidate Transactions with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
   }
 
 -- | The Actor a formula names: the slices below render their filter's value.
-actor :: EntityId
-actor = Id "the Actor"
+playableActor :: ActorId
+playableActor = Id "the Actor"
 
-tradesBy :: EntityId -> Slice Int
-tradesBy e = count (whereEq @"entity" e exchanges)
+tradesBy :: ActorId -> Slice Int
+tradesBy e = count (whereEq @"actor" e exchangeFills)
 
-transformsBy :: EntityId -> Slice Int
-transformsBy e = count (whereEq @"by" e conversions)
+transformsBy :: ActorId -> Slice Int
+transformsBy e = count (whereEq @"by" e transformationFills)
 
-transfersBy :: EntityId -> Slice Int
+transfersBy :: ActorId -> Slice Int
 transfersBy e = count (whereEq @"from" e transfers)
 
 -- | Every Rejected or OrderRemoved event: the rejections the Overview reports.
 rejections :: Slice Int
 rejections = count rejectedEvents
 
-rejectedOwn :: (ProposalId -> Boolean) -> Slice Int
-rejectedOwn own = count (whereNamed "the Proposal is the Actor's own" (own <<< _.proposal) rejectedEvents)
+rejectedOwn :: (CandidateTransactionId -> Boolean) -> Slice Int
+rejectedOwn own = count (whereNamed "the candidate Transaction is the Actor's own" (own <<< _.candidateTransaction) rejectedEvents)
 
 -- | One Actor's counts of each kind of action, over a round or a whole run.
 type Counts = { trades :: Int, transforms :: Int, transfers :: Int, joints :: Int, rejected :: Int }
@@ -61,11 +61,11 @@ type Counts = { trades :: Int, transforms :: Int, transfers :: Int, joints :: In
 -- | counts. The tables are built from this list, so their headings and cells cannot drift.
 actionKinds :: Array { key :: String, label :: String, short :: String, definition :: String, count :: Counts -> Int }
 actionKinds =
-  [ { key: "trades", label: "Market trades (buys and sells)", short: "Trades", definition: "Market trades the player made: buys and sells on a Market.", count: _.trades }
+  [ { key: "trades", label: "Exchange trades (buys and sells)", short: "Trades", definition: "Exchange trades the player made: buys and sells on an Exchange.", count: _.trades }
   , { key: "transforms", label: "Production and procurement", short: "Transforms", definition: "Productions and procurements the player made through a Transformation.", count: _.transforms }
-  , { key: "transfers", label: "Payments to other players", short: "Transfers", definition: "Payments the player made to other players, including those inside a joint Proposal.", count: _.transfers }
-  , { key: "joint Proposals", label: "Joint Proposals signed", short: "Joint Proposals signed", definition: "Joint Proposals the player signed.", count: _.joints }
-  , { key: "rejected", label: "Proposals rejected", short: "Proposals rejected", definition: ("Proposals of the player the engine rejected. Computed as: " <> describeSlice rejections <> "."), count: _.rejected }
+  , { key: "transfers", label: "Payments to other players", short: "Transfers", definition: "Payments the player made to other players, including those inside a joint candidate Transaction.", count: _.transfers }
+  , { key: "joint candidate Transactions", label: "joint candidate Transactions signed", short: "joint candidate Transactions signed", definition: "joint candidate Transactions the player signed.", count: _.joints }
+  , { key: "rejected", label: "candidate Transactions rejected", short: "candidate Transactions rejected", definition: ("candidate Transactions of the player the engine rejected. Computed as: " <> describeSlice rejections <> "."), count: _.rejected }
   ]
 
 -- | The run chart: one bar per player, ordered by total actions (highest first), each stacked by
@@ -82,18 +82,18 @@ type ActionsChart =
 type ActionsView = { chart :: ActionsChart, totals :: Table, byRound :: Table }
 
 -- | A player's counts over the whole run, and their total.
-type PlayerCounts = { player :: EntityId, counts :: Counts, total :: Int }
+type PlayerCounts = { player :: ActorId, counts :: Counts, total :: Int }
 
 -- | Every Rejected or OrderRemoved event in a round: the number the Overview reports.
 rejectionCount :: RoundRecord -> Int
 rejectionCount rec = runSlice rejections rec.events
 
--- | The Proposal a round's inputs carry, by id.
-proposalOf :: RoundRecord -> ProposalId -> Maybe Proposal
-proposalOf rec pid = map _.proposal (find (\s -> s.proposal.id == pid) rec.inputs)
+-- | The candidate Transaction a round's inputs carry, by id.
+candidateTransactionOf :: RoundRecord -> CandidateTransactionId -> Maybe CandidateTransaction
+candidateTransactionOf rec pid = map _.candidateTransaction (find (\s -> s.candidateTransaction.id == pid) rec.inputs)
 
--- | A joint Proposal: a Proposal with several signers that moves Resources or goods.
-isJoint :: Proposal -> Boolean
+-- | A joint candidate Transaction: a candidate Transaction with several signers that moves Resources or goods.
+isJoint :: CandidateTransaction -> Boolean
 isJoint p = length p.signers >= 2 && any movesStuff p.intents
   where
   movesStuff = case _ of
@@ -101,20 +101,20 @@ isJoint p = length p.signers >= 2 && any movesStuff p.intents
     Transform _ -> true
     _ -> false
 
-countsOf :: RoundRecord -> EntityId -> Counts
+countsOf :: RoundRecord -> ActorId -> Counts
 countsOf rec e =
   { trades: runSlice (tradesBy e) rec.events
   , transforms: runSlice (transformsBy e) rec.events
   , transfers: runSlice (transfersBy e) rec.events
   , joints: length (filter signedJoint rec.inputs)
-  , rejected: runSlice (rejectedOwn ownProposal) rec.events
+  , rejected: runSlice (rejectedOwn ownCandidateTransaction) rec.events
   }
   where
-  signedJoint s = elem e s.signatures && isJoint s.proposal && not (elem s.proposal.id dropped)
-  dropped = droppedProposals rec.events
-  ownProposal pid = maybe false (\p -> p.author == e) (proposalOf rec pid)
+  signedJoint s = elem e s.signatures && isJoint s.candidateTransaction && not (elem s.candidateTransaction.id dropped)
+  dropped = droppedCandidateTransactions rec.events
+  ownCandidateTransaction pid = maybe false (\p -> p.author == e) (candidateTransactionOf rec pid)
 
-rejectedEvents :: Select { round :: Int, proposal :: ProposalId, reason :: RejectReason }
+rejectedEvents :: Select { round :: Int, candidateTransaction :: CandidateTransactionId, reason :: RejectReason }
 rejectedEvents = orKind (event @"Rejected") (event @"OrderRemoved")
 
 zeroCounts :: Counts
@@ -150,10 +150,10 @@ shortColumn :: forall r. { short :: String, definition :: String | r } -> Column
 shortColumn k = column k.short k.definition
 
 totalColumn :: Column
-totalColumn = column "Total" "The sum of the five kinds. A joint Proposal that is also a payment is counted in both."
+totalColumn = column "Total" "The sum of the five kinds. A joint candidate Transaction that is also a payment is counted in both."
 
 -- | A player's counts in one round.
-type RoundCounts = { round :: Int, player :: EntityId, counts :: Counts }
+type RoundCounts = { round :: Int, player :: ActorId, counts :: Counts }
 
 -- | The per-round table's columns and cells: one per kind, under its short heading.
 byRoundFields :: Array (Field RoundCounts)
@@ -174,7 +174,7 @@ actions r = { chart, totals, byRound }
   ps = players r.manifest.initial
   totalsRows = actionTotals r
   byRound = tableOf "Actions by round" byRoundFields (concatMap (\rec -> map (\e -> { round: rec.round, player: e, counts: countsOf rec e }) ps) (records r))
-  totals = tableOf "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a joint Proposal that is also a payment is counted in both." totalsFields totalsRows
+  totals = tableOf "Count of actions over the whole run, by player. Total is the sum of the five kinds, so a joint candidate Transaction that is also a payment is counted in both." totalsFields totalsRows
   chart =
     { title: "Actions over the run, by player"
     , purpose: "A bar is one player. Each coloured segment is that player's count of actions of one kind over the whole run; the bar's height is the total of the segments. Players are ordered by total, highest first."

@@ -20,10 +20,10 @@ module Views.Compare
 
 import Prelude
 
-import Schema.Gameboard (Gameboard)
+import Schema.PossibleWorld (PossibleWorld)
 import Core.Num (Kind(..))
 import Laws.Query (accountsOf, holding)
-import Laws.Types (EntityId)
+import Laws.Types (ActorId)
 import Data.String (joinWith)
 import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, mapMaybe, nub, sortWith, uncons)
 import Data.Either (hush)
@@ -36,7 +36,7 @@ import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
 import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf, cellOf, tableOf)
-import Views.Markets (marketPrices, marketUnit)
+import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
@@ -47,8 +47,8 @@ type Marked = { table :: Table, marked :: Array (Array Boolean) }
 -- | lists each requested run that could not be read, with the reason.
 type CompareView =
   { compatibility :: Table
-  , trajectory :: Maybe Chart -- only when a Market is asked for
-  , markets :: Array Chart
+  , trajectory :: Maybe Chart -- only when an Exchange is asked for
+  , exchanges :: Array Chart
   , netWorth :: Array { player :: String, chart :: Chart }
   , standings :: Bars
   , balance :: { spread :: Bars, gini :: Bars, unit :: String }
@@ -76,16 +76,16 @@ showsSameness column name value = { column, name, same: \a b -> value a == value
 -- | The fields a comparison checks, in the order the verdict names them.
 fields :: Array CompareField
 fields =
-  [ showsValue col.gameboard "Gameboard" _.manifest.gameboard
+  [ showsValue col.possibleWorld "PossibleWorld" _.manifest.possibleWorld
   , showsValue engineColumn "engine" _.manifest.engine
   , showsValue col.rounds "round count" (show <<< completed)
   , showsSameness unitsColumn "units" (\r -> map _.unit r.manifest.initial.resources)
-  , showsSameness marketDefinitions "Market definitions" _.manifest.initial.markets
-  , (showsValue actorSelection "Actor selection" (fromMaybe "—" <<< _.spec.preset)) { same = \a b -> a.spec.preset == b.spec.preset }
+  , showsSameness exchangeDefinitions "Exchange definitions" _.manifest.initial.exchanges
+  , (showsValue playableActorSelection "Actor selection" (fromMaybe "—" <<< _.spec.preset)) { same = \a b -> a.spec.preset == b.spec.preset }
   ]
 
 -- | Runs are directly comparable only when they agree on everything the manifest fixes: the
--- | Gameboard version, the engine, the round count, the units, the Market definitions, and the
+-- | possible World version, the engine, the round count, the units, the Exchange definitions, and the
 -- | Actor selection (the preset every seat plays). Each difference is named, and the run is flagged.
 compatible :: Array StoredRun -> Table
 compatible runs = tableOf "Compatibility" tableFields runs
@@ -106,11 +106,11 @@ engineColumn = column "Engine" "The version of the round engine that resolved ea
 unitsColumn :: Column
 unitsColumn = column "Units" "Whether every Resource has the same unit in each run."
 
-marketDefinitions :: Column
-marketDefinitions = column "Market definitions" "Whether the Markets are defined the same way in each run."
+exchangeDefinitions :: Column
+exchangeDefinitions = column "Exchange definitions" "Whether the Exchanges are defined the same way in each run."
 
-actorSelection :: Column
-actorSelection = column "Actor selection" "The preset every seat plays. differs means the runs used different presets."
+playableActorSelection :: Column
+playableActorSelection = column "Actor selection" "The preset every seat plays. differs means the runs used different presets."
 
 comparableColumn :: Column
 comparableColumn = column "Comparable with the first" "yes, or no with the reasons. A run flagged no is shown but not combined with the first run."
@@ -119,30 +119,30 @@ deltaColumn :: Column
 deltaColumn = column "Δ" "Difference in holding from the baseline run."
 
 categoryColumn :: Column
-categoryColumn = column "Category" "What kind of setting this is: a version, a seat policy, a seed, or another setting."
+categoryColumn = column "Category" "What kind of premise this is: a version, a seat strategy, a seed, or another premise."
 
 parameterColumn :: Column
-parameterColumn = column "Parameter" "A specification setting, compared across the runs."
+parameterColumn = column "Parameter" "A specification premise, compared across the runs."
 
 unitColumn :: Column
 unitColumn = column "Unit" "The unit of this row's values."
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ engineColumn, unitsColumn, marketDefinitions, actorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
+columns = [ engineColumn, unitsColumn, exchangeDefinitions, playableActorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.
 perRunRow :: forall run. Array run -> Array String -> (run -> String) -> Array String
 perRunRow runs leading cell = leading <> map cell runs
 
--- | Every run's final holdings, one column per run, for each Entity and Resource account. A cell is
+-- | Every run's final holdings, one column per run, for each Actor and Resource account. A cell is
 -- | marked where the holding differs from the first run's.
 finalState :: Array StoredRun -> Marked
 finalState runs =
   { table:
       { title: "Final state"
-      , columns: names [ col.entity, col.resource ] <> map _.id runs
+      , columns: names [ col.actor, col.resource ] <> map _.id runs
       , rows: map (\k@(Tuple e res) -> perRunRow runs [ show e, show res ] (cell k)) keys
       }
   , marked: map (\k -> [ false, false ] <> differsFromBaseline runs (cell k)) keys
@@ -150,7 +150,7 @@ finalState runs =
   where
   cell (Tuple e res) r = quantity (holding (final r) e res)
   keys = case index runs 0 of
-    Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\e -> map (Tuple e) (filter (listedHolding (final r)) (fromFoldable (Map.keys (accountsOf (final r) e))))) (fromFoldable (Map.keys (final r).entities)))
+    Just r -> sortWith (\(Tuple e res) -> show e <> show res) (concatMap (\e -> map (Tuple e) (filter (listedHolding (final r)) (fromFoldable (Map.keys (accountsOf (final r) e))))) (fromFoldable (Map.keys (final r).actors)))
     Nothing -> []
 
 -- | Each run's final holdings minus the baseline's, where they differ: the symmetric difference of the
@@ -158,17 +158,17 @@ finalState runs =
 baselineDiff :: StoredRun -> Array StoredRun -> Table
 baselineDiff base others =
   { title: "Difference from baseline " <> base.id
-  , columns: names [ col.run, col.entity, col.resource, deltaColumn ]
-  , rows: concatMap (\r -> map (\h -> [ r.id, show h.entity, show h.resource, quantity h.delta ]) (differenceOfWorlds (final base) (final r)).holdings) others
+  , columns: names [ col.run, col.actor, col.resource, deltaColumn ]
+  , rows: concatMap (\r -> map (\h -> [ r.id, show h.actor, show h.resource, quantity h.delta ]) (differenceOfWorlds (final base) (final r)).holdings) others
   }
 
 -- | Per run: whether its value differs from the first run's.
 differsFromBaseline :: forall a. Eq a => Array StoredRun -> (StoredRun -> a) -> Array Boolean
 differsFromBaseline runs value = map (\r -> Just (value r) /= (value <$> head runs)) runs
 
--- | What kind of setting a configuration row is (docs/06_simulator.md §10.2): versions, the seat
--- | Policy, the seeds, or a deliberate change. Listed in that order.
-data Category = Version | SeatPolicy | Seeds | Other
+-- | What kind of premise a configuration row is (docs/06_simulator.md §10.2): versions, the seat
+-- | Strategy, the seeds, or a deliberate change. Listed in that order.
+data Category = Version | SeatStrategy | Seeds | Other
 
 derive instance Eq Category
 derive instance Ord Category
@@ -176,7 +176,7 @@ derive instance Ord Category
 categoryLabel :: Category -> String
 categoryLabel = case _ of
   Version -> "version"
-  SeatPolicy -> "seat Policy"
+  SeatStrategy -> "seat Strategy"
   Seeds -> "seed"
   Other -> "other"
 
@@ -187,7 +187,7 @@ type ConfigRow = { key :: String, category :: Category, value :: StoredRun -> St
 -- | manifest fixes.
 configRows :: Array StoredRun -> Array ConfigRow
 configRows runs = map specRow (nub (concatMap (map fst <<< listed) runs)) <>
-  [ manifestRow "gameboard" Version _.manifest.gameboard
+  [ manifestRow "possibleWorld" Version _.manifest.possibleWorld
   , manifestRow "engine" Version _.manifest.engine
   , manifestRow "game seed" Seeds (show <<< _.manifest.initial.seed)
   , manifestRow "player seed" Seeds _.playerSeed
@@ -198,7 +198,7 @@ configRows runs = map specRow (nub (concatMap (map fst <<< listed) runs)) <>
   specRow k = { key: k, category: specCategory k, value: \r -> fromMaybe "—" (lookup k (listed r)) }
   specCategory k
     | k == specKey.gameId = Version
-    | k == specKey.preset = SeatPolicy
+    | k == specKey.preset = SeatStrategy
     | otherwise = Other
   manifestRow key category value = { key, category, value }
 
@@ -218,7 +218,7 @@ configDiff base others =
   -- a parameter differs when some run's value is not the baseline's
   shown = sortWith _.category (filter (\k -> any (\r -> k.value r /= k.value base) allRuns) (configRows allRuns))
 
--- | The runs of the first run's specification: the same settings, whatever their seeds. Their
+-- | The runs of the first run's specification: the same premises, whatever their seeds. Their
 -- | differences are seed-to-seed variation (§10.2); the bookkeeping keys (the seed, the derivation)
 -- | are not part of the specification.
 sameSpecification :: Array StoredRun -> Array StoredRun
@@ -236,7 +236,7 @@ runHeader r
   | otherwise = r.name <> " (" <> r.id <> ")"
 
 -- | The Players of the runs (their Actors), in the order they first appear.
-playerIds :: Array StoredRun -> Array EntityId
+playerIds :: Array StoredRun -> Array ActorId
 playerIds runs = nub (concatMap (\r -> players (final r)) runs)
 
 -- | The unit of net worth, which is the numeraire's unit in the first run's manifest.
@@ -245,8 +245,8 @@ numeraireUnit runs = maybe "" (\r -> unitOf r r.manifest.initial.numeraire) (hea
 
 -- | Key values across the runs: one row per measure or per Player, one column per run (its header is
 -- | the run's name and id). Every value is read from the view that defines it: the standings, the
--- | balance measures, the action totals, the objective completion and the Market prices.
-keyValues :: (StoredRun -> Maybe Gameboard) -> Array StoredRun -> Table
+-- | balance measures, the action totals, the objective completion and the Exchange prices.
+keyValues :: (StoredRun -> Maybe PossibleWorld) -> Array StoredRun -> Table
 keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs
@@ -260,7 +260,7 @@ keyValues boardOf runs =
     , measures: measuresOf r
     , completion: maybe [] (\gb -> completionOf gb r) (boardOf r)
     , actions: actionTotals r
-    , prices: marketPrices (final r)
+    , prices: exchangePrices (final r)
     }
   perRun = map read runs
 
@@ -283,17 +283,17 @@ keyValues boardOf runs =
   measureRows = map (\m -> row [ m.label, m.unit (numeraireUnit runs) ] (\v -> m.cell (m.read v.measures))) runMeasures
 
   objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
-  roles = nub (concatMap (map _.actor <<< _.completion) perRun)
-  roleCell role v = case find (\c -> c.actor == role) v.completion of
+  roles = nub (concatMap (map _.playableActor <<< _.completion) perRun)
+  roleCell role v = case find (\c -> c.playableActor == role) v.completion of
     Nothing -> "—"
     Just c -> ofCount c.met c.criteria
 
-  rejectedRow = row [ "Proposals rejected, all players", "count" ] (\v -> show (sum (map (\c -> c.counts.rejected) v.actions)))
+  rejectedRow = row [ "candidate Transactions rejected, all players", "count" ] (\v -> show (sum (map (\c -> c.counts.rejected) v.actions)))
 
-  markets = nub (concatMap (map _.market <<< _.prices) perRun)
-  priceRows = map (\m -> row [ "Final price, " <> show m, marketUnitOf m ] (priceIn m)) markets
-  marketUnitOf m = fromMaybe "" (head (mapMaybe (\r -> hush (marketUnit m r)) runs))
-  priceIn m v = maybe "—" (price <<< _.price) (find (\p -> p.market == m) v.prices)
+  exchanges = nub (concatMap (map _.exchange <<< _.prices) perRun)
+  priceRows = map (\m -> row [ "Final price, " <> show m, exchangeUnitOf m ] (priceIn m)) exchanges
+  exchangeUnitOf m = fromMaybe "" (head (mapMaybe (\r -> hush (exchangeUnit m r)) runs))
+  priceIn m v = maybe "—" (price <<< _.price) (find (\p -> p.exchange == m) v.prices)
 
 -- | One chart per Player: its net worth in each run, one line per run, from round 0 to the final round.
 -- | A round where a run has no such Player has no point (docs/06_simulator.md §10.2).

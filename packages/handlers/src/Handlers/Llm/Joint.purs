@@ -1,15 +1,15 @@
--- | The joint pass (docs/04 §11): reads a round's transcripts together into Proposals.
+-- | The joint pass (docs/04 §11): reads a round's transcripts together into candidate Transactions.
 module Handlers.Llm.Joint
   ( joint
   , interpreter
-  , markets
+  , exchanges
   ) where
 
 import Prelude
 import Core.Map (values)
-import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointProposals)
+import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointCandidateTransactions)
 import Core.Shape (Format(..), encodeWith)
-import Laws.Types (MarketId, RoundIndex)
+import Laws.Types (ExchangeId, RoundIndex)
 import Laws.World (WorldState)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -28,22 +28,22 @@ joint b request = go 0 original
   go n payload = do
     out <- send b interpretCall (interpretCall.key request) payload
     case out.decoded of
-      Right r -> pure (Right r.proposals)
+      Right r -> pure (Right r.candidateTransactions)
       Left err
         | n < maxCorrections -> go (n + 1) (correction original out.text err)
         | otherwise -> pure (Left err)
 
--- | The round's transcripts to Proposals, one joint pass (`joint`). A reply that still does not
+-- | The round's transcripts to candidate Transactions, one joint pass (`joint`). A reply that still does not
 -- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
--- | Entries the engine could not use are dropped by the joint pass rule (`Laws.Proposal.jointProposals`).
--- | `w` supplies only the Entity and Market ids, which no round changes, so the initial world serves.
-interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointProposal))
+-- | Entries the engine could not use are dropped by the joint pass rule (`Laws.candidate Transaction.jointProposals`).
+-- | `w` supplies only the Actor and Exchange ids, which no round changes, so the initial world serves.
+interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
 interpreter b w round transcripts = do
   let
     request :: JointRequest
-    request = { round, transcripts, entities: map _.id (values w.entities), markets: markets w }
+    request = { round, transcripts, actors: map _.id (values w.actors), exchanges: exchanges w }
   r <- joint b request
-  pure (map (jointProposals (\s -> Map.member s w.entities) transcripts) r)
+  pure (map (jointCandidateTransactions (\s -> Map.member s w.actors) transcripts) r)
 
-markets :: WorldState -> Array MarketId
-markets w = map _.id (values w.markets)
+exchanges :: WorldState -> Array ExchangeId
+exchanges w = map _.id (values w.exchanges)

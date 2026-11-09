@@ -6,7 +6,7 @@ module Test.Handlers.Route (spec) where
 import Prelude
 
 import Schema.Run (DeriveKind(..))
-import Game.Experiment (Experiment(..))
+import Assembly.Experiment (Experiment(..))
 import Schema.View (View(..), allViews, viewName)
 import Data.Argonaut.Core (fromString)
 import Data.Array (nub, sort)
@@ -37,12 +37,12 @@ delivered w = case split (Pattern "?") w.url of
 nameOf :: ApiRequest -> String
 nameOf = case _ of
   ListRuns _ -> "ListRuns"
-  Setting -> "Setting"
+  Premise -> "Premise"
   Glossary -> "Glossary"
   LaunchRun _ -> "LaunchRun"
   LaunchBatch _ -> "LaunchBatch"
-  Entities _ -> "Entities"
-  Entity _ _ -> "Entity"
+  Actors _ -> "Actors"
+  Actor _ _ -> "Actor"
   RunView _ -> "RunView"
   Compare _ -> "Compare"
   Agency _ -> "Agency"
@@ -51,11 +51,11 @@ nameOf = case _ of
   Resume _ -> "Resume"
   Step _ -> "Step"
   RunExperiment _ -> "RunExperiment"
-  ListScenarioSets -> "ListScenarioSets"
+  ListRunSets -> "ListRunSets"
   SetSummary _ -> "SetSummary"
-  SaveScenarioSet _ -> "SaveScenarioSet"
-  RenameScenarioSet _ -> "RenameScenarioSet"
-  DeleteScenarioSet _ -> "DeleteScenarioSet"
+  SaveRunSet _ -> "SaveRunSet"
+  RenameRunSet _ -> "RenameRunSet"
+  DeleteRunSet _ -> "DeleteRunSet"
   Archive _ -> "Archive"
   Unarchive _ -> "Unarchive"
   Delete _ -> "Delete"
@@ -64,33 +64,33 @@ examples :: Array (Tuple ApiRequest { method :: String, url :: String, body :: S
 examples =
   [ Tuple (ListRuns { archived: false }) (g "/api/runs")
   , Tuple (ListRuns { archived: true }) (g "/api/runs?archived=true")
-  , Tuple Setting (g "/api/setting")
+  , Tuple Premise (g "/api/premise")
   , Tuple Glossary (g "/api/glossary")
-  , Tuple (LaunchBatch { settings: Nothing, preset: "Trader", playerSeed: Just 7, rounds: Nothing }) (p "/api/batch" "{\"playerSeed\":7,\"preset\":\"Trader\"}")
-  , Tuple (LaunchRun { setting: Nothing, name: "n", preset: "Trader", playerSeed: Just 7, rounds: Just 3 }) (p "/api/runs" "{\"name\":\"n\",\"playerSeed\":7,\"preset\":\"Trader\",\"rounds\":3}")
-  , Tuple (LaunchRun { setting: Nothing, name: "n", preset: "Trader", playerSeed: Nothing, rounds: Nothing }) (p "/api/runs" "{\"name\":\"n\",\"preset\":\"Trader\"}")
-  , Tuple (Entities "run 1") (g "/api/runs/run%201/entities")
-  , Tuple (Entity "run-1" "US") (g "/api/runs/run-1/entity/US")
+  , Tuple (LaunchBatch { premises: Nothing, preset: "Trader", playerSeed: Just 7, rounds: Nothing }) (p "/api/batch" "{\"playerSeed\":7,\"preset\":\"Trader\"}")
+  , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Just 7, rounds: Just 3 }) (p "/api/runs" "{\"name\":\"n\",\"playerSeed\":7,\"preset\":\"Trader\",\"rounds\":3}")
+  , Tuple (LaunchRun { premise: Nothing, name: "n", preset: "Trader", playerSeed: Nothing, rounds: Nothing }) (p "/api/runs" "{\"name\":\"n\",\"preset\":\"Trader\"}")
+  , Tuple (Actors "run 1") (g "/api/runs/run%201/actors")
+  , Tuple (Actor "run-1" "US") (g "/api/runs/run-1/actor/US")
   , Tuple (RunView { id: "run-1", view: NetWorth, round: Nothing }) (g "/api/runs/run-1/networth")
   , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
-  , Tuple (Compare { runs: [ "a", "b" ], market: Just "m 1" }) (g "/api/compare?runs=a,b&market=m%201")
-  , Tuple (Compare { runs: [], market: Nothing }) (g "/api/compare?runs=")
-  , Tuple (Agency { setting: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
-  , Tuple (AgencyDetail { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }) (g "/api/agency/detail")
+  , Tuple (Compare { runs: [ "a", "b" ], exchange: Just "m 1" }) (g "/api/compare?runs=a,b&exchange=m%201")
+  , Tuple (Compare { runs: [], exchange: Nothing }) (g "/api/compare?runs=")
+  , Tuple (Agency { premise: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
+  , Tuple (AgencyDetail { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }) (g "/api/agency/detail")
   , Tuple (Derive { id: "run-1", body: { kind: Variant, name: Just "x", preset: Just "Trader", playerSeed: Just Nothing, rounds: Just 4, overrides: Nothing } })
       (p "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"name\":\"x\",\"playerSeed\":null,\"preset\":\"Trader\",\"rounds\":4}")
   , Tuple (Derive { id: "run-1", body: { kind: Duplicate, name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing, overrides: Just (fromString "o") } })
       (p "/api/runs/run-1/derive" "{\"kind\":\"duplicate\",\"overrides\":\"o\"}")
   , Tuple (Resume { id: "run-1", rounds: 9 }) (p "/api/runs/run-1/resume" "{\"rounds\":9}")
   , Tuple (Step "run-1") (p "/api/runs/run-1/step" "{}")
-  , Tuple (RunExperiment { setting: Nothing, name: "s", preset: "Passive", playerSeed: Just 1, rounds: Nothing, experiment: Parameters [] }) (p "/api/experiments" "{\"experiment\":{\"type\":\"parameters\"},\"name\":\"s\",\"playerSeed\":1,\"preset\":\"Passive\"}")
-  , Tuple ListScenarioSets (g "/api/sets")
+  , Tuple (RunExperiment { premise: Nothing, name: "s", preset: "Passive", playerSeed: Just 1, rounds: Nothing, experiment: Parameters [] }) (p "/api/experiments" "{\"experiment\":{\"type\":\"parameters\"},\"name\":\"s\",\"playerSeed\":1,\"preset\":\"Passive\"}")
+  , Tuple ListRunSets (g "/api/sets")
   , Tuple (SetSummary "a") (g "/api/sets/a/summary")
-  , Tuple (SaveScenarioSet { name: "a", baseline: "run-1", runs: [ "run-1" ] }) (p "/api/sets" "{\"baseline\":\"run-1\",\"name\":\"a\",\"runs\":[\"run-1\"]}")
-  , Tuple (RenameScenarioSet { name: "a", to: "b" }) (p "/api/sets/a/rename" "{\"name\":\"b\"}")
+  , Tuple (SaveRunSet { name: "a", baseline: "run-1", runs: [ "run-1" ] }) (p "/api/sets" "{\"baseline\":\"run-1\",\"name\":\"a\",\"runs\":[\"run-1\"]}")
+  , Tuple (RenameRunSet { name: "a", to: "b" }) (p "/api/sets/a/rename" "{\"name\":\"b\"}")
   , Tuple (Archive "run-1") (p "/api/runs/run-1/archive" "{}")
   , Tuple (Unarchive "run-1") (p "/api/runs/run-1/unarchive" "{}")
-  , Tuple (DeleteScenarioSet "a") { method: "DELETE", url: "/api/sets/a", body: "" }
+  , Tuple (DeleteRunSet "a") { method: "DELETE", url: "/api/sets/a", body: "" }
   , Tuple (Delete { id: "run-1", confirm: "run-1" }) { method: "DELETE", url: "/api/runs/run-1?confirm=run-1", body: "" }
   ]
   where

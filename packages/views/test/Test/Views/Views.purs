@@ -8,13 +8,13 @@ import Prelude
 
 import Laws.Types (Id(..), ResourceTag)
 
-import Testkit.Edit (onEntity)
+import Testkit.Edit (onActor)
 
 import Test.Views.Support (toStored)
 
 import Schema.Run (DeriveKind(..), RunStatus(..), emptySpec, specPairs)
 import Checks.Objectives (evaluateObjectives)
-import Schema.Gameboard (Outcome(..))
+import Schema.PossibleWorld (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
@@ -28,17 +28,17 @@ import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Handlers.Simulate (SimRun)
-import Game.Assemble (assemblePreset)
-import Game.Override (Override(..), resolve)
-import Game.Setting (GameboardParts)
-import Game.Recipe (encodeSpec)
+import Assembly.Assemble (assemblePreset)
+import Assembly.Override (Override(..), resolve)
+import Assembly.Premise (PossibleWorldParts)
+import Assembly.Recipe (encodeSpec)
 import Foreign.Object as Object
 import Testkit.Meridian (run, orThrow)
 import Views.Balances (balances, events)
 import Views.Common (Table, completed, exact, final, quantity)
 import Views.Balance (measures, measuresOf)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
-import Views.Entity (entityHistory)
+import Views.Actor (actorHistory)
 import Views.Standings (standings, standingsOf)
 import Views.Glossary (glossary)
 import Views.Overview (overview, runList)
@@ -63,14 +63,14 @@ verdicts t = map (\row -> cell row 7) t.rows
 cell :: Array String -> Int -> String
 cell row i = fromMaybe "" (index row i)
 
-play :: GameboardParts -> Setup -> Aff SimRun
+play :: PossibleWorldParts -> Setup -> Aff SimRun
 play ctx s = do
   g <- orThrow (assemblePreset ctx s.preset s.overrides (Just s.rounds))
   run (Seed s.seed) g
 
-spec :: Aff GameboardParts -> Spec Unit
+spec :: Aff PossibleWorldParts -> Spec Unit
 spec context = describe "Views and error paths" do
-  it "the stored specification is typed: what Game.Recipe writes is what the views read" do
+  it "the stored specification is typed: what Assembly.Recipe writes is what the views read" do
     let written = encodeSpec { gameId: "g", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
     written.gameId `shouldEqual` Just "g"
     written.preset `shouldEqual` Just "P"
@@ -85,10 +85,10 @@ spec context = describe "Views and error paths" do
     case assemblePreset ctx "NoSuchPreset" [] (Just base.rounds) of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown preset NoSuchPreset")
       Right _ -> fail "an unknown preset ran"
-    case resolve { gameboard: ctx.gameboard, config: ctx.config } [ Parameter "no-such-parameter" (Q.fromInt 1) ] of
+    case resolve { possibleWorld: ctx.possibleWorld, config: ctx.config } [ Parameter "no-such-parameter" (Q.fromInt 1) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown parameter no-such-parameter")
       Right _ -> fail "an unknown parameter was applied"
-    case resolve { gameboard: ctx.gameboard, config: ctx.config } [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] of
+    case resolve { possibleWorld: ctx.possibleWorld, config: ctx.config } [ Shrinkage "no-such-scheme" (Q.fromInt 0) ] of
       Left e -> show e `shouldSatisfy` contains (Pattern "unknown scheme")
       Right _ -> fail "an unknown scheme was applied"
 
@@ -100,7 +100,7 @@ spec context = describe "Views and error paths" do
       r1 = toStored "run-1" a
       r2 = toStored "run-2" b
       runs = [ r1, r2 ]
-      kv = keyValues (const (Just ctx.gameboard)) runs
+      kv = keyValues (const (Just ctx.possibleWorld)) runs
       rowOf label = fromMaybe [] (find (\row -> cell row 0 == label) kv.rows)
       valueIn label r = fromMaybe "" (find (\row -> cell row 0 == label) (measures r).rows >>= \row -> index row 1)
       standingOf p r = fromMaybe "" (find (\row -> cell row 0 == p) (standings r).rows >>= \row -> index row 1)
@@ -139,7 +139,7 @@ spec context = describe "Views and error paths" do
       money = base.manifest.initial.numeraire
       held = holding (final base) e money
       -- the other run's every round has no Money account for US, so it lacks what the baseline holds
-      dropped w = onEntity e (\en -> en { accounts = Map.delete money en.accounts }) w
+      dropped w = onActor e (\en -> en { accounts = Map.delete money en.accounts }) w
       other = base { id = "other", rounds = map (\x -> x { world = dropped x.world }) base.rounds }
       rows = (baselineDiff base [ other ]).rows
     (held == Q.zero) `shouldEqual` false
@@ -171,25 +171,25 @@ spec context = describe "Views and error paths" do
       cell row 11 `shouldEqual` "n/a"
       cell row 12 `shouldEqual` "n/a"
 
-  it "runs differing in engine, units, Markets, Actors, or round count are flagged, not combined (§10.1)" do
+  it "runs differing in engine, units, Exchanges, Actors, or round count are flagged, not combined (§10.1)" do
     ctx <- context
     r <- play ctx (conservative 3)
     let
       a = toStored "a" r
       b = toStored "b" r
       engine = b { manifest = b.manifest { engine = "engine-other" } }
-      markets = b { manifest = b.manifest { initial = b.manifest.initial { markets = map (\m -> m { position = Q.fromInt 999 }) b.manifest.initial.markets } } }
-      actors = b { spec = emptySpec { preset = Just "Passive" } }
+      exchanges = b { manifest = b.manifest { initial = b.manifest.initial { exchanges = map (\m -> m { position = Q.fromInt 999 }) b.manifest.initial.exchanges } } }
+      playableActors = b { spec = emptySpec { preset = Just "Passive" } }
       fewer = toStored "c" (r { records = [] })
     verdicts (compatible [ a, a ]) `shouldEqual` [ "yes", "yes" ]
     verdicts (compatible [ a, engine ]) `shouldEqual` [ "yes", "no: flagged, not combined (engine)" ]
-    verdicts (compatible [ a, markets ]) `shouldEqual` [ "yes", "no: flagged, not combined (Market definitions)" ]
-    verdicts (compatible [ a, actors ]) `shouldEqual` [ "yes", "no: flagged, not combined (Actor selection)" ]
+    verdicts (compatible [ a, exchanges ]) `shouldEqual` [ "yes", "no: flagged, not combined (Exchange definitions)" ]
+    verdicts (compatible [ a, playableActors ]) `shouldEqual` [ "yes", "no: flagged, not combined (Actor selection)" ]
     verdicts (compatible [ a, fewer ]) `shouldEqual` [ "yes", "no: flagged, not combined (round count)" ]
 
   it "a run with no rounds: every objective is not evaluated, never met (§10.5)" do
     ctx <- context
-    let os = evaluateObjectives ctx.gameboard []
+    let os = evaluateObjectives ctx.possibleWorld []
     length os `shouldEqual` 16
     all (\o -> o.outcome == NotEvaluated) os `shouldEqual` true
 
@@ -201,7 +201,7 @@ spec context = describe "Views and error paths" do
     map (\row -> cell row 6) t.rows `shouldEqual` [ show Completed, "unreadable" ]
     map (\row -> cell row 8) t.rows `shouldEqual` [ "", "manifest: bad json" ]
 
-  it "an Entity's history shows each round's holding, and its net worth matches the standings (§9.2)" do
+  it "an Actor's history shows each round's holding, and its net worth matches the standings (§9.2)" do
     ctx <- context
     r <- play ctx (conservative 3)
     let
@@ -209,10 +209,10 @@ spec context = describe "Views and error paths" do
       e = Id "US"
       money = s.manifest.initial.numeraire
       -- the round-2 snapshot (index 1) holds a known amount of Money for US; the others are unchanged
-      setMoney w = onEntity e (\en -> en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) w
+      setMoney w = onActor e (\en -> en { accounts = Map.insert money (Q.fromInt 777) en.accounts }) w
       known = s { rounds = mapWithIndex (\i x -> if i == 1 then x { world = setMoney x.world } else x) s.rounds }
       moneyRow h = filter (\row -> index row 0 == Just (show money)) h.table.rows
-    case entityHistory known e of
+    case actorHistory known e of
       Left err -> fail err
       Right h -> do
         h.table.columns `shouldEqual` [ "Resource", "Round 0", "Round 1", "Round 2", "Round 3" ]
@@ -220,26 +220,26 @@ spec context = describe "Views and error paths" do
           cell row 3 `shouldEqual` "777"
           cell row 1 `shouldEqual` quantity (holding s.manifest.initial e money)
         h.chart.series `shouldSatisfy` \ss -> length (filter (\x -> x.name == show money) ss) == 1
-    case entityHistory s e of
+    case actorHistory s e of
       Left err -> fail err
       Right h -> do
-        -- the net-worth row's final column is the Entity's net worth in the standings
+        -- the net-worth row's final column is the Actor's net worth in the standings
         let finalNw = fromMaybe "" (map (\row -> cell row 4) (index (filter (\row -> index row 0 == Just "Net worth") h.table.rows) 0))
         let standing = filter (\row -> index row 0 == Just "US") (standings s).rows
         map (\row -> cell row 1) standing `shouldEqual` [ finalNw ]
-    isLeft (entityHistory s (Id "NoSuchEntity")) `shouldEqual` true
+    isLeft (actorHistory s (Id "NoSuchActor")) `shouldEqual` true
 
   it "the overview returns the header's facts, in order" do
     ctx <- context
     r <- play ctx (conservative 2)
-    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Setting", "Status", "Rounds completed", "Game ID" ]
+    map _.label (overview (toStored "run-1" r)).facts `shouldEqual` [ "Name", "Preset", "Premise", "Status", "Rounds completed", "Game ID" ]
   where
   summary s =
     { id: s.id
     , name: s.name
     , status: s.status
     , reason: Nothing
-    , gameboard: s.manifest.gameboard
+    , possibleWorld: s.manifest.possibleWorld
     , gameSeed: show s.manifest.initial.seed
     , playerSeed: s.playerSeed
     , rounds: completed s

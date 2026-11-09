@@ -1,11 +1,11 @@
--- | Builders for a golden fixture's rounds and expectations (docs/05_test_instance.md §21–§27):
--- | Proposals and their references, procedure outcomes, and the `expect` checks. Every expected value
+-- | Builders for a golden fixture's rounds and expectations (docs/05_meridian.md §21–§27):
+-- | candidate Transactions and their references, procedure outcomes, and the `expect` checks. Every expected value
 -- | is a literal. An `expect` is `noExpect` with the keys it checks given by record update:
 -- | `noExpect { accounts = balances [ Tuple N.us (keyed [ N.money := 260 ]) ] }`.
 module Schema.Build.Fixture
   ( module Exports
   , balances
-  , proposal
+  , candidateTransaction
   , ref
   , procedureOutcome
   , noRound
@@ -14,33 +14,33 @@ module Schema.Build.Fixture
 import Prelude (map, (<<<))
 
 import Core.Num (Q)
-import Laws.Types (EntityTag, Id, Intent, SignedProposal)
+import Laws.Types (ActorTag, Id, Intent, SignedCandidateTransaction)
 import Schema.Build.Named (class Named, named)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Schema.Setting.Fixture (RoundSpec, unnumbered)
-import Schema.Round (ProcedureOf, ProposalRef)
+import Schema.Premise.Fixture (RoundSpec, unnumbered)
+import Schema.Round (ProcedureOf, CandidateTransactionRef)
 import Schema.Round (noExpect) as Exports
 
 -- | An expectation's balances, from each key's literals: each is a leaf asserted.
 balances :: forall k a b. Named k a => Array (Tuple k (Map (Id b) Q)) -> Map (Id a) (Map (Id b) (Maybe Q))
 balances = Map.fromFoldable <<< map (\(Tuple k v) -> Tuple (named k) (map Just v))
 
--- | An unsigned Proposal with no signers, signatures or procedure, not yet numbered. Those keys are
+-- | An unsigned candidate Transaction with no signers, signatures or procedure, not yet numbered. Those keys are
 -- | given by record update (`p { signatures = [ ... ], proposal { signers = [ ... ] } }`).
-proposal :: forall a. Named a EntityTag => { author :: a, intents :: Array Intent } -> SignedProposal
-proposal p = { proposal: { id: unnumbered, author: named p.author, intents: p.intents, signers: [], procedure: Nothing }, signatures: [] }
+candidateTransaction :: forall a. Named a ActorTag => { author :: a, intents :: Array Intent } -> SignedCandidateTransaction
+candidateTransaction p = { candidateTransaction: { id: unnumbered, author: named p.author, intents: p.intents, signers: [], procedure: Nothing }, signatures: [] }
 
--- | A Proposal named in an expectation: its author's first Proposal in the round.
-ref :: forall a. Named a EntityTag => a -> ProposalRef
+-- | A candidate Transaction named in an expectation: its author's first candidate Transaction in the round.
+ref :: forall a. Named a ActorTag => a -> CandidateTransactionRef
 ref author = { author: named author, index: 0 }
 
--- | A procedure's expected outcome: the Proposal it names, the weight behind it, and whether it ran.
-procedureOutcome :: ProposalRef -> Q -> Boolean -> ProcedureOf ProposalRef
-procedureOutcome named support executed = { proposal: named, support, executed }
+-- | A procedure's expected outcome: the candidate Transaction it names, the weight behind it, and whether it ran.
+procedureOutcome :: CandidateTransactionRef -> Q -> Boolean -> ProcedureOf CandidateTransactionRef
+procedureOutcome named support executed = { candidateTransaction: named, support, executed }
 
 -- | A round that receives nothing and checks nothing. A round's keys are given by record update.
 noRound :: RoundSpec
-noRound = { proposals: Nothing, expect: Nothing }
+noRound = { candidateTransactions: Nothing, expect: Nothing }

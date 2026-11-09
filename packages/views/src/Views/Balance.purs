@@ -23,12 +23,12 @@ module Views.Balance
 
 import Prelude
 
-import Schema.Gameboard (Gameboard, Outcome(..))
+import Schema.PossibleWorld (PossibleWorld, Outcome(..))
 import Checks.Objectives (evaluateObjectives)
 import Core.Map as CoreMap
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
-import Laws.Types (EntityId)
+import Laws.Types (ActorId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
 import Data.Tuple (Tuple(..))
@@ -153,9 +153,9 @@ measures r = tableOf ("Balance after round " <> show (completed r)) [ cellOf col
 
 -- | One Actor's objective criteria over the run: how many were met, not met and not evaluated, and the
 -- | objective's outcome.
-type Completion = { actor :: EntityId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
+type Completion = { playableActor :: ActorId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
 
-completionOf :: Gameboard -> StoredRun -> Array Completion
+completionOf :: PossibleWorld -> StoredRun -> Array Completion
 completionOf gb r = map row (evaluateObjectives gb r.rounds)
   where
   row o =
@@ -163,15 +163,15 @@ completionOf gb r = map row (evaluateObjectives gb r.rounds)
       outcomes = map _.outcome o.criteria
       count x = length (filter (_ == x) outcomes)
     in
-      { actor: o.actor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
+      { playableActor: o.playableActor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
 
 -- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
-completion :: Gameboard -> StoredRun -> Table
+completion :: PossibleWorld -> StoredRun -> Table
 completion gb r = tableOf "Objective completion by role" completionFields (completionOf gb r)
 
 completionFields :: Array (Field Completion)
 completionFields =
-  [ cellOf roleColumn (show <<< _.actor)
+  [ cellOf roleColumn (show <<< _.playableActor)
   , cellOf col.objective _.description
   , cellOf criteriaColumn (show <<< _.criteria)
   , cellOf metColumn (show <<< _.met)
@@ -183,7 +183,7 @@ completionFields =
 -- | The balance view model (`/api/runs/:id/balance`): the measures and the objective completion.
 type BalanceView = { measures :: Table, completion :: Table }
 
-balanceView :: Gameboard -> StoredRun -> BalanceView
+balanceView :: PossibleWorld -> StoredRun -> BalanceView
 balanceView gb r = { measures: measures r, completion: completion gb r }
 
 -- | The seed variation of runs of one specification: each run's final spread and Gini, then the

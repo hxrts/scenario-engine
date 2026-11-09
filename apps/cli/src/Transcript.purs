@@ -1,5 +1,5 @@
 -- | The composition root of the capstone recording (`Cli.Transcript`): the real handler over a stub model that
--- | answers with the DSL's reply text. The handler reports each exchange, which is kept here and written.
+-- | answers with the DSL's reply text. The handler reports each turn, which is kept here and written.
 module Transcript (main) where
 
 import Prelude
@@ -7,7 +7,7 @@ import Prelude
 import Adapters.Digest (sha256)
 import Adapters.Exit (fail)
 import Cli.Stack (runInterpret, runSystem)
-import Cli.Transcript (capstoneGame, checkExchanges, writeRecording)
+import Cli.Transcript (capstoneGame, checkTurns, writeRecording)
 import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (stringify)
 import Data.Array (length)
@@ -20,7 +20,7 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Handlers.Llm.Backend (backend)
 import Handlers.Recording (encodeRecording)
-import Settings.Meridian.Capstone (jointLineFor)
+import Premises.Meridian.Capstone (jointLineFor)
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }
@@ -32,8 +32,8 @@ main :: Effect Unit
 main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure unit))) do
   g <- runSystem capstoneGame >>= orThrow
   ref <- liftEffect (Ref.new [])
-  let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { exchange = \x -> Ref.modify_ (_ <> [ x ]) ref }
-  runInterpret llm g.world checkExchanges >>= orThrow
+  let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { turn = \x -> Ref.modify_ (_ <> [ x ]) ref }
+  runInterpret llm g.world checkTurns >>= orThrow
   rec <- liftEffect (Ref.read ref)
   runSystem (writeRecording (encodeRecording rec) (length rec))
   where

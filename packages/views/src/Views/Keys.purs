@@ -1,6 +1,6 @@
 -- | The replies of the API, each with one shape (docs/06_simulator.md §8): the server encodes a view
 -- | through its key, and the dashboard decodes it through the same key, so the two cannot disagree and
--- | neither names a view's type by hand. The shapes write the Snapshot form, which is the form the
+-- | neither names a view's type by hand. The shapes write the round-end World form, which is the form the
 -- | implicit record codec wrote: keys descending, a `Maybe` as its value or null.
 module Views.Keys
   ( ViewKey
@@ -12,13 +12,13 @@ module Views.Keys
   , derived
   , agencyDetail
   , sets
-  , scenarioSet
+  , runSet
   , renamedSet
   , experiment
   , overview
   , balances
-  , markets
-  , facilities
+  , exchanges
+  , transformations
   , economy
   , representation
   , procedures
@@ -33,10 +33,10 @@ module Views.Keys
   , events
   , table
   , runList
-  , setting
-  , settings
+  , premise
+  , premises
   , glossary
-  , entityList
+  , actorList
   , history
   , compare
   ) where
@@ -59,10 +59,10 @@ import Views.Actions (ActionsView)
 import Views.Balance (BalanceView)
 import Views.Common (Chart, Table)
 import Views.Compare (CompareView)
-import Views.Entity (EntityList, History)
+import Views.Actor (ActorList, History)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
-import Views.Setting (Setting)
+import Views.Premise (Premise)
 import Schema.Run (DeriveKind, deriveKindShape)
 
 -- | A view of a stored run, and the shape of its reply.
@@ -146,18 +146,18 @@ runOverview = viewShape
 runList :: Shape RunList
 runList = viewShape
 
--- | `GET /api/setting`: the settings the launch form offers.
-settings :: Shape (Array Setting)
-settings = viewShape
+-- | `GET /api/premise`: the premises the launch form offers.
+premises :: Shape (Array Premise)
+premises = viewShape
 
-setting :: Shape Setting
-setting = viewShape
+premise :: Shape Premise
+premise = viewShape
 
 glossary :: Shape Glossary
 glossary = viewShape
 
-entityList :: Shape EntityList
-entityList = viewShape
+actorList :: Shape ActorList
+actorList = viewShape
 
 history :: Shape History
 history = viewShape
@@ -174,11 +174,11 @@ overview = key Overview runOverview
 balances :: ViewKey Table
 balances = key Balances table
 
-markets :: ViewKey (Array Chart)
-markets = key Markets (listOf chart)
+exchanges :: ViewKey (Array Chart)
+exchanges = key Exchanges (listOf chart)
 
-facilities :: ViewKey Table
-facilities = key Facilities table
+transformations :: ViewKey Table
+transformations = key Transformations table
 
 economy :: ViewKey { totals :: Chart, flows :: Table, pressure :: Table }
 economy = key Economy economyView
@@ -195,12 +195,12 @@ wholeEconomy = key WholeEconomy table
 assertions :: ViewKey Table
 assertions = key Assertions table
 
--- | The named scenario sets.
+-- | The named Run sets.
 sets :: Shape { sets :: Array { name :: String, baseline :: String, runs :: Array String } }
 sets = viewShape
 
-scenarioSet :: Shape { name :: String, baseline :: String, runs :: Array String }
-scenarioSet = viewShape
+runSet :: Shape { name :: String, baseline :: String, runs :: Array String }
+runSet = viewShape
 
 experiment :: Shape { set :: String, runs :: Array String }
 experiment = viewShape
@@ -238,8 +238,8 @@ events = key Events table
 launched :: Shape { id :: String, playerSeed :: Int }
 launched = viewShape
 
--- | One run of a batch: its Setting and its run.
-batched :: Shape { setting :: String, id :: String, playerSeed :: Int }
+-- | One run of a batch: its Premise and its run.
+batched :: Shape { premise :: String, id :: String, playerSeed :: Int }
 batched = viewShape
 
 resumed :: Shape { id :: String, rounds :: Int }

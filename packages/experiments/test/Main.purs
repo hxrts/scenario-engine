@@ -6,7 +6,7 @@ module Test.Experiments.Main where
 import Prelude
 
 import Effect (Effect)
-import Testkit.Meridian (setting)
+import Testkit.Meridian (premise)
 import Test.Experiments.Experiments as Experiments
 import Test.Experiments.Mandatory as MandatoryTests
 import Test.Spec.Reporter.Console (consoleReporter)
@@ -14,5 +14,5 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  Experiments.spec setting
-  MandatoryTests.spec setting
+  Experiments.spec premise
+  MandatoryTests.spec premise

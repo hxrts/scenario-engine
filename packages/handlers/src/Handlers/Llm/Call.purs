@@ -13,7 +13,7 @@ module Handlers.Llm.Call
 import Prelude
 
 import Core.Shape (Shape, stringShape)
-import Laws.Types (EntityId, Id(..))
+import Laws.Types (ActorId, Id(..))
 import Data.Either (Either)
 import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeReply, jointRequestShape, narrateRequestShape, speakRequestShape, textReplyShape)
@@ -22,7 +22,7 @@ import Schema.Joint (ProposedJoint, jointReplyShape)
 -- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
 type Key = { round :: Int, seats :: Array String }
 
-seatText :: EntityId -> String
+seatText :: ActorId -> String
 seatText (Id s) = s
 
 -- | A model call: `effect` is its name in the evidence and the recording, `prompt` its system prompt,
@@ -40,7 +40,7 @@ type ModelCall p w r =
   }
 
 -- | The joint pass: the wire reply is what is recorded.
-interpretCall :: ModelCall JointRequest { proposals :: Array ProposedJoint } { proposals :: Array ProposedJoint }
+interpretCall :: ModelCall JointRequest { candidateTransactions :: Array ProposedJoint } { candidateTransactions :: Array ProposedJoint }
 interpretCall =
   { effect: "interpret"
   , prompt: interpretPrompt
@@ -61,7 +61,7 @@ narrateCall :: ModelCall NarrateRequest { text :: String } String
 narrateCall = textCall "narrate" narratePrompt narrateRequestShape \r -> { round: r.round, seats: [] }
 
 speakCall :: ModelCall SpeakRequest { text :: String } String
-speakCall = textCall "seat:speak" speakPrompt speakRequestShape \r -> { round: r.view.round, seats: [ seatText r.actor ] }
+speakCall = textCall "seat:speak" speakPrompt speakRequestShape \r -> { round: r.view.round, seats: [ seatText r.playableActor ] }
 
 -- | A reply's text, read through the call's wire shape and projected to what is recorded.
 decodeWith :: forall p w r. ModelCall p w r -> String -> Either String r

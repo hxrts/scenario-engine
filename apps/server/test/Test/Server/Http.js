@@ -30,7 +30,7 @@ export const portOf = (s) => s.port;
 export const stopServerImpl = (s) => () => new Promise((resolve) => { s.server.close(() => resolve({})); s.server.closeAllConnections(); });
 
 // Each chunk is hex text and is written separately, with a pause so it arrives as its own read.
-export const exchangeImpl = (port) => (method) => (target) => (headers) => (chunks) => () =>
+export const turnImpl = (port) => (method) => (target) => (headers) => (chunks) => () =>
   new Promise((resolve, reject) => {
     let settled = false;
     const req = http.request({ port, method, path: target, headers }, (res) => {

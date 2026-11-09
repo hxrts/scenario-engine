@@ -64,10 +64,10 @@ runSession :: forall a. Options -> Run (SESSION + ()) a -> Aff a
 runSession o program = do
   let dir = evidenceDir o
   evidence <- liftEffect (lineSink (dir <> "/calls.jsonl"))
-  exchange <- liftEffect (lineSink (dir <> "/exchanges.jsonl"))
+  turn <- liftEffect (lineSink (dir <> "/turns.jsonl"))
   db <- liftEffect (openStore open o.db)
   let
-    llm = logging evidence exchange (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
+    llm = logging evidence turn (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
     store = sqlStore db processAlive
   run
     ( case_

@@ -6,8 +6,8 @@ module Laws.Query
   , holding
   , accountsOf
   , capabilitiesOf
-  , entitiesOf
-  , marketsOf
+  , actorsOf
+  , exchangesOf
   , rulesOf
   , transformationsOf
   , priceOf
@@ -17,7 +17,7 @@ module Laws.Query
   , isAggregate
   , holderOf
   , drawable
-  , conversionPrice
+  , transformationPrice
   , poolOf
   , poolCeiling
   , procedureOf
@@ -26,7 +26,7 @@ module Laws.Query
   , transfersOf
   , transformsOf
   , enactedAtBoundary
-  , droppedProposals
+  , droppedCandidateTransactions
   ) where
 
 import Prelude
@@ -37,12 +37,12 @@ import Control.Alt ((<|>))
 import Core.Map (lookupQ, values)
 import Core.Map (lookupQ) as LookupExport
 
-import Core.Kernel.Dynamic (withheld)
+import Core.Kernel.Law (withheld)
 import Core.Kernel.Types (Amount(..), Operation(..), Subject(..), Trigger(..))
-import Core.Market (averagePrice, marketPrice)
+import Core.Exchange (averagePrice, exchangePrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Laws.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Laws.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Actor, ActorId, ActorKind(..), IntentF, Exchange, ExchangeId, Price, CandidateTransactionId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Laws.Slice (event, orKind, read, select)
 import Laws.World (Cause(..), Event, RecurringAmount(..), WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
@@ -52,22 +52,22 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Foldable (foldl)
 
--- | What an Entity holds of a Resource.
-holding :: WorldState -> EntityId -> ResourceId -> Q
+-- | What an Actor holds of a Resource.
+holding :: WorldState -> ActorId -> ResourceId -> Q
 holding w e r = lookupQ r (accountsOf w e)
 
--- | An Entity's accounts: the amount it holds of each Resource it has an account for; empty for an
--- | Entity the World State does not have.
-accountsOf :: WorldState -> EntityId -> Map ResourceId Q
-accountsOf w e = maybe Map.empty _.accounts (Map.lookup e w.entities)
+-- | An Actor's accounts: the amount it holds of each Resource it has an account for; empty for an
+-- | Actor the World State does not have.
+accountsOf :: WorldState -> ActorId -> Map ResourceId Q
+accountsOf w e = maybe Map.empty _.accounts (Map.lookup e w.actors)
 
--- | Every Entity, in id order.
-entitiesOf :: WorldState -> Array Entity
-entitiesOf = values <<< _.entities
+-- | Every Actor, in id order.
+actorsOf :: WorldState -> Array Actor
+actorsOf = values <<< _.actors
 
--- | Every Market, in id order.
-marketsOf :: WorldState -> Array Market
-marketsOf = values <<< _.markets
+-- | Every Exchange, in id order.
+exchangesOf :: WorldState -> Array Exchange
+exchangesOf = values <<< _.exchanges
 
 -- | The Rules in force, in id order.
 rulesOf :: WorldState -> Array Rule
@@ -77,41 +77,41 @@ rulesOf = values <<< _.rules
 transformationsOf :: WorldState -> Array Transformation
 transformationsOf = values <<< _.transformations
 
--- | What an Entity may do; nothing for an Entity the World State does not have.
-capabilitiesOf :: WorldState -> EntityId -> Array Capability
-capabilitiesOf w e = maybe [] _.capabilities (Map.lookup e w.entities)
+-- | What an Actor may do; nothing for an Actor the World State does not have.
+capabilitiesOf :: WorldState -> ActorId -> Array Capability
+capabilitiesOf w e = maybe [] _.capabilities (Map.lookup e w.actors)
 
--- | A Market's current marginal price, by id.
-priceOf :: WorldState -> MarketId -> Maybe Price
-priceOf w m = marketPrice <$> Map.lookup m w.markets
+-- | An Exchange's current marginal price, by id.
+priceOf :: WorldState -> ExchangeId -> Maybe Price
+priceOf w m = exchangePrice <$> Map.lookup m w.exchanges
 
--- | A Resource's total across every account and Market reserve.
+-- | A Resource's total across every account and Exchange reserve.
 totalHolding :: WorldState -> ResourceId -> Q
-totalHolding w r = Q.sumQ (map (lookupQ r <<< _.accounts) (entitiesOf w) <> map (lookupQ r <<< _.reserves) (marketsOf w))
+totalHolding w r = Q.sumQ (map (lookupQ r <<< _.accounts) (actorsOf w) <> map (lookupQ r <<< _.reserves) (exchangesOf w))
 
--- | What a Market holds of a Resource in reserve; zero for an unknown Market.
-reserveOf :: WorldState -> MarketId -> ResourceId -> Q
-reserveOf w m r = maybe Q.zero (lookupQ r <<< _.reserves) (Map.lookup m w.markets)
+-- | What an Exchange holds of a Resource in reserve; zero for an unknown Exchange.
+reserveOf :: WorldState -> ExchangeId -> ResourceId -> Q
+reserveOf w m r = maybe Q.zero (lookupQ r <<< _.reserves) (Map.lookup m w.exchanges)
 
--- | An Entity's Aggregate definition, when it is an Aggregate.
-aggregateOf :: Entity -> Maybe Aggregate
+-- | An Actor's Aggregate definition, when it is an Aggregate.
+aggregateOf :: Actor -> Maybe Aggregate
 aggregateOf e = case e.kind of
   Aggregate a -> Just a
   _ -> Nothing
 
-isAggregate :: Entity -> Boolean
+isAggregate :: Actor -> Boolean
 isAggregate = isJust <<< aggregateOf
 
--- | The holder of a Resource: the Entity with a positive holding of it, else the first with an account
+-- | The holder of a Resource: the Actor with a positive holding of it, else the first with an account
 -- | for it (a holder run down to zero is still its holder). Only a Resource that has one holder that
 -- | matters has one: one a holder draw names, an effect changes, or a recurring flow reads as an amount
 -- | held. INV-08 keeps a positive holder unique for the drawn ones. Holding Rules and draws both use this.
-holderOf :: WorldState -> ResourceId -> Maybe EntityId
+holderOf :: WorldState -> ResourceId -> Maybe ActorId
 holderOf w r
   | not (governable w r) = Nothing
-  | otherwise = _.id <$> (find (\e -> lookupQ r e.accounts > Q.zero) entities <|> find (\e -> Map.member r e.accounts) entities)
+  | otherwise = _.id <$> (find (\e -> lookupQ r e.accounts > Q.zero) actors <|> find (\e -> Map.member r e.accounts) actors)
       where
-      entities = entitiesOf w
+      actors = actorsOf w
 
 -- | Whether a Resource is one whose holder governs it: a holder draw, an effect, or a recurring read names it.
 governable :: WorldState -> ResourceId -> Boolean
@@ -144,8 +144,8 @@ drawable w r =
 
 -- | A Transformation's uniform price at a total of `q` units: its cost function's average price, or
 -- | zero for a Transformation with no payment.
-conversionPrice :: Transformation -> Q -> Q
-conversionPrice tr q = maybe Q.zero (\p -> averagePrice p.curve Q.zero q) tr.payment
+transformationPrice :: Transformation -> Q -> Q
+transformationPrice tr q = maybe Q.zero (\p -> averagePrice p.curve Q.zero q) tr.payment
 
 -- | The pool a Transformation's fills draw on: the Resource it draws from a holder if it has one, else the
 -- | Transformation alone. Allocations in one pool are allocated together and priced at one uniform price.
@@ -169,31 +169,31 @@ poolCeiling w tr = case poolDraw tr of
 smallestUse :: WorldState -> ResourceId -> Q -> Q
 smallestUse w r use = foldl min use (map _.perUnit (filter ((_ == r) <<< _.resource) (mapMaybe poolDraw (transformationsOf w))))
 
--- | The collective procedure a Proposal is put to, through its author Aggregate.
-procedureOf :: WorldState -> EntityId -> CollectiveProcedureId -> Maybe CollectiveProcedure
-procedureOf w author pid = Map.lookup author w.entities >>= aggregateOf >>= Map.lookup pid <<< _.procedures
+-- | The collective procedure a candidate Transaction is put to, through its author Aggregate.
+procedureOf :: WorldState -> ActorId -> CollectiveProcedureId -> Maybe CollectiveProcedure
+procedureOf w author pid = Map.lookup author w.actors >>= aggregateOf >>= Map.lookup pid <<< _.procedures
 
 -- | A procedure's support: its residual weight and the weights of those who signed, the author aside.
-procedureSupport :: CollectiveProcedure -> EntityId -> Array EntityId -> Q
+procedureSupport :: CollectiveProcedure -> ActorId -> Array ActorId -> Q
 procedureSupport proc author signed = Q.add proc.residualWeight (Q.sumQ (map (\m -> lookupQ m proc.weights) (filter (_ /= author) signed)))
 
 -- | The Trade orders of one Intent list, in order: the one place that selects a Trade.
-tradesOf :: forall m v. Array (IntentF m v) -> Array { market :: m, quantity :: v, limitPrice :: Maybe v }
+tradesOf :: forall m v. Array (IntentF m v) -> Array { exchange :: m, quantity :: v, limitPrice :: Maybe v }
 tradesOf = mapMaybe (ctor @"Trade")
 
-transfersOf :: forall m v. Array (IntentF m v) -> Array { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
+transfersOf :: forall m v. Array (IntentF m v) -> Array { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
 transfersOf = mapMaybe (ctor @"Transfer")
 
-transformsOf :: forall m v. Array (IntentF m v) -> Array { by :: EntityId, transformation :: TransformationId, quantity :: v }
+transformsOf :: forall m v. Array (IntentF m v) -> Array { by :: ActorId, transformation :: TransformationId, quantity :: v }
 transformsOf = mapMaybe (ctor @"Transform")
 
--- | The Proposals a round turned down whole: rejected or lapsed. A Proposal that lost one order is not among them.
-droppedProposals :: Array Event -> Array ProposalId
-droppedProposals = select (orKind (read @"proposal" (event @"Rejected")) (read @"proposal" (event @"Lapsed")))
+-- | The candidate Transactions a round turned down whole: rejected or lapsed. A candidate Transaction that lost one order is not among them.
+droppedCandidateTransactions :: Array Event -> Array CandidateTransactionId
+droppedCandidateTransactions = select (orKind (read @"candidateTransaction" (event @"Rejected")) (read @"candidateTransaction" (event @"Lapsed")))
 
 -- | The Rules `by` enacted against `target` that took effect at the boundary of `round`, i.e. that
 -- | were proposed in the round before: a flows Rule of `by`'s whose counterparty is `target`.
-enactedAtBoundary :: RoundIndex -> EntityId -> EntityId -> Array Event -> Array Rule
+enactedAtBoundary :: RoundIndex -> ActorId -> ActorId -> Array Event -> Array Rule
 enactedAtBoundary round by target = concatMap rulesOf' <<< select (event @"Enacted")
   where
   rulesOf' e

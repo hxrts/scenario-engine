@@ -1,7 +1,7 @@
 -- | Test support for the model handler: backends that stand in for the `pi`
 -- | process. A stub answers each call with a reply text, so the handler's prompts, decoding, and
 -- | fallbacks all run; `answering` builds those texts from typed replies. `replayCall` answers from the
--- | recorded capstone exchanges in their recorded order, checking each call's effect, round and seats
+-- | recorded capstone turns in their recorded order, checking each call's effect, round and seats
 -- | (never its prompt text).
 module Test.Handlers.Stub
   ( answering
@@ -33,19 +33,19 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Foreign.Object as Object
 import Core.Num as Q
-import Laws.Types (EntityId, Id(..), IntentF(..))
+import Laws.Types (ActorId, Id(..), IntentF(..))
 import Handlers.Llm.Backend (Backend, Call, backend)
 import Schema.Joint (ProposedJoint, jointReplyShape)
 import Handlers.Llm.Call (ModelCall, interpretCall, narrateCall, speakCall)
 import Handlers.Llm.Wire (textReplyShape)
-import Handlers.Recording (Exchange, Recording, exchangeShape)
+import Handlers.Recording (Turn, Recording, turnShape)
 import Schema.Decode (decodeError)
 
 -- | The stub digest: sixteen characters, as the adapter's is, with no hashing.
 digest :: String -> String
 digest = const "stub-digest-0000"
 
--- | A backend over a raw call: the model is named "stub", and its evidence and exchanges are discarded.
+-- | A backend over a raw call: the model is named "stub", and its evidence and turns are discarded.
 backendOf :: Call -> Backend
 backendOf call = backend { model: "stub", call, digest }
 
@@ -55,23 +55,23 @@ answering counter answer = backendOf \system input -> do
   liftEffect (Ref.modify_ (_ + 1) counter)
   pure { text: answer system input, raw: "" }
 
--- | A Proposal that transfers ten Energy from `author` to Germany, with the signers and agreed seats given.
-jointOf :: EntityId -> Array EntityId -> Array EntityId -> ProposedJoint
+-- | A candidate Transaction that transfers ten Energy from `author` to Germany, with the signers and agreed seats given.
+jointOf :: ActorId -> Array ActorId -> Array ActorId -> ProposedJoint
 jointOf author signers agreed =
   { author, intents: [ Transfer { from: author, to: Id "DE", resource: Id "E", quantity: Q.fromInt 10 } ], signers, agreed }
 
--- | The Proposal that trades ten Energy in the Atlantic market.
+-- | The candidate Transaction that trades ten Energy in the Atlantic exchange.
 tradeTenEnergy :: ProposedJoint
 tradeTenEnergy =
   { author: Id "US"
-  , intents: [ Trade { market: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Nothing } ]
+  , intents: [ Trade { exchange: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Nothing } ]
   , signers: []
   , agreed: [ Id "US" ]
   }
 
--- | The reply text of a joint pass with these Proposals, as the model writes it.
+-- | The reply text of a joint pass with these candidate Transactions, as the model writes it.
 replyJoint :: Array ProposedJoint -> String
-replyJoint ps = stringify (encodeWith Snapshot jointReplyShape { proposals: ps })
+replyJoint ps = stringify (encodeWith Snapshot jointReplyShape { candidateTransactions: ps })
 
 -- | The reply text of a narrator or seat with this text.
 replyText :: String -> String
@@ -81,9 +81,9 @@ replyText s = stringify (encodeWith Snapshot textReplyShape { text: s })
 replyOf :: forall p w r. ModelCall p w r -> r -> String
 replyOf c = stringify <<< encodeWith Snapshot c.wire <<< c.rewire
 
--- | A recorded exchange's reply, as the model's text: the recorded value under the key the
+-- | A recorded turn's reply, as the model's text: the recorded value under the key the
 -- | effect's reply uses. An error reply has no value, so its text does not decode.
-replyTextOf :: Exchange -> String
+replyTextOf :: Turn -> String
 replyTextOf x = case toObject x.reply >>= Object.lookup "value" of
   Nothing -> ""
   Just v
@@ -101,7 +101,7 @@ keyOfPayload input = do
   -- a joint pass correction carries the original request under `request` (Handlers.Llm.joint)
   let o = fromMaybe o0 (Object.lookup "request" o0 >>= toObject)
   round <- note "the payload has no round" (Object.lookup "round" o >>= toNumber >>= Int.fromNumber)
-  case Object.lookup "transcripts" o, Object.lookup "actor" o of
+  case Object.lookup "transcripts" o, Object.lookup "playableActor" o of
     Just ts, _ -> do
       seats <- note "the transcripts are not a list" (toArray ts)
       names <- traverse (\t -> note "a transcript has no seat" (toObject t >>= Object.lookup "seat" >>= toString)) seats
@@ -109,10 +109,10 @@ keyOfPayload input = do
     _, Just a -> pure { effect: speakCall.effect, round, seats: [ fromMaybe "" (toString a) ] }
     _, _ -> pure { effect: narrateCall.effect, round, seats: [] }
 
-keyOfExchange :: Exchange -> Key
-keyOfExchange x = { effect: x.effect, round: x.round, seats: x.seats }
+keyOfTurn :: Turn -> Key
+keyOfTurn x = { effect: x.effect, round: x.round, seats: x.seats }
 
--- | A replay of a recording: each call answers with the next recorded exchange, which must be the
+-- | A replay of a recording: each call answers with the next recorded turn, which must be the
 -- | same effect, round and seats. The prompt text plays no part in the match. A call past the end of
 -- | the recording, or one whose key is not the next recorded key, is an error and is not answered.
 replayCall :: Recording -> Effect Call
@@ -125,11 +125,11 @@ replayCall rec = do
       case uncons queue of
         Nothing -> throwError (error "no recorded call matches this request: the recording is spent")
         Just { head: x, tail }
-          | keyOfExchange x /= k -> throwError (error ("no recorded call matches this request: the next recorded call is " <> show (keyOfExchange x) <> ", not " <> show k))
+          | keyOfTurn x /= k -> throwError (error ("no recorded call matches this request: the next recorded call is " <> show (keyOfTurn x) <> ", not " <> show k))
           | otherwise -> do
               liftEffect (Ref.write tail next)
               pure { text: replyTextOf x, raw: "" }
 
 -- | The recording file's text, read back through its shape.
 decodeRecording :: String -> Either String Recording
-decodeRecording text = jsonParser text >>= decodeError <<< decodeJsonWith Snapshot (arrayOf exchangeShape)
+decodeRecording text = jsonParser text >>= decodeError <<< decodeJsonWith Snapshot (arrayOf turnShape)

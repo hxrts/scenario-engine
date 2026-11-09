@@ -34,7 +34,7 @@ import Effect.Exception (Error, message)
 import Effect.Ref as Ref
 import Effects.Store (failRun, finish)
 import Effects.Store as Store
-import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, ScenarioSet, StoreF(..), StoredManifest, StoredRound, _observe, _store)
+import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, RunSet, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
 import Type.Row (type (+))
 
@@ -53,7 +53,7 @@ type AppendRound =
   }
 
 -- | The raw store primitives, one per operation, implemented by an adapter over SQLite. Writes are
--- | one transaction each. Reads return what the store holds, decoded field by field.
+-- | one dbDbTransaction each. Reads return what the store holds, decoded field by field.
 type StoreBackend =
   { createRun :: NewRun -> Effect Unit
   , appendRound :: AppendRound -> Effect Unit
@@ -62,14 +62,14 @@ type StoreBackend =
   , setSpec :: String -> Spec -> Effect Unit
   , setArchived :: String -> Boolean -> Effect Unit
   , deleteRun :: String -> Effect Int
-  , createSet :: ScenarioSet -> Effect Unit
+  , createSet :: RunSet -> Effect Unit
   , renameSet :: String -> String -> Effect Int
   , deleteSet :: String -> Effect Int
   , listRuns :: Effect (Array RunInfo)
   , listSummaries :: Effect (Array RunSummary)
   , readManifest :: String -> Effect (Maybe StoredManifest)
   , readRounds :: String -> Effect (Array StoredRound)
-  , listSets :: Effect (Array ScenarioSet)
+  , listSets :: Effect (Array RunSet)
   }
 
 interpretStore :: StoreBackend -> StoreF ~> Effect

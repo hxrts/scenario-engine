@@ -11,8 +11,8 @@ import Testkit.Meridian (unseated)
 import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
-import Laws.Types (EntityId, Id(..), IntentF(..), ProposalId)
-import Laws.Slice (event, matches, pickOf, exchanges)
+import Laws.Types (ActorId, Id(..), IntentF(..), CandidateTransactionId)
+import Laws.Slice (event, matches, pickOf, exchangeFills)
 import Laws.World (RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
@@ -33,7 +33,7 @@ import Handlers.Llm.Prompt (interpretPrompt, narratePrompt)
 import Schema.Joint (ProposedJoint)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
-import Game.Types (Game, SeatBinding(..))
+import Assembly.Types (Game, SeatBinding(..))
 import Handlers.Replay (runReplay)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.Handlers.Stub (answering, jointOf, replyJoint, replyText, tradeTenEnergy)
@@ -46,7 +46,7 @@ import Core.Num as Q
 model :: String -> String -> String
 model template input
   | template == interpretPrompt = replyJoint (if contains (Pattern "buy ten energy") input then [ tradeTenEnergy ] else [])
-  | template == narratePrompt = replyText "Markets moved."
+  | template == narratePrompt = replyText "Exchanges moved."
   | otherwise = replyText "nothing"
 
 -- | A stub model answering `answer`, with the number of calls it has been asked.
@@ -70,12 +70,12 @@ scripted prompt
   | otherwise = pure "nothing"
 
 -- | A live session of `n` rounds with the given seats and human answers.
-liveWith :: Game -> Int -> (EntityId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
+liveWith :: Game -> Int -> (ActorId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
 liveWith g0 n seat input backend = do
   recs <- liftEffect (Ref.new [])
   texts <- liftEffect (Ref.new [])
   notes <- liftEffect (Ref.new [])
-  let g = g0 { seats = Map.fromFoldable (map (\e -> Tuple e (seat e)) (Map.keys g0.world.entities # Array.fromFoldable)) }
+  let g = g0 { seats = Map.fromFoldable (map (\e -> Tuple e (seat e)) (Map.keys g0.world.actors # Array.fromFoldable)) }
   _ <- runLive
     { seed: Seed 1
     , input
@@ -104,21 +104,21 @@ replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record recor
   Left e -> unsafeCrashWith e
   Right r -> map _.world r.records
 
-lapsed :: ProposalId -> RoundResult -> Boolean
+lapsed :: CandidateTransactionId -> RoundResult -> Boolean
 lapsed pid r = any
-  (matches (event @"Lapsed") (\l -> l.proposal == pid))
+  (matches (event @"Lapsed") (\l -> l.candidateTransaction == pid))
   r.record.events
 
 spec :: Spec Unit
 spec = do
   describe "Live play" do
-    it "a scripted live session equals replaying its recorded Proposals and signatures" do
+    it "a scripted live session equals replaying its recorded CandidateTransactions and signatures" do
       g <- unseated
       backend <- withAnswers model
       out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Script []) scripted backend
       length out.records `shouldEqual` 3
-      (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
-      out.narration `shouldEqual` [ "Markets moved.", "Markets moved.", "Markets moved." ]
+      (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
+      out.narration `shouldEqual` [ "Exchanges moved.", "Exchanges moved.", "Exchanges moved." ]
       replayed g 3 out.records `shouldEqual` map _.world out.records
       replayedRecords g 3 out.records `shouldEqual` map _.record out.records
 
@@ -127,7 +127,7 @@ spec = do
       backend <- withAnswers garbled
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
-      (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` false
+      (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` false
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
 
     it "an undecodable joint reply: the front page is the plain listing, and only the joint pass calls the model (its first call and two corrections)" do
@@ -141,27 +141,27 @@ spec = do
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 3
 
-    it "an unknown market in a joint reply is a rejected Proposal; the round's other Proposals still execute" do
+    it "an unknown exchange in a joint reply is a rejected CandidateTransaction; the round's other CandidateTransactions still execute" do
       g <- unseated
       let
-        bad = tradeTenEnergy { intents = [ Trade { market: Id "no-such-market", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
+        bad = tradeTenEnergy { intents = [ Trade { exchange: Id "no-such-exchange", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
       backend <- withAnswers (jointAnswers [ tradeTenEnergy, bad ])
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
       let
         events = bind out.records (_.record.events)
         rejections' = mapMaybe
-          (pickOf (event @"Rejected") >=> \r -> Just { proposal: r.proposal, reason: r.reason })
+          (pickOf (event @"Rejected") >=> \r -> Just { candidateTransaction: r.candidateTransaction, reason: r.reason })
           events
         executed = filter
-          (matches (exchanges) (\t -> t.entity == Id "US" && t.market == Id "energy-atlantic"))
+          (matches (exchangeFills) (\t -> t.actor == Id "US" && t.exchange == Id "energy-atlantic"))
           events
-      map _.proposal rejections' `shouldEqual` [ Id "r1/US/1" ]
-      map (contains (Pattern "no-such-market") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]
+      map _.candidateTransaction rejections' `shouldEqual` [ Id "r1/US/1" ]
+      map (contains (Pattern "no-such-exchange") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]
       length executed `shouldEqual` 1
-      (Id "r1/US/0" `elem` map _.proposal.id (bind out.records _.record.inputs)) `shouldEqual` true
+      (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
 
-    it "a one-sided joint lapses; a joint Proposal both sides describe is signed by both" do
+    it "a one-sided joint lapses; a joint CandidateTransaction both sides describe is signed by both" do
       g <- unseated
       let
         joint t i
@@ -182,7 +182,7 @@ spec = do
       both <- liveWith g 1 (const Human) agreeing backendBoth
       map (lapsed (Id "r1/US/0")) both.records `shouldEqual` [ false ]
       let
-        signedBy = map _.signatures (filter (\s -> s.proposal.id == Id "r1/US/0") (bind both.records _.record.inputs))
+        signedBy = map _.signatures (filter (\s -> s.candidateTransaction.id == Id "r1/US/0") (bind both.records _.record.inputs))
       signedBy `shouldEqual` [ [ Id "DE", Id "US" ] ]
       replayedRecords g 1 both.records `shouldEqual` map _.record both.records
 
@@ -192,7 +192,7 @@ spec = do
       closing <- AVar.empty
       backend <- withAnswers model
       let
-        base = g { seats = Map.fromFoldable (map (\e -> Tuple e (if e == Id "US" || e == Id "DE" then Human else Script [])) (Array.fromFoldable (Map.keys g.world.entities))), rounds = 1 }
+        base = g { seats = Map.fromFoldable (map (\e -> Tuple e (if e == Id "US" || e == Id "DE" then Human else Script [])) (Array.fromFoldable (Map.keys g.world.actors))), rounds = 1 }
         -- DE is asked first: its answer closes the window, so US (asked later) is not reached
         input prompt = do
           liftEffect (Ref.modify_ (_ <> [ prompt ]) asked)

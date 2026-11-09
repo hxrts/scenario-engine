@@ -4,11 +4,11 @@
 module Dashboard.Client
   ( runs
   , launch
-  , setting
+  , premise
   , glossary
   , overview
-  , entities
-  , entity
+  , actors
+  , actor
   , runView
   , compare
   , agency
@@ -31,17 +31,17 @@ import Dashboard.Api (fetch)
 import Core.Shape (Format(Snapshot), Shape, parse, prim)
 import Effects.Api (ApiRequest(..), DeriveRequest, Launch, call)
 import Schema.Run (DeriveKind)
-import Effects.Signatures (ScenarioSet)
+import Effects.Signatures (RunSet)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode (decodeError)
 import Views.Common (Table)
 import Views.Compare (CompareView)
-import Views.Entity (EntityList, History)
+import Views.Actor (ActorList, History)
 import Views.Glossary (Glossary)
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
 import Views.Overview (RunList, RunOverview)
-import Views.Setting (Setting)
+import Views.Premise (Premise)
 import Data.Argonaut.Core (jsonNull)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -63,29 +63,29 @@ runs = typed Keys.runList (ListRuns { archived: true })
 deriveRun :: String -> DeriveRequest -> Aff (Either String { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean })
 deriveRun id body = typed Keys.derived (Derive { id, body })
 
--- | The named scenario sets.
-sets :: Aff (Either String { sets :: Array ScenarioSet })
-sets = typed Keys.sets ListScenarioSets
+-- | The named Run sets.
+sets :: Aff (Either String { sets :: Array RunSet })
+sets = typed Keys.sets ListRunSets
 
 setSummary :: String -> Aff (Either String Table)
 setSummary = typed Keys.table <<< SetSummary
 
-saveSet :: ScenarioSet -> Aff (Either String ScenarioSet)
-saveSet = typed Keys.scenarioSet <<< SaveScenarioSet
+saveSet :: RunSet -> Aff (Either String RunSet)
+saveSet = typed Keys.runSet <<< SaveRunSet
 
 renameSet :: String -> String -> Aff (Either String Unit)
-renameSet name to = typed unread (RenameScenarioSet { name, to })
+renameSet name to = typed unread (RenameRunSet { name, to })
 
 deleteSet :: String -> Aff (Either String Unit)
-deleteSet = typed unread <<< DeleteScenarioSet
+deleteSet = typed unread <<< DeleteRunSet
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
 launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })
 launch = typed Keys.launched <<< LaunchRun
 
--- | The settings the launch form offers, each with its rounds, seed, default run name and presets.
-setting :: Aff (Either String (Array Setting))
-setting = typed Keys.settings Setting
+-- | The premises the launch form offers, each with its rounds, seed, default run name and presets.
+premise :: Aff (Either String (Array Premise))
+premise = typed Keys.premises Premise
 
 -- | The glossary: the definitions and empty-value reasons the tables and the header show.
 glossary :: Aff (Either String Glossary)
@@ -95,13 +95,13 @@ glossary = typed Keys.glossary Glossary
 overview :: String -> Aff (Either String RunOverview)
 overview id = runView Keys.overview id Nothing
 
--- | A run's Entities, each flagged as a seat, and the default one.
-entities :: String -> Aff (Either String EntityList)
-entities = typed Keys.entityList <<< Entities
+-- | A run's Actors, each flagged as a seat, and the default one.
+actors :: String -> Aff (Either String ActorList)
+actors = typed Keys.actorList <<< Actors
 
--- | One Entity's history.
-entity :: String -> String -> Aff (Either String History)
-entity id e = typed Keys.history (Entity id e)
+-- | One Actor's history.
+actor :: String -> String -> Aff (Either String History)
+actor id e = typed Keys.history (Actor id e)
 
 -- | One view of a run, decoded through its key; `balances` and `events` at a round take the round as well.
 runView :: forall a. ViewKey a -> String -> Maybe Int -> Aff (Either String a)
@@ -109,15 +109,15 @@ runView key id round = typed key.shape (RunView { id, view: key.view, round })
 
 -- | The comparison of the runs, the first being the baseline.
 compare :: Array String -> Aff (Either String CompareView)
-compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
+compare ids = typed Keys.compare (Compare { runs: ids, exchange: Nothing })
 
 -- | The agency analysis beyond its table: each criterion under the baseline and the alternative.
 agencyDetail :: Aff (Either String { criteria :: Table, profile :: Table })
-agencyDetail = typed Keys.agencyDetail (AgencyDetail { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
+agencyDetail = typed Keys.agencyDetail (AgencyDetail { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
-agency = typed Keys.table (Agency { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
+agency = typed Keys.table (Agency { premise: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | Archive a run, or unarchive it.
 archive :: String -> Boolean -> Aff (Either String Unit)

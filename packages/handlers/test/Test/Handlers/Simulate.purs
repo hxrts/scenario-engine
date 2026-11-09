@@ -6,24 +6,24 @@ module Test.Handlers.Simulate (spec) where
 import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)
 import Schema.Build.Quantity (q)
 import Prelude
-import Settings.Meridian.Rules (accessBan)
+import Premises.Meridian.Rules (accessBan)
 
-import Game.Bindings (strategyBindings)
+import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
 import Core.Map (values)
 
-import Board.Gameboard.Instantiate (instantiate)
-import Board.Gameboard.Reconcile (reconcile)
+import World.PossibleWorld.Instantiate (instantiate)
+import World.PossibleWorld.Reconcile (reconcile)
 import Core.Draw (Seed(..))
 import Laws.Engine.Commit (resolveRound)
 import Laws.Engine.Prepare (prepareRound)
 import Laws.Invariants (orderIndependent)
 import Core.Num as Q
 import Laws.Query (holding)
-import Laws.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), FlowEffect(..), RuleF(..), proposalId)
+import Laws.Types (Capability(..), ActorKind(..), Id(..), IntentF(..), FlowEffect(..), RuleF(..), candidateTransactionId)
 import Checks.Run (checkRun)
-import Laws.Slice (conversions, event, exchanges, matches, pickOf, select, shortfalls, sunk)
+import Laws.Slice (transformationFills, event, exchangeFills, matches, pickOf, select, shortfalls, sunk)
 import Schema.Recurring (kinds)
 import Laws.World (RejectReason(..), renderReason)
 import Data.Array (any, concatMap, drop, findMap, index, last, length, null, zip)
@@ -32,22 +32,22 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (Pattern(..), contains)
 import Data.Traversable (for_)
-import Settings.Presets (presetNames)
+import Premises.Presets (presetNames)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Handlers.Simulate (Checkpoint, fromCheckpoint, simulate)
-import Laws.Strategy (Strategy)
+import Laws.StrategyRules (StrategyRules)
 import Adapters.Filesystem (fileOps)
-import Settings.Layout (fixturePath)
-import Settings.Tree (readRootFile)
-import Settings.Load (loadLiteral)
-import Game.Assemble (presetBindings, withRounds)
-import Game.Setting (GameboardParts)
-import Game.Types (Game)
+import Premises.Layout (fixturePath)
+import Premises.Tree (readRootFile)
+import Premises.Load (loadLiteral)
+import Assembly.Assemble (presetBindings, withRounds)
+import Assembly.Premise (PossibleWorldParts)
+import Assembly.Types (Game)
 import Testkit.Capstone (load)
-import Testkit.Meridian (orThrow, setting, presetGame, price, everySeat, initialOf, run, valid)
+import Testkit.Meridian (orThrow, premise, presetGame, price, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 import Test.Spec (Spec, describe, it)
 import Test.Handlers.Shock as ShockTests
@@ -55,23 +55,23 @@ import Test.Handlers.SimCapstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
 -- | Only the named seats play `preset`; every other seat submits nothing.
-someSeats :: GameboardParts -> String -> Array String -> Aff Game
+someSeats :: PossibleWorldParts -> String -> Array String -> Aff Game
 someSeats p preset ids = do
   g <- presetGame p preset [] Nothing
   bindings <- orThrow (presetBindings p.presets (const preset) (map Id ids))
   pure g { seats = bindings }
 
--- | The game with the named seat replaced by a Strategy.
-withStrategy :: Game -> String -> Strategy -> Game
-withStrategy g e s = g { seats = Map.union (strategyBindings [ Tuple (Id e) s ]) g.seats }
+-- | The game with the named seat replaced by a StrategyRules.
+withStrategyRules :: Game -> String -> StrategyRules -> Game
+withStrategyRules g e s = g { seats = Map.union (strategyRulesBindings [ Tuple (Id e) s ]) g.seats }
 
 spec :: Spec Unit
 spec = do
-  ShockTests.spec setting
+  ShockTests.spec premise
   CapstoneTests.spec
   describe "Mandatory tests (docs/06_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
-      p <- setting
+      p <- premise
       for_ [ "Conservative", "Passive" ] \preset -> do
         g <- everySeat p preset
         r <- run (Seed 1) g
@@ -87,7 +87,7 @@ spec = do
       (map _.world a.records /= map _.world b.records) `shouldEqual` true
 
     it "Every preset plays 8 rounds with invariants holding and no engine error" do
-      p <- setting
+      p <- premise
       for_ presetNames \preset -> do
         g <- presetGame p preset [] (Just 8)
         r <- run (Seed 1) g
@@ -95,7 +95,7 @@ spec = do
         valid (initialOf r) r
 
     it "2 Replay: same seeds reproduce, and the replay handler reproduces from records" do
-      p <- setting
+      p <- premise
       g <- everySeat p "RandomValid"
       a <- run (Seed 1) g
       out <- orThrow (runReplay (seatEnv (Seed 1) g) 5 (map _.record a.records) g)
@@ -103,7 +103,7 @@ spec = do
       map _.record out.records `shouldEqual` map _.record a.records
 
     it "3 Submission order: permuting every recorded round's inputs changes nothing" do
-      p <- setting
+      p <- premise
       for_ [ "Conservative", "Aggressive", "RandomValid" ] \preset -> do
         g <- everySeat p preset
         a <- run (Seed 1) g
@@ -112,7 +112,7 @@ spec = do
           orderIndependent before r `shouldEqual` []
 
     it "Removing every representative observation leaves each Aggregate on its baseline (INV-09)" do
-      p <- setting
+      p <- premise
       g <- everySeat p "RandomValid"
       (null g.world.representations) `shouldEqual` false
       a <- run (Seed 1) g { world = g.world { representations = [] } }
@@ -121,7 +121,7 @@ spec = do
         r.world.factors `shouldEqual` g.world.factors
       checkRun (initialOf a) a.records `shouldEqual` []
 
-    it "4 Market exchange: Fixture A and A2" do
+    it "4 Exchange exchange: Fixture A and A2" do
       fixture "A"
       fixture "A2"
 
@@ -147,14 +147,14 @@ spec = do
       -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
     it "7d Investor: the capacity investment executes once its owner signs too" do
-      p <- setting
+      p <- premise
       -- every seat is an Investor, so ENCO (the capacity's owner) signs the investment it is offered
       g <- someSeats p "Investor" [ "US", "ENCO", "CHIP", "SHIP", "DEF" ]
       r <- run (Seed 1) g
       let
         events = concatMap (\rec -> rec.record.events) r.records
         invested = any
-          (matches (conversions) (\t -> t.transformation == Id "energy-capacity-investment"))
+          (matches (transformationFills) (\t -> t.transformation == Id "energy-capacity-investment"))
           events
         unsigned = any
           (matches (event @"Rejected") (\x -> contains (Pattern "must sign") (renderReason x.reason)))
@@ -163,18 +163,18 @@ spec = do
       unsigned `shouldEqual` false
       valid (initialOf r) r
     it "7c Deployer: the shipped preset reserves and sells its Mil in the rounds the Atlantic price is above 3" do
-      p <- setting
+      p <- premise
       g <- someSeats p "Deployer" [ "US" ]
       r <- run (Seed 1) g
       valid (initialOf r) r
       let
         -- what the US ordered of a Transformation in round i (0-based), if it did
         ordered i name = index r.records i >>= \rec -> findMap
-          (pickOf (conversions) >=> \t -> if t.by == Id "US" && t.transformation == Id name then Just t.quantity else Nothing)
+          (pickOf (transformationFills) >=> \t -> if t.by == Id "US" && t.transformation == Id name then Just t.quantity else Nothing)
           rec.record.events
-        -- the US's fill on the defence-goods Market in round i, if it traded there
+        -- the US's fill on the defence-goods Exchange in round i, if it traded there
         sold i = index r.records i >>= \rec -> findMap
-          (pickOf (exchanges) >=> \t -> if t.entity == Id "US" && t.market == Id "defence-goods" then Just t else Nothing)
+          (pickOf (exchangeFills) >=> \t -> if t.actor == Id "US" && t.exchange == Id "defence-goods" then Just t else Nothing)
           rec.record.events
         usMil i = index r.records i <#> \rec -> holding rec.world (Id "US") (Id "Mil")
       -- the price is below 3 at the start of rounds 1 to 3, so the seat holds its Mil
@@ -194,24 +194,24 @@ spec = do
       map _.price (sold 4) `shouldEqual` Just (q "2.506")
       usMil 4 `shouldEqual` Just (q "34.2")
 
-    it "Soft Power is produced, spent, and decays (docs/05_test_instance.md §32.6)" do
-      p <- setting
+    it "Soft Power is produced, spent, and decays (docs/05_meridian.md §32.6)" do
+      p <- premise
       g <- everySeat p "Passive"
       let
         labor = ({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "public-attention", quantity: lit 5 }) ], rule [ eqQ roundQ (lit 2) ] [ asTemplate (selfTransform { transformation: "strike", quantity: lit 1 }) ] ], sign: [] })
 
-      r <- run (Seed 1) (withStrategy g "LABOR" labor)
+      r <- run (Seed 1) (withStrategyRules g "LABOR" labor)
       valid (initialOf r) r
       let
         has f = any (\x -> any f x.record.events) r.records
-        did t = has (matches (conversions) (\x -> x.by == Id "LABOR" && x.transformation == Id t))
+        did t = has (matches (transformationFills) (\x -> x.by == Id "LABOR" && x.transformation == Id t))
       did "public-attention" `shouldEqual` true
       did "strike" `shouldEqual` true
       has
-        (matches (sunk kinds.decay) (\x -> x.entity == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
+        (matches (sunk kinds.decay) (\x -> x.actor == Id "LABOR" && x.resource == Id "S")) `shouldEqual` true
 
     it "8 Scarcity: Fixture E's propagation, as far as the shipped game shows it" do
-      p <- setting
+      p <- premise
       passive <- everySeat p "Passive" >>= run (Seed 1)
       investor <- everySeat p "Investor" >>= run (Seed 1)
       aggressive <- everySeat p "Aggressive" >>= run (Seed 1)
@@ -219,13 +219,13 @@ spec = do
       let
         round3 r = fromMaybe [] (index r.records 2 <#> _.record.events)
         boughtBy who r i = findMap
-          (pickOf (exchanges) >=> \t -> if t.entity == Id who then Just t.quantity else Nothing)
+          (pickOf (exchangeFills) >=> \t -> if t.actor == Id who then Just t.quantity else Nothing)
           (fromMaybe [] (index r.records i <#> _.record.events))
         anyShortfall who res evs = any
-          (matches (shortfalls) (\x -> x.entity == Id who && x.resource == Id res))
+          (matches (shortfalls) (\x -> x.actor == Id who && x.resource == Id res))
           evs
         transformedAny name evs = any
-          (matches (conversions) (\t -> t.transformation == Id name))
+          (matches (transformationFills) (\t -> t.transformation == Id name))
           evs
         euExecuted evs = findMap
           (pickOf (event @"ProcedureOutcome") >=> \o -> if o.executed then Just o.support else Nothing)
@@ -244,9 +244,9 @@ spec = do
       boughtBy "US_WORKERS" passive 3 `shouldEqual` Just (Q.fromInt 6)
       -- SME demand falls with its Representation factor
       (boughtBy "GLOBAL_SMES" passive 2 < boughtBy "GLOBAL_SMES" passive 0) `shouldEqual` true
-      -- the EU's solidarity Proposal executes in Round 3 on Germany's pivotal signature: 0.40 + 0.20
+      -- the EU's solidarity candidate Transaction executes in Round 3 on Germany's pivotal signature: 0.40 + 0.20
       euExecuted (round3 investor) `shouldEqual` Q.parse "0.6"
-      -- the two channels docs/05 §25 records as dormant: SHIP places no Market order, and China's Asia
+      -- the two channels docs/05 §25 records as dormant: SHIP places no Exchange order, and China's Asia
       -- offer rule needs an Asian price above 3.2 while the Asian price peaks at 2.88
       for_ [ passive, investor, aggressive ] \r -> do
         boughtBy "SHIP" r 2 `shouldEqual` Nothing
@@ -255,11 +255,11 @@ spec = do
     it "9 Conflicting actions: Fixture F" do
       fixture "F"
 
-    it "10 Signed Proposals: Fixture G1, G2, G3, G5" do
+    it "10 Signed CandidateTransactions: Fixture G1, G2, G3, G5" do
       for_ [ "G1", "G2", "G3", "G3-ban", "G5", "G5-unsigned" ] fixture
 
     it "11 Trade restriction: the DSL-authored US ban, the EU tariff, and a banned shipment" do
-      -- the ban, the tariff and the shipment are the capstone's seat strategies (DSL data), not Proposals built here
+      -- the ban, the tariff and the shipment are the capstone's seat strategies (DSL data), not candidate Transactions built here
       cap <- load
       r <- run cap.playerSeed (withRounds (Just 4) cap.game)
       let
@@ -283,7 +283,7 @@ spec = do
       banned `shouldEqual` true
 
     it "11 Trade restriction (Fixture E2): the US ban on China, its timing, the EU tariff, and China's reciprocation" do
-      p <- setting
+      p <- premise
       g <- everySeat p "Passive"
       let
         banChina = ({ rules: [ rule [ eqQ roundQ (lit 2) ] [ asTemplate (accessBan.self { target: Id "CN" }) ] ], sign: [] })
@@ -294,7 +294,7 @@ spec = do
         isTariff = case _ of
           FlowRule { scope: f, effect: Levy _ } -> f.governor == Id "EU" && f.counterparty == Id "US"
           _ -> false
-      r <- run (Seed 1) (withStrategy g "US" banChina)
+      r <- run (Seed 1) (withStrategyRules g "US" banChina)
       valid (initialOf r) r
       -- the US ban is enacted in Round 2 and in force from Round 3
       any (isBan "US" "CN") (rules 1 r) `shouldEqual` false
@@ -308,16 +308,16 @@ spec = do
       any isTariff (rules 2 r) `shouldEqual` false
       any isTariff (rules 3 r) `shouldEqual` true
 
-    it "Market access: an order submitted by an Entity outside a Market's access (a human's or an AI agent's; a Strategy does not draft one) is rejected, and the Entity inside it settles" do
-      p <- setting
+    it "Exchange access: an order submitted by an Actor outside an Exchange's access (a human's or an AI agent's; a StrategyRules does not draft one) is rejected, and the Actor inside it settles" do
+      p <- premise
       g <- presetGame p "Passive" [] (Just 1)
       let
-        -- ENCO holds no defence-goods trade capability in the shipped setting, so it is granted one here: its
-        -- authority then passes and only the Market's access (US, DE, UK, JP) can reject its order
+        -- ENCO holds no defence-goods trade capability in the shipped premise, so it is granted one here: its
+        -- authority then passes and only the Exchange's access (US, DE, UK, JP) can reject its order
         w = prepareRound g.world
-        enco = map (\e -> e { capabilities = e.capabilities <> [ MayTrade (Id "defence-goods") ] }) (Map.lookup (Id "ENCO") w.entities)
-        world = maybe w (\e -> w { entities = Map.insert (Id "ENCO") e w.entities }) enco
-        order who = { proposal: { id: proposalId 1 (Id who) 0, author: Id who, intents: [ Trade { market: Id "defence-goods", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }, signatures: [] }
+        enco = map (\e -> e { capabilities = e.capabilities <> [ MayTrade (Id "defence-goods") ] }) (Map.lookup (Id "ENCO") w.actors)
+        world = maybe w (\e -> w { actors = Map.insert (Id "ENCO") e w.actors }) enco
+        order who = { candidateTransaction: { id: candidateTransactionId 1 (Id who) 0, author: Id who, intents: [ Trade { exchange: Id "defence-goods", quantity: Q.fromInt 1, limitPrice: Nothing } ], signers: [], procedure: Nothing }, signatures: [] }
       r <- orThrow (resolveRound world [ order "ENCO", order "US" ])
       concatMap
         (\ev_ -> maybe [] (\x -> [ renderReason x.reason ]) (pickOf (event @"Rejected") ev_))
@@ -326,35 +326,35 @@ spec = do
       (holding r.world (Id "US") (Id "Mil") > holding world (Id "US") (Id "Mil")) `shouldEqual` true
 
     it "INV-29 Engine reuse: resolving each round's recorded inputs through the engine reproduces the simulated round" do
-      p <- setting
+      p <- premise
       g <- everySeat p "RandomValid"
       r <- run (Seed 1) g
       let befores = [ initialOf r ] <> map _.world r.records
       for_ (zip befores r.records) \(Tuple before rec) ->
         map _.world (resolveRound (prepareRound before) rec.record.inputs) `shouldEqual` Right rec.world
 
-    it "INV-30 Controller integrity: swapping a seat's Policy never changes its definition or makes it an NPC" do
-      p <- setting
+    it "INV-30 Controller integrity: swapping a seat's Strategy never changes its definition or makes it an NonPlayableActor" do
+      p <- premise
       g <- everySeat p "Passive"
       conservative <- everySeat p "Conservative"
       a <- run (Seed 1) g
       b <- run (Seed 1) conservative
-      c <- run (Seed 1) (withStrategy g "US" passive)
+      c <- run (Seed 1) (withStrategyRules g "US" passive)
       let
-        definitionOf w = map (\e -> { capabilities: e.capabilities, kind: e.kind }) (Map.lookup (Id "US") w.entities)
+        definitionOf w = map (\e -> { capabilities: e.capabilities, kind: e.kind }) (Map.lookup (Id "US") w.actors)
         final r = fromMaybe (initialOf r) (map _.world (last r.records))
       for_ [ a, b, c ] \r -> do
         definitionOf (final r) `shouldEqual` definitionOf (initialOf a)
-        map _.kind (Map.lookup (Id "US") (final r).entities) `shouldEqual` Just (Actor (Seat (Id "seat-1")))
+        map _.kind (Map.lookup (Id "US") (final r).actors) `shouldEqual` Just (PlayableActor (Id "seat-1"))
 
     it "12 Resolution consistency: Germany explicit vs implicit" do
-      p <- setting
-      case instantiate p.gameboard p.config, instantiate p.gameboard p.config { seats = Map.delete (Id "DE") p.config.seats } of
+      p <- premise
+      case instantiate p.possibleWorld p.config, instantiate p.possibleWorld p.config { seats = Map.delete (Id "DE") p.config.seats } of
         Right a, Right b -> reconcile a b `shouldEqual` Right unit
         _, _ -> fail "instantiation"
 
     it "a run resumed from its third snapshot matches the uninterrupted run" do
-      p <- setting
+      p <- premise
       g <- everySeat p "RandomValid"
       full <- run (Seed 1) g
       case index full.records 2 of

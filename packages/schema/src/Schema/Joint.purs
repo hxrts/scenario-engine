@@ -1,24 +1,24 @@
--- | The joint pass's values (docs/04 §11): a seat's transcript, a Proposal as the model states it, the
+-- | The joint pass's values (docs/04 §11): a seat's transcript, a candidate Transaction as the model states it, the
 -- | rule that reconciles those, and how the result is numbered. Pure; the handlers and the round runner
 -- | run the effects.
 module Schema.Joint
   ( Transcript
-  , JointProposal
+  , JointCandidateTransaction
   , ProposedJoint
   , transcriptShape
   , proposedJointShape
   , jointReplyShape
   , numberJoint
-  , jointProposalsOf
-  , jointProposals
+  , jointCandidateTransactionsOf
+  , jointCandidateTransactions
   ) where
 
 import Prelude
 
-import Laws.Proposal (ProposalBody, proposalAt)
+import Laws.CandidateTransaction (CandidateTransactionBody, candidateTransactionAt)
 import Core.Shape (recordShape, Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
-import Laws.Types (EntityId, MarketId, Proposal, ProposalCore, RoundIndex, idShape, intentShape)
+import Laws.Types (ActorId, ExchangeId, CandidateTransaction, CandidateTransactionCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map (Map)
@@ -27,43 +27,43 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (mapAccumL)
 
 -- | One seat's transcript of a round: its id and what it said.
-type Transcript = { seat :: EntityId, text :: String }
+type Transcript = { seat :: ActorId, text :: String }
 
 transcriptShape :: Shape Transcript
 transcriptShape = recordShape "Transcript" { seat: idShape, text: stringShape }
 
--- | A Proposal reconciled by the joint pass: its author, its body (Intents, and the signers the joint Proposal
+-- | A candidate Transaction reconciled by the joint pass: its author, its body (Intents, and the signers the joint candidate Transaction
 -- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for
--- | `signed` (and the author) and lapses the Proposal when a signer is missing.
-type JointProposal = { author :: EntityId, draft :: ProposalBody, signed :: Array EntityId }
+-- | `signed` (and the author) and lapses the candidate Transaction when a signer is missing.
+type JointCandidateTransaction = { author :: ActorId, draft :: CandidateTransactionBody, signed :: Array ActorId }
 
--- | One Proposal as the model states it in a joint pass's reply, before the engine's checks: its
--- | author, its Intents, the other signers the joint Proposal asks for, and the seats whose transcripts describe
+-- | One candidate Transaction as the model states it in a joint pass's reply, before the engine's checks: its
+-- | author, its Intents, the other signers the joint candidate Transaction asks for, and the seats whose transcripts describe
 -- | it. `jointProposals` reconciles these into JointProposals.
-type ProposedJoint = Record (ProposalCore MarketId Q (author :: EntityId, agreed :: Array EntityId))
+type ProposedJoint = Record (CandidateTransactionCore ExchangeId Q (author :: ActorId, agreed :: Array ActorId))
 
 proposedJointShape :: Shape ProposedJoint
 proposedJointShape = recordOf "ProposedJoint"
   ( field @"author" "the seat that submits it" idShape
       &. field @"intents" "the Intents" (arrayOf intentShape)
-      &. field @"signers" "the other Entities the joint Proposal asks for" (arrayOf idShape)
+      &. field @"signers" "the other Actors the joint CandidateTransaction asks for" (arrayOf idShape)
       &. field @"agreed" "the seats whose transcripts describe it" (arrayOf idShape)
   )
 
--- | The Proposals of a reply; one malformed entry fails only the reply it is in.
+-- | The candidate Transactions of a reply; one malformed entry fails only the reply it is in.
 proposedJointsShape :: Shape (Array ProposedJoint)
 proposedJointsShape = arrayOf proposedJointShape
 
--- | A joint pass's reply: one object whose `proposals` are the Proposals as the model states them.
-jointReplyShape :: Shape { proposals :: Array ProposedJoint }
+-- | A joint pass's reply: one object whose `proposals` are the candidate Transactions as the model states them.
+jointReplyShape :: Shape { candidateTransactions :: Array ProposedJoint }
 jointReplyShape = recordOf "JointReply"
-  ( field @"proposals" "the Proposals the transcripts describe" (requiredOf proposedJointsShape)
+  ( field @"candidateTransactions" "the CandidateTransactions the transcripts describe" (requiredOf proposedJointsShape)
   )
 
--- | The joint pass's Proposals, each numbered after the author's `own` Proposals of the round and
+-- | The joint pass's candidate Transactions, each numbered after the author's `own` candidate Transactions of the round and
 -- | counted across the joint reply, ids assigned as `proposalsOf` assigns a seat's own, so that
 -- | replay assigns the same ids.
-numberJoint :: RoundIndex -> Map EntityId Int -> Array JointProposal -> Array { proposal :: Proposal, signed :: Array EntityId }
+numberJoint :: RoundIndex -> Map ActorId Int -> Array JointCandidateTransaction -> Array { candidateTransaction :: CandidateTransaction, signed :: Array ActorId }
 numberJoint r own joint = (mapAccumL step own joint).value
   where
   step seen j =
@@ -71,19 +71,19 @@ numberJoint r own joint = (mapAccumL step own joint).value
       n = fromMaybe 0 (Map.lookup j.author seen)
     in
       { accum: Map.insert j.author (n + 1) seen
-      , value: { proposal: proposalAt r j.author n j.draft, signed: j.signed }
+      , value: { candidateTransaction: candidateTransactionAt r j.author n j.draft, signed: j.signed }
       }
 
--- | A failed joint reply yields no Proposals: the round proceeds with the seats' own Proposals.
-jointProposalsOf :: forall a. Either String (Array a) -> Array a
-jointProposalsOf = either (const []) identity
+-- | A failed joint reply yields no candidate Transactions: the round proceeds with the seats' own candidate Transactions.
+jointCandidateTransactionsOf :: forall a. Either String (Array a) -> Array a
+jointCandidateTransactionsOf = either (const []) identity
 
--- | The joint pass's rule (docs/04 §11): a Proposal whose author did not speak, and a Proposal with no
--- | Intents, are dropped. Signers are kept only when `known` says they are Entities of the World, and
+-- | The joint pass's rule (docs/04 §11): a candidate Transaction whose author did not speak, and a candidate Transaction with no
+-- | Intents, are dropped. Signers are kept only when `known` says they are Actors of the World, and
 -- | the author is never its own signer. Only speakers can be recorded as signing: `signed` is the
--- | author and those of the agreed Entities who spoke.
-jointProposals :: (EntityId -> Boolean) -> Array Transcript -> Array ProposedJoint -> Array JointProposal
-jointProposals known transcripts = mapMaybe joint
+-- | author and those of the agreed Actors who spoke.
+jointCandidateTransactions :: (ActorId -> Boolean) -> Array Transcript -> Array ProposedJoint -> Array JointCandidateTransaction
+jointCandidateTransactions known transcripts = mapMaybe joint
   where
   speakers = map _.seat transcripts
 

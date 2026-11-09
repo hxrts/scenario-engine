@@ -1,4 +1,4 @@
--- | The simulator's checks on the capstone (`Settings.Meridian.Capstone`): an eight-round run authored in the DSL,
+-- | The simulator's checks on the capstone (`Premises.Meridian.Capstone`): an eight-round run authored in the DSL,
 -- | checked for invariants, expectations, replay, and resume. The analysis checks on the same run
 -- | (objectives, counterfactual, view models) are in the analysis suite (Test.Views.Capstone).
 module Test.Handlers.SimCapstone (spec) where

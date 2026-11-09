@@ -14,12 +14,12 @@ package:
     - transformers
     - sp-core
     - sp-schema
-    - sp-game
+    - sp-assembly
     - sp-handlers
     - sp-views
     - sp-effects
     - sp-checks
-    - sp-settings
+    - sp-premises
     - sp-adapters
     - refs
     - spec

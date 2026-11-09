@@ -1,0 +1,147 @@
+-- | The premise's schema types (docs/03_premise.md, docs/04_run.md): the possible World,
+-- | its Actors, objectives and criteria, and the Instantiation Configuration. These are the types
+-- | of the premise format; their decoders are in `Schema.Decode.possible World`, and their realization
+-- | (instantiate, validate, reconcile) is in `board`.
+module Schema.PossibleWorld
+  ( PossibleWorld
+  , PlayableActorDefinition
+  , Fallback(..)
+  , Outcome(..)
+  , Objective
+  , Criterion
+  , MetricRef
+  , Measure(..)
+  , Span(..)
+  , Bound(..)
+  , Scheme
+  , InstantiationConfig
+  , InitialWorld
+  , gameIdOf
+  , possibleWorldRef
+  , capacityCategory
+  ) where
+
+import Prelude
+
+import Schema.Recurring (Authored)
+
+import Core.Draw (Seed)
+import Core.Num (Q)
+import Laws.StrategyRules (StrategyRules)
+import Laws.Types (BehaviorDomain, ActorId, Estimator, StrategyId, ResourceId, TransformationId)
+import Laws.World (Manifest, UnseededWorld, WorldState)
+import Data.Generic.Rep (class Generic)
+import Data.Map (Map)
+import Foreign.Object (Object)
+import Data.Maybe (Maybe)
+
+-- | A possible World: its world (unseeded), its Actors, Schemes, parameters, horizon, supported round
+-- | counts, optional test-instance label, and its Strategy catalog (the Strategies the in-world
+-- | Strategies run).
+-- | A possible World's reference, `id@version`, as a manifest and the consoles print it.
+possibleWorldRef :: forall r. { id :: String, version :: String | r } -> String
+possibleWorldRef g = g.id <> "@" <> g.version
+
+type PossibleWorld =
+  { id :: String
+  , version :: String
+  , authored :: Authored -- what the premise authors that the World does not hold
+  , world :: UnseededWorld -- resources, Exchanges, transformations, circulation, rules, and every Actor; seeded by instantiation
+  , playableActors :: Map ActorId PlayableActorDefinition
+  , schemes :: Array Scheme
+  , parameters :: Object Q -- named premise parameters read by Strategies
+  , horizon :: Int -- years
+  , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_premise.md §4)
+  , label :: Maybe String -- the test-instance label, which names the game (docs/05_meridian.md §14)
+  , strategies :: Map StrategyId StrategyRules
+  }
+
+-- | The game id a run records: the possible World's id and its test-instance label, `<id>/<label>`.
+-- | Nothing when the possible World names no label.
+gameIdOf :: PossibleWorld -> Maybe String
+gameIdOf gb = (\l -> gb.id <> "/" <> l) <$> gb.label
+
+-- | What an Actor definition adds to its Actor (§6.2).
+type PlayableActorDefinition =
+  { required :: Boolean
+  , seat :: Boolean -- may be a seat
+  , nonPlayableActor :: Array StrategyId -- non-playable Actor Strategies it may take
+  , fallback :: Maybe Fallback
+  , objective :: Maybe Objective
+  , description :: String -- what the Actor does; prose for briefings, not an authority
+  , dependency :: String
+  }
+
+data Fallback
+  = ImplicitCoverage ActorId -- accounts and activity retained in an Aggregate
+  | InstitutionalStrategy StrategyId -- the same accounts, driven by an in-world Strategy
+  | PermittedOmission
+
+derive instance Generic Fallback _
+derive instance Eq Fallback
+
+-- | Measurable criteria over the recorded game (§10.5). Objectives never affect the economy.
+type Objective = { description :: String, criteria :: Array Criterion }
+
+type Criterion = { metric :: MetricRef, over :: Span, atLeast :: Bound }
+
+-- | A measurement summed over the listed Actors; `negated` expresses "at most".
+type MetricRef = { actors :: Array ActorId, measure :: Measure, negated :: Boolean }
+
+-- | The category a premise declares for a Resource used as capacity (docs/03): views leave it out of holdings.
+capacityCategory :: String
+capacityCategory = "capacity"
+
+data Measure
+  = HoldingOf ResourceId
+  | ShortfallOf ResourceId
+  | ShortfallRounds ResourceId
+  | PayeeReceipts
+  | VolumeOf TransformationId
+
+derive instance Generic Measure _
+derive instance Eq Measure
+
+data Span = Final | EveryRound | Cumulative
+
+derive instance Generic Span _
+derive instance Eq Span
+
+data Bound = Fixed Q | Of MetricRef
+
+derive instance Generic Bound _
+derive instance Eq Bound
+
+type Scheme =
+  { id :: String
+  , eligiblePlayableActors :: Array ActorId
+  , target :: ActorId
+  , domain :: BehaviorDomain
+  , observes :: ResourceId
+  , estimator :: Estimator
+  }
+
+type InstantiationConfig =
+  { seed :: Seed
+  , rounds :: Int
+  , seats :: Map ActorId String -- Actor -> seat
+  , nonPlayableActors :: Map ActorId StrategyId -- Actor -> in-world Strategy
+  , fallbacks :: Map ActorId Fallback -- overrides of the declared fallback
+  , representations :: Array { scheme :: String, playableActor :: ActorId, weight :: Q }
+  }
+
+type InitialWorld = { world :: WorldState, manifest :: Manifest }
+
+-- | The outcome of an objective or a criterion. A run with no rounds, or a criterion with no series,
+-- | is not evaluated: it is neither a pass nor a failure. The premise spells the outcomes "met",
+-- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Meridian.Capstone`).
+data Outcome = Met | NotMet | NotEvaluated
+
+derive instance Eq Outcome
+
+-- | The words the views show.
+instance Show Outcome where
+  show = case _ of
+    Met -> "met"
+    NotMet -> "not met"
+    NotEvaluated -> "not evaluated"

@@ -1,11 +1,11 @@
--- | The recording of typed model exchanges. `Handlers.Llm.*` reports each call
--- | that completes as an `Exchange`: its effect, its typed request as JSON, and its typed reply as
--- | JSON. The capstone generator (`apps/cli`, `Transcript`, run by `just _settings`) keeps them and
+-- | The recording of typed model turns. `Handlers.Llm.*` reports each call
+-- | that completes as an `Turn`: its effect, its typed request as JSON, and its typed reply as
+-- | JSON. The capstone generator (`apps/cli`, `Transcript`, run by `just _premises`) keeps them and
 -- | writes them as the recording file. Reading the file back and replaying it are test support.
 module Handlers.Recording
-  ( Exchange
+  ( Turn
   , Recording
-  , exchangeShape
+  , turnShape
   , encodeReply
   , encodeRecording
   ) where
@@ -20,12 +20,12 @@ import Data.Maybe (Maybe(..))
 -- | One model call: the effect it served, the round and the seats whose transcripts it carried (the
 -- | key a replay matches on, never the prompt text), the encoded typed request, and the encoded typed
 -- | reply. A call with no seat (the narrator's) has no seats.
-type Exchange = { effect :: String, round :: Int, seats :: Array String, request :: Json, reply :: Json }
+type Turn = { effect :: String, round :: Int, seats :: Array String, request :: Json, reply :: Json }
 
-exchangeShape :: Shape Exchange
-exchangeShape = recordShape "Exchange" { effect: stringShape, round: intShape, seats: arrayOf stringShape, request: jsonShape, reply: jsonShape }
+turnShape :: Shape Turn
+turnShape = recordShape "Turn" { effect: stringShape, round: intShape, seats: arrayOf stringShape, request: jsonShape, reply: jsonShape }
 
-type Recording = Array Exchange
+type Recording = Array Turn
 
 -- | The reply's encoding: an error text, or the typed value. Both keys are always written.
 type ReplyJson = { error :: Maybe String, value :: Maybe Json }
@@ -41,4 +41,4 @@ encodeReply s r = encodeWith Snapshot replyJsonShape $ case r of
 
 -- | The recording file's text: indented JSON, with a final newline.
 encodeRecording :: Recording -> String
-encodeRecording rec = prettyJson (encodeWith Snapshot (arrayOf exchangeShape) rec)
+encodeRecording rec = prettyJson (encodeWith Snapshot (arrayOf turnShape) rec)

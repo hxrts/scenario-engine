@@ -6,17 +6,17 @@ module Test.Experiments.Mandatory (spec) where
 import Prelude
 import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfTransform)
 
-import Game.Bindings (strategyBindings)
+import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
-import Settings.Meridian.Entities.Seats (seatActors)
+import Premises.Meridian.Actors.Seats (playablePlayableActors)
 import Testkit.Meridian (orThrow, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Laws.Types (Id(..))
-import Laws.Slice (conversions, matches)
+import Laws.Slice (transformationFills, matches)
 import Data.Array (any, filter, find, length, nubEq, null, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -25,25 +25,25 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Adapters.Filesystem (fileOps)
-import Settings.Layout (fixturePath)
-import Settings.Tree (readRootFile)
+import Premises.Layout (fixturePath)
+import Premises.Tree (readRootFile)
 import Experiments.Agency (agency, counterfactual, difference, playerSeedRuns)
-import Game.Assemble (assemblePreset)
-import Game.Override (Override(..))
+import Assembly.Assemble (assemblePreset)
+import Assembly.Override (Override(..))
 import Core.Num as Q
 import Data.Maybe (Maybe(..))
 import Views.Agency (agencyProfiles)
 import Checks.Objectives (evaluateObjectives)
-import Settings.Load (loadLiteral)
-import Settings.Literal (literalGame)
+import Premises.Load (loadLiteral)
+import Premises.Literal (literalGame)
 import Handlers.Simulate (simulate)
-import Game.Setting (GameboardParts)
+import Assembly.Premise (PossibleWorldParts)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
-spec :: Aff GameboardParts -> Spec Unit
+spec :: Aff PossibleWorldParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
-  it "7 NPC response: Fixture D as a pair, with and without the deployment" do
+  it "7 NonPlayableActor response: Fixture D as a pair, with and without the deployment" do
     ctx <- context
     base <- everySeat ctx "Passive"
     fixture "D"
@@ -51,11 +51,11 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       deploy = ({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "major-military-action", quantity: lit 12 }) ] ], sign: [] })
       china r = any
         ( \x -> any
-            (matches (conversions) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn"))
+            (matches (transformationFills) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn"))
             x.record.events
         )
         r.records
-    cf <- case counterfactual (Seed 1) base { seats = strategyBindings [ Tuple (Id "US") deploy ] } (\g -> g { seats = Map.empty }) of
+    cf <- case counterfactual (Seed 1) base { seats = strategyRulesBindings [ Tuple (Id "US") deploy ] } (\g -> g { seats = Map.empty }) of
       Right x -> pure x
       Left e -> throwError (error (show e))
     china cf.base `shouldEqual` true
@@ -64,29 +64,29 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "14 Agency: every role has a measurable effect and its objectives are reported" do
     ctx <- context
     random <- everySeat ctx "RandomValid"
-    ps <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) random "Aggressive" seatActors)
+    ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) random "Aggressive" playablePlayableActors)
     length ps `shouldEqual` 15
-    -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
-    map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
+    -- hard condition (docs/06 §14): a role with no measurable effect is a broken premise
+    map _.playableActor (filter (not <<< _.measurable) ps) `shouldEqual` []
     -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
     for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
     (any (not <<< null <<< _.criteria) ps) `shouldEqual` true
-    -- a seat-Policy experiment's deviating run is the agency analysis's run for that seat
+    -- a seat-Strategy experiment's deviating run is the agency analysis's run for that seat
     deviating <- orThrow (assemblePreset ctx "RandomValid" [ SeatPreset (Id "US") "Aggressive" ] Nothing >>= simulate (Seed 1))
     baseRun <- orThrow (simulate (Seed 1) random)
-    case find (\p -> p.actor == Id "US") ps of
+    case find (\p -> p.playableActor == Id "US") ps of
       Just us -> Q.sumQ (map (Q.abs <<< _.delta) (difference baseRun deviating).prices) `shouldEqual` us.prices
       Nothing -> fail "no agency row for US"
     length (agencyProfiles ps).rows `shouldEqual` length ps
     g <- everySeat ctx "Conservative"
-    profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
+    profiles <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playablePlayableActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
     -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
-    -- is asserted on the RandomValid baseline. Pinned here so a setting change is noticed.
-    map _.actor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
+    -- is asserted on the RandomValid baseline. Pinned here so a premise change is noticed.
+    map _.playableActor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
     base <- run (Seed 1) g
     -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
-    map (\o -> show o.actor <> ":" <> show o.outcome) (evaluateObjectives ctx.gameboard base.records)
+    map (\o -> show o.playableActor <> ":" <> show o.outcome) (evaluateObjectives ctx.possibleWorld base.records)
       `shouldEqual`
         [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 

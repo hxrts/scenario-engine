@@ -21,8 +21,8 @@ import Type.Proxy (Proxy(..))
 data View
   = Overview
   | Balances
-  | Markets
-  | Facilities
+  | Exchanges
+  | Transformations
   | Economy
   | Representation
   | Procedures

@@ -6,7 +6,7 @@ import Adapters.SQLite as SQLite
 import Core.Draw (Seed)
 import Effect (Effect)
 import Effects.Signatures (NewRun, PlayF(..), PlayOutcome, PlayRequest(..))
-import Game.Types (Game)
+import Assembly.Types (Game)
 import Handlers.Play (interpretPlay)
 import Views.Metrics (roundMetrics)
 import Prelude (identity)

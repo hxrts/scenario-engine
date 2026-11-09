@@ -6,7 +6,7 @@ const COLUMNS_JSON = JSON.parse(readFileSync(["e2e/generated/columns.json", "app
 // Shared fixtures for the dashboard tests. Every request these tests depend on is answered by page.route,
 // so they do not depend on the e2e server's seeded data: each mock answers the contract (apps/server).
 
-// The run list's headings, generated from the views by `just _settings` (Compile).
+// The run list's headings, generated from the views by `just _premises` (Compile).
 export const COLUMNS = COLUMNS_JSON;
 
 // The run list as the server answers it: the table, and the typed flags of each run in the same order.
@@ -30,7 +30,7 @@ export const overview = (target, { id = "run-1", status = "completed" } = {}) =>
   facts: [
     { label: "Name", value: "base" },
     { label: "Preset", value: "Conservative" },
-    { label: "Setting", value: "meridian@v0" },
+    { label: "Premise", value: "meridian@v0" },
     { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },
     { label: "Game ID", value: "meridian/meridian-test-01" },

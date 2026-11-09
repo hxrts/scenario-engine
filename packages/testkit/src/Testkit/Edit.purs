@@ -1,27 +1,27 @@
--- | Small edits of a setting or World in a test: change the named item of a section and leave the rest.
+-- | Small edits of a premise or World in a test: change the named item of a section and leave the rest.
 module Testkit.Edit
-  ( onEntity
-  , onMarket
+  ( onActor
+  , onExchange
   , onTransformation
-  , onActor
+  , onPlayableActor
   ) where
 
 import Prelude
 
-import Laws.Types (Entity, EntityId, Market, MarketId, Transformation, TransformationId)
+import Laws.Types (Actor, ActorId, Exchange, ExchangeId, Transformation, TransformationId)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Schema.Gameboard (ActorDefinition)
+import Schema.PossibleWorld (PlayableActorDefinition)
 
-onEntity :: forall r. EntityId -> (Entity -> Entity) -> { entities :: Map EntityId Entity | r } -> { entities :: Map EntityId Entity | r }
-onEntity k f w = w { entities = Map.update (Just <<< f) k w.entities }
+onActor :: forall r. ActorId -> (Actor -> Actor) -> { actors :: Map ActorId Actor | r } -> { actors :: Map ActorId Actor | r }
+onActor k f w = w { actors = Map.update (Just <<< f) k w.actors }
 
-onMarket :: forall r. MarketId -> (Market -> Market) -> { markets :: Map MarketId Market | r } -> { markets :: Map MarketId Market | r }
-onMarket k f w = w { markets = Map.update (Just <<< f) k w.markets }
+onExchange :: forall r. ExchangeId -> (Exchange -> Exchange) -> { exchanges :: Map ExchangeId Exchange | r } -> { exchanges :: Map ExchangeId Exchange | r }
+onExchange k f w = w { exchanges = Map.update (Just <<< f) k w.exchanges }
 
 onTransformation :: forall r. TransformationId -> (Transformation -> Transformation) -> { transformations :: Map TransformationId Transformation | r } -> { transformations :: Map TransformationId Transformation | r }
 onTransformation k f w = w { transformations = Map.update (Just <<< f) k w.transformations }
 
-onActor :: forall r. EntityId -> (ActorDefinition -> ActorDefinition) -> { actors :: Map EntityId ActorDefinition | r } -> { actors :: Map EntityId ActorDefinition | r }
-onActor k f w = w { actors = Map.update (Just <<< f) k w.actors }
+onPlayableActor :: forall r. ActorId -> (PlayableActorDefinition -> PlayableActorDefinition) -> { playableActors :: Map ActorId PlayableActorDefinition | r } -> { playableActors :: Map ActorId PlayableActorDefinition | r }
+onPlayableActor k f w = w { playableActors = Map.update (Just <<< f) k w.playableActors }

@@ -1,4 +1,4 @@
--- | The Live handler (docs/04_instantiated_game.md §8, §11): runs `runRound` unchanged in Aff.
+-- | The Live handler (docs/04_run.md §8, §11): runs `runRound` unchanged in Aff.
 -- | Human seats type one transcript per round at their prompt, within the propose window; AI-agent
 -- | seats speak through their own model call; the round's transcripts go to one joint pass (INTERPRET).
 -- | Each round is recorded with those transcripts, then narrated (NARRATE). This module answers only
@@ -12,8 +12,8 @@ import Core.Draw (Seed)
 import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
-import Laws.Types (EntityId, RoundIndex)
-import Schema.Joint (JointProposal, Transcript)
+import Laws.Types (ActorId, RoundIndex)
+import Schema.Joint (JointCandidateTransaction, Transcript)
 import Laws.World (RoundResult, View, WorldState)
 import Laws.Engine.Commit (EngineError)
 import Data.Map as Map
@@ -27,7 +27,7 @@ import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
-import Game.Types (Game, SeatBinding(..))
+import Assembly.Types (Game, SeatBinding(..))
 import Handlers.Seats (RecordSink, handleSeats, seatEnv)
 import Effects.Round (runGame)
 import Run (AFF, Run, case_, interpret, lift, liftAff, on, runBaseAff)
@@ -42,10 +42,10 @@ type Live =
   , input :: String -> Aff String -- a human seat's line, after the prompt text
   , window :: Maybe (Aff Unit) -- the propose window: completes when the window has elapsed
   , say :: String -> Effect Unit -- a line for the facilitator
-  , notify :: EntityId -> String -> Aff Unit -- a message to the seat that needs no answer
-  , interpret :: RoundIndex -> Array Transcript -> Aff (Either String (Array JointProposal)) -- the round's joint pass
+  , notify :: ActorId -> String -> Aff Unit -- a message to the seat that needs no answer
+  , interpret :: RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction)) -- the round's joint pass
   , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
-  , speak :: EntityId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
+  , speak :: ActorId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
   , record :: RecordSink -- persist the round
   }
 
@@ -58,7 +58,7 @@ spokenText "" = Nothing
 spokenText s = Just s
 
 -- | The prompt a human seat types its transcript at.
-prompt :: EntityId -> RoundIndex -> String
+prompt :: ActorId -> RoundIndex -> String
 prompt seat round = "[round " <> show round <> ", propose window] " <> show seat <> "> "
 
 -- | What the live layer leaves for `handleSeats`: every seat operation it does not answer.
@@ -98,7 +98,7 @@ runLive live game = do
       _ -> lift _seatInput op
     _ -> lift _seatInput op
 
-  human :: Ref (Maybe Window) -> EntityId -> RoundIndex -> Aff String
+  human :: Ref (Maybe Window) -> ActorId -> RoundIndex -> Aff String
   human window e round = case live.window of
     Nothing -> live.input (prompt e round)
     Just timer -> do

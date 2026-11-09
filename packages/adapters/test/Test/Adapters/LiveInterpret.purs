@@ -1,6 +1,6 @@
 -- | The one-off, billed check of the joint pass against the real `pi` backend (docs/06 §14). It
 -- | makes exactly one model call over a fixed set of transcripts, and checks that the reply
--- | decodes and that the two transcripts that describe one joint Proposal reconcile into one Proposal with
+-- | decodes and that the two transcripts that describe one joint candidate Transaction reconcile into one candidate Transaction with
 -- | both seats signing. It is not part of any suite (`spago test -p`, `just test`, `just check`,
 -- | `just all`, `just dashboard-test`). Run it with `just live-interpret`, which needs
 -- | ALLOW_BILLED_LIVE=1; this module refuses to run without it.
@@ -51,12 +51,12 @@ check = do
   js <- case out of
     Right js -> pure js
     Left why -> throwError (error ("the reply did not decode: " <> why))
-  liftEffect $ log ("model " <> defaultModel <> ": " <> show (length js) <> " Proposal(s)")
+  liftEffect $ log ("model " <> defaultModel <> ": " <> show (length js) <> " CandidateTransaction(s)")
   for_ js \j -> liftEffect (log ("  author " <> show j.author <> ", signed " <> show j.signed <> ", intents " <> show (length j.draft.intents)))
   let both = filter (\j -> elem (Id "US") j.signed && elem (Id "DE") j.signed) js
   when (length both /= 1) $
-    throwError (error ("the US and German transcripts must reconcile into one Proposal signed by both; got " <> show (length both)))
-  liftEffect $ log "ok: the reply decodes and the matching transcripts reconcile into one Proposal"
+    throwError (error ("the US and German transcripts must reconcile into one CandidateTransaction signed by both; got " <> show (length both)))
+  liftEffect $ log "ok: the reply decodes and the matching transcripts reconcile into one CandidateTransaction"
 
 main :: Effect Unit
 main = do

@@ -27,7 +27,7 @@ import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Exception (catchException, throw, throwException)
-import Effects.Signatures (RunInfo, RunSummary, ScenarioSet, Stored, StoredManifest, StoredRound)
+import Effects.Signatures (RunInfo, RunSummary, RunSet, Stored, StoredManifest, StoredRound)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Handlers.Sql (SqlDevice, SqlValue(..))
@@ -62,10 +62,10 @@ schema =
 -- | The named sets of runs. Added after version 1 and only additive, so it is made wherever it is absent and a
 -- | store keeps its version. A set holds run ids, as JSON text, and never run data.
 setsTable :: String
-setsTable = "create table if not exists scenario_sets (name text primary key, baseline text not null, runs text not null)"
+setsTable = "create table if not exists run_sets (name text primary key, baseline text not null, runs text not null)"
 
 schemaVersionCurrent :: Int
-schemaVersionCurrent = 4
+schemaVersionCurrent = 6
 
 -- | The store's schema version.
 schemaVersion :: SqlDevice -> Effect Int
@@ -84,7 +84,7 @@ openStore open path = do
     when (v /= schemaVersionCurrent) do
       rows <- d.query "select count(*) as n from sqlite_master" [] :: Effect (Array { n :: Int })
       when (v /= 0 || maybe 0 _.n (head rows) /= 0) (throw (refused v))
-      d.transaction do
+      d.dbDbTransaction do
         d.script schema
         d.script ("pragma user_version = " <> show schemaVersionCurrent)
     d.script setsTable
@@ -135,7 +135,7 @@ roundsTable :: Table RoundColumns
 roundsTable = Table "rounds"
 
 setsOf :: Table SetColumns
-setsOf = Table "scenario_sets"
+setsOf = Table "run_sets"
 
 metricsTable :: Table MetricColumns
 metricsTable = Table "metrics"
@@ -179,7 +179,7 @@ shapeText s = stringify <<< encodeWith Snapshot s
 fromShape :: forall a. Shape a -> String -> String -> Stored a
 fromShape s what text = decodeErrorAt what (parse Snapshot s text)
 
--- | A stored specification to its text, in the setting form: an absent field is not written.
+-- | A stored specification to its text, in the premise form: an absent field is not written.
 specText :: Spec -> String
 specText = stringify <<< encodeWith Authored specShape
 
@@ -197,7 +197,7 @@ statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeE
 sqlStore :: SqlDevice -> (Int -> Effect Boolean) -> StoreBackend
 sqlStore d alive =
   { createRun: \r -> insert d runsTable { id: r.id, name: r.name, status: show Running, spec: specText r.spec, manifest: shapeText manifestShape r.manifest, created: r.created, source: toNullable r.spec.source, owner: r.owner }
-  , appendRound: \r -> d.transaction do
+  , appendRound: \r -> d.dbDbTransaction do
       insert d roundsTable { run: r.run, round: r.round, record: shapeText roundRecordShape r.record, snapshot: shapeText worldStateShape r.snapshot, assertions: shapeText (arrayOf failureShape) r.assertions, transcripts: shapeText (arrayOf transcriptShape) r.transcripts }
       for_ r.metrics \m -> insert d metricsTable { run: r.run, metric: m.metric, version: m.version, round: r.round, value: m.value }
   , setStatus: \id status reason -> void (d.execute "update runs set status = ?, reason = ? where id = ?" [ SqlText (show status), maybe SqlNull SqlText reason, SqlText id ])
@@ -208,13 +208,13 @@ sqlStore d alive =
       pure (length left)
   , setSpec: \id spec -> void (d.execute "update runs set spec = ? where id = ?" [ SqlText (specText spec), SqlText id ])
   , setArchived: \id archived -> void (d.execute "update runs set archived = ? where id = ?" [ SqlInt (if archived then 1 else 0), SqlText id ])
-  , deleteRun: \id -> d.transaction do
+  , deleteRun: \id -> d.dbDbTransaction do
       void (d.execute "delete from metrics where run = ?" [ SqlText id ])
       void (d.execute "delete from rounds where run = ?" [ SqlText id ])
       d.execute "delete from runs where id = ?" [ SqlText id ]
   , createSet: \set -> insert d setsOf { name: set.name, baseline: set.baseline, runs: shapeText (arrayOf stringShape) set.runs }
-  , renameSet: \name to -> d.execute "update scenario_sets set name = ? where name = ?" [ SqlText to, SqlText name ]
-  , deleteSet: \name -> d.execute "delete from scenario_sets where name = ?" [ SqlText name ]
+  , renameSet: \name to -> d.execute "update run_sets set name = ? where name = ?" [ SqlText to, SqlText name ]
+  , deleteSet: \name -> d.execute "delete from run_sets where name = ?" [ SqlText name ]
   , listSets: select d setsOf "order by rowid" [] >>= traverse setOf
   , listRuns: select d runsTable "order by rowid" [] >>= traverse runInfo
   , listSummaries: do
@@ -238,7 +238,7 @@ sqlStore d alive =
     rows <- select d roundsTable "order by run, round" [] :: Effect (Array { run :: String, assertions :: String })
     pure (foldl (\byRun r -> Object.insert r.run (fromMaybe [] (Object.lookup r.run byRun) <> [ r.assertions ]) byRun) Object.empty rows)
 
-  setOf :: Record SetColumns -> Effect ScenarioSet
+  setOf :: Record SetColumns -> Effect RunSet
   setOf r = either throw (\runs -> pure { name: r.name, baseline: r.baseline, runs }) (fromShape (arrayOf stringShape) ("set " <> r.name) r.runs)
 
   runInfo :: RunInfoRow -> Effect RunInfo

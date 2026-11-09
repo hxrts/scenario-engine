@@ -15,7 +15,7 @@ module Views.Overview
 
 import Prelude
 
-import Schema.Gameboard (Gameboard)
+import Schema.PossibleWorld (PossibleWorld)
 import Schema.Run (RunStatus(..))
 import Data.String (joinWith)
 import Data.Array (concatMap, mapWithIndex)
@@ -30,7 +30,7 @@ import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredR
 type ListedRun = Record
   ( RunCore
       ( reason :: Maybe String
-      , gameboard :: String
+      , possibleWorld :: String
       , gameSeed :: String
       , playerSeed :: String
       , rounds :: Int
@@ -64,7 +64,7 @@ runFields :: Array (Field (Either Unreadable ListedRun))
 runFields =
   [ cellOf col.run (either _.id _.id)
   , cellOf col.name (either _.name _.name)
-  , cellOf col.gameboard (either (const "—") _.gameboard)
+  , cellOf col.possibleWorld (either (const "—") _.possibleWorld)
   , cellOf col.gameSeed (either (const "—") _.gameSeed)
   , cellOf col.playerSeed (either (const "—") _.playerSeed)
   , cellOf col.rounds (either (const "—") (show <<< _.rounds))
@@ -90,14 +90,14 @@ sourceColumn = column "Source" "The run this one was derived from (duplicate, re
 presetColumn :: Column
 presetColumn = column "Preset" "The preset every seat plays in this run."
 
-settingColumn :: Column
-settingColumn = column "Setting" "The setting (Gameboard version) the run was played on."
+premiseColumn :: Column
+premiseColumn = column "Premise" "The premise (possible World version) the run was played on."
 
 roundsCompleted :: Column
 roundsCompleted = column "Rounds completed" "Rounds completed so far, out of the rounds the run was launched for. A run shorter than its target can be resumed to it."
 
 gameIdColumn :: Column
-gameIdColumn = column "Game ID" "The setting's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
+gameIdColumn = column "Game ID" "The premise's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
 
 criterionColumn :: Column
 criterionColumn = column "Criterion" "The number of the criterion within its objective."
@@ -110,7 +110,7 @@ boundColumn = column "Bound" "The threshold the measured values are compared wit
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = columnsOf runFields <> [ presetColumn, settingColumn, roundsCompleted, gameIdColumn ] <> columnsOf objectiveFields
+columns = columnsOf runFields <> [ presetColumn, premiseColumn, roundsCompleted, gameIdColumn ] <> columnsOf objectiveFields
 
 -- | The source a derived run cites: its id, marked when the store no longer holds that run.
 sourceCell :: Maybe String -> Boolean -> String
@@ -140,7 +140,7 @@ overview r =
   , facts:
       [ fact col.name r.name
       , fact presetColumn (fromMaybe "" r.spec.preset)
-      , fact settingColumn r.manifest.gameboard
+      , fact premiseColumn r.manifest.possibleWorld
       , fact col.status (show r.status)
       , fact roundsCompleted (ofCount rounds launched)
       , fact gameIdColumn (fromMaybe "" r.spec.gameId)
@@ -151,7 +151,7 @@ overview r =
   launched = target r
 
 -- | Every Actor's objective criteria as met, not met, or not evaluated, with the measured values.
-objectives :: Gameboard -> StoredRun -> Table
+objectives :: PossibleWorld -> StoredRun -> Table
 objectives gb r = tableOf "Objectives" objectiveFields (concatMap (\o -> mapWithIndex (\i c -> { o, i, c }) o.criteria) (evaluateObjectives gb r.rounds))
 
 -- | One criterion of an Objective, with the Actor it belongs to and its position in the list.
@@ -159,7 +159,7 @@ type CriterionRow = { o :: ObjectiveResult, i :: Int, c :: CriterionResult }
 
 objectiveFields :: Array (Field CriterionRow)
 objectiveFields =
-  [ cellOf col.actor (show <<< _.o.actor)
+  [ cellOf col.playableActor (show <<< _.o.playableActor)
   , cellOf col.objective _.o.description
   , cellOf criterionColumn (\x -> show (x.i + 1))
   , cellOf col.outcome (show <<< _.c.outcome)

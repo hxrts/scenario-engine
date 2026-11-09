@@ -21,8 +21,8 @@ module Effects.Api
 import Prelude
 
 import Schema.Run (DeriveKind)
-import Game.Experiment (ExperimentRequest)
-import Effects.Signatures (ScenarioSet)
+import Assembly.Experiment (ExperimentRequest)
+import Effects.Signatures (RunSet)
 import Schema.View (View)
 import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
@@ -32,18 +32,18 @@ import Data.Argonaut.Core (Json)
 import Data.Maybe (Maybe)
 
 -- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
--- | at launch; the reply carries the seed used either way. `setting` names one of `GET /api/setting`; absent
+-- | at launch; the reply carries the seed used either way. `premise` names one of `GET /api/premise`; absent
 -- | is the first.
-type Launch = { setting :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
+type Launch = { premise :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
--- | `POST /api/batch` body: one run of one preset on every seat of each named Setting, or of every loaded
+-- | `POST /api/batch` body: one run of one preset on every seat of each named Premise, or of every loaded
 -- | one when none is named, so their results can be compared.
-type LaunchBatch = { settings :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
+type LaunchBatch = { premises :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
 
 -- | `POST /api/runs/:id/derive` body: the kind, the new run's name, and what the kind may change. A
 -- | field left absent keeps the source's value. `playerSeed` is doubly optional: absent keeps the
 -- | source's seed, and an explicit null draws a new one. `overrides` stays JSON because the override
--- | shape belongs to `game`, which this package may not import; `Game.Recipe` decodes it.
+-- | shape belongs to `game`, which this package may not import; `Assembly.Recipe` decodes it.
 type DeriveRequest =
   { kind :: DeriveKind
   , name :: Maybe String
@@ -53,8 +53,8 @@ type DeriveRequest =
   , overrides :: Maybe Json
   }
 
--- | Which agency analysis: the setting, the player seed, and the two presets. An absent one takes its default.
-type AgencyQuery = { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
+-- | Which agency analysis: the premise, the player seed, and the two presets. An absent one takes its default.
+type AgencyQuery = { premise :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
 
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
@@ -64,25 +64,25 @@ type Reply = { status :: Int, body :: String }
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
 data ApiRequest
   = ListRuns { archived :: Boolean }
-  | Setting
+  | Premise
   | Glossary
   | LaunchRun Launch
   | LaunchBatch LaunchBatch
-  | Entities String
-  | Entity String String
+  | Actors String
+  | Actor String String
   | RunView { id :: String, view :: View, round :: Maybe Int }
-  | Compare { runs :: Array String, market :: Maybe String }
+  | Compare { runs :: Array String, exchange :: Maybe String }
   | Agency AgencyQuery
   | AgencyDetail AgencyQuery
   | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
   | Step String
   | RunExperiment ExperimentRequest
-  | ListScenarioSets
+  | ListRunSets
   | SetSummary String
-  | SaveScenarioSet ScenarioSet
-  | RenameScenarioSet { name :: String, to :: String }
-  | DeleteScenarioSet String
+  | SaveRunSet RunSet
+  | RenameRunSet { name :: String, to :: String }
+  | DeleteRunSet String
   | Archive String
   | Unarchive String
   | Delete { id :: String, confirm :: String }

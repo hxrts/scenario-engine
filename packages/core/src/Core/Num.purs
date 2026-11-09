@@ -1,5 +1,5 @@
 -- | Fixed-point quantities: 4 decimal places, rounded half-to-even
--- | (docs/02_type_system.md §9.1). No `Number` enters economic state. Storage and computation are
+-- | (docs/02_kernel.md §9.1). No `Number` enters economic state. Storage and computation are
 -- | exact; the display kinds (`displayQuantity`, `displayRatio`; a Price displays as a quantity) only change text.
 module Core.Num
   ( Q
@@ -71,7 +71,7 @@ instance DecodeJson Q where
   decodeJson = decodeJsonWith Snapshot qShape
 
 -- | A fixed-point quantity, written as a decimal string. The two formats spell the same value
--- | differently: the snapshot writes four decimals (`Q.format`); the setting format writes the
+-- | differently: the snapshot writes four decimals (`Q.format`); the premise format writes the
 -- | minimal decimal the author wrote (`10`, `2.04`), which is what the compiled fixtures hold.
 qShape :: Shape Q
 qShape =
@@ -119,7 +119,7 @@ mul (Q a) (Q b) = Q (divRound (a * b) scale)
 
 -- | Quotient, rounded half-to-even. Division by zero is a programming error and fails loudly; a
 -- | caller whose divisor can be zero must use `divMaybe` (or `divFloor`) instead. Kept because every
--- | caller divides by a literal 2 (Market), a non-empty count (Standings), or a checked nonzero (Representation).
+-- | caller divides by a literal 2 (Exchange), a non-empty count (Standings), or a checked nonzero (Representation).
 div :: Q -> Q -> Q
 div a b = case divMaybe a b of
   Just q -> q
@@ -207,7 +207,7 @@ format (Q u) =
 -- | steps; leftover steps go to the largest remainders, and ties go to the earlier index, so
 -- | callers must order their inputs canonically. Weights must be non-negative (a negative weight
 -- | fails loudly). If the weights sum to zero, nothing is allocated and every share is zero.
--- | Kept: a Market's weights are sign-filtered, a pool's are an order's use times its quantity (at
+-- | Kept: an Exchange's weights are sign-filtered, a pool's are an order's use times its quantity (at
 -- | least its minimum, which is zero by default), and Circulate's flow amounts are checked non-negative when a round starts.
 allocate :: BigInt -> Q -> Array Q -> Array Q
 allocate unit (Q total) weights

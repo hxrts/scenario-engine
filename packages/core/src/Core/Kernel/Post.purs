@@ -1,4 +1,4 @@
--- | Posting (docs/02_type_system.md): the one place a settlement leg is written to the ledger. A leg
+-- | Posting (docs/02_kernel.md): the one place a settlement settled Flow is written to the ledger. A settled Flow
 -- | honours what its obligation says a shortfall does, and reports what moved.
 module Core.Kernel.Post
   ( Account(..)
@@ -20,7 +20,7 @@ import Core.Kernel.Types (Short(..), Endpoint(..), Flow)
 import Core.Map (entries, sumInto, lookupQ)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, MarketId, ResourceId)
+import Core.Types (ActorId, ExchangeId, ResourceId)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Map as Map
@@ -28,7 +28,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Show.Generic (genericShow)
 import Data.Tuple (Tuple(..))
 
-data Account = Ent EntityId | Mkt MarketId
+data Account = Ent ActorId | Mkt ExchangeId
 
 derive instance Eq Account
 derive instance Ord Account
@@ -62,11 +62,11 @@ adjust a r = sumInto (Tuple a r)
 accountOf :: Endpoint -> Maybe Account
 accountOf = case _ of
   Held e -> Just (Ent e)
-  InMarket m -> Just (Mkt m)
+  InExchange m -> Just (Mkt m)
   Source -> Nothing
   Sink -> Nothing
 
--- | Whether a leg enters or leaves the economy, rather than moving between holders.
+-- | Whether a settled Flow enters or leaves the economy, rather than moving between holders.
 crossesBoundary :: Flow -> Boolean
 crossesBoundary l = l.from == Source || l.to == Sink
 
@@ -74,10 +74,10 @@ crossesBoundary l = l.from == Source || l.to == Sink
 available :: Opening -> Ledger -> Account -> ResourceId -> Q
 available opening ledger a r = max Q.zero (Q.add (opening a r) (lookupQ (Tuple a r) ledger))
 
--- | Post one leg. `Cap` moves what is held; `Reject` moves nothing when the whole cannot move. The
+-- | Post one settled Flow. `Cap` moves what is held; `Reject` moves nothing when the whole cannot move. The
 -- | boundary can always pay, and so can a reserve: clearing bounds a batch's net, which a reserve can
--- | pass on the way there, and commit fails the round on a negative closing reserve. A leg that moves nothing still writes its accounts: a stock dynamic reads the
--- | ledger's keys to find what an Entity came to hold this round.
+-- | pass on the way there, and commit fails the round on a negative closing reserve. A settled Flow that moves nothing still writes its accounts: a stock law reads the
+-- | ledger's keys to find what an Actor came to hold this round.
 post :: Opening -> Short -> { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Q } -> Ledger -> Posted
 post opening short l ledger =
   { flow: { from: l.from, to: l.to, resource: l.resource, owed: l.owed, moved }
@@ -86,7 +86,7 @@ post opening short l ledger =
   }
   where
   held = case l.from of
-    InMarket _ -> l.owed
+    InExchange _ -> l.owed
     other -> maybe l.owed (\a -> available opening ledger a l.resource) (accountOf other)
   moved = case short of
     Cap -> min l.owed held

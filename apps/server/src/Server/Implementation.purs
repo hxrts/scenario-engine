@@ -18,18 +18,18 @@ import Run (Run)
 import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
 import Effects.Launch (runExperiment)
-import Server.Launch (launch, launchBatch, serverRole, settingInfo)
-import Server.Read (agencyDetailView, agencyView, compareView, entitiesView, entityView, getView, runSummaries)
+import Server.Launch (launch, launchBatch, serverRole, premiseInfo)
+import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, runSummaries)
 import Server.Rows (SERVER)
-import Server.Sets (deleteScenarioSet, renameScenarioSet, saveSet, setSummary, setsView)
-import Server.Settings (Settings, chosen)
+import Server.Sets (deleteRunSet, renameRunSet, saveSet, setSummary, setsView)
+import Server.Premises (Premises, chosen)
 import Views.Glossary (glossary)
 import Views.Keys as Keys
 import Views.Overview as Overview
 
--- | The reply to one request over the loaded settings.
-answer :: forall r. Settings -> ApiRequest -> Run (SERVER r) Reply
-answer settings request = do
+-- | The reply to one request over the loaded premises.
+answer :: forall r. Premises -> ApiRequest -> Run (SERVER r) Reply
+answer premises request = do
   -- a write may change any run (a delete changes which sources exist), so the whole cache goes
   when ((wire request).method /= "GET") forgetRuns
   apiReply <$> operation request
@@ -37,25 +37,25 @@ answer settings request = do
   operation :: ApiRequest -> Run (SERVER r) Answer
   operation = case _ of
     ListRuns { archived } -> runSummaries archived >>= ok Keys.runList <<< Overview.runList
-    Setting -> settingInfo settings >>= ok Keys.settings
-    Glossary -> ok Keys.glossary (glossary (mapMaybe _.gameboard.world.focus settings))
-    LaunchRun l -> either (pure <<< Left) (\p -> launch p l) (chosen settings l.setting) >>= either badRequest (ok Keys.launched)
-    LaunchBatch b -> either (pure <<< Left) (\ps -> launchBatch ps b) (maybe (Right settings) (traverse (chosen settings <<< Just)) b.settings) >>= either badRequest (ok (listOf Keys.batched))
-    Entities id -> entitiesView id
-    Entity id entity -> entityView id entity
-    RunView r -> getView settings r
-    Compare r -> compareView settings r
-    Agency r -> agencyView settings r
-    AgencyDetail r -> agencyDetailView settings r
-    Derive { id, body } -> deriveRun settings id body
-    Resume { id, rounds } -> resumeRun settings id rounds
-    Step id -> stepRun settings id
-    RunExperiment r -> either (pure <<< Left) (\p -> runExperiment serverRole p r) (chosen settings r.setting) >>= either badRequest (ok Keys.experiment)
-    ListScenarioSets -> setsView
-    SetSummary name -> setSummary settings name
-    SaveScenarioSet set -> saveSet set
-    RenameScenarioSet r -> renameScenarioSet r
-    DeleteScenarioSet name -> deleteScenarioSet name
+    Premise -> premiseInfo premises >>= ok Keys.premises
+    Glossary -> ok Keys.glossary (glossary (mapMaybe _.possibleWorld.world.focus premises))
+    LaunchRun l -> either (pure <<< Left) (\p -> launch p l) (chosen premises l.premise) >>= either badRequest (ok Keys.launched)
+    LaunchBatch b -> either (pure <<< Left) (\ps -> launchBatch ps b) (maybe (Right premises) (traverse (chosen premises <<< Just)) b.premises) >>= either badRequest (ok (listOf Keys.batched))
+    Actors id -> actorsView id
+    Actor id actor -> actorView id actor
+    RunView r -> getView premises r
+    Compare r -> compareView premises r
+    Agency r -> agencyView premises r
+    AgencyDetail r -> agencyDetailView premises r
+    Derive { id, body } -> deriveRun premises id body
+    Resume { id, rounds } -> resumeRun premises id rounds
+    Step id -> stepRun premises id
+    RunExperiment r -> either (pure <<< Left) (\p -> runExperiment serverRole p r) (chosen premises r.premise) >>= either badRequest (ok Keys.experiment)
+    ListRunSets -> setsView
+    SetSummary name -> setSummary premises name
+    SaveRunSet set -> saveSet set
+    RenameRunSet r -> renameRunSet r
+    DeleteRunSet name -> deleteRunSet name
     Archive id -> setArchive id true
     Unarchive id -> setArchive id false
     Delete { id, confirm } -> deleteOne id confirm

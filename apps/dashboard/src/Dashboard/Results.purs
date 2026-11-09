@@ -12,7 +12,7 @@ import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
 import Dashboard.Components (fetched, loaded, metricChart, note, stackedBars, stale, statistic, tableOf)
 import Dashboard.DataTable (DataTable)
-import Dashboard.Entity (mkEntity)
+import Dashboard.Actor (mkActor)
 import Dashboard.Events (mkEvents)
 import Dashboard.Glossary (Lookup, emptyValue, glossaryContext)
 import Dashboard.Layout as Layout
@@ -41,7 +41,7 @@ type Props = { id :: String, version :: Int, overview :: Loaded (Either String R
 titled :: DataTable -> Table -> JSX
 titled grid t = Layout.captioned t.title [ tableOf grid t ]
 
--- | The compact header: the run's id, then its facts (name, setting, status, rounds completed out of
+-- | The compact header: the run's id, then its facts (name, premise, status, rounds completed out of
 -- | its target, game id), both from the same overview, so a run switch never shows a new name over the
 -- | old facts. An empty fact says what it means, with the reason on hover.
 header :: Lookup -> String -> Array Fact -> JSX
@@ -79,7 +79,7 @@ type BodyProps = { id :: String, version :: Int, rounds :: Int }
 
 -- | The sections, in the order of the five questions. Each has one purpose line.
 mkBody :: DataTable -> Component BodyProps
-mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \events -> component "RunResultsBody" \b -> React.do
+mkBody grid = fetched >>= \fetch -> mkActor >>= \actor -> mkEvents grid >>= \events -> component "RunResultsBody" \b -> React.do
   let
     keyed path = b.id <> "/" <> path <> "@" <> show b.version
 
@@ -95,8 +95,8 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             }
         , Layout.section
             { title: "Marginal prices"
-            , purpose: "What moves prices: the marginal price of each Market after every round, in quote units per base unit."
-            , children: [ view Keys.markets (\cs -> maybe (D.span_ []) metricChart (index cs 0)) ]
+            , purpose: "What moves prices: the marginal price of each Exchange after every round, in quote units per base unit."
+            , children: [ view Keys.exchanges (\cs -> maybe (D.span_ []) metricChart (index cs 0)) ]
             }
         , Layout.section
             { title: "Standings"
@@ -125,7 +125,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             }
         , Layout.section
             { title: "Collective procedures"
-            , purpose: "Each procedure Proposal: who signed, the support it reached against its threshold, and the outcome."
+            , purpose: "Each voted candidate Transaction: who signed, the support it reached against its threshold, and the outcome."
             , children: [ view Keys.procedures (titled grid) ]
             }
         , Layout.section
@@ -140,7 +140,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             }
         , Layout.section
             { title: "Whole-economy measures"
-            , purpose: "By round and Market: what was asked for and what went unfilled, how concentrated net worth is, and how Money is distributed."
+            , purpose: "By round and Exchange: what was asked for and what went unfilled, how concentrated net worth is, and how Money is distributed."
             , children: [ view Keys.wholeEconomy (titled grid) ]
             }
         , Layout.section
@@ -153,7 +153,7 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
             , children: [ view Keys.balances (titled grid) ]
             }
-        , entity { id: b.id, version: b.version }
+        , actor { id: b.id, version: b.version }
         , events { id: b.id, version: b.version, rounds: b.rounds }
         ]
     }

@@ -5,20 +5,20 @@ import Schema.Build.Decision (asTemplate, eqQ, joint, lit, passive, roundQ, rule
 import Schema.Build.Quantity (q)
 import Prelude
 
-import Testkit.Edit (onMarket)
+import Testkit.Edit (onExchange)
 
-import Game.Bindings (strategyBindings)
+import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
-import Settings.Layout (presetsFile)
-import Settings.Meridian.Names (meridianDir)
-import Settings.Meridian.Entities.Seats (seatActors)
+import Premises.Layout (presetsFile)
+import Premises.Meridian.Names (meridianDir)
+import Premises.Meridian.Actors.Seats (playablePlayableActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Core.Num as Q
-import Laws.Types (EntityId, Id(..))
-import Laws.Slice (event, matches, conversions, transfers)
+import Laws.Types (ActorId, Id(..))
+import Laws.Slice (event, matches, transformationFills, transfers)
 import Laws.World (RoundResult)
 import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
@@ -32,7 +32,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
-import Game.Types (Game)
+import Assembly.Types (Game)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
@@ -41,20 +41,20 @@ import Test.Handlers.Simulate as SimulateTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
-import Laws.Strategy (Strategy)
+import Laws.StrategyRules (StrategyRules)
 import Adapters.Filesystem (fileOps)
-import Settings.Tree (readRootFile)
-import Settings.Load (loadPresets)
+import Premises.Tree (readRootFile)
+import Premises.Load (loadPresets)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
-play :: Game -> Int -> Map.Map EntityId Strategy -> Aff (Array RoundResult)
-play g n strategies = do
+play :: Game -> Int -> Map.Map ActorId StrategyRules -> Aff (Array RoundResult)
+play g n strategyRules = do
   let
-    out = playPure (seatEnv (Seed 1) g) (strategyBindings (Map.toUnfoldable strategies)) g.inWorld n g.world
+    out = playPure (seatEnv (Seed 1) g) (strategyRulesBindings (Map.toUnfoldable strategyRules)) g.inWorld n g.world
   _ <- orThrow (out.value)
   pure unit
   checkRun g.world out.records `shouldEqual` []
@@ -107,7 +107,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (all (\r -> length r.metrics > 0 && all (\m -> m.version == "v1") r.metrics) rows) `shouldEqual` true
 
   describe "Replay (Handlers.Replay over recorded rounds)" do
-    it "a round with eleven proposals by one author replays into the same ids and order as recorded" do
+    it "a round with eleven candidateTransactions by one author replays into the same ids and order as recorded" do
       g <- unseated
       let
         eleven = { rules: [ rule [ eqQ roundQ (lit 1) ] (map (\i -> asTemplate (selfTransform { transformation: "major-military-action", quantity: lit (i + 20) })) (range 1 11)) ], sign: [] }
@@ -115,8 +115,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) g of
         Left e -> fail e
         Right out -> do
-          let ids rs = map (\r -> map (\s -> s.proposal.id) r.record.inputs) rs
-          length (filter (\s -> s.proposal.author == Id "US") (concatMap _.record.inputs records)) `shouldEqual` 11
+          let ids rs = map (\r -> map (\s -> s.candidateTransaction.id) r.record.inputs) rs
+          length (filter (\s -> s.candidateTransaction.author == Id "US") (concatMap _.record.inputs records)) `shouldEqual` 11
           ids out.records `shouldEqual` ids records
           map (\r -> stringify (encodeJson r.record.inputs)) out.records `shouldEqual` map (\r -> stringify (encodeJson r.record.inputs)) records
 
@@ -128,18 +128,18 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
           let p = fromMaybe passive (Object.lookup name ps)
-          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) seatActors))
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) playablePlayableActors))
           length records `shouldEqual` 5
 
     it "Fixture D end to end: China procures after the recorded US deployment" do
       g <- unseated
       records <- play g 3 (Map.singleton (Id "US") (({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "major-military-action", quantity: lit 12 }) ] ], sign: [] })))
-      let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.entities >>= \x -> Map.lookup (Id e) x.accounts)
+      let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.actors >>= \x -> Map.lookup (Id e) x.accounts)
       case index records 0, index records 1, index records 2 of
         Just r1, Just r2, Just r3 -> do
-          (fromMaybe Q.zero (Map.lookup (Id "US") r1.world.entities >>= \x -> Map.lookup (Id "Mil") x.accounts)) `shouldEqual` Q.fromInt 92
+          (fromMaybe Q.zero (Map.lookup (Id "US") r1.world.actors >>= \x -> Map.lookup (Id "Mil") x.accounts)) `shouldEqual` Q.fromInt 92
           any
-            (matches (conversions) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4))
+            (matches (transformationFills) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4))
             r2.record.events `shouldEqual` true
           cn r2 "Mil" `shouldEqual` Q.fromInt 88 -- ordered in round 2, delivered at round 3's Prepare
           cn r3 "Mil" `shouldEqual` Q.fromInt 92
@@ -152,12 +152,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Just r2, Just r3 -> (price r3 "energy-atlantic" > price r2 "energy-atlantic") `shouldEqual` true
         _, _ -> fail "expected three rounds"
 
-    it "a seat and an NPC sign each other's Proposals in the same round" do
+    it "a seat and an NonPlayableActor sign each other's CandidateTransactions in the same round" do
       g0 <- unseated
       let
         g = g0
-          { world = onMarket (Id "energy-atlantic") (\m -> m { position = Q.fromInt 60 }) g0.world
-          , inWorld = g0.inWorld { strategies = Map.insert (Id "china-strategic-v0") (({ rules: [], sign: [ signAll ] })) g0.inWorld.strategies }
+          { world = onExchange (Id "energy-atlantic") (\m -> m { position = Q.fromInt 60 }) g0.world
+          , inWorld = g0.inWorld { strategyRules = Map.insert (Id "china-strategic-v0") (({ rules: [], sign: [ signAll ] })) g0.inWorld.strategyRules }
           }
       records <- play g 1
         ( Map.fromFoldable

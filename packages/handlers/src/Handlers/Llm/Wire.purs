@@ -1,5 +1,5 @@
 -- | The model wire format (docs/06_simulator.md §14). Each request's payload and each reply is a shape
--- | (`Core.Shape`), so the JSON the model sees and writes is the description the setting and the game
+-- | (`Core.Shape`), so the JSON the model sees and writes is the description the premise and the game
 -- | use. The prompts are the role briefing and framing prose, with the action list and the reply's
 -- | schema rendered from those shapes (`prose`). A reply is one JSON object, the first balanced `{...}` in its
 -- | text. Only this module and `Handlers.Llm.*` know these texts; the `pi` process that carries them is in
@@ -23,7 +23,7 @@ import Prelude
 
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
-import Laws.Types (EntityId, MarketId, RoundIndex, idShape)
+import Laws.Types (ActorId, ExchangeId, RoundIndex, idShape)
 import Laws.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either)
@@ -35,12 +35,12 @@ import Data.String.CodeUnits (indexOf, slice, toCharArray)
 import Data.Tuple (Tuple(..))
 import Schema.Decode (decodeError)
 
--- | The joint pass's payload: the round, its seat transcripts, and the Entities and Markets a
--- | Proposal may name.
-type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, entities :: Array EntityId, markets :: Array MarketId }
+-- | The joint pass's payload: the round, its seat transcripts, and the Actors and Exchanges a
+-- | candidate Transaction may name.
+type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, actors :: Array ActorId, exchanges :: Array ExchangeId }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), entities: (arrayOf idShape), markets: (arrayOf idShape) }
+jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), actors: (arrayOf idShape), exchanges: (arrayOf idShape) }
 
 -- | The narrator's payload: the round and its resolved events.
 type NarrateRequest = { round :: RoundIndex, events :: Array Event }
@@ -49,10 +49,10 @@ narrateRequestShape :: Shape NarrateRequest
 narrateRequestShape = recordShape "NarrateRequest" { round: intShape, events: (arrayOf eventShape) }
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
-type SpeakRequest = { actor :: EntityId, briefing :: String, view :: View }
+type SpeakRequest = { playableActor :: ActorId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
-speakRequestShape = recordShape "SpeakRequest" { actor: idShape, briefing: stringShape, view: viewShape }
+speakRequestShape = recordShape "SpeakRequest" { playableActor: idShape, briefing: stringShape, view: viewShape }
 
 -- | A narrator's or seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }
@@ -91,13 +91,13 @@ firstObject s = case indexOf (Pattern "{") s of
 decodeReply :: forall a. Shape a -> String -> Either String a
 decodeReply s = decodeError <<< parse Snapshot s <<< firstObject
 
--- | A joint pass's reply text: its Proposals, as the model states them. Entries are not checked
+-- | A joint pass's reply text: its candidate Transactions, as the model states them. Entries are not checked
 -- | here; the handler drops what the engine cannot use.
 decodeJoint :: String -> Either String (Array ProposedJoint)
-decodeJoint = map _.proposals <<< decodeJointReply
+decodeJoint = map _.candidateTransactions <<< decodeJointReply
 
 -- | A joint pass's reply as the model wrote it, the form the recording keeps.
-decodeJointReply :: String -> Either String { proposals :: Array ProposedJoint }
+decodeJointReply :: String -> Either String { candidateTransactions :: Array ProposedJoint }
 decodeJointReply = decodeReply jointReplyShape
 
 -- | A narrator or seat reply's text.

@@ -1,8 +1,8 @@
 # Hits that are correct to keep: rule-id file symbol reason. An entry with no reason, or matching nothing, fails the check.
 # Show whose text is the type's meaning: derived output would change what is displayed or stored.
 hand-instance apps/dashboard/src/Dashboard/Route.purs instance-Show-Route the text is the route's URL (print route)
-hand-instance packages/board/src/Board/Error.purs instance-Show-ValidationError the text is the user-facing validation message
-hand-instance packages/board/src/Board/Error.purs instance-Show-Inconsistency the text is the user-facing message
+hand-instance packages/world/src/World/Error.purs instance-Show-ValidationError the text is the user-facing validation message
+hand-instance packages/world/src/World/Error.purs instance-Show-Inconsistency the text is the user-facing message
 hand-instance packages/checks/src/Checks/Round.purs instance-Show-Field the text is the prose an assertion failure reports
 hand-instance packages/checks/src/Checks/Round.purs instance-Show-Failure the text is the prose an assertion failure reports
 hand-instance packages/laws/src/Laws/Engine/Commit.purs instance-Show-EngineError the text is the engine's error message
@@ -13,15 +13,15 @@ hand-instance packages/schema/src/Schema/Run.purs instance-Show-DeriveKind the t
 hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text is the prose name a prompt shows
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
 hand-instance packages/laws/src/Laws/Types.purs instance-Show-RefKind the text is the lower-case name error messages use
-hand-instance packages/game/src/Game/Error.purs instance-Show-GameError the text is the user-facing message (renderGameError)
-hand-instance packages/schema/src/Schema/Gameboard.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
+hand-instance packages/assembly/src/Assembly/Error.purs instance-Show-GameError the text is the user-facing message (renderGameError)
+hand-instance packages/schema/src/Schema/PossibleWorld.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
 # JSON handled as JSON, not a payload with a type behind it.
 hand-json apps/cli/src/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded
-hand-json packages/settings/src/Settings/Load.purs merge merges setting files as JSON objects before decoding
-hand-json packages/settings/src/Settings/Compose.purs files splits a compiled document into its setting files by key
+hand-json packages/premises/src/Premises/Load.purs merge merges premise files as JSON objects before decoding
+hand-json packages/premises/src/Premises/Compose.purs files splits a compiled document into its premise files by key
 # Not renames: each fixes a type or names a DSL word.
 alias packages/core/src/Core/Map.purs entries fixes the polymorphic toUnfoldable to Array; it is the helper repeated-idiom points to
-alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; settings read better for it
+alias packages/schema/src/Schema/Build/World.purs atLeast DSL word for a lower bound; premises read better for it
 # The engine's own reading of Events.
 silent-default packages/laws/src/Laws/Engine/Commit.purs prepared engine code: the engine's own reading of the Events it produced
 # One rule per Intent kind, not a walk of its references.
@@ -34,24 +34,24 @@ implicit-codec packages/handlers/test/Test/Handlers/SimCapstone.purs spec format
 implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
 implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
-implicit-codec packages/settings/test/Main.purs main format-pinning test: deliberately malformed setting files
-intent-walk packages/laws/src/Laws/Types.purs jointIntent which Intents a joint Proposal may bundle; a per-kind rule, nothing to traverse
-# Guarded or merged constructors of a setting sum: not a one-to-one image of the type's constructors (S6).
-sum-projection packages/schema/src/Schema/Setting/Intent.purs intentShape a trade and a route share one setting form, and enact and repeal are separate tags over ChangeRule
-sum-projection packages/schema/src/Schema/Setting/Strategy.purs templateShape a joint Proposal and a Procedure share one Template constructor, split by their procedure and shape
-test-literal packages/policy/test/Main.purs main format-pinning test: a nested Procedure in Strategy JSON must not decode
+implicit-codec packages/premises/test/Main.purs main format-pinning test: deliberately malformed premise files
+intent-walk packages/laws/src/Laws/Types.purs jointIntent which Intents a joint CandidateTransaction may bundle; a per-kind rule, nothing to traverse
+# Guarded or merged constructors of a premise sum: not a one-to-one image of the type's constructors (S6).
+sum-projection packages/schema/src/Schema/Premise/Intent.purs intentShape a trade and a route share one premise form, and enact and repeal are separate tags over ChangeRule
+sum-projection packages/schema/src/Schema/Premise/StrategyRules.purs templateShape a joint CandidateTransaction and a Procedure share one Template constructor, split by their procedure and shape
+test-literal packages/strategy/test/Main.purs main format-pinning test: a nested Procedure in StrategyRules JSON must not decode
 name-literal packages/handlers/src/Handlers/SqlStore.purs roundsTable a table name of the store, not the specification key that spells the same word
 # Each line names why this one hit is correct to keep; the rule's fix text applies everywhere else.
 hand-instance packages/laws/src/Laws/World.purs instance-Show-RejectReason the text is the rejection's display text (renderReason), the one place it is written
 hand-json apps/dashboard/src/Dashboard/Chart.purs chartRows a chart row's keys are the series names, known only at run time; no shape can name them
 hand-json apps/dashboard/src/Dashboard/Chart.purs barRows a chart row's keys are the series names, known only at run time; no shape can name them
 hand-json apps/dashboard/src/Dashboard/Components.purs stackedBars a bar row's keys are the action kinds, known only at run time; no shape can name them
-name-literal apps/dashboard/src/Dashboard/Launch.purs emptyForm the launch form's own default preset (docs/06 §9.1), not a copy of a list: it is checked against GET /api/setting's presets
-name-literal packages/schema/src/Schema/Setting/Fixture.purs procedureShape the name of this record's shape, in which an Event kind's name is reused as an English word
+name-literal apps/dashboard/src/Dashboard/Launch.purs emptyForm the launch form's own default preset (docs/06 §9.1), not a copy of a list: it is checked against GET /api/premise's presets
+name-literal packages/schema/src/Schema/Premise/Fixture.purs procedureShape the name of this record's shape, in which an Event kind's name is reused as an English word
 implicit-codec apps/server/test/Main.purs main format-pinning test: request and reply JSON are the wire format of docs/06 §8.1
 implicit-codec packages/adapters/test/Test/Adapters/Pi.purs streamOf format-pinning test: the raw pi event stream of docs/06 §5
 intent-walk packages/handlers/test/Test/Handlers/Shock.purs roundKinds the test's own label per kind of Intent; a label is not a walk of an Intent's references
-intent-walk packages/policy/src/Policy/Interpret.purs zeroQuantity one rule per kind of Intent (a ChangeRule has no quantity), not a walk of its references
+intent-walk packages/strategy/src/Strategy/Interpret.purs zeroQuantity one rule per kind of Intent (a ChangeRule has no quantity), not a walk of its references
 alias packages/views/src/Views/Common.purs quantity a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
 alias packages/views/src/Views/Common.purs price a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
 alias packages/views/src/Views/Common.purs ratio a cell's display kind by name: every view cell names its kind (docs/02 §9.1)

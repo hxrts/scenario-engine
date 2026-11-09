@@ -5,8 +5,8 @@ package:
     - prelude
     - run
     - sp-core
-    - sp-policy
-    - sp-game
+    - sp-strategy
+    - sp-assembly
     - arrays
     - foldable-traversable
     - maybe

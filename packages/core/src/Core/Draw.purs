@@ -1,4 +1,4 @@
--- | Keyed, deterministic random draws (docs/02_type_system.md §9.1).
+-- | Keyed, deterministic random draws (docs/02_kernel.md §9.1).
 -- | A draw depends only on (seed, key), never on evaluation order.
 module Core.Draw
   ( Seed(..)
@@ -25,9 +25,9 @@ derive newtype instance Show Seed
 derive newtype instance EncodeJson Seed
 derive newtype instance DecodeJson Seed
 
--- | The semantic name of one draw: round, source, Entity, category, index.
+-- | The semantic name of one draw: round, source, Actor, category, index.
 type DrawKey =
-  { round :: Int, source :: String, entity :: String, category :: String, index :: Int }
+  { round :: Int, source :: String, actor :: String, category :: String, index :: Int }
 
 -- | PRNG and key-serialization version, recorded in the manifest.
 drawVersion :: String
@@ -35,7 +35,7 @@ drawVersion = "fnv1a64-splitmix64/v1"
 
 serializeKey :: DrawKey -> String
 serializeKey k =
-  "round-" <> show k.round <> "/" <> k.source <> "/" <> k.entity <> "/" <> k.category <> "/" <> show k.index
+  "round-" <> show k.round <> "/" <> k.source <> "/" <> k.actor <> "/" <> k.category <> "/" <> show k.index
 
 -- | A value in [0, 1) at 4-decimal precision.
 draw :: Seed -> DrawKey -> Q

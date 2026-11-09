@@ -11,7 +11,7 @@ module Views.Drivers
 
 import Prelude
 import Laws.World (Focus, RoundRecord, WorldState)
-import Laws.Types (idText, FlowEffect(..), EntityId, ResourceId, Rule, RuleF(..), ruleKind)
+import Laws.Types (idText, FlowEffect(..), ActorId, ResourceId, Rule, RuleF(..), ruleKind)
 
 import Core.Num (Q)
 import Core.Num as Q
@@ -28,11 +28,11 @@ driversStat =
   { name: "Drivers"
   , question: "What forces are driving gameplay (what moves prices and outcomes)?"
   , definition: "Rules enacted and repealed, collective procedure outcomes, and shortfalls, by round."
-  , formula: "Shortfall(r, resource) = " <> describeSlice shortfallsByResource <> ": per Resource in round r, the sum of quantity and the number of distinct Entities short; a procedure's support and threshold are the ratios its ProcedureOutcome records."
+  , formula: "Shortfall(r, resource) = " <> describeSlice shortfallsByResource <> ": per Resource in round r, the sum of quantity and the number of distinct Actors short; a procedure's support and threshold are the ratios its ProcedureOutcome records."
   }
 
 -- | Every Shortfall, grouped by Resource: what `Shortfall(r, resource)` totals.
-shortfallsByResource :: Slice (Array (Tuple ResourceId (Array { round :: Int, entity :: EntityId, resource :: ResourceId, quantity :: Q })))
+shortfallsByResource :: Slice (Array (Tuple ResourceId (Array { round :: Int, actor :: ActorId, resource :: ResourceId, quantity :: Q })))
 shortfallsByResource = groupBy @"resource" shortfalls
 
 -- | The Shortfall quantities of one Resource, summed.
@@ -43,11 +43,11 @@ shortfallSum res = total (read @"quantity" (whereEq @"resource" res shortfalls))
 shortfallTotal :: ResourceId -> RoundRecord -> Q
 shortfallTotal res rec = runSlice (shortfallSum res) rec.events
 
--- | Shortfalls in a round, per Resource: the total quantity and the number of Entities short.
-shortfallsOf :: RoundRecord -> Array { resource :: ResourceId, quantity :: Q, entities :: Int }
+-- | Shortfalls in a round, per Resource: the total quantity and the number of Actors short.
+shortfallsOf :: RoundRecord -> Array { resource :: ResourceId, quantity :: Q, actors :: Int }
 shortfallsOf rec = map perResource (runSlice shortfallsByResource rec.events)
   where
-  perResource (Tuple res mine) = { resource: res, quantity: Q.sumQ (map _.quantity mine), entities: length (nub (map _.entity mine)) }
+  perResource (Tuple res mine) = { resource: res, quantity: Q.sumQ (map _.quantity mine), actors: length (nub (map _.actor mine)) }
 
 -- | A Rule as its declared kind writes it.
 ruleText :: WorldState -> Rule -> String
@@ -66,13 +66,13 @@ ruleText w r = case Map.lookup (ruleKind r) w.ruleKinds of
 
 -- | A procedure's row in the drivers table: its outcome and the support against the threshold.
 procedureRow :: Procedure -> Array String
-procedureRow p = [ show p.round, "Collective procedure", show p.proposal, "", outcomeLabel p.executed <> ": " <> supportThreshold p.support p.threshold ]
+procedureRow p = [ show p.round, "Collective procedure", show p.candidateTransaction, "", outcomeLabel p.executed <> ": " <> supportThreshold p.support p.threshold ]
 
 driverColumn :: Column
 driverColumn = column "Driver" "The kind of force at work: a Rule enacted or repealed, a collective procedure, or a shortfall."
 
 subjectColumn :: Column
-subjectColumn = column "Subject" "What the driver is about: the Rule, the Proposal or the Resource."
+subjectColumn = column "Subject" "What the driver is about: the Rule, the candidate Transaction or the Resource."
 
 amountColumn :: Column
 amountColumn = column "Amount" "The size of the driver, where it has one, in its own unit."
@@ -100,7 +100,7 @@ drivers r =
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Coupled": ignore
+    , "Settled": ignore
     , "Enacted": \e acc -> acc <> [ [ show rec.round, "Rule enacted", show e.id, "", ruleText r.manifest.initial e.rule ] ]
     , "Repealed": \e acc -> acc <> [ [ show rec.round, "Rule repealed", show e.id, "", "withdrawn" ] ]
     , "Estimated": ignore
@@ -108,4 +108,4 @@ drivers r =
     }
     []
     rec.events
-  shortRow rec s = [ show rec.round, "Shortfall", show s.resource, quantity s.quantity, show s.entities <> " entities short" ]
+  shortRow rec s = [ show rec.round, "Shortfall", show s.resource, quantity s.quantity, show s.actors <> " Actors short" ]

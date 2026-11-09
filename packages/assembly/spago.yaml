@@ -1,0 +1,27 @@
+package:
+  name: sp-assembly
+  dependencies:
+    - sp-laws
+    - prelude
+    - sp-core
+    - sp-schema
+    - sp-world
+    - sp-strategy
+    - argonaut-core
+    - arrays
+    - either
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+    - newtype
+    - strings
+    - tuples
+  test:
+    main: Test.Assembly.Main
+    dependencies:
+      - effect
+      - spec
+      - spec-node
+      - sp-testkit
+      - sp-handlers

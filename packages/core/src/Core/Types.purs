@@ -1,4 +1,4 @@
--- | The identifiers and quantities the kernel is written over, and the curve a Market prices on.
+-- | The identifiers and quantities the kernel is written over, and the curve an Exchange prices on.
 module Core.Types where
 
 import Prelude
@@ -27,13 +27,13 @@ derive newtype instance DecodeJson (Id tag)
 instance Show (Id tag) where
   show (Id s) = s
 
-data EntityTag
+data ActorTag
 data ResourceTag
-data MarketTag
+data ExchangeTag
 
-type EntityId = Id EntityTag
+type ActorId = Id ActorTag
 type ResourceId = Id ResourceTag
-type MarketId = Id MarketTag
+type ExchangeId = Id ExchangeTag
 
 type Quantity = Q
 type Price = Q
@@ -50,14 +50,14 @@ type CostFunction =
   , domain :: Interval
   }
 
-type Market =
-  { id :: MarketId
+type Exchange =
+  { id :: ExchangeId
   , base :: ResourceId
   , quote :: ResourceId
   , cost :: CostFunction
   , position :: Quantity
   , reserves :: Holdings
-  , access :: Array EntityId
+  , access :: Array ActorId
   }
 
 idShape :: forall t. Shape (Id t)

@@ -1,10 +1,10 @@
--- | The compile step: each settled mechanism written as couplings, which the kernel then posts.
+-- | The compile step: each settled mechanism written as transactions, which the kernel then posts.
 module Laws.Engine.Compile
   ( WorldKernel
   , kernelOf
-  , fillCoupling
-  , transformCoupling
-  , payCoupling
+  , fillTransaction
+  , transformTransaction
+  , payTransaction
   , fractionLaw
   , Delivered
   , delivery
@@ -12,24 +12,24 @@ module Laws.Engine.Compile
   , ruleChange
   , jointInputs
   , flowLaws
-  , actionCouplings
+  , actionTransactions
   , timeLaw
   , WorldLaw
   , changeOf
-  , runCoupling
+  , runTransaction
   ) where
 
 import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Dynamic (forHolder, holderParam, quantityParam, recipientParam)
-import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Dynamic, DynamicChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
+import Core.Kernel.Law (forHolder, holderParam, quantityParam, recipientParam)
+import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Transaction, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
-import Laws.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
+import Laws.Types (Capability, Direction(..), ActorId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeId, Payment, CandidateTransactionId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
+import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingTransaction(..), RejectReason(..), WorldState)
 import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -38,7 +38,7 @@ import Data.Tuple (Tuple(..))
 
 type WorldKernel = Kernel Capability LegQuery
 
-type Couple = K.Coupling Capability Rule LegQuery RejectReason Cause
+type Transaction = K.Transaction Capability Rule LegQuery RejectReason Cause
 
 type Oblige = K.Obligation Capability Rule LegQuery RejectReason
 
@@ -54,47 +54,47 @@ kernelOf w start =
   , start
   }
 
--- | Post one coupling on the settlement so far, returning its legs in order. Compile names every party,
+-- | Post one transaction on the settlement so far, returning its settled Flows in order. Compile names every party,
 -- | so resolution cannot meet an unbound one.
-runCoupling :: WorldState -> Ledger -> Couple -> { ledger :: Ledger, flows :: Array Flow, consumed :: Array (Consumed Rule RejectReason) }
-runCoupling w start c = case resolve (kernelOf w start) [ c ] of
+runTransaction :: WorldState -> Ledger -> Transaction -> { ledger :: Ledger, flows :: Array Flow, consumed :: Array (Consumed Rule RejectReason) }
+runTransaction w start c = case resolve (kernelOf w start) [ c ] of
   Right r -> { ledger: r.ledger, flows: mapMaybe _.flow r.consumed, consumed: r.consumed }
   Left _ -> { ledger: start, flows: [], consumed: [] }
 
-named :: EntityId -> K.Account
+named :: ActorId -> K.Account
 named = K.HeldBy <<< K.Named
 
--- | One cleared fill: the base leg first, then the quote leg. A negative quantity is a sale, so each
--- | leg's direction flips.
-fillCoupling :: MarketId -> Market -> { entity :: EntityId, pid :: ProposalId, intent :: Int, quantity :: Q, paid :: Q } -> Couple
-fillCoupling id m f =
+-- | One cleared fill: the base settled Flow first, then the quote settled Flow. A negative quantity is a sale, so each
+-- | settled Flow's direction flips.
+fillTransaction :: ExchangeId -> Exchange -> { actor :: ActorId, pid :: CandidateTransactionId, intent :: Int, quantity :: Q, paid :: Q } -> Transaction
+fillTransaction id m f =
   { obligations:
-      if f.quantity >= Q.zero then [ leg "base" (K.Reserve id) (named f.entity) m.base f.quantity, leg "quote" (named f.entity) (K.Reserve id) m.quote f.paid ]
-      else [ leg "base" (named f.entity) (K.Reserve id) m.base (Q.neg f.quantity), leg "quote" (K.Reserve id) (named f.entity) m.quote (Q.neg f.paid) ]
+      if f.quantity >= Q.zero then [ leg "base" (K.Reserve id) (named f.actor) m.base f.quantity, leg "quote" (named f.actor) (K.Reserve id) m.quote f.paid ]
+      else [ leg "base" (named f.actor) (K.Reserve id) m.base (Q.neg f.quantity), leg "quote" (K.Reserve id) (named f.actor) m.quote (Q.neg f.paid) ]
   , holds: []
   , solver: Nothing
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 1
-  , cause: Just (OfIntent { proposal: f.pid, intent: f.intent, mechanism: Curve id })
+  , cause: Just (OfIntent { candidateTransaction: f.pid, intent: f.intent, mechanism: Curve id })
   , consented: []
   }
   where
   leg :: String -> K.Account -> K.Account -> ResourceId -> Q -> Oblige
   leg oid from to resource owed =
-    { id: oid, obligor: K.Named f.entity, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext }
+    { id: oid, obligor: K.Named f.actor, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext }
 
 -- | One filled Transform, for what settles this round. The payment posts first, since it caps at what
--- | is held before the inputs go, and every leg stands only if all the inputs are held.
-transformCoupling
-  :: { by :: EntityId
+-- | is held before the inputs go, and every settled Flow stands only if all the inputs are held.
+transformTransaction
+  :: { by :: ActorId
      , tid :: TransformationId
      , inputs :: Array { resource :: ResourceId, amount :: Q }
      , outputs :: Array { resource :: ResourceId, amount :: Q }
      , payment :: Maybe { terms :: Payment, owed :: Q }
      , cause :: Cause
      }
-  -> Couple
-transformCoupling t =
+  -> Transaction
+transformTransaction t =
   { obligations: payment <> map input t.inputs <> map output t.outputs
   , holds: []
   , solver: Nothing
@@ -115,8 +115,8 @@ transformCoupling t =
     Nothing -> []
 
 -- | One payment that caps at what is held. No payee destroys what moves.
-payCoupling :: EntityId -> Maybe EntityId -> ResourceId -> Q -> Cause -> Couple
-payCoupling from to resource owed cause =
+payTransaction :: ActorId -> Maybe ActorId -> ResourceId -> Q -> Cause -> Transaction
+payTransaction from to resource owed cause =
   { obligations: [ { id: "pay", obligor: K.Named from, effect: K.Move { from: named from, to: maybe K.Destroyed named to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext } ]
   , holds: []
   , solver: Nothing
@@ -127,7 +127,7 @@ payCoupling from to resource owed cause =
   }
 
 -- | A time law taking a fraction of what each holder of a Resource holds, out of the economy.
-fractionLaw :: ResourceId -> Q -> Cause -> K.Dynamic Capability LegQuery RejectReason Cause
+fractionLaw :: ResourceId -> Q -> Cause -> K.Law Capability LegQuery RejectReason Cause
 fractionLaw resource fraction cause =
   { subject: K.OfStock { holders: Nothing, resource }
   , trigger: K.EachRound
@@ -146,25 +146,25 @@ fractionLaw resource fraction cause =
   stock = K.Stock { at: holder, resource }
 
 -- | A change to a holding, due at a round boundary. A negative quantity leaves the economy.
-type Delivered = { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Q, cause :: Cause }
+type Delivered = { round :: RoundIndex, actor :: ActorId, resource :: ResourceId, quantity :: Q, cause :: Cause }
 
 boundary :: Int
 boundary = 0
 
-standing :: Cause -> Array Oblige -> Couple
+standing :: Cause -> Array Oblige -> Transaction
 standing cause obligations =
   { obligations, holds: [], solver: Nothing, ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: boundary, cause: Just cause, consented: [] }
 
--- | A delivery as a spawned coupling. One that would take from a holder with nothing lapses silently, so
+-- | A delivery as a spawned transaction. One that would take from a holder with nothing lapses silently, so
 -- | a delivery that changes nothing records nothing.
-delivery :: Delivered -> PendingCoupling
-delivery d = PendingCoupling { due: d.round, coupling: standing d.cause [ obligation ] }
+delivery :: Delivered -> PendingTransaction
+delivery d = PendingTransaction { due: d.round, transaction: standing d.cause [ obligation ] }
   where
-  who = named d.entity
+  who = named d.actor
   obligation
     | d.quantity < Q.zero =
         { id: "delivery"
-        , obligor: K.Named d.entity
+        , obligor: K.Named d.actor
         , effect: K.Move { from: who, to: K.Destroyed, resource: d.resource, owed: K.Exactly (Q.neg d.quantity) }
         , when: [ { condition: K.StockAtLeast { stock: { at: who, resource: d.resource }, amount: K.Exactly Q.ulp }, reason: Nothing } ]
         , onShort: K.Cap
@@ -172,28 +172,28 @@ delivery d = PendingCoupling { due: d.round, coupling: standing d.cause [ obliga
         }
     | otherwise =
         { id: "delivery"
-        , obligor: K.Named d.entity
+        , obligor: K.Named d.actor
         , effect: K.Move { from: K.Created, to: who, resource: d.resource, owed: K.Exactly d.quantity }
         , when: []
         , onShort: K.Cap
         , next: K.noNext
         }
 
--- | What a pending coupling delivers, if it is a delivery.
-deliveredOf :: PendingCoupling -> Maybe { entity :: EntityId, resource :: ResourceId, quantity :: Q }
-deliveredOf (PendingCoupling p) = head p.coupling.obligations >>= \o -> case o.effect of
-  K.Move { from: K.Created, to: K.HeldBy (K.Named entity), resource, owed: K.Exactly quantity } -> Just { entity, resource, quantity }
-  K.Move { from: K.HeldBy (K.Named entity), to: K.Destroyed, resource, owed: K.Exactly quantity } -> Just { entity, resource, quantity: Q.neg quantity }
+-- | What a pending transaction delivers, if it is a delivery.
+deliveredOf :: PendingTransaction -> Maybe { actor :: ActorId, resource :: ResourceId, quantity :: Q }
+deliveredOf (PendingTransaction p) = head p.transaction.obligations >>= \o -> case o.effect of
+  K.Move { from: K.Created, to: K.HeldBy (K.Named actor), resource, owed: K.Exactly quantity } -> Just { actor, resource, quantity }
+  K.Move { from: K.HeldBy (K.Named actor), to: K.Destroyed, resource, owed: K.Exactly quantity } -> Just { actor, resource, quantity: Q.neg quantity }
   _ -> Nothing
 
 -- | A Rule change, due at the next boundary. Without a Rule it is a repeal.
-ruleChange :: RoundIndex -> EntityId -> Cause -> RuleId -> Maybe Rule -> PendingCoupling
-ruleChange round who cause id rule = PendingCoupling
+ruleChange :: RoundIndex -> ActorId -> Cause -> RuleId -> Maybe Rule -> PendingTransaction
+ruleChange round who cause id rule = PendingTransaction
   { due: round + 1
-  , coupling: standing cause
+  , transaction: standing cause
       [ { id: "change"
         , obligor: K.Named who
-        , effect: K.Change (maybe (K.RemoveDynamic (idText id)) (\law -> K.SetDynamic { id: idText id, dynamic: law }) rule)
+        , effect: K.Change (maybe (K.RemoveLaw (idText id)) (\law -> K.SetLaw { id: idText id, law: law }) rule)
         , when: []
         , onShort: K.Reject
         , next: K.noNext
@@ -201,16 +201,16 @@ ruleChange round who cause id rule = PendingCoupling
       ]
   }
 
--- | The Rule change a pending coupling makes, if it makes one.
-changeOf :: PendingCoupling -> Maybe (Tuple RuleId (Maybe Rule))
-changeOf (PendingCoupling p) = head p.coupling.obligations >>= \o -> case o.effect of
-  K.Change (K.SetDynamic x) -> Just (Tuple (Id x.id) (Just x.dynamic))
-  K.Change (K.RemoveDynamic id) -> Just (Tuple (Id id) Nothing)
+-- | The Rule change a pending transaction makes, if it makes one.
+changeOf :: PendingTransaction -> Maybe (Tuple RuleId (Maybe Rule))
+changeOf (PendingTransaction p) = head p.transaction.obligations >>= \o -> case o.effect of
+  K.Change (K.SetLaw x) -> Just (Tuple (Id x.id) (Just x.law))
+  K.Change (K.RemoveLaw id) -> Just (Tuple (Id id) Nothing)
   _ -> Nothing
 
--- | The inputs of a joint Proposal's filled Transforms, each bound whole to every other: if one party
+-- | The inputs of a joint candidate Transaction's filled Transforms, each bound whole to every other: if one party
 -- | cannot perform, none does. Each obligation's id is its Transform's position among the inputs.
-jointInputs :: Array { by :: EntityId, resource :: ResourceId, amount :: Q, index :: Int } -> Couple
+jointInputs :: Array { by :: ActorId, resource :: ResourceId, amount :: Q, index :: Int } -> Transaction
 jointInputs inputs =
   { obligations: mapWithIndex obligation inputs
   , holds: []
@@ -231,14 +231,14 @@ jointInputs inputs =
     , next: K.noNext
     }
 
-type WorldLaw = K.Dynamic Capability LegQuery RejectReason Cause
+type WorldLaw = K.Law Capability LegQuery RejectReason Cause
 
 -- | Each flows Rule in force as the laws of its directions, one list per Rule. A levy is charged on the
 -- | moved quantity, priced first when it is ad valorem.
 flowLaws :: WorldState -> Array (Array WorldLaw)
 flowLaws w = mapMaybe ofRule (rulesOf w)
   where
-  membersOf group = filter (\e -> fromMaybe e (Map.lookup e w.groups) == group) (fromFoldable (Map.keys w.entities))
+  membersOf group = filter (\e -> fromMaybe e (Map.lookup e w.groups) == group) (fromFoldable (Map.keys w.actors))
   ofRule = case _ of
     FlowRule r -> Just (map (lawOf r) (directions r.scope))
     HoldingRule _ -> Nothing
@@ -268,12 +268,12 @@ flowLaws w = mapMaybe ofRule (rulesOf w)
     }
 
 -- | What the authored action laws charge when `actor` settles `quantity` of the action named `action`,
--- | as one coupling per law. A law charges on the action's quantity, through its quantity parameter.
-actionCouplings :: WorldState -> EntityId -> String -> Q -> Array Couple
-actionCouplings w actor action quantity = mapMaybe one w.laws
+-- | as one transaction per law. A law charges on the action's quantity, through its quantity parameter.
+actionTransactions :: WorldState -> ActorId -> String -> Q -> Array Transaction
+actionTransactions w playableActor action quantity = mapMaybe one w.laws
   where
   one (AuthoredLaw law) = case law.trigger of
-    K.OnAction scope | maybe true (_ == actor) scope.obligor && maybe true (_ == action) scope.cause -> forHolder actor (priced law)
+    K.OnAction scope | maybe true (_ == playableActor) scope.obligor && maybe true (_ == action) scope.cause -> forHolder playableActor (priced law)
     _ -> Nothing
   priced law = law
     { operation = case law.operation of
@@ -286,7 +286,7 @@ actionCouplings w actor action quantity = mapMaybe one w.laws
     other -> other
 
 -- | A time law moving `owed` from one holder, to a holder or out of the economy.
-timeLaw :: EntityId -> Maybe EntityId -> ResourceId -> Q -> Int -> Cause -> WorldLaw
+timeLaw :: ActorId -> Maybe ActorId -> ResourceId -> Q -> Int -> Cause -> WorldLaw
 timeLaw from to resource owed phase cause =
   { subject: K.OfStock { holders: Just [ from ], resource }
   , trigger: K.EachRound

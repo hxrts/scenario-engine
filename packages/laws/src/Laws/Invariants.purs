@@ -1,6 +1,6 @@
--- | Invariant predicates over one resolved round (docs/02_type_system.md §9). Each returns
+-- | Invariant predicates over one resolved round (docs/02_kernel.md §9). Each returns
 -- | the failures it finds; an empty array means the invariant holds. Pure and read-only: the
--- | checks run after resolution, in the test suites, the simulator, the setting golden tests,
+-- | checks run after resolution, in the test suites, the simulator, the premise golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
 module Laws.Invariants
@@ -29,10 +29,10 @@ import Laws.Authority (authorized, executor, worldFacts)
 import Laws.Engine.Commit (resolveRound)
 import Laws.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Laws.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
-import Laws.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
-import Laws.Slice (conversions, event, foldEvents, ignore, select)
-import Laws.World (Cause(..), Endpoint(..), Mechanism(..), PendingCoupling(..), RoundResult, WorldState)
+import Laws.Query (accountsOf, capabilitiesOf, drawable, droppedCandidateTransactions, actorsOf, lookupQ, exchangesOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
+import Laws.Types (IntentF(..), SignedCandidateTransaction, holderDraw, poolDraw)
+import Laws.Slice (transformationFills, event, foldEvents, ignore, select)
+import Laws.World (Cause(..), Endpoint(..), Mechanism(..), PendingTransaction(..), RoundResult, WorldState)
 import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, null, reverse, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
@@ -76,7 +76,7 @@ checkAfter before r = check (prepareRound before) r <> successors before r <> co
 
 -- | INV-11 Order independence over a resolver: resolving the round's inputs in other orders gives the same
 -- | World State. Not part of `check`, which reads a finished round: this one plays the round again.
-orderIndependentBy :: forall e. (Array SignedProposal -> Either e WorldState) -> RoundResult -> Array Failure
+orderIndependentBy :: forall e. (Array SignedCandidateTransaction -> Either e WorldState) -> RoundResult -> Array Failure
 orderIndependentBy resolve r = concatMap one (reorderings r.record.inputs)
   where
   one inputs = case resolve inputs of
@@ -100,17 +100,17 @@ failure inv detail = { invariant: show inv, detail, expected: "", observed: "", 
 mismatch :: Invariant -> String -> { expected :: String, observed :: String, about :: Array String } -> Failure
 mismatch inv detail m = { invariant: show inv, detail, expected: m.expected, observed: m.observed, about: m.about }
 
-executed :: RoundResult -> Array SignedProposal
-executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
+executed :: RoundResult -> Array SignedCandidateTransaction
+executed r = filter (\i -> not (i.candidateTransaction.id `elem` dropped)) r.record.inputs
   where
-  dropped = droppedProposals r.record.events
+  dropped = droppedCandidateTransactions r.record.events
 
 -- | INV-02 Authority separation: every executed Intent was authorized for its executor.
 inv02 :: WorldState -> RoundResult -> Array Failure
 inv02 w r = concatMap one (executed r)
   where
-  one { proposal: p } = concatMap (intentOk p) p.intents
-  -- a procedure Proposal is authorized by its procedure's `authorizes`, as the engine checks it
+  one { candidateTransaction: p } = concatMap (intentOk p) p.intents
+  -- a voted candidate Transaction is authorized by its procedure's `authorizes`, as the engine checks it
   intentOk p i =
     let
       who = executor p i
@@ -121,12 +121,12 @@ inv02 w r = concatMap one (executed r)
       if authorized (worldFacts w) caps who i then [] else [ failure INV02 (show p.id <> ": " <> show who <> " not authorized") ]
   procedureAuthority pid author = maybe [] _.authorizes (procedureOf w author pid)
 
--- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
+-- | INV-03 No authority amplification: a round never changes an Actor's capabilities or its
 -- | membership (its kind). Only holdings and Rules move.
 inv03 :: WorldState -> RoundResult -> Array Failure
-inv03 before r = concatMap one (entitiesOf (r.world)) <> successors before r
+inv03 before r = concatMap one (actorsOf (r.world)) <> successors before r
   where
-  one e = case Map.lookup e.id before.entities of
+  one e = case Map.lookup e.id before.actors of
     Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
     _ -> []
 
@@ -136,17 +136,17 @@ successors :: WorldState -> RoundResult -> Array Failure
 successors before r = concatMap stranger (filter new r.world.pending)
   where
   new p = not (p `elem` before.pending)
-  bound = concatMap (partiesOf <<< _.coupling <<< unwrap) before.pending
-  stranger (PendingCoupling p)
-    | null p.coupling.consented = []
-    | otherwise = map (\e -> failure INV03 ("a successor names " <> show e <> ", who is not bound by its parent")) (filter (\e -> not (e `elem` bound)) (partiesOf p.coupling))
+  bound = concatMap (partiesOf <<< _.transaction <<< unwrap) before.pending
+  stranger (PendingTransaction p)
+    | null p.transaction.consented = []
+    | otherwise = map (\e -> failure INV03 ("a successor names " <> show e <> ", who is not bound by its parent")) (filter (\e -> not (e `elem` bound)) (partiesOf p.transaction))
 
 -- | INV-37, on the world the round was played from: every due obligation is gone, every spawn is due
 -- | later, and no due obligation was consumed twice.
 inv37 :: WorldState -> RoundResult -> Array Failure
 inv37 _ r = map dropped (filter ((_ <= r.record.round) <<< _.due <<< unwrap) r.world.pending)
   where
-  dropped (PendingCoupling p) = failure INV37 ("an obligation due in round " <> show p.due <> " was not consumed by round " <> show r.record.round)
+  dropped (PendingTransaction p) = failure INV37 ("an obligation due in round " <> show p.due <> " was not consumed by round " <> show r.record.round)
 
 -- | INV-37's other half, which needs the world before Prepare consumed what fell due: each settled delivery
 -- | came from one due obligation.
@@ -154,7 +154,7 @@ consumedOnce :: WorldState -> RoundResult -> Array Failure
 consumedOnce before r = if delivered > dueNow then [ failure INV37 (show delivered <> " obligations settled at the boundary of round " <> show r.record.round <> ", but only " <> show dueNow <> " fell due") ] else []
   where
   dueNow = length (filter ((_ <= r.record.round) <<< _.due <<< unwrap) before.pending)
-  delivered = length (filter (\c -> c.delivered && c.round == r.record.round) (select (event @"Coupled") r.record.events))
+  delivered = length (filter (\c -> c.delivered && c.round == r.record.round) (select (event @"Settled") r.record.events))
 
 -- | INV-01 Unified action semantics: every settlement the record shows names, by its Cause, the Intent,
 -- | the declared Rule kind, or the recurring-flow rule behind it; the cause is checked against the
@@ -164,7 +164,7 @@ inv01 before r = foldEvents
   { "Lapsed": ignore
   , "Rejected": ignore
   , "OrderRemoved": ignore
-  , "Coupled": \c acc -> if c.delivered then acc else acc <> behind c.cause c.legs
+  , "Settled": \c acc -> if c.delivered then acc else acc <> behind c.cause c.legs
   , "Enacted": ignore
   , "Repealed": ignore
   , "Estimated": ignore
@@ -173,38 +173,38 @@ inv01 before r = foldEvents
   []
   r.record.events
   where
-  proposalById id = find (\p -> p.id == id) (map _.proposal r.record.inputs)
-  intentAt c = proposalById c.proposal >>= \p -> Tuple p.author <$> index p.intents c.intent
-  baseOf m = _.base <$> Map.lookup m before.markets
+  candidateTransactionById id = find (\p -> p.id == id) (map _.candidateTransaction r.record.inputs)
+  intentAt c = candidateTransactionById c.candidateTransaction >>= \p -> Tuple p.author <$> index p.intents c.intent
+  baseOf m = _.base <$> Map.lookup m before.exchanges
   unmatched what = [ failure INV01 (what <> " has no Intent behind it") ]
   behind cause ls = case cause of
     OfIntent c -> case intentAt c of
       Just (Tuple author i) -> if settled author i c.mechanism ls then [] else unmatched ("settlement of " <> show c.mechanism)
       Nothing -> unmatched ("settlement of " <> show c.mechanism)
     OfRule c -> if Map.member c.kind before.ruleKinds then [] else [ failure INV01 ("a levy of undeclared kind " <> show c.kind) ]
-    OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the setting does not declare") ]
-  -- the Intent the cause points at is of the mechanism's kind, and names what the legs moved
+    OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the premise does not declare") ]
+  -- the Intent the cause points at is of the mechanism's kind, and names what the settled Flows moved
   settled author i mechanism ls = case mechanism of
     Curve m -> elem (Held author) (map _.to ls <> map _.from ls) && case i of
-      Trade o -> o.market == m
+      Trade o -> o.exchange == m
       Route x -> baseOf m == Just x.pair.base
       _ -> false
-    Conversion c -> case i of
+    Transformation c -> case i of
       Transform x -> x.by == c.by && x.transformation == c.transformation
       _ -> false
     Direct -> case i, ls of
       Transfer x, [ l ] -> l.from == Held x.from && l.to == Held x.to && l.resource == x.resource
       _, _ -> false
 
--- | INV-04 Resource consistency: no negative holdings or reserves, and each Entity's holdings
+-- | INV-04 Resource consistency: no negative holdings or reserves, and each Actor's holdings
 -- | change by exactly what the round's events say happened to it.
 inv04 :: WorldState -> RoundResult -> Array Failure
 inv04 before r =
-  concatMap (\e -> negatives (show e.id) e.accounts) entities
-    <> concatMap (\m -> negatives (show m.id) m.reserves) (marketsOf (r.world))
-    <> concatMap reconcile entities
+  concatMap (\e -> negatives (show e.id) e.accounts) actors
+    <> concatMap (\m -> negatives (show m.id) m.reserves) (exchangesOf (r.world))
+    <> concatMap reconcile actors
   where
-  entities = entitiesOf (r.world)
+  actors = actorsOf (r.world)
   negatives who hs = concatMap (\(Tuple res q) -> if q < Q.zero then [ failure INV04 (who <> " holds " <> show q <> " " <> show res) ] else [])
     (entries hs)
   reconcile e =
@@ -220,7 +220,7 @@ inv04 before r =
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Coupled": \c acc -> if c.delivered then acc else foldl addLeg acc c.legs
+    , "Settled": \c acc -> if c.delivered then acc else foldl addLeg acc c.legs
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
@@ -228,14 +228,14 @@ inv04 before r =
     }
     Map.empty
     r.record.events
-  -- each leg moves its quantity out of its source and into its destination
+  -- each settled Flow moves its quantity out of its source and into its destination
   addLeg acc l = addEnd l.to l.resource l.moved (addEnd l.from l.resource (Q.neg l.moved) acc)
   addEnd end res q acc = case end of
     Held e -> add e res q acc
     _ -> acc
 
 -- | INV-05 Stock-flow reconciliation: per Resource, the change in total holdings equals what the
--- | legs created from the source, less what they sent to the sink (§6). Moves net to zero.
+-- | settled Flows created from the source, less what they sent to the sink (§6). Moves net to zero.
 inv05 :: WorldState -> RoundResult -> Array Failure
 inv05 before r = concatMap one resources
   where
@@ -256,7 +256,7 @@ inv05 before r = concatMap one resources
     { "Lapsed": ignore
     , "Rejected": ignore
     , "OrderRemoved": ignore
-    , "Coupled": \c acc -> if c.delivered then acc else foldl legFlow acc c.legs
+    , "Settled": \c acc -> if c.delivered then acc else foldl legFlow acc c.legs
     , "Enacted": ignore
     , "Repealed": ignore
     , "Estimated": ignore
@@ -265,10 +265,10 @@ inv05 before r = concatMap one resources
     Map.empty
     r.record.events
 
--- | INV-07 Price is not production: a Market's curve only moves what is already held, so no leg it settles
+-- | INV-07 Price is not production: an Exchange's curve only moves what is already held, so no settled Flow it settles
 -- | comes from the source or goes to the sink. Only a Transformation or a declared flow creates or removes.
 inv07 :: WorldState -> RoundResult -> Array Failure
-inv07 _ r = concatMap one (select (event @"Coupled") r.record.events)
+inv07 _ r = concatMap one (select (event @"Settled") r.record.events)
   where
   -- what may cross the boundary: a Transformation's recipe, a Rule, a recurring flow. A price or a plain transfer never does.
   one c = case c.cause of
@@ -279,15 +279,15 @@ inv07 _ r = concatMap one (select (event @"Coupled") r.record.events)
     | crossesBoundary l = [ failure INV07 (what <> " settled " <> show l.moved <> " " <> show l.resource <> " to or from outside the economy") ]
     | otherwise = []
 
--- | INV-06 Market solvency: positions stay within the cost function's domain, and Transformation fills
+-- | INV-06 Exchange solvency: positions stay within the cost function's domain, and Transformation fills
 -- | stay within what their pool can draw and their ceiling.
 inv06 :: WorldState -> RoundResult -> Array Failure
-inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overDrawn (entries used) <> concatMap overCeiling (entries filled)
+inv06 before r = concatMap one (exchangesOf (r.world)) <> concatMap overDrawn (entries used) <> concatMap overCeiling (entries filled)
   where
   one m =
     if m.position < m.cost.domain.lo || m.position > m.cost.domain.hi then [ failure INV06 (show m.id <> " position " <> show m.position <> " outside its domain") ]
     else []
-  transforms = select conversions r.record.events
+  transforms = select transformationFills r.record.events
   filled = foldl (\m t -> sumInto t.transformation t.quantity m) Map.empty transforms
   used = foldl draw Map.empty transforms
   draw m t = case Map.lookup t.transformation before.transformations of
@@ -302,8 +302,8 @@ inv06 before r = concatMap one (marketsOf (r.world)) <> concatMap overDrawn (ent
 inv08 :: WorldState -> RoundResult -> Array Failure
 inv08 _ r = concatMap one (nub (concatMap (fromFoldable <<< map _.resource <<< holderDraw) (transformationsOf (r.world))))
   where
-  entities = entitiesOf (r.world)
-  one ref = if length (filter (\e -> lookupQ ref e.accounts > Q.zero) entities) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
+  actors = actorsOf (r.world)
+  one ref = if length (filter (\e -> lookupQ ref e.accounts > Q.zero) actors) > 1 then [ failure INV08 (show ref <> " has more than one holder") ] else []
 
 -- | INV-09 Representation consistency: a stored factor stays within its estimators' bounds.
 inv09 :: WorldState -> RoundResult -> Array Failure
@@ -321,12 +321,12 @@ inv09 before r = concatMap one (select (event @"Estimated") r.record.events)
       if maybe false (delta < _) below || maybe false (delta > _) above then [ failure INV09 (show e.aggregate <> " factor " <> show e.factor <> " outside its bounds") ]
       else []
 
--- | INV-10 Signature completeness: a joint Proposal executes only if every required signer signed, and a
--- | procedure Proposal only if its support exceeds the threshold.
+-- | INV-10 Signature completeness: a joint candidate Transaction executes only if every required signer signed, and a
+-- | voted candidate Transaction only if its support exceeds the threshold.
 inv10 :: WorldState -> RoundResult -> Array Failure
 inv10 before r = concatMap one (executed r)
   where
-  one { proposal: p, signatures } = case p.procedure of
+  one { candidateTransaction: p, signatures } = case p.procedure of
     Nothing ->
       if not (all (\s -> s == p.author || s `elem` signatures) p.signers) then [ failure INV10 (show p.id <> " executed without every signature") ]
       else []

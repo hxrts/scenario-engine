@@ -58,8 +58,8 @@ import Core.Map (entries)
 
 import Record as Record
 import Laws.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
-import Laws.Types (idText, EntityId, ProposalId, ResourceDefinition, ResourceId)
-import Schema.Gameboard (capacityCategory)
+import Laws.Types (idText, ActorId, CandidateTransactionId, ResourceDefinition, ResourceId)
+import Schema.PossibleWorld (capacityCategory)
 
 import Laws.Invariants (Failure)
 import Core.Num (Kind, Q)
@@ -117,16 +117,16 @@ columnsOf = map _.column
 col
   :: { run :: Column
      , name :: Column
-     , gameboard :: Column
+     , possibleWorld :: Column
      , gameSeed :: Column
      , playerSeed :: Column
      , rounds :: Column
      , status :: Column
-     , actor :: Column
+     , playableActor :: Column
      , objective :: Column
      , outcome :: Column
      , round :: Column
-     , entity :: Column
+     , actor :: Column
      , kind :: Column
      , resource :: Column
      , player :: Column
@@ -136,16 +136,16 @@ col
 col =
   { run: column "Run" "The run's id in the Run Store. Selecting a row shows that run's results."
   , name: column "Name" "The name the run was given at launch, or by the derivation that created it." # emptied { label: "not recorded", reason: "The run was stored without a name." }
-  , gameboard: column "Gameboard" "The Gameboard version (the setting) the run was played on."
-  , gameSeed: column "Game seed" "The seed fixed by the setting. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
-  , playerSeed: column "Player seed" "The seed for seat-policy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
+  , possibleWorld: column "PossibleWorld" "The possible World version (the premise) the run was played on."
+  , gameSeed: column "Game seed" "The seed fixed by the premise. It drives the in-world draws, so the same game seed gives the same draws." # emptied { label: "not recorded", reason: "The run's stored manifest has no game seed." }
+  , playerSeed: column "Player seed" "The seed for seat-strategy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
   , rounds: column "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
   , status: column "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
-  , actor: column "Actor" "The Actor (or Aggregate) this row describes."
-  , objective: column "Objective" "A goal from the Gameboard for one Actor. It is measured from the run and never changes the economy."
+  , playableActor: column "Playable Actor" "The Actor (or Aggregate) this row describes."
+  , objective: column "Objective" "A goal from the possible World for one Actor. It is measured from the run and never changes the economy."
   , outcome: column "Outcome" "For objectives: met, not met or not evaluated. A criterion is not evaluated when the run has no rounds or no data, and is never reported as met. For procedures: executed if the support reached the threshold, lapsed otherwise."
   , round: column "Round" "The round this row belongs to. Round 1 is the first round after the initial state."
-  , entity: column "Entity" "The Entity whose balance sheet this is: an Actor or an Aggregate."
+  , actor: column "Actor" "The Actor whose balance sheet this is: an Actor or an Aggregate."
   , kind: column "Kind" "Actor, or Aggregate (residual): a residual representation of many holders, not one Actor."
   , resource: column "Resource" "The Resource held."
   , player: column "Player" "The Actor this row describes, by its seat."
@@ -155,7 +155,7 @@ col =
 
 -- | The shared columns, for the glossary.
 sharedColumns :: Array Column
-sharedColumns = [ col.run, col.name, col.gameboard, col.gameSeed, col.playerSeed, col.rounds, col.status, col.actor, col.objective, col.outcome, col.round, col.entity, col.kind, col.resource, col.player, col.measure, col.spread ]
+sharedColumns = [ col.run, col.name, col.possibleWorld, col.gameSeed, col.playerSeed, col.rounds, col.status, col.playableActor, col.objective, col.outcome, col.round, col.actor, col.kind, col.resource, col.player, col.measure, col.spread ]
 
 -- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
 -- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.
@@ -191,7 +191,7 @@ type RunHeader = Record (RunHeaderRow ())
 -- | (single-run views). `records`, `snapshots` and `worlds` read the rounds.
 type StoredRun = Record (RunHeaderRow (rounds :: Array RoundResult, assertions :: Array (Array Failure)))
 
--- | The Resource a run's market views centre on: the one its setting declares, else its numeraire.
+-- | The Resource a run's exchange views centre on: the one its premise declares, else its numeraire.
 focusOf :: StoredRun -> Focus
 focusOf r = fromMaybe { resource: r.manifest.initial.numeraire, label: idText r.manifest.initial.numeraire } r.manifest.initial.focus
 
@@ -231,7 +231,7 @@ price = Q.displayQuantity
 ratio :: Q -> String
 ratio = Q.displayRatio
 
--- | Whether a Resource shows in a listing of holdings: a capacity is not listed among them (the setting's category).
+-- | Whether a Resource shows in a listing of holdings: a capacity is not listed among them (the premise's category).
 listedHolding :: forall r. { resources :: Map.Map ResourceId ResourceDefinition | r } -> ResourceId -> Boolean
 listedHolding w res = (Map.lookup res w.resources >>= _.category) /= Just capacityCategory
 
@@ -266,10 +266,10 @@ final r = fromMaybe r.manifest.initial (at r (completed r))
 outOfRange :: StoredRun -> Int -> Int -> String
 outOfRange r lo n = "round " <> show n <> " is out of range for run " <> r.id <> " (" <> show lo <> ".." <> show (completed r) <> ")"
 
--- | An Entity's kind as the views label it: an Aggregate is residual, every other Entity an Actor.
-kindOf :: WorldState -> EntityId -> String
+-- | An Actor's kind as the views label it: an Aggregate is residual, every other Actor an Actor.
+kindOf :: WorldState -> ActorId -> String
 kindOf w e
-  | maybe false isAggregate (Map.lookup e w.entities) = "Aggregate (residual)"
+  | maybe false isAggregate (Map.lookup e w.actors) = "Aggregate (residual)"
   | otherwise = "Actor"
 
 -- | One named series per key of `f` over the initial state and every snapshot, each point the
@@ -291,25 +291,25 @@ recordPoints r f = mapWithIndex (\i rec -> { round: i + 1, value: f rec }) (reco
 outcomeLabel :: Boolean -> String
 outcomeLabel executed = if executed then "executed" else "lapsed"
 
--- | The players of a World State: its Actors, every Entity except the Aggregates (which are residual
--- | representations, not players), in Entity order.
-players :: WorldState -> Array EntityId
-players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (entries w.entities))
+-- | The players of a World State: its Actors, every Actor except the Aggregates (which are residual
+-- | representations, not players), in Actor order.
+players :: WorldState -> Array ActorId
+players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (entries w.actors))
 
--- | A collective procedure the run recorded: its Proposal, the members who signed it, and whether it
+-- | A collective procedure the run recorded: its candidate Transaction, the members who signed it, and whether it
 -- | executed, with its support against its threshold. Drivers and Representation both render their
 -- | rows from this one read.
-type Procedure = { round :: Int, proposal :: ProposalId, executed :: Boolean, support :: Q, threshold :: Q, signers :: Array EntityId }
+type Procedure = { round :: Int, candidateTransaction :: CandidateTransactionId, executed :: Boolean, support :: Q, threshold :: Q, signers :: Array ActorId }
 
 -- | The procedure a ProcedureOutcome records, within its round.
-asProcedure :: RoundRecord -> { round :: Int, proposal :: ProposalId, support :: Q, threshold :: Q, executed :: Boolean } -> Procedure
+asProcedure :: RoundRecord -> { round :: Int, candidateTransaction :: CandidateTransactionId, support :: Q, threshold :: Q, executed :: Boolean } -> Procedure
 asProcedure rec o =
   { round: rec.round
-  , proposal: o.proposal
+  , candidateTransaction: o.candidateTransaction
   , executed: o.executed
   , support: o.support
   , threshold: o.threshold
-  , signers: concatMap (\s -> if s.proposal.id == o.proposal then s.signatures else []) rec.inputs
+  , signers: concatMap (\s -> if s.candidateTransaction.id == o.candidateTransaction then s.signatures else []) rec.inputs
   }
 
 -- | Every procedure outcome in the run, in round order.

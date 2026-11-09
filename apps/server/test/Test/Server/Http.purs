@@ -25,7 +25,7 @@ foreign import siteDir :: Effect String
 foreign import startServerImpl :: String -> String -> (Request -> Effect Reply) -> Effect (Promise Running)
 foreign import portOf :: Running -> Int
 foreign import stopServerImpl :: Running -> Effect (Promise Unit)
-foreign import exchangeImpl :: Int -> String -> String -> Object String -> Array String -> Effect (Promise Answer)
+foreign import turnImpl :: Int -> String -> String -> Object String -> Array String -> Effect (Promise Answer)
 
 -- | Run raw SQL against a store.
 rawExec :: SqlDevice -> String -> Effect Unit
@@ -48,7 +48,7 @@ withServer test = do
   bracket (toAffE (startServerImpl dir apiPrefix handler)) (\s -> toAffE (stopServerImpl s)) (test <<< portOf)
 
 get :: Int -> String -> Array (Maybe String) -> Aff Answer
-get port path accept = toAffE (exchangeImpl port "GET" path headers [])
+get port path accept = toAffE (turnImpl port "GET" path headers [])
   where
   headers = case accept of
     [ Just a ] -> Object.singleton "accept-encoding" a
@@ -62,12 +62,12 @@ spec = describe "HTTP device" do
   it "a multi-byte character split across two chunks arrives whole" do
     withServer \port -> do
       -- "é€": the euro sign's three bytes are split between the chunks
-      a <- toAffE (exchangeImpl port "POST" "/api/echo" Object.empty [ "c3a9e2", "82ac" ])
+      a <- toAffE (turnImpl port "POST" "/api/echo" Object.empty [ "c3a9e2", "82ac" ])
       a.status `shouldEqual` 200
       a.text `shouldEqual` "é€"
   it "a body over the limit is a 413" do
     withServer \port -> do
-      a <- toAffE (exchangeImpl port "POST" "/api/echo" Object.empty [ oversized ])
+      a <- toAffE (turnImpl port "POST" "/api/echo" Object.empty [ oversized ])
       a.status `shouldEqual` 413
       a.text `shouldSatisfy` contains (Pattern "exceeds")
   it "replies are gzipped only for a client that accepts gzip" do

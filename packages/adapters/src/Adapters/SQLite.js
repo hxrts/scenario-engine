@@ -1,4 +1,4 @@
-// SQLite over node:sqlite: a connection, its statements, and one transaction at a time.
+// SQLite over node:sqlite: a connection, its statements, and one dbDbTransaction at a time.
 import { DatabaseSync } from "node:sqlite";
 
 // How long a writer waits for a lock held by another connection before SQLite reports busy.
@@ -43,8 +43,8 @@ export const insertImpl = (db, table, row) => () => {
   statement(db, `insert into ${table} (${columns}) values (${parameters})`).run(row);
 };
 
-// The body in one transaction: committed if it returns, rolled back if it throws.
-export const transactionImpl = (db, body) => () => {
+// The body in one dbDbTransaction: committed if it returns, rolled back if it throws.
+export const dbDbTransactionImpl = (db, body) => () => {
   db.exec("begin");
   try {
     const result = body();

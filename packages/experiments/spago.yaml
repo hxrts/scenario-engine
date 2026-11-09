@@ -7,7 +7,7 @@ package:
     - sp-schema
     - sp-checks
     - sp-views
-    - sp-game
+    - sp-assembly
     - sp-handlers
     - arrays
     - either
@@ -24,7 +24,7 @@ package:
       - exceptions
       - sp-testkit
       - sp-checks
-      - sp-game
+      - sp-assembly
       - sp-handlers
       - spec
       - spec-node

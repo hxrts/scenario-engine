@@ -42,7 +42,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
--- | The initial manifest of the reference setting, for runs created by hand.
+-- | The initial manifest of the reference premise, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
   g <- presetSeats [] "Passive" Nothing
@@ -103,7 +103,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = storeOver db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 4
+      version `shouldEqual` 6
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
@@ -147,7 +147,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a store at any other schema version is refused, with what to do" do
       let path = "run-store-other-version-test.db"
       liftEffect (removeFile path)
-      liftEffect (createStoreAtVersion path 5)
+      liftEffect (createStoreAtVersion path 99)
       opened <- liftEffect (try (open path))
       either (contains (Pattern "Move the file aside") <<< message) (const false) opened `shouldEqual` true
       liftEffect (removeFile path)

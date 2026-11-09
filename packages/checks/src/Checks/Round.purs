@@ -1,8 +1,8 @@
 -- | The round checker. `observe` reads what a resolved round holds into
 -- | `Observed`, filled at every leaf the world has. `check` compares an `Expect` with an `Observed`,
 -- | field by field: a `Just` leaf asserts a value, a `Nothing` leaf or an absent key asserts nothing.
--- | The Expect's values come from the setting; the Observed values come from the engine's world, so
--- | a setting's number is never computed from the setting itself. Pure.
+-- | The Expect's values come from the premise; the Observed values come from the engine's world, so
+-- | a premise's number is never computed from the premise itself. Pure.
 module Checks.Round
   ( Field(..)
   , Failure(..)
@@ -18,7 +18,7 @@ import Core.Map (entries)
 
 import Core.Num (Q)
 import Laws.Query (holding, reserveOf)
-import Laws.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
+import Laws.Types (BehaviorDomain, ActorId, ExchangeId, ResourceId)
 import Laws.Slice (event, orKind, read, select)
 import Laws.World (RoundResult)
 import Data.Array (concat, concatMap, mapMaybe, sort, sortWith)
@@ -31,9 +31,9 @@ import Schema.Round (RoundRow, Expect, Observed)
 
 -- | A field a check compares: a leaf of a map, or a whole-round field.
 data Field
-  = Balance EntityId ResourceId
-  | Reserve MarketId ResourceId
-  | Factor EntityId BehaviorDomain
+  = Balance ActorId ResourceId
+  | Reserve ExchangeId ResourceId
+  | Factor ActorId BehaviorDomain
   | Deliveries
   | Rejections
   | Lapses
@@ -49,11 +49,11 @@ instance Show Field where
     Reserve m r -> "reserve of " <> show m <> " in " <> show r
     Factor a d -> "factor of " <> show a <> " in " <> show d
     Deliveries -> "deliveries"
-    Rejections -> "rejected Proposals"
-    Lapses -> "lapsed Proposals"
+    Rejections -> "rejected CandidateTransactions"
+    Lapses -> "lapsed CandidateTransactions"
     Outcomes -> "procedure outcomes"
     Scheduled -> "scheduled rule changes"
-    Inputs -> "Proposals passed to the engine"
+    Inputs -> "CandidateTransactions passed to the engine"
 
 -- | A check that failed, with the round it failed in. `Mismatch` carries the field and the actual and
 -- | expected values as they print; `Violated` names an invariant; `Stopped` is a round the engine
@@ -71,20 +71,20 @@ instance Show Failure where
     Violated r inv detail -> "round " <> show r <> ", " <> inv <> ": " <> detail
     Stopped r why -> "round " <> show r <> " rejected by the engine: " <> why
 
--- | What the round holds, read from its result: every balance of every Entity in every Resource, every
--- | reserve of every Market in every Resource, every stored factor, and the round's deliveries,
--- | rejections, lapses, procedure outcomes and scheduled changes. A leaf is there for every Entity,
--- | Market and Resource of the World, so a check on a missing one fails, and a balance is zero when
+-- | What the round holds, read from its result: every balance of every Actor in every Resource, every
+-- | reserve of every Exchange in every Resource, every stored factor, and the round's deliveries,
+-- | rejections, lapses, procedure outcomes and scheduled changes. A leaf is there for every Actor,
+-- | Exchange and Resource of the World, so a check on a missing one fails, and a balance is zero when
 -- | nothing is held.
 observe :: RoundResult -> Observed
 observe r =
-  { accounts: Map.mapMaybeWithKey (\e _ -> Just (filled (holding w e))) w.entities
-  , reserves: Map.mapMaybeWithKey (\m _ -> Just (filled (reserveOf w m))) w.markets
+  { accounts: Map.mapMaybeWithKey (\e _ -> Just (filled (holding w e))) w.actors
+  , reserves: Map.mapMaybeWithKey (\m _ -> Just (filled (reserveOf w m))) w.exchanges
   , factors: map (map Identity) w.factors
   , deliveries: Identity (mapMaybe deliveredOf w.pending)
-  , rejected: Identity (sort (select (read @"proposal" (orKind (event @"Rejected") (event @"OrderRemoved"))) events))
-  , lapsed: Identity (sort (select (read @"proposal" (event @"Lapsed")) events))
-  , procedures: Identity (map (\x -> { proposal: x.proposal, support: x.support, executed: x.executed }) (select (event @"ProcedureOutcome") events))
+  , rejected: Identity (sort (select (read @"candidateTransaction" (orKind (event @"Rejected") (event @"OrderRemoved"))) events))
+  , lapsed: Identity (sort (select (read @"candidateTransaction" (event @"Lapsed")) events))
+  , procedures: Identity (map (\x -> { candidateTransaction: x.candidateTransaction, support: x.support, executed: x.executed }) (select (event @"ProcedureOutcome") events))
   , scheduled: Identity (Map.size (Map.fromFoldable (mapMaybe changeOf w.pending)))
   }
   where
@@ -95,7 +95,7 @@ observe r =
   filled f = Map.mapMaybeWithKey (\res _ -> Just (Identity (f res))) w.resources
 
 -- | Every check the Expect makes of the Observed, for round `round`. Deliveries are compared as sets
--- | (sorted), rejections and lapses by sorted Proposal id, and procedure outcomes in the order written.
+-- | (sorted), rejections and lapses by sorted candidate Transaction id, and procedure outcomes in the order written.
 check :: Int -> Expect -> Observed -> Array Failure
 check round ex ob = concat (Object.values (Object.fromHomogeneous comparers))
   where

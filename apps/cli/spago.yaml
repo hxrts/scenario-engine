@@ -18,8 +18,8 @@ package:
     - run
     - typelevel-prelude
     - sp-schema
-    - sp-game
-    - sp-settings
+    - sp-assembly
+    - sp-premises
     - sp-handlers
     - sp-effects
     - sp-adapters

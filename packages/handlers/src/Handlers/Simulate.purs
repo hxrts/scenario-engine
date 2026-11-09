@@ -1,7 +1,7 @@
 -- | The simulator (docs/06_simulator.md §3–§6): the one fold over a `Game`. `simulate` plays a game with
--- | machine seats (Strategy, Script) and is pure; `fromCheckpoint` continues a snapshot;
+-- | machine seats (StrategyRules, Script) and is pure; `fromCheckpoint` continues a snapshot;
 -- | persisting each round is `PLAY`'s (`Handlers.Play`). The simulator imports no
--- | setting, board, or policy module: a Game is all it sees.
+-- | premise, board, or strategy module: a Game is all it sees.
 module Handlers.Simulate
   ( SimRun
   , Checkpoint
@@ -21,8 +21,8 @@ import Laws.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Tuple (Tuple(..))
-import Game.Error (GameError(..))
-import Game.Types (Game, SeatBinding(..))
+import Assembly.Error (GameError(..))
+import Assembly.Types (Game, SeatBinding(..))
 import Handlers.Replay (runReplay)
 import Handlers.Seats (playPure, seatEnv)
 

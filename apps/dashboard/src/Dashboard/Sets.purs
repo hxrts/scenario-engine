@@ -1,4 +1,4 @@
--- | Named scenario sets on the Compare page (docs/06_simulator.md §10.5): open one, save the ticked runs as one,
+-- | Named Run sets on the Compare page (docs/06_simulator.md §10.5): open one, save the ticked runs as one,
 -- | rename one, delete one. The server stores and validates them; this panel sends the request and shows the reply.
 module Dashboard.Sets (mkSets) where
 
@@ -18,18 +18,18 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
-import Effects.Signatures (ScenarioSet)
+import Effects.Signatures (RunSet)
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
 import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
 import React.Basic.Hooks as React
 
 -- | The runs a set opens: its baseline first, because the first run of a comparison is its baseline.
-ordered :: ScenarioSet -> Array String
+ordered :: RunSet -> Array String
 ordered s = [ s.baseline ] <> filter (_ /= s.baseline) s.runs
 
 mkSets :: DataTable -> Component (Array String)
-mkSets grid = fetched >>= \fetch -> component "ScenarioSets" \ids -> React.do
+mkSets grid = fetched >>= \fetch -> component "RunSets" \ids -> React.do
   summary /\ setSummary <- useState' (Nothing :: Maybe String)
   version /\ setVersion <- useState' 0
   name /\ setName <- useState' ""
@@ -48,7 +48,7 @@ mkSets grid = fetched >>= \fetch -> component "ScenarioSets" \ids -> React.do
       Just baseline -> send (Client.saveSet { name, baseline, runs: ids }) (setName "")
       Nothing -> pure unit
 
-    row :: ScenarioSet -> JSX
+    row :: RunSet -> JSX
     row s = D.li
       { key: s.name
       , className: "flex flex-wrap items-center gap-2 text-sm"
@@ -61,7 +61,7 @@ mkSets grid = fetched >>= \fetch -> component "ScenarioSets" \ids -> React.do
           ]
       }
   pure $ Layout.section
-    { title: "Scenario sets"
+    { title: "Run sets"
     , purpose: "A named list of runs and their baseline. A set stores only the runs' ids, so it never changes a run."
     , children:
         [ loaded sets.value \r -> D.ul { className: "flex flex-col gap-2", children: map row r.sets }

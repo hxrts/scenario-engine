@@ -31,15 +31,15 @@ import Views.Keys as Keys
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
 import Effects.Launch (freshRunId, start)
 import Server.Launch (serverRole)
-import Game.Setting (GameboardParts, Setting(..))
+import Assembly.Premise (PossibleWorldParts, Premise(..))
 import Server.Read (loadRun, runInfo)
-import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
+import Assembly.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
 import Server.Sets (setsNaming)
-import Server.Settings (Settings, ofSpec)
+import Server.Premises (Premises, ofSpec)
 import Schema.Run (Spec, DeriveKind(..), RunStatus(..))
 import Core.Shape (Format(Authored))
 import Handlers.Api.Route as Route
-import Game.Recipe (Recipe, decodeSpec, deriveRecipe)
+import Assembly.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Views.Common (records)
 import Handlers.Simulate (replayGame)
 
@@ -52,16 +52,16 @@ import Handlers.Simulate (replayGame)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: forall o. Settings -> String -> DeriveRequest -> Run (SERVER o) Answer
-deriveRun settings sourceId body = do
+deriveRun :: forall o. Premises -> String -> DeriveRequest -> Run (SERVER o) Answer
+deriveRun premises sourceId body = do
   runInfo sourceId >>= case _ of
     Nothing -> notFound ("no run " <> sourceId)
     Just info -> (readManifest sourceId) >>= case _ of
-      Just { spec: Right spec } | isNothing spec.preset -> deriveSession settings sourceId body info spec
-      _ -> deriveFromRecipe settings sourceId body info
+      Just { spec: Right spec } | isNothing spec.preset -> deriveSession premises sourceId body info spec
+      _ -> deriveFromRecipe premises sourceId body info
 
-deriveFromRecipe :: forall o r. Settings -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Run (SERVER o) Answer
-deriveFromRecipe settings sourceId body info = do
+deriveFromRecipe :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Run (SERVER o) Answer
+deriveFromRecipe premises sourceId body info = do
   let kind = body.kind
   do
     -- a rerun is judged against the source's stored records, so they are read before it starts
@@ -74,15 +74,15 @@ deriveFromRecipe settings sourceId body info = do
         | null (records src) -> conflict ("cannot compare the rerun with " <> sourceId <> ": it has no stored round records")
       _ -> do
         stored <- (readManifest sourceId)
-        case stored <#> \m -> m.spec >>= \spec -> { base: _, setting: _ } <$> decodeSpec spec <*> ofSpec settings spec of
+        case stored <#> \m -> m.spec >>= \spec -> { base: _, premise: _ } <$> decodeSpec spec <*> ofSpec premises spec of
           Nothing -> internal ("run " <> sourceId <> " has no stored spec")
           Just (Left e) -> internal ("run " <> sourceId <> " is unreadable: " <> e)
-          Just (Right { base, setting }) -> case deriveRecipe kind body base of
+          Just (Right { base, premise }) -> case deriveRecipe kind body base of
             Left e -> badRequest e
-            Right _ | kind == Variant, Just bad <- outOfRange setting -> badRequest bad
+            Right _ | kind == Variant, Just bad <- outOfRange premise -> badRequest bad
             Right recipe -> do
               let name = fromMaybe (info.name <> " (" <> show kind <> ")") body.name
-              started <- start serverRole setting
+              started <- start serverRole premise
                 { name
                 , preset: recipe.preset
                 , playerSeed: recipe.playerSeed
@@ -100,30 +100,30 @@ deriveFromRecipe settings sourceId body info = do
                     Left e -> internal ("the rerun " <> l.id <> " is unreadable: " <> describe e)
                 Right l, _ -> replied l.id Nothing
   where
-  -- a variant is a new game, so a round count it asks for obeys the Gameboard's range; a duplicate or a
+  -- a variant is a new game, so a round count it asks for obeys the possible World's range; a duplicate or a
   -- rerun replays what was recorded
-  outOfRange setting = either (Just <<< show) (const Nothing) (traverse_ (checkRounds setting.gameboard) body.rounds)
+  outOfRange premise = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.possibleWorld) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
   replied id recordsMatch = pure (Right (Route.replyIn Authored Keys.derived 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
 
 -- | A derive from a live session. It has no preset, so a variant or counterfactual cannot be played
--- | from it; a duplicate or rerun replays its recorded Proposals and signatures (docs/06 §9.1).
-deriveSession :: forall o r. Settings -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) Answer
-deriveSession settings sourceId body info spec
+-- | from it; a duplicate or rerun replays its recorded candidate Transactions and signatures (docs/06 §9.1).
+deriveSession :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) Answer
+deriveSession premises sourceId body info spec
   | body.kind == Variant || body.kind == Counterfactual = badRequest ("a live session has no preset, so a " <> show body.kind <> " cannot be derived from " <> sourceId)
   | info.status /= Completed = conflict ("cannot replay " <> sourceId <> ": it is " <> show info.status <> ", not completed")
   | otherwise =
-      case deriveRecipe body.kind body { preset: "", playerSeed: spec.playerSeed, rounds: spec.rounds, overrides: [] }, ofSpec settings spec of
+      case deriveRecipe body.kind body { preset: "", playerSeed: spec.playerSeed, rounds: spec.rounds, overrides: [] }, ofSpec premises spec of
         Left e, _ -> badRequest e
         _, Left e -> internal ("run " <> sourceId <> " is unreadable: " <> e)
-        Right _, Right setting -> loadRun sourceId >>= case _ of
+        Right _, Right premise -> loadRun sourceId >>= case _ of
           Left e -> conflict ("cannot replay " <> sourceId <> ": " <> describe e)
-          Right src -> replay setting src
+          Right src -> replay premise src
       where
       humans = map Id (filter (_ /= "") (split (Pattern ",") (fromMaybe "" spec.humans)))
       seed = Seed (fromMaybe 0 spec.playerSeed)
       stored = spec { source = Just sourceId, kind = Just body.kind }
-      replay setting src = case map (withRounds spec.rounds) (assemble (GameboardSetting setting) (liveBindings humans setting.config) []) of
+      replay premise src = case map (withRounds spec.rounds) (assemble (PossibleWorldPremise premise) (liveBindings humans premise.config) []) of
         Left e -> badRequest (show e)
         Right g -> case replayGame seed g (records src) of
           Left e -> conflict ("cannot replay " <> sourceId <> ": " <> e)
@@ -146,21 +146,21 @@ deriveSession settings sourceId body info spec
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: forall o. Settings -> String -> Int -> Run (SERVER o) Answer
-resumeRun settings id rounds = continueRun settings id "resumed" \p ->
+resumeRun :: forall o. Premises -> String -> Int -> Run (SERVER o) Answer
+resumeRun premises id rounds = continueRun premises id "resumed" \p ->
   if rounds <= p.done then Left ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
   else Right { rounds, spec: p.spec { rounds = Just rounds } }
 
 -- | `POST /api/runs/:id/step`: one round of a completed run that is short of its target, through the same
 -- | snapshot path as resume. The target does not change.
-stepRun :: forall o. Settings -> String -> Run (SERVER o) Answer
-stepRun settings id = continueRun settings id "stepped" \p -> case p.spec.rounds of
+stepRun :: forall o. Premises -> String -> Run (SERVER o) Answer
+stepRun premises id = continueRun premises id "stepped" \p -> case p.spec.rounds of
   Just target | p.done < target -> Right { rounds: p.done + 1, spec: p.spec }
   _ -> Left (id <> " has played all " <> show p.done <> " of its rounds")
 
 -- | Continue a completed run from its last snapshot, to the round count and with the spec `decide` gives.
-continueRun :: forall o. Settings -> String -> String -> ({ done :: Int, spec :: Spec } -> Either String { rounds :: Int, spec :: Spec }) -> Run (SERVER o) Answer
-continueRun settings id verb decide =
+continueRun :: forall o. Premises -> String -> String -> ({ done :: Int, spec :: Spec } -> Either String { rounds :: Int, spec :: Spec }) -> Run (SERVER o) Answer
+continueRun premises id verb decide =
   runInfo id >>= case _ of
     Nothing -> notFound ("no run " <> id)
     Just info
@@ -174,7 +174,7 @@ continueRun settings id verb decide =
               Left e -> internal ("run " <> id <> " is unreadable: " <> e)
               Right p -> case decide { done: p.done, spec: p.spec } of
                 Left e -> badRequest e
-                Right next -> case assemblePreset p.setting p.base.preset p.base.overrides (Just next.rounds) of
+                Right next -> case assemblePreset p.premise p.base.preset p.base.overrides (Just next.rounds) of
                   Left e -> badRequest (show e)
                   Right game -> do
                     attempt <- playRun (Continued { id, seed: p.seed, game, world: p.snapshot, done: p.done, spec: next.spec })
@@ -184,14 +184,14 @@ continueRun settings id verb decide =
             _, _ -> internal ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
-  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, setting :: GameboardParts, seed :: Seed, snapshot :: WorldState, done :: Int }
+  prepare :: Stored Spec -> StoredRound -> Int -> Either String { spec :: Spec, base :: Recipe, premise :: PossibleWorldParts, seed :: Seed, snapshot :: WorldState, done :: Int }
   prepare text latest done = do
     spec <- text
     base <- decodeSpec spec
-    setting <- ofSpec settings spec
+    premise <- ofSpec premises spec
     seed <- note "the stored spec has no player seed" base.playerSeed
     snapshot <- latest.snapshot
-    pure { spec, base, setting, seed: Seed seed, snapshot, done }
+    pure { spec, base, premise, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
 setArchive :: forall o. String -> Boolean -> Run (SERVER o) Answer

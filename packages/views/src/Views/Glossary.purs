@@ -1,5 +1,5 @@
 -- | The glossary the dashboard shows: a plain-language definition for every table column and header
--- | field, and what an empty value means (docs/02_type_system.md §2.5, docs/06_simulator.md §9). It is
+-- | field, and what an empty value means (docs/02_kernel.md §2.5, docs/06_simulator.md §9). It is
 -- | generated from the columns the views use; only the two texts for names that are not columns are
 -- | written here. Text only, served whole by `GET /api/glossary`; the dashboard looks names up and
 -- | fills the `{name}` and `{round}` placeholders. Pure.
@@ -23,7 +23,7 @@ import Views.Balances as Balances
 import Views.Common (Column, Reason, sharedColumns)
 import Views.Compare as Compare
 import Views.Drivers as Drivers
-import Views.Markets as Markets
+import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
@@ -39,12 +39,12 @@ type Glossary =
   , round :: { prefix :: String, definition :: String }
   }
 
--- | Every column the views use over the loaded settings' focus Resources, in name order, each once.
+-- | Every column the views use over the loaded premises' focus Resources, in name order, each once.
 allColumns :: Array Focus -> Array Column
 allColumns foci = nubBy (compare `on` _.name)
   ( sortBy (compare `on` _.name)
       ( sharedColumns <> concatMap identity
-          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, WholeEconomy.columns, Actions.columns, concatMap Markets.columns foci, Compare.columns ]
+          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, WholeEconomy.columns, Actions.columns, concatMap Exchanges.columns foci, Compare.columns ]
       )
   )
 

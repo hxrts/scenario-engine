@@ -8,10 +8,10 @@ import Core.Num (Q)
 import Core.Num as Q
 import Data.Array (concatMap, filter, length, mapMaybe, nub)
 import Data.Maybe (Maybe, fromMaybe, maybe)
-import Schema.Gameboard (Gameboard)
+import Schema.PossibleWorld (PossibleWorld)
 import Views.Balance (completionOf, measuresOf, spread)
 import Views.Common (Column, StoredRun, Table, column, final, names, price, quantity)
-import Views.Markets (marketPrices)
+import Views.Exchanges (exchangePrices)
 
 runsColumn :: Column
 runsColumn = column "Runs" "How many runs of the batch give this measure a value."
@@ -45,7 +45,7 @@ measureRow format name xs =
 objectiveRow :: String -> Array Boolean -> Array String
 objectiveRow name met = [ name, show (length met), "", "", show (length (filter identity met)) ]
 
-batchSummary :: (StoredRun -> Maybe Gameboard) -> Array StoredRun -> Table
+batchSummary :: (StoredRun -> Maybe PossibleWorld) -> Array StoredRun -> Table
 batchSummary boardOf runs =
   { title: "Batch summary"
   , columns: names columns
@@ -53,13 +53,13 @@ batchSummary boardOf runs =
       [ measureRow quantity "Net worth spread" (mapMaybe (_.spread <<< measuresOf) runs)
       , measureRow quantity "Net worth Gini" (mapMaybe (_.gini <<< measuresOf) runs)
       ]
-        <> map marketRow marketsOf
-        <> map actorRow actorsOf
+        <> map exchangeRow exchangesOf
+        <> map playableActorRow playableActorsOf
   }
   where
-  prices r = marketPrices (final r)
-  marketsOf = nub (concatMap (map (\m -> show m.market) <<< prices) runs)
-  marketRow m = measureRow price ("Final price, " <> m) (concatMap (map _.price <<< filter (\p -> show p.market == m) <<< prices) runs)
+  prices r = exchangePrices (final r)
+  exchangesOf = nub (concatMap (map (\m -> show m.exchange) <<< prices) runs)
+  exchangeRow m = measureRow price ("Final price, " <> m) (concatMap (map _.price <<< filter (\p -> show p.exchange == m) <<< prices) runs)
   completions r = fromMaybe [] (flip completionOf r <$> boardOf r)
-  actorsOf = nub (concatMap (map (\c -> show c.actor) <<< completions) runs)
-  actorRow a = objectiveRow ("Objective met, " <> a) (concatMap (map (\c -> c.met == c.criteria) <<< filter (\c -> show c.actor == a) <<< completions) runs)
+  playableActorsOf = nub (concatMap (map (\c -> show c.playableActor) <<< completions) runs)
+  playableActorRow a = objectiveRow ("Objective met, " <> a) (concatMap (map (\c -> c.met == c.criteria) <<< filter (\c -> show c.playableActor == a) <<< completions) runs)

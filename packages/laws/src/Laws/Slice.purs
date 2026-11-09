@@ -19,10 +19,10 @@ module Laws.Slice
   , first
   , groupBy
   , legs
-  , Leg
-  , exchanges
-  , conversions
-  , conversionPaymentsTo
+  , FlowOwed
+  , exchangeFills
+  , transformationFills
+  , transformationPaymentsTo
   , runLegQuery
   , transfers
   , levies
@@ -44,7 +44,7 @@ import Core.Sum (class HandlerRow, class Handles, class Pick, handles, pick)
 import Control.Alt ((<|>))
 import Core.Num (Q)
 import Core.Num as Q
-import Laws.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
+import Laws.Types (ActorId, ExchangeId, CandidateTransactionId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
 import Laws.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
 import Data.Array (concatMap, filter, foldl, head, index, length, nubEq, snoc)
 import Data.Foldable (any, maximum)
@@ -89,7 +89,7 @@ whereNamed text p (Select s) = Select s
   , pick = filter p <<< s.pick
   }
 
--- | The Events whose field equals the value: `whereEq @"entity" e`.
+-- | The Events whose field equals the value: `whereEq @"Actor" e`.
 whereEq :: forall @field r b tail. IsSymbol field => Row.Cons field b tail r => Eq b => Show b => b -> Select (Record r) -> Select (Record r)
 whereEq x = whereNamed (reflectSymbol f <> " = " <> show x) (\r -> Record.get f r == x)
   where
@@ -119,10 +119,10 @@ pickOf (Select s) = head <<< s.pick
 matches :: forall r. Select r -> (r -> Boolean) -> Event -> Boolean
 matches (Select s) p = any p <<< s.pick
 
--- Legs and causes ---------------------------------------------------------------------------------
+-- settled Flows and causes ---------------------------------------------------------------------------------
 
--- | One leg of a settlement, with what it was part of.
-type Leg =
+-- | One settled Flow of a settlement, with what it was part of.
+type FlowOwed =
   { round :: RoundIndex
   , from :: Endpoint
   , to :: Endpoint
@@ -136,64 +136,64 @@ type Leg =
   , count :: Int
   }
 
--- | A selector over `Coupled` events, read by a named projection.
-coupledSelect :: forall r. String -> ({ round :: RoundIndex, legs :: Array Flow, rate :: Maybe Q, cause :: Cause, delivered :: Boolean } -> Array r) -> Select r
-coupledSelect text f = case event @"Coupled" of
+-- | A selector over `Settled` events, read by a named projection.
+settledSelect :: forall r. String -> ({ round :: RoundIndex, legs :: Array Flow, rate :: Maybe Q, cause :: Cause, delivered :: Boolean } -> Array r) -> Select r
+settledSelect text f = case event @"Settled" of
   Select s -> Select s { filters = [ text ], pick = concatMap f <<< s.pick }
 
--- | Every leg of every settlement, in recorded order.
-legs :: Select Leg
-legs = coupledSelect "every leg" \c -> mapWithIndex (\i l -> { round: c.round, from: l.from, to: l.to, resource: l.resource, owed: l.owed, moved: l.moved, rate: c.rate, cause: c.cause, delivered: c.delivered, position: i, count: length c.legs }) c.legs
+-- | Every settled Flow of every settlement, in recorded order.
+legs :: Select FlowOwed
+legs = settledSelect "every leg" \c -> mapWithIndex (\i l -> { round: c.round, from: l.from, to: l.to, resource: l.resource, owed: l.owed, moved: l.moved, rate: c.rate, cause: c.cause, delivered: c.delivered, position: i, count: length c.legs }) c.legs
 
--- | Market fills: one settlement along a Market's curve, its quantity signed (+ buys, − sells).
-exchanges :: Select { round :: RoundIndex, market :: MarketId, entity :: EntityId, resource :: ResourceId, quantity :: Q, price :: Q, proposal :: ProposalId }
-exchanges = coupledSelect "the cause is an exchange along a Market's curve" \c -> case c.cause, index c.legs 0, c.rate of
-  OfIntent { proposal, mechanism: Curve market }, Just base, Just price
+-- | Exchange fills: one settlement along an Exchange's curve, its quantity signed (+ buys, − sells).
+exchangeFills :: Select { round :: RoundIndex, exchange :: ExchangeId, actor :: ActorId, resource :: ResourceId, quantity :: Q, price :: Q, candidateTransaction :: CandidateTransactionId }
+exchangeFills = settledSelect "the cause is an exchange along an Exchange's curve" \c -> case c.cause, index c.legs 0, c.rate of
+  OfIntent { candidateTransaction, mechanism: Curve exchange }, Just base, Just price
     | not c.delivered -> case base.from, base.to of
-        InMarket _, Held entity -> [ { round: c.round, market, entity, resource: base.resource, quantity: base.moved, price, proposal } ]
-        Held entity, InMarket _ -> [ { round: c.round, market, entity, resource: base.resource, quantity: Q.neg base.moved, price, proposal } ]
+        InExchange _, Held actor -> [ { round: c.round, exchange, actor, resource: base.resource, quantity: base.moved, price, candidateTransaction } ]
+        Held actor, InExchange _ -> [ { round: c.round, exchange, actor, resource: base.resource, quantity: Q.neg base.moved, price, candidateTransaction } ]
         _, _ -> []
   _, _, _ -> []
 
--- | Conversions: the units run, and what was paid to the payee.
-conversions :: Select { round :: RoundIndex, by :: EntityId, transformation :: TransformationId, quantity :: Q, paid :: Q, proposal :: ProposalId }
-conversions = coupledSelect "the cause is a conversion" \c -> case c.cause of
-  OfIntent { proposal, mechanism: Conversion x }
-    | not c.delivered -> [ { round: c.round, by: x.by, transformation: x.transformation, quantity: x.units, paid: Q.sumQ (map _.moved (filter payment c.legs)), proposal } ]
+-- | TransformationFills: the units run, and what was paid to the payee.
+transformationFills :: Select { round :: RoundIndex, by :: ActorId, transformation :: TransformationId, quantity :: Q, paid :: Q, candidateTransaction :: CandidateTransactionId }
+transformationFills = settledSelect "the cause is a transformation" \c -> case c.cause of
+  OfIntent { candidateTransaction, mechanism: Transformation x }
+    | not c.delivered -> [ { round: c.round, by: x.by, transformation: x.transformation, quantity: x.units, paid: Q.sumQ (map _.moved (filter payment c.legs)), candidateTransaction } ]
   _ -> []
 
--- | A conversion's payment leg: from an Entity to the payee. A leg to the sink is an input, never a payment.
+-- | A transformation's payment settled Flow: from an Actor to the payee. A settled Flow to the sink is an input, never a payment.
 payment :: Flow -> Boolean
 payment l = l.from /= Source && l.to /= Sink
 
--- | The payment legs into an Entity, as what it received as a payee.
-conversionPaymentsTo :: EntityId -> Select Flow
-conversionPaymentsTo e = coupledSelect "payment legs to the Entity from conversions" \c -> case c.cause of
-  OfIntent { mechanism: Conversion _ } | not c.delivered -> filter (\l -> payment l && l.to == Held e) c.legs
+-- | The payment settled Flows into an Actor, as what it received as a payee.
+transformationPaymentsTo :: ActorId -> Select Flow
+transformationPaymentsTo e = settledSelect "payment legs to the Actor from transformationFills" \c -> case c.cause of
+  OfIntent { mechanism: Transformation _ } | not c.delivered -> filter (\l -> payment l && l.to == Held e) c.legs
   _ -> []
 
 -- | What a query of the record reads at `round`, over `events`. Delivered settlements are never read. Nothing
--- | when `LargestUnits` finds no conversion: a window that read nothing has no largest.
+-- | when `LargestUnits` finds no transformation: a window that read nothing has no largest.
 runLegQuery :: RoundIndex -> Array Event -> LegQuery -> Maybe Q
 runLegQuery round events q = case q.aggregate of
-  LargestUnits -> maximum (map _.quantity (filter (\c -> c.round == target && c.by == q.party && Just c.transformation == conversionOf) (select conversions events)))
+  LargestUnits -> maximum (map _.quantity (filter (\c -> c.round == target && c.by == q.party && Just c.transformation == transformationOf) (select transformationFills events)))
   _ -> Just case q.side of
     Incoming -> sumOf (_.to)
     Outgoing -> sumOf (_.from)
     NetOutgoing -> max Q.zero (Q.sub (sumOf (_.from)) (sumOf (_.to)))
   where
-  conversionOf = case q.cause of
-    ConversionOf t -> Just t
+  transformationOf = case q.cause of
+    TransformationOf t -> Just t
     CurveBase -> Nothing
-    ConversionPayment -> Nothing
+    TransformationPayment -> Nothing
   target = case q.window of
     ThisRoundSoFar -> round
     LastRound -> round - 1
   read' l = l.round == target && not l.delivered && maybe true (_ == l.resource) q.resource && patternOf l
   patternOf l = case q.cause, l.cause of
     CurveBase, OfIntent { mechanism: Curve _ } -> l.position == 0
-    ConversionPayment, OfIntent { mechanism: Conversion _ } -> isPayment l
-    ConversionOf t, OfIntent { mechanism: Conversion x } -> x.transformation == t
+    TransformationPayment, OfIntent { mechanism: Transformation _ } -> isPayment l
+    TransformationOf t, OfIntent { mechanism: Transformation x } -> x.transformation == t
     _, _ -> false
   isPayment l = l.from /= Source && l.to /= Sink
   amount l = case q.aggregate of
@@ -202,9 +202,9 @@ runLegQuery round events q = case q.aggregate of
   held = Held q.party
   sumOf end = Q.sumQ (map amount (filter (\l -> end l == held && read' l) (select legs events)))
 
--- | Single moves between Entities, by an Intent or a recurring rule.
-transfers :: Select { round :: RoundIndex, from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Q, owed :: Q }
-transfers = coupledSelect "the cause is a direct move or a recurring rule, one leg between Entities" \c -> case c.cause, c.legs of
+-- | Single moves between Actors, by an Intent or a recurring rule.
+transfers :: Select { round :: RoundIndex, from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: Q, owed :: Q }
+transfers = settledSelect "the cause is a direct move or a recurring rule, one leg between Actors" \c -> case c.cause, c.legs of
   OfIntent { mechanism: Direct }, [ l ] -> oneMove c l
   OfRecurring _, [ l ] -> oneMove c l
   _, _ -> []
@@ -213,30 +213,30 @@ transfers = coupledSelect "the cause is a direct move or a recurring rule, one l
     Held from, Held to | not c.delivered -> [ { round: c.round, from, to, resource: l.resource, quantity: l.moved, owed: l.owed } ]
     _, _ -> []
 
--- | Levies: a single leg paid under a declared Rule kind.
-levies :: Select { round :: RoundIndex, kind :: RuleKindId, from :: EntityId, to :: EntityId, amount :: Q, owed :: Q }
-levies = coupledSelect "the cause is a declared Rule kind" \c -> case c.cause, c.legs of
+-- | Levies: a single settled Flow paid under a declared Rule kind.
+levies :: Select { round :: RoundIndex, kind :: RuleKindId, from :: ActorId, to :: ActorId, amount :: Q, owed :: Q }
+levies = settledSelect "the cause is a declared Rule kind" \c -> case c.cause, c.legs of
   OfRule { kind }, [ l ] -> case l.from, l.to of
     Held from, Held to -> [ { round: c.round, kind, from, to, amount: l.moved, owed: l.owed } ]
     _, _ -> []
   _, _ -> []
 
--- | Every leg short of what was owed, from an Entity: the quantity is what did not move.
-shortfalls :: Select { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Q }
-shortfalls = coupledSelect "moved < owed on a leg from an Entity" \c -> concatMap (short c) c.legs
+-- | Every settled Flow short of what was owed, from an Actor: the quantity is what did not move.
+shortfalls :: Select { round :: RoundIndex, actor :: ActorId, resource :: ResourceId, quantity :: Q }
+shortfalls = settledSelect "moved < owed on a leg from an Actor" \c -> concatMap (short c) c.legs
   where
   short c l = case l.from of
-    Held entity | l.moved < l.owed && not c.delivered -> [ { round: c.round, entity, resource: l.resource, quantity: Q.sub l.owed l.moved } ]
+    Held actor | l.moved < l.owed && not c.delivered -> [ { round: c.round, actor, resource: l.resource, quantity: Q.sub l.owed l.moved } ]
     _ -> []
 
--- | What a recurring rule of a kind took out of an Entity to nowhere.
-sunk :: RecurringKindId -> Select { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Q }
-sunk kind = coupledSelect ("the cause is a recurring rule of kind " <> show kind <> ", from an Entity to the sink") \c -> case c.cause of
+-- | What a recurring rule of a kind took out of an Actor to nowhere.
+sunk :: RecurringKindId -> Select { round :: RoundIndex, actor :: ActorId, resource :: ResourceId, quantity :: Q }
+sunk kind = settledSelect ("the cause is a recurring rule of kind " <> show kind <> ", from an Actor to the sink") \c -> case c.cause of
   OfRecurring r | r.kind == kind -> concatMap (one c) c.legs
   _ -> []
   where
   one c l = case l.from, l.to of
-    Held entity, Sink | l.moved > Q.zero -> [ { round: c.round, entity, resource: l.resource, quantity: l.moved } ]
+    Held actor, Sink | l.moved > Q.zero -> [ { round: c.round, actor, resource: l.resource, quantity: l.moved } ]
     _, _ -> []
 
 -- Slices ----------------------------------------------------------------------------------------
@@ -244,7 +244,7 @@ sunk kind = coupledSelect ("the cause is a recurring rule of kind " <> show kind
 -- | An aggregate over a selection: how it is written, and how it is computed.
 newtype Slice a = Slice { describe :: String, run :: Array Event -> a }
 
--- | The kinds and filters of a selection, as a phrase: `Traded events where entity = the Actor`.
+-- | The kinds and filters of a selection, as a phrase: `Traded events where Actor = the Actor`.
 source :: forall r. Select r -> String
 source (Select s) = names s.kinds <> " events" <> (if s.filters == [] then "" else " where " <> joined " and " s.filters)
   where

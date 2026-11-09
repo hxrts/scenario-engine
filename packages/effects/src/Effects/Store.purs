@@ -26,7 +26,7 @@ import Data.String.CodeUnits (toCharArray)
 import Data.Either (Either(..), either)
 import Effects.Observe (listRuns)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (NewRun, OBSERVE, STORE, ScenarioSet, StoreF(..), _store)
+import Effects.Signatures (NewRun, OBSERVE, STORE, RunSet, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
 
@@ -69,7 +69,7 @@ startRun n = do
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> createRun n
 
-createSet :: forall r. ScenarioSet -> Run (STORE + r) Unit
+createSet :: forall r. RunSet -> Run (STORE + r) Unit
 createSet s = lift _store (CreateSet s identity)
 
 renameSet :: forall r. String -> String -> Run (STORE + r) Int

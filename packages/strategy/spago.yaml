@@ -1,0 +1,24 @@
+package:
+  name: sp-strategy
+  dependencies:
+    - sp-laws
+    - prelude
+    - sp-core
+    - arrays
+    - const
+    - foldable-traversable
+    - foreign-object
+    - maybe
+    - ordered-collections
+  test:
+    main: Test.Strategy.Main
+    dependencies:
+      - sp-testkit
+      - quickcheck
+      - spec-quickcheck
+      - partial
+      - identity
+      - newtype
+      - effect
+      - spec
+      - spec-node

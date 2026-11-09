@@ -1,6 +1,6 @@
 -- | The launch form (docs/06_simulator.md §9): its fields, their defaults, validation, the summary line,
 -- | and the request `POST /api/runs` accepts (apps/server Launch). Every field has a default, so a launch
--- | with no edits is valid. The setting (`GET /api/setting`) supplies the round range, the default
+-- | with no edits is valid. The premise (`GET /api/premise`) supplies the round range, the default
 -- | round count, the default run name, the presets and the game seed; the request carries no game seed,
 -- | because the server takes none. Pure, so the rules are tested without the DOM.
 module Dashboard.Launch
@@ -23,19 +23,19 @@ import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (trim)
 import Effects.Api (Launch)
-import Views.Setting (Setting, RoundRange)
+import Views.Premise (Premise, RoundRange)
 
 -- | The raw text of each field. A blank name is the default name; a blank preset cannot occur (it is a
 -- | select), and a blank rounds or player seed is the default.
-type LaunchForm = { setting :: String, name :: String, preset :: String, playerSeed :: String, rounds :: String }
+type LaunchForm = { premise :: String, name :: String, preset :: String, playerSeed :: String, rounds :: String }
 
 -- | Blank name, the preset every seat plays, and blank seed and rounds (the defaults).
 emptyForm :: LaunchForm
-emptyForm = { setting: "", name: "", preset: "Conservative", playerSeed: "", rounds: "" }
+emptyForm = { premise: "", name: "", preset: "Conservative", playerSeed: "", rounds: "" }
 
--- | The first problem with the form, or the request it describes. A blank name is the setting's
--- | default name; a blank rounds is the setting's default rounds (sent as null).
-validate :: Setting -> LaunchForm -> Either String Launch
+-- | The first problem with the form, or the request it describes. A blank name is the premise's
+-- | default name; a blank rounds is the premise's default rounds (sent as null).
+validate :: Premise -> LaunchForm -> Either String Launch
 validate s f = do
   let
     name = case trim f.name of
@@ -48,13 +48,13 @@ validate s f = do
   roundCount <- case trim f.rounds of
     "" -> Right Nothing
     t -> Just <$> rounds t
-  pure { setting: Just s.name, name, preset: f.preset, playerSeed, rounds: roundCount }
+  pure { premise: Just s.name, name, preset: f.preset, playerSeed, rounds: roundCount }
 
--- | The setting a form launches: the one it names, or the first when it names none.
-selected :: LaunchForm -> Array Setting -> Maybe Setting
-selected f ps = find (\p -> p.name == f.setting) ps <|> head ps
+-- | The premise a form launches: the one it names, or the first when it names none.
+selected :: LaunchForm -> Array Premise -> Maybe Premise
+selected f ps = find (\p -> p.name == f.premise) ps <|> head ps
 
--- | The round count a form shows and plays: its rounds, or the setting's default when blank.
+-- | The round count a form shows and plays: its rounds, or the premise's default when blank.
 roundValue :: RoundRange -> String -> Int
 roundValue r s = case trim s of
   "" -> r.default

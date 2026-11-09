@@ -1,6 +1,6 @@
--- | The Meridian setting the views, experiments and simulator test suites share, and the fifteen seats every test
+-- | The Meridian premise the views, experiments and simulator test suites share, and the fifteen seats every test
 -- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (silent, price, everySeat, run, valid, initialOf, setting, anyRounds, unseated, presetGame, presetSeats, orThrow) where
+module Testkit.Meridian (silent, price, everySeat, run, valid, initialOf, premise, anyRounds, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
 
@@ -22,45 +22,45 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Laws.Types (Id(..))
-import Game.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, withRounds)
-import Game.Override (Override)
-import Game.Setting (GameboardParts, Setting(..))
-import Game.Types (Bindings, Game, SeatBinding(..))
-import Settings.Load (loadFrom)
-import Settings.Meridian.Names (meridianDir)
+import Assembly.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, withRounds)
+import Assembly.Override (Override)
+import Assembly.Premise (PossibleWorldParts, Premise(..))
+import Assembly.Types (Bindings, Game, SeatBinding(..))
+import Premises.Load (loadFrom)
+import Premises.Meridian.Names (meridianDir)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
-silent :: GameboardParts -> Bindings
+silent :: PossibleWorldParts -> Bindings
 silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
 
--- | The Meridian setting: its Gameboard, configuration and presets, checked.
-setting :: Aff GameboardParts
-setting = do
+-- | The Meridian premise: its possible World, configuration and presets, checked.
+premise :: Aff PossibleWorldParts
+premise = do
   loaded <- liftEffect (loadFrom fileOps meridianDir)
   orThrow loaded
 
 -- | The Meridian game with every seat bound to an empty script (silent).
 unseated :: Aff Game
 unseated = do
-  p <- setting
-  orThrow (assemble (GameboardSetting p) (silent p) [])
+  p <- premise
+  orThrow (assemble (PossibleWorldPremise p) (silent p) [])
 
--- | The setting with its supported round counts opened up, for suites that play a game shorter than the
--- | setting allows and read something else from it.
-anyRounds :: GameboardParts -> GameboardParts
-anyRounds p = p { gameboard = p.gameboard { rounds = { min: 1, max: 8 } } }
+-- | The premise with its supported round counts opened up, for suites that play a game shorter than the
+-- | premise allows and read something else from it.
+anyRounds :: PossibleWorldParts -> PossibleWorldParts
+anyRounds p = p { possibleWorld = p.possibleWorld { rounds = { min: 1, max: 8 } } }
 
--- | The Meridian setting assembled with every configured seat bound to one preset (see `assemblePreset`).
-presetGame :: GameboardParts -> String -> Array Override -> Maybe Int -> Aff Game
+-- | The Meridian premise assembled with every configured seat bound to one preset (see `assemblePreset`).
+presetGame :: PossibleWorldParts -> String -> Array Override -> Maybe Int -> Aff Game
 presetGame p preset overrides rounds = orThrow (assemblePreset p preset overrides rounds)
 
 -- | The Meridian game with the named seats playing one preset, and the round count (or the configuration's).
 -- | Unlike `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
 presetSeats :: Array String -> String -> Maybe Int -> Aff Game
 presetSeats ids preset rounds = do
-  p <- setting
+  p <- premise
   listed <- orThrow (presetBindings p.presets (const preset) (map Id ids))
-  g <- orThrow (assemble (GameboardSetting p) (Map.union listed (silent p)) [])
+  g <- orThrow (assemble (PossibleWorldPremise p) (Map.union listed (silent p)) [])
   pure (withRounds rounds g)
 
 -- | A value or the error it failed with, as an Aff error.
@@ -69,12 +69,12 @@ orThrow = case _ of
   Left e -> throwError (error (show e))
   Right x -> pure x
 
--- | A Market's marginal price at the end of a round; an unknown Market reads as zero.
+-- | An Exchange's marginal price at the end of a round; an unknown Exchange reads as zero.
 price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
 -- | Every configured seat plays one preset, for the configuration's rounds.
-everySeat :: GameboardParts -> String -> Aff Game
+everySeat :: PossibleWorldParts -> String -> Aff Game
 everySeat p preset = presetGame p preset [] Nothing
 
 -- | Play a game to its end under a player seed; a failure is an error.

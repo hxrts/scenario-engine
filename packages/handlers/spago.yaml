@@ -7,8 +7,8 @@ package:
     - run
     - sp-core
     - sp-schema
-    - sp-policy
-    - sp-game
+    - sp-strategy
+    - sp-assembly
     - sp-effects
     - argonaut-core
     - effect
@@ -33,7 +33,7 @@ package:
     dependencies:
       - avar
       - effect
-      - sp-settings
+      - sp-premises
       - sp-checks
       - sp-adapters
       - sp-testkit

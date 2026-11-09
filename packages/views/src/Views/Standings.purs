@@ -17,11 +17,11 @@ import Prelude
 import Core.Map (entries)
 
 import Core.Map as CoreMap
-import Core.Market (marketPrice)
+import Core.Exchange (exchangePrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Laws.Query (holding)
-import Laws.Types (EntityId)
+import Laws.Types (ActorId)
 import Laws.World (WorldState)
 import Data.Array (filter, length, nub, sortBy)
 import Data.Map (Map)
@@ -34,32 +34,32 @@ netWorthStat :: Statistic
 netWorthStat =
   { name: "Net worth"
   , question: "How well are players doing relative to one another?"
-  , definition: "The numeraire held plus each held base Resource valued at its Market's marginal price."
-  , formula: "NW(e, r) = holding(e, numeraire) + sum over Resources b traded in a Market quoted in the numeraire of holding(e, b) × P(b, r), where P(b, r) is the mean of the marginal prices, marginal(cost, position) after round r, of the numeraire-quoted Markets whose base is b. Resources with no such Market are not counted. Actors only."
+  , definition: "The numeraire held plus each held base Resource valued at its Exchange's marginal price."
+  , formula: "NW(e, r) = holding(e, numeraire) + sum over Resources b traded in an Exchange quoted in the numeraire of holding(e, b) × P(b, r), where P(b, r) is the mean of the marginal prices, marginal(cost, position) after round r, of the numeraire-quoted Exchanges whose base is b. Resources with no such Exchange are not counted. Actors only."
   }
 
--- | An Actor's net worth in a World State: the numeraire it holds, and each Resource that a Market quotes in
--- | the numeraire valued at that Resource's price. Where several Markets trade one Resource (the
--- | regional Markets), the price is the mean of their marginal prices, so a holding counts once.
-netWorth :: WorldState -> EntityId -> Q
+-- | An Actor's net worth in a World State: the numeraire it holds, and each Resource that an Exchange quotes in
+-- | the numeraire valued at that Resource's price. Where several Exchanges trade one Resource (the
+-- | regional Exchanges), the price is the mean of their marginal prices, so a holding counts once.
+netWorth :: WorldState -> ActorId -> Q
 netWorth w e = Q.sumQ ([ holding w e w.numeraire ] <> map valued bases)
   where
-  priced = filter (\m -> m.quote == w.numeraire) (CoreMap.values w.markets)
+  priced = filter (\m -> m.quote == w.numeraire) (CoreMap.values w.exchanges)
   bases = nub (map _.base priced)
   valued b = Q.mul (holding w e b) (priceOf b)
   priceOf b =
     let
-      prices = map marketPrice (filter (\m -> m.base == b) priced)
+      prices = map exchangePrice (filter (\m -> m.base == b) priced)
     in
       Q.div (Q.sumQ prices) (Q.fromInt (length prices))
 
--- | Every Actor's net worth in a World State, keyed by Actor, in Entity order.
-netWorths :: WorldState -> Map EntityId Q
+-- | Every Actor's net worth in a World State, keyed by Actor, in Actor order.
+netWorths :: WorldState -> Map ActorId Q
 netWorths w = Map.fromFoldable (map (\e -> Tuple e (netWorth w e)) (players w))
 
 -- | One Actor's standing after the final round: its net worth, its change from the start of the run,
 -- | and its rank.
-type Standing = { player :: EntityId, netWorth :: Q, change :: Q, rank :: Int }
+type Standing = { player :: ActorId, netWorth :: Q, change :: Q, rank :: Int }
 
 -- | The standings after the final round, highest net worth first.
 standingsOf :: StoredRun -> Array Standing
@@ -72,7 +72,7 @@ standingsOf r = map standing ranked
   standing (Tuple e v) = { player: e, netWorth: v, change: Q.sub v (fromMaybe Q.zero (Map.lookup e start)), rank: rankOf v }
 
 netWorthColumn :: Column
-netWorthColumn = column "Net worth" "The numeraire held plus each held Resource valued at its Market's marginal price, after the final round."
+netWorthColumn = column "Net worth" "The numeraire held plus each held Resource valued at its Exchange's marginal price, after the final round."
 
 changeColumn :: Column
 changeColumn = column "Change from start" "Net worth after the final round minus net worth at the start of the run."

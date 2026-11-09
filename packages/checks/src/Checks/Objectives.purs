@@ -1,4 +1,4 @@
--- | Objective evaluation (docs/03_gameboard.md §10.5; docs/06_simulator.md §10.5): every Actor's
+-- | Objective evaluation (docs/03_premise.md §10.5; docs/06_simulator.md §10.5): every Actor's
 -- | objective criteria measured over a run's round records, each met, not met, or not evaluated.
 -- | Pure, and never affects the economy.
 module Checks.Objectives
@@ -11,12 +11,12 @@ import Prelude
 
 import Core.Map (entries)
 
-import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
+import Schema.PossibleWorld (Bound(..), PossibleWorld, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (holding)
-import Laws.Slice (conversionPaymentsTo, conversions, count, read, runSlice, shortfalls, total, whereEq)
-import Laws.Types (EntityId)
+import Laws.Slice (transformationPaymentsTo, transformationFills, count, read, runSlice, shortfalls, total, whereEq)
+import Laws.Types (ActorId)
 import Laws.World (RoundResult)
 import Data.Array (all, any, concatMap, last, null, zipWith)
 import Data.Maybe (Maybe(..), maybe)
@@ -24,19 +24,19 @@ import Data.Tuple (Tuple(..))
 
 type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q }
 
-type ObjectiveResult = { actor :: EntityId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
+type ObjectiveResult = { playableActor :: ActorId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
 
 -- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
-evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
-evaluateObjectives gb records = concatMap one (entries gb.actors)
+evaluateObjectives :: PossibleWorld -> Array RoundResult -> Array ObjectiveResult
+evaluateObjectives gb records = concatMap one (entries gb.playableActors)
   where
-  one (Tuple actor def) = case def.objective of
+  one (Tuple playableActor def) = case def.objective of
     Nothing -> []
     Just o ->
       let
         criteria = map criterion o.criteria
       in
-        [ { actor, description: o.description, criteria, outcome: objectiveOutcome criteria } ]
+        [ { playableActor, description: o.description, criteria, outcome: objectiveOutcome criteria } ]
   objectiveOutcome criteria
     | null criteria = NotEvaluated
     | any (\c -> c.outcome == NotMet) criteria = NotMet
@@ -65,7 +65,7 @@ evaluateObjectives gb records = concatMap one (entries gb.actors)
         Final -> if isFlow m.measure then [ Q.sumQ perRound ] else maybe [] pure (last perRound)
 
   measure :: MetricRef -> RoundResult -> Q
-  measure m r = sign m (Q.sumQ (map (\e -> measureValue m.measure e r) m.entities))
+  measure m r = sign m (Q.sumQ (map (\e -> measureValue m.measure e r) m.actors))
   sign m q = if m.negated then Q.neg q else q
   isFlow = case _ of
     HoldingOf _ -> false
@@ -74,13 +74,13 @@ evaluateObjectives gb records = concatMap one (entries gb.actors)
     PayeeReceipts -> true
     VolumeOf _ -> true
 
--- | One Entity's value of a measure in one round.
-measureValue :: Measure -> EntityId -> RoundResult -> Q
+-- | One Actor's value of a measure in one round.
+measureValue :: Measure -> ActorId -> RoundResult -> Q
 measureValue msr e r = case msr of
   HoldingOf res -> holding r.world e res
   ShortfallOf res -> runSlice (total (read @"quantity" (shortfall res))) r.record.events
   ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
-  PayeeReceipts -> runSlice (total (read @"moved" (conversionPaymentsTo e))) r.record.events
-  VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid conversions))) r.record.events
+  PayeeReceipts -> runSlice (total (read @"moved" (transformationPaymentsTo e))) r.record.events
+  VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid transformationFills))) r.record.events
   where
-  shortfall res = whereEq @"resource" res (whereEq @"entity" e shortfalls)
+  shortfall res = whereEq @"resource" res (whereEq @"actor" e shortfalls)

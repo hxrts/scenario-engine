@@ -10,7 +10,7 @@ import { section , choice } from "./helpers.js";
 const NAMES = { "run-a": "Alpha", "run-b": "Beta" };
 // A run's row in the run list: one cell per column the list shows.
 const row = (id) => {
-  const cells = { Run: id, Name: NAMES[id], Gameboard: "meridian@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
+  const cells = { Run: id, Name: NAMES[id], PossibleWorld: "meridian@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
   return COLUMNS.map((c) => cells[c]);
 };
 
@@ -35,7 +35,7 @@ function comparison(ids, skipped = []) {
   const line = (id, base) => ({ name: id, points: [0, 1, 2, 3].map((round) => ({ round, value: String(base + round) })) });
   const cols = ["Measure", "Unit", ...ids.map(header)];
   return {
-    markets: ["energy-atlantic", "energy-asia"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i + k)) })),
+    exchanges: ["energy-atlantic", "energy-asia"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i + k)) })),
     netWorth: players.map((p) => ({ player: p, chart: { title: `Net worth, ${p}`, unit: "M", kind: "quantity", series: ids.map((id, i) => line(id, 10 + i)) } })),
     standings: bars("Final net worth by player", "M", "quantity", players, ids, (i, j) => String(10 + i + j)),
     balance: {
@@ -44,9 +44,9 @@ function comparison(ids, skipped = []) {
       gini: bars("Gini of final net worth", "index, 0 to 1", "ratio", ["Gini"], ids, () => "0.1000"),
     },
     keyValues: table("Key values by run", cols, [["Final net worth, US", "M", ...ids.map(() => "10.0000")]]),
-    final: { table: table("Final state", ["Entity", "Resource", ...ids.map(header)], [["US", "M", ...ids.map((_, i) => (i === 0 ? "10.0000" : "12.0000"))]]), marked: [[false, false, ...ids.map((_, i) => i !== 0)]] },
-    diff: table("Difference from baseline", ["Run", "Entity", "Resource", "Δ"], []),
-    config: { table: table("Configuration differences", ["Category", "Parameter", ...ids.map(header)], [["seat Policy", "preset", ...ids.map(() => "Conservative")]]), marked: [[false, false, ...ids.map(() => false)]] },
+    final: { table: table("Final state", ["Actor", "Resource", ...ids.map(header)], [["US", "M", ...ids.map((_, i) => (i === 0 ? "10.0000" : "12.0000"))]]), marked: [[false, false, ...ids.map((_, i) => i !== 0)]] },
+    diff: table("Difference from baseline", ["Run", "Actor", "Resource", "Δ"], []),
+    config: { table: table("Configuration differences", ["Category", "Parameter", ...ids.map(header)], [["seat Strategy", "preset", ...ids.map(() => "Conservative")]]), marked: [[false, false, ...ids.map(() => false)]] },
     trajectory: { title: "Price, energy-atlantic", unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i)) },
     skipped,
     compatibility: table("Compatibility", ["Run", "Comparable with the first"], ids.map((id, i) => [header(id), i === 0 ? "yes" : "yes"])),
@@ -66,13 +66,13 @@ test.beforeEach(async ({ page }) => {
 // The key-values table: the section headed "Key values".
 const keyValues = (page) => section(page, "Key values");
 
-// The first market price plot (its frame is named "Price, <market>").
+// The first exchange price plot (its frame is named "Price, <exchange>").
 const firstPrice = (page) => page.getByRole("figure", { name: /^Price, / }).first();
 
 test("ticking a run does not move the page heading or the first plot", async ({ page }) => {
   await page.goto("/#/compare");
   await expect(choice(page, "run-a")).toBeVisible();
-  const heading = page.getByRole("heading", { name: "Compare a scenario set", exact: true });
+  const heading = page.getByRole("heading", { name: "Compare a Run set", exact: true });
   const first = page.getByRole("figure").first();
   await expect(first).toBeVisible();
   const headingBefore = await heading.boundingBox();
@@ -93,7 +93,7 @@ test("the plots are full width and at least 360px tall", async ({ page }) => {
   expect(box.height).toBeGreaterThanOrEqual(360);
 });
 
-test("the market plot overlays one line per ticked run, and the legend names each run, the baseline marked", async ({ page }) => {
+test("the exchange plot overlays one line per ticked run, and the legend names each run, the baseline marked", async ({ page }) => {
   await page.goto("/#/compare/run-a/run-b");
   const plot = firstPrice(page);
   await expect(plot).toBeVisible();
@@ -131,10 +131,10 @@ test("the page has no separate remove or clear control: a run leaves the compari
   await expect(page.getByRole("button", { name: /remove|clear/i })).toHaveCount(0);
 });
 
-test("the page has the planned plots: prices by market, net worth, standings, and spread and Gini", async ({ page }) => {
+test("the page has the planned plots: prices by exchange, net worth, standings, and spread and Gini", async ({ page }) => {
   await page.goto("/#/compare/run-a/run-b");
   await expect(firstPrice(page)).toBeVisible();
-  for (const title of ["Prices by market", "Net worth over time", "Final standings", "Spread and Gini", "Key values"])
+  for (const title of ["Prices by exchange", "Net worth over time", "Final standings", "Spread and Gini", "Key values"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   await expect(page.getByRole("figure", { name: "Final net worth by player", exact: true })).toBeVisible();
   await expect(page.getByRole("figure", { name: "Spread of final net worth", exact: true })).toBeVisible();

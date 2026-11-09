@@ -1,4 +1,4 @@
--- | The round-scoped views: every Entity's balance sheet after a round, and one round's events
+-- | The round-scoped views: every Actor's balance sheet after a round, and one round's events
 -- | (docs/06_simulator.md §9.2). A round the run does not have is an error, never the initial state.
 module Views.Balances
   ( balances
@@ -11,7 +11,7 @@ import Prelude
 import Core.Num as Q
 import Core.Num (Q)
 import Laws.Query (accountsOf, holding)
-import Laws.Types (EntityId, ResourceId)
+import Laws.Types (ActorId, ResourceId)
 import Laws.World (Event, WorldState)
 import Data.Array (concatMap, filter, fromFoldable, index, nub)
 import Data.Either (Either(..))
@@ -40,21 +40,21 @@ balances :: StoredRun -> Int -> Either String Table
 balances r n = case at r n of
   Nothing -> Left (outOfRange r 0 n)
   Just w -> Right
-    (tableOf ("Balance sheets after round " <> show n) sheetFields (concatMap (sheet w) (fromFoldable (Map.keys w.entities))))
+    (tableOf ("Balance sheets after round " <> show n) sheetFields (concatMap (sheet w) (fromFoldable (Map.keys w.actors))))
   where
   w0 = r.manifest.initial
-  sheet w e = map (\res -> { entity: e, kind: kindOf w e, resource: res, initial: holding w0 e res, current: holding w e res }) (resources w e)
+  sheet w e = map (\res -> { actor: e, kind: kindOf w e, resource: res, initial: holding w0 e res, current: holding w e res }) (resources w e)
 
-  resources :: WorldState -> EntityId -> Array ResourceId
+  resources :: WorldState -> ActorId -> Array ResourceId
   resources w e = filter (listedHolding w0) (nub (concatMap (\world -> fromFoldable (Map.keys (accountsOf world e))) [ w0, w ]))
 
 -- | One row of a balance sheet.
-type SheetRow = { entity :: EntityId, kind :: String, resource :: ResourceId, initial :: Q, current :: Q }
+type SheetRow = { actor :: ActorId, kind :: String, resource :: ResourceId, initial :: Q, current :: Q }
 
 -- | The balance sheet's columns and cells.
 sheetFields :: Array (Field SheetRow)
 sheetFields =
-  [ cellOf col.entity (show <<< _.entity)
+  [ cellOf col.actor (show <<< _.actor)
   , cellOf col.kind _.kind
   , cellOf col.resource (show <<< _.resource)
   , cellOf initialColumn (quantity <<< _.initial)

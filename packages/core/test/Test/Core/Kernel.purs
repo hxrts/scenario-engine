@@ -7,7 +7,7 @@ import Core.Kernel.Post (Account(..), Outcome(..), available, post)
 import Core.Kernel.Consume (ConsumeError(..), due, partiesOf, spawned, validateTemplates)
 import Core.Kernel.Resolve (Fate(..), Kernel, resolve)
 import Core.Kernel.Types (Account(HeldBy, Created, Destroyed)) as K
-import Core.Kernel.Types (Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Limit(..), Obligation, Party(..), Short(..), noNext, Endpoint(..))
+import Core.Kernel.Types (Amount(..), Bond(..), Condition(..), Transaction, Effect(..), Guarded, Limit(..), Obligation, Party(..), Short(..), noNext, Endpoint(..))
 import Core.Num as Q
 import Core.Types (Id(..), ResourceId)
 import Data.Array (reverse)
@@ -60,12 +60,12 @@ kernel = describe "Core.Kernel" do
         sunk = post opening Cap { from: a, to: Sink, resource: m, owed: q "1" } Map.empty
       made.flow.moved `shouldEqual` q "99"
       Map.size sunk.ledger `shouldEqual` 1
-    it "a market reserve pays whole, since clearing bounds its batch" do
-      (post opening Cap { from: InMarket (Id "X"), to: a, resource: m, owed: q "9" } Map.empty).flow.moved `shouldEqual` q "9"
+    it "an exchange reserve pays whole, since clearing bounds its batch" do
+      (post opening Cap { from: InExchange (Id "X"), to: a, resource: m, owed: q "9" } Map.empty).flow.moved `shouldEqual` q "9"
 
   describe "Resolve" do
     let
-      fates = map (map (\c -> { c: c.coupling, o: c.obligation, fate: c.fate, why: c.reason }))
+      fates = map (map (\c -> { c: c.transaction, o: c.obligation, fate: c.fate, why: c.reason }))
     it "performs what stands, in phase order, on the settlement so far" do
       -- phase 0 leaves A with 4, so the capped payment of phase 1 moves 4
       let result = resolve env [ cp 1 "z" [ pay "z" "A" "9" Cap [] ], cp 0 "a" [ pay "a" "A" "6" Cap [] ] ]
@@ -73,8 +73,8 @@ kernel = describe "Core.Kernel" do
     it "a condition's failure lapses the obligation and reports its reason" do
       let failing = pay "x" "A" "1" Cap [ { condition: Consent [ Id "B" ], reason: Just "no" } ]
       fates (map _.consumed (resolve env [ cp 0 "x" [ failing ] ])) `shouldEqual` Right [ { c: 0, o: 0, fate: Expired, why: Just "no" } ]
-    it "a mutually dependent coupling with one failing party performs nothing" do
-      -- B cannot pay 50: its obligation is short, A's then lapses in the next pass, and no leg posts
+    it "a mutually dependent transaction with one failing party performs nothing" do
+      -- B cannot pay 50: its obligation is short, A's then lapses in the next pass, and no settled Flow posts
       let
         pair = cp 0 "j"
           [ pay "x" "A" "1" Reject [ needs 1 ]
@@ -89,7 +89,7 @@ kernel = describe "Core.Kernel" do
     it "a chain of dependence terminates, however long" do
       let chain = cp 0 "c" [ pay "a" "A" "1" Reject [ needs 1 ], pay "b" "A" "1" Reject [ needs 2 ], pay "c" "A" "99" Reject [] ]
       map (map _.fate <<< _.consumed) (resolve env [ chain ]) `shouldEqual` Right [ Expired, Expired, Shorted ]
-    it "does not depend on the order couplings arrive in" do
+    it "does not depend on the order transactions arrive in" do
       let
         xs = [ cp 0 "a" [ pay "a" "A" "6" Cap [] ], cp 0 "b" [ pay "b" "A" "6" Cap [] ], cp 1 "c" [ pay "c" "B" "3" Cap [] ] ]
         flows = map (map (\c -> c.flow) <<< _.consumed)
@@ -120,7 +120,7 @@ kernel = describe "Core.Kernel" do
       debt =
         { params: [ "owed" ]
         , parties: [ "who" ]
-        , coupling: (cp 2 "t" [ { id: "next", obligor: Bound "who", effect: Move { from: K.HeldBy (Bound "who"), to: K.Destroyed, resource: m, owed: Arg "owed" }, when: [], onShort: Cap, next: noNext { short = [ { template: "debt", due: 1, args: Map.singleton "owed" Remainder, parties: Map.singleton "who" (Bound "who") } ] } } ])
+        , transaction: (cp 2 "t" [ { id: "next", obligor: Bound "who", effect: Move { from: K.HeldBy (Bound "who"), to: K.Destroyed, resource: m, owed: Arg "owed" }, when: [], onShort: Cap, next: noNext { short = [ { template: "debt", due: 1, args: Map.singleton "owed" Remainder, parties: Map.singleton "who" (Bound "who") } ] } } ])
         }
       templates = Map.singleton "debt" debt
       run c = do
@@ -131,13 +131,13 @@ kernel = describe "Core.Kernel" do
             Move l -> Just l.owed
             _ -> Nothing
         )
-        p.coupling.obligations
+        p.transaction.obligations
     it "a short obligation spawns its short branch, with the remainder frozen and the party bound" do
       -- 15 owed, 10 held: 5 remains, due the round after
       let out = run (parent noNext { short = [ spawn "debt" 1 ] })
       map (map _.due) out `shouldEqual` Right [ 2 ]
       map (map owedOf) out `shouldEqual` Right [ [ Just (Exactly (q "5")) ] ]
-      map (map (\p -> map _.obligor p.coupling.obligations)) out `shouldEqual` Right [ [ Named (Id "A") ] ]
+      map (map (\p -> map _.obligor p.transaction.obligations)) out `shouldEqual` Right [ [ Named (Id "A") ] ]
     it "a performed obligation spawns only its performed branch" do
       let c = (cp 0 "l" [ (pay "pay" "A" "4" Cap []) { next = noNext { performed = [ spawn "debt" 3 ], short = [ spawn "debt" 1 ] } } ]) { consented = [ Id "A" ] }
       map (map _.due) (run c) `shouldEqual` Right [ 4 ]
@@ -150,17 +150,17 @@ kernel = describe "Core.Kernel" do
         second = first >>= \ps -> case ps of
           [ p ] -> do
             -- 5 owed against 10 held would perform, so run from a holder of 2
-            r <- lmap show (resolve env { opening = \_ _ -> q "2" } [ p.coupling ])
-            lmap show (spawned 2 templates [ p.coupling ] r.consumed)
+            r <- lmap show (resolve env { opening = \_ _ -> q "2" } [ p.transaction ])
+            lmap show (spawned 2 templates [ p.transaction ] r.consumed)
           _ -> Left "expected one"
       map (map owedOf) second `shouldEqual` Right [ [ Just (Exactly (q "3")) ] ]
-      map (map (\p -> map _.obligor p.coupling.obligations)) second `shouldEqual` Right [ [ Named (Id "A") ] ]
+      map (map (\p -> map _.obligor p.transaction.obligations)) second `shouldEqual` Right [ [ Named (Id "A") ] ]
     it "a successor carries its parent's consent and cause" do
-      map (map _.coupling.consented) (run ((parent noNext { short = [ spawn "debt" 1 ] }) { cause = Just unit })) `shouldEqual` Right [ [ Id "A", Id "B" ] ]
-      map (map _.coupling.cause) (run ((parent noNext { short = [ spawn "debt" 1 ] }) { cause = Just unit })) `shouldEqual` Right [ Just unit ]
+      map (map _.transaction.consented) (run ((parent noNext { short = [ spawn "debt" 1 ] }) { cause = Just unit })) `shouldEqual` Right [ [ Id "A", Id "B" ] ]
+      map (map _.transaction.cause) (run ((parent noNext { short = [ spawn "debt" 1 ] }) { cause = Just unit })) `shouldEqual` Right [ Just unit ]
     it "a spawn due in its own round is refused" do
       run (parent noNext { short = [ spawn "debt" 0 ] }) `shouldEqual` Left (show (DueTooSoon "debt" 0))
-      let zero = debt { coupling { obligations = map (\o -> o { next = noNext { short = [ spawn "debt" 0 ] } }) debt.coupling.obligations } }
+      let zero = debt { transaction { obligations = map (\o -> o { next = noNext { short = [ spawn "debt" 0 ] } }) debt.transaction.obligations } }
       validateTemplates (Map.singleton "debt" zero) `shouldEqual` Left (DueTooSoon "debt" 0)
       validateTemplates templates `shouldEqual` Right unit
     it "a successor may not name a party its parent did not bind" do
@@ -168,11 +168,11 @@ kernel = describe "Core.Kernel" do
       run (parent noNext { short = [ stranger ] }) `shouldEqual` Left (show (OutsideParent "debt" (Id "Z")))
     it "partiesOf reads obligors, legs and signers; due splits what falls due" do
       partiesOf (parent noNext) `shouldEqual` [ Id "A", Id "B" ]
-      let { now, later } = due 3 [ { due: 3, coupling: parent noNext }, { due: 4, coupling: parent noNext } ]
+      let { now, later } = due 3 [ { due: 3, transaction: parent noNext }, { due: 4, transaction: parent noNext } ]
       map _.due now `shouldEqual` [ 3 ]
       map _.due later `shouldEqual` [ 4 ]
 
-type C = Coupling Unit Unit Unit String Unit
+type C = Transaction Unit Unit Unit String Unit
 type O = Obligation Unit Unit Unit String
 
 env :: Kernel Unit Unit

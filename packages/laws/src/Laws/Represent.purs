@@ -1,5 +1,5 @@
--- | Representation estimates (docs/02_type_system.md §7). The engine only computes and
--- | stores this round's adjustment factors; the Aggregate's Policy applies them next round.
+-- | Representation estimates (docs/02_kernel.md §7). The engine only computes and
+-- | stores this round's adjustment factors; the Aggregate's Strategy applies them next round.
 module Laws.Represent (Observation, estimate) where
 
 import Prelude
@@ -9,7 +9,7 @@ import Core.Map (entries, sumInto)
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Laws.Types (BehaviorDomain, EntityId, Ratio, Representation, ResourceId)
+import Laws.Types (BehaviorDomain, ActorId, Ratio, Representation, ResourceId)
 import Laws.World (Event(..), WorldState)
 import Data.Array (concatMap, filter, foldl, null)
 import Data.Map (Map)
@@ -19,16 +19,16 @@ import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
 -- | One Actor's proposed quantity of a Resource, as read from what it validly proposed.
-type Observation = { actor :: EntityId, resource :: ResourceId, quantity :: Q }
+type Observation = { playableActor :: ActorId, resource :: ResourceId, quantity :: Q }
 
 -- | A Representation names the Resource whose purchases are observed. The observation is the actor's
--- | validated buy quantity as proposed: the sum of its Trade quantities over screened Proposals,
+-- | validated buy quantity as proposed: the sum of its Trade quantities over screened candidate Transactions,
 -- | before funding scales them and before clearing. It is what the actor asked to buy, not its
 -- | executed fill.
 observation :: Representation -> Array Observation -> Maybe Q
 observation rep os =
   let
-    orders = map _.quantity (filter (\o -> o.actor == rep.actor && o.resource == rep.observes) os)
+    orders = map _.quantity (filter (\o -> o.playableActor == rep.playableActor && o.resource == rep.observes) os)
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))
 
@@ -39,14 +39,14 @@ deviation w rep observed = do
   let e = rep.estimator
   rel <- Q.divMaybe (Q.sub observed e.reference) e.reference
   let
-    u = draw w.seed { round: w.round, source: unwrap rep.id, entity: unwrap rep.actor, category: "sampling", index: 0 }
+    u = draw w.seed { round: w.round, source: unwrap rep.id, actor: unwrap rep.playableActor, category: "sampling", index: 0 }
     eps = Q.mul e.noiseSpread (Q.sub (Q.mul (Q.fromInt 2) u) (Q.fromInt 1))
     raw = Q.add rel eps
   pure (maybe raw (\b -> max b.lo (min b.hi raw)) e.deviationBound)
 
 -- | This round's adjustment factors: 1 + Σ shrinkage × weight × deviation per Aggregate and
 -- | domain, over the Representations that have an observation and a non-zero reference.
-estimate :: WorldState -> Array Observation -> { factors :: Map EntityId (Map BehaviorDomain Ratio), events :: Array Event }
+estimate :: WorldState -> Array Observation -> { factors :: Map ActorId (Map BehaviorDomain Ratio), events :: Array Event }
 estimate w observed =
   let
     terms = concatMap
