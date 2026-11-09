@@ -16,11 +16,11 @@ test: _settings
     for p in {{packages}}; do spago test -p sp-$p; done
 
 # Test one package
-[positional-arguments]
-test-pkg *args:
-    @scripts/validate.sh test-pkg "$@"
+[no-exit-message]
+test-pkg pkg:
+    @case " {{packages}} " in *" {{pkg}} "*) ;; *) echo "unknown package '{{pkg}}' (packages: {{packages}})"; exit 1 ;; esac
     @just _settings
-    spago test -p sp-"$1"
+    spago test -p sp-{{pkg}}
 
 # Format all PureScript sources
 fmt:
@@ -61,14 +61,12 @@ all: check dashboard-test
 # Simulate a game
 [positional-arguments]
 sim *args:
-    @scripts/validate.sh sim "$@"
     @just _settings
     spago run -p sp-cli -- run "$@"
 
 # Live facilitator session
 [positional-arguments]
 session *args:
-    @scripts/validate.sh session "$@"
     @just _settings
     spago run -p sp-cli -- session "$@"
 
@@ -127,7 +125,6 @@ _dashboard: _ui
 # Serve the API and dashboard
 [positional-arguments]
 serve *args:
-    @scripts/validate.sh serve "$@"
     @just _settings _dashboard
     @scripts/free-port.sh "$@"
     spago run -p sp-server -- "$@"

@@ -30,8 +30,8 @@ runFlags = { preset: _, rounds: _, seed: _ }
 roundsFlag :: Flag (Maybe Int)
 roundsFlag = optionalIntFlag "--rounds" "n" (_ >= 1) "a whole number of at least 1"
 
--- | The player seed flag: absent means draw one at start; given, it must be a whole number (the one
--- | seed rule: `scripts/validate.sh` mirrors it, negative values included).
+-- | The player seed flag: absent means draw one at start; given, it must be a whole number, negative
+-- | values included.
 seedFlag :: Flag (Maybe Seed)
 seedFlag = map Seed <$> optionalIntFlag "--seed" "n" (const true) "a whole number"
 

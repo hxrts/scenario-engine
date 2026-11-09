@@ -7,7 +7,6 @@ module Flags
   , optionalIntFlag
   , checkedFlag
   , parseWith
-  , flagNamesOf
   , usageOf
   , ServeFlags
   , serveFlags
@@ -30,8 +29,7 @@ import Foreign.Object as Object
 -- | The `--name value` flags of an argument list. A flag that is not allowed, has no value, or is
 -- | given twice is a usage error: nothing is silently ignored.
 -- | One description of a flag: its name and placeholder for the usage line, and how its value is read. Flags combine
--- | applicatively, so a command's allow-list, parser, and usage line are one value. `scripts/validate.sh` reads the
--- | lists through the CLI's `flags` and `usage` commands.
+-- | applicatively, so a command's allow-list, parser, and usage line are one value.
 newtype Flag a = Flag
   { specs :: Array { name :: String, placeholder :: String }
   , read :: Object String -> Either String a
@@ -65,10 +63,6 @@ checkedFlag check (Flag x) = Flag x { read = x.read >=> check }
 -- | The arguments read through a command's flags: every flag's allow-list check, then every value.
 parseWith :: forall a. Flag a -> Array String -> Either String a
 parseWith (Flag x) args = parseFlags (map _.name x.specs) args >>= x.read
-
--- | The flag names a command takes.
-flagNamesOf :: forall a. Flag a -> Array String
-flagNamesOf (Flag x) = map _.name x.specs
 
 -- | A command's flags as a usage line: `[--rounds <n>] [--seed <n>]`.
 usageOf :: forall a. Flag a -> String

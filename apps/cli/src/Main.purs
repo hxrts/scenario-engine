@@ -2,7 +2,7 @@
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. The player seed
 -- | is `--seed` when given, else drawn once at start and printed, so any run can be replayed. Both compose
 -- | the simulator's `simulate` or the live runner; unknown options and bad values are usage
--- | errors (exit status 1). `presets` prints the shipped preset names, one per line (`scripts/validate.sh` reads them).
+-- | errors (exit status 1). `presets` prints the shipped preset names, one per line.
 module Main (main) where
 
 import Schema.Gameboard (gameboardRef)
@@ -21,7 +21,7 @@ import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Console (log)
 import Game.Assemble (assemblePreset, checkRounds)
-import Flags (flagNamesOf, parseWith, serveFlags, usageOf)
+import Flags (parseWith, usageOf)
 import Handlers.Simulate (simulate)
 import Views.Common (price)
 import Views.Markets (marketPrices, roundPressure)
@@ -46,20 +46,14 @@ main = do
       Just { head: setting, tail: flags } -> either usage session (parseWith (sessionFlags setting) flags)
       Nothing -> usage "session needs a setting, e.g. session meridian"
     Just { head: "presets" } -> for_ presetNames log
-    -- a command's flag names and usage line, for `scripts/validate.sh`
-    Just { head: "flags", tail: [ "run" ] } -> for_ (flagNamesOf runFlags) log
-    Just { head: "flags", tail: [ "session" ] } -> for_ (flagNamesOf (sessionFlags "")) log
-    Just { head: "flags", tail: [ "serve" ] } -> for_ (flagNamesOf serveFlags) log
-    Just { head: "usage", tail: [ "run" ] } -> log (usageOf runFlags)
-    Just { head: "usage", tail: [ "session" ] } -> log (usageOf (sessionFlags ""))
-    Just { head: "usage", tail: [ "serve" ] } -> log (usageOf serveFlags)
-    _ -> usage "expected a command: run, session, presets or flags"
+    _ -> usage "expected a command: run, session or presets"
 
 usage :: String -> Effect Unit
 usage = usageError
   [ "usage: run <setting> " <> usageOf runFlags
-  , "  e.g. run meridian --preset Conservative --rounds 5"
   , "       session <setting> " <> usageOf (sessionFlags "")
+  , "  e.g. just sim meridian --preset Conservative --rounds 5"
+  , "       just session meridian --humans US --rounds 3"
   ]
 
 runSetting :: String -> String -> Maybe Int -> Maybe Seed -> Effect Unit

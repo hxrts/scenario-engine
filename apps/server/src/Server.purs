@@ -36,4 +36,4 @@ main = do
         serve flags.port flags.static apiPrefix (route (implement settings store cache))
       Left e -> fail e
   where
-  usage = usageError [ "usage: server " <> usageOf serveFlags ]
+  usage = usageError [ "usage: server " <> usageOf serveFlags, "  e.g. just serve --port 9000" ]

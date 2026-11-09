@@ -181,6 +181,7 @@ Live play has no confirmation step. Every transcript of the round, human and AI,
 |---|---|
 | `run <setting> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default `Passive`) for `n` rounds (default the configuration's count; `checkRounds` refuses a count outside the Gameboard's `roundRange`). The player seed is `--seed`, else drawn and printed. Prints a per-round summary and does not save to the Run Store. |
 | `session <setting> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` type one transcript per round, then give no further input. The rest are AI-agent seats. Defaults: model `openrouter/deepseek/deepseek-v4-flash-latest`, window 0, id `session-1`, database `runs.db`. Saves the session as a run in `--db`; the raw model output and the call log go to `runs/<id>/`. |
+| `presets` | Prints the shipped preset names, one per line. |
 | `server [--db file] [--port n] [--static dir]` (`just serve`) | The read API and the dashboard. Defaults: `runs.db`, port 8787 (1–65535), static `apps/dashboard/dist`. |
 
 An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The setting argument is the setting's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).

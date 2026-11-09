@@ -6,7 +6,7 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Flags (flagNamesOf, flagOr, intFlag, optionalInt, parseFlags, parseWith, serveFlags, textFlag, usageOf)
+import Flags (flagOr, intFlag, optionalInt, parseFlags, parseWith, serveFlags, textFlag, usageOf)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Test.Spec (describe, it)
@@ -43,7 +43,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       optionalInt "--n" (const true) "a whole number" (Object.singleton "--n" "-3") `shouldEqual` Right (Just (-3))
   describe "Flag" do
     it "one value gives the allow-list, the parser, and the usage line" do
-      flagNamesOf serveFlags `shouldEqual` [ "--db", "--port", "--static" ]
       usageOf serveFlags `shouldEqual` "[--db <file>] [--port <1-65535>] [--static <dir>]"
       parseWith ({ a: _, b: _ } <$> textFlag "--a" "x" "1" <*> textFlag "--b" "y" "2") [ "--b", "9" ] `shouldEqual` Right { a: "1", b: "9" }
       (parseWith (textFlag "--a" "x" "1") [ "--z", "1" ] $> unit) `shouldEqual` Left "unknown option --z"
