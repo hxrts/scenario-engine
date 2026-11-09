@@ -9,6 +9,7 @@
             "argonaut-codecs",
             "argonaut-core",
             "bifunctors",
+            "console",
             "effect",
             "either",
             "exceptions",
@@ -278,18 +279,14 @@
         }
       },
       "sp-flags": {
-        "path": "apps/flags",
+        "path": "packages/flags",
         "core": {
           "dependencies": [
             "arrays",
-            "console",
-            "effect",
             "either",
-            "foldable-traversable",
             "foreign-object",
             "integers",
             "maybe",
-            "node-process",
             "prelude"
           ]
         },

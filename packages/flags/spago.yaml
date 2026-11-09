@@ -3,10 +3,6 @@ package:
   dependencies:
     - prelude
     - arrays
-    - console
-    - effect
-    - foldable-traversable
-    - node-process
     - either
     - foreign-object
     - integers

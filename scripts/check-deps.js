@@ -28,11 +28,11 @@ const allowed = {
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge
   testkit: ["core", "schema", "settings", "game", "adapters", "handlers", "checks"],
-  // the flag parser both apps read their arguments with (no workspace dependency)
+  // the flag parser the apps read their arguments with: no workspace dependency, and no effect library (in `pure`)
   flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
-const pure = ["core", "schema", "board", "policy", "game", "checks", "views", "experiments"];
+const pure = ["core", "schema", "board", "policy", "game", "checks", "views", "experiments", "flags"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
 // Import rules for source modules, checked on the `import` lines of each src/ file.

@@ -6,6 +6,7 @@ package:
     - sp-schema
     - sp-effects
     - sp-handlers
+    - console
     - argonaut-codecs
     - argonaut-core
     - effect

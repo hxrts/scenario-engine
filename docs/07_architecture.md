@@ -55,7 +55,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `handlers`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
 | `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure `Handlers.Simulate` only) | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
 | `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
-| `flags` (`apps/flags`) | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
+| `flags` | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
 Two deliberate exceptions to the layering: `testkit` depends on `adapters`, because it reads the setting files through the filesystem device. `handlers` does not list `checks`, so a handler never reaches the checkers.
@@ -73,7 +73,8 @@ impure seams    effects                 the operations a program may request
                 handlers                the program logic over those operations
                 adapters                raw devices
 runners         experiments             folds over a Game (the fold itself is handlers' Handlers.Simulate)
-entry points    apps/cli, apps/server, apps/dashboard (apps/flags parses their arguments)
+entry points    apps/cli, apps/server, apps/dashboard
+argument parser flags                   read by the entry points
 test support    testkit
 ```
 

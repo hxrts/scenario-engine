@@ -1,5 +1,5 @@
 -- | How a CLI program ends on an error: the message, then exit status 1.
-module Exit (fail, usageError) where
+module Adapters.Exit (fail, usageError) where
 
 import Prelude
 

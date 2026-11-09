@@ -34,7 +34,7 @@ import Settings.Meridian.Capstone (game, jointLineFor, jointLines, matchesExpect
 import Settings.Load (loadFrom)
 import Settings.Layout (capstoneTranscriptFile)
 import Settings.Meridian.Names (meridianDir)
-import Exit (fail)
+import Adapters.Exit (fail)
 
 -- | The stub model's answer to a joint call: the reply the DSL gives the transcript the payload names.
 answer :: String -> String -> Aff { text :: String, raw :: String }
