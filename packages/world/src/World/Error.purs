@@ -42,9 +42,9 @@ instance Show ValidationError where
     ProductionWithoutHolding e r -> show e <> " produces from " <> r <> " but does not hold it"
     DrawWithoutHolder t r -> "transformation " <> t <> " draws " <> r <> " from its holder, but nothing holds it"
     TooManyHolderDraws t -> "transformation " <> t <> " has more than one draw from a holder"
-    MissingFallback e -> "PlayableActor has no fallback: " <> show e
-    MissingObjective e -> "PlayableActor has no objective: " <> show e
-    RequiredNotSelected e -> "required PlayableActor not selected: " <> show e
+    MissingFallback e -> "Actor has no fallback: " <> show e
+    MissingObjective e -> "Actor has no objective: " <> show e
+    RequiredNotSelected e -> "required explicit Actor not selected: " <> show e
     ControllerNotAllowed e -> "controller not allowed for " <> show e
     ProcedureExceedsAuthority e -> "procedure authorizes more than its Aggregate holds: " <> show e
     IneligibleRepresentative e -> "PlayableActor not eligible for its Representation: " <> show e

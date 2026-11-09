@@ -25,7 +25,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Foreign.Object as Object
-import Schema.PossibleWorld (PlayableActorDefinition, Bound(..), Fallback(..), PossibleWorld, Measure(..), Span(..))
+import Schema.PossibleWorld (ActorDefinition, Bound(..), Fallback(..), PossibleWorld, Measure(..), Span(..))
 import Schema.Premise.PossibleWorld (decodeConfig, decodePossibleWorld)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -43,8 +43,8 @@ coveragePossibleWorld =
   , version: "v0"
   , world: world
   , authored: { circulation: { production: [], flows: [], shares: [], requirements: [] }, reservable: [], decays: [] }
-  , playableActors: Map.singleton us playableActor
-  , schemes: [ { id: "s", eligiblePlayableActors: [ us ], target: eu, domain: Id "d", observes: money, estimator: estimator } ]
+  , explicitActors: Map.singleton us explicitActor
+  , schemes: [ { id: "s", eligibleActors: [ us ], target: eu, domain: Id "d", observes: money, estimator: estimator } ]
   , parameters: Object.empty
   , horizon: 1
   , rounds: { min: 1, max: 4 }
@@ -58,8 +58,8 @@ coveragePossibleWorld =
   cap = Id "cap"
   estimator = { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero }
 
-  playableActor :: PlayableActorDefinition
-  playableActor = { required: false, seat: true, nonPlayableActor: [], fallback: Just (ImplicitCoverage eu), objective: Nothing, description: "", dependency: "" }
+  explicitActor :: ActorDefinition
+  explicitActor = { required: false, seat: true, nonPlayableActor: [], fallback: Just (ImplicitCoverage eu), objective: Nothing, description: "", dependency: "" }
 
   actor :: ActorId -> Actor
   actor i = { id: i, accounts: Map.empty, capabilities: [], kind: NonPlayableActor (Id "p") }
@@ -144,7 +144,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right _ -> fail "expected a scheme-target error"
 
     it "an institutional fallback naming no catalog Strategy is an unknown reference" do
-      let gb = coveragePossibleWorld { playableActors = map (_ { fallback = Just (InstitutionalStrategy (Id "nope")) }) coveragePossibleWorld.playableActors }
+      let gb = coveragePossibleWorld { explicitActors = map (_ { fallback = Just (InstitutionalStrategy (Id "nope")) }) coveragePossibleWorld.explicitActors }
       case validatePossibleWorld gb config of
         Left es -> (UnknownReference RefStrategy "nope" `elem` es) `shouldEqual` true
         Right _ -> fail "expected an unknown strategy"
@@ -178,7 +178,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       withCapabilities cs = coveragePossibleWorld { world = w { actors = map (_ { capabilities = cs }) w.actors } }
       ref kind name = UnknownReference kind name
       objective measure = { description: "o", criteria: [ { metric: { actors: [ Id "ghost" ], measure, negated: false }, over: Final, atLeast: Fixed Q.zero } ] }
-      withObjective measure = coveragePossibleWorld { playableActors = map (_ { objective = Just (objective measure) }) coveragePossibleWorld.playableActors }
+      withObjective measure = coveragePossibleWorld { explicitActors = map (_ { objective = Just (objective measure) }) coveragePossibleWorld.explicitActors }
     it "a capability naming an unknown Exchange, Resource or Transformation" do
       reports (withCapabilities [ MayTrade (Id "m0"), MayTransfer (Id "r0"), MayTransform (Id "t0") ]) config
         [ ref RefExchange "m0", ref RefResource "r0", ref RefTransformation "t0" ]
@@ -197,9 +197,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         metric = { actors: [ us ], measure: HoldingOf (Id "M"), negated: false }
         bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }) } ] }
-      reports (coveragePossibleWorld { playableActors = map (_ { objective = Just bounded }) coveragePossibleWorld.playableActors }) config [ ref RefResource "r5" ]
+      reports (coveragePossibleWorld { explicitActors = map (_ { objective = Just bounded }) coveragePossibleWorld.explicitActors }) config [ ref RefResource "r5" ]
     it "an implicit coverage fallback naming no Actor" do
-      reports (coveragePossibleWorld { playableActors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coveragePossibleWorld.playableActors }) config [ ref RefActor "nowhere" ]
+      reports (coveragePossibleWorld { explicitActors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coveragePossibleWorld.explicitActors }) config [ ref RefActor "nowhere" ]
     it "a configured fallback for an unknown Actor, or covering by an unknown Actor" do
       reports coveragePossibleWorld (config { fallbacks = Map.singleton (Id "ghost") PermittedOmission }) [ ref RefActor "ghost" ]
       reports coveragePossibleWorld (config { fallbacks = Map.singleton us (ImplicitCoverage (Id "nowhere")) }) [ ref RefActor "nowhere" ]

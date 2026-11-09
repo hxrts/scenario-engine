@@ -24,19 +24,19 @@ import Data.Tuple (Tuple(..))
 
 type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q }
 
-type ObjectiveResult = { playableActor :: ActorId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
+type ObjectiveResult = { explicitActor :: ActorId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
 
 -- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
 evaluateObjectives :: PossibleWorld -> Array RoundResult -> Array ObjectiveResult
-evaluateObjectives gb records = concatMap one (entries gb.playableActors)
+evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
   where
-  one (Tuple playableActor def) = case def.objective of
+  one (Tuple explicitActor def) = case def.objective of
     Nothing -> []
     Just o ->
       let
         criteria = map criterion o.criteria
       in
-        [ { playableActor, description: o.description, criteria, outcome: objectiveOutcome criteria } ]
+        [ { explicitActor, description: o.description, criteria, outcome: objectiveOutcome criteria } ]
   objectiveOutcome criteria
     | null criteria = NotEvaluated
     | any (\c -> c.outcome == NotMet) criteria = NotMet

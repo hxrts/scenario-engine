@@ -19,7 +19,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (coverage, institutional)
 import Schema.Build.World (definition, noActor, objective)
-import Schema.PossibleWorld (PlayableActorDefinition, Criterion, Fallback)
+import Schema.PossibleWorld (ActorDefinition, Criterion, Fallback)
 import Schema.Recurring (Flow, Requirement)
 import Premises.Kit.Holdings (HoldingTable, accountsIn)
 
@@ -44,7 +44,7 @@ type SeatSpec =
 
 -- | A seat Actor under its name, which is also its key in the holding table: an Actor whose definition is a
 -- | seat, with its accounts from the table.
-seat :: HoldingTable -> ActorId -> SeatSpec -> Tuple ActorId (Tuple Actor PlayableActorDefinition)
+seat :: HoldingTable -> ActorId -> SeatSpec -> Tuple ActorId (Tuple Actor ActorDefinition)
 seat table key s = Tuple key
   ( Tuple
       ( noActor
@@ -73,7 +73,7 @@ requirementsOf d amounts open = map (\(Tuple e a) -> need e (Just a)) amounts <>
   need e amount = { actor: e, resource: d.resource, amount, penalty: d.penalty }
 
 -- | The seat's definition. Its fallback is written only when the seat has one.
-definitionOf :: SeatSpec -> PlayableActorDefinition
+definitionOf :: SeatSpec -> ActorDefinition
 definitionOf s = definition
   { required: s.required
   , seat: true

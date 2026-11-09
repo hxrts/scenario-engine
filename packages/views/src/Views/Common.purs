@@ -122,7 +122,7 @@ col
      , playerSeed :: Column
      , rounds :: Column
      , status :: Column
-     , playableActor :: Column
+     , explicitActor :: Column
      , objective :: Column
      , outcome :: Column
      , round :: Column
@@ -141,7 +141,7 @@ col =
   , playerSeed: column "Player seed" "The seed for seat-strategy choices. It is separate from the game seed, so the two streams never share draws." # emptied { label: "not recorded", reason: "The run's stored specification has no player seed (runs made before seeds were recorded)." }
   , rounds: column "Rounds" "Rounds completed so far. A run stopped short of its target can be resumed."
   , status: column "Status" "running, completed or failed. A failed run gives its reason in the Reason column."
-  , playableActor: column "Playable Actor" "The Actor (or Aggregate) this row describes."
+  , explicitActor: column "Explicit Actor" "The Actor (or Aggregate) this row describes."
   , objective: column "Objective" "A goal from the possible World for one Actor. It is measured from the run and never changes the economy."
   , outcome: column "Outcome" "For objectives: met, not met or not evaluated. A criterion is not evaluated when the run has no rounds or no data, and is never reported as met. For procedures: executed if the support reached the threshold, lapsed otherwise."
   , round: column "Round" "The round this row belongs to. Round 1 is the first round after the initial state."
@@ -155,7 +155,7 @@ col =
 
 -- | The shared columns, for the glossary.
 sharedColumns :: Array Column
-sharedColumns = [ col.run, col.name, col.possibleWorld, col.gameSeed, col.playerSeed, col.rounds, col.status, col.playableActor, col.objective, col.outcome, col.round, col.actor, col.kind, col.resource, col.player, col.measure, col.spread ]
+sharedColumns = [ col.run, col.name, col.possibleWorld, col.gameSeed, col.playerSeed, col.rounds, col.status, col.explicitActor, col.objective, col.outcome, col.round, col.actor, col.kind, col.resource, col.player, col.measure, col.spread ]
 
 -- | A metric per round in its own unit. The points are exact decimal strings (`exact`), so the plot
 -- | keeps full precision; the chart's axis and tooltips show the value under its display `kind`.

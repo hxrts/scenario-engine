@@ -44,7 +44,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (cumulative, everyRound, final, shortfallOf)
 import Schema.Build.Quantity (q)
-import Schema.PossibleWorld (PlayableActorDefinition, Bound(..), Criterion, Fallback, Measure, MetricRef, Objective, Span)
+import Schema.PossibleWorld (ActorDefinition, Bound(..), Criterion, Fallback, Measure, MetricRef, Objective, Span)
 
 -- | A catalog from named records: each takes its id from its key.
 byKey :: forall k t r. Named k t => Array (Tuple k { id :: Id t | r }) -> Map (Id t) { id :: Id t | r }
@@ -183,7 +183,7 @@ definition
      , description :: String
      , dependency :: String
      }
-  -> PlayableActorDefinition
+  -> ActorDefinition
 definition d = d { nonPlayableActor = map named d.nonPlayableActor, objective = Just d.objective }
 
 -- | An Aggregate with its members and no procedures.

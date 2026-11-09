@@ -3,7 +3,7 @@
 -- |
 -- | This module is the catalog. The seats are in `Actors.Seats`, the Aggregates in
 -- | `Actors.Aggregates`, and the capability sets they are built from in `Actors.Capabilities`.
-module Premises.Meridian.Actors (actors, playableActors) where
+module Premises.Meridian.Actors (actors, explicitActors) where
 
 import Prelude (map, (<>))
 import Premises.Meridian.Names (n)
@@ -12,17 +12,17 @@ import Laws.Types (Actor, ActorId)
 import Data.Map (Map)
 import Schema.Build.Base (keyed)
 import Schema.Build.World (actorsOf)
-import Schema.PossibleWorld (PlayableActorDefinition)
+import Schema.PossibleWorld (ActorDefinition)
 import Premises.Meridian.Actors.Aggregates (cnPrivate, energySuppliers, eu, euPool, globalSmes, usWorkers, worldHouseholds)
 import Premises.Meridian.Actors.Seats (cn, seats)
 
 -- | The Actors with an Actor definition: the seats in catalog order, then CN.
-seated :: Array (Tuple ActorId (Tuple Actor PlayableActorDefinition))
+seated :: Array (Tuple ActorId (Tuple Actor ActorDefinition))
 seated = seats <> [ cn ]
 
 -- | Every Actor's definition.
-playableActors :: Map ActorId PlayableActorDefinition
-playableActors = keyed (map (map snd) seated)
+explicitActors :: Map ActorId ActorDefinition
+explicitActors = keyed (map (map snd) seated)
 
 -- | Every Actor, in catalog order.
 actors :: Map ActorId Actor

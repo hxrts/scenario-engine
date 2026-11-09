@@ -61,7 +61,7 @@ narrateCall :: ModelCall NarrateRequest { text :: String } String
 narrateCall = textCall "narrate" narratePrompt narrateRequestShape \r -> { round: r.round, seats: [] }
 
 speakCall :: ModelCall SpeakRequest { text :: String } String
-speakCall = textCall "seat:speak" speakPrompt speakRequestShape \r -> { round: r.view.round, seats: [ seatText r.playableActor ] }
+speakCall = textCall "seat:speak" speakPrompt speakRequestShape \r -> { round: r.view.round, seats: [ seatText r.explicitActor ] }
 
 -- | A reply's text, read through the call's wire shape and projected to what is recorded.
 decodeWith :: forall p w r. ModelCall p w r -> String -> Either String r

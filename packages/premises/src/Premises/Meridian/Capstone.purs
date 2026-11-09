@@ -22,8 +22,8 @@ module Premises.Meridian.Capstone
 import Prelude (map, (<>), (==))
 import Data.Set as Set
 import Premises.Meridian.Names (n)
-import Premises.Meridian.Actors (playableActors)
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors (explicitActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 import Premises.Meridian.Rules (accessBan, withholding)
 import Assembly.Assemble (assemble, withRounds)
 import Assembly.Bindings (strategyRulesBindings)
@@ -153,7 +153,7 @@ chip =
 
 -- | Every seat, in catalog order. Unlisted seats submit nothing, so every seat is named.
 seats :: StrategyRules -> Array (Tuple ActorId StrategyRules)
-seats usStrategyRules = map (\e -> Tuple e (fromMaybe passive (Map.lookup e assigned))) playablePlayableActors
+seats usStrategyRules = map (\e -> Tuple e (fromMaybe passive (Map.lookup e assigned))) playableActors
   where
   assigned = Map.fromFoldable
     [ Tuple n.us usStrategyRules
@@ -217,18 +217,18 @@ objective :: ActorId -> Outcome -> ObjectiveExpect
 objective e o = { actor: e, outcome: o }
 
 -- | Every Actor's objective, as the Actors that hold one (the shipped objectives).
-allPlayableActors :: Array ActorId
-allPlayableActors = Set.toUnfoldable (Map.keys playableActors)
+allExplicitActors :: Array ActorId
+allExplicitActors = Set.toUnfoldable (Map.keys explicitActors)
 
 -- | The base run meets no objective. The US misses its own: its Mil ends at 76.95, below China's
 -- | holding. SME misses its Money target of 15, since it spends on its own Energy purchases.
 baseObjectives :: Array ObjectiveExpect
-baseObjectives = map (\e -> objective e NotMet) allPlayableActors
+baseObjectives = map (\e -> objective e NotMet) allExplicitActors
 
 -- | Without the deployment the US keeps its 95 Mil and meets its objective; nothing else changes
 -- | the outcomes.
 counterfactualObjectives :: Array ObjectiveExpect
-counterfactualObjectives = map (\e -> objective e (if e == n.us then Met else NotMet)) allPlayableActors
+counterfactualObjectives = map (\e -> objective e (if e == n.us then Met else NotMet)) allExplicitActors
 
 -- | The capstone's game: the shipped Meridian at its default configuration, with the capstone's seats.
 game :: PossibleWorldParts -> Either GameError Game

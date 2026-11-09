@@ -12,7 +12,7 @@ import Data.Tuple (Tuple(..))
 
 import Premises.Layout (presetsFile)
 import Premises.Meridian.Names (meridianDir)
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
@@ -128,7 +128,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> fail e
         Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
           let p = fromMaybe passive (Object.lookup name ps)
-          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) playablePlayableActors))
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) playableActors))
           length records `shouldEqual` 5
 
     it "Fixture D end to end: China procures after the recorded US deployment" do

@@ -153,7 +153,7 @@ measures r = tableOf ("Balance after round " <> show (completed r)) [ cellOf col
 
 -- | One Actor's objective criteria over the run: how many were met, not met and not evaluated, and the
 -- | objective's outcome.
-type Completion = { playableActor :: ActorId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
+type Completion = { explicitActor :: ActorId, description :: String, criteria :: Int, met :: Int, notMet :: Int, notEvaluated :: Int, outcome :: Outcome }
 
 completionOf :: PossibleWorld -> StoredRun -> Array Completion
 completionOf gb r = map row (evaluateObjectives gb r.rounds)
@@ -163,7 +163,7 @@ completionOf gb r = map row (evaluateObjectives gb r.rounds)
       outcomes = map _.outcome o.criteria
       count x = length (filter (_ == x) outcomes)
     in
-      { playableActor: o.playableActor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
+      { explicitActor: o.explicitActor, description: o.description, criteria: length outcomes, met: count Met, notMet: count NotMet, notEvaluated: count NotEvaluated, outcome: o.outcome }
 
 -- | Each role's objective criteria over the run: how many were met, not met and not evaluated.
 completion :: PossibleWorld -> StoredRun -> Table
@@ -171,7 +171,7 @@ completion gb r = tableOf "Objective completion by role" completionFields (compl
 
 completionFields :: Array (Field Completion)
 completionFields =
-  [ cellOf roleColumn (show <<< _.playableActor)
+  [ cellOf roleColumn (show <<< _.explicitActor)
   , cellOf col.objective _.description
   , cellOf criteriaColumn (show <<< _.criteria)
   , cellOf metColumn (show <<< _.met)

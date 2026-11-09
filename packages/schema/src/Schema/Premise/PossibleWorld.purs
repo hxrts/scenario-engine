@@ -25,13 +25,13 @@ import Data.Maybe (Maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
-import Schema.PossibleWorld (PlayableActorDefinition, PossibleWorld, InstantiationConfig)
+import Schema.PossibleWorld (ActorDefinition, PossibleWorld, InstantiationConfig)
 import Schema.Premise.PlayableActor (definitionShape, fallbackShape)
 import Schema.Premise.StrategyRules (strategyRulesShape)
 import Schema.Premise.World (assignmentShape, checkReservations, actorRec, schemeShape, worldFields)
 
 -- | An Actor's entry in a possible World: the Actor and, when it is an Actor with one, its definition.
-catalogEntry :: ActorId -> Shape (Tuple Actor (Maybe PlayableActorDefinition))
+catalogEntry :: ActorId -> Shape (Tuple Actor (Maybe ActorDefinition))
 catalogEntry k = object "Actor"
   ( Tuple <$> contramapRec fst (actorRec k)
       <*> fieldOf "definition" "its PlayableActor definition" (optionalOf definitionShape) snd
@@ -56,8 +56,8 @@ possibleWorldShape = object "PossibleWorld"
       <*> fieldOf "actors" "the Actors" (idMapWith catalogEntry) entries
   )
   where
-  mk i v h r l p s po w e = { id: i, version: v, horizon: h, rounds: r, label: l, parameters: p, schemes: s, strategies: po, authored: (w (map fst e)).authored, world: (w (map fst e)).world, playableActors: Map.mapMaybe snd e }
-  entries g = map (\e -> Tuple e (Map.lookup e.id g.playableActors)) g.world.actors
+  mk i v h r l p s po w e = { id: i, version: v, horizon: h, rounds: r, label: l, parameters: p, schemes: s, strategies: po, authored: (w (map fst e)).authored, world: (w (map fst e)).world, explicitActors: Map.mapMaybe snd e }
+  entries g = map (\e -> Tuple e (Map.lookup e.id g.explicitActors)) g.world.actors
 
 configShape :: Shape InstantiationConfig
 configShape = object "Configuration"

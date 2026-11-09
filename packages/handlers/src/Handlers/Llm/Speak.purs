@@ -18,6 +18,6 @@ speak :: Backend -> (ActorId -> String) -> ActorId -> View -> Aff String
 speak b briefing e v = do
   let
     request :: SpeakRequest
-    request = { playableActor: e, briefing: briefing e, view: v }
+    request = { explicitActor: e, briefing: briefing e, view: v }
   either (const "") identity <$> ask b speakCall request
 

@@ -262,7 +262,7 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
 
 -- | Charge what the authored action laws say an action costs, each its own event.
 applyActionLaws :: WorldState -> ActorId -> String -> Q -> Settlement -> Settlement
-applyActionLaws w playableActor action quantity st = foldl charge st (actionTransactions w playableActor action quantity)
+applyActionLaws w explicitActor action quantity st = foldl charge st (actionTransactions w explicitActor action quantity)
   where
   charge acc c = case runTransaction w acc.ledger c, c.cause of
     posted, Just cause -> addEvents [ settledEvent w.round posted.flows Nothing cause ] acc { ledger = posted.ledger }

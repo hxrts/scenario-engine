@@ -51,7 +51,7 @@ spec = do
           do
             r <- orThrow (restrict s p)
             Map.member dropped r.possibleWorld.world.actors `shouldEqual` false
-            Map.member dropped r.possibleWorld.playableActors `shouldEqual` false
+            Map.member dropped r.possibleWorld.explicitActors `shouldEqual` false
             Map.member dropped r.config.seats `shouldEqual` false
             any (\m -> dropped `elem` m.access) r.possibleWorld.world.exchanges `shouldEqual` false
             any (\f -> f.to == dropped || f.from == dropped) r.possibleWorld.authored.circulation.flows `shouldEqual` false

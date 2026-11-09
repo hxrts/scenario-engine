@@ -24,7 +24,7 @@ import Premises.Kit.Exchanges (exchange)
 import Premises.Kit.Presets (standardThresholds)
 import Premises.Load (fromFiles)
 import Schema.Build.Decision (lit)
-import Schema.PossibleWorld (PlayableActorDefinition)
+import Schema.PossibleWorld (ActorDefinition)
 import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (atLeast, byKey, emptyCirculation, emptyWorld, actorsOf, finishes, noResource, resourcesOf)
@@ -42,7 +42,7 @@ table =
   , Tuple (Id "B") [ Id "G" := 80, Id "C" := 20 ]
   ]
 
-seats :: Array (Tuple ActorId (Tuple Actor PlayableActorDefinition))
+seats :: Array (Tuple ActorId (Tuple Actor ActorDefinition))
 seats = map (\k -> seat table k spec') [ Id "A", Id "B" ]
   where
   spec' =
@@ -68,7 +68,7 @@ harbor =
       , parameters: Object.empty
       , schemes: []
       , strategies: Map.empty
-      , playableActors: keyed (map (map snd) seats)
+      , explicitActors: keyed (map (map snd) seats)
       , authored: { circulation: emptyCirculation, reservable: [], decays: [] }
       , world: emptyWorld
           { numeraire = Id "G"

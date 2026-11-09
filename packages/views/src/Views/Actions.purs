@@ -30,12 +30,12 @@ actionsStat =
   { name: "Actions"
   , question: "What do players do over the run?"
   , definition: "Per player, over the whole run: exchange trades (buys and sells), production and procurement, payments to other players, joint candidate Transactions signed, and proposals rejected."
-  , formula: "trades = " <> describeSlice (tradesBy playableActor) <> "; transforms = " <> describeSlice (transformsBy playableActor) <> "; transfers = " <> describeSlice (transfersBy playableActor) <> "; joint candidate Transactions = multi-signer candidate Transactions with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
+  , formula: "trades = " <> describeSlice (tradesBy explicitActor) <> "; transforms = " <> describeSlice (transformsBy explicitActor) <> "; transfers = " <> describeSlice (transfersBy explicitActor) <> "; joint candidate Transactions = multi-signer candidate Transactions with a Transfer or Transform that the Actor signed and that were neither rejected nor lapsed; rejected = " <> describeSlice (rejectedOwn (const false)) <> "."
   }
 
 -- | The Actor a formula names: the slices below render their filter's value.
-playableActor :: ActorId
-playableActor = Id "the Actor"
+explicitActor :: ActorId
+explicitActor = Id "the Actor"
 
 tradesBy :: ActorId -> Slice Int
 tradesBy e = count (whereEq @"actor" e exchangeFills)

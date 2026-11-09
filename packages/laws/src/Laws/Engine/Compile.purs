@@ -270,10 +270,10 @@ flowLaws w = mapMaybe ofRule (rulesOf w)
 -- | What the authored action laws charge when `actor` settles `quantity` of the action named `action`,
 -- | as one transaction per law. A law charges on the action's quantity, through its quantity parameter.
 actionTransactions :: WorldState -> ActorId -> String -> Q -> Array Transaction
-actionTransactions w playableActor action quantity = mapMaybe one w.laws
+actionTransactions w explicitActor action quantity = mapMaybe one w.laws
   where
   one (AuthoredLaw law) = case law.trigger of
-    K.OnAction scope | maybe true (_ == playableActor) scope.obligor && maybe true (_ == action) scope.cause -> forHolder playableActor (priced law)
+    K.OnAction scope | maybe true (_ == explicitActor) scope.obligor && maybe true (_ == action) scope.cause -> forHolder explicitActor (priced law)
     _ -> Nothing
   priced law = law
     { operation = case law.operation of

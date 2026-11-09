@@ -3,7 +3,7 @@
 -- | weights, and Representations resolved.
 module World.PossibleWorld.Instantiate
   ( instantiate
-  , withoutPlayableActor
+  , withoutExplicitActor
   , mergeRequirements
   ) where
 
@@ -43,25 +43,25 @@ instantiate gb config =
       }
   where
   selected e = Map.member e config.seats || Map.member e config.nonPlayableActors
-  unselected = Map.mapMaybeWithKey (\e d -> if selected e then Nothing else Just (fromMaybe (fromMaybe PermittedOmission d.fallback) (Map.lookup e config.fallbacks))) gb.playableActors
+  unselected = Map.mapMaybeWithKey (\e d -> if selected e then Nothing else Just (fromMaybe (fromMaybe PermittedOmission d.fallback) (Map.lookup e config.fallbacks))) gb.explicitActors
   controllerErrors =
-    concatMap (\(Tuple e d) -> if d.required && not (selected e) then [ RequiredNotSelected e ] else []) (entries gb.playableActors)
+    concatMap (\(Tuple e d) -> if d.required && not (selected e) then [ RequiredNotSelected e ] else []) (entries gb.explicitActors)
       <> concatMap
-        ( \e -> case Map.lookup e gb.playableActors of
+        ( \e -> case Map.lookup e gb.explicitActors of
             Just d | d.seat -> []
             _ -> [ ControllerNotAllowed e ]
         )
         (fromFoldable (Map.keys config.seats))
       <> concatMap
-        ( \(Tuple e p) -> case Map.lookup e gb.playableActors of
+        ( \(Tuple e p) -> case Map.lookup e gb.explicitActors of
             Just d | p `elem` d.nonPlayableActor -> []
             _ -> [ ControllerNotAllowed e ]
         )
         (entries config.nonPlayableActors)
   representationErrors = concatMap
     ( \r -> case schemeOf r.scheme of
-        Just s | r.playableActor `elem` s.eligiblePlayableActors && selected r.playableActor -> []
-        Just _ -> [ IneligibleRepresentative r.playableActor ]
+        Just s | r.explicitActor `elem` s.eligibleActors && selected r.explicitActor -> []
+        Just _ -> [ IneligibleRepresentative r.explicitActor ]
         Nothing -> [ UnknownScheme r.scheme ]
     )
     config.representations
@@ -70,15 +70,15 @@ instantiate gb config =
     _ -> Nothing
   -- a configured Representation of a scheme the possible World defines; an unknown scheme is an error
   -- (`representationErrors`), so the instantiation never returns it
-  toRepresentation r = (\s -> { id: Id s.id, playableActor: r.playableActor, aggregate: s.target, domain: s.domain, observes: s.observes, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
+  toRepresentation r = (\s -> { id: Id s.id, explicitActor: r.explicitActor, aggregate: s.target, domain: s.domain, observes: s.observes, weight: r.weight, estimator: s.estimator }) <$> schemeOf r.scheme
   setController e = case Map.lookup e.id config.seats, Map.lookup e.id config.nonPlayableActors of
     Just seat, _ -> e { kind = PlayableActor (Id seat) }
     _, Just p -> e { kind = NonPlayableActor p }
     _, _ -> e
 
 -- | The configuration with the Actor not explicit: its seat, non-playable Actor binding and Representations removed.
-withoutPlayableActor :: ActorId -> InstantiationConfig -> InstantiationConfig
-withoutPlayableActor e config = config { seats = Map.delete e config.seats, nonPlayableActors = Map.delete e config.nonPlayableActors, representations = filter (\r -> r.playableActor /= e) config.representations }
+withoutExplicitActor :: ActorId -> InstantiationConfig -> InstantiationConfig
+withoutExplicitActor e config = config { seats = Map.delete e config.seats, nonPlayableActors = Map.delete e config.nonPlayableActors, representations = filter (\r -> r.explicitActor /= e) config.representations }
 
 -- | Resolve one unselected Actor by its fallback.
 applyFallback :: UnseededWorld -> Tuple ActorId Fallback -> UnseededWorld

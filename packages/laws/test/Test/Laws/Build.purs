@@ -17,8 +17,8 @@ q s = case Q.parse s of
   Nothing -> Q.zero
 
 -- | An Actor holding 100 of the numeraire M and the given capabilities.
-playableActor :: String -> Array Capability -> Actor
-playableActor name caps =
+explicitActor :: String -> Array Capability -> Actor
+explicitActor name caps =
   { id: Id name
   , accounts: Map.singleton (Id "M") (Q.fromInt 100)
   , capabilities: caps
@@ -134,5 +134,5 @@ transformation name =
   }
 
 -- | A Representation `r` of an Aggregate's domain, at weight 1.
-representation :: { playableActor :: String, aggregate :: String, domain :: String, observes :: String, estimator :: Estimator } -> Representation
-representation r = { id: Id "r", playableActor: Id r.playableActor, aggregate: Id r.aggregate, domain: Id r.domain, observes: Id r.observes, weight: Q.fromInt 1, estimator: r.estimator }
+representation :: { explicitActor :: String, aggregate :: String, domain :: String, observes :: String, estimator :: Estimator } -> Representation
+representation r = { id: Id "r", explicitActor: Id r.explicitActor, aggregate: Id r.aggregate, domain: Id r.domain, observes: Id r.observes, weight: Q.fromInt 1, estimator: r.estimator }

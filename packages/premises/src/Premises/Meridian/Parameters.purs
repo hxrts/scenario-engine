@@ -72,14 +72,14 @@ parameters = Object.fromFoldable
 -- | sample. Its scheme and the fixtures' Representations share these values.
 smeSample
   :: { id :: String
-     , playableActor :: ActorId
+     , explicitActor :: ActorId
      , aggregate :: ActorId
      , domain :: ResourceId
      , estimator :: Q -> Estimator
      }
 smeSample =
   { id: "sme-energy-sample"
-  , playableActor: n.sme
+  , explicitActor: n.sme
   , aggregate: n.globalSmes
   , domain: n.energy
   , estimator: \noise -> { reference: q 5, shrinkage: q "0.25", deviationBound: Just { lo: q "-0.5", hi: q "0.5" }, noiseSpread: noise }
@@ -87,7 +87,7 @@ smeSample =
 
 schemes :: Array Scheme
 schemes =
-  [ { id: smeSample.id, eligiblePlayableActors: [ smeSample.playableActor ], target: smeSample.aggregate, domain: Id (idText smeSample.domain), observes: smeSample.domain, estimator: smeSample.estimator (q "0.1") }
+  [ { id: smeSample.id, eligibleActors: [ smeSample.explicitActor ], target: smeSample.aggregate, domain: Id (idText smeSample.domain), observes: smeSample.domain, estimator: smeSample.estimator (q "0.1") }
   ]
 
 -- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's

@@ -244,7 +244,7 @@ A Rule is either a flows Rule (its effect is a Levy or a Block, over a scope of 
 
 ### 10.5 Evaluation
 
-Each Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
+Each explicit Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
 
 The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, and the volume of a Transformation. **Planned**: system-level measures.
 

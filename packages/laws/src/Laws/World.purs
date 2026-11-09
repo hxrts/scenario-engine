@@ -611,7 +611,7 @@ estimatorShape :: Shape Estimator
 estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape, deviationBound: (optionalOf intervalShape), noiseSpread: qShape }
 
 representationShape :: Shape Representation
-representationShape = recordShape "Representation" { id: idShape, playableActor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
+representationShape = recordShape "Representation" { id: idShape, explicitActor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
 
 recurringFlowShape :: Shape RecurringFlow
 recurringFlowShape = recordShape "RecurringFlow"

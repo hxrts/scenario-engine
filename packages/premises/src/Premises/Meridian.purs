@@ -17,7 +17,7 @@ module Premises.Meridian
 import Prelude (identity, map, negate, not, show, (+), (<>))
 
 import Premises.Meridian.Names (meridianId, meridianVersion, n)
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 import Premises.Meridian.Rules (ruleKinds)
 
 import Core.Num (Q)
@@ -28,7 +28,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
-import Premises.Meridian.Actors (playableActors, actors)
+import Premises.Meridian.Actors (explicitActors, actors)
 
 import Premises.Meridian.Parameters (majorActionThreshold, parameters, schemes, smeSample)
 import Premises.Meridian.Strategies (strategies)
@@ -133,7 +133,7 @@ possibleWorldWith d = case assemble (energy <> shipping <> defence <> softPower)
       , parameters: Object.fromFoldable p.parameters
       , schemes
       , strategies: keyed p.strategies
-      , playableActors
+      , explicitActors
       , authored: { circulation: circulation', reservable, decays }
       , world: emptyWorld
           { numeraire = n.money
@@ -168,9 +168,9 @@ instantiation :: InstantiationConfig
 instantiation =
   { seed: Seed gameSeed
   , rounds: years
-  , seats: keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) playablePlayableActors)
+  , seats: keyed (mapWithIndex (\i e -> Tuple e ("seat-" <> show (i + 1))) playableActors)
   , nonPlayableActors: keyed [ Tuple n.cn n.strategyChinaStrategic ]
   , fallbacks: Map.empty
-  , representations: [ { scheme: smeSample.id, playableActor: smeSample.playableActor, weight: (q 1) } ]
+  , representations: [ { scheme: smeSample.id, explicitActor: smeSample.explicitActor, weight: (q 1) } ]
   }
 

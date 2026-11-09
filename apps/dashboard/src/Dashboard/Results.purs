@@ -135,7 +135,7 @@ mkBody grid = fetched >>= \fetch -> mkActor >>= \actor -> mkEvents grid >>= \eve
             }
         , Layout.section
             { title: "Objectives"
-            , purpose: "Each Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
+            , purpose: "Each explicit Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
             , children: [ view Keys.objectives (titled grid) ]
             }
         , Layout.section

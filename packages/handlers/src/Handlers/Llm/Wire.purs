@@ -49,10 +49,10 @@ narrateRequestShape :: Shape NarrateRequest
 narrateRequestShape = recordShape "NarrateRequest" { round: intShape, events: (arrayOf eventShape) }
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
-type SpeakRequest = { playableActor :: ActorId, briefing :: String, view :: View }
+type SpeakRequest = { explicitActor :: ActorId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
-speakRequestShape = recordShape "SpeakRequest" { playableActor: idShape, briefing: stringShape, view: viewShape }
+speakRequestShape = recordShape "SpeakRequest" { explicitActor: idShape, briefing: stringShape, view: viewShape }
 
 -- | A narrator's or seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }

@@ -78,7 +78,7 @@ session o { parts, game } = do
         Right _ -> Right unit <$ writeLine ("Session saved as " <> o.id <> " (" <> o.db <> "; evidence in " <> evidenceDir o <> ")")
   where
   humans = humansOf o
-  briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.possibleWorld.playableActors)
+  briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.possibleWorld.explicitActors)
 
 -- | What is shown after each round: the front page, and the human seats' balance sheets.
 report :: Array ActorId -> RoundResult -> String -> Array String

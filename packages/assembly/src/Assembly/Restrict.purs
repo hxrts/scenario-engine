@@ -68,7 +68,7 @@ filtered s p = p
       { seats = Map.filterKeys keptActor p.config.seats
       , nonPlayableActors = Map.filterKeys keptActor p.config.nonPlayableActors
       , fallbacks = Map.filterKeys keptActor p.config.fallbacks
-      , representations = filter (\r -> keptActor r.playableActor && r.scheme `elem` map _.id schemes) p.config.representations
+      , representations = filter (\r -> keptActor r.explicitActor && r.scheme `elem` map _.id schemes) p.config.representations
       }
   , presets = Object.filter resolves p.presets
   }
@@ -107,7 +107,7 @@ filtered s p = p
         , resources = Map.filterKeys keptResource old.world.resources
         , exchanges = map (\m -> m { access = filter keptActor m.access }) (Map.filterKeys (_ `elem` s.exchanges) old.world.exchanges)
         , transformations = transformations
-        , representations = filter (\r -> keptActor r.playableActor && keptActor r.aggregate) old.world.representations
+        , representations = filter (\r -> keptActor r.explicitActor && keptActor r.aggregate) old.world.representations
         , flowGates = filter keptGate old.world.flowGates
         , groups = Map.filterWithKey (\k v -> keptActor k && keptActor v) old.world.groups
         , rules = Map.filter keptRule old.world.rules
@@ -123,8 +123,8 @@ filtered s p = p
         , reservable = filter keptResource authored.reservable
         , decays = filter (keptResource <<< _.resource) authored.decays
         }
-    , playableActors = Map.filterKeys keptActor old.playableActors
-    , schemes = map (\x -> x { eligiblePlayableActors = filter keptActor x.eligiblePlayableActors }) schemes
+    , explicitActors = Map.filterKeys keptActor old.explicitActors
+    , schemes = map (\x -> x { eligibleActors = filter keptActor x.eligibleActors }) schemes
     }
 
   -- a StrategyRules naming something dropped cannot run here; a kept Actor that needs it fails the check

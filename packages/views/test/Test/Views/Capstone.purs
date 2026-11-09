@@ -54,7 +54,7 @@ import Test.Spec.Assertions (fail, shouldEqual)
 checkObjectives :: PossibleWorldParts -> SimRun -> Array ObjectiveExpect -> Aff Unit
 checkObjectives ctx r expected = do
   let
-    actual = sortWith _.actor (map (\o -> { actor: o.playableActor, outcome: o.outcome }) (evaluateObjectives ctx.possibleWorld r.records))
+    actual = sortWith _.actor (map (\o -> { actor: o.explicitActor, outcome: o.outcome }) (evaluateObjectives ctx.possibleWorld r.records))
     wanted = sortWith _.actor (map (\o -> { actor: o.actor, outcome: o.outcome }) expected)
   actual `shouldEqual` wanted
 

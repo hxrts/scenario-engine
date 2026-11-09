@@ -30,7 +30,7 @@ narratePrompt = common <> "\nTask: write the round's front page: a short newspap
 
 -- | The system prompt of an AI-agent seat.
 speakPrompt :: String
-speakPrompt = common <> "\nTask: you play the seat `playableActor` according to `briefing`. Reply with `text`: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any joint CandidateTransaction you propose and the party it is with." <> replySchemaOf textReplyShape
+speakPrompt = common <> "\nTask: you play the seat `explicitActor` according to `briefing`. Reply with `text`: a short transcript, one to three sentences, of what you intend to do this round in your own words, naming any joint CandidateTransaction you propose and the party it is with." <> replySchemaOf textReplyShape
 
 -- | The action list a candidate Transaction is built from, rendered from the Intent shape.
 actions :: String

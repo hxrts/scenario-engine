@@ -62,28 +62,28 @@ playerSeedRuns game seeds = traverse (\s -> simulate (Seed s) game) seeds
 -- | For each seat, replay with the alternative preset while everything else is fixed. The
 -- | alternative must be a known preset: `simulate` names an unknown one, so it is an error, not a silent baseline.
 agency :: PossibleWorld -> Object StrategyRules -> Seed -> Game -> String -> Array ActorId -> Either GameError (Array AgencyProfile)
-agency possibleWorld presets seed game alternative playableActors = do
+agency possibleWorld presets seed game alternative explicitActors = do
   base <- simulate seed game
   replacement <- maybe (Left (UnknownPreset alternative)) Right (Object.lookup alternative presets)
-  traverse (profile base replacement) playableActors
+  traverse (profile base replacement) explicitActors
   where
-  profile base replacement playableActor = do
-    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.union (strategyRulesBindings [ Tuple playableActor replacement ]) g.seats })
+  profile base replacement explicitActor = do
+    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.union (strategyRulesBindings [ Tuple explicitActor replacement ]) g.seats })
     let
       isAggregate e = maybe false (\w -> not (elem e (players w))) (finalWorld base)
       absSum xs = Q.sumQ (map Q.abs xs)
       prices = absSum (map _.delta d.prices)
-      others = absSum (map _.delta (filter (\h -> h.actor /= playableActor && not (isAggregate h.actor)) d.holdings))
+      others = absSum (map _.delta (filter (\h -> h.actor /= explicitActor && not (isAggregate h.actor)) d.holdings))
       aggregates = absSum (map _.delta (filter (\h -> isAggregate h.actor) d.holdings))
       outcomes r = concatMap (\x -> select (read @"executed" (event @"ProcedureOutcome")) x.record.events) r.records
       institutions = if outcomes base == outcomes variant then 0 else 1
-      ownObjectives r = filter (\o -> o.playableActor == playableActor) (evaluateObjectives possibleWorld r.records)
+      ownObjectives r = filter (\o -> o.explicitActor == explicitActor) (evaluateObjectives possibleWorld r.records)
       own r = map _.outcome (concatMap _.criteria (ownObjectives r))
       objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
       described r = concatMap (\o -> map (\c -> { description: o.description, outcome: c.outcome }) o.criteria) (ownObjectives r)
       criteria = zipWith (\b a -> { description: b.description, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
     pure
-      { playableActor
+      { explicitActor
       , alternative
       , prices
       , others

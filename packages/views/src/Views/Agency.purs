@@ -14,7 +14,7 @@ import Views.Common (Column, Table, col, column, names, price, quantity)
 type CriterionChange = { description :: String, baseline :: Outcome, alternative :: Outcome }
 
 type AgencyProfile =
-  { playableActor :: ActorId
+  { explicitActor :: ActorId
   , alternative :: String
   , prices :: Q -- total absolute change in final prices
   , others :: Q -- total absolute change in other Actors' holdings
@@ -44,8 +44,8 @@ columns = agencyColumns <> [ objective, criterion, baselineResult, alternativeRe
 agencyCriteria :: Array AgencyProfile -> Table
 agencyCriteria ps =
   { title: "Criteria under each alternative"
-  , columns: names ([ col.playableActor ] <> columns)
-  , rows: concatMap (\p -> mapWithIndex (\i c -> [ show p.playableActor, c.description, show (i + 1), show c.baseline, show c.alternative ]) p.criteria) ps
+  , columns: names ([ col.explicitActor ] <> columns)
+  , rows: concatMap (\p -> mapWithIndex (\i c -> [ show p.explicitActor, c.description, show (i + 1), show c.baseline, show c.alternative ]) p.criteria) ps
   }
 
 agencyColumns :: Array Column
@@ -62,7 +62,7 @@ agencyColumns =
 agencyTable :: Array AgencyProfile -> Table
 agencyTable ps =
   { title: "Agency"
-  , columns: names ([ col.playableActor ] <> agencyColumns)
+  , columns: names ([ col.explicitActor ] <> agencyColumns)
   , rows: map measures ps
   }
 
@@ -76,7 +76,7 @@ metAlternative = column "Criteria met (alternative)" "How many of the Actor's ow
 agencyProfiles :: Array AgencyProfile -> Table
 agencyProfiles ps =
   { title: "Agency profile per role"
-  , columns: names ([ col.playableActor ] <> agencyColumns <> [ metBaseline, metAlternative ])
+  , columns: names ([ col.explicitActor ] <> agencyColumns <> [ metBaseline, metAlternative ])
   , rows: map (\p -> measures p <> [ show (met _.baseline p), show (met _.alternative p) ]) ps
   }
   where
@@ -84,4 +84,4 @@ agencyProfiles ps =
 
 -- | One Actor's measures, as the agency table shows them.
 measures :: AgencyProfile -> Array String
-measures p = [ show p.playableActor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]
+measures p = [ show p.explicitActor, p.alternative, price p.prices, quantity p.others, quantity p.aggregates, show p.institutions, show p.objectives, if p.measurable then "yes" else "no: balancing finding" ]

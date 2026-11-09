@@ -8,7 +8,7 @@ import Prelude
 
 import Core.Map (values)
 
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 import Testkit.Meridian (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
 import Schema.PossibleWorld (Outcome(..))
@@ -49,7 +49,7 @@ spec' preset overrides seed = { preset, overrides, seed }
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
 gameOf :: PossibleWorldParts -> Variant -> Aff Game
 gameOf p v = do
-  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) playablePlayableActors)
+  bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) playableActors)
   orThrow (assemble (PossibleWorldPremise p) bindings v.overrides)
 
 play :: PossibleWorldParts -> Variant -> Aff SimRun
@@ -120,8 +120,8 @@ spec context = describe "Experiments (§11) and performance" do
     ctx <- context
     for_ [ "Conservative", "RandomValid" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playablePlayableActors)
-      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.playableActor) (filter (not <<< _.measurable) ps)))
+      ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playableActors)
+      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.explicitActor) (filter (not <<< _.measurable) ps)))
       length ps `shouldEqual` 15
   it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do
     ctx <- context

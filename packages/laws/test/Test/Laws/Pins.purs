@@ -15,7 +15,7 @@ import Data.Foldable (foldM)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Test.Laws.Build (playableActor, baseWorld, heldDraw, exchange, q, resource, submit, transformation, withAccount)
+import Test.Laws.Build (explicitActor, baseWorld, heldDraw, exchange, q, resource, submit, transformation, withAccount)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -101,25 +101,25 @@ pins = describe "Settlement pins" do
     -- a falling curve: escrow at the ceiling of 8 is 2 × 6 = 12, the settled price at 2 units is 9, so 18 is owed and 15 held
     let
       t = (transformation "t") { payment = Just (flat "10") { curve { slope = q "-1", domain = { lo: Q.zero, hi: Q.fromInt 8 } } } }
-      w = withTransformation t [ (playableActor "A" (may "t")) { accounts = Map.singleton m (q "15") }, playableActor "B" [] ]
+      w = withTransformation t [ (explicitActor "A" (may "t")) { accounts = Map.singleton m (q "15") }, explicitActor "B" [] ]
     events (resolveRound w [ submit "A" 0 [ order "t" "2" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") (held "B") m "18" "15" ] Nothing (converted (pid "A" 0) "t" "2") ]
 
   it "a recurring payment above what is held caps there" do
-    let w = (world [ playableActor "A" [], playableActor "B" [] ]) { recurring = [ rule "r" (FromActor a) (ToActor b) m (FixedAmount (q "150")) ] }
+    let w = (world [ explicitActor "A" [], explicitActor "B" [] ]) { recurring = [ rule "r" (FromActor a) (ToActor b) m (FixedAmount (q "150")) ] }
     events (resolveRound w []) `shouldEqual` [ settledEvent 1 [ flow (held "A") (held "B") m "150" "100" ] Nothing (recurring "r") ]
 
   it "a Transform's legs are inputs, then outputs, then payment" do
     let
       t = (transformation "t") { inputs = Map.singleton e (q "2"), outputs = Map.singleton g (q "1"), payment = Just (flat "3") }
-      w = withTransformation t [ withAccount e (q "10") (playableActor "A" (may "t")), playableActor "B" [] ]
+      w = withTransformation t [ withAccount e (q "10") (explicitActor "A" (may "t")), explicitActor "B" [] ]
     events (resolveRound w [ submit "A" 0 [ order "t" "2" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") Sink e "4" "4", flow Source (held "A") g "2" "2", flow (held "A") (held "B") m "6" "6" ] Nothing (converted (pid "A" 0) "t" "2") ]
 
   it "a delayed output and effect land on their rounds, and a limited effect reverses" do
     let
       t = (transformation "t") { outputs = Map.singleton g (q "1"), delay = 2, effects = [ { resource: e, holder: Nothing, perUnit: q "2", rounds: Just 2 } ] }
-      w = withTransformation t [ playableActor "A" (may "t") ]
+      w = withTransformation t [ explicitActor "A" (may "t") ]
       cause = converted (pid "A" 0) "t" "3"
       delivered round leg = Settled { round, legs: [ leg ], rate: Nothing, cause, delivered: true }
     map _.log (play 4 w [ submit "A" 0 [ order "t" "3" ] ]) `shouldEqual` Right
@@ -131,7 +131,7 @@ pins = describe "Settlement pins" do
       ]
 
   it "a Transfer of zero emits no event; a positive Transfer that moves nothing emits one" do
-    let w = world [ (playableActor "A" []) { accounts = Map.empty }, playableActor "B" [] ]
+    let w = world [ (explicitActor "A" []) { accounts = Map.empty }, explicitActor "B" [] ]
     events (resolveRound w [ submit "A" 0 [ send "A" "B" m "0" ] ]) `shouldEqual` []
     -- funding scales an unfunded Transfer to zero, which is also no event
     events (resolveRound w [ submit "A" 0 [ send "A" "B" m "5" ] ]) `shouldEqual` []
@@ -141,14 +141,14 @@ pins = describe "Settlement pins" do
   it "a Transform owing a price of zero has no payment leg" do
     let
       t = (transformation "t") { outputs = Map.singleton g (q "1"), payment = Just (flat "0") }
-      w = withTransformation t [ playableActor "A" (may "t"), playableActor "B" [] ]
+      w = withTransformation t [ explicitActor "A" (may "t"), explicitActor "B" [] ]
     events (resolveRound w [ submit "A" 0 [ order "t" "2" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow Source (held "A") g "2" "2" ] Nothing (converted (pid "A" 0) "t" "2") ]
 
   it "a levy to the sink posts before its Transfer, as its own event" do
     let
       levy = FlowRule { kind: Id "tariff", scope: { governor: b, counterparty: a, direction: Inbound, over: [ e ] }, effect: Levy { rate: q "0.5", basis: PerUnit, in: m, to: LevyToSink } }
-      w = (world [ withAccount e (q "10") (playableActor "A" []), playableActor "B" [] ]) { rules = Map.singleton (Id "l") levy }
+      w = (world [ withAccount e (q "10") (explicitActor "A" []), explicitActor "B" [] ]) { rules = Map.singleton (Id "l") levy }
     events (resolveRound w [ submit "A" 0 [ send "A" "B" e "4" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") Sink m "2" "2" ] Nothing (OfRule { kind: Id "tariff" })
       , settledEvent 1 [ flow (held "A") (held "B") e "4" "4" ] Nothing (direct (pid "A" 0) 0)
@@ -157,7 +157,7 @@ pins = describe "Settlement pins" do
   it "a consume's shortfall offsets an incoming flow" do
     -- 6 short at 2 per unit accrues 12, taken off the 20 owed to A
     let
-      w = (world [ withAccount e (q "4") (playableActor "A" []), playableActor "B" [] ])
+      w = (world [ withAccount e (q "4") (explicitActor "A" []), explicitActor "B" [] ])
         { recurring =
             [ (rule "use" (FromActor a) ToSink e (FixedAmount (q "10"))) { onShortfall = OffsetIncoming (q "2") }
             , (rule "pay" (FromActor b) (ToActor a) m (FixedAmount (q "20"))) { offsetable = true }
@@ -170,7 +170,7 @@ pins = describe "Settlement pins" do
 
   it "decay takes from every holder, in Actor order, and from no Exchange" do
     let
-      w = (world [ withAccount e (q "10") (playableActor "A" []), withAccount e (q "5") (playableActor "B" []) ])
+      w = (world [ withAccount e (q "10") (explicitActor "A" []), withAccount e (q "5") (explicitActor "B" []) ])
         { exchanges = Map.singleton (Id "EM") (exchange [])
         , recurring = [ rule "d" FromEachHolder ToSink e (FractionHeld (q "0.1")) ]
         }
@@ -181,21 +181,21 @@ pins = describe "Settlement pins" do
 
   it "shortage law 1: one short Resource scales everything the Actor executes" do
     -- E: 5 held of 10 claimed, a ratio of 0.5, which also halves the Money Transfer
-    let w = world [ withAccount e (q "5") (playableActor "A" []), playableActor "B" [] ]
+    let w = world [ withAccount e (q "5") (explicitActor "A" []), explicitActor "B" [] ]
     events (resolveRound w [ submit "A" 0 [ send "A" "B" e "10" ], submit "A" 1 [ send "A" "B" m "20" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") (held "B") e "5" "5" ] Nothing (direct (pid "A" 0) 0)
       , settledEvent 1 [ flow (held "A") (held "B") m "10" "10" ] Nothing (direct (pid "A" 1) 0)
       ]
 
   it "shortage law 2: joint CandidateTransactions fill first and are never scaled" do
-    let w = world [ playableActor "A" [], playableActor "B" [] ]
+    let w = world [ explicitActor "A" [], explicitActor "B" [] ]
     events (resolveRound w [ joint "A" "B" 0 [ send "A" "B" m "80" ], submit "A" 1 [ send "A" "B" m "40" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") (held "B") m "80" "80" ] Nothing (direct (pid "A" 0) 0)
       , settledEvent 1 [ flow (held "A") (held "B") m "20" "20" ] Nothing (direct (pid "A" 1) 0)
       ]
 
   it "shortage law 2: an overflowing party loses every joint CandidateTransaction claiming the Resource" do
-    let w = world [ playableActor "A" [], playableActor "B" [] ]
+    let w = world [ explicitActor "A" [], explicitActor "B" [] ]
     events (resolveRound w [ joint "A" "B" 0 [ send "A" "B" m "60" ], joint "A" "B" 1 [ send "A" "B" m "60" ], submit "A" 2 [ send "A" "B" m "10" ] ]) `shouldEqual`
       [ rejection 1 (pid "A" 0) PartyCannotFund
       , rejection 1 (pid "A" 1) PartyCannotFund
@@ -205,7 +205,7 @@ pins = describe "Settlement pins" do
   it "shortage law 3: a sale overdrawing quote reserves drops the sell side, and buys still clear" do
     let
       venue = (exchange [ "A", "B" ]) { position = Q.fromInt 10, reserves = Map.fromFoldable [ Tuple e (Q.fromInt 50), Tuple m (Q.fromInt 1) ] }
-      trader name = (playableActor name [ MayTrade (Id "EM") ])
+      trader name = (explicitActor name [ MayTrade (Id "EM") ])
       w = (world [ withAccount e (q "5") (trader "A"), trader "B" ]) { exchanges = Map.singleton venue.id venue }
       trade x = Trade { exchange: venue.id, quantity: q x, limitPrice: Nothing }
       curve candidateTransaction actor = OfIntent { candidateTransaction, intent: 0, mechanism: Curve venue.id } # \c -> { c, actor }
@@ -220,7 +220,7 @@ pins = describe "Settlement pins" do
     -- the pool can draw 5; joints claim 6, so both go and the single order of 4 fills whole
     let
       t = (transformation "t") { outputs = Map.singleton g (q "1"), draws = [ heldDraw e (q "1") ] }
-      w = withTransformation t [ playableActor "A" (may "t"), withAccount e (q "5") (playableActor "B" []) ]
+      w = withTransformation t [ explicitActor "A" (may "t"), withAccount e (q "5") (explicitActor "B" []) ]
     events (resolveRound w [ joint "A" "B" 0 [ order "t" "3" ], joint "A" "B" 1 [ order "t" "3" ], submit "A" 2 [ order "t" "4" ] ]) `shouldEqual`
       [ rejection 1 (pid "A" 0) PoolExceeded
       , rejection 1 (pid "A" 1) PoolExceeded
@@ -230,8 +230,8 @@ pins = describe "Settlement pins" do
   it "a procedure passes only on strictly more than its threshold" do
     let
       proc = { weights: Map.singleton a (q "0.5"), residualWeight: Q.zero, threshold: q "0.5", authorizes: [] }
-      bloc = (playableActor "EU" []) { kind = Aggregate { strategy: Id "p", members: [ a ], procedures: Map.singleton (Id "vote") proc } }
-      w = world [ bloc, playableActor "A" [], playableActor "B" [] ]
+      bloc = (explicitActor "EU" []) { kind = Aggregate { strategy: Id "p", members: [ a ], procedures: Map.singleton (Id "vote") proc } }
+      w = world [ bloc, explicitActor "A" [], explicitActor "B" [] ]
       id = pid "EU" 0
       signed = { candidateTransaction: { id, author: Id "EU", intents: [ send "EU" "B" m "1" ], signers: [ a ], procedure: Just (Id "vote") }, signatures: [ a ] }
     events (resolveRound w [ signed ]) `shouldEqual`

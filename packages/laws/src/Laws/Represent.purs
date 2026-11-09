@@ -19,7 +19,7 @@ import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
 -- | One Actor's proposed quantity of a Resource, as read from what it validly proposed.
-type Observation = { playableActor :: ActorId, resource :: ResourceId, quantity :: Q }
+type Observation = { explicitActor :: ActorId, resource :: ResourceId, quantity :: Q }
 
 -- | A Representation names the Resource whose purchases are observed. The observation is the actor's
 -- | validated buy quantity as proposed: the sum of its Trade quantities over screened candidate Transactions,
@@ -28,7 +28,7 @@ type Observation = { playableActor :: ActorId, resource :: ResourceId, quantity 
 observation :: Representation -> Array Observation -> Maybe Q
 observation rep os =
   let
-    orders = map _.quantity (filter (\o -> o.playableActor == rep.playableActor && o.resource == rep.observes) os)
+    orders = map _.quantity (filter (\o -> o.explicitActor == rep.explicitActor && o.resource == rep.observes) os)
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))
 
@@ -39,7 +39,7 @@ deviation w rep observed = do
   let e = rep.estimator
   rel <- Q.divMaybe (Q.sub observed e.reference) e.reference
   let
-    u = draw w.seed { round: w.round, source: unwrap rep.id, actor: unwrap rep.playableActor, category: "sampling", index: 0 }
+    u = draw w.seed { round: w.round, source: unwrap rep.id, actor: unwrap rep.explicitActor, category: "sampling", index: 0 }
     eps = Q.mul e.noiseSpread (Q.sub (Q.mul (Q.fromInt 2) u) (Q.fromInt 1))
     raw = Q.add rel eps
   pure (maybe raw (\b -> max b.lo (min b.hi raw)) e.deviationBound)

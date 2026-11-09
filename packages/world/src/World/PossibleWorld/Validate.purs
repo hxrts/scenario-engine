@@ -13,7 +13,7 @@ import Prelude
 
 import Core.Map (entries, values)
 
-import World.PossibleWorld.Instantiate (instantiate, withoutPlayableActor)
+import World.PossibleWorld.Instantiate (instantiate, withoutExplicitActor)
 import World.PossibleWorld.Reconcile (reconcile)
 import Schema.PossibleWorld (Bound(..), Fallback(..), PossibleWorld, InstantiationConfig, Measure(..), MetricRef, capacityCategory)
 import Schema.PossibleWorld as Schema
@@ -38,7 +38,7 @@ validatePossibleWorld gb config =
   let
     structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount
     feasibility = either identity (const []) (instantiate gb config)
-    consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.playableActors)) else []
+    consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.explicitActors)) else []
     errors = structural <> feasibility <> consistency
   in
     if null errors then Right gb else Left errors
@@ -62,10 +62,10 @@ validatePossibleWorld gb config =
 
   references = unknownNames (possibleWorldNames gb) (worldRefs w <> possibleWorldRefs gb config)
     <> map (UnknownReference RefResource <<< idText) (filter (\c -> not (c `elem` referenced)) held)
-    <> map (UnknownReference RefActor <<< idText) (filter (\e -> not (Map.member e gb.playableActors)) (fromFoldable (Map.keys config.fallbacks)))
+    <> map (UnknownReference RefActor <<< idText) (filter (\e -> not (Map.member e gb.explicitActors)) (fromFoldable (Map.keys config.fallbacks)))
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) transformations)
   holderChecks = concatMap productionHeld w.recurring
-    <> concatMap coverageAggregate (entries gb.playableActors)
+    <> concatMap coverageAggregate (entries gb.explicitActors)
     <> concatMap schemeTarget gb.schemes
     <> map (DuplicateHolder <<< show) (filter holdersDuplicated drawnSolely)
     <> map (\(Tuple t d) -> DrawWithoutHolder (show t) (show d.resource)) (filter noHolder holderDraws)
@@ -87,17 +87,17 @@ validatePossibleWorld gb config =
     Just (ImplicitCoverage agg) | Map.member agg w.actors && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
   schemeTarget s = if Map.member s.target w.actors && not (isAggregateId s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
-  fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (entries gb.playableActors)
-  objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (entries gb.playableActors)
+  fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (entries gb.explicitActors)
+  objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (entries gb.explicitActors)
   procedures = concatMap
     (\x -> if any (\p -> not (all (_ `elem` x.actor.capabilities) p.authorizes)) (values x.aggregate.procedures) then [ ProcedureExceedsAuthority x.actor.id ] else [])
     aggregates
   roundCount =
     if config.rounds < gb.rounds.min || config.rounds > gb.rounds.max then [ RoundsOutOfRange { rounds: config.rounds, min: gb.rounds.min, max: gb.rounds.max } ]
     else []
-  consistent e = case Map.lookup e gb.playableActors of
+  consistent e = case Map.lookup e gb.explicitActors of
     Just { fallback: Just (ImplicitCoverage _) } ->
-      case instantiate gb config, instantiate gb (withoutPlayableActor e config) of
+      case instantiate gb config, instantiate gb (withoutExplicitActor e config) of
         Right a, Right b -> either (\ds -> [ ResolutionInconsistent e ds ]) (const []) (reconcile a b)
         _, _ -> []
     _ -> []
@@ -125,14 +125,14 @@ worldRefs = foldWorld
 -- | The names the possible World's objectives, schemes, and fallbacks refer to, and the configuration's.
 possibleWorldRefs :: PossibleWorld -> InstantiationConfig -> Array (Tuple RefKind String)
 possibleWorldRefs gb config =
-  concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective playableActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
+  concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective explicitActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
     <> map (name RefActor) (concatMap coverageOf fallbacks)
-    <> concatMap (\s -> [ name RefActor s.target ] <> map (name RefActor) s.eligiblePlayableActors <> [ name RefResource s.observes ]) gb.schemes
-    <> map (name RefStrategy) (map _.strategy (mapMaybe aggregateOf (values gb.world.actors)) <> concatMap _.nonPlayableActor playableActors <> concatMap institutional fallbacks)
+    <> concatMap (\s -> [ name RefActor s.target ] <> map (name RefActor) s.eligibleActors <> [ name RefResource s.observes ]) gb.schemes
+    <> map (name RefStrategy) (map _.strategy (mapMaybe aggregateOf (values gb.world.actors)) <> concatMap _.nonPlayableActor explicitActors <> concatMap institutional fallbacks)
   where
-  playableActors = values gb.playableActors
+  explicitActors = values gb.explicitActors
   -- an institutional fallback binds a catalog Strategy, declared or overridden in the configuration
-  fallbacks = mapMaybe _.fallback playableActors <> values config.fallbacks
+  fallbacks = mapMaybe _.fallback explicitActors <> values config.fallbacks
 
   name :: forall t. RefKind -> Id t -> Tuple RefKind String
   name kind x = Tuple kind (idText x)

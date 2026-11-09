@@ -104,8 +104,8 @@ observationsOf :: WorldState -> CandidateTransaction -> Array Represent.Observat
 observationsOf w p = concatMap trade p.intents
   where
   trade = case _ of
-    Trade o | Just m <- Map.lookup o.exchange w.exchanges -> [ { playableActor: p.author, resource: m.base, quantity: o.quantity } ]
-    Route r -> [ { playableActor: p.author, resource: r.pair.base, quantity: r.quantity } ]
+    Trade o | Just m <- Map.lookup o.exchange w.exchanges -> [ { explicitActor: p.author, resource: m.base, quantity: o.quantity } ]
+    Route r -> [ { explicitActor: p.author, resource: r.pair.base, quantity: r.quantity } ]
     _ -> []
 
 -- | What a due transaction asks to set aside: each whole-quantity settled Flow out of a named holder's account.

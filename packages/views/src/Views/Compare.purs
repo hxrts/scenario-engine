@@ -81,7 +81,7 @@ fields =
   , showsValue col.rounds "round count" (show <<< completed)
   , showsSameness unitsColumn "units" (\r -> map _.unit r.manifest.initial.resources)
   , showsSameness exchangeDefinitions "Exchange definitions" _.manifest.initial.exchanges
-  , (showsValue playableActorSelection "Actor selection" (fromMaybe "—" <<< _.spec.preset)) { same = \a b -> a.spec.preset == b.spec.preset }
+  , (showsValue explicitActorSelection "Actor selection" (fromMaybe "—" <<< _.spec.preset)) { same = \a b -> a.spec.preset == b.spec.preset }
   ]
 
 -- | Runs are directly comparable only when they agree on everything the manifest fixes: the
@@ -109,8 +109,8 @@ unitsColumn = column "Units" "Whether every Resource has the same unit in each r
 exchangeDefinitions :: Column
 exchangeDefinitions = column "Exchange definitions" "Whether the Exchanges are defined the same way in each run."
 
-playableActorSelection :: Column
-playableActorSelection = column "Actor selection" "The preset every seat plays. differs means the runs used different presets."
+explicitActorSelection :: Column
+explicitActorSelection = column "Actor selection" "The preset every seat plays. differs means the runs used different presets."
 
 comparableColumn :: Column
 comparableColumn = column "Comparable with the first" "yes, or no with the reasons. A run flagged no is shown but not combined with the first run."
@@ -129,7 +129,7 @@ unitColumn = column "Unit" "The unit of this row's values."
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ engineColumn, unitsColumn, exchangeDefinitions, playableActorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
+columns = [ engineColumn, unitsColumn, exchangeDefinitions, explicitActorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.
@@ -283,8 +283,8 @@ keyValues boardOf runs =
   measureRows = map (\m -> row [ m.label, m.unit (numeraireUnit runs) ] (\v -> m.cell (m.read v.measures))) runMeasures
 
   objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
-  roles = nub (concatMap (map _.playableActor <<< _.completion) perRun)
-  roleCell role v = case find (\c -> c.playableActor == role) v.completion of
+  roles = nub (concatMap (map _.explicitActor <<< _.completion) perRun)
+  roleCell role v = case find (\c -> c.explicitActor == role) v.completion of
     Nothing -> "—"
     Just c -> ofCount c.met c.criteria
 

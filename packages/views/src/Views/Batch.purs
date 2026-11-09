@@ -1,5 +1,5 @@
 -- | A batch's summary (docs/06_simulator.md §11): the final measures across a set of runs, with their mean, their
--- | spread, and how many runs met each Actor's objective. Pure: every value is read from the runs.
+-- | spread, and how many runs met each explicit Actor's objective. Pure: every value is read from the runs.
 module Views.Batch (batchSummary, measureRow, objectiveRow, columns) where
 
 import Prelude
@@ -54,12 +54,12 @@ batchSummary boardOf runs =
       , measureRow quantity "Net worth Gini" (mapMaybe (_.gini <<< measuresOf) runs)
       ]
         <> map exchangeRow exchangesOf
-        <> map playableActorRow playableActorsOf
+        <> map explicitActorRow explicitActorsOf
   }
   where
   prices r = exchangePrices (final r)
   exchangesOf = nub (concatMap (map (\m -> show m.exchange) <<< prices) runs)
   exchangeRow m = measureRow price ("Final price, " <> m) (concatMap (map _.price <<< filter (\p -> show p.exchange == m) <<< prices) runs)
   completions r = fromMaybe [] (flip completionOf r <$> boardOf r)
-  playableActorsOf = nub (concatMap (map (\c -> show c.playableActor) <<< completions) runs)
-  playableActorRow a = objectiveRow ("Objective met, " <> a) (concatMap (map (\c -> c.met == c.criteria) <<< filter (\c -> show c.playableActor == a) <<< completions) runs)
+  explicitActorsOf = nub (concatMap (map (\c -> show c.explicitActor) <<< completions) runs)
+  explicitActorRow a = objectiveRow ("Objective met, " <> a) (concatMap (map (\c -> c.met == c.criteria) <<< filter (\c -> show c.explicitActor == a) <<< completions) runs)

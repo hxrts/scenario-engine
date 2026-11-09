@@ -25,7 +25,7 @@ import Premises.Presets (presetNames)
 import Handlers.Simulate (SimRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 import Testkit.Meridian (run, presetGame)
 
 -- | The Presets whose behaviour the shock is checked on (Passive proposes nothing, so it cannot flip).
@@ -38,7 +38,7 @@ shockPresets = filter (_ /= "Passive") presetNames
 roundKinds :: SimRun -> Int -> Array String
 roundKinds r i = case index r.records i of
   Nothing -> []
-  Just rr -> nub (concatMap (\x -> if elem x.candidateTransaction.author playablePlayableActors then map kindOf x.candidateTransaction.intents else []) rr.record.inputs)
+  Just rr -> nub (concatMap (\x -> if elem x.candidateTransaction.author playableActors then map kindOf x.candidateTransaction.intents else []) rr.record.inputs)
   where
   kindOf = case _ of
     Trade o -> (if o.quantity < Q.zero then "sell " else "buy ") <> show o.exchange

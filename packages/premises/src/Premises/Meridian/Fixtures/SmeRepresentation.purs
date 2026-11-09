@@ -29,7 +29,7 @@ smeAndGlobalSmes noise = cut
 smeRepresentation :: Q -> Representation
 smeRepresentation noise =
   { id: Id smeSample.id
-  , playableActor: smeSample.playableActor
+  , explicitActor: smeSample.explicitActor
   , aggregate: smeSample.aggregate
   , domain: Id (idText smeSample.domain)
   , observes: smeSample.domain

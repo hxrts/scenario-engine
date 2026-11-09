@@ -42,9 +42,9 @@ test("a failed assertion shows expected, observed and its events; a clean run sa
 });
 
 test("the Agency tab shows each criterion under the baseline and the alternative", async ({ page }) => {
-  await page.route(isPath("/api/agency"), (route) => route.fulfill(json(table("Agency", ["Playable Actor", "Alternative"], [["US", "Aggressive"]]))));
-  const criteria = table("Criteria under each alternative", ["Playable Actor", "Objective", "Criterion", "Under the baseline", "Under the alternative"], [["US", "Hold energy", "1", "met", "not met"]]);
-  const profile = table("Agency profile per role", ["Playable Actor", "Alternative", "Criteria met (baseline)", "Criteria met (alternative)"], [["US", "Aggressive", "1", "0"]]);
+  await page.route(isPath("/api/agency"), (route) => route.fulfill(json(table("Agency", ["Explicit Actor", "Alternative"], [["US", "Aggressive"]]))));
+  const criteria = table("Criteria under each alternative", ["Explicit Actor", "Objective", "Criterion", "Under the baseline", "Under the alternative"], [["US", "Hold energy", "1", "met", "not met"]]);
+  const profile = table("Agency profile per role", ["Explicit Actor", "Alternative", "Criteria met (baseline)", "Criteria met (alternative)"], [["US", "Aggressive", "1", "0"]]);
   await page.route(isPath("/api/agency/detail"), (route) => route.fulfill(json({ criteria, profile })));
   await page.goto("/#/compare/run-1/run-2");
   await page.getByRole("tab", { name: "Agency (fixed baseline)" }).click();

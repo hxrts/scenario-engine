@@ -33,7 +33,7 @@ Capacities are non-transferable Resources with no Exchange. They limit what an A
 | `energy-atlantic` | Atlantic | US, DE, UK, BR, NG, ENCO, DEF, LABOR, SME, AID, EU, EU_POOL, US_WORKERS, GLOBAL_SMES, SHIP, ENERGY_SUPPLIERS | 700 M | 350 E | −80 ≤ x ≤ 300 |
 | `energy-asia` | Asia | CN, IN, JP, SA, CHIP, CN_PRIVATE, WORLD_HOUSEHOLDS, SHIP, ENERGY_SUPPLIERS | 500 M | 250 E | −80 ≤ x ≤ 200 |
 
-SHIP trades on both nodes, and `ENERGY_SUPPLIERS` offers into both. Other Actors reach one node. Energy crosses regions only by a shipped Transfer ([§3.3](#33-transformations)).
+SHIP trades on both nodes, and `ENERGY_SUPPLIERS` offers into both. Other Actors reach one node. Energy crosses regions only by a shipped Transfer ([§3.3](#33-transformations-in-brief)).
 
 Both nodes use one curve: **p(x) = 2 + 0.02x**, **C(x) = 2x + 0.01x²**, where x is the node's cumulative net Energy sold. The initial price is 2 M/E. Each upper bound leaves 50 E of the node's Energy reserve unsold. At the lower bound a node pays out C(0) − C(−80) = 96 M, which its Money reserve covers ([INV-06](02_kernel.md#inv-06)).
 
@@ -49,7 +49,7 @@ The `defence-goods` Exchange trades Military for Money, so a deployment and a sa
 
 **p(x) = 3 + 0.01x**, **C(x) = 3x + 0.005x²**, where x is the Exchange's cumulative net Military sold. The initial price is 3 M/Mil and the price runs from 2.2 to 3.2 across the interval. The upper bound sits 40 Mil below the reserve, and the lower bound is −80. A Military sale is a Trade with the Exchange as counterparty ([02 §2.3](02_kernel.md#23-resource)).
 
-### 3.3 Transformations
+### 3.3 Transformations in brief
 
 - **Energy shipping** (`energy-shipping`). Capacity 60 E per round, at a flat cost of 0.3 M per E paid by the sender, with no delay. Every order needs SHIP's signature. A cross-region Energy Transfer is valid only in the same candidate Transaction as a shipping order of the same quantity ([03 §5.5](03_premise.md#55-geography-access-and-rules)). If SHIP signs more than 60 E of shipments in a round, every shipping candidate Transaction of that round is rejected as a unit ([03 §5.3](03_premise.md#53-transformations)). Logistics investment adds 10 E of capacity from the next round. Governments restrict shipping by Rules ([§13.2](#132-trade-restrictions-and-the-tariff)).
 - **Defence procurement** (`defense-procurement`; China orders from its own Transformation, `defense-procurement-cn`, with payee CN_PRIVATE). Capacity 30 Mil per round, backed by CHIP's 15 semiconductor units, one unit per 2 Mil. Units CHIP withholds, or that investment draws, cut capacity in proportion. **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is the total Military ordered this round. Every order settles at the uniform price C(Q)/Q. Money and Energy are escrowed at screening at the full-capacity price, 15.5 M/Mil. Over-subscription is allocated in whole Military units, as in [Fixture F](#26-fixture-f-simultaneous-conflicting-orders). The payee is DEF, which passes 25% of its procurement revenue to US_WORKERS as variable wages.
@@ -142,7 +142,7 @@ CHIP's supply contract covers its wages. Further CHIP revenue comes from signed 
 
 ### 8.4 Variable flows
 
-ENERGY_SUPPLIERS pays 50% of its net Energy-sale revenue to WORLD_HOUSEHOLDS (producer recycling). DEF's 25% wage share is in [§3.3](#33-transformations). Other variable flows go to the payees in [§3](#3-exchanges-and-transformations) and [§4](#4-transformations).
+ENERGY_SUPPLIERS pays 50% of its net Energy-sale revenue to WORLD_HOUSEHOLDS (producer recycling). DEF's 25% wage share is in [§3.3](#33-transformations-in-brief). Other variable flows go to the payees in [§3](#3-exchanges-and-transformations) and [§4](#4-transformations).
 
 ### 8.5 Capacity renewal and reconciliation
 
@@ -166,7 +166,7 @@ Meridian has fifteen Playable Actors and one non-playable Actor, China. This tab
 | NG | Nigerian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units; investment | National capacity |
 | ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production. Capacity investment | Semiconductor units; strikes | Profit and supply growth |
 | CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2](#2-resources)). May withhold units, and signs each Energy capacity investment | 6 E/round operating Energy | Secure Energy inputs |
-| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.3](#33-transformations)). Chooses which shipments to sign. Arbitrage | 4 E/round fuel; shipment bans | Open routes, high throughput |
+| SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.3](#33-transformations-in-brief)). Chooses which shipments to sign. Arbitrage | 4 E/round fuel; shipment bans | Open routes, high throughput |
 | DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement. Receives non-Chinese revenue | CHIP's semiconductor capacity; strikes | Procurement revenue |
 | LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§13.4](#134-strike)), declared or withheld each round | Dues; Soft Power | Workers' position and influence |
 | SME | Small-Business Owner | Small participant | Atlantic | Representation of Global SME demand ([§12.2](#122-small-business-owner--global-smes-representation)) | Atlantic prices; small cash | Business viability |
@@ -193,7 +193,7 @@ Where a seat is not explicit, its accounts are controlled by a default Strategy 
 
 ### 9.3 Objectives
 
-Each Actor's objective is a set of measurable criteria over the recorded Run ([03 §10.5](03_premise.md#105-evaluation)). The criteria are provisional, never affect the economy, and are reported per Actor as met or not met, with values.
+Each explicit Actor's objective is a set of measurable criteria over the recorded Run ([03 §10.5](03_premise.md#105-evaluation)). The criteria are provisional, never affect the economy, and are reported per Actor as met or not met, with values.
 
 | Actor | Criteria |
 |---|---|
@@ -400,7 +400,7 @@ With Germany implicit, the EU → DE and DE → EU flows become internal. DE's 8
 ## 16. Initial Exchange and Capacity State
 
 - Every Exchange starts at position x = 0, with the reserves and opening prices in [§3](#3-exchanges-and-transformations).
-- Capacities and production start at the values in [§2](#2-resources), [§3.3](#33-transformations) and [§8.1](#81-energy-production). Procurement, public attention and the semiconductor units start with no orders.
+- Capacities and production start at the values in [§2](#2-resources), [§3.3](#33-transformations-in-brief) and [§8.1](#81-energy-production). Procurement, public attention and the semiconductor units start with no orders.
 - No `Tariff`, `AccessBan` or `Withholding` is in force at the start.
 
 # Part IV: Playtest Fixtures

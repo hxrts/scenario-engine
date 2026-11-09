@@ -7,7 +7,7 @@ module Assembly.Override (Override(..), resolve, encodeOverrides, decodeOverride
 import Prelude
 
 import World.Error (ValidationError(..))
-import World.PossibleWorld.Instantiate (withoutPlayableActor)
+import World.PossibleWorld.Instantiate (withoutExplicitActor)
 import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
@@ -66,7 +66,7 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
     Parameter name q -> Right acc { possibleWorld { parameters = Object.insert name q acc.possibleWorld.parameters } }
     Capacity e ref q -> setAccount e ref q acc.possibleWorld <#> \possibleWorld -> acc { possibleWorld = possibleWorld }
     Shrinkage scheme q -> Right acc { possibleWorld { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.possibleWorld.schemes } }
-    Implicit e -> Right acc { config = withoutPlayableActor e acc.config }
+    Implicit e -> Right acc { config = withoutExplicitActor e acc.config }
     SeatPreset _ _ -> Right acc -- binds a seat at assembly; it changes neither the possible World nor the configuration
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.

@@ -179,12 +179,12 @@ spec context = describe "Views and error paths" do
       b = toStored "b" r
       engine = b { manifest = b.manifest { engine = "engine-other" } }
       exchanges = b { manifest = b.manifest { initial = b.manifest.initial { exchanges = map (\m -> m { position = Q.fromInt 999 }) b.manifest.initial.exchanges } } }
-      playableActors = b { spec = emptySpec { preset = Just "Passive" } }
+      explicitActors = b { spec = emptySpec { preset = Just "Passive" } }
       fewer = toStored "c" (r { records = [] })
     verdicts (compatible [ a, a ]) `shouldEqual` [ "yes", "yes" ]
     verdicts (compatible [ a, engine ]) `shouldEqual` [ "yes", "no: flagged, not combined (engine)" ]
     verdicts (compatible [ a, exchanges ]) `shouldEqual` [ "yes", "no: flagged, not combined (Exchange definitions)" ]
-    verdicts (compatible [ a, playableActors ]) `shouldEqual` [ "yes", "no: flagged, not combined (Actor selection)" ]
+    verdicts (compatible [ a, explicitActors ]) `shouldEqual` [ "yes", "no: flagged, not combined (Actor selection)" ]
     verdicts (compatible [ a, fewer ]) `shouldEqual` [ "yes", "no: flagged, not combined (round count)" ]
 
   it "a run with no rounds: every objective is not evaluated, never met (§10.5)" do

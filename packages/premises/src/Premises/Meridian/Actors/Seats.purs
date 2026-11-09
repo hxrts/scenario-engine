@@ -2,7 +2,7 @@
 -- | accounts, capabilities, objective and fallback. `Actors` lists them.
 -- | A seat is built by `seat`, from a `SeatSpec`; the seat's default Strategy is named once,
 -- | and both its non-playable Actor Strategy and its fallback derive from that name.
-module Premises.Meridian.Actors.Seats (seats, playablePlayableActors, cn) where
+module Premises.Meridian.Actors.Seats (seats, playableActors, cn) where
 
 import Prelude (map, negate, (<>))
 
@@ -14,11 +14,11 @@ import Premises.Meridian.Names (n)
 import Premises.Meridian.Rules (withholding)
 import Schema.Build.Base (cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
-import Schema.PossibleWorld (PlayableActorDefinition)
+import Schema.PossibleWorld (ActorDefinition)
 import Laws.Types (Capability, Actor, ActorId, ExchangeId)
 import Data.Tuple (Tuple, fst)
 
-type CatalogSeat = Tuple ActorId (Tuple Actor PlayableActorDefinition)
+type CatalogSeat = Tuple ActorId (Tuple Actor ActorDefinition)
 
 seat :: ActorId -> Kit.SeatSpec -> CatalogSeat
 seat = Kit.seat holdings
@@ -29,8 +29,8 @@ seats :: Array CatalogSeat
 seats = [ us, de, india, jp, uk, br, sa, ng, enco, chip, ship, def, labor, sme, aid ]
 
 -- | The seat Actors' names, in catalog order.
-playablePlayableActors :: Array ActorId
-playablePlayableActors = map fst seats
+playableActors :: Array ActorId
+playableActors = map fst seats
 
 -- | The two regional Energy Exchanges, by name.
 atlantic :: ExchangeId

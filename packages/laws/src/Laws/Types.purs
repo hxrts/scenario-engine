@@ -368,7 +368,7 @@ executorDraws = Array.filter (\d -> d.from == Executor) <<< _.draws
 
 type Representation =
   { id :: RepresentationId
-  , playableActor :: ActorId
+  , explicitActor :: ActorId
   , aggregate :: ActorId
   , domain :: BehaviorDomain
   , observes :: ResourceId -- the Resource whose purchases are observed
@@ -620,7 +620,7 @@ actorShape = recordOf "Actor"
   ( field @"id" "the Actor's id" idShape
       &. field @"accounts" "its holdings of each Resource" (mapOf idShape qShape)
       &. field @"capabilities" "what it may do" (arrayOf capabilityShape)
-      &. field @"kind" "an PlayableActor or an Aggregate" actorKindShape
+      &. field @"kind" "an Actor or an Aggregate" actorKindShape
   )
 
 candidateTransactionShape :: Shape CandidateTransaction

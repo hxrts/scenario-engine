@@ -4,7 +4,7 @@ module Test.Premises.Main where
 import Testkit.Meridian (orThrow)
 import Prelude
 
-import Testkit.Edit (onPlayableActor, onActor, onExchange, onTransformation)
+import Testkit.Edit (onExplicitActor, onActor, onExchange, onTransformation)
 
 import Core.Map (values)
 
@@ -344,17 +344,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "UnknownReference: an Aggregate member is not an Actor"
       (editWorld (onActor (Id "EU") \e -> e { kind = Aggregate { strategy: Id "eu-coordination-v0", members: [ Id "NOBODY" ], procedures: Map.empty } }))
       (UnknownReference RefActor "NOBODY")
-    rejects "UnknownReference: an PlayableActor's NonPlayableActor strategy is not in the catalog"
-      (\g c -> Tuple (onPlayableActor (Id "CN") (\d -> d { nonPlayableActor = [ Id "no-such-strategy" ] }) g) c)
+    rejects "UnknownReference: an explicit Actor's NonPlayableActor strategy is not in the catalog"
+      (\g c -> Tuple (onExplicitActor (Id "CN") (\d -> d { nonPlayableActor = [ Id "no-such-strategy" ] }) g) c)
       (UnknownReference RefStrategy "no-such-strategy")
     rejects "UnknownReference: a Withholding rule names a capacity no Actor holds"
       (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
       (UnknownReference RefResource "nowhere")
-    rejects "MissingFallback: a non-required PlayableActor with no fallback"
-      (\g c -> Tuple (onPlayableActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
+    rejects "MissingFallback: a non-required explicit Actor with no fallback"
+      (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
       (MissingFallback (Id "DE"))
-    rejects "MissingObjective: an PlayableActor with no objective"
-      (\g c -> Tuple (onPlayableActor (Id "DE") (\d -> d { objective = Nothing }) g) c)
+    rejects "MissingObjective: an explicit Actor with no objective"
+      (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { objective = Nothing }) g) c)
       (MissingObjective (Id "DE"))
     rejects "DuplicateHolder: two Actors hold what a holder draw names"
       (editWorld (onActor (Id "SA") \e -> e { accounts = Map.insert (Id "semiconductors") (Q.fromInt 1) e.accounts }))
@@ -372,19 +372,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { recurring = w.recurring <> [ productionRule { actor: Id "US", resource: Id "E", capacity: Id "energy-production" } ] })
       (ProductionWithoutHolding (Id "US") "energy-production")
     rejects "CoverageNotAggregate: a coverage fallback that names an Actor which is not an Aggregate"
-      (\g c -> Tuple (onPlayableActor (Id "DE") (\d -> d { fallback = Just (ImplicitCoverage (Id "US")) }) g) c)
+      (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { fallback = Just (ImplicitCoverage (Id "US")) }) g) c)
       (CoverageNotAggregate (Id "DE") (Id "US"))
     rejects "SchemeTargetNotAggregate: a scheme whose target is not an Aggregate"
       (\g c -> Tuple g { schemes = map (\s -> s { target = Id "US" }) g.schemes } c)
       (SchemeTargetNotAggregate "sme-energy-sample" (Id "US"))
-    rejects "RequiredNotSelected: a required PlayableActor with no seat or NonPlayableActor"
+    rejects "RequiredNotSelected: a required explicit Actor with no seat or NonPlayableActor"
       (editConfig \c -> c { seats = Map.delete (Id "US") c.seats })
       (RequiredNotSelected (Id "US"))
-    rejects "ControllerNotAllowed: a seat for an Actor that is not an PlayableActor"
+    rejects "ControllerNotAllowed: a seat for an Actor that is not an explicit Actor"
       (editConfig \c -> c { seats = Map.insert (Id "NOBODY") "seat-99" c.seats })
       (ControllerNotAllowed (Id "NOBODY"))
-    rejects "IneligibleRepresentative: a selected PlayableActor the scheme does not cover"
-      (editConfig \c -> c { representations = c.representations <> [ { scheme: "sme-energy-sample", playableActor: Id "US", weight: Q.fromInt 1 } ] })
+    rejects "IneligibleRepresentative: a selected explicit Actor the scheme does not cover"
+      (editConfig \c -> c { representations = c.representations <> [ { scheme: "sme-energy-sample", explicitActor: Id "US", weight: Q.fromInt 1 } ] })
       (IneligibleRepresentative (Id "US"))
     rejects "RoundsOutOfRange: a configured round count outside the supported range"
       (editConfig \c -> c { rounds = 9 })
@@ -440,7 +440,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "UnknownReference: a procedure weight on an Actor that does not exist"
       (editWorld (onActor (Id "EU") (withWeightOf "NOBODY")))
       (UnknownReference RefActor "NOBODY")
-    it "ResolutionInconsistent: an implicit PlayableActor whose authority its Aggregate would not keep" do
+    it "ResolutionInconsistent: an implicit explicit Actor whose authority its Aggregate would not keep" do
       { possibleWorld, config } <- loaded
       -- DE may enact tariffs, but once the EU covers DE, DE's authority disappears
       let

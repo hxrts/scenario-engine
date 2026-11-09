@@ -159,7 +159,7 @@ type CriterionRow = { o :: ObjectiveResult, i :: Int, c :: CriterionResult }
 
 objectiveFields :: Array (Field CriterionRow)
 objectiveFields =
-  [ cellOf col.playableActor (show <<< _.o.playableActor)
+  [ cellOf col.explicitActor (show <<< _.o.explicitActor)
   , cellOf col.objective _.o.description
   , cellOf criterionColumn (\x -> show (x.i + 1))
   , cellOf col.outcome (show <<< _.c.outcome)

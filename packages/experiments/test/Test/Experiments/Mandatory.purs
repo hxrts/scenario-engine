@@ -9,7 +9,7 @@ import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfTransform)
 import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
-import Premises.Meridian.Actors.Seats (playablePlayableActors)
+import Premises.Meridian.Actors.Seats (playableActors)
 import Testkit.Meridian (orThrow, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
 
@@ -64,29 +64,29 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
   it "14 Agency: every role has a measurable effect and its objectives are reported" do
     ctx <- context
     random <- everySeat ctx "RandomValid"
-    ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) random "Aggressive" playablePlayableActors)
+    ps <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) random "Aggressive" playableActors)
     length ps `shouldEqual` 15
     -- hard condition (docs/06 §14): a role with no measurable effect is a broken premise
-    map _.playableActor (filter (not <<< _.measurable) ps) `shouldEqual` []
+    map _.explicitActor (filter (not <<< _.measurable) ps) `shouldEqual` []
     -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
     for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
     (any (not <<< null <<< _.criteria) ps) `shouldEqual` true
     -- a seat-Strategy experiment's deviating run is the agency analysis's run for that seat
     deviating <- orThrow (assemblePreset ctx "RandomValid" [ SeatPreset (Id "US") "Aggressive" ] Nothing >>= simulate (Seed 1))
     baseRun <- orThrow (simulate (Seed 1) random)
-    case find (\p -> p.playableActor == Id "US") ps of
+    case find (\p -> p.explicitActor == Id "US") ps of
       Just us -> Q.sumQ (map (Q.abs <<< _.delta) (difference baseRun deviating).prices) `shouldEqual` us.prices
       Nothing -> fail "no agency row for US"
     length (agencyProfiles ps).rows `shouldEqual` length ps
     g <- everySeat ctx "Conservative"
-    profiles <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playablePlayableActors)
+    profiles <- orThrow (agency ctx.possibleWorld ctx.presets (Seed 1) g "Aggressive" playableActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
     -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
     -- is asserted on the RandomValid baseline. Pinned here so a premise change is noticed.
-    map _.playableActor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
+    map _.explicitActor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
     base <- run (Seed 1) g
     -- under the Conservative preset JP, SME and the US meet their objectives, and every other Actor misses its own
-    map (\o -> show o.playableActor <> ":" <> show o.outcome) (evaluateObjectives ctx.possibleWorld base.records)
+    map (\o -> show o.explicitActor <> ":" <> show o.outcome) (evaluateObjectives ctx.possibleWorld base.records)
       `shouldEqual`
         [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 

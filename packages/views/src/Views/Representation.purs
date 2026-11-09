@@ -63,15 +63,15 @@ representation r =
   estimate i rec est = map (stages i rec est.factor) (filter (\rep -> rep.aggregate == est.aggregate && rep.domain == est.domain) r.manifest.initial.representations)
   stages i rec factor rep =
     let
-      observed = proposedPurchases rep.playableActor rec
-      own = bought rep.playableActor rec
+      observed = proposedPurchases rep.explicitActor rec
+      own = bought rep.explicitActor rec
       next = bought rep.aggregate <$> index recs (i + 1)
       induced nx = if factor == Q.zero then Q.zero else Q.sub nx (Q.div nx factor)
       influence = case next of
         Just nx | own /= Q.zero -> ratio (Q.div (induced nx) own)
         _ -> "n/a"
     in
-      [ show rec.round, show rep.playableActor, show rep.aggregate, show rep.domain, quantity observed, quantity own, ratio rep.weight, ratio rep.estimator.reference, ratio rep.estimator.shrinkage, ratio rep.estimator.noiseSpread, ratio factor, maybe "n/a" quantity next, influence ]
+      [ show rec.round, show rep.explicitActor, show rep.aggregate, show rep.domain, quantity observed, quantity own, ratio rep.weight, ratio rep.estimator.reference, ratio rep.estimator.shrinkage, ratio rep.estimator.noiseSpread, ratio factor, maybe "n/a" quantity next, influence ]
 
 -- | Quantities an Actor offered to buy in a round's candidate Transactions.
 proposedPurchases :: ActorId -> RoundRecord -> Q

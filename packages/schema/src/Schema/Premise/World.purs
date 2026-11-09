@@ -174,7 +174,7 @@ writtenObserves r = if idText r.observes == idText r.domain then Nothing else Ju
 representationShape :: Shape Representation
 representationShape = object "Representation"
   ( mk <$> fieldOf "id" "the Representation" idShape _.id
-      <*> fieldOf "playableActor" "the PlayableActor represented" idShape _.playableActor
+      <*> fieldOf "explicitActor" "the PlayableActor represented" idShape _.explicitActor
       <*> fieldOf "aggregate" "the Aggregate that holds the estimate" idShape _.aggregate
       <*> fieldOf "domain" "the behaviour domain" idShape _.domain
       <*> fieldOf "observes" observesNote (optionalOf idShape) writtenObserves
@@ -182,26 +182,26 @@ representationShape = object "Representation"
       <*> contramapRec _.estimator estimatorRec
   )
   where
-  mk i a g d o w e = { id: i, playableActor: a, aggregate: g, domain: d, observes: maybe (Id (idText d)) identity o, weight: w, estimator: e }
+  mk i a g d o w e = { id: i, explicitActor: a, aggregate: g, domain: d, observes: maybe (Id (idText d)) identity o, weight: w, estimator: e }
 
 -- | A possible World's scheme: the Representation an Actor's behaviour is estimated under.
 schemeShape :: Shape Scheme
 schemeShape = object "Scheme"
   ( mk <$> fieldOf "id" "the scheme's name" stringShape _.id
-      <*> fieldOf "eligiblePlayableActors" "the PlayableActors it may estimate" (listOf idShape) _.eligiblePlayableActors
+      <*> fieldOf "eligibleActors" "the PlayableActors it may estimate" (listOf idShape) _.eligibleActors
       <*> fieldOf "target" "the Aggregate it estimates" idShape _.target
       <*> fieldOf "domain" "the behaviour domain" idShape _.domain
       <*> fieldOf "observes" observesNote (optionalOf idShape) writtenObserves
       <*> fieldOf "estimator" "the estimator" estimatorShape _.estimator
   )
   where
-  mk i e t d o est = { id: i, eligiblePlayableActors: e, target: t, domain: d, observes: maybe (Id (idText d)) identity o, estimator: est }
+  mk i e t d o est = { id: i, eligibleActors: e, target: t, domain: d, observes: maybe (Id (idText d)) identity o, estimator: est }
 
 -- | An instantiation's assignment of an Actor to a scheme; the weight defaults to 1.
-assignmentShape :: Shape { scheme :: String, playableActor :: ActorId, weight :: Q.Q }
+assignmentShape :: Shape { scheme :: String, explicitActor :: ActorId, weight :: Q.Q }
 assignmentShape = recordOf "Assignment"
   ( field @"scheme" "the scheme assigned" stringShape
-      &. field @"playableActor" "the PlayableActor assigned" idShape
+      &. field @"explicitActor" "the PlayableActor assigned" idShape
       &. field @"weight" "the weight (default 1)" (defaultsTo Q.one qShape)
   )
 

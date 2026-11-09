@@ -12,7 +12,7 @@ module Schema.Premise.PlayableActor
 import Core.Num (qShape)
 import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, field, genericPremiseSum, listOf, optionalOf, recordOf, stringShape, (&.))
 import Laws.Types (idShape)
-import Schema.PossibleWorld (PlayableActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
+import Schema.PossibleWorld (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- Tags ----------------------------------------------------------------------------------------
 
@@ -51,7 +51,7 @@ cumulativeTag = "cumulative"
 
 -- Shapes --------------------------------------------------------------------------------------
 
-definitionShape :: Shape PlayableActorDefinition
+definitionShape :: Shape ActorDefinition
 definitionShape = recordOf "Definition"
   ( field @"required" "must be seated (default false)" (defaultsTo false boolShape)
       &. field @"seat" "may be seated (default true)" (defaultsTo true boolShape)

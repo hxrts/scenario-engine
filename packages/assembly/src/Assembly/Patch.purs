@@ -69,7 +69,7 @@ withCirculation c gb = gb
 -- | candidate Transactions, so what a Strategy reads does not constrain what the fixture keeps.
 engineOnly :: PossibleWorldParts -> PossibleWorldParts
 engineOnly p = p
-  { possibleWorld = p.possibleWorld { playableActors = Map.empty, schemes = [], strategies = map (const { rules: [], sign: [] }) p.possibleWorld.strategies }
+  { possibleWorld = p.possibleWorld { explicitActors = Map.empty, schemes = [], strategies = map (const { rules: [], sign: [] }) p.possibleWorld.strategies }
   , config = p.config { seats = Map.empty, nonPlayableActors = Map.empty, fallbacks = Map.empty, representations = [] }
   , presets = Object.empty
   }

@@ -4,7 +4,7 @@
 -- | (instantiate, validate, reconcile) is in `board`.
 module Schema.PossibleWorld
   ( PossibleWorld
-  , PlayableActorDefinition
+  , ActorDefinition
   , Fallback(..)
   , Outcome(..)
   , Objective
@@ -47,7 +47,7 @@ type PossibleWorld =
   , version :: String
   , authored :: Authored -- what the premise authors that the World does not hold
   , world :: UnseededWorld -- resources, Exchanges, transformations, circulation, rules, and every Actor; seeded by instantiation
-  , playableActors :: Map ActorId PlayableActorDefinition
+  , explicitActors :: Map ActorId ActorDefinition
   , schemes :: Array Scheme
   , parameters :: Object Q -- named premise parameters read by Strategies
   , horizon :: Int -- years
@@ -62,7 +62,7 @@ gameIdOf :: PossibleWorld -> Maybe String
 gameIdOf gb = (\l -> gb.id <> "/" <> l) <$> gb.label
 
 -- | What an Actor definition adds to its Actor (§6.2).
-type PlayableActorDefinition =
+type ActorDefinition =
   { required :: Boolean
   , seat :: Boolean -- may be a seat
   , nonPlayableActor :: Array StrategyId -- non-playable Actor Strategies it may take
@@ -114,7 +114,7 @@ derive instance Eq Bound
 
 type Scheme =
   { id :: String
-  , eligiblePlayableActors :: Array ActorId
+  , eligibleActors :: Array ActorId
   , target :: ActorId
   , domain :: BehaviorDomain
   , observes :: ResourceId
@@ -127,7 +127,7 @@ type InstantiationConfig =
   , seats :: Map ActorId String -- Actor -> seat
   , nonPlayableActors :: Map ActorId StrategyId -- Actor -> in-world Strategy
   , fallbacks :: Map ActorId Fallback -- overrides of the declared fallback
-  , representations :: Array { scheme :: String, playableActor :: ActorId, weight :: Q }
+  , representations :: Array { scheme :: String, explicitActor :: ActorId, weight :: Q }
   }
 
 type InitialWorld = { world :: WorldState, manifest :: Manifest }

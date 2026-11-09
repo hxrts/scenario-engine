@@ -103,7 +103,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = storeOver db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 6
+      version `shouldEqual` 7
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)

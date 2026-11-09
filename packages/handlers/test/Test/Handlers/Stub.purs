@@ -101,7 +101,7 @@ keyOfPayload input = do
   -- a joint pass correction carries the original request under `request` (Handlers.Llm.joint)
   let o = fromMaybe o0 (Object.lookup "request" o0 >>= toObject)
   round <- note "the payload has no round" (Object.lookup "round" o >>= toNumber >>= Int.fromNumber)
-  case Object.lookup "transcripts" o, Object.lookup "playableActor" o of
+  case Object.lookup "transcripts" o, Object.lookup "explicitActor" o of
     Just ts, _ -> do
       seats <- note "the transcripts are not a list" (toArray ts)
       names <- traverse (\t -> note "a transcript has no seat" (toObject t >>= Object.lookup "seat" >>= toString)) seats
