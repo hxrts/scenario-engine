@@ -179,7 +179,7 @@ These tests transform a configuration in a controlled way. Those marked with a t
 
 - Reorder submissions ([INV-11](02_type_system.md#inv-11)), replay with the same seeds ([INV-13](02_type_system.md#inv-13)), withhold one signature ([INV-10](02_type_system.md#inv-10)), and change explicitness (§7.3): tests 3, 2 and 13, 10, and 12.
 - Change one seat Policy or one Market parameter: the `variant` and `counterfactual` derivations (§10.3).
-- Remove all representative observations: Aggregates must follow their baselines ([INV-09](02_type_system.md#inv-09)). **Planned.**
+- Remove all representative observations: Aggregates follow their baselines ([INV-09](02_type_system.md#inv-09)). An unnumbered test in §14.
 
 ### 7.3 Resolution-consistency test
 
@@ -382,6 +382,6 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and snapshots with the pure run, and replay from the stored records. The run is identical ([INV-31](02_type_system.md#inv-31)). |
 | 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference setting. Under the `RandomValid` baseline, every Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Actors with no measurable effect are pinned as balancing findings, so a setting change is noticed. |
 
-Unnumbered tests in the same suites: every preset plays 8 rounds with the invariants holding; a run resumed from its third snapshot matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
+Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third snapshot matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 
 **Live interpretation check (one-off, billed, not in CI).** One real model call over fixed transcripts checks that the reply decodes and that a joint Proposal reconciles. It needs an explicit opt-in, and no suite runs it.

@@ -22,10 +22,11 @@ import Core.Invariants (orderIndependent)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), FlowEffect(..), RuleF(..), proposalId)
-import Core.Slice (conversions, event, exchanges, matches, pickOf, shortfalls, sunk)
+import Checks.Run (checkRun)
+import Core.Slice (conversions, event, exchanges, matches, pickOf, select, shortfalls, sunk)
 import Schema.Recurring (kinds)
 import Core.World (RejectReason(..), renderReason)
-import Data.Array (any, concatMap, drop, findMap, index, last, length, zip)
+import Data.Array (any, concatMap, drop, findMap, index, last, length, null, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -109,6 +110,16 @@ spec = do
         let befores = [ initialOf a ] <> map _.world a.records
         for_ (zip befores a.records) \(Tuple before r) -> do
           orderIndependent before r `shouldEqual` []
+
+    it "Removing every representative observation leaves each Aggregate on its baseline (INV-09)" do
+      p <- setting
+      g <- everySeat p "RandomValid"
+      (null g.world.representations) `shouldEqual` false
+      a <- run (Seed 1) g { world = g.world { representations = [] } }
+      for_ a.records \r -> do
+        select (event @"Estimated") r.record.events `shouldEqual` []
+        r.world.factors `shouldEqual` g.world.factors
+      checkRun (initialOf a) a.records `shouldEqual` []
 
     it "4 Market exchange: Fixture A and A2" do
       fixture "A"
