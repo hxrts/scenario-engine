@@ -28,7 +28,7 @@ import Schema.Run (RunStatus, Spec)
 import Handlers.Seats (RecordSink)
 import Core.World (RoundResult, RoundRecord, WorldState)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe)
 import Effect (Effect)
 import Effect.Exception (Error, message)
 import Effect.Ref as Ref
