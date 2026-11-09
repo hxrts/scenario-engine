@@ -22,6 +22,7 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.String (Pattern(..), stripPrefix)
 import Foreign.Object as Object
 import Effect.Aff (Aff)
+import Views.Assertions (assertions)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load)
 import Testkit.Meridian (run)
@@ -55,6 +56,21 @@ checkObjectives ctx r expected = do
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run)" do
+  it "a failed assertion shows its expected and observed values and its events; the clean run has none" do
+    _ <- context
+    cap <- load
+    base <- run cap.playerSeed cap.game
+    let
+      stored = toStored "capstone" base
+      failed = { invariant: "INV-04", detail: "US M changed by 2, its events say 1", expected: "1", observed: "2", about: [ "US" ] }
+      tampered = stored { assertions = [ [ failed ] ] <> Array.drop 1 stored.assertions }
+    (assertions stored).rows `shouldEqual` []
+    case (assertions tampered).rows of
+      [ [ round, invariant, _, expected, observed, events ] ] -> do
+        [ round, invariant, expected, observed ] `shouldEqual` [ "1", "INV-04", "1", "2" ]
+        (events /= "") `shouldEqual` true
+      rows -> fail ("expected one row, got " <> show rows)
+
   it "every objective has an explicit outcome, and the run's are the DSL's (none met by default)" do
     ctx <- context
     cap <- load

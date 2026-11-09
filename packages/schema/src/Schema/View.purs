@@ -26,6 +26,7 @@ data View
   | Economy
   | Representation
   | Procedures
+  | Assertions
   | Objectives
   | Standings
   | NetWorth

@@ -171,7 +171,7 @@ Each assertion checks one invariant from the Type System master table ([02 §9](
 
 Simulator invariants [INV-29](02_type_system.md#inv-29) and [INV-30](02_type_system.md#inv-30) are checked by the handler suite, and [INV-31](02_type_system.md#inv-31) by §14 test 13. Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They hard-code no Resource, because a Resource can be produced, consumed, reserved, or issued by design, so a blanket "totals are constant" check would be wrong.
 
-A failed assertion records its invariant ID and message with its round. The run list reports the number of failing assertions. **Planned:** per-assertion expected and observed quantities, the relevant events, and a dashboard view of each round's results.
+A failed assertion records its invariant ID and message with its round. The run list reports the number of failing assertions. The run page shows each failed assertion with its expected and observed values, when it compares two, and the round's events that concern it.
 
 ### 7.2 Metamorphic tests
 

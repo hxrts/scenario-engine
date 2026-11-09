@@ -10,13 +10,13 @@ import Prelude
 
 import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
-import Dashboard.Components (fetched, loaded, metricChart, stackedBars, stale, statistic, tableOf)
+import Dashboard.Components (fetched, loaded, metricChart, stackedBars, stale, statistic, status, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
 import Dashboard.Events (mkEvents)
 import Dashboard.Glossary (Lookup, emptyValue, glossaryContext)
 import Dashboard.Layout as Layout
-import Data.Array (index)
+import Data.Array (index, null)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), maybe)
 import Schema.View (viewName)
@@ -137,6 +137,11 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             { title: "Objectives"
             , purpose: "Each Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
             , children: [ view Keys.objectives (titled grid) ]
+            }
+        , Layout.section
+            { title: "Assertions"
+            , purpose: "Each invariant check that failed: what it expected, what it observed, and the events of that round that concern it."
+            , children: [ view Keys.assertions (\t -> if null t.rows then status (Just "No assertion failed in this run.") else titled grid t) ]
             }
         , Layout.section
             { title: "Final balance sheet"

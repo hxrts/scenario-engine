@@ -17,6 +17,7 @@ module Views.Keys
   , economy
   , representation
   , procedures
+  , assertions
   , objectives
   , standings
   , netWorth
@@ -181,6 +182,9 @@ representation = key Representation table
 
 procedures :: ViewKey Table
 procedures = key Procedures table
+
+assertions :: ViewKey Table
+assertions = key Assertions table
 
 objectives :: ViewKey Table
 objectives = key Objectives table

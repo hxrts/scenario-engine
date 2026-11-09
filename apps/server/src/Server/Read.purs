@@ -36,6 +36,7 @@ import Game.Assemble (assemblePreset, configuredSeats)
 import Server.Settings (Settings, chosen, ofRun, ofSpec)
 import Settings.Presets (defaultPresets)
 import Views.Actions as Actions
+import Views.Assertions as Assertions
 import Views.Balance as Balance
 import Views.Balances as Balances
 import Views.Common (StoredRun, completed, storedRun)
@@ -154,6 +155,7 @@ getView settings { id, view, round } = withRun id runView
     Economy -> answer Keys.economy (Markets.economy r)
     Representation -> answer Keys.representation (Representation.representation r)
     Procedures -> answer Keys.procedures (Representation.procedures r)
+    Assertions -> answer Keys.assertions (Assertions.assertions r)
     Objectives -> onBoard r \gb -> answer Keys.objectives (Overview.objectives gb r)
     Standings -> answer Keys.standings (Standings.standings r)
     NetWorth -> answer Keys.netWorth (Standings.netWorthChart r)

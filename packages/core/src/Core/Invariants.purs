@@ -15,7 +15,7 @@ module Core.Invariants
 
 import Prelude
 
-import Core.Shape (enumName, Shape, recordShape, stringShape)
+import Core.Shape (arrayOf, enumName, Shape, recordShape, stringShape)
 import Core.Sum (class EnumFields, enumFields)
 import Data.Generic.Rep (class Generic)
 import Data.String as String
@@ -50,8 +50,9 @@ derive instance Generic Invariant _
 instance Show Invariant where
   show i = String.take 3 (enumName i) <> "-" <> String.drop 3 (enumName i)
 
--- | A failed check: the invariant's name as it prints, and what failed.
-type Failure = { invariant :: String, detail :: String }
+-- | A failed check: the invariant's name as it prints, what failed, the expected and observed values when the
+-- | check compares two (else empty), and the names of what it concerns, which pick out its relevant events.
+type Failure = { invariant :: String, detail :: String, expected :: String, observed :: String, about :: Array String }
 
 type CheckFn = WorldState -> RoundResult -> Array Failure
 
@@ -59,7 +60,7 @@ type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "IN
 
 -- | How a failed check is stored.
 failureShape :: Shape Failure
-failureShape = recordShape "Failure" { invariant: stringShape, detail: stringShape }
+failureShape = recordShape "Failure" { invariant: stringShape, detail: stringShape, expected: stringShape, observed: stringShape, about: arrayOf stringShape }
 
 check :: forall rep. Generic Invariant rep => EnumFields rep CheckRow CheckFn => WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) checks)
@@ -77,7 +78,7 @@ orderIndependentBy resolve r = concatMap one (reorderings r.record.inputs)
   where
   one inputs = case resolve inputs of
     Right w | w == r.world -> []
-    _ -> [ { invariant: "INV-11", detail: "round " <> show r.record.round <> ": a reordering of its " <> show (length inputs) <> " inputs settled differently" } ]
+    _ -> [ { invariant: "INV-11", detail: "round " <> show r.record.round <> ": a reordering of its " <> show (length inputs) <> " inputs settled differently", expected: "", observed: "", about: [] } ]
 
 -- | INV-11 for a round against the world it was played from, not yet prepared.
 orderIndependent :: WorldState -> RoundResult -> Array Failure
@@ -90,7 +91,11 @@ reorderings xs = [ reverse xs, drop 1 xs <> take 1 xs, drop half xs <> take half
   half = length xs / 2
 
 failure :: Invariant -> String -> Failure
-failure inv detail = { invariant: show inv, detail }
+failure inv detail = { invariant: show inv, detail, expected: "", observed: "", about: [] }
+
+-- | A failed comparison of two quantities, about the named things.
+mismatch :: Invariant -> String -> { expected :: String, observed :: String, about :: Array String } -> Failure
+mismatch inv detail m = { invariant: show inv, detail, expected: m.expected, observed: m.observed, about: m.about }
 
 executed :: RoundResult -> Array SignedProposal
 executed r = filter (\i -> not (i.proposal.id `elem` dropped)) r.record.inputs
@@ -180,7 +185,7 @@ inv04 before r =
       expected res = lookupQ (Tuple e.id res) changes
       actual res = Q.sub (lookupQ res e.accounts) (lookupQ res opening)
     in
-      concatMap (\res -> if actual res == expected res then [] else [ failure INV04 (show e.id <> " " <> show res <> " changed by " <> show (actual res) <> ", its events say " <> show (expected res)) ]) resources
+      concatMap (\res -> if actual res == expected res then [] else [ mismatch INV04 (show e.id <> " " <> show res <> " changed by " <> show (actual res) <> ", its events say " <> show (expected res)) { expected: show (expected res), observed: show (actual res), about: [ show e.id, show res ] } ]) resources
   add who res = sumInto (Tuple who res)
   changes = foldEvents
     { "Lapsed": ignore
@@ -211,7 +216,7 @@ inv05 before r = concatMap one resources
       actual = Q.sub (totalHolding r.world res) (totalHolding before res)
       expected = lookupQ res flows
     in
-      if actual == expected then [] else [ failure INV05 (show res <> " changed by " <> show actual <> ", expected " <> show expected) ]
+      if actual == expected then [] else [ mismatch INV05 (show res <> " changed by " <> show actual <> ", expected " <> show expected) { expected: show expected, observed: show actual, about: [ show res ] } ]
   -- created from the source, or sent to the sink
   legFlow acc l = case l.from, l.to of
     Source, Sink -> acc

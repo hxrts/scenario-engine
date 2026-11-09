@@ -29,3 +29,14 @@ test("the event inspector lists a chosen round's events in engine order, and fil
   await page.getByRole("textbox", { name: "Filter events", exact: true }).fill("enacted");
   await expect(cells).toHaveText(["(Enacted { id: tariff, round: 3 })"]);
 });
+
+test("a failed assertion shows expected, observed and its events; a clean run says so", async ({ page }) => {
+  await mockReads(page);
+  let rows = [["1", "INV-04", "US M changed by 2", "1", "2", "(Coupled US)"]];
+  await page.route(isPath("/api/runs/run-1/assertions"), (route) => route.fulfill(json(table("Failed assertions", ["Round", "Invariant", "What failed", "Expected", "Observed", "Relevant events"], rows))));
+  await page.goto("/#/runs/run-1");
+  await expect(rowWith(page, ["INV-04", "(Coupled US)"])).toBeVisible();
+  rows = [];
+  await page.reload();
+  await expect(page.getByText("No assertion failed in this run.", { exact: true })).toBeVisible();
+});
