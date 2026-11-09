@@ -130,7 +130,7 @@ Institutional capabilities stay with the institutional Entity or rule mechanism 
 
 ### 2.5 Glossary
 
-The seven concepts in §2 and this table are the only term definitions. The other specifications use these terms and do not redefine them.
+Each term is defined once, in the doc of the layer that owns it. This table holds the type-system and engine terms. Scenario-planning terms are in [01 §1](01_overview.md#1-concept), authoring terms in [03](03_gameboard.md#terms), assembly and runtime terms in [04](04_instantiated_game.md#terms), store and analysis terms in [06](06_simulator.md#terms), and implementation terms in [07](07_architecture.md#terms). The seven concepts in §2 are defined in place.
 
 | Term | Definition |
 |---|---|
@@ -139,16 +139,9 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Controller** | What drives an Actor: a seat or an NPC Policy. |
 | **NPC** | An Actor whose Policy is part of the setting. |
 | **Seat** | An Actor whose Policy is supplied from outside the setting. Swapping the implementation never changes the Actor. |
-| **Policy kind** | How a Policy is implemented: declarative strategy, AI agent, or human. |
-| **Premise** | A reusable piece a Setting combines, such as energy, shipping, or defence. |
-| **Composition** | Building a Setting up from generic definitions and Premises. |
-| **Derivation of a Setting** | Changing values of a base Setting, through dials and named patches, to make a variant. It is distinct from deriving a run ([06 §9.1](06_simulator.md#91-simulation-runs)), which starts a new run from a stored one. |
-| **Filtering** | Taking a subset of a Setting with `restrict`. It fails if what is kept refers to what was dropped. |
-| **Preset** | A named parameter set for a declarative strategy, such as the seat-policy preset `Conservative`. |
 | **Strategy** | The declarative rules a Policy runs on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)). A Policy is the actor-level concept (a seat, NPC or Aggregate decides); its Strategy is the rules it runs. Only declarative Policies have one. |
 | **View** | What a Policy sees of the Snapshot: its own Entity, prices, Rules in force, permitted events, stored adjustment factors, the Proposals awaiting its signature, the Markets it has access to, and the known Entities and Transformations with their order bounds. |
 | **Decision-language interpreter** | The shared interpreter that runs every declarative Policy ([§4.4](#44-shared-decision-language-interpreter)). |
-| **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls `resolveRound` ([§8.3](#83-functional-interface)). |
 | **World State** | The economic state at a round boundary: Entities with accounts, the Resource definitions, Markets, Transformations, Representations, the declared Rule kinds, Rules in force and scheduled, flow gates, groups, the recurring flows, Deliveries, stored adjustment factors, the numeraire and focus Resource (only the views read those two), the event history, the game seed, and the round number. |
 | **Snapshot** | The World State a round ends with. The next round's decisions are all made on it, once Prepare has applied what is due. |
 | **Account** | A quantity of a Resource owned by exactly one Entity or Market. |
@@ -192,38 +185,15 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Resolution** | A choice of which parts of a Gameboard's world are explicit and which are aggregate. |
 | **Manifest** | The immutable record of a game's resolved configuration and initial World State, including the draw version. |
 | **Round record** | The append-only record of one round's inputs, proposed and executed actions, and events. |
-| **Effect** | A declared impure operation: seat input, interpretation, narration, recording, Run Store reads and writes, or an API call ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
+| **Effect** | A declared impure operation, interpreted by a handler ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
-| **Player seed** | A second seed, separate from the Game seed, from which all seat-Policy randomness is derived. Simulated and live runs both have one ([04 §7.3](04_instantiated_game.md#73-seeds-and-randomness)). |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
 | **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
-| **Setting** | The whole thing a game is launched from, such as Meridian: the authored configuration a game is assembled from: the Gameboard, its instantiation configuration, the seat strategies, and the uncertainties it contains. Every scenario of a set shares it. A literal setting (`LiteralSetting`) writes its World State out in full, as a fixture does ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)). |
-| **Scenario** | One run of a setting with its uncertainties resolved: rounds recorded, narration produced. |
-| **Scenario set** | The scenarios compared together, varying the uncertainties of one setting. |
-| **Uncertainty** | An element a scenario set varies: a shock, a parameter override, the player seed, or a derived run. |
-| **Gameboard** | The authored economic world of a setting: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules ([03](03_gameboard.md)). |
-| **Game** | One run's assembled state, which every runner plays: the initial World State, the manifest, the in-world Strategies, the rounds to play, the parameters, and one SeatBinding per seat. `assemble` builds it from a setting ([07 §4](07_architecture.md#4-key-interfaces)). |
-| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round, including those read from stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
 | **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `Mirror`) ([§4.4](#44-shared-decision-language-interpreter)). |
-| **Expect** | What a setting asserts about one round: sparse expected values, one per field, written as literals. It is checked against Observed. |
-| **Observed** | What a round produced, read into the same record shape as Expect. |
 | **Joint Proposal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
 | **Offer** | A joint Proposal as its author publishes it, before the other signers answer. |
 | **Unilateral action** | A Proposal that needs no signature but its author's. |
-| **Joint pass** | The interpretation step that reads all of a round's transcripts together into Proposals: one model call and at most two corrections ([04 §11.2](04_instantiated_game.md#112-live-session)). |
-| **Run Store** | The persistent store of runs: manifests, specs, round records, snapshots, assertions, and metrics ([06 §8](06_simulator.md#8-persistence)). |
-| **Spec** | A run's stored specification: the string fields it was launched or derived with, beside its manifest. |
 | **Venue** | A Market as a Policy sees it in its View: its id, base, and quote ([§4](#4-policies)). |
-| **Net worth** | Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource, its price is their mean, so a holding counts once. A Resource with no Market is not counted. |
-| **Spread** | The highest minus the lowest final net worth of the players. |
-| **Gini coefficient** | A measure of final net worths: 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative. |
-| **Representation influence ratio** | Next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. |
-| **Vertical** | A researched sector, documented in a vertical report. An authoring concept that no schema field records. |
-| **Strategic tension** | A persistent relationship among economic or political interests, expressed only through mechanically consequential data. |
-| **Rerun** | The zero-change derivation of a run: its resolved configuration and both seeds with nothing changed, so its records must equal the source's. |
-| **Counterfactual** | A derivation of a run that changes one thing by override and compares the result with the source. |
-| **Propose deadline** | The end of a round's window for human transcripts in live play ([04 §8](04_instantiated_game.md)). |
-| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose ([§8.4](#84-effects-and-handlers)). |
 
 ## 3. Intents and Economic Actions
 

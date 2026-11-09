@@ -6,6 +6,16 @@
 
 ---
 
+## Terms
+
+The implementation terms of this doc. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary).
+
+| Term | Definition |
+|---|---|
+| **Layer** | One spec's share of the design: the Type System ([02](02_type_system.md)), Gameboard ([03](03_gameboard.md)), Instantiated Game ([04](04_instantiated_game.md)), Simulator and Dashboard ([06](06_simulator.md)), or this Architecture doc. The three game layers are described in [01 §3](01_overview.md#3-three-architectural-layers). |
+| **Round runner** | The effectful code (`Effects.Round`) that runs Propose and Sign for every Policy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
+| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose ([§4](#4-key-interfaces)). |
+
 ## 1. Principles
 
 - **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Impure work is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
@@ -194,7 +204,7 @@ Each adapter implements one backend's primitives: a model call, a digest, the st
 
 **Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only at the adapter boundary. Server startup fails `running` rows it can tell were interrupted.
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
+The Run Store (`effects` rows `RECORD`, `STORE`, `OBSERVE`; its handler and adapter). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
 
 **Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
 

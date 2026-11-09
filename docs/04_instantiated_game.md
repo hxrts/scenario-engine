@@ -6,6 +6,18 @@
 
 ---
 
+## Terms
+
+The assembly and runtime terms of this layer. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary).
+
+| Term | Definition |
+|---|---|
+| **Game** | One run's assembled state, which every runner plays: the initial World State, the manifest, the in-world Strategies, the rounds to play, the parameters, and one SeatBinding per seat. `assemble` builds it from a setting ([07 §4](07_architecture.md#4-key-interfaces)). |
+| **SeatBinding** | What answers a seat's Propose and Sign steps: a `Strategy` (declarative rules), a `Script` (literal Proposals and signatures per round, including those read from stored round records), an `Agent` (a model call per round), or a `Human` (a transcript per round). |
+| **Policy kind** | How a seat's Policy is answered: declarative strategy, AI agent, or human. |
+| **Propose deadline** | The end of a round's window for human transcripts in live play (§8). |
+| **Joint pass** | The interpretation step that reads all of a round's transcripts together into Proposals: one model call and at most two corrections (§11.2). |
+
 ## 1. Purpose
 
 An Instantiated Game is one playthrough of a Gameboard. Instantiation is a particular **resolution** of the Gameboard's world: which parts are explicit Actors and which remain implicit Aggregates. It also fixes each Actor's controller and the initial Policy bindings. The Gameboard supplies the holdings and flows, which instantiation changes only by coverage merge ([§4.2](#42-partitioning)). The same Gameboard supports many games without modification. The EU might be a seat in one game, an NPC in another, and implicit in a third.
@@ -15,7 +27,7 @@ The layer performs two separate operations:
 - **Validated Gameboard + Instantiation Configuration → Initial World State** (§10). `instantiate` is pure and atomic.
 - **World State + Round Inputs → New World State** (§11). The round runner and engine resolve one round (Type System [§8.1](02_type_system.md#81-canonical-resolution-sequence)).
 
-Terms, invariants, and the round sequence are defined in the Type System specification ([§2.5](02_type_system.md#25-glossary), [§8.1](02_type_system.md#81-canonical-resolution-sequence), [§9](02_type_system.md#9-architectural-invariants-and-numerics)). Whether an Actor is a seat or an NPC never changes its economic semantics: the engine sees only signed Proposals. A game replays from its manifest and round records ([INV-13](02_type_system.md#inv-13), [INV-15](02_type_system.md#inv-15), [INV-31](02_type_system.md#inv-31)).
+Type-system terms are in the Type System glossary ([§2.5](02_type_system.md#25-glossary)), and the terms of this layer are in [Terms](#terms). Invariants and the round sequence are defined in the Type System specification ([§8.1](02_type_system.md#81-canonical-resolution-sequence), [§9](02_type_system.md#9-architectural-invariants-and-numerics)). Whether an Actor is a seat or an NPC never changes its economic semantics: the engine sees only signed Proposals. A game replays from its manifest and round records ([INV-13](02_type_system.md#inv-13), [INV-15](02_type_system.md#inv-15), [INV-31](02_type_system.md#inv-31)).
 
 ## 2. Instantiation Configuration
 
@@ -136,7 +148,7 @@ The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World
 ### 7.3 Seeds and randomness
 
 - **[Game seed](02_type_system.md#25-glossary).** Each game instance has exactly one, read from the configuration's `seed`, recorded in the manifest, and stored as the World State's `seed`. It keys every in-world draw: Representation sampling noise and `Choose` in NPC and Aggregate Policies ([Type System §9.1](02_type_system.md#91-numerics-and-randomness)).
-- **[Player seed](02_type_system.md#25-glossary).** Keys the draws of seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. Simulated and live runs both have one. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs), the only place OS entropy enters) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
+- **Player seed.** Keys the draws of seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. Simulated and live runs both have one. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs), the only place OS entropy enters) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
 - **Keyed draws.** A draw's value depends only on its key (round, source, Entity, category, index), so replays and resumed runs match ([06 §5](06_simulator.md#5-deterministic-randomness)). The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
 
 ## 8. Time and Session
@@ -219,7 +231,7 @@ Events record executed quantities, so a partial fill appears as smaller legs, an
 ### 11.2 Live session
 
 - **Human players.** Each human types one transcript per round at the propose prompt, within the propose window, and nothing further is asked. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, with their reason ([§11.1](#111-round-record)).
-- **Joint pass.** The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm.Joint](../packages/handlers/src/Handlers/Llm/Joint.purs)). The pass keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Schema.Joint](../packages/schema/src/Schema/Joint.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
+- The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm.Joint](../packages/handlers/src/Handlers/Llm/Joint.purs)). The pass keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Schema.Joint](../packages/schema/src/Schema/Joint.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they give no signatures.
 - **Strategy seats** play their bound strategy.
 

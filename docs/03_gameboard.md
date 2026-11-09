@@ -10,6 +10,21 @@
 
 Setting files decode directly into the core values (`Schema.Setting.*`): a key's default is in its shape, and a value equal to its default is not written. Two things stay only in the document, because the World State has no field for them: a Resource's `reservable` flag and `decay`, and the `circulation` forms, which the DSL compiles to recurring rules. Compiled files are written by the same shapes, so a file holds exactly what differs from the defaults. Authoring builders are `Schema.Build.*`.
 
+## Terms
+
+The authoring terms of this layer. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary).
+
+| Term | Definition |
+|---|---|
+| **Premise** | A reusable piece a Setting combines, such as energy, shipping, or defence. |
+| **Composition** | Building a Setting up from generic definitions and Premises. |
+| **Derivation of a Setting** | Changing values of a base Setting, through dials and named patches, to make a variant. It is not the derivation of a run ([06 Terms](06_simulator.md#terms)). |
+| **Filtering** | Taking a subset of a Setting with `restrict`. It fails if what is kept refers to what was dropped. |
+| **Preset** | A named parameter set for a declarative Strategy, such as the seat-policy preset `Conservative`. |
+| **Gameboard** | The authored economic world of a setting: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules (§1). |
+| **Vertical** | A researched sector, documented in a vertical report. An authoring concept that no schema field records. |
+| **Strategic tension** | A persistent relationship among economic or political interests, expressed only through mechanically consequential data. |
+
 ## 1. Purpose
 
 The Gameboard defines a reusable economic and strategic world: the Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules that games are instantiated from. It is the Gameboard part of a setting ([§2](#2-gameboard-structure)). It defines the **persistent conditions and tensions** of that world, not the outcomes of any playthrough. One Gameboard supports many games.
@@ -57,11 +72,11 @@ The setting says which forces are relevant, not how they resolve. Its narrative 
 
 ### 3.1 Strategic tensions
 
-A [strategic tension](02_type_system.md#25-glossary) appears in the Gameboard only through mechanically consequential data: Resources, capacities, Facilities, flows, Market access, or Rules. Each tension must connect to data that participants can act on. Validation does not check this ([§12.3](#123-not-yet-checked-planned)). A tension never requires Actors to act antagonistically. Cooperation and alliances must remain possible.
+A [strategic tension](#terms) appears in the Gameboard only through mechanically consequential data: Resources, capacities, Facilities, flows, Market access, or Rules. Each tension must connect to data that participants can act on. Validation does not check this ([§12.3](#123-not-yet-checked-planned)). A tension never requires Actors to act antagonistically. Cooperation and alliances must remain possible.
 
 ## 4. Verticals
 
-[Verticals](02_type_system.md#25-glossary) are documented in vertical reports. No schema field or file records them. Meridian's sectors appear only as the Resources, Markets, Facilities, and Entities they produce ([05 §7](05_test_instance.md#7-economic-verticals)).
+[Verticals](#terms) are documented in vertical reports. No schema field or file records them. Meridian's sectors appear only as the Resources, Markets, Facilities, and Entities they produce ([05 §7](05_test_instance.md#7-economic-verticals)).
 
 A report compiles into explicit configuration in [§5](#5-economic-structure)–[§9](#9-representation-schemes). Sources, uncertainty, simplifications, and findings that cannot run mechanically stay in the report. Verticals share Resources, Markets, and Entities rather than duplicating them.
 
@@ -332,7 +347,7 @@ Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in
 
 ## 12a. How settings are made
 
-A Setting is made from the definitions in the DSL by three operations ([02 §2.5](02_type_system.md#25-glossary)). **Composition** builds it up: `Settings.Kit` holds generic definitions that name no Setting, Premises combine with `<>`, and a key two Premises define fails. **Derivation** changes the values of a base Setting: dials, and named patches that fail on a missing key. **Filtering** (`restrict`) takes a subset, and fails if what is kept refers to what was dropped. All three are read-only over the authored source.
+A Setting is made from the definitions in the DSL by three operations. **Composition** builds it up: `Settings.Kit` holds generic definitions that name no Setting, Premises combine with `<>`, and a key two Premises define fails. **Derivation** changes the values of a base Setting: dials, and named patches that fail on a missing key. **Filtering** (`restrict`) takes a subset, and fails if what is kept refers to what was dropped. All three are read-only over the authored source.
 
 `Settings.Catalog` lists the Settings the compiler writes. Each compiles to `<id>/<version>/` under the setting root, with its own `presets.json`.
 

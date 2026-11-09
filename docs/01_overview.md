@@ -10,6 +10,13 @@ Players may represent countries, corporations, institutions, or small economic p
 
 The world has two parts: explicitly represented participants, and an implicit economy that models everything else. Both act through one economic system. AI sits between the players and the engine. It interprets what players say into structured actions and reports the results as narrative.
 
+Scenario planning gives the game its terms:
+
+- **Setting.** The whole thing a game is launched from, such as *Meridian*: the authored configuration a game is assembled from, including the Gameboard ([03](03_gameboard.md)), its instantiation configuration, the seat strategies, and the uncertainties it contains. Every scenario of a set shares it.
+- **Scenario.** A story of a possible future: one run of a setting with its uncertainties resolved, its rounds recorded, and its narration produced.
+- **Scenario set.** The scenarios compared together. They share the setting's predetermined elements and vary its uncertain ones.
+- **Uncertainty.** An element a scenario set varies: a shock, a parameter override, the player seed, or a derived run.
+
 ## 2. Game Format
 
 | Dimension | Design |
@@ -36,7 +43,7 @@ Each round runs the engine's canonical resolution sequence, defined once in [02 
 
 **Type System.** The reusable economic machinery: what entities exist, how resources are owned and priced, how decisions are expressed, and how explicit participants interact with the implicit economy. It prescribes no particular countries, resources, or conflicts.
 
-**Gameboard.** The world a setting describes ([02 §2.5](02_type_system.md#25-glossary)), from which any game is drawn. It establishes sectors, populations, institutions, relationships, and persistent tensions, such as US–China competition or class conflict. Vertical reports, research documents on individual sectors, ground its configuration ([03](03_gameboard.md)).
+The Gameboard ([03](03_gameboard.md)) is the authored world that any game is drawn from. It establishes sectors, populations, institutions, relationships, and persistent tensions, such as US–China competition or class conflict. Vertical reports, research documents on individual sectors, ground its configuration ([03](03_gameboard.md)).
 
 **Instantiated Game.** One playthrough. It chooses the world's **resolution**: which parts are explicit Actors, which Actors are player **seats** and which are NPCs, and which parts remain aggregate. For example, the EU might be human-controlled in one game, an NPC in another, and implicit in a third. Every Actor that isn't selected falls back to a declared alternative ([04](04_instantiated_game.md)).
 

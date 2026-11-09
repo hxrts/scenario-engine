@@ -43,7 +43,7 @@ Read them in order. Each layer builds on the one before it.
 
 Spec conventions:
 - Cite invariants as `INV-xx` and Type System sections by number. IDs 18, 20, and 32–35 are retired.
-- Define terms only in the Type System glossary (§2.5). The other docs reuse them.
+- Define each term once, in the doc of the layer that owns it: type-system and engine terms in the Type System glossary (`02` §2.5), scenario-planning terms in `01` §1, authoring terms in `03`, assembly and runtime terms in `04`, store and analysis terms in `06`, and implementation terms in `07`. Each of `03`, `04`, `06` and `07` has a `Terms` table, and the scenario-planning terms are in `01` §1. The other docs reuse them.
 - Never add open-question sections. Record a decision where it belongs.
 
 ## Architecture (big picture)

@@ -9,11 +9,27 @@ Items marked **Planned** are specified but not implemented. Unmarked behaviour i
 
 ---
 
+## Terms
+
+The store, derivation, and analysis terms of this layer. The type-system terms are in the [Type System glossary](02_type_system.md#25-glossary).
+
+| Term | Definition |
+|---|---|
+| **Run Store** | The persistent store of runs: manifests, specs, round records, snapshots, assertions, and metrics (§8). |
+| **Spec** | A run's stored specification: the string fields it was launched or derived with, beside its manifest. |
+| **Derivation of a run** | A new run started from a stored one, of kind `duplicate`, `rerun`, `variant`, or `counterfactual` (`POST /api/runs/:id/derive`). It is distinct from derivation of a Setting ([03 Terms](03_gameboard.md#terms)). |
+| **Rerun** | The zero-change derivation of a run: its resolved configuration and both seeds with nothing changed, so its round records must equal the source's. |
+| **Counterfactual** | A derivation of a run that changes one thing by override and compares the result with the source. |
+| **Net worth** | Money plus each Resource that a Market trades against Money, valued at its marginal price. Where several Markets trade one Resource, its price is their mean, so a holding counts once. A Resource with no Market is not counted. |
+| **Spread** | The highest minus the lowest final net worth of the players. |
+| **Gini coefficient** | A measure of final net worths: 0 when every player holds the same and 1 − 1/n when one holds everything. It is n/a when the total is zero or a value is negative. |
+| **Representation influence ratio** | Next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. |
+
 ## 1. Purpose
 
 The Simulator plays complete games automatically and deterministically. It is used to check implementation correctness and to improve gameplay through repeated experiments.
 
-The simulator runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Glossary, and invariants are cited by their IDs in the Type System specification ([§2.5](02_type_system.md#25-glossary) and [§9](02_type_system.md#9-architectural-invariants-and-numerics)).
+The simulator runs on the existing Type System, Gameboard, and Instantiated Game machinery. It does not change the economic rules and does not introduce a separate simulation model. Terms follow the Type System glossary and the Terms above, and invariants are cited by their IDs in the Type System specification ([§2.5](02_type_system.md#25-glossary) and [§9](02_type_system.md#9-architectural-invariants-and-numerics)).
 
 The simulator lets a developer:
 
@@ -36,7 +52,6 @@ The simulator is a development component, not a fourth layer of economic semanti
 | Component | Responsibility |
 |---|---|
 | **Simulator** | Folds a `Game` through the round runner and the engine, and checks assertions ([§7](#7-run-assertions)). |
-| **Run Store** | Persists manifests, round records, snapshots, and metrics. |
 | **Read API and Dashboard** | Serves run views and presents them. Read-only except for the run operations in §8.1. |
 
 The simulator plays the same `Game` that live play runs, assembled by `game`. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
@@ -59,7 +74,7 @@ A simulation is one complete automated playthrough, and it is a pure call over a
 simulate :: Seed -> Game -> Either GameError SimRun
 ```
 
-A [`Game`](02_type_system.md#25-glossary) also holds the manifest. A seat's Strategy or Script is chosen when the game is assembled, not inside the simulator, and `simulate` rejects a game with an `Agent` or `Human` seat (`GameError.NotSimulable`). The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
+A [`Game`](04_instantiated_game.md#terms) also holds the manifest. A seat's Strategy or Script is chosen when the game is assembled, not inside the simulator, and `simulate` rejects a game with an `Agent` or `Human` seat (`GameError.NotSimulable`). The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
 
 The stored spec (`Schema.Run.Spec`, written by `Game.Recipe.encodeSpec`) records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the `source` and `kind` of a derived run, and a live session's `model` and `humans`. With the same engine version, the spec and the seeds reproduce the complete economic history.
 
@@ -189,6 +204,8 @@ An unknown flag, a repeated flag, a flag without a value, or a bad value is a us
 ## 7. Run Assertions
 
 Assertions check engine properties after every round without reimplementing the engine. They are the `checks` package's pure predicates over the records: `checkRun` applies `Core.Invariants.checkAfter` to each round, `checkRound` compares an `Expect` with that round's `observe`d record, and `evaluateObjectives` scores each Actor's objective ([§9.2](#92-run-details)). Initialization is not asserted separately.
+
+**Expect** is what a setting asserts about one round: sparse expected values, one per field, written as literals. **Observed** is what a round produced, read into the same record shape as Expect.
 
 ### 7.1 Required assertions
 
@@ -320,7 +337,7 @@ The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Rout
 Operation rules:
 
 - **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec, and `source` also in its own column.
-- **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `==`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
+- **Rerun reply.** For the zero-change case (§10.4), the reply's `recordsMatch` is `true` when its round records equal the source's under `==`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
 - **Sessions.** A live session stores no preset. `variant` and `counterfactual` from one are refused with 400, and so is `resume`. `duplicate` and `rerun` replay it ([04 §11.1](04_instantiated_game.md#111-round-record)), so they reproduce it without a model call.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
@@ -368,7 +385,7 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 9. **Final balance sheet.** Every Entity's holdings (Actors, NPCs, and Aggregates, with a `Kind` column) by Resource at the final round: `Initial`, `Current`, and `Change` (`balances`). There is no Reserved column, because a reservation does not outlive its round. Every view that lists holdings leaves out Resources of `category` `capacity`. Aggregates are residual representations.
 10. **Entity balance sheet.** A selector of the run's Entities, defaulting to the first seat. `GET /api/runs/:id/entities` says which Entities are seats and which is the default. It draws **Holdings by Resource**, one line per held Resource in its own unit, and **Net worth** in M on its own scale, from `/api/runs/:id/entity/:entity` (§8.1).
 
-**Definitions.** *Net worth*, *spread*, and the *Gini coefficient* are defined in [02 §2.5](02_type_system.md#25-glossary). The mean price of a Resource's Markets is a view convention, not an engine rule, and Soft Power has no Market. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The spread and the Gini coefficient are computed in `Views.Balance`.
+**Definitions.** *Net worth*, *spread*, and the *Gini coefficient* are defined in [Terms](#terms). The mean price of a Resource's Markets is a view convention, not an engine rule, and Soft Power has no Market. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The spread and the Gini coefficient are computed in `Views.Balance`.
 
 **Not on the run page** (served by the API for analysis and tooling): the round-by-round action counts. The Market, facility, economy, and pressure views (`markets`, `facilities`, `economy`). The representation and procedure records (`representation`, `procedures`). The raw event log (`events`). A run's seeds and failing assertions are in the run list, its engine version is in the comparison, and its draw version is only in the manifest, none of them in the overview. The Dashboard does not show macroeconomic indicators the Gameboard does not define.
 
@@ -431,7 +448,7 @@ The Compare page takes any number of ticked runs, with the first as the baseline
 
 ### 10.4 Counterfactual experiments
 
-A [rerun](02_type_system.md#25-glossary) duplicates a run's resolved configuration and both seeds with nothing changed, so its round records must equal the source's (§8.1). `recordsMatch: true` confirms that the source reproduces. `recordsMatch: false` means nondeterminism, a stored-versus-live mismatch, or an unrecorded seed, and is a finding.
+A [rerun](#terms) duplicates a run's resolved configuration and both seeds with nothing changed, so its round records must equal the source's (§8.1). `recordsMatch: true` confirms that the source reproduces. `recordsMatch: false` means nondeterminism, a stored-versus-live mismatch, or an unrecorded seed, and is a finding.
 
 A **counterfactual** (`kind` `counterfactual`) is the intervention case:
 
