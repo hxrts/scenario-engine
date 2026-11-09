@@ -50,7 +50,7 @@ gd :: Condition Capability Q' -> RejectReason -> Gd
 gd condition r = { condition, reason: Just r }
 
 coupling :: Array Ob -> Array (Hold Q') -> Maybe Solver -> Int -> Boolean -> Cp
-coupling obligations holds solver tier whole = { obligations, holds, solver, ration: { tier, whole, scaleGroup: if whole then Nothing else Just a }, phase: 1, cause: Just cause }
+coupling obligations holds solver tier whole = { obligations, holds, solver, ration: { tier, whole, scaleGroup: if whole then Nothing else Just a }, phase: 1, cause: Just cause, consented: [ a, b ] }
 
 held :: EntityId -> Account
 held = HeldBy <<< Named
@@ -105,7 +105,7 @@ deliver :: Template Capability Rule Q' RejectReason Cause
 deliver =
   { params: [ "quantity" ]
   , parties: [ "holder" ]
-  , coupling: { obligations: [ { id: "d", obligor: Bound "holder", effect: Move { from: Created, to: HeldBy (Bound "holder"), resource: good, owed: Arg "quantity" }, when: [], onShort: Cap, next: noNext } ], holds: [], solver: Nothing, ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing }
+  , coupling: { obligations: [ { id: "d", obligor: Bound "holder", effect: Move { from: Created, to: HeldBy (Bound "holder"), resource: good, owed: Arg "quantity" }, when: [], onShort: Cap, next: noNext } ], holds: [], solver: Nothing, ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing, consented: [] }
   }
 
 reversal :: Template Capability Rule Q' RejectReason Cause

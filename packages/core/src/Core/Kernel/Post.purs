@@ -31,6 +31,9 @@ data Account = Ent EntityId | Mkt MarketId
 
 derive instance Eq Account
 derive instance Ord Account
+instance Show Account where
+  show (Ent e) = "Ent " <> show e
+  show (Mkt m) = "Mkt " <> show m
 
 -- | Net changes to every account for the round, applied together at commit.
 type Ledger = Map (Tuple Account ResourceId) Q

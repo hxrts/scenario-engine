@@ -153,6 +153,7 @@ type Coupling cap law query reason cause =
   , ration :: Ration
   , phase :: Phase
   , cause :: Maybe cause -- Nothing inherits the parent's
+  , consented :: Array EntityId -- who has signed, carried to its descendants
   }
 
 type Template cap law query reason cause =

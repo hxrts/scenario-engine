@@ -1,0 +1,183 @@
+-- | Resolution (docs/02_type_system.md): phase by phase, start with every obligation admissible, remove
+-- | what fails its conditions, and repeat on the set still standing. Removed obligations stay removed,
+-- | so the procedure terminates. Every condition of a pass reads the set the pass began with, so the
+-- | result does not depend on the order couplings were given in. Survivors post in canonical order.
+module Core.Kernel.Resolve
+  ( Kernel
+  , Fate(..)
+  , Consumed
+  , Resolved
+  , ResolveError(..)
+  , amountOf
+  , endpointOf
+  , resolve
+  ) where
+
+import Prelude
+
+import Core.Kernel.Post (Ledger, Opening, Outcome(..), accountOf, available, post)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), LawChange, Limit(..), Obligation, Party(..), Short(..), StockRef)
+import Core.Num (Q)
+import Core.Num as Q
+import Core.Query (lookupQ)
+import Core.Types (EntityId)
+import Core.World (Endpoint(..), Flow)
+import Data.Array (all, concat, elem, filter, foldl, index, length, mapWithIndex, nub, sort, sortWith)
+import Data.Either (Either(..))
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Set (Set)
+import Data.Set as Set
+import Data.Tuple (Tuple(..))
+
+-- | What conditions read outside the couplings. `read` answers a record query on the settlement so far.
+type Kernel cap query =
+  { opening :: Opening
+  , holds :: EntityId -> cap -> Boolean
+  , read :: Ledger -> query -> Q
+  , price :: Maybe Q
+  }
+
+-- | How an obligation was consumed: each of the three has its own successors.
+data Fate = Fulfilled | Shorted | Lapsed
+
+derive instance Eq Fate
+instance Show Fate where
+  show Fulfilled = "Fulfilled"
+  show Shorted = "Shorted"
+  show Lapsed = "Lapsed"
+
+type Consumed law reason =
+  { coupling :: Int
+  , obligation :: Int
+  , fate :: Fate
+  , flow :: Maybe Flow
+  , change :: Maybe (LawChange law)
+  , reason :: Maybe reason
+  }
+
+type Resolved law reason = { ledger :: Ledger, consumed :: Array (Consumed law reason) }
+
+-- | A coupling reached resolution with a party a template should have bound.
+data ResolveError = Unbound String
+
+derive instance Eq ResolveError
+instance Show ResolveError where
+  show (Unbound p) = "unbound party: " <> p
+
+type Key = Tuple Int Int
+
+-- | The value of an amount on the settlement so far. An unsubstituted argument is zero.
+amountOf :: forall cap query. Kernel cap query -> Ledger -> Amount query -> Q
+amountOf k ledger = go
+  where
+  go = case _ of
+    Exactly q -> q
+    Arg _ -> Q.zero
+    Stock ref -> stock k ledger ref
+    Times r x -> Q.mul r (go x)
+    Plus x y -> Q.add (go x) (go y)
+    Minus x y -> Q.sub (go x) (go y)
+    Least x y -> min (go x) (go y)
+    ShareOf s ->
+      let
+        amounts = map go s.among
+        shares = Q.proRata (go s.limit) amounts
+      in
+        fromMaybe Q.zero (index shares s.index)
+    Read q -> k.read ledger q
+
+endpointOf :: Account -> Either ResolveError Endpoint
+endpointOf = case _ of
+  HeldBy (Named e) -> Right (Held e)
+  HeldBy (Bound p) -> Left (Unbound p)
+  Reserve m -> Right (InMarket m)
+  Created -> Right Source
+  Destroyed -> Right Sink
+
+stock :: forall cap query. Kernel cap query -> Ledger -> StockRef -> Q
+stock k ledger ref = case endpointOf ref.at of
+  Right e | Just a <- accountOf e -> available k.opening ledger a ref.resource
+  _ -> Q.zero
+
+-- | Whether a condition holds on the set still standing.
+holds :: forall cap law query reason cause. Kernel cap query -> Ledger -> Set Key -> Int -> Coupling cap law query reason cause -> Obligation cap law query reason -> Condition cap query -> Boolean
+holds k ledger standing ci c o = case _ of
+  Performed i _ -> Set.member (Tuple ci i) standing
+  StockAtLeast ref a -> stock k ledger ref >= amountOf k ledger a
+  Consent ps -> all (_ `elem` c.consented) ps
+  WeightedConsent w -> Q.add w.residual (Q.sumQ (map (\e -> lookupQ e w.weights) (nub c.consented))) > w.threshold
+  PriceWithin limit -> case limit, k.price of
+    AtMost p, Just x -> x <= p
+    AtLeast p, Just x -> x >= p
+    _, Nothing -> true
+  QuantityAtLeast a -> owed >= amountOf k ledger a
+  Holds (Named e) cap -> k.holds e cap
+  Holds (Bound _) _ -> false
+  where
+  owed = case o.effect of
+    Move l -> amountOf k ledger l.owed
+    Change _ -> Q.zero
+
+-- | Whether an obligation that rejects a shortfall could not perform on the settlement so far.
+cannotPerform :: forall cap law query reason. Kernel cap query -> Ledger -> Obligation cap law query reason -> Boolean
+cannotPerform k ledger o = case o.onShort, o.effect of
+  Reject, Move l -> case endpointOf l.from of
+    Right e | Just a <- accountOf e -> available k.opening ledger a l.resource < amountOf k ledger l.owed
+    _ -> false
+  _, _ -> false
+
+type Phase' cap law query reason cause = Array (Tuple Int (Coupling cap law query reason cause))
+
+-- | One phase's removals: the keys still standing, and what each removed key's fate and reason was.
+remove :: forall cap law query reason cause. Kernel cap query -> Ledger -> Phase' cap law query reason cause -> { standing :: Set Key, removed :: Map.Map Key { fate :: Fate, reason :: Maybe reason } }
+remove k ledger cs = go (Set.fromFoldable (concat (map keys cs))) Map.empty
+  where
+  keys (Tuple ci c) = mapWithIndex (\oi _ -> Tuple ci oi) c.obligations
+  go standing removed =
+    let
+      failures = concat (map (failing standing) cs)
+      next = foldl (\s (Tuple key _) -> Set.delete key s) standing failures
+    in
+      if length failures == 0 then { standing, removed }
+      else go next (foldl (\m (Tuple key v) -> Map.insert key v m) removed failures)
+  failing standing (Tuple ci c) = concat (mapWithIndex (one standing ci c) c.obligations)
+  one standing ci c oi o
+    | not (Set.member (Tuple ci oi) standing) = []
+    | otherwise = case filter (not <<< holds k ledger standing ci c o <<< _.condition) o.when of
+        [] | cannotPerform k ledger o -> [ Tuple (Tuple ci oi) { fate: Shorted, reason: Nothing } ]
+        [] -> []
+        fails -> [ Tuple (Tuple ci oi) { fate: Lapsed, reason: fromMaybe Nothing (map _.reason (index fails 0)) } ]
+
+-- | Every obligation's id, in the order couplings are canonically posted.
+canonical :: forall cap law query reason cause. Coupling cap law query reason cause -> Array String
+canonical c = map _.id c.obligations
+
+-- | Resolve every coupling, phase by phase.
+resolve :: forall cap law query reason cause. Kernel cap query -> Array (Coupling cap law query reason cause) -> Either ResolveError (Resolved law reason)
+resolve k couplings = foldl step (Right { ledger: Map.empty, consumed: [] }) phases
+  where
+  ordered = mapWithIndex Tuple couplings
+  phases = sort (nub (map _.phase couplings))
+  step acc phase = acc >>= runPhase k (sortWith (\(Tuple _ c) -> canonical c) (filter (\(Tuple _ c) -> c.phase == phase) ordered))
+
+runPhase :: forall cap law query reason cause. Kernel cap query -> Phase' cap law query reason cause -> Resolved law reason -> Either ResolveError (Resolved law reason)
+runPhase k cs acc = foldl posting (Right acc) keyed
+  where
+  { standing, removed } = remove k acc.ledger cs
+  keyed = concat (map (\(Tuple ci c) -> mapWithIndex (\oi o -> { ci, oi, o }) c.obligations) cs)
+  posting r { ci, oi, o } = r >>= \st -> case Map.lookup (Tuple ci oi) removed of
+    Just gone -> Right st { consumed = st.consumed <> [ { coupling: ci, obligation: oi, fate: gone.fate, flow: Nothing, change: Nothing, reason: gone.reason } ] }
+    Nothing | Set.member (Tuple ci oi) standing -> perform k ci oi o st
+    Nothing -> Right st
+
+perform :: forall cap law query reason. Kernel cap query -> Int -> Int -> Obligation cap law query reason -> Resolved law reason -> Either ResolveError (Resolved law reason)
+perform k ci oi o st = case o.effect of
+  Change change -> Right st { consumed = st.consumed <> [ { coupling: ci, obligation: oi, fate: Fulfilled, flow: Nothing, change: Just change, reason: Nothing } ] }
+  Move l -> do
+    from <- endpointOf l.from
+    to <- endpointOf l.to
+    let
+      p = post k.opening o.onShort { from, to, resource: l.resource, owed: amountOf k st.ledger l.owed } st.ledger
+      fate = if p.outcome == PostedWhole then Fulfilled else Shorted
+    pure { ledger: p.ledger, consumed: st.consumed <> [ { coupling: ci, obligation: oi, fate, flow: Just p.flow, change: Nothing, reason: Nothing } ] }
