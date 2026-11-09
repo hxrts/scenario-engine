@@ -1,6 +1,6 @@
--- | Laws (docs/02_type_system.md): rules over stocks and flows. A time law on a stock emits one leg per
+-- | Dynamics (docs/02_type_system.md): rules over stocks and flows. A time dynamic on a stock emits one leg per
 -- | holder, written with the holder as a bound party.
-module Core.Kernel.Law
+module Core.Kernel.Dynamic
   ( holderParam
   , forHolder
   , quantityParam
@@ -13,27 +13,27 @@ module Core.Kernel.Law
 
 import Prelude
 
-import Core.Kernel.Types (Account(..), Amount(..), Coupling, Effect(..), Law, Leg, Operation(..), Party(..), Short(..), Subject(..), noNext)
+import Core.Kernel.Types (Account(..), Amount(..), Coupling, Effect(..), Dynamic, Leg, Operation(..), Party(..), Short(..), Subject(..), noNext)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (EntityId, ResourceId)
 import Data.Array (elem, filter, mapMaybe)
 import Data.Maybe (Maybe(..))
 
--- | The name a stock law's leg gives the holder it applies to.
+-- | The name a stock dynamic's leg gives the holder it applies to.
 holderParam :: String
 holderParam = "holder"
 
--- | What a stock law does to one holder, as a coupling. A law that emits no leg has none.
-forHolder :: forall cap law query reason cause. EntityId -> Law cap query reason cause -> Maybe (Coupling cap law query reason cause)
-forHolder holder law = case law.operation of
+-- | What a stock dynamic does to one holder, as a coupling. A dynamic that emits no leg has none.
+forHolder :: forall cap dynamic query reason cause. EntityId -> Dynamic cap query reason cause -> Maybe (Coupling cap dynamic query reason cause)
+forHolder holder dynamic = case dynamic.operation of
   Emit l -> Just
-    { obligations: [ { id: "law", obligor: Named holder, effect: Move (leg l), when: law.guard, onShort: Cap, next: noNext } ]
+    { obligations: [ { id: "dynamic", obligor: Named holder, effect: Move (leg l), when: dynamic.guard, onShort: Cap, next: noNext } ]
     , holds: []
     , solver: Nothing
     , ration: { tier: 1, whole: false, scaleGroup: Nothing }
-    , phase: law.phase
-    , cause: Just law.cause
+    , phase: dynamic.phase
+    , cause: Just dynamic.cause
     , consented: []
     }
   _ -> Nothing
@@ -58,27 +58,27 @@ forHolder holder law = case law.operation of
     ShareOf s -> ShareOf s { limit = amount s.limit, among = map amount s.among }
     other -> other
 
--- | The names a flow law's leg gives what it is charged on, and who receives it.
+-- | The names a flow dynamic's leg gives what it is charged on, and who receives it.
 quantityParam :: String
 quantityParam = "quantity"
 
 recipientParam :: String
 recipientParam = "recipient"
 
--- | Whether a flow law covers a movement.
-appliesTo :: forall cap query reason cause. { from :: EntityId, to :: EntityId, resource :: ResourceId } -> Law cap query reason cause -> Boolean
-appliesTo flow law = case law.subject of
+-- | Whether a flow dynamic covers a movement.
+appliesTo :: forall cap query reason cause. { from :: EntityId, to :: EntityId, resource :: ResourceId } -> Dynamic cap query reason cause -> Boolean
+appliesTo flow dynamic = case dynamic.subject of
   OfFlow s -> flow.from `elem` s.from && flow.to `elem` s.to && flow.resource `elem` s.resources
   OfStock _ -> false
 
-refuses :: forall cap query reason cause. Law cap query reason cause -> Boolean
-refuses law = case law.operation of
+refuses :: forall cap query reason cause. Dynamic cap query reason cause -> Boolean
+refuses dynamic = case dynamic.operation of
   Refuse -> true
   _ -> false
 
--- | The leg a flow law charges on a quantity, with its recipient bound.
-emitted :: forall cap query reason cause. Q -> EntityId -> Law cap query reason cause -> Maybe { to :: Maybe EntityId, resource :: ResourceId, amount :: Q }
-emitted quantity recipient law = case law.operation of
+-- | The leg a flow dynamic charges on a quantity, with its recipient bound.
+emitted :: forall cap query reason cause. Q -> EntityId -> Dynamic cap query reason cause -> Maybe { to :: Maybe EntityId, resource :: ResourceId, amount :: Q }
+emitted quantity recipient dynamic = case dynamic.operation of
   Emit l -> Just { to: receiver l.to, resource: l.resource, amount: value l.owed }
   _ -> Nothing
   where
@@ -97,14 +97,14 @@ emitted quantity recipient law = case law.operation of
     Least p -> min (value p.left) (value p.right)
     _ -> Q.zero
 
--- | What the laws in force hold back from being drawn of a Resource.
-withheld :: forall cap query reason cause. ResourceId -> Array (Law cap query reason cause) -> Q
-withheld resource laws = Q.sumQ (mapMaybe one (filter onResource laws))
+-- | What the dynamics in force hold back from being drawn of a Resource.
+withheld :: forall cap query reason cause. ResourceId -> Array (Dynamic cap query reason cause) -> Q
+withheld resource dynamics = Q.sumQ (mapMaybe one (filter onResource dynamics))
   where
-  onResource law = case law.subject of
+  onResource dynamic = case dynamic.subject of
     OfStock s -> s.resource == resource
     OfFlow _ -> false
-  one law = case law.operation of
+  one dynamic = case dynamic.operation of
     Withhold (Exactly q) -> Just q
     _ -> Nothing
 

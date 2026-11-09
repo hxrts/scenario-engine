@@ -15,7 +15,7 @@ import Schema.Build.Quantity (q)
 import Schema.Build.World (noResource, resourcesOf)
 import Settings.Kit.Resources (capacity)
 
-import Rules.Types (ResourceDefinition, ResourceId, Transferability(..))
+import Laws.Types (ResourceDefinition, ResourceId, Transferability(..))
 import Data.Map (Map)
 import Schema.Recurring (Decay)
 

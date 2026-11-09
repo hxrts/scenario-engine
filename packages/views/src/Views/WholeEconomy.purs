@@ -6,9 +6,9 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Query (holding, tradesOf)
-import Rules.Slice (exchanges, read, runSlice, total, whereEq, whereGt)
-import Rules.World (WorldState)
+import Laws.Query (holding, tradesOf)
+import Laws.Slice (exchanges, read, runSlice, total, whereEq, whereGt)
+import Laws.World (WorldState)
 import Data.Array (concatMap, filter, fromFoldable, zip)
 import Data.Map as Map
 import Data.Maybe (maybe)

@@ -33,7 +33,7 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Foreign.Object as Object
 import Core.Num as Q
-import Rules.Types (EntityId, Id(..), IntentF(..))
+import Laws.Types (EntityId, Id(..), IntentF(..))
 import Handlers.Llm.Backend (Backend, Call, backend)
 import Schema.Joint (ProposedJoint, jointReplyShape)
 import Handlers.Llm.Call (ModelCall, interpretCall, narrateCall, speakCall)

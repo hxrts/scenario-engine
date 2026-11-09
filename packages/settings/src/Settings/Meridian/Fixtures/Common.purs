@@ -15,7 +15,7 @@ import Settings.Kit.Prelude (Capability, Json, Maybe(..), Tuple)
 
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)
-import Rules.Types (EntityId, ResourceId)
+import Laws.Types (EntityId, ResourceId)
 import Settings.Kit.Fixtures (Cut, FixtureSpec, KeptEntity)
 import Settings.Kit.Fixtures as Kit
 import Settings.Meridian (defaultDials, gameSeed, meridian)

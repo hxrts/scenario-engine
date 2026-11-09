@@ -9,7 +9,7 @@ import Settings.Meridian.Names (n)
 
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base ((:=))
-import Rules.Types (EntityId, Holdings, ResourceId)
+import Laws.Types (EntityId, Holdings, ResourceId)
 
 -- | Every Entity's holding, in catalog order (`Settings.Meridian.Entities`).
 holdings :: HoldingTable

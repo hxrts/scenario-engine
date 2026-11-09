@@ -15,8 +15,8 @@ The implementation terms of this doc. The type-system terms are in the [Type Sys
 | **Layer** | One spec's share of the design: the Type System ([02](02_type_system.md)), Gameboard ([03](03_gameboard.md)), Instantiated Game ([04](04_instantiated_game.md)), Simulator and Dashboard ([06](06_simulator.md)), or this Architecture doc. |
 | **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
 | **Kernel** | The modules under `packages/core/src/Core/Kernel`: the types of [02 §3](02_type_system.md#3-the-kernel), posting, resolution, consumption, laws, rationing, clearing and routing. |
-| **Settlement sequence** | The per-mechanism order of `resolveRound` in `packages/rules`, which calls the kernel in stated phases ([§4](#4-key-interfaces)). |
-| **Compile step** | The code in `packages/rules` that writes each settled mechanism as kernel values, with the static refusals decided first ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). |
+| **Settlement sequence** | The per-mechanism order of `resolveRound` in `packages/laws`, which calls the kernel in stated phases ([§4](#4-key-interfaces)). |
+| **Compile step** | The code in `packages/laws` that writes each settled mechanism as kernel values, with the static refusals decided first ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). |
 | **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose. |
 
 ## 1. Principles
@@ -33,7 +33,7 @@ These govern every package. They are what a change is checked against.
 - **Narrow seams.** Packages meet at the small interfaces in [§4](#4-key-interfaces). Code behind an interface can change without touching its callers. Replacing an adapter (the SQLite store, the model provider) changes nothing in the domain packages, effects or handlers: the new adapter implements the same primitives.
 - **Each described type is described once.** A type that crosses a boundary has one Shape, and its codecs and prose are derived from it. Hand-written instances, projections and name lists that repeat a description are defects.
 - **Interfaces are derived; behaviour is hand-written.** Codecs, action lists, routes and decoders come from declarations. The Strategy interpreter, agent framing, human facilitation, view projections and API semantics are written by hand.
-- **Economics live in one place.** Only the settlement sequence in `rules`, over the kernel in `core`, changes the economy. Every leg posts through `Core.Kernel.Post`. Apps compose and hold no economic logic.
+- **Economics live in one place.** Only the settlement sequence in `laws`, over the kernel in `core`, changes the economy. Every leg posts through `Core.Kernel.Post`. Apps compose and hold no economic logic.
 - **Settings are data.** Gameboards, instantiation configurations, fixtures and presets are authored in a typed DSL and compiled to data. The engine reads only the compiled data. Fixture expected values are literals, never computed. The formats are owned by [02](02_type_system.md) (the snapshot format) and [03](03_gameboard.md) (the setting format).
 - **Small.** One concept per module. No frameworks inside the core.
 
@@ -62,19 +62,19 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | Package | May depend on | Owns | Must not own |
 |---|---|---|---|
 | `core` | nothing | The kernel; the description algebra; numerics, draws, the cost curve, and the id, quantity and curve types | Any authored vocabulary (Intent, Proposal, Rule, Transformation and the like); setting knowledge, authoring formats, operations, runs, a second codec for a described type |
-| `rules` | `core` | The authored vocabulary and the settlement sequence: World State and Events, Intent and Proposal types, the Strategy language, the compile step, `resolveRound`, authority, Representation and per-round invariants | Setting knowledge, authoring formats, operations, runs |
-| `schema` | `core`, `rules` | The setting format, the authoring DSL (including `Schema.Build.Agreement`), the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
-| `board` | `core`, `rules`, `schema` | World realization and validation, and their errors. It is separate from `game` so that the package boundary keeps what the world is apart from how seats decide | JSON, fixtures, seat bindings, policy concepts |
-| `policy` | `core`, `rules`, `schema` | The pure Strategy interpreter | Effect libraries, codecs, World State access |
-| `game` | `core`, `rules`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
-| `settings` | `core`, `rules`, `schema`, `game` | Authored settings, presets, fixtures and the setting file tree, as typed values ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
-| `checks` | `core`, `rules`, `schema` | Checking expectations, runs and objectives against records | Effects, running games |
-| `effects` | `core`, `rules`, `schema`, `board`, `policy`, `game` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `rules`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's routing and client, and the pure simulation fold | Adapter imports; `views`, `experiments` or `settings` imports; the API's operation semantics; a browser-facing client importing a Node module |
+| `laws` | `core` | The authored vocabulary and the settlement sequence: World State and Events, Intent and Proposal types, the Strategy language, the compile step, `resolveRound`, authority, Representation and per-round invariants | Setting knowledge, authoring formats, operations, runs |
+| `schema` | `core`, `laws` | The setting format, the authoring DSL (including `Schema.Build.Agreement`), the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
+| `board` | `core`, `laws`, `schema` | World realization and validation, and their errors. It is separate from `game` so that the package boundary keeps what the world is apart from how seats decide | JSON, fixtures, seat bindings, policy concepts |
+| `policy` | `core`, `laws`, `schema` | The pure Strategy interpreter | Effect libraries, codecs, World State access |
+| `game` | `core`, `laws`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
+| `settings` | `core`, `laws`, `schema`, `game` | Authored settings, presets, fixtures and the setting file tree, as typed values ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
+| `checks` | `core`, `laws`, `schema` | Checking expectations, runs and objectives against records | Effects, running games |
+| `effects` | `core`, `laws`, `schema`, `board`, `policy`, `game` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
+| `handlers` | `core`, `laws`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's routing and client, and the pure simulation fold | Adapter imports; `views`, `experiments` or `settings` imports; the API's operation semantics; a browser-facing client importing a Node module |
 | `adapters` | `handlers` (the device types of the SQL handler only) | Raw devices, and every FFI module outside the apps | Games, runs, prompts, settings, any handler function |
-| `views` | `core`, `rules`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `game`, `experiments` or `settings` imports; objective evaluation of their own |
-| `experiments` | `core`, `rules`, `schema`, `checks`, `views`, `game`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
-| `testkit` | `core`, `rules`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
+| `views` | `core`, `laws`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `game`, `experiments` or `settings` imports; objective evaluation of their own |
+| `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `game`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
+| `testkit` | `core`, `laws`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
@@ -102,14 +102,14 @@ assemble :: Setting -> Bindings -> Array Override -> Either GameError Game
 instantiate :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
 ```
 
-**Engine** (`rules`, `Rules.Engine.Commit`). Pure, and the only operation that changes the economy. It is the settlement sequence, and there is deliberately no single kernel call for a whole round ([02 §3.5](02_type_system.md#35-resolution)):
+**Engine** (`laws`, `Laws.Engine.Commit`). Pure, and the only operation that changes the economy. It is the settlement sequence, and there is deliberately no single kernel call for a whole round ([02 §3.5](02_type_system.md#35-resolution)):
 
 ```purescript
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
 -- RoundResult = { world :: WorldState, record :: RoundRecord }
 ```
 
-**Kernel** (`core`). Resolution runs a set of couplings through the removal procedure, and `Post` is the only writer of the ledger. The compile step (`Rules.Engine.Compile`) writes each mechanism as kernel values and calls them:
+**Kernel** (`core`). Resolution runs a set of couplings through the removal procedure, and `Post` is the only writer of the ledger. The compile step (`Laws.Engine.Compile`) writes each mechanism as kernel values and calls them:
 
 ```purescript
 resolve :: Kernel cap query -> Array (Coupling cap law query reason cause) -> Either ResolveError (Resolved law reason)
@@ -159,7 +159,7 @@ Checks run under `just check`, and each fails the build on a violation. Each che
 - **Docs tables.** The marked tables in [05](05_test_instance.md) match the compiled setting.
 - **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 
-Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/rules/test`. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
+Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
 
 ## How the docs relate
 

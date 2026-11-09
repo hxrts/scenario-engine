@@ -1,7 +1,7 @@
 package:
   name: sp-experiments
   dependencies:
-    - sp-rules
+    - sp-laws
     - prelude
     - sp-core
     - sp-schema

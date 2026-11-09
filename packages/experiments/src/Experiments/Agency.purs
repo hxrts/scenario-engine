@@ -14,9 +14,9 @@ import Data.Tuple (Tuple(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Rules.Slice (event, read, select)
-import Rules.Types (EntityId)
-import Rules.World (WorldState)
+import Laws.Slice (event, read, select)
+import Laws.Types (EntityId)
+import Laws.World (WorldState)
 import Data.Array (concatMap, elem, filter, length, zipWith)
 import Data.Either (Either(..), hush)
 import Data.Map as Map
@@ -25,7 +25,7 @@ import Data.Traversable (traverse)
 import Checks.Objectives (evaluateObjectives)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Rules.Strategy (Strategy)
+import Laws.Strategy (Strategy)
 import Schema.Gameboard (Gameboard)
 import Game.Error (GameError(..))
 import Game.Types (Game)

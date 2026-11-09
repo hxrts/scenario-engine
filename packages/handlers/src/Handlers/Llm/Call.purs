@@ -13,7 +13,7 @@ module Handlers.Llm.Call
 import Prelude
 
 import Core.Shape (Shape, stringShape)
-import Rules.Types (EntityId, Id(..))
+import Laws.Types (EntityId, Id(..))
 import Data.Either (Either)
 import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeReply, jointRequestShape, narrateRequestShape, speakRequestShape, textReplyShape)

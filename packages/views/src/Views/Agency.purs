@@ -5,7 +5,7 @@ module Views.Agency (AgencyProfile, CriterionChange, agencyTable, agencyCriteria
 import Prelude
 
 import Core.Num (Q)
-import Rules.Types (EntityId)
+import Laws.Types (EntityId)
 import Data.Array (concatMap, filter, length, mapWithIndex)
 import Schema.Gameboard (Outcome(..))
 import Views.Common (Column, Table, col, column, names, price, quantity)

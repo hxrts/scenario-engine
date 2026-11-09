@@ -1,6 +1,6 @@
 -- | The round runner and game loop (docs/02_type_system.md §8.3). Written against effects only:
 -- | it uses the signatures in `Effects.Signatures` and the in-world Policies in `Policy.InWorld`;
--- | handlers choose the context it runs in. The Proposal rules it applies are in `Rules.Proposal`.
+-- | handlers choose the context it runs in. The Proposal rules it applies are in `Laws.Proposal`.
 module Effects.Round
   ( runRound
   , runGame
@@ -10,12 +10,12 @@ import Prelude
 
 import Core.Map (values)
 
-import Rules.Engine.Commit (EngineError, resolveRound)
-import Rules.Engine.Prepare (observe, prepareRound)
-import Rules.Proposal (assembleSigned, proposalsOf, signableBy)
+import Laws.Engine.Commit (EngineError, resolveRound)
+import Laws.Engine.Prepare (observe, prepareRound)
+import Laws.Proposal (assembleSigned, proposalsOf, signableBy)
 import Schema.Joint (jointProposalsOf, numberJoint)
-import Rules.Types (Entity)
-import Rules.World (RoundResult, View, WorldState)
+import Laws.Types (Entity)
+import Laws.World (RoundResult, View, WorldState)
 import Data.Array (concat, filter, mapMaybe, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -25,7 +25,7 @@ import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Policy.InWorld (policyOf)
-import Rules.Strategy (Strategy, InWorld)
+import Laws.Strategy (Strategy, InWorld)
 import Policy.Interpret (Env, envFor)
 import Policy.Interpret as Policy
 import Run (Run, lift)

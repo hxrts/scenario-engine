@@ -10,9 +10,9 @@ import Prelude
 
 import Core.Num as Q
 import Core.Num (Q)
-import Rules.Query (accountsOf, holding)
-import Rules.Types (EntityId, ResourceId)
-import Rules.World (Event, WorldState)
+import Laws.Query (accountsOf, holding)
+import Laws.Types (EntityId, ResourceId)
+import Laws.World (Event, WorldState)
 import Data.Array (concatMap, filter, fromFoldable, index, nub)
 import Data.Either (Either(..))
 import Data.Map as Map

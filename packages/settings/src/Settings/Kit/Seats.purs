@@ -14,7 +14,7 @@ module Settings.Kit.Seats
 
 import Prelude
 import Core.Num (Q)
-import Rules.Types (Capability, Entity, EntityId, EntityKind, PolicyId, ResourceId)
+import Laws.Types (Capability, Entity, EntityId, EntityKind, PolicyId, ResourceId)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Base (coverage, institutional)

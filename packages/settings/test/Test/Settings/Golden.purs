@@ -10,11 +10,11 @@ import Prelude
 import Testkit.Edit (onEntity)
 
 import Core.Draw (Seed(..))
-import Rules.Engine.Commit (resolveRound)
-import Rules.Invariants (check)
+import Laws.Engine.Commit (resolveRound)
+import Laws.Invariants (check)
 import Core.Num as Q
-import Rules.Engine.Prepare (observe)
-import Rules.Types (Id(..), IntentF(..), SignedProposal, idText)
+import Laws.Engine.Prepare (observe)
+import Laws.Types (Id(..), IntentF(..), SignedProposal, idText)
 import Data.Argonaut.Decode (printJsonDecodeError)
 import Data.Array (cons, deleteAt, head, index, length, range, uncons, concatMap)
 import Data.Either (Either(..), hush)

@@ -76,7 +76,7 @@ available opening ledger a r = max Q.zero (Q.add (opening a r) (lookupQ (Tuple a
 
 -- | Post one leg. `Cap` moves what is held; `Reject` moves nothing when the whole cannot move. The
 -- | boundary can always pay, and so can a reserve: clearing bounds a batch's net, which a reserve can
--- | pass on the way there, and commit fails the round on a negative closing reserve. A leg that moves nothing still writes its accounts: a stock law reads the
+-- | pass on the way there, and commit fails the round on a negative closing reserve. A leg that moves nothing still writes its accounts: a stock dynamic reads the
 -- | ledger's keys to find what an Entity came to hold this round.
 post :: Opening -> Short -> { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Q } -> Ledger -> Posted
 post opening short l ledger =

@@ -32,7 +32,7 @@
             "exceptions",
             "sp-core",
             "sp-handlers",
-            "sp-rules",
+            "sp-laws",
             "sp-settings",
             "sp-testkit",
             "sp-views",
@@ -52,7 +52,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "tuples"
           ]
@@ -78,7 +78,7 @@
             "ordered-collections",
             "prelude",
             "sp-core",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "tuples"
           ]
@@ -116,7 +116,7 @@
             "sp-flags",
             "sp-game",
             "sp-handlers",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -227,8 +227,8 @@
             "run",
             "sp-core",
             "sp-game",
+            "sp-laws",
             "sp-policy",
-            "sp-rules",
             "tuples",
             "typelevel-prelude"
           ]
@@ -259,7 +259,7 @@
             "sp-core",
             "sp-game",
             "sp-handlers",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "sp-views"
           ]
@@ -317,8 +317,8 @@
             "prelude",
             "sp-board",
             "sp-core",
+            "sp-laws",
             "sp-policy",
-            "sp-rules",
             "sp-schema",
             "strings",
             "tuples"
@@ -359,8 +359,8 @@
             "sp-core",
             "sp-effects",
             "sp-game",
+            "sp-laws",
             "sp-policy",
-            "sp-rules",
             "sp-schema",
             "strings",
             "tuples",
@@ -385,37 +385,8 @@
           ]
         }
       },
-      "sp-policy": {
-        "path": "packages/policy",
-        "core": {
-          "dependencies": [
-            "arrays",
-            "const",
-            "foldable-traversable",
-            "foreign-object",
-            "maybe",
-            "ordered-collections",
-            "prelude",
-            "sp-core",
-            "sp-rules"
-          ]
-        },
-        "test": {
-          "dependencies": [
-            "effect",
-            "identity",
-            "newtype",
-            "partial",
-            "quickcheck",
-            "sp-testkit",
-            "spec",
-            "spec-node",
-            "spec-quickcheck"
-          ]
-        }
-      },
-      "sp-rules": {
-        "path": "packages/rules",
+      "sp-laws": {
+        "path": "packages/laws",
         "core": {
           "dependencies": [
             "argonaut-codecs",
@@ -446,6 +417,35 @@
           ]
         }
       },
+      "sp-policy": {
+        "path": "packages/policy",
+        "core": {
+          "dependencies": [
+            "arrays",
+            "const",
+            "foldable-traversable",
+            "foreign-object",
+            "maybe",
+            "ordered-collections",
+            "prelude",
+            "sp-core",
+            "sp-laws"
+          ]
+        },
+        "test": {
+          "dependencies": [
+            "effect",
+            "identity",
+            "newtype",
+            "partial",
+            "quickcheck",
+            "sp-testkit",
+            "spec",
+            "spec-node",
+            "spec-quickcheck"
+          ]
+        }
+      },
       "sp-schema": {
         "path": "packages/schema",
         "core": {
@@ -462,7 +462,7 @@
             "partial",
             "prelude",
             "sp-core",
-            "sp-rules",
+            "sp-laws",
             "tuples"
           ]
         },
@@ -500,7 +500,7 @@
             "sp-flags",
             "sp-game",
             "sp-handlers",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -534,7 +534,7 @@
             "prelude",
             "sp-core",
             "sp-game",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "strings",
             "tuples"
@@ -579,7 +579,7 @@
             "sp-effects",
             "sp-game",
             "sp-handlers",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "sp-settings",
             "sp-views",
@@ -607,7 +607,7 @@
             "prelude",
             "sp-checks",
             "sp-core",
-            "sp-rules",
+            "sp-laws",
             "sp-schema",
             "strings",
             "tuples"

@@ -9,8 +9,8 @@ import Prelude
 import Core.Map (values)
 import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointProposals)
 import Core.Shape (Format(..), encodeWith)
-import Rules.Types (MarketId, RoundIndex)
-import Rules.World (WorldState)
+import Laws.Types (MarketId, RoundIndex)
+import Laws.World (WorldState)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Effect.Aff (Aff)
@@ -35,7 +35,7 @@ joint b request = go 0 original
 
 -- | The round's transcripts to Proposals, one joint pass (`joint`). A reply that still does not
 -- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
--- | Entries the engine could not use are dropped by the joint pass rule (`Rules.Proposal.jointProposals`).
+-- | Entries the engine could not use are dropped by the joint pass rule (`Laws.Proposal.jointProposals`).
 -- | `w` supplies only the Entity and Market ids, which no round changes, so the initial world serves.
 interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointProposal))
 interpreter b w round transcripts = do

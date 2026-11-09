@@ -9,7 +9,7 @@ module Board.Error
 import Prelude
 
 import Core.Num (Q)
-import Rules.Types (CollectiveProcedureId, EntityId, RefKind, ResourceId, TransformationId)
+import Laws.Types (CollectiveProcedureId, EntityId, RefKind, ResourceId, TransformationId)
 
 -- | Every way a Gameboard, its configuration, or an instantiation can be wrong. Each
 -- | constructor names one check, so a caller and its tests match on the specific failure.

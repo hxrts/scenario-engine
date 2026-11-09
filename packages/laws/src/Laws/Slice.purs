@@ -4,7 +4,7 @@
 -- | aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a
 -- | Statistic's formula cannot drift from its calculation. A computation that treats many kinds
 -- | differently is a fold written with one handler per kind (`foldEvents`), so a new kind fails to compile.
-module Rules.Slice
+module Laws.Slice
   ( Select
   , event
   , orKind
@@ -44,8 +44,8 @@ import Core.Sum (class HandlerRow, class Handles, class Pick, handles, pick)
 import Control.Alt ((<|>))
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
-import Rules.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
+import Laws.Types (EntityId, MarketId, ProposalId, RecurringKindId, ResourceId, RoundIndex, RuleKindId, TransformationId)
+import Laws.World (Cause(..), CausePattern(..), Endpoint(..), Event, Flow, LegAggregate(..), LegQuery, Mechanism(..), Side(..), Window(..))
 import Data.Array (concatMap, filter, foldl, head, index, length, nubEq, snoc)
 import Data.Foldable (any, maximum)
 import Data.FunctorWithIndex (mapWithIndex)

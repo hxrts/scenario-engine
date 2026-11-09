@@ -6,12 +6,12 @@ import Testkit.Meridian (orThrow)
 import Prelude
 
 import Core.Draw (Seed(..))
-import Rules.Engine.Commit (resolveRound)
+import Laws.Engine.Commit (resolveRound)
 import Core.Num as Q
-import Rules.Query (holding)
-import Rules.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
-import Rules.Types (Capability(..), Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), RuleForm(..), proposalId)
-import Rules.World (UnseededWorld, Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
+import Laws.Query (holding)
+import Laws.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
+import Laws.Types (Capability(..), Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), RuleForm(..), proposalId)
+import Laws.World (UnseededWorld, Cause(..), Endpoint(..), Event(..), Mechanism(..), coupled, seeded)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))

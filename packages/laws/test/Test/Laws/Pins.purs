@@ -1,21 +1,21 @@
 -- | Pins: settlement behaviour that any rewrite of the engine must keep. Every expected value is a
 -- | literal, stated from docs/02 §3, §5, §6 and §8.2.
-module Test.Rules.Pins (pins) where
+module Test.Laws.Pins (pins) where
 
 import Prelude
 
-import Rules.Engine.Commit (EngineError, resolveRound)
+import Laws.Engine.Commit (EngineError, resolveRound)
 
 import Core.Num as Q
-import Rules.Query (holding, reserveOf)
-import Rules.Types (Capability(..), Direction(..), Entity, EntityKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Payment, ProposalId, ResourceId, RuleF(..), SignedProposal, Transformation, proposalId)
-import Rules.World (Cause(..), Endpoint(..), Event(..), Flow, Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), WorldState, coupled, lapse, orderRemoved, rejection)
+import Laws.Query (holding, reserveOf)
+import Laws.Types (Capability(..), Direction(..), Entity, EntityKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Payment, ProposalId, ResourceId, RuleF(..), SignedProposal, Transformation, proposalId)
+import Laws.World (Cause(..), Endpoint(..), Event(..), Flow, Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), WorldState, coupled, lapse, orderRemoved, rejection)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Test.Rules.Build (actor, baseWorld, heldDraw, market, q, resource, submit, transformation, withAccount)
+import Test.Laws.Build (actor, baseWorld, heldDraw, market, q, resource, submit, transformation, withAccount)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 

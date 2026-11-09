@@ -7,8 +7,8 @@ module Policy.InWorld
   ) where
 
 import Core.Num (Q)
-import Rules.Strategy (InWorld, Strategy)
-import Rules.Types (Controller(..), Entity, EntityKind(..), PolicyId)
+import Laws.Strategy (InWorld, Strategy)
+import Laws.Types (Controller(..), Entity, EntityKind(..), PolicyId)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))

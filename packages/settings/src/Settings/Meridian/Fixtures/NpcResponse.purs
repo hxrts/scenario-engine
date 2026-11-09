@@ -3,7 +3,7 @@
 -- | shorter D-minor carries the major action alone. Fixtures D and D-minor.
 module Settings.Meridian.Fixtures.NpcResponse (fixtureD, fixtureDMinor) where
 
-import Rules.Types (ResourceId)
+import Laws.Types (ResourceId)
 import Settings.Kit.Prelude
 import Settings.Meridian.Names (n)
 

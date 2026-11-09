@@ -13,9 +13,9 @@ import Prelude
 
 import Board.Gameboard.Validate (gameboardNames, unknownNames)
 import Core.Map (values)
-import Rules.Strategy (Strategy)
-import Rules.Types (holderDraw, Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
-import Rules.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..))
+import Laws.Strategy (Strategy)
+import Laws.Types (holderDraw, Capability(..), EntityId, MarketId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
+import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..))
 import Data.Array (all, concat, concatMap, elem, filter, fromFoldable, mapMaybe, nub)
 import Data.Either (Either(..), isRight)
 import Data.Map (Map)

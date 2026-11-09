@@ -13,7 +13,7 @@ import Prelude
 import Core.Num as Q
 import Schema.Joint (jointReplyShape)
 import Core.Shape (Format(..), Shape, encodeWith, prose)
-import Rules.Types (Id(..), Intent, IntentF(..), intentShape)
+import Laws.Types (Id(..), Intent, IntentF(..), intentShape)
 import Data.Argonaut.Core (stringify)
 import Handlers.Llm.Wire (textReplyShape)
 

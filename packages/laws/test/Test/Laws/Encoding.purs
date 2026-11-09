@@ -1,20 +1,20 @@
 -- | Every current mechanism written as a kernel value, before the engine changes (work plan P3). The
 -- | function over `RejectReason` is total, so a new reason cannot go unencoded.
-module Test.Rules.Encoding (encoding) where
+module Test.Laws.Encoding (encoding) where
 
 import Prelude
 
-import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Hold, Law, LawChange(..), Limit(..), Obligation, Operation(..), Party(..), Short(..), Solver(..), Spawn, Subject(..), Template, Trigger(..), noNext)
+import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Hold, Dynamic, DynamicChange(..), Limit(..), Obligation, Operation(..), Party(..), Short(..), Solver(..), Spawn, Subject(..), Template, Trigger(..), noNext)
 import Core.Num as Q
-import Rules.Types (Capability(..), Id(..), Rule, EntityId, ResourceId, MarketId)
-import Rules.World (Cause(..), Mechanism(..), RejectReason(..))
+import Laws.Types (Capability(..), Id(..), Rule, EntityId, ResourceId, MarketId)
+import Laws.World (Cause(..), Mechanism(..), RejectReason(..))
 import Data.Array (length)
 import Data.Array as Array
 import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Show.Generic (genericShow)
-import Test.Rules.Build (q)
+import Test.Laws.Build (q)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -22,7 +22,7 @@ type Q' = Unit
 type Ob = Obligation Capability Rule Q' RejectReason
 type Cp = Coupling Capability Rule Q' RejectReason Cause
 type Gd = Guarded Capability Q' RejectReason
-type Lw = Law Capability Q' RejectReason Cause
+type Lw = Dynamic Capability Q' RejectReason Cause
 
 a :: EntityId
 a = Id "A"
@@ -101,7 +101,7 @@ procedure :: Cp
 procedure = coupling [ ob "x" a (leg (held a) (held b) money "5") [ { condition: WeightedConsent { weights: Map.singleton b (q "0.5"), residual: Q.zero, threshold: q "0.5" }, reason: Nothing } ] Cap ] [] Nothing 1 false
 
 changeRule :: Cp
-changeRule = coupling [ ob "c" a (Change (RemoveLaw "r1/A/0-0")) [] Reject ] [] Nothing 1 false
+changeRule = coupling [ ob "c" a (Change (RemoveDynamic "r1/A/0-0")) [] Reject ] [] Nothing 1 false
 
 deliver :: Template Capability Rule Q' RejectReason Cause
 deliver =

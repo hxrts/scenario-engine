@@ -1,4 +1,4 @@
--- path: packages/rules/src/Rules/Engine/X.purs
+-- path: packages/laws/src/Laws/Engine/X.purs
 f = case _ of
   Coupled t -> t.quantity
   _ -> zero

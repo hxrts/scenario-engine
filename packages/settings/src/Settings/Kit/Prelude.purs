@@ -1,7 +1,7 @@
 -- | The vocabulary a fixture is written in, re-exported so a fixture imports one module. This is the one deliberate re-export in the tree.
 module Settings.Kit.Prelude
   ( module Core.Num
-  , module Rules.Types
+  , module Laws.Types
   , module Data.Argonaut.Core
   , module Data.Map
   , module Data.Maybe
@@ -13,7 +13,7 @@ module Settings.Kit.Prelude
   ) where
 
 import Core.Num (Q)
-import Rules.Types (Capability, Entity, EntityId, EntityKind(Aggregate), Id(..), Market, MarketId, Representation, Transformation, TransformationId)
+import Laws.Types (Capability, Entity, EntityId, EntityKind(Aggregate), Id(..), Market, MarketId, Representation, Transformation, TransformationId)
 import Data.Argonaut.Core (Json)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..))

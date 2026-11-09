@@ -4,7 +4,7 @@ module Testkit.Json (json, decodeText) where
 
 import Prelude
 
-import Rules.Strategy (Strategy)
+import Laws.Strategy (Strategy)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))

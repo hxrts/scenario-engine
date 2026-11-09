@@ -1,7 +1,7 @@
 package:
   name: sp-testkit
   dependencies:
-    - sp-rules
+    - sp-laws
     - prelude
     - aff
     - effect

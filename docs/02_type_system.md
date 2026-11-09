@@ -2,13 +2,13 @@
 
 ## 1. Purpose
 
-This layer defines the kernel of the economy and the economic types every setting shares. The kernel is a small vocabulary of stocks, flows, laws over them, and couplings of conditional obligations ([§3](#3-the-kernel)). It decides no trade, signature, procedure or schedule: those are vocabulary a setting authors, and they compile to kernel values ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
+This layer defines the kernel of the economy and the economic types every setting shares. The kernel is a small vocabulary of stocks, flows, dynamics over them, and couplings of conditional obligations ([§3](#3-the-kernel)). It decides no trade, signature, procedure or schedule: those are vocabulary a setting authors, and they compile to kernel values ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
 
 The game is in [01](01_overview.md), settings and the authored vocabulary in [03](03_gameboard.md), execution in [04](04_instantiated_game.md), the reference setting in [05](05_test_instance.md), and the simulator in [06](06_simulator.md). This document owns the type-system terms in [§2.5](#25-glossary).
 
 ## 2. Core Ontology
 
-This section names the types the layer is built from. Each is defined in the glossary ([§2.5](#25-glossary)) and specified in the section named: Entity and its three projections ([§2.1](#21-entity), [§2.2](#22-three-projections-of-an-entity)); Resource and Account ([§2.3](#23-resource)); Capability ([§2.4](#24-capability)); Stock, Flow, Law, Coupling, Obligation, Condition and Successor ([§3](#3-the-kernel)); CostFunction, Market and the solvers ([§5](#5-cost-functions-markets-and-solvers)); Aggregate and Representation ([§7](#7-aggregates-and-representation)); Policy ([§4](#4-policies)); and World State, Round record and Manifest ([§8](#8-world-state-and-round-resolution)). Which agreements, institutions and schedules a setting has are authored, not core ([§10](#10-design-boundaries)).
+This section names the types the layer is built from. Each is defined in the glossary ([§2.5](#25-glossary)) and specified in the section named: Entity and its three projections ([§2.1](#21-entity), [§2.2](#22-three-projections-of-an-entity)); Resource and Account ([§2.3](#23-resource)); Capability ([§2.4](#24-capability)); Stock, Flow, Dynamic, Coupling, Obligation, Condition and Successor ([§3](#3-the-kernel)); CostFunction, Market and the solvers ([§5](#5-cost-functions-markets-and-solvers)); Aggregate and Representation ([§7](#7-aggregates-and-representation)); Policy ([§4](#4-policies)); and World State, Round record and Manifest ([§8](#8-world-state-and-round-resolution)). Which agreements, institutions and schedules a setting has are authored, not core ([§10](#10-design-boundaries)).
 
 ### 2.1 Entity
 
@@ -32,13 +32,13 @@ Membership never lets several Aggregates own the same assets.
 
 A Resource is an identified economic quantity with a unit and declared behavior. Its transferability is **Free** (it moves on its holder's consent alone), **Restricted** (each movement needs the transfer capability, [§2.4](#24-capability)), or **NonTransferable**. A category is a setting's own grouping, which the engine never reads. A Resource that nothing authored produces or consumes is conserved.
 
-Not everything economically meaningful is a Resource. Market access and institutional authority are state or laws attached to Entities and Markets. Holdings are distinct from capabilities: influence over a law does not let an Entity spend, transfer or create what the law affects.
+Not everything economically meaningful is a Resource. Market access and institutional authority are state or laws attached to Entities and Markets. Holdings are distinct from capabilities: influence over a dynamic does not let an Entity spend, transfer or create what the dynamic affects.
 
 ### 2.4 Capability
 
 A Capability is a condition on a party: what an Entity may do. The kernel asks only whether a party holds one, through a `Holds` condition ([§3.3](#33-couplings-and-conditions)). It does not read what a capability means. The kinds of capability are authored ([03 §6](03_gameboard.md#6-entity-catalog)).
 
-Institutional capabilities stay with the institutional Entity or with a declared law. If an institution is not played explicitly, its capabilities stay with its Aggregate and never move to a population Aggregate. Membership, Representation and taking part in a collective decision never transfer capabilities to a member or representative.
+Institutional capabilities stay with the institutional Entity or with a declared dynamic. If an institution is not played explicitly, its capabilities stay with its Aggregate and never move to a population Aggregate. Membership, Representation and taking part in a collective decision never transfer capabilities to a member or representative.
 
 ### 2.5 Glossary
 
@@ -71,16 +71,16 @@ This table is the one place the type-system terms are defined. Scenario terms ar
 | **Hold** | A quantity set aside for one round and released at commit. It moves nothing ([§3.3](#33-couplings-and-conditions)). |
 | **Holder** | The Entity that answers for a Resource: the one with a positive holding, else the first in id order with an account. |
 | **Holding** | A quantity of a Resource held by an Entity or in a Market's reserves. |
-| **Law** | A rule over stocks or flows: a Subject, a Trigger, an Operation, and a guard of Conditions ([§3.2](#32-laws)). |
+| **Dynamic** | A rule over stocks or flows: a Subject, a Trigger, an Operation, and a guard of Conditions ([§3.2](#32-dynamics)). |
 | **Leg** | One movement in a settlement: a Resource, two endpoints, how much was owed, and how much moved. |
 | **Market** | A Standing coupling with reserves and a cleared rate, which exchanges the Resources it holds at one uniform batch price ([§5.2](#52-exchange-markets)). |
 | **Money** | The numeraire Resource, the unit of account for views. The engine does not read it: a leg names its own Resource. |
 | **NPC** | An Actor whose Policy is part of the setting. |
-| **Obligation** | One named party's duty for one round: a Leg, or a change to a law ([§3.3](#33-couplings-and-conditions)). |
+| **Obligation** | One named party's duty for one round: a Leg, or a change to a dynamic ([§3.3](#33-couplings-and-conditions)). |
 | **Observation** | The admissible proposed buy quantity a Representation reads from its Actor's input to the round ([§7.3](#73-representation-pipeline)). |
-| **Operation** | What a law does: emit a Leg, refuse, or withhold a portion ([§3.2](#32-laws)). |
+| **Operation** | What a dynamic does: emit a Leg, refuse, or withhold a portion ([§3.2](#32-dynamics)). |
 | **Pending obligation** | A coupling in World State waiting for its due round ([§3.4](#34-successors)). |
-| **Phase** | Where in a round a coupling or law settles. Lower runs first ([§3.5](#35-resolution)). |
+| **Phase** | Where in a round a coupling or dynamic settles. Lower runs first ([§3.5](#35-resolution)). |
 | **Player seed** | The seed that keys the draws of seat Policies. It is never part of World State ([§9.1](#91-numerics-and-randomness)). |
 | **Policy** | Anything that produces the engine's input from the View of the Entity it drives ([§4](#4-policies)). |
 | **Pool** | The claims on one Resource's supply, which share what it can supply ([§5.4](#54-rationing)). |
@@ -94,18 +94,18 @@ This table is the one place the type-system terms are defined. Scenario terms ar
 | **Solver** | One of the closed set of mechanisms that divide one limit among many: clearing on a curve, routing across Markets, and pool allocation ([§5](#5-cost-functions-markets-and-solvers)). |
 | **Standing coupling** | A continuing coupling whose terms are data read each round rather than a value that is consumed. A Market is one ([§5.2](#52-exchange-markets)). |
 | **Stock** | A quantity of a Resource at a holder or a Market's reserve ([§3.1](#31-stocks-flows-and-legs)). |
-| **Subject** | What a law applies to: a stock or a flow ([§3.2](#32-laws)). |
+| **Subject** | What a dynamic applies to: a stock or a flow ([§3.2](#32-dynamics)). |
 | **Successor** | An obligation spawned by consuming another, for a later round ([§3.4](#34-successors)). |
 | **Template** | A named coupling with parameters and bound parties, which a Successor instantiates ([§3.4](#34-successors)). |
 | **Tier** | A Rationing priority. Lower fills first ([§5.4](#54-rationing)). |
-| **Trigger** | When a law applies: each round, or on an action ([§3.2](#32-laws)). |
+| **Trigger** | When a dynamic applies: each round, or on an action ([§3.2](#32-dynamics)). |
 | **Uniform batch price** | The single price at which a Market clears its round batch ([§5.5](#55-simultaneous-clearing)). |
 | **View** | What a Policy sees of the beginning-of-round Snapshot ([§4](#4-policies)). |
 | **World State** | The complete economic state at a round boundary, including the game seed and the round number ([§8](#8-world-state-and-round-resolution)). |
 
 ## 3. The Kernel
 
-The kernel is what core offers: stocks, flows, laws on them, and couplings of conditional obligations. A setting's vocabulary compiles to it ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Every leg of every settlement is posted through one place ([§3.1](#31-stocks-flows-and-legs)). The kernel never authors or rewrites a decision and never knows how one was produced ([§4](#4-policies)).
+The kernel is what core offers: stocks, flows, dynamics on them, and couplings of conditional obligations. A setting's vocabulary compiles to it ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Every leg of every settlement is posted through one place ([§3.1](#31-stocks-flows-and-legs)). The kernel never authors or rewrites a decision and never knows how one was produced ([§4](#4-policies)).
 
 ### 3.1 Stocks, flows, and legs
 
@@ -118,28 +118,28 @@ A **stock** is a quantity of a Resource at a holder or in a Market's reserve. A 
 
 The boundary can always pay, and so can a reserve: clearing bounds a batch's net, and a negative closing reserve fails the round at commit ([INV-04](#inv-04)). A leg that moves nothing still writes its accounts. `crossesBoundary` classifies a leg as crossing the boundary (from `Source` or to `Sink`) or conserving ([INV-07](#inv-07)).
 
-### 3.2 Laws
+### 3.2 Dynamics
 
-A law is a structure over stocks and flows. Stocks and flows take laws in parallel: a law's **subject** is one or the other, and its **trigger** is time or an action.
+A dynamic is a structure over stocks and flows. Stocks and flows take dynamics in parallel: a dynamic's **subject** is one or the other, and its **trigger** is time or an action.
 
 | Subject | Trigger: each round | Trigger: on an action |
 |---|---|---|
 | Stock | decay, depreciation, interest | wear from use |
 | Flow | delay, expiry | levy, block |
 
-The kernel has no concept of decay, depreciation, tariff or tax. Those are values the authoring layer writes ([03 §15](03_gameboard.md#15-authoring-laws-and-agreements)). The table names patterns, not kernel kinds. Not every cell is used yet: in the shipped engine a stock law runs only each round, and a flow law only on the action that moves it.
+The kernel has no concept of decay, depreciation, tariff or tax. Those are values the authoring layer writes ([03 §15](03_gameboard.md#15-authoring-laws-and-agreements)). The table names patterns, not kernel kinds. Not every cell is used yet: in the shipped engine a stock dynamic runs only each round, and a flow dynamic only on the action that moves it.
 
-A law's **operation** is one of three:
+A dynamic's **operation** is one of three:
 
-- **Emit** a leg, priced from the subject's quantity. A law that emits keeps the stock-flow identity ([INV-05](#inv-05)): depreciation is a leg from the stock to `Sink`.
+- **Emit** a leg, priced from the subject's quantity. A dynamic that emits keeps the stock-flow identity ([INV-05](#inv-05)): depreciation is a leg from the stock to `Sink`.
 - **Refuse** the action.
 - **Withhold** a portion: it cannot be drawn, and no holding changes.
 
-A law also has a guard of conditions, a phase and a cause. `Core.Kernel.Law` applies a law to one holder and matches a flow against its scope.
+A dynamic also has a guard of conditions, a phase and a cause. `Core.Kernel.Dynamic` applies a dynamic to one holder and matches a flow against its scope.
 
 ### 3.3 Couplings and conditions
 
-A **coupling** is a multilateral agreement. It holds its obligations, its holds, a rationing configuration ([§5.4](#54-rationing)), a phase, a cause, and the parties who have consented. An **obligation** is one named party's duty for one round. Its effect is a leg or a **change to a law** (put a law in force, or remove one). A change to a law can be bound like any other effect, so a treaty can bind "I remove this levy" to "you pay this amount".
+A **coupling** is a multilateral agreement. It holds its obligations, its holds, a rationing configuration ([§5.4](#54-rationing)), a phase, a cause, and the parties who have consented. An **obligation** is one named party's duty for one round. Its effect is a leg or a **change to a dynamic** (put a dynamic in force, or remove one). A change to a dynamic can be bound like any other effect, so a treaty can bind "I remove this levy" to "you pay this amount".
 
 Each obligation carries **conditions**, each with what its failure reports:
 
@@ -291,9 +291,9 @@ This section defines the state the engine advances and the one sequence that adv
 
 ### 8.1 Canonical resolution sequence
 
-This is the single authoritative sequence. The other layers reference it and do not redefine it. It is authored vocabulary: `resolveRound` (`packages/rules`) runs it, and it calls the kernel in these phases, with each leg posted through `Core.Kernel.Post` ([§3.5](#35-resolution)).
+This is the single authoritative sequence. The other layers reference it and do not redefine it. It is authored vocabulary: `resolveRound` (`packages/laws`) runs it, and it calls the kernel in these phases, with each leg posted through `Core.Kernel.Post` ([§3.5](#35-resolution)).
 
-1. **Prepare** (engine): consumes every pending coupling due at the boundary, in phase then tier order, posting its legs, applying its changes to the laws, and spawning its successors ([§3.4](#34-successors)).
+1. **Prepare** (engine): consumes every pending coupling due at the boundary, in phase then tier order, posting its legs, applying its changes to the dynamics, and spawning its successors ([§3.4](#34-successors)).
 2. **Observe** (engine): produces the beginning-of-round Snapshot and each Entity's View. Every decision is made on it.
 3. **Propose and sign** (round runner): every Policy submits its input against the Snapshot at the same time; then each party consents to what it endorses. The set is frozen at the end of Propose ([03 §10.1](03_gameboard.md#101-proposal-rules)).
 4. **Screen and interpret** (engine): checks authority and each consent condition, and decides the static refusals ([03 §12.5](03_gameboard.md#125-static-refusals)). What fails is recorded. Admissible observations are extracted from the validated input. Nothing is filled yet.
@@ -393,6 +393,6 @@ Which kind each page uses is set by [06 §9](06_simulator.md#9-pages).
 
 `packages/core` holds the kernel and the numerics, curve, draw and description algebra it needs. It names no agreement, institution or schedule, and `scripts/check/layout.js` keeps it so. Everything a setting names is authored: Intents, Proposals and their consent rules, Rules, recurring flows, Facilities and the capability kinds compile to the kernel at the authoring layer ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Two kinds of thing stay closed in core: the solvers ([§5](#5-cost-functions-markets-and-solvers)), because they divide one limit among many, and the invariant that a stock changes only by a leg ([§3.1](#31-stocks-flows-and-legs)).
 
-Entity, World State, Representation and the settlement sequence are shared by every setting, and this document specifies them, but their code is in `packages/rules`, beside the vocabulary they read ([07 §3](07_architecture.md#3-codebase-layout)).
+Entity, World State, Representation and the settlement sequence are shared by every setting, and this document specifies them, but their code is in `packages/laws`, beside the vocabulary they read ([07 §3](07_architecture.md#3-codebase-layout)).
 
 The type system does not model resource classifications, a macroeconomic model, estimator parameters, procedure thresholds or market realism. These are choices each setting makes, and the design principles behind them are in [01](01_overview.md).

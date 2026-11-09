@@ -12,10 +12,10 @@ import Game.Experiment (Experiment(..), variants)
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Rules.Proposal (proposalAt)
+import Laws.Proposal (proposalAt)
 import Board.Error (ValidationError(..))
 import Board.Gameboard.Validate (gameboardNames, unknownNames)
-import Rules.Types (Id(..), PolicyId, RefKind(..), proposalId)
+import Laws.Types (Id(..), PolicyId, RefKind(..), proposalId)
 import Data.Array (fromFoldable, head)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)

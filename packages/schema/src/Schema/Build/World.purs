@@ -34,9 +34,9 @@ import Prelude (map, (<<<))
 
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Types (Draw, DrawSource(..), Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), EntityTag, Id(..), Market, PolicyTag, ResourceDefinition, ResourceId, ResourceTag, Transferability(..), Transformation, idText)
+import Laws.Types (Draw, DrawSource(..), Aggregate, Capability, CollectiveProcedure, CollectiveProcedureId, Controller(..), Entity, EntityId, EntityKind(..), EntityTag, Id(..), Market, PolicyTag, ResourceDefinition, ResourceId, ResourceTag, Transferability(..), Transformation, idText)
 import Schema.Build.Named (class Named, named)
-import Rules.World (UnseededWorld)
+import Laws.World (UnseededWorld)
 import Schema.Recurring (Circulation)
 import Data.Map (Map)
 import Data.Map as Map

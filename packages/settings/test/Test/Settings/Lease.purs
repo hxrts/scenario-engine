@@ -4,11 +4,11 @@ module Test.Settings.Lease (spec) where
 
 import Prelude
 
-import Rules.Engine.Commit (resolveRound)
-import Rules.Invariants (checkAfter)
-import Rules.Query (holding, reserveOf)
-import Rules.Types (Capability(..), Id(..), Intent, IntentF(..), MarketTag, ResourceTag, SignedProposal, Transferability(..), proposalId)
-import Rules.World (WorldState, seeded)
+import Laws.Engine.Commit (resolveRound)
+import Laws.Invariants (checkAfter)
+import Laws.Query (holding, reserveOf)
+import Laws.Types (Capability(..), Id(..), Intent, IntentF(..), MarketTag, ResourceTag, SignedProposal, Transferability(..), proposalId)
+import Laws.World (WorldState, seeded)
 import Core.Draw (Seed(..))
 import Data.Either (either)
 import Data.Maybe (Maybe(..))

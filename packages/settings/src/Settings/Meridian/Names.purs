@@ -3,7 +3,7 @@
 -- | this record, so a name is spelled once (`n.us`, `n.energyAtlantic`).
 module Settings.Meridian.Names where
 
-import Rules.Types (CollectiveProcedureId, EntityId, Id(..), MarketId, PolicyId, ResourceId, TransformationId)
+import Laws.Types (CollectiveProcedureId, EntityId, Id(..), MarketId, PolicyId, ResourceId, TransformationId)
 import Settings.Layout (settingDir)
 
 -- | The type of `n`.

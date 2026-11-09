@@ -1,7 +1,7 @@
 -- | Read-only queries over a World State, shared by the engine, invariants, analysis views,
 -- | and tests. Absent entries read as zero. Also here: the draw and Transformation-pool helpers
 -- | that Fund prices and Settle allocates against, and the Intent selectors.
-module Rules.Query
+module Laws.Query
   ( module LookupExport
   , holding
   , accountsOf
@@ -37,14 +37,14 @@ import Control.Alt ((<|>))
 import Core.Map (lookupQ, values)
 import Core.Map (lookupQ) as LookupExport
 
-import Core.Kernel.Law (withheld)
+import Core.Kernel.Dynamic (withheld)
 import Core.Kernel.Types (Amount(..), Operation(..), Subject(..), Trigger(..))
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
-import Rules.Slice (event, orKind, read, select)
-import Rules.World (Cause(..), Event, RecurringAmount(..), WorldState)
+import Laws.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
+import Laws.Slice (event, orKind, read, select)
+import Laws.World (Cause(..), Event, RecurringAmount(..), WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)

@@ -1,7 +1,7 @@
 -- | The Strategy language's types (docs/02_type_system.md §4.4): the declarative rules an
 -- | in-world Policy runs. The Gameboard's Policy catalog holds these values, so they live in
 -- | core with the other domain types; `Policy.Strategy` decodes them and `Policy.Interpret` runs them.
-module Rules.Strategy
+module Laws.Strategy
   ( Strategy
   , Clause
   , Cond(..)
@@ -19,8 +19,8 @@ module Rules.Strategy
 import Prelude
 
 import Core.Num (Q)
-import Rules.World (LegQuery)
-import Rules.Types (Id(..), BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
+import Laws.World (LegQuery)
+import Laws.Types (Id(..), BehaviorDomain, CollectiveProcedureId, EntityId, IntentF, MarketId, PolicyId, ProposalF, ResourceId, TransformationId)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Show.Generic (genericShow)

@@ -23,7 +23,7 @@ if (viewNames.length === 0) { console.error(`${viewFile}: no constructors found 
 
 const rules = [
   {
-    name: "core names no authored vocabulary: agreements, institutions and schedules are written in packages/rules and above (work 11, docs/02)",
+    name: "core names no authored vocabulary: agreements, institutions and schedules are written in packages/laws and above (work 11, docs/02)",
     files: (f) => f.startsWith("packages/core/src/"),
     bad: (line) => /\b(trade|transform|transformation|joint|procedure|levy|depreciation|intent|proposal)s?\b/i.test(line),
   },

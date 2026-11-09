@@ -3,7 +3,7 @@
 -- | a round later (§12.2). Fixtures C1, C2, C3 and C5; C5 checks only the seeded noise.
 module Settings.Meridian.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
 
-import Rules.Types (idText)
+import Laws.Types (idText)
 import Settings.Kit.Prelude
 
 import Settings.Meridian.Names (n)

@@ -3,12 +3,12 @@
 -- | `packages/settings/meridian/v0/policies.json`.
 module Settings.Meridian.Policies (policies) where
 
-import Rules.Types (EntityId, PolicyId)
+import Laws.Types (EntityId, PolicyId)
 import Prelude (negate, (<>))
 
 import Data.Maybe (Maybe(..))
 
-import Rules.Strategy (Clause, Strategy)
+import Laws.Strategy (Clause, Strategy)
 import Data.Tuple (Tuple(..))
 import Schema.Build.Decision (passive, asTemplate, each, factor, ge, gt, holding, le, lit, mulQ, named, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, rule, selfTransform, signFacility, subQ, tradeAt, transformedLastRound)
 import Schema.Build.Intent (transfer)

@@ -5,7 +5,7 @@ module Game.Error (GameError(..), renderGameError) where
 import Prelude
 
 import Board.Error (ValidationError)
-import Rules.Types (EntityId, RefKind)
+import Laws.Types (EntityId, RefKind)
 import Data.Array (intercalate)
 
 data GameError

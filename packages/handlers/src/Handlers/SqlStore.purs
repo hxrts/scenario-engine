@@ -10,9 +10,9 @@ module Handlers.SqlStore
 
 import Prelude
 
-import Rules.Invariants (failureShape)
+import Laws.Invariants (failureShape)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse, stringShape)
-import Rules.World (manifestShape, roundRecordShape, worldStateShape)
+import Laws.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Core (fromString, stringify)
 import Data.Argonaut.Decode.Error (printJsonDecodeError)
 import Data.Array (filterA, head, length, (!!))
@@ -65,7 +65,7 @@ setsTable :: String
 setsTable = "create table if not exists scenario_sets (name text primary key, baseline text not null, runs text not null)"
 
 schemaVersionCurrent :: Int
-schemaVersionCurrent = 3
+schemaVersionCurrent = 4
 
 -- | The store's schema version.
 schemaVersion :: SqlDevice -> Effect Int

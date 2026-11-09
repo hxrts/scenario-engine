@@ -18,7 +18,7 @@ module Core.Kernel.Resolve
 import Prelude
 
 import Core.Kernel.Post (Ledger, Opening, Outcome(..), accountOf, available, post)
-import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), LawChange, Limit(..), Obligation, Party(..), Short(..), StockRef, Endpoint(..), Flow)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), DynamicChange, Limit(..), Obligation, Party(..), Short(..), StockRef, Endpoint(..), Flow)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Map (lookupQ)
@@ -50,16 +50,16 @@ derive instance Generic Fate _
 instance Show Fate where
   show = genericShow
 
-type Consumed law reason =
+type Consumed dynamic reason =
   { coupling :: Int
   , obligation :: Int
   , fate :: Fate
   , flow :: Maybe Flow
-  , change :: Maybe (LawChange law)
+  , change :: Maybe (DynamicChange dynamic)
   , reason :: Maybe reason
   }
 
-type Resolved law reason = { ledger :: Ledger, consumed :: Array (Consumed law reason) }
+type Resolved dynamic reason = { ledger :: Ledger, consumed :: Array (Consumed dynamic reason) }
 
 -- | A coupling reached resolution with a party a template should have bound.
 data ResolveError = Unbound String
@@ -107,7 +107,7 @@ stock k ledger ref = case endpointOf ref.at of
   _ -> Q.zero
 
 -- | Whether a condition holds on the set still standing.
-holds :: forall cap law query reason cause. Kernel cap query -> Ledger -> Set Key -> Int -> Coupling cap law query reason cause -> Obligation cap law query reason -> Condition cap query -> Boolean
+holds :: forall cap dynamic query reason cause. Kernel cap query -> Ledger -> Set Key -> Int -> Coupling cap dynamic query reason cause -> Obligation cap dynamic query reason -> Condition cap query -> Boolean
 holds k ledger standing ci c o = case _ of
   Performed p -> Set.member (Tuple ci p.index) standing
   StockAtLeast x -> stock k ledger x.stock >= amountOf k ledger x.amount
@@ -140,17 +140,17 @@ holdsAll has = all case _ of
   _ -> true
 
 -- | Whether an obligation that rejects a shortfall could not perform on the settlement so far.
-cannotPerform :: forall cap law query reason. Kernel cap query -> Ledger -> Obligation cap law query reason -> Boolean
+cannotPerform :: forall cap dynamic query reason. Kernel cap query -> Ledger -> Obligation cap dynamic query reason -> Boolean
 cannotPerform k ledger o = case o.onShort, o.effect of
   Reject, Move l -> case endpointOf l.from of
     Right e | Just a <- accountOf e -> available k.opening ledger a l.resource < amountOf k ledger l.owed
     _ -> false
   _, _ -> false
 
-type Phase' cap law query reason cause = Array (Tuple Int (Coupling cap law query reason cause))
+type Phase' cap dynamic query reason cause = Array (Tuple Int (Coupling cap dynamic query reason cause))
 
 -- | One phase's removals: the keys still standing, and what each removed key's fate and reason was.
-remove :: forall cap law query reason cause. Kernel cap query -> Ledger -> Phase' cap law query reason cause -> { standing :: Set Key, removed :: Map.Map Key { fate :: Fate, reason :: Maybe reason } }
+remove :: forall cap dynamic query reason cause. Kernel cap query -> Ledger -> Phase' cap dynamic query reason cause -> { standing :: Set Key, removed :: Map.Map Key { fate :: Fate, reason :: Maybe reason } }
 remove k ledger cs = go (Set.fromFoldable (concat (map keys cs))) Map.empty
   where
   keys (Tuple ci c) = mapWithIndex (\oi _ -> Tuple ci oi) c.obligations
@@ -170,18 +170,18 @@ remove k ledger cs = go (Set.fromFoldable (concat (map keys cs))) Map.empty
         fails -> [ Tuple (Tuple ci oi) { fate: Expired, reason: fromMaybe Nothing (map _.reason (index fails 0)) } ]
 
 -- | Every obligation's id, in the order couplings are canonically posted.
-canonical :: forall cap law query reason cause. Coupling cap law query reason cause -> Array String
+canonical :: forall cap dynamic query reason cause. Coupling cap dynamic query reason cause -> Array String
 canonical c = map _.id c.obligations
 
 -- | Resolve every coupling, phase by phase.
-resolve :: forall cap law query reason cause. Kernel cap query -> Array (Coupling cap law query reason cause) -> Either ResolveError (Resolved law reason)
+resolve :: forall cap dynamic query reason cause. Kernel cap query -> Array (Coupling cap dynamic query reason cause) -> Either ResolveError (Resolved dynamic reason)
 resolve k couplings = foldl step (Right { ledger: k.start, consumed: [] }) phases
   where
   ordered = mapWithIndex Tuple couplings
   phases = sort (nub (map _.phase couplings))
   step acc phase = acc >>= runPhase k (sortWith (\(Tuple _ c) -> canonical c) (filter (\(Tuple _ c) -> c.phase == phase) ordered))
 
-runPhase :: forall cap law query reason cause. Kernel cap query -> Phase' cap law query reason cause -> Resolved law reason -> Either ResolveError (Resolved law reason)
+runPhase :: forall cap dynamic query reason cause. Kernel cap query -> Phase' cap dynamic query reason cause -> Resolved dynamic reason -> Either ResolveError (Resolved dynamic reason)
 runPhase k cs acc = foldl posting (Right acc) keyed
   where
   { standing, removed } = remove k acc.ledger cs
@@ -191,7 +191,7 @@ runPhase k cs acc = foldl posting (Right acc) keyed
     Nothing | Set.member (Tuple ci oi) standing -> perform k ci oi o st
     Nothing -> Right st
 
-perform :: forall cap law query reason. Kernel cap query -> Int -> Int -> Obligation cap law query reason -> Resolved law reason -> Either ResolveError (Resolved law reason)
+perform :: forall cap dynamic query reason. Kernel cap query -> Int -> Int -> Obligation cap dynamic query reason -> Resolved dynamic reason -> Either ResolveError (Resolved dynamic reason)
 perform k ci oi o st = case o.effect of
   Change change -> Right st { consumed = st.consumed <> [ { coupling: ci, obligation: oi, fate: Fulfilled, flow: Nothing, change: Just change, reason: Nothing } ] }
   Move l -> do

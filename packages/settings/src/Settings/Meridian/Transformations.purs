@@ -20,7 +20,7 @@ import Schema.Build.World (byKey, fromExecutor, fromHolder, noFacility)
 
 import Settings.Kit.Markets as Kit
 
-import Rules.Types (CostFunction, EntityId, Payment, Transformation, TransformationId)
+import Laws.Types (CostFunction, EntityId, Payment, Transformation, TransformationId)
 import Data.Map (Map)
 
 transformations :: Map TransformationId Transformation

@@ -8,7 +8,7 @@ module Testkit.Edit
 
 import Prelude
 
-import Rules.Types (Entity, EntityId, Market, MarketId, Transformation, TransformationId)
+import Laws.Types (Entity, EntityId, Market, MarketId, Transformation, TransformationId)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))

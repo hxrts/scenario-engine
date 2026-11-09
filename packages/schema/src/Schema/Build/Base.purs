@@ -27,7 +27,7 @@ module Schema.Build.Base
 import Prelude
 
 import Core.Num (Q)
-import Rules.Types (Capability(..), EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
+import Laws.Types (Capability(..), EntityTag, Id, MarketTag, PolicyTag, ResourceTag, RuleKindTag, TransformationTag)
 import Schema.Build.Named (class Named, named)
 import Schema.Setting.Query (ShareMeasure)
 import Schema.Recurring as Recurring

@@ -1,6 +1,6 @@
 -- | The setting format of the World (docs/03_gameboard.md §3–§5): Resources, Markets, facilities,
 -- | Entities with their Aggregates and procedures, Representation schemes and assignments, and
--- | circulation. Each shape reads the core type directly (Rules.Types, Rules.World): a key with a default
+-- | circulation. Each shape reads the core type directly (Laws.Types, Laws.World): a key with a default
 -- | is omitted when it holds that default, and a record keyed by its id reads the id from the key.
 -- | `worldFields` is every section but the Entities, so a Gameboard can read the Entities with their
 -- | Actor definitions and a fixture without.
@@ -16,13 +16,13 @@ module Schema.Setting.World
   ) where
 
 import Prelude
-import Rules.World (focusShape, FlowGate, UnseededWorld)
+import Laws.World (focusShape, FlowGate, UnseededWorld)
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericSettingSum, intShape, iso, listOf, nameShape, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
-import Rules.Types (Aggregate, DelayedFlow, Draw, DrawSource, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, executorDraws, idMap, idMapWith, idShape, idText)
-import Rules.Types as Types
+import Laws.Types (Aggregate, DelayedFlow, Draw, DrawSource, CollectiveProcedure, Controller(..), CostFunction, Entity, EntityId, EntityKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Market, MarketId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, executorDraws, idMap, idMapWith, idShape, idText)
+import Laws.Types as Types
 import Data.Array as Array
 import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
 import Data.Either (Either(..))

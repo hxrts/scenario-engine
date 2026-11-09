@@ -9,8 +9,8 @@ module Settings.Kit.RuleKinds
   ) where
 
 import Core.Num (Q)
-import Rules.Strategy (Expr, IntentTemplate, selfName)
-import Rules.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
+import Laws.Strategy (Expr, IntentTemplate, selfName)
+import Laws.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
 import Schema.Build.Base (mayEnact)
 import Schema.Build.Decision (selfEnact)
 

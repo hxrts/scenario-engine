@@ -9,8 +9,8 @@ module Settings.Kit.Strategies
 
 import Prelude
 import Core.Num (Q)
-import Rules.Types (MarketId)
-import Rules.Strategy (Clause)
+import Laws.Types (MarketId)
+import Laws.Strategy (Clause)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple)
 import Schema.Build.Base ((:=))

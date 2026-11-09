@@ -7,7 +7,7 @@ module Test.Views.Capstone (spec) where
 
 import Prelude
 
-import Rules.Types (Id(..), ResourceTag)
+import Laws.Types (Id(..), ResourceTag)
 
 import Test.Views.Support (toStored)
 

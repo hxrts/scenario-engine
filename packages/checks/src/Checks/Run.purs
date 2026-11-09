@@ -6,8 +6,8 @@ module Checks.Run (checkRun) where
 import Prelude
 
 import Checks.Round (Failure(..))
-import Rules.Invariants as Inv
-import Rules.World (RoundResult, WorldState)
+import Laws.Invariants as Inv
+import Laws.World (RoundResult, WorldState)
 import Data.Foldable (foldl)
 
 -- | Every invariant failure of every round, in round order.

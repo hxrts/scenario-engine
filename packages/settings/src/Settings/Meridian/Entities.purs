@@ -8,7 +8,7 @@ module Settings.Meridian.Entities (entities, actors) where
 import Prelude (map, (<>))
 import Settings.Meridian.Names (n)
 import Data.Tuple (Tuple(..), fst, snd)
-import Rules.Types (Entity, EntityId)
+import Laws.Types (Entity, EntityId)
 import Data.Map (Map)
 import Schema.Build.Base (keyed)
 import Schema.Build.World (entitiesOf)

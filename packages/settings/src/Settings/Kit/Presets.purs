@@ -10,8 +10,8 @@ module Settings.Kit.Presets
 
 import Prelude
 
-import Rules.Strategy (Clause, Expr, Strategy)
-import Rules.Types (EntityId, MarketId, ResourceId, TransformationId)
+import Laws.Strategy (Clause, Expr, Strategy)
+import Laws.Types (EntityId, MarketId, ResourceId, TransformationId)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Settings.Presets (presetId)

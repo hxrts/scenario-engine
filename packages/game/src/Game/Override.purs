@@ -13,7 +13,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Shape (Format(..), RecF, Shape, encodeWith, fieldOf, intShape, prim, stringShape, atFields, genericTypedSum)
-import Rules.Types (EntityId, RefKind(..), ResourceId, idShape, idText)
+import Laws.Types (EntityId, RefKind(..), ResourceId, idShape, idText)
 import Data.Argonaut.Core (Json, fromArray, fromString, toArray, toString)
 import Data.Array (concatMap, head)
 import Data.Either (Either(..), note)

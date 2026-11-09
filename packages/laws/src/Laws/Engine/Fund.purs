@@ -1,8 +1,8 @@
 -- | Engine phase 4–5 funding (docs/02_type_system.md §3.2, §8.2): every screened Item escrows its
 -- | claims from opening holdings at full requested size. Joint Proposals a party cannot fund are rejected
 -- | as a unit, and single-author Items are scaled pro rata to what their author can fund. Transformation
--- | prices and pools are in Rules.Query, which Fund and Settle share.
-module Rules.Engine.Fund
+-- | prices and pools are in Laws.Query, which Fund and Settle share.
+module Laws.Engine.Fund
   ( Scaled
   , scaleOf
   , fund
@@ -12,13 +12,13 @@ import Prelude
 
 import Core.Kernel.Ration (Claim, ration)
 import Core.Map (entries)
-import Rules.Engine.Screen (Item)
+import Laws.Engine.Screen (Item)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Query (conversionPrice, holding, poolCeiling)
-import Rules.Types (EntityId, IntentF(..), ProposalId, ResourceId, Transformation, executorDraws)
-import Rules.World (Event, RejectReason(..), WorldState, rejection)
+import Laws.Query (conversionPrice, holding, poolCeiling)
+import Laws.Types (EntityId, IntentF(..), ProposalId, ResourceId, Transformation, executorDraws)
+import Laws.World (Event, RejectReason(..), WorldState, rejection)
 import Data.Array (concatMap, elem, partition, mapMaybe)
 import Data.Either (Either(..), either)
 import Data.Map (Map)

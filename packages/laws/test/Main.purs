@@ -1,27 +1,27 @@
 -- | Pins: expected engine values are the worked arithmetic of docs/02 §5 to §9 and the numerics of docs/02 §9.1, each case stating its calculation.
-module Test.Rules.Main where
+module Test.Laws.Main where
 
 import Prelude
 
 import JS.BigInt (BigInt)
 import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
-import Rules.Engine.Commit (EngineError, resolveRound)
-import Rules.Engine.Compile (delivery)
-import Rules.Authority (authorized, viewFacts, worldFacts)
-import Rules.Engine.Prepare (observe, prepareRound)
+import Laws.Engine.Commit (EngineError, resolveRound)
+import Laws.Engine.Compile (delivery)
+import Laws.Authority (authorized, viewFacts, worldFacts)
+import Laws.Engine.Prepare (observe, prepareRound)
 import Data.Foldable (for_)
-import Rules.Invariants (check, orderIndependent, orderIndependentBy, checkAfter)
+import Laws.Invariants (check, orderIndependent, orderIndependentBy, checkAfter)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (Format(..), Shape, encodeWith, fieldOf, mapOf, object, recordShape)
 import Core.Shape as Shape
-import Rules.Query (drawable, holderOf, holding)
-import Rules.Represent as Represent
-import Rules.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Rules.World (PendingCoupling(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, coupled, renderReason)
-import Rules.Types (Capability(..), Controller(..), Direction(..), EntityId, EntityKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketTag, Proposal, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, proposalId, ruleIdOf, submissionIndex)
+import Laws.Query (drawable, holderOf, holding)
+import Laws.Represent as Represent
+import Laws.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
+import Laws.World (PendingCoupling(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, coupled, renderReason)
+import Laws.Types (Capability(..), Controller(..), Direction(..), EntityId, EntityKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketTag, Proposal, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -37,9 +37,9 @@ import Effect (Effect)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck ((===), Result)
 import Test.QuickCheck.Gen (Gen, arrayOf, chooseInt, elements, oneOf)
-import Test.Rules.Build (heldDraw, ownDraw, withAccount, actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
-import Test.Rules.Encoding (encoding)
-import Test.Rules.Pins (pins)
+import Test.Laws.Build (heldDraw, ownDraw, withAccount, actor, banR, baseWorld, holdR, market, onEntity, priced, q, representation, resource, submit, tariffR, transformation)
+import Test.Laws.Encoding (encoding)
+import Test.Laws.Pins (pins)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (shouldContain, shouldNotContain, shouldEqual, shouldNotEqual)
 import Test.Spec.QuickCheck (quickCheck)
@@ -372,7 +372,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure ((u >= Q.zero && u < Q.fromInt 1) === true)
     it "differs across seeds for equal keys" do
       draw (Seed 26021) key `shouldNotEqual` draw (Seed 1) key
-  describe "Rules.Engine" do
+  describe "Laws.Engine" do
     it "rejects a Trade on an unknown market" do
       let w = baseWorld [ actor "US" [ MayTrade (Id "XX") ] ]
       rejections (resolveRound w [ submit "US" 0 [ Trade { market: Id "XX", quantity: Q.fromInt 1, limitPrice: Nothing } ] ])

@@ -7,7 +7,7 @@ module Settings.Kit.Holdings
 
 import Prelude
 import Core.Num (Q)
-import Rules.Types (EntityId, Holdings, ResourceId, idText)
+import Laws.Types (EntityId, Holdings, ResourceId, idText)
 import Data.Array (filter, find)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..))

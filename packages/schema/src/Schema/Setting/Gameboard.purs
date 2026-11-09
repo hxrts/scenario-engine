@@ -15,7 +15,7 @@ import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (qShape)
 import Core.Shape (Format(..), Shape, arrayOf, contramapRec, decodeJsonWith, defaulted, emptyByDefault, fieldOf, intShape, iso, object, objectValuesOf, optionalOf, pairOf, refined, stringShape)
-import Rules.Types (Entity, EntityId, idMap, idMapWith, idShape)
+import Laws.Types (Entity, EntityId, idMap, idMapWith, idShape)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError(..))
 import Data.Bifunctor (lmap)

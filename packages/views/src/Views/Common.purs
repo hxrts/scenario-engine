@@ -57,15 +57,15 @@ import Prelude
 import Core.Map (entries)
 
 import Record as Record
-import Rules.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
-import Rules.Types (idText, EntityId, ProposalId, ResourceDefinition, ResourceId)
+import Laws.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
+import Laws.Types (idText, EntityId, ProposalId, ResourceDefinition, ResourceId)
 import Schema.Gameboard (capacityCategory)
 
-import Rules.Invariants (Failure)
+import Laws.Invariants (Failure)
 import Core.Num (Kind, Q)
 import Core.Num as Q
-import Rules.Query (isAggregate)
-import Rules.Slice (event, select)
+import Laws.Query (isAggregate)
+import Laws.Slice (event, select)
 import Schema.Run (RunStatus, Spec)
 import Data.Array (concatMap, filter, index, length, mapMaybe, mapWithIndex, nub)
 import Data.Foldable (lookup)

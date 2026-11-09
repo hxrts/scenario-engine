@@ -17,9 +17,9 @@ import Settings.Meridian.Entities.Seats (seatActors)
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Core.Num as Q
-import Rules.Types (EntityId, Id(..))
-import Rules.Slice (event, matches, conversions, transfers)
-import Rules.World (RoundResult)
+import Laws.Types (EntityId, Id(..))
+import Laws.Slice (event, matches, conversions, transfers)
+import Laws.World (RoundResult)
 import Data.Array (all, any, concatMap, filter, index, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -41,7 +41,7 @@ import Test.Handlers.Simulate as SimulateTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
-import Rules.Strategy (Strategy)
+import Laws.Strategy (Strategy)
 import Adapters.Filesystem (fileOps)
 import Settings.Tree (readRootFile)
 import Settings.Load (loadPresets)

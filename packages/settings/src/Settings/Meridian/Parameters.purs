@@ -30,7 +30,7 @@ import Schema.Build.Quantity (q)
 
 import Schema.Gameboard (Scheme)
 
-import Rules.Types (EntityId, Estimator, Id(..), ResourceId, idText)
+import Laws.Types (EntityId, Estimator, Id(..), ResourceId, idText)
 
 import Settings.Kit.Strategies (Supplier, supplier)
 

@@ -1,7 +1,7 @@
 package:
   name: sp-server
   dependencies:
-    - sp-rules
+    - sp-laws
     - prelude
     - effect
     - console

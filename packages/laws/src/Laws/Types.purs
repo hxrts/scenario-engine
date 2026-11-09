@@ -1,6 +1,6 @@
 -- | The authored vocabulary: Entities, Capabilities, Intents, Proposals, Rules and Transformations
 -- | (docs/03_gameboard.md). Core knows none of it.
-module Rules.Types (module Rules.Types, module Core.Types) where
+module Laws.Types (module Laws.Types, module Core.Types) where
 
 import Core.Types (Id(..), idText, idShape, EntityTag, ResourceTag, MarketTag, EntityId, ResourceId, MarketId, Quantity, Price, Ratio, RoundIndex, RoundOffset, Interval, Holdings, CostFunction, Market)
 import Prelude
@@ -151,7 +151,7 @@ type Pair = { base :: ResourceId, quote :: ResourceId }
 
 -- | An Intent with its Market position in `m` and its quantities and limits in the filling `v`:
 -- | `MarketId` and `Q` for an Intent the engine settles (`Intent`), `MarketRef` and `Expr` for a
--- | Strategy's template (`Rules.Strategy`). Every kind of Core Intent is one constructor here, so the
+-- | Strategy's template (`Laws.Strategy`). Every kind of Core Intent is one constructor here, so the
 -- | two fillings are the only things the two languages differ in.
 data IntentF m v
   = Trade { market :: m, quantity :: v, limitPrice :: Maybe v }

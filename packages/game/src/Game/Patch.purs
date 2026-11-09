@@ -15,7 +15,7 @@ import Prelude
 
 import Board.Error (ValidationError(..))
 import Core.Num (Q)
-import Rules.Types (Capability, CostFunction, EntityId, MarketId, RefKind(..), Representation, ResourceId, RuleF, idText)
+import Laws.Types (Capability, CostFunction, EntityId, MarketId, RefKind(..), Representation, ResourceId, RuleF, idText)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Foreign.Object as Object

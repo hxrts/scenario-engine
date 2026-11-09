@@ -1,5 +1,5 @@
 package:
-  name: sp-rules
+  name: sp-laws
   dependencies:
     - prelude
     - sp-core
@@ -16,7 +16,7 @@ package:
     - strings
     - tuples
   test:
-    main: Test.Rules.Main
+    main: Test.Laws.Main
     dependencies:
       - effect
       - js-bigints

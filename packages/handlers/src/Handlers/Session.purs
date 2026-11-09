@@ -4,7 +4,7 @@ module Handlers.Session (SessionDevices, interpretLive) where
 
 import Prelude
 
-import Rules.World (RoundResult)
+import Laws.World (RoundResult)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Int (toNumber)

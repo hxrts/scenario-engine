@@ -1,6 +1,6 @@
 -- | The decision language (docs/02_type_system.md §4.4): the expressions, conditions, Proposal
 -- | templates, sign rules, clauses and Strategies a Policy runs. The builders return the
--- | `Rules.Strategy` values directly; `Schema.Setting.Strategy` writes them in the setting format.
+-- | `Laws.Strategy` values directly; `Schema.Setting.Strategy` writes them in the setting format.
 module Schema.Build.Decision
   ( lit
   , param
@@ -46,10 +46,10 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 
-import Rules.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
-import Rules.Strategy as S
-import Rules.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
-import Rules.Types (EntityId, EntityTag, Id(..), IntentF(..), MarketTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
+import Laws.Strategy (Clause, Cond(..), Expr(..), IntentTemplate, MarketRef(..), SignRule(..), Strategy, Template(..))
+import Laws.Strategy as S
+import Laws.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
+import Laws.Types (EntityId, EntityTag, Id(..), IntentF(..), MarketTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
 import Schema.Build.Named (class Named)
 import Schema.Build.Named (named) as N
 import Schema.Build.Quantity (class ToQty, q)

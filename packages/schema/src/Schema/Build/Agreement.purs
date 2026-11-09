@@ -16,11 +16,11 @@ module Schema.Build.Agreement
   , held
   ) where
 
-import Core.Kernel.Types (Account(..), Amount(..), Condition, Coupling, Effect(..), LawChange(..), Next, Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), Spawn, Template, noNext)
-import Rules.Types (Capability, EntityId, ResourceId, Rule, RuleKindId, RuleId, idText)
-import Core.Kernel.Law (holderParam, quantityParam)
+import Core.Kernel.Types (Account(..), Amount(..), Condition, Coupling, Effect(..), DynamicChange(..), Next, Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), Spawn, Template, noNext)
+import Laws.Types (Capability, EntityId, ResourceId, Rule, RuleKindId, RuleId, idText)
+import Core.Kernel.Dynamic (holderParam, quantityParam)
 import Core.Num (Q)
-import Rules.World (AuthoredLaw(..), Cause(..), LegQuery, PendingCoupling(..), RejectReason, WorldTemplate(..))
+import Laws.World (AuthoredLaw(..), Cause(..), LegQuery, PendingCoupling(..), RejectReason, WorldTemplate(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -44,7 +44,7 @@ clause id obligor leg onShort when next = { id, obligor, effect: Move leg, when,
 
 -- | One party's duty to remove a law.
 repeal :: String -> Party -> RuleId -> Array Guard -> Clause
-repeal id obligor rule when = { id, obligor, effect: Change (RemoveLaw (idText rule)), when, onShort: Reject, next: noNext }
+repeal id obligor rule when = { id, obligor, effect: Change (RemoveDynamic (idText rule)), when, onShort: Reject, next: noNext }
 
 -- | Obligations settled together at a round boundary, signed by `signers`.
 agreement :: RuleKindId -> Array EntityId -> Array Clause -> Agreement

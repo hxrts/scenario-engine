@@ -1,6 +1,6 @@
 -- | Representation estimates (docs/02_type_system.md §7). The engine only computes and
 -- | stores this round's adjustment factors; the Aggregate's Policy applies them next round.
-module Rules.Represent (Observation, estimate) where
+module Laws.Represent (Observation, estimate) where
 
 import Prelude
 
@@ -9,8 +9,8 @@ import Core.Map (entries, sumInto)
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Types (BehaviorDomain, EntityId, Ratio, Representation, ResourceId)
-import Rules.World (Event(..), WorldState)
+import Laws.Types (BehaviorDomain, EntityId, Ratio, Representation, ResourceId)
+import Laws.World (Event(..), WorldState)
 import Data.Array (concatMap, filter, foldl, null)
 import Data.Map (Map)
 import Data.Map as Map

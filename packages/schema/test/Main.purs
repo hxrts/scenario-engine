@@ -7,11 +7,11 @@ import Prelude
 
 import Data.Map as Map
 
-import Rules.World (RecurringAmount(..))
-import Rules.Types (ResourceId, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), EntityTag, proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
+import Laws.World (RecurringAmount(..))
+import Laws.Types (ResourceId, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), EntityTag, proposalId, Capability(..), Id(..), Intent, IntentF(..), RuleChangeF(..))
 
 import Core.Num as Q
-import Rules.Strategy (Strategy)
+import Laws.Strategy (Strategy)
 import Core.Shape (Format(..), decodeJsonWith, encodeWith, prose)
 import Data.Foldable (for_)
 import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signFacility, signIf, signProcedures, subQ, transformedLastRound)

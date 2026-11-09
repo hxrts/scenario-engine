@@ -3,7 +3,7 @@
 -- | applies the Settlement's ledger to every Entity and Market at once and fails the round if any
 -- | Account would go negative. That check is an invariant assertion: settlement and escrow should
 -- | make it unreachable, and a failure rejects the round rather than recording a corrupt state.
-module Rules.Engine.Commit
+module Laws.Engine.Commit
   ( EngineError(..)
   , resolveRound
   ) where
@@ -12,24 +12,24 @@ import Prelude
 
 import Core.Map (entries, sumMaps)
 
-import Rules.Engine.Circulate (circulate)
-import Rules.Engine.Fund (fund)
-import Rules.Engine.Prepare (prepareChecked)
-import Rules.Engine.Screen (duplicatedIds, screen, withinMaximums)
-import Rules.Engine.Settle (Settlement, settle)
+import Laws.Engine.Circulate (circulate)
+import Laws.Engine.Fund (fund)
+import Laws.Engine.Prepare (prepareChecked)
+import Laws.Engine.Screen (duplicatedIds, screen, withinMaximums)
+import Laws.Engine.Settle (Settlement, settle)
 import Core.Kernel.Consume (ConsumeError, spawned)
 import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
 import Core.Kernel.Ration (Claim)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Types (Account(..), Amount(..), Effect(..), Party(..)) as K
 import Data.Newtype (unwrap)
-import Rules.Engine.Compile (runCoupling)
+import Laws.Engine.Compile (runCoupling)
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Proposal (submissionOrder)
-import Rules.Represent as Represent
-import Rules.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, Proposal, SignedProposal, IntentF(..), ProposalId)
-import Rules.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState, PendingCoupling(..))
+import Laws.Proposal (submissionOrder)
+import Laws.Represent as Represent
+import Laws.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, Proposal, SignedProposal, IntentF(..), ProposalId)
+import Laws.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState, PendingCoupling(..))
 import Data.Array (concatMap, elem, filter, find, findMap, sortWith, any, foldl, mapWithIndex, null)
 import Data.Either (Either(..), either)
 import Data.Map (Map)

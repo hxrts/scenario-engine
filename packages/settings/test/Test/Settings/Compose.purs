@@ -6,7 +6,7 @@ import Prelude
 
 import Board.Error (ValidationError(..))
 import Core.Shape (Format(..), encodeWith)
-import Rules.Types (Id(..), RefKind(..), idText)
+import Laws.Types (Id(..), RefKind(..), idText)
 import Data.Argonaut.Core (stringify)
 import Data.Array (elem, filter)
 import Data.Either (Either(..))

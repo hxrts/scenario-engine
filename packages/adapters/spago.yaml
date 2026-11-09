@@ -21,7 +21,7 @@ package:
     main: Test.Adapters.Main
     dependencies:
       - sp-core
-      - sp-rules
+      - sp-laws
       - console
       - sp-views
       - sp-testkit

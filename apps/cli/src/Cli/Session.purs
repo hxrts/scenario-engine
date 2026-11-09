@@ -8,8 +8,8 @@ import Prelude
 
 import Core.Map as CoreMap
 import Core.Draw (Seed)
-import Rules.Types (EntityId, Id(..))
-import Rules.World (RoundResult)
+import Laws.Types (EntityId, Id(..))
+import Laws.World (RoundResult)
 import Data.Array (elem, filter)
 import Data.Either (Either(..))
 import Data.Foldable (for_, traverse_)

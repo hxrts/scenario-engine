@@ -7,6 +7,7 @@ The authoring terms of this layer. The type-system terms are in the [Type System
 | Term | Definition |
 |---|---|
 | **Gameboard** | The authored economic world of a setting: Resources, Markets, Facilities, Entities, Policies, Representation schemes, and Rules. |
+| **Law** | What governs a particular world: an authored Rule, recurring flow or action law, each of which compiles to a kernel [Dynamic](02_type_system.md#25-glossary). A Rule is one kind of law: a flows Rule or a holding Rule. |
 | **Premise** | A reusable piece a Setting combines, such as energy, shipping, or defence. |
 | **Composition** | Building a Setting from generic definitions and Premises ([§12a](#12a-how-settings-are-made)). |
 | **Derivation of a Setting** | Changing values of a base Setting, through dials and named patches, to make a variant ([§12a](#12a-how-settings-are-made)). It is not the derivation of a run ([06 Terms](06_simulator.md#terms)). |
@@ -363,7 +364,7 @@ The checks above run when a setting loads. A further set is decided each round a
 - `OnlyGoverningRepeal`, and `OutsideProcedureAuthority`.
 - `JointBundlesOnlyTransfers`, `AboveMaximum`, and `MissingBundledOrder`.
 
-Every other rejection is decided on a condition or by a solver in the settlement sequence ([§14](#14-compilation-to-the-kernel)). Each reason's kind is pinned by `reasonFate` in `packages/rules/test`.
+Every other rejection is decided on a condition or by a solver in the settlement sequence ([§14](#14-compilation-to-the-kernel)). Each reason's kind is pinned by `reasonFate` in `packages/laws/test`.
 
 ## 12a. How settings are made
 
@@ -382,26 +383,26 @@ The compiler checks each setting ([§12.1](#121-load-pipeline)) before writing i
 
 ## 14. Compilation to the Kernel
 
-The authored vocabulary lives with its compile step, in `packages/rules`. Each item compiles to kernel values ([02 §3](02_type_system.md#3-the-kernel)), and static refusals are decided first ([§12.5](#125-static-refusals)). The per-mechanism settlement sequence stays in `packages/rules`, and it calls the kernel in stated phases ([02 §8.1](02_type_system.md#81-canonical-resolution-sequence)). Every leg posts through `Core.Kernel.Post`.
+The authored vocabulary lives with its compile step, in `packages/laws`. Each item compiles to kernel values ([02 §3](02_type_system.md#3-the-kernel)), and static refusals are decided first ([§12.5](#125-static-refusals)). The per-mechanism settlement sequence stays in `packages/laws`, and it calls the kernel in stated phases ([02 §8.1](02_type_system.md#81-canonical-resolution-sequence)). Every leg posts through `Core.Kernel.Post`.
 
 | Vocabulary | Kernel value | Written by |
 |---|---|---|
 | Trade, routed Trade | One coupling per fill: base and quote legs at the Market's cleared rate. Routing and clearing are solvers. | `fillCoupling`, `Core.Kernel.Route`, `Core.Kernel.Clear` |
 | Transform | A coupling of payment, input and output legs. Outputs need the inputs held. Payment caps at what is held, with owed and moved recorded. | `transformCoupling` |
-| Draw, reservation | A funding claim on the stock, held for the round and released at commit. It moves nothing. | `Rules.Engine.Fund` |
+| Draw, reservation | A funding claim on the stock, held for the round and released at commit. It moves nothing. | `Laws.Engine.Fund` |
 | Transfer | A one-leg coupling that caps at what is held. | `payCoupling` |
-| Joint Proposal | Consent conditions on every signer; a coupling of its inputs, each bound whole to every other; rationing tier 0, whole. | `Rules.Engine.Screen`, `jointInputs`, `Rules.Engine.Fund` |
-| Procedure Proposal | A `WeightedConsent` condition, evaluated at screening. | `Rules.Engine.Screen` |
-| Signature, `ownerSigns` | `Consent` conditions, evaluated at screening. | `Rules.Engine.Screen` |
-| Capabilities | `Holds` conditions. | `Rules.Authority` |
+| Joint Proposal | Consent conditions on every signer; a coupling of its inputs, each bound whole to every other; rationing tier 0, whole. | `Laws.Engine.Screen`, `jointInputs`, `Laws.Engine.Fund` |
+| Procedure Proposal | A `WeightedConsent` condition, evaluated at screening. | `Laws.Engine.Screen` |
+| Signature, `ownerSigns` | `Consent` conditions, evaluated at screening. | `Laws.Engine.Screen` |
+| Capabilities | `Holds` conditions. | `Laws.Authority` |
 | Levy, Block (flows Rule) | A flow law: a Levy emits a leg, a Block refuses. | `flowLaws` |
-| Holding Rule | A stock law that withholds a portion. | `Rules.Query` (`drawable`) |
-| Flow gate | A static refusal. | `Rules.Engine.Screen` |
+| Holding Rule | A stock law that withholds a portion. | `Laws.Query` (`drawable`) |
+| Flow gate | A static refusal. | `Laws.Engine.Screen` |
 | Decay (every-holder) | A time law on a stock, one leg per holder to `Sink`. | `fractionLaw` |
-| Other recurring flows | A one-leg capped coupling per rule, run in list order by the sequence. | `Rules.Engine.Circulate`, `payCoupling` |
+| Other recurring flows | A time Dynamic per rule, run in list order by the sequence; a created flow spawns a delivery. | `Laws.Engine.Circulate`, `timeLaw` |
 | `ChangeRule` | A pending coupling due at the next boundary, whose obligation changes a law. | `ruleChange` |
-| Delivery, delayed output or effect | A pending coupling with a `Created` or `Sink` leg. A `rounds` reversal spawns the opposite leg. | `delivery`, `Rules.Engine.Settle` |
-| Market, Facility | A Market is a standing coupling with a reserve stock and a cleared rate. A Facility has no reserve. | `Rules.World` |
+| Delivery, delayed output or effect | A pending coupling with a `Created` or `Sink` leg. A `rounds` reversal spawns the opposite leg. | `delivery`, `Laws.Engine.Settle` |
+| Market, Facility | A Market is a standing coupling with a reserve stock and a cleared rate. A Facility has no reserve. | `Laws.World` |
 
 Limit prices and order minimums are decided by the sequence and the clearing solver rather than as `PriceWithin` and `QuantityAtLeast` conditions on a coupling, and the shipped compile step sets no `holds` or `solver` field ([02 §3.3](02_type_system.md#33-couplings-and-conditions)). A round record stores its inputs as authored vocabulary: each submitted signed Proposal ([04 §11.1](04_instantiated_game.md#111-round-record)).
 

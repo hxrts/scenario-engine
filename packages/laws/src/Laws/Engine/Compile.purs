@@ -1,5 +1,5 @@
 -- | The compile step: each settled mechanism written as couplings, which the kernel then posts.
-module Rules.Engine.Compile
+module Laws.Engine.Compile
   ( WorldKernel
   , kernelOf
   , fillCoupling
@@ -23,13 +23,13 @@ import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Law (forHolder, holderParam, quantityParam, recipientParam)
-import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
+import Core.Kernel.Dynamic (forHolder, holderParam, quantityParam, recipientParam)
+import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Dynamic, DynamicChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
-import Rules.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Rules.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
+import Laws.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
+import Laws.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
+import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
 import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -127,7 +127,7 @@ payCoupling from to resource owed cause =
   }
 
 -- | A time law taking a fraction of what each holder of a Resource holds, out of the economy.
-fractionLaw :: ResourceId -> Q -> Cause -> K.Law Capability LegQuery RejectReason Cause
+fractionLaw :: ResourceId -> Q -> Cause -> K.Dynamic Capability LegQuery RejectReason Cause
 fractionLaw resource fraction cause =
   { subject: K.OfStock { holders: Nothing, resource }
   , trigger: K.EachRound
@@ -193,7 +193,7 @@ ruleChange round who cause id rule = PendingCoupling
   , coupling: standing cause
       [ { id: "change"
         , obligor: K.Named who
-        , effect: K.Change (maybe (K.RemoveLaw (idText id)) (\law -> K.SetLaw { id: idText id, law }) rule)
+        , effect: K.Change (maybe (K.RemoveDynamic (idText id)) (\law -> K.SetDynamic { id: idText id, dynamic: law }) rule)
         , when: []
         , onShort: K.Reject
         , next: K.noNext
@@ -204,8 +204,8 @@ ruleChange round who cause id rule = PendingCoupling
 -- | The Rule change a pending coupling makes, if it makes one.
 changeOf :: PendingCoupling -> Maybe (Tuple RuleId (Maybe Rule))
 changeOf (PendingCoupling p) = head p.coupling.obligations >>= \o -> case o.effect of
-  K.Change (K.SetLaw x) -> Just (Tuple (Id x.id) (Just x.law))
-  K.Change (K.RemoveLaw id) -> Just (Tuple (Id id) Nothing)
+  K.Change (K.SetDynamic x) -> Just (Tuple (Id x.id) (Just x.dynamic))
+  K.Change (K.RemoveDynamic id) -> Just (Tuple (Id id) Nothing)
   _ -> Nothing
 
 -- | The inputs of a joint Proposal's filled Transforms, each bound whole to every other: if one party
@@ -231,7 +231,7 @@ jointInputs inputs =
     , next: K.noNext
     }
 
-type WorldLaw = K.Law Capability LegQuery RejectReason Cause
+type WorldLaw = K.Dynamic Capability LegQuery RejectReason Cause
 
 -- | Each flows Rule in force as the laws of its directions, one list per Rule. A levy is charged on the
 -- | moved quantity, priced first when it is ad valorem.

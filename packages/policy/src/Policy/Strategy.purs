@@ -1,6 +1,6 @@
 -- | The Strategy queries (docs/02_type_system.md §4.4): every name a Strategy refers to, for the
 -- | load-time check against a Gameboard, and the parameters it reads. Pure; they read the Strategy
--- | AST (`Rules.Strategy`), not JSON.
+-- | AST (`Laws.Strategy`), not JSON.
 module Policy.Strategy
   ( ExprAlg
   , CondAlg
@@ -19,9 +19,9 @@ import Prelude
 import Type.Proxy (Proxy(..))
 
 import Core.Num (Q)
-import Rules.Strategy (Cond(..), Expr(..), MarketRef(..), RecordQuery(..), SignRule(..), Strategy, Template(..), selfName)
-import Rules.World (CausePattern(..))
-import Rules.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
+import Laws.Strategy (Cond(..), Expr(..), MarketRef(..), RecordQuery(..), SignRule(..), Strategy, Template(..), selfName)
+import Laws.World (CausePattern(..))
+import Laws.Types (BehaviorDomain, CollectiveProcedureId, EntityId, Id, IntentF, ProposalF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
 import Data.Const (Const(..))
 import Data.Maybe (maybe)

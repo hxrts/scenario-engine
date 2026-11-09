@@ -16,8 +16,8 @@ import Prelude
 import Core.Map (entries)
 
 import Core.Draw (Seed)
-import Rules.Engine.Commit (EngineError)
-import Rules.World (Manifest, RoundRecord, RoundResult, WorldState)
+import Laws.Engine.Commit (EngineError)
+import Laws.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Tuple (Tuple(..))

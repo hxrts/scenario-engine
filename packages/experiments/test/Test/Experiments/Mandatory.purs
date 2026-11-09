@@ -15,8 +15,8 @@ import Testkit.Fixture (fixture)
 
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
-import Rules.Types (Id(..))
-import Rules.Slice (conversions, matches)
+import Laws.Types (Id(..))
+import Laws.Slice (conversions, matches)
 import Data.Array (any, filter, find, length, nubEq, null, range)
 import Data.Either (Either(..))
 import Data.Map as Map

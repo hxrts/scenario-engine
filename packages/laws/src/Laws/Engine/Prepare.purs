@@ -2,7 +2,7 @@
 -- | beginning-of-round observations. Prepare applies deliveries due this round and rule changes
 -- | scheduled at the last boundary; `observe` builds an Entity's View of the prepared snapshot.
 -- | Nothing here reads a Proposal, so this is the first phase and imports no other engine phase.
-module Rules.Engine.Prepare
+module Laws.Engine.Prepare
   ( prepareRound
   , prepareChecked
   , observe
@@ -10,16 +10,16 @@ module Rules.Engine.Prepare
 
 import Prelude
 
-import Rules.Engine.Compile (deliveredOf, runCoupling)
+import Laws.Engine.Compile (deliveredOf, runCoupling)
 import Core.Kernel.Consume (ConsumeError, validateTemplates, partiesOf, spawned)
-import Core.Kernel.Types (LawChange(..))
+import Core.Kernel.Types (DynamicChange(..))
 import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
 import Core.Map (entries, sumMaps)
 
 import Core.Num as Q
-import Rules.Query (holderOf, marketsOf, priceOf)
-import Rules.Types (Entity, Id(..), Rule, RuleId)
-import Rules.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
+import Laws.Query (holderOf, marketsOf, priceOf)
+import Laws.Types (Entity, Id(..), Rule, RuleId)
+import Laws.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition, sortWith, head)
 import Data.Either (Either(..), either)
 import Data.Map as Map
@@ -86,8 +86,8 @@ consume w acc pending@(PendingCoupling p)
         }
       where
       ofChange = case _ of
-        SetLaw x -> Just (Tuple (Id x.id) (Just x.law))
-        RemoveLaw id -> Just (Tuple (Id id) Nothing)
+        SetDynamic x -> Just (Tuple (Id x.id) (Just x.dynamic))
+        RemoveDynamic id -> Just (Tuple (Id id) Nothing)
 
 -- | The beginning-of-round View of one Entity. `toSign` is filled by the round runner.
 observe :: WorldState -> Entity -> View

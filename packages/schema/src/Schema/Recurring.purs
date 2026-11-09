@@ -27,8 +27,8 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId)
-import Rules.World (CausePattern(..), LegAggregate(..), LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Side(..), Window(..))
+import Laws.Types (EntityId, Id(..), RecurringFlowId, RecurringKindId, ResourceId)
+import Laws.World (CausePattern(..), LegAggregate(..), LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), Side(..), Window(..))
 import Schema.Setting.Query (ShareMeasure, atParty)
 import Data.Array (mapWithIndex, sortWith)
 import Data.Maybe (Maybe(..), maybe)

@@ -21,12 +21,12 @@ module Handlers.Store
 
 import Prelude
 
-import Rules.Engine.Commit (EngineError)
-import Rules.Invariants (Failure, checkAfter)
+import Laws.Engine.Commit (EngineError)
+import Laws.Invariants (Failure, checkAfter)
 import Schema.Joint (Transcript)
 import Schema.Run (RunStatus, Spec)
 import Handlers.Seats (RecordSink)
-import Rules.World (RoundResult, RoundRecord, WorldState)
+import Laws.World (RoundResult, RoundRecord, WorldState)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe)
 import Effect (Effect)

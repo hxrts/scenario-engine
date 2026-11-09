@@ -1,7 +1,7 @@
 package:
   name: sp-schema
   dependencies:
-    - sp-rules
+    - sp-laws
     - prelude
     - sp-core
     - identity

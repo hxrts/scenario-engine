@@ -1,16 +1,16 @@
 -- | World State, Views, events, and round records
 -- | (docs/02_type_system.md §4, §8; docs/04_instantiated_game.md §9).
-module Rules.World (module Rules.World, module Core.Kernel.Types) where
+module Laws.World (module Laws.World, module Core.Kernel.Types) where
 
 import Prelude
 
 import Core.Draw (Seed(..), drawVersion)
-import Core.Kernel.Types (Endpoint(..), Flow, KernelShapes, Law, Pending, lawShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
+import Core.Kernel.Types (Dynamic, Endpoint(..), Flow, KernelShapes, Pending, dynamicShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Rules.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Laws.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -26,7 +26,7 @@ import Data.Show.Generic (genericShow)
 -- | A spawned coupling and a template, over what this World carries.
 newtype PendingCoupling = PendingCoupling (Pending Capability Rule LegQuery RejectReason Cause)
 
-newtype AuthoredLaw = AuthoredLaw (Law Capability LegQuery RejectReason Cause)
+newtype AuthoredLaw = AuthoredLaw (Dynamic Capability LegQuery RejectReason Cause)
 
 derive instance Newtype AuthoredLaw _
 derive instance Eq AuthoredLaw
@@ -39,7 +39,7 @@ instance DecodeJson AuthoredLaw where
   decodeJson = decodeJsonWith Snapshot authoredLawShape
 
 authoredLawShape :: Shape AuthoredLaw
-authoredLawShape = iso AuthoredLaw unwrap (lawShape worldKernelShapes)
+authoredLawShape = iso AuthoredLaw unwrap (dynamicShape worldKernelShapes)
 
 newtype WorldTemplate = WorldTemplate (Template Capability Rule LegQuery RejectReason Cause)
 
@@ -65,7 +65,7 @@ instance DecodeJson WorldTemplate where
   decodeJson = decodeJsonWith Snapshot worldTemplateShape
 
 worldKernelShapes :: KernelShapes Capability Rule LegQuery RejectReason Cause
-worldKernelShapes = { cap: capabilityShape, law: ruleShape, query: legQueryShape, reason: rejectReasonShape, cause: causeShape }
+worldKernelShapes = { cap: capabilityShape, dynamic: ruleShape, query: legQueryShape, reason: rejectReasonShape, cause: causeShape }
 
 pendingCouplingShape :: Shape PendingCoupling
 pendingCouplingShape = iso PendingCoupling unwrap (pendingShape worldKernelShapes)

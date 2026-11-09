@@ -12,11 +12,11 @@ module Server.Derive
 import Prelude
 
 import Core.Draw (Seed(..))
-import Rules.World (WorldState)
+import Laws.World (WorldState)
 import Data.Array (last, length, null, filter)
 import Data.Either (Either(..), either, note)
 import Data.Foldable (traverse_)
-import Rules.Types (Id(..))
+import Laws.Types (Id(..))
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.String (Pattern(..), joinWith, split)
 import Effects.Play (playRun)

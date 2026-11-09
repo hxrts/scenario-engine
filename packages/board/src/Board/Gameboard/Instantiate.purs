@@ -15,9 +15,9 @@ import Schema.Gameboard (Fallback(..), Gameboard, gameboardRef, InitialWorld, In
 import Schema.Recurring (isRequirement, kinds, normalize)
 import Board.Error (ValidationError(..))
 import Core.Num as Q
-import Rules.Query (aggregateOf, lookupQ)
-import Rules.Types (Controller(..), EntityId, EntityKind(..), Id(..))
-import Rules.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, sameWorld, seeded, traverseWorld)
+import Laws.Query (aggregateOf, lookupQ)
+import Laws.Types (Controller(..), EntityId, EntityKind(..), Id(..))
+import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), UnseededWorld, manifestOf, sameWorld, seeded, traverseWorld)
 import Data.Array (concatMap, elem, filter, foldl, fromFoldable, mapMaybe, nub, nubByEq, null)
 import Data.Either (Either(..))
 import Data.Map as Map

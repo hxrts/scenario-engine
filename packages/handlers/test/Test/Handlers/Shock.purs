@@ -7,11 +7,11 @@ module Test.Handlers.Shock (spec) where
 import Schema.Build.Quantity (q)
 import Prelude
 
-import Rules.Query (priceOf)
+import Laws.Query (priceOf)
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Rules.Types (Id(..), IntentF(..))
+import Laws.Types (Id(..), IntentF(..))
 import Data.Array (concatMap, elem, filter, index, length, nub, range)
 import Data.Foldable (any, maximum, minimum)
 import Data.Maybe (Maybe(..), fromMaybe)

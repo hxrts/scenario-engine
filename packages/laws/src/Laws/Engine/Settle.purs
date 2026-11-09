@@ -5,7 +5,7 @@
 -- | accumulates a ledger of net changes; nothing is written to World State until Commit.
 -- | `Settlement`, `Account`, and `Ledger` are defined here because this is the first phase that
 -- | produces them; Circulate and Commit import them.
-module Rules.Engine.Settle
+module Laws.Engine.Settle
   ( Settlement
   , settle
   , net
@@ -13,9 +13,9 @@ module Rules.Engine.Settle
 
 import Prelude
 
-import Rules.Engine.Fund (Scaled, scaleOf)
+import Laws.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Rules.Engine.Compile (actionCouplings, delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
+import Laws.Engine.Compile (actionCouplings, delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -23,9 +23,9 @@ import Core.Kernel.Ration (fillPool)
 import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
-import Rules.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
-import Rules.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf, idText)
-import Rules.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
+import Laws.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
+import Laws.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf, idText)
+import Laws.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
 import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
