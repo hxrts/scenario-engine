@@ -29,7 +29,9 @@ import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Backend (backend)
 import Handlers.Recording (encodeRecording)
 import Node.Encoding (Encoding(..))
-import Node.FS.Sync (writeTextFile)
+import Node.FS.Perms (permsAll)
+import Node.FS.Sync (mkdir', writeTextFile)
+import Node.Path (dirname)
 import Settings.Meridian.Capstone (game, jointLineFor, jointLines, matchesExpect)
 import Settings.Load (loadFrom)
 import Settings.Layout (capstoneTranscriptFile)
@@ -59,5 +61,6 @@ main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure u
   rec <- liftEffect (Ref.read ref)
   root <- liftEffect (settingRoot fileOps)
   liftEffect do
+    mkdir' (dirname (root <> capstoneTranscriptFile)) { recursive: true, mode: permsAll }
     writeTextFile UTF8 (root <> capstoneTranscriptFile) (encodeRecording rec)
     log ("wrote " <> show (length rec) <> " capstone exchanges to " <> root <> capstoneTranscriptFile)
