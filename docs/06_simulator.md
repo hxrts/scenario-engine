@@ -251,6 +251,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `market` is unknown |
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency` | Agency analysis of a setting (§10.4): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
+| `GET /api/agency/detail` | The same analysis, beyond its table: each Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
 
 Operation rules:
 
@@ -316,7 +317,7 @@ With both seeds and every draw key fixed, the difference is the intervention's t
 
 For each Actor, the simulator replays the game with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_test_instance.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
 
-The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. **Planned:** the criteria results under each alternative, shown as an agency profile per role.
+The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). **Planned:** an agency profile per role.
 
 ### 10.5 Saved comparisons
 

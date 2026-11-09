@@ -77,8 +77,11 @@ agency gameboard presets seed game alternative actors = do
       aggregates = absSum (map _.delta (filter (\h -> isAggregate h.entity) d.holdings))
       outcomes r = concatMap (\x -> select (read @"executed" (event @"ProcedureOutcome")) x.record.events) r.records
       institutions = if outcomes base == outcomes variant then 0 else 1
-      own r = map _.outcome (concatMap _.criteria (filter (\o -> o.actor == actor) (evaluateObjectives gameboard r.records)))
+      ownObjectives r = filter (\o -> o.actor == actor) (evaluateObjectives gameboard r.records)
+      own r = map _.outcome (concatMap _.criteria (ownObjectives r))
       objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
+      described r = concatMap (\o -> map (\c -> { description: o.description, outcome: c.outcome }) o.criteria) (ownObjectives r)
+      criteria = zipWith (\b a -> { description: b.description, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
     pure
       { actor
       , alternative
@@ -87,5 +90,6 @@ agency gameboard presets seed game alternative actors = do
       , aggregates
       , institutions
       , objectives
+      , criteria
       , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
       }

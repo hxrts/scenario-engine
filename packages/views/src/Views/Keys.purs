@@ -10,6 +10,7 @@ module Views.Keys
   , archived
   , deleted
   , derived
+  , agencyDetail
   , overview
   , balances
   , markets
@@ -185,6 +186,10 @@ procedures = key Procedures table
 
 assertions :: ViewKey Table
 assertions = key Assertions table
+
+-- | The agency analysis beyond its table.
+agencyDetail :: Shape { criteria :: Table }
+agencyDetail = viewShape
 
 objectives :: ViewKey Table
 objectives = key Objectives table

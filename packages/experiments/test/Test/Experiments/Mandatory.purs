@@ -17,7 +17,7 @@ import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.Slice (conversions, matches)
-import Data.Array (any, filter, length, nubEq, range)
+import Data.Array (any, filter, length, nubEq, null, range)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Traversable (for_, traverse)
@@ -63,6 +63,9 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     length ps `shouldEqual` 15
     -- hard condition (docs/06 §14): a role with no measurable effect is a broken setting
     map _.actor (filter (not <<< _.measurable) ps) `shouldEqual` []
+    -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
+    for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
+    (any (not <<< null <<< _.criteria) ps) `shouldEqual` true
     g <- everySeat ctx "Conservative"
     profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive

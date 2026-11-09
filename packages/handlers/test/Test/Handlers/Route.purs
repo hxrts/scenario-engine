@@ -45,6 +45,7 @@ nameOf = case _ of
   RunView _ -> "RunView"
   Compare _ -> "Compare"
   Agency _ -> "Agency"
+  AgencyDetail _ -> "AgencyDetail"
   Derive _ -> "Derive"
   Resume _ -> "Resume"
   Step _ -> "Step"
@@ -68,6 +69,7 @@ examples =
   , Tuple (Compare { runs: [ "a", "b" ], market: Just "m 1" }) (g "/api/compare?runs=a,b&market=m%201")
   , Tuple (Compare { runs: [], market: Nothing }) (g "/api/compare?runs=")
   , Tuple (Agency { setting: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
+  , Tuple (AgencyDetail { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }) (g "/api/agency/detail")
   , Tuple (Derive { id: "run-1", body: { kind: Variant, name: Just "x", preset: Just "Trader", playerSeed: Just Nothing, rounds: Just 4, overrides: Nothing } })
       (p "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"name\":\"x\",\"playerSeed\":null,\"preset\":\"Trader\",\"rounds\":4}")
   , Tuple (Derive { id: "run-1", body: { kind: Duplicate, name: Nothing, preset: Nothing, playerSeed: Nothing, rounds: Nothing, overrides: Just (fromString "o") } })

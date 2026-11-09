@@ -376,7 +376,7 @@ plots grid fetch ids shown picked setPicked = D.div
                   , { key: "config", label: "Configuration", purpose: "The specification settings that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
-                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: fetch { key: "agency", load: map (tableOf grid) <$> Client.agency } }
+                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: [ fetch { key: "agency", load: map (tableOf grid) <$> Client.agency }, fetch { key: "agency-detail", load: map (\d -> tableOf grid d.criteria) <$> Client.agencyDetail } ] } }
                   ]
               ]
           }

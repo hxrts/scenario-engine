@@ -18,7 +18,7 @@ import Run (Run)
 import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
 import Server.Launch (launch, launchBatch, settingInfo)
-import Server.Read (agencyView, compareView, entitiesView, entityView, getView, runSummaries)
+import Server.Read (agencyDetailView, agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Settings (Settings, chosen)
 import Views.Glossary (glossary)
@@ -44,6 +44,7 @@ answer settings request = do
     RunView r -> getView settings r
     Compare r -> compareView settings r
     Agency r -> agencyView settings r
+    AgencyDetail r -> agencyDetailView settings r
     Derive { id, body } -> deriveRun settings id body
     Resume { id, rounds } -> resumeRun settings id rounds
     Step id -> stepRun settings id

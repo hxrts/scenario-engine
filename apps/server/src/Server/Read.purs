@@ -10,6 +10,7 @@ module Server.Read
   , entityView
   , compareView
   , agencyView
+  , agencyDetailView
   ) where
 
 import Prelude
@@ -22,7 +23,6 @@ import Server.Cache (cached, cachedAgency)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip, zipWith)
-import Data.Bifunctor (bimap)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -36,6 +36,8 @@ import Game.Assemble (assemblePreset, configuredSeats)
 import Server.Settings (Settings, chosen, ofRun, ofSpec)
 import Settings.Presets (defaultPresets)
 import Views.Actions as Actions
+import Views.Agency (AgencyProfile, agencyCriteria)
+import Effects.Api (AgencyQuery)
 import Views.Assertions as Assertions
 import Views.Balance as Balance
 import Views.Balances as Balances
@@ -204,8 +206,15 @@ compareView settings { runs: ids, market } = do
 
 -- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the setting's
 -- | seats playing the preset against the alternative.
-agencyView :: forall r. Settings -> { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String } -> Run (READS r) Answer
-agencyView settings { setting, playerSeed, preset, alternative } = case chosen settings setting, Int.fromString (fromMaybe "1" playerSeed) of
+agencyView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
+agencyView = agencyReply "table" (ok Keys.table <<< Compare.agencyTable)
+
+-- | `GET /api/agency/detail`: the same analysis, each criterion under the baseline and the alternative.
+agencyDetailView :: forall r. Settings -> AgencyQuery -> Run (READS r) Answer
+agencyDetailView = agencyReply "detail" \ps -> ok Keys.agencyDetail { criteria: agencyCriteria ps }
+
+agencyReply :: forall r. String -> (Array AgencyProfile -> Run (READS r) Answer) -> Settings -> AgencyQuery -> Run (READS r) Answer
+agencyReply kind reply settings { setting, playerSeed, preset, alternative } = case chosen settings setting, Int.fromString (fromMaybe "1" playerSeed) of
   Left e, _ -> badRequest e
   _, Nothing -> badRequest "playerSeed must be an integer"
-  Right ctx, Just s -> cachedAgency (joinWith "|" [ ctx.gameboard.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ viewOr Keys.table (bimap show Compare.agencyTable (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))
+  Right ctx, Just s -> cachedAgency (joinWith "|" [ kind, ctx.gameboard.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) $ either (badRequest <<< show) reply (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.gameboard ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config))

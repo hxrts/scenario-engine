@@ -43,7 +43,7 @@ import Prim.Row as Row
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
-import Effects.Api (ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
+import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -270,13 +270,8 @@ endpoints = table
         runs <- commaParam "runs" _.runs
         market <- optionalParam "market" _.market
         in { runs, market }
-  , "Agency": get "/api/agency"
-      ado
-        setting <- optionalParam "setting" _.setting
-        playerSeed <- optionalParam "playerSeed" _.playerSeed
-        preset <- optionalParam "preset" _.preset
-        alternative <- optionalParam "alternative" _.alternative
-        in { setting, playerSeed, preset, alternative }
+  , "Agency": get "/api/agency" agencyQuery
+  , "AgencyDetail": get "/api/agency/detail" agencyQuery
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
@@ -285,6 +280,14 @@ endpoints = table
   , "Delete": endpoint "DELETE" "/api/runs/:id" ((\id confirm -> { id, confirm }) <$> capture "id" _.id <*> param "confirm" _.confirm)
   }
   where
+  agencyQuery :: Part AgencyQuery AgencyQuery
+  agencyQuery = ado
+    setting <- optionalParam "setting" _.setting
+    playerSeed <- optionalParam "playerSeed" _.playerSeed
+    preset <- optionalParam "preset" _.preset
+    alternative <- optionalParam "alternative" _.alternative
+    in { setting, playerSeed, preset, alternative }
+
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
   endpoint method path part = { method, path, part }
 

@@ -11,6 +11,7 @@ module Effects.Api
   , Launch
   , LaunchBatch
   , DeriveRequest
+  , AgencyQuery
   , Reply
   , API
   , call
@@ -50,6 +51,9 @@ type DeriveRequest =
   , overrides :: Maybe Json
   }
 
+-- | Which agency analysis: the setting, the player seed, and the two presets. An absent one takes its default.
+type AgencyQuery = { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
+
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
 
@@ -66,7 +70,8 @@ data ApiRequest
   | Entity String String
   | RunView { id :: String, view :: View, round :: Maybe Int }
   | Compare { runs :: Array String, market :: Maybe String }
-  | Agency { setting :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
+  | Agency AgencyQuery
+  | AgencyDetail AgencyQuery
   | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
   | Step String

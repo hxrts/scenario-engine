@@ -12,6 +12,7 @@ module Dashboard.Client
   , runView
   , compare
   , agency
+  , agencyDetail
   , archive
   , resume
   , deriveRun
@@ -87,6 +88,10 @@ runView key id round = typed key.shape (RunView { id, view: key.view, round })
 -- | The comparison of the runs, the first being the baseline.
 compare :: Array String -> Aff (Either String CompareView)
 compare ids = typed Keys.compare (Compare { runs: ids, market: Nothing })
+
+-- | The agency analysis beyond its table: each criterion under the baseline and the alternative.
+agencyDetail :: Aff (Either String { criteria :: Table })
+agencyDetail = typed Keys.agencyDetail (AgencyDetail { setting: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing })
 
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
