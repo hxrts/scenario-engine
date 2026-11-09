@@ -523,7 +523,7 @@ type Representation =
   , actor :: EntityId
   , aggregate :: EntityId
   , domain :: BehaviorDomain
-  , observes :: ResourceId           -- the Resource whose purchases are observed (the DSL defaults it to the domain)
+  , observes :: ResourceId              -- the Resource whose purchases are observed (the DSL defaults it to the domain)
   , weight :: Ratio                     -- this representative's share in the combination
   , estimator :: Estimator
   }
