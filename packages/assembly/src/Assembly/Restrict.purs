@@ -106,6 +106,7 @@ filtered s p = p
     , resources: Map.filterKeys keptResource old.world.resources
     , transformations
     , ruleKinds: old.world.ruleKinds
+    , templates: old.world.templates
     }
   -- a law goes with what it names, and with the action it is charged on
   keptLaw l = null (unknownNames keptNames (lawRefs l)) && maybe true (\a -> Map.member (Id a) keptNames.exchanges || Map.member (Id a) transformations) (lawAction l)

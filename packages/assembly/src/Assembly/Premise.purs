@@ -6,6 +6,11 @@ module Assembly.Premise (PossibleWorldParts, Premise(..), checkPremise, checkRef
 
 import Prelude
 
+import Data.Map as Map
+import Data.Array (elem, concatMap, filter, head)
+import Data.Foldable (for_, traverse_)
+import Strategy.StrategyRules (agreementsEntered, strategyRulesRefs)
+
 import Core.Map (entries)
 
 import World.Error (ValidationError(..))
@@ -13,15 +18,12 @@ import World.PossibleWorld.Validate (Names, possibleWorldNames, unknownNames, va
 import Laws.StrategyRules (StrategyRules)
 import Laws.Types (Id(..), RefKind(..))
 import Laws.World (WorldState)
-import Data.Array (concatMap, filter, head)
 import Data.Either (Either(..))
-import Data.Foldable (traverse_)
 import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Assembly.Error (AssemblyError(..))
-import Strategy.StrategyRules (strategyRulesRefs)
 import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
 
 -- | A possible World premise's parts: the possible World, its instantiation configuration, and the shared seat presets.
@@ -49,10 +51,13 @@ checkPremise p = do
 -- | StrategyRules a game can run passes through here: catalog Strategies and presets at load, bound
 -- | Strategies at assembly.
 checkRefs :: forall m r t k. String -> Names m r t k -> StrategyRules -> Either AssemblyError Unit
-checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknownNames names ordered))
+checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknownNames names ordered)) *> traverse_ complete (agreementsEntered s)
   where
   refs = strategyRulesRefs s
-  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ RefActor, RefExchange, RefResource, RefTransformation, RefParameter, RefProcedure, RefStrategy, RefRuleKind ]
+  -- a named template exists by now; what the Strategy enters it with must cover what it needs
+  complete e = for_ (Map.lookup e.template names.templates) \terms ->
+    traverse_ (\missing -> Left (IncompleteAgreement what e.template missing)) (filter (not <<< (_ `elem` e.args)) terms.params <> filter (not <<< (_ `elem` e.parties)) terms.parties)
+  ordered = concatMap (\kind -> filter ((_ == kind) <<< fst) refs) [ RefActor, RefExchange, RefResource, RefTransformation, RefParameter, RefProcedure, RefStrategy, RefRuleKind, RefTemplate ]
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved what kind ref
     e -> Invalid [ e ]

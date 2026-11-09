@@ -36,6 +36,7 @@ data RefKind
   | RefParameter
   | RefProcedure
   | RefRuleKind
+  | RefTemplate
 
 derive instance Eq RefKind
 

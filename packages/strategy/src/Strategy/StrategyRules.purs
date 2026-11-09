@@ -12,16 +12,18 @@ module Strategy.StrategyRules
   , foldCond
   , foldTemplate
   , strategyRulesRefs
+  , agreementsEntered
   ) where
 
 import Prelude
+
+import Laws.Types (IntentF(..), BehaviorDomain, CollectiveProcedureId, ActorId, Id, CandidateTransactionF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 
 import Type.Proxy (Proxy(..))
 
 import Core.Num (Q)
 import Laws.StrategyRules (Cond(..), Expr(..), ExchangeRef(..), RecordQuery(..), SignRule(..), StrategyRules, Template(..), selfName)
 import Laws.World (CausePattern(..))
-import Laws.Types (BehaviorDomain, CollectiveProcedureId, ActorId, Id, IntentF, CandidateTransactionF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
 import Data.Array (concat, concatMap, filter)
 import Data.Const (Const(..))
 import Data.Maybe (maybe)
@@ -192,7 +194,7 @@ refsTemplate =
   }
   where
   -- a Repeal's Rule is left out: its id is assigned by the engine during the game, so it cannot be checked at load
-  intentRefs = foldIntent
+  intentRefs i = templateRef i <> foldIntent
     ( ignorePositions
         { exchange = Const <<< exchangeRefs
         , actor = Const <<< named
@@ -201,6 +203,23 @@ refsTemplate =
         , value = Const
         }
     )
+    i
+  templateRef = case _ of
+    Enter e -> [ Tuple RefTemplate e.template ]
+    _ -> []
+
+-- | Every agreement a StrategyRules can enter: the template, and the arguments and parties it supplies.
+agreementsEntered :: StrategyRules -> Array { template :: String, args :: Array String, parties :: Array String }
+agreementsEntered p = concatMap (concatMap go <<< _.propose) p.rules
+  where
+  go = case _ of
+    IntentT i -> enter i
+    CandidateTransactionT c -> concatMap enter c.intents
+    Choose xs -> concatMap go xs
+    _ -> []
+  enter = case _ of
+    Enter e -> [ { template: e.template, args: map _.name e.args, parties: map _.role e.parties } ]
+    _ -> []
 
 -- | A reference by its kind and name.
 named :: forall t. RefKindOf t => Id t -> Array (Tuple RefKind String)
@@ -210,7 +229,7 @@ refsSign :: SignAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String)
 refsSign =
   { procedures: concatMap (named)
   , transformation: \t -> [ Tuple RefTransformation (idText t) ]
-  , agreements: \_ -> []
+  , agreements: map (Tuple RefTemplate)
   , all: []
   , signIf: \x -> concat x.when <> x.rule
   }

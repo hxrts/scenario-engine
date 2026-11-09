@@ -8,12 +8,17 @@ import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restricti
 import Schema.Build.Quantity (q)
 import Prelude
 
+import Assembly.Premise (checkRefs, checkPremise, Premise(..))
+import Assembly.Error (AssemblyError(..), renderAssemblyError)
+import Laws.StrategyRules (SignRule(..), Template(..))
+import Laws.Types (IntentF(..), RefKind(..), Id(..), StrategyId, candidateTransactionId)
+import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
+
 import Core.Kernel.Types (Account(..), Amount(..), Party(..), Short(..), noNext)
 import Core.Kernel.Types as K
 import Laws.World (WorldTemplate(..))
 import Data.Either (either, Either(..), isLeft)
 import Data.Array (filter, fromFoldable, head)
-import Assembly.Premise (checkPremise, Premise(..))
 import Assembly.Restrict (everything, restrict)
 
 import Assembly.Experiment (Experiment(..), variants)
@@ -22,8 +27,6 @@ import Core.Draw (Seed(..))
 import Core.Num as Q
 import Laws.CandidateTransaction (candidateTransactionAt)
 import World.Error (ValidationError(..))
-import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
-import Laws.Types (Id(..), StrategyId, RefKind(..), candidateTransactionId)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -33,7 +36,6 @@ import Foreign.Object as Object
 import Data.Tuple (Tuple(..))
 import Assembly.Bindings (scriptBindings)
 import Assembly.Assemble (assemble, assemblePreset, presetBindings, unknownSeats)
-import Assembly.Error (AssemblyError(..), renderAssemblyError)
 import Assembly.Override (Override(..), decodeOverrides, encodeOverrides)
 import Schema.Run (specShape)
 import Core.Shape as Shape
@@ -83,6 +85,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           case restrict ((everything ok.possibleWorld) { actors = filter (_ /= Id "NG") (everything ok.possibleWorld).actors }) ok of
             Right cut -> Map.size cut.possibleWorld.world.templates `shouldEqual` 0
             Left e -> fail (show e)
+
+  describe "A Strategy that enters an agreement" do
+    let
+      grant = WorldTemplate { params: [ "amount" ], parties: [ "p" ], transaction: { obligations: [], ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing, consented: [] } }
+      entering template args parties = { rules: [ { when: [], propose: [ IntentT (Enter { template, args: map (\name -> { name, value: lit 1 }) args, parties: map (\role -> { role, actor: Id "self" }) parties }) ] } ], sign: [] }
+      check parts = checkRefs "s" (possibleWorldNames parts.possibleWorld)
+      withGrant p = p { possibleWorld = p.possibleWorld { world = p.possibleWorld.world { templates = Map.singleton "grant" grant } } }
+    it "is refused at load for an unknown template, and for a missing argument or party" do
+      parts <- withGrant <$> premise
+      check parts (entering "grant" [ "amount" ] [ "p" ]) `shouldEqual` Right unit
+      check parts (entering "nope" [ "amount" ] [ "p" ]) `shouldEqual` Left (Unresolved "s" RefTemplate "nope")
+      check parts (entering "grant" [] [ "p" ]) `shouldEqual` Left (IncompleteAgreement "s" "grant" "amount")
+      check parts (entering "grant" [ "amount" ] []) `shouldEqual` Left (IncompleteAgreement "s" "grant" "p")
+    it "signing by an unknown template is refused at load" do
+      parts <- withGrant <$> premise
+      check parts { rules: [], sign: [ SignAgreements [ "grant" ] ] } `shouldEqual` Right unit
+      check parts { rules: [], sign: [ SignAgreements [ "nope" ] ] } `shouldEqual` Left (Unresolved "s" RefTemplate "nope")
 
   describe "Seat presets" do
     it "a human named for a live session must be a configured seat" do

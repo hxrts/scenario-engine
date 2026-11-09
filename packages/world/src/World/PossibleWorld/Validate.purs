@@ -23,7 +23,7 @@ import Laws.Query (aggregateOf, isAggregate)
 import Laws.Types (DrawSource(..), Actor, ActorId, Id(..), Exchange, ExchangeId, StrategyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
 import Core.Kernel.Consume (validateTemplates)
 import Data.Newtype (unwrap)
-import Laws.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld, lawAction, lawRefs, spawnTargets, templateRefs)
+import Laws.World (TemplateTerms, WorldTemplate, templateTerms, RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld, lawAction, lawRefs, spawnTargets, templateRefs)
 import Data.Const (Const(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, mapMaybe, nub, null)
 import Data.Either (Either(..), either)
@@ -187,18 +187,20 @@ type Names m r t k =
   , resources :: Map ResourceId r
   , transformations :: Map TransformationId t
   , ruleKinds :: Map RuleKindId k
+  , templates :: Map String TemplateTerms
   , parameters :: Set String
   , strategies :: Set StrategyId
   }
 
 -- | The names of a world on its own: a literal premise has no parameters, schemes, or Strategies.
-worldNames :: forall m r t k rest. { actors :: Map ActorId Actor, exchanges :: Map ExchangeId m, resources :: Map ResourceId r, transformations :: Map TransformationId t, ruleKinds :: Map RuleKindId k | rest } -> Names m r t k
+worldNames :: forall m r t k rest. { actors :: Map ActorId Actor, exchanges :: Map ExchangeId m, resources :: Map ResourceId r, transformations :: Map TransformationId t, ruleKinds :: Map RuleKindId k, templates :: Map String WorldTemplate | rest } -> Names m r t k
 worldNames w =
   { actors: w.actors
   , exchanges: w.exchanges
   , resources: w.resources
   , transformations: w.transformations
   , ruleKinds: w.ruleKinds
+  , templates: map templateTerms w.templates
   , parameters: Set.empty
   , strategies: Set.empty
   }
@@ -223,3 +225,4 @@ unknownNames w = map (\(Tuple kind name) -> UnknownReference kind name) <<< filt
     RefProcedure -> any (maybe false (Map.member (Id name) <<< _.procedures) <<< aggregateOf) (values w.actors)
     RefStrategy -> Set.member (Id name) w.strategies
     RefRuleKind -> Map.member (Id name) w.ruleKinds
+    RefTemplate -> Map.member name w.templates

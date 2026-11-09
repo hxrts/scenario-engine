@@ -12,6 +12,7 @@ data AssemblyError
   = UnknownPreset String
   | Invalid (Array ValidationError) -- the possible World or its configuration fails its checks
   | Unresolved String RefKind String -- a Strategy or preset names something the possible World lacks
+  | IncompleteAgreement String String String -- a Strategy enters a template without an argument or a party it needs
   | NotSimulable ActorId -- a seat played by a human or an agent cannot be simulated
   | LiteralOverrides -- a literal premise is a World State as written, so it takes no overrides
   | UnboundSeat ActorId -- a configured seat has no binding
@@ -28,6 +29,7 @@ renderAssemblyError = case _ of
   UnknownPreset name -> "unknown preset " <> name
   Invalid es -> "invalid premise: " <> intercalate "; " (map show es)
   Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref
+  IncompleteAgreement what template missing -> what <> ": enters " <> template <> " without " <> missing
   NotSimulable e -> "seat " <> show e <> " is played by a human or an agent, which the simulator does not run"
   LiteralOverrides -> "a literal premise takes no overrides"
   UnboundSeat e -> "seat " <> show e <> " has no binding"
